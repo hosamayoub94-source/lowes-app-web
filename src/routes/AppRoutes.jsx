@@ -16,8 +16,9 @@ import { ROLES } from '@data/teams';
 // Login is the cold-start screen — keep it eagerly loaded.
 import LoginScreen from '@screens/LoginScreen';
 
-const DailyWorkspacePage  = lazy(() => import(/* webpackChunkName: "workspace"      */ '@modules/workspace/pages/DailyWorkspacePage'));
-const HomeScreen          = lazy(() => import(/* webpackChunkName: "home"           */ '@screens/HomeScreen'));
+// Home screen is the default landing — eager load for fast first paint.
+import HomeScreen from '@screens/HomeScreen';
+
 const AttendanceScreen    = lazy(() => import(/* webpackChunkName: "attendance"     */ '@screens/AttendanceScreen'));
 const TasksScreen         = lazy(() => import(/* webpackChunkName: "tasks"          */ '@modules/tasks/pages/TasksPage'));
 const TeamScreen          = lazy(() => import(/* webpackChunkName: "team"           */ '@screens/TeamScreen'));
@@ -30,10 +31,6 @@ const AdminUsersScreen    = lazy(() => import(/* webpackChunkName: "admin-users"
 const AdminSettingsScreen = lazy(() => import(/* webpackChunkName: "admin-settings" */ '@screens/admin/AdminSettingsScreen'));
 const AdminReportsScreen  = lazy(() => import(/* webpackChunkName: "admin-reports"  */ '@screens/admin/AdminReportsScreen'));
 const AuditDashboard      = lazy(() => import(/* webpackChunkName: "admin-audit"    */ '@modules/audit/pages/AuditDashboard'));
-const AdminOpsCenter      = lazy(() => import(/* webpackChunkName: "admin-ops"      */ '@/core/rollout/admin/AdminOperationsCenter'));
-const QADashboardPage          = lazy(() => import(/* webpackChunkName: "admin-qa"          */ '@/core/testing/dashboard/OperationalDashboard').then((m) => ({ default: m.OperationalDashboard })));
-const MaintenanceDashboardPage  = lazy(() => import(/* webpackChunkName: "admin-maintenance" */ '@/core/maintenance/dashboard/MaintenanceDashboard').then((m) => ({ default: m.MaintenanceDashboard })));
-const OperationsDashboardPage   = lazy(() => import(/* webpackChunkName: "admin-operations" */ '@/core/operations/dashboard/OperationalInsightsDashboard').then((m) => ({ default: m.OperationalInsightsDashboard })));
 
 const ALL_ROLES  = Object.values(ROLES);
 const MANAGEMENT = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -55,7 +52,7 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<DailyWorkspacePage />} />
+          <Route index element={<HomeScreen />} />
           <Route path={ROUTES.ATTENDANCE} element={<AttendanceScreen />} />
           <Route path={ROUTES.TASKS}      element={<TasksScreen />}      />
           <Route path={ROUTES.TEAM}       element={<TeamScreen />}       />
@@ -85,10 +82,6 @@ export function AppRoutes() {
             <Route path="settings" element={<AdminSettingsScreen />} />
             <Route path="reports"  element={<AdminReportsScreen />}  />
             <Route path="audit"    element={<AuditDashboard />}      />
-            <Route path="ops"      element={<AdminOpsCenter />}       />
-            <Route path="qa"          element={<QADashboardPage />}          />
-            <Route path="maintenance" element={<MaintenanceDashboardPage />} />
-            <Route path="operations"  element={<OperationsDashboardPage />}  />
           </Route>
         </Route>
 
