@@ -1,0 +1,102 @@
+@import './theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================
+   Base resets & defaults — RTL Arabic, Tajawal font.
+   Vars hold RGB triplets, so wrap with rgb() when used directly.
+   ============================================================= */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--color-cream));
+    color: rgb(var(--color-text));
+    font-family: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 15px;
+  }
+
+  @media (min-width: 768px) {
+    body { font-size: 14px; }
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input, select, textarea {
+    font-family: inherit;
+  }
+
+  select, input[type="time"], input[type="text"], input[type="number"],
+  input[type="email"], input[type="date"], input[type="password"], textarea {
+    color: rgb(var(--color-text));
+    background: rgb(var(--color-surface));
+  }
+}
+
+/* =============================================================
+   Component primitives — used by .ui/ components via @apply.
+   Mirrors the names from index_v4.html so the visual identity
+   stays identical.
+   ============================================================= */
+@layer components {
+  .ui-card {
+    @apply bg-surface border border-border rounded-card shadow-card p-[1.15rem] mb-[0.875rem];
+  }
+
+  .ui-card-label {
+    @apply text-[11px] font-bold tracking-wider text-muted uppercase mb-[0.6rem];
+  }
+
+  .ui-btn {
+    @apply min-h-[48px] px-3 py-3 bg-navy text-white border-0 rounded-[10px] text-sm font-bold w-full transition active:scale-[0.98];
+  }
+
+  .ui-btn-teal { @apply bg-teal; }
+  .ui-btn-green { @apply bg-green-bg text-green-fg border border-green; }
+  .ui-btn-muted { @apply bg-cream text-muted border-[1.5px] border-border; }
+  .ui-btn-sm   { @apply min-h-0 px-3.5 py-2 text-xs w-auto; }
+
+  .ui-input {
+    @apply w-full px-3 py-[11px] border-[1.5px] border-border rounded-[10px] text-sm bg-cream text-text outline-none focus:border-teal;
+  }
+
+  .ui-badge {
+    @apply text-[10px] font-bold px-[9px] py-[3px] rounded-pill flex-shrink-0;
+  }
+
+  .ui-stat-card {
+    @apply bg-surface border border-border rounded-[10px] p-[0.875rem] text-center;
+  }
+}
+
+/* =============================================================
+   Extra animations beyond Tailwind defaults.
+   ============================================================= */
+@keyframes gradMove {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Fine-grained scrollbar in app surfaces */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border) / 0.6);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track { background: transparent; }

@@ -1,0 +1,62 @@
+// =============================================================
+// Navigation items used by the Sidebar (desktop) and BottomNav
+// (mobile). Keys map to React Router routes in routes/AppRoutes.
+// =============================================================
+import { ROLES } from './teams';
+
+export const NAV_ITEMS = [
+  {
+    id: 'workspace',
+    label: 'الرئيسية',
+    icon: '🏠',
+    path: '/',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'attendance',
+    label: 'الحضور',
+    icon: '🕒',
+    path: '/attendance',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'tasks',
+    label: 'المهام',
+    icon: '📋',
+    path: '/tasks',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'team',
+    label: 'الفريق',
+    icon: '👥',
+    path: '/team',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'holidays',
+    label: 'الإجازات',
+    icon: '🏖️',
+    path: '/holidays',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'accounting',
+    label: 'الحسابات',
+    icon: '💰',
+    path: '/accounting',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'admin',
+    label: 'الإدارة',
+    icon: '⚙️',
+    path: '/admin',
+    roles: [ROLES.ADMIN],
+  },
+];
+
+export function navItemsForRole(role) {
+  if (!role) return [];
+  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+}

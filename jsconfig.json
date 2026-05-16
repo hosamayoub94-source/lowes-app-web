@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@screens/*": ["src/screens/*"],
+      "@layouts/*": ["src/layouts/*"],
+      "@services/*": ["src/services/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@stores/*": ["src/stores/*"],
+      "@utils/*": ["src/utils/*"],
+      "@context/*": ["src/context/*"],
+      "@data/*": ["src/data/*"],
+      "@styles/*": ["src/styles/*"],
+      "@routes/*": ["src/routes/*"],
+      "@modules/*": ["src/modules/*"]
+    },
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "target": "es2020",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src/**/*", "vite.config.js", "tailwind.config.js"]
+}

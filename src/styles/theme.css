@@ -1,0 +1,81 @@
+/* =============================================================
+   Lowe's Professional — Theme tokens (single source of truth)
+   Migrated from index_v4.html :root + [data-theme="dark"]
+   Tokens use space-separated RGB triplets so Tailwind's
+   `<alpha-value>` placeholder enables opacity modifiers
+   (e.g., bg-teal/10, ring-teal/40).
+   ============================================================= */
+
+:root {
+  /* Brand */
+  --color-navy: 15 31 61;          /* #0f1f3d */
+  --color-teal: 13 115 119;        /* #0d7377 */
+
+  /* Surfaces */
+  --color-cream: 248 247 244;       /* #f8f7f4 */
+  --color-surface: 255 255 255;     /* #ffffff */
+  --color-surface-alt: 240 239 235; /* #f0efeb */
+  --color-border: 15 31 61;         /* same hue as navy, alpha applied via Tailwind utility default */
+
+  /* Text */
+  --color-text: 30 36 51;           /* #1e2433 */
+  --color-muted: 107 114 128;       /* #6b7280 */
+
+  /* Status — green */
+  --color-green: 16 185 129;        /* #10b981 */
+  --color-green-bg: 236 253 245;    /* #ecfdf5 */
+  --color-green-fg: 6 95 70;        /* #065f46 */
+
+  /* Status — red */
+  --color-red: 239 68 68;           /* #ef4444 */
+  --color-red-bg: 254 242 242;      /* #fef2f2 */
+  --color-red-fg: 153 27 27;        /* #991b1b */
+
+  /* Status — blue */
+  --color-blue: 59 130 246;         /* #3b82f6 */
+  --color-blue-bg: 239 246 255;     /* #eff6ff */
+  --color-blue-fg: 30 64 175;       /* #1e40af */
+
+  /* Status — amber */
+  --color-amber: 245 158 11;        /* #f59e0b */
+  --color-amber-bg: 255 251 235;    /* #fffbeb */
+  --color-amber-fg: 146 64 14;      /* #92400e */
+
+  /* Status — purple */
+  --color-purple: 139 92 246;       /* #8b5cf6 */
+  --color-purple-bg: 245 243 255;   /* #f5f3ff */
+  --color-purple-fg: 91 33 182;     /* #5b21b6 */
+
+  /* Border alpha — kept low for soft separators */
+  --border-alpha: 0.10;
+
+  /* Layout helpers */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sidebar-width: 220px;
+}
+
+[data-theme="dark"] {
+  --color-cream: 13 17 23;          /* #0d1117 */
+  --color-surface: 22 27 34;        /* #161b22 */
+  --color-surface-alt: 28 34 43;    /* #1c222b */
+  --color-border: 255 255 255;
+  --border-alpha: 0.08;
+
+  --color-text: 230 237 243;        /* #e6edf3 */
+  --color-muted: 139 148 158;       /* #8b949e */
+
+  --color-green-bg: 13 40 24;
+  --color-green-fg: 63 185 80;
+
+  --color-red-bg: 45 17 23;
+  --color-red-fg: 248 81 73;
+
+  --color-blue-bg: 13 25 38;
+  --color-blue-fg: 88 166 255;
+
+  --color-amber-bg: 39 29 4;
+  --color-amber-fg: 227 179 65;
+
+  --color-purple-bg: 29 23 51;
+  --color-purple-fg: 167 139 250;
+}
