@@ -40,6 +40,7 @@ const _counters = {
   filesUploaded:    0,
   errorsTotal:      0,
   notificationsSent:0,
+  dealsWon:         0,
 };
 
 export function incrementCounter(key) {
@@ -266,7 +267,7 @@ function _shiftPeriodBack(filters) {
   return { ...filters, from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
 }
 
-function _defaultSeriesMetrics(dashboardId) {
+export function getDefaultMetricsForDashboard(dashboardId) {
   const map = {
     [DASHBOARD_ID.EXECUTIVE]:    [KPI.ATTENDANCE_RATE, KPI.PRODUCTIVITY_SCORE, KPI.COMPLETED_TASKS],
     [DASHBOARD_ID.ATTENDANCE]:   [KPI.ATTENDANCE_RATE, KPI.LATE_EMPLOYEES, KPI.ABSENT_EMPLOYEES],
@@ -277,8 +278,33 @@ function _defaultSeriesMetrics(dashboardId) {
   return map[dashboardId] ?? [KPI.ATTENDANCE_RATE];
 }
 
+// Keep internal alias for use within this module
+function _defaultSeriesMetrics(dashboardId) {
+  return getDefaultMetricsForDashboard(dashboardId);
+}
+
 async function _fetchRecentActivity() {
-  return MOCK_ACTIVITY;
+  if (USE_MOCK) return MOCK_ACTIVITY;
+  try {
+    const { supabase } = await import('@services/supabase');
+    const { data } = await supabase
+      .from('activity_logs')
+      .select('id, action_label, entity_type, entity_label, user_name, created_at, severity')
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (!data?.length) return MOCK_ACTIVITY;
+    return data.map(row => ({
+      id:       row.id,
+      type:     row.entity_type ?? 'system',
+      label:    row.action_label ?? '',
+      entity:   row.entity_label ?? '',
+      user:     row.user_name ?? '',
+      ts:       row.created_at,
+      severity: row.severity ?? 'info',
+    }));
+  } catch {
+    return MOCK_ACTIVITY;
+  }
 }
 
 function _seedDefaultWidgets(dashboardId, userId) {

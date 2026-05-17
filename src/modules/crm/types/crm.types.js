@@ -54,6 +54,17 @@ export const LEAD_SOURCE_LABELS = {
   [LEAD_SOURCE.PARTNER]:  'شريك',
 };
 
+export const LEAD_SOURCE_ICONS = {
+  [LEAD_SOURCE.MANUAL]:   '✍️',
+  [LEAD_SOURCE.WEBSITE]:  '🌐',
+  [LEAD_SOURCE.REFERRAL]: '🤝',
+  [LEAD_SOURCE.SOCIAL]:   '📱',
+  [LEAD_SOURCE.COLD_CALL]:'📞',
+  [LEAD_SOURCE.AD]:       '📢',
+  [LEAD_SOURCE.EVENT]:    '🎪',
+  [LEAD_SOURCE.PARTNER]:  '🏢',
+};
+
 // ── Deal statuses ─────────────────────────────────────────────
 export const DEAL_STATUS = Object.freeze({
   OPEN:     'open',
@@ -163,6 +174,16 @@ export const FOLLOWUP_TYPE_LABELS = {
   [FOLLOWUP_TYPE.VISIT]:   'زيارة',
 };
 
+export const FOLLOWUP_TYPE_ICONS = {
+  [FOLLOWUP_TYPE.CALL]:    '📞',
+  [FOLLOWUP_TYPE.EMAIL]:   '📧',
+  [FOLLOWUP_TYPE.MEETING]: '🤝',
+  [FOLLOWUP_TYPE.WHATSAPP]:'💬',
+  [FOLLOWUP_TYPE.SMS]:     '✉️',
+  [FOLLOWUP_TYPE.TASK]:    '✓',
+  [FOLLOWUP_TYPE.VISIT]:   '🏢',
+};
+
 // ── Followup statuses ─────────────────────────────────────────
 export const FOLLOWUP_STATUS = Object.freeze({
   PENDING:   'pending',
@@ -170,6 +191,13 @@ export const FOLLOWUP_STATUS = Object.freeze({
   OVERDUE:   'overdue',
   CANCELLED: 'cancelled',
 });
+
+export const FOLLOWUP_STATUS_LABELS = {
+  [FOLLOWUP_STATUS.PENDING]:  'قيد الانتظار',
+  [FOLLOWUP_STATUS.DONE]:     'مكتمل',
+  [FOLLOWUP_STATUS.OVERDUE]:  'متأخر',
+  [FOLLOWUP_STATUS.CANCELLED]:'ملغي',
+};
 
 export const FOLLOWUP_STATUS_COLORS = {
   [FOLLOWUP_STATUS.PENDING]:  '#3b82f6',
@@ -219,16 +247,29 @@ export function getPipelineValue(deals) {
   return (deals ?? []).reduce((sum, d) => sum + (Number(d.value) || 0), 0);
 }
 
-/** Won deals / total closed deals × 100 */
-export function getWinRate(deals) {
+/** Won deals / total closed deals × 100.
+ *  Accepts either an array of deals OR (wonCount, lostCount) numbers. */
+export function getWinRate(dealsOrWonCount, lostCount) {
+  if (typeof dealsOrWonCount === 'number') {
+    const total = dealsOrWonCount + (lostCount || 0);
+    if (!total) return 0;
+    return Math.round((dealsOrWonCount / total) * 100);
+  }
+  const deals = dealsOrWonCount;
   const closed = (deals ?? []).filter((d) => d.status === DEAL_STATUS.WON || d.status === DEAL_STATUS.LOST);
   if (!closed.length) return 0;
   const won = closed.filter((d) => d.status === DEAL_STATUS.WON);
   return Math.round((won.length / closed.length) * 100);
 }
 
-/** Leads converted / total leads × 100 */
-export function getLeadConversionRate(leads) {
+/** Leads converted / total leads × 100.
+ *  Accepts either an array of leads OR (convertedCount, totalCount) numbers. */
+export function getLeadConversionRate(leadsOrConvertedCount, totalCount) {
+  if (typeof leadsOrConvertedCount === 'number') {
+    if (!totalCount) return 0;
+    return Math.round((leadsOrConvertedCount / totalCount) * 100);
+  }
+  const leads = leadsOrConvertedCount;
   if (!leads?.length) return 0;
   const converted = leads.filter((l) => l.status === LEAD_STATUS.CONVERTED);
   return Math.round((converted.length / leads.length) * 100);

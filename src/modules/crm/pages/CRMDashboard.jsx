@@ -80,8 +80,8 @@ export default function CRMDashboard({ userId }) {
     <div style={{
       direction: 'rtl',
       fontFamily: 'inherit',
-      padding: 20,
-      background: '#f8fafc',
+      padding: '0 0 16px',
+      background: 'transparent',
       minHeight: '100vh',
     }}>
       {/* Page header */}

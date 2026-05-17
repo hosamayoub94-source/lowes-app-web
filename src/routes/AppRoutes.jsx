@@ -26,11 +26,15 @@ const HolidaysScreen      = lazy(() => import(/* webpackChunkName: "holidays"   
 const AccountingScreen    = lazy(() => import(/* webpackChunkName: "accounting"     */ '@screens/AccountingScreen'));
 const ProfileScreen       = lazy(() => import(/* webpackChunkName: "profile"        */ '@screens/ProfileScreen'));
 const NotFoundScreen      = lazy(() => import(/* webpackChunkName: "404"            */ '@screens/NotFoundScreen'));
+const CRMDashboard        = lazy(() => import(/* webpackChunkName: "crm"            */ '@modules/crm/pages/CRMDashboard'));
 const AdminScreen         = lazy(() => import(/* webpackChunkName: "admin"          */ '@screens/AdminScreen'));
 const AdminUsersScreen    = lazy(() => import(/* webpackChunkName: "admin-users"    */ '@screens/admin/AdminUsersScreen'));
 const AdminSettingsScreen = lazy(() => import(/* webpackChunkName: "admin-settings" */ '@screens/admin/AdminSettingsScreen'));
 const AdminReportsScreen  = lazy(() => import(/* webpackChunkName: "admin-reports"  */ '@screens/admin/AdminReportsScreen'));
 const AuditDashboard      = lazy(() => import(/* webpackChunkName: "admin-audit"    */ '@modules/audit/pages/AuditDashboard'));
+const QADashboard          = lazy(() => import(/* webpackChunkName: "admin-qa"          */ '@/core/testing/dashboard/OperationalDashboard.jsx'));
+const MaintenanceDashboard = lazy(() => import(/* webpackChunkName: "admin-maintenance" */ '@/core/maintenance/dashboard/MaintenanceDashboard.jsx'));
+const OperationalInsights  = lazy(() => import(/* webpackChunkName: "admin-operations"  */ '@/core/operations/dashboard/OperationalInsightsDashboard.jsx'));
 
 const ALL_ROLES  = Object.values(ROLES);
 const MANAGEMENT = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -55,6 +59,7 @@ export function AppRoutes() {
           <Route index element={<HomeScreen />} />
           <Route path={ROUTES.ATTENDANCE} element={<AttendanceScreen />} />
           <Route path={ROUTES.TASKS}      element={<TasksScreen />}      />
+          <Route path={ROUTES.CRM}        element={<CRMDashboard />}     />
           <Route path={ROUTES.TEAM}       element={<TeamScreen />}       />
           <Route path={ROUTES.HOLIDAYS}   element={<HolidaysScreen />}   />
           <Route path={ROUTES.PROFILE}    element={<ProfileScreen />}    />
@@ -78,10 +83,13 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           >
-            <Route path="users"    element={<AdminUsersScreen />}    />
-            <Route path="settings" element={<AdminSettingsScreen />} />
-            <Route path="reports"  element={<AdminReportsScreen />}  />
-            <Route path="audit"    element={<AuditDashboard />}      />
+            <Route path="users"       element={<AdminUsersScreen />}    />
+            <Route path="settings"    element={<AdminSettingsScreen />} />
+            <Route path="reports"     element={<AdminReportsScreen />}  />
+            <Route path="audit"       element={<AuditDashboard />}      />
+            <Route path="qa"          element={<QADashboard />}          />
+            <Route path="maintenance" element={<MaintenanceDashboard />} />
+            <Route path="operations"  element={<OperationalInsights />}  />
           </Route>
         </Route>
 

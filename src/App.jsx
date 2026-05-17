@@ -7,15 +7,22 @@ import { BrowserRouter } from 'react-router-dom';
 import { ThemeBoot }     from '@context/ThemeBoot';
 import { AuthBoot }      from '@context/AuthBoot';
 import { AppRoutes }     from '@routes/AppRoutes';
+import { MockModeBanner } from '@components/dev/MockModeBanner';
+import { ErrorBoundary } from '@components/ui/ErrorBoundary';
 
 export default function App() {
   return (
-    <ThemeBoot>
-      <AuthBoot>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthBoot>
-    </ThemeBoot>
+    <ErrorBoundary>
+      <ThemeBoot>
+        <AuthBoot>
+          <BrowserRouter>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
+            <MockModeBanner />
+          </BrowserRouter>
+        </AuthBoot>
+      </ThemeBoot>
+    </ErrorBoundary>
   );
 }

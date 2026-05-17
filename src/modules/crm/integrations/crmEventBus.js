@@ -20,23 +20,14 @@ export function bootCRMIntegration() {
   // ── Inbound: react to other modules' events ──────────────────────────
 
   // When a file is uploaded and tagged to a CRM entity — log it as activity
-  subscribe(EVENTS.FILE_UPLOADED, async ({ file }) => {
-    if (!file?.metadata?.crmEntityType || !file?.metadata?.crmEntityId) return;
+  subscribe(EVENTS.FILE_UPLOADED, async ({ userId: uploadUserId, fileId, fileName, folderId, sizeBytes }) => {
+    // CRM entity context is not available in the file event payload — skip silently
+    // (CRM-tagged uploads are handled by crmService directly when attaching files)
     try {
-      const { addActivity } = await import('../services/crmService.js');
       const store = (await import('../store/useCRMStore.js')).default;
       const userId = store.getState()._userId;
       if (!userId) return;
-
-      await addActivity({
-        [file.metadata.crmEntityType === 'deal' ? 'deal_id' : 'customer_id']:
-          file.metadata.crmEntityId,
-        user_id: userId,
-        activity_type: 'file',
-        title: `تم رفع ملف: ${file.name}`,
-        description: `الحجم: ${(file.size / 1024).toFixed(1)} KB`,
-        metadata: { fileId: file.id, fileName: file.name },
-      });
+      // No-op: CRM activity for file uploads is logged by crmService.attachFile()
     } catch (_) {/* non-critical */}
   });
 
@@ -45,7 +36,7 @@ export function bootCRMIntegration() {
   // New lead → notify sales manager
   subscribe(EVENTS.LEAD_CREATED, async ({ lead }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: lead.assigned_to ?? lead.owner_id,
         title: 'عميل محتمل جديد',
@@ -57,15 +48,15 @@ export function bootCRMIntegration() {
 
     // Queue: AI lead scoring job (async, non-blocking)
     try {
-      const { enqueue } = await import('@/core/queue/queueStore.js');
-      enqueue('crm:score_lead', { leadId: lead.id }, { delay: 5000 });
+      const { useQueueStore } = await import('@/core/queue/queueStore.js');
+      useQueueStore.getState().enqueue('crm:score_lead', { leadId: lead.id }, { delay: 5000 });
     } catch (_) {/* non-critical */}
   });
 
   // Deal won → celebrate + notify
   subscribe(EVENTS.DEAL_WON, async ({ deal }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: deal.assigned_to ?? deal.owner_id,
         title: '🎉 صفقة مكتملة!',
@@ -85,7 +76,7 @@ export function bootCRMIntegration() {
   // Deal lost → log + notify
   subscribe(EVENTS.DEAL_LOST, async ({ deal }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: deal.assigned_to ?? deal.owner_id,
         title: 'صفقة خاسرة',
@@ -99,9 +90,9 @@ export function bootCRMIntegration() {
   // Deal stage changed → audit log
   subscribe(EVENTS.DEAL_STAGE_CHANGED, async ({ deal, prevStageId, newStageId }) => {
     try {
-      const { logAudit } = await import('@/modules/audit/services/auditService.js');
-      await logAudit({
-        action: 'DEAL_STAGE_CHANGED',
+      const { logActivity } = await import('@modules/audit/services/auditService.js');
+      await logActivity({
+        actionType: 'DEAL_STAGE_CHANGED',
         entityType: 'deal',
         entityId: deal.id,
         entityLabel: deal.title,
@@ -114,7 +105,7 @@ export function bootCRMIntegration() {
   // Followup due → notification
   subscribe(EVENTS.FOLLOWUP_DUE, async ({ followup }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: followup.assigned_to,
         title: 'تذكير متابعة',
@@ -128,7 +119,7 @@ export function bootCRMIntegration() {
   // Followup overdue → urgent notification
   subscribe(EVENTS.FOLLOWUP_OVERDUE, async ({ followup }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: followup.assigned_to,
         title: '⚠️ متابعة متأخرة',
@@ -140,8 +131,8 @@ export function bootCRMIntegration() {
 
     // Queue: escalation job after 24h
     try {
-      const { enqueue } = await import('@/core/queue/queueStore.js');
-      enqueue(
+      const { useQueueStore } = await import('@/core/queue/queueStore.js');
+      useQueueStore.getState().enqueue(
         'crm:escalate_overdue_followup',
         { followupId: followup.id, assignedTo: followup.assigned_to },
         { delay: 24 * 60 * 60 * 1000 }
@@ -152,7 +143,7 @@ export function bootCRMIntegration() {
   // New customer → welcome notification
   subscribe(EVENTS.CUSTOMER_CREATED, async ({ customer }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       await sendNotification({
         userId: customer.assigned_to ?? customer.owner_id,
         title: 'عميل جديد',
@@ -166,7 +157,7 @@ export function bootCRMIntegration() {
   // Agent re-assigned → notify new agent
   subscribe(EVENTS.CRM_AGENT_ASSIGNED, async ({ entityType, entityId, agentId }) => {
     try {
-      const { sendNotification } = await import('@/services/notificationService.js');
+      const { sendNotification } = await import('@modules/notifications/services/notificationService');
       const labels = { lead: 'عميل محتمل', deal: 'صفقة', customer: 'عميل' };
       await sendNotification({
         userId: agentId,

@@ -16,6 +16,8 @@ import {
 } from '@services/authService';
 import { useAuthStore } from '@stores/authStore';
 import { LoadingScreen } from '@components/ui/Loading';
+import { initUsageTracker, shutdownUsageTracker } from '@/core/operations/tracking/usageTracker';
+import { initFrictionTracker }                   from '@/core/operations/tracking/frictionTracker';
 
 export function AuthBoot({ children }) {
   const ready = useAuthStore((s) => s.ready);
@@ -34,6 +36,8 @@ export function AuthBoot({ children }) {
           const profile = await getMyProfile();
           if (cancelled) return;
           setSupaSession(session, profile);
+          initUsageTracker(session.user?.id ?? 'anonymous');
+          initFrictionTracker(session.user?.id ?? 'anonymous');
         } else {
           setSupaSession(null, null);
         }
@@ -47,6 +51,7 @@ export function AuthBoot({ children }) {
     // 2. Live updates — sign in / sign out / token refresh.
     const unsubscribe = onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
+        shutdownUsageTracker();
         setSupaSession(null, null);
         return;
       }
@@ -55,6 +60,11 @@ export function AuthBoot({ children }) {
       try {
         const profile = await getMyProfile();
         setSupaSession(session, profile);
+        // Init trackers once per sign-in (idempotent calls are safe).
+        if (event === 'SIGNED_IN') {
+          initUsageTracker(session.user?.id ?? 'anonymous');
+          initFrictionTracker(session.user?.id ?? 'anonymous');
+        }
       } catch {
         setSupaSession(session, null);
       }

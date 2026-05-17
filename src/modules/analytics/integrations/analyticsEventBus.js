@@ -56,7 +56,8 @@ export function emitReportCreated(reportId, reportType) {
 // ── Private: wire listeners ───────────────────────────────────
 
 function _wireListeners() {
-  import('@/core/events').then(({ bus }) => {
+  import('@/core/events').then(({ on: busOn }) => {
+    const bus = { on: busOn };
 
     // ── Attendance events → realtime counters ─────────────
     bus.on(EVENTS.ATTENDANCE_CHECK_IN, () => {
@@ -95,7 +96,7 @@ function _wireListeners() {
     bus.on(EVENTS.ANALYTICS_ALERT_TRIGGERED, async ({ metric, value, status }) => {
       if (status !== 'critical') return;
       try {
-        const { sendNotification } = await import('@services/notificationService');
+        const { sendNotification } = await import('@modules/notifications/services/notificationService');
         const { KPI_LABELS, formatKPI } = await import('../types/analytics.types');
         await sendNotification({
           userId: 'admin',  // broadcast — notification service resolves admin IDs
@@ -122,7 +123,7 @@ function _incrementCounter(key) {
 }
 
 function _emit(eventName, payload) {
-  import('@/core/events').then(({ bus }) => {
-    bus.emit(eventName, payload, { source: EVENT_SOURCES.ANALYTICS });
+  import('@/core/events').then(({ emit: busEmit }) => {
+    busEmit(eventName, payload, { source: EVENT_SOURCES.ANALYTICS });
   }).catch(() => {});
 }

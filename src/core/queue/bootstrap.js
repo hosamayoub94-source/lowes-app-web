@@ -53,8 +53,7 @@ export function bootQueue({ concurrency = 3 } = {}) {
     else resumeWorker();
   });
 
-  // 6. Let the bus know the queue is up
-  emit(EVENTS.SYSTEM_BOOT, { source: 'queue' });
+  // 6. SYSTEM_BOOT is emitted once by events/bootstrap.js — do not re-emit here.
 
   if (import.meta.env.DEV) {
     console.info('[Queue] Boot complete — concurrency:', concurrency);

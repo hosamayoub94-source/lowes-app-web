@@ -5,12 +5,14 @@
 
 // ── Job Types ─────────────────────────────────────────────────
 export const JOB_TYPE = Object.freeze({
-  SEND_NOTIFICATION:  'send_notification',
-  SEND_REMINDER:      'send_reminder',
-  CLEANUP_LOGS:       'cleanup_logs',
-  DAILY_SUMMARY:      'daily_summary',
-  RETRY_FAILED_EVENT: 'retry_failed_event',
-  SYNC_OFFLINE_DATA:  'sync_offline_data',
+  SEND_NOTIFICATION:    'send_notification',
+  SEND_REMINDER:        'send_reminder',
+  CLEANUP_LOGS:         'cleanup_logs',
+  DAILY_SUMMARY:        'daily_summary',
+  RETRY_FAILED_EVENT:   'retry_failed_event',
+  SYNC_OFFLINE_DATA:    'sync_offline_data',
+  ABSENT_CHECK:         'ABSENT_CHECK',
+  THUMBNAIL_GENERATION: 'THUMBNAIL_GENERATION',
 });
 
 // ── Job States ────────────────────────────────────────────────
@@ -70,6 +72,18 @@ export const JOB_CONFIG = {
     timeoutMs:   20_000,
     backoffBase: 2_000,
   },
+  [JOB_TYPE.ABSENT_CHECK]: {
+    priority:    JOB_PRIORITY.HIGH,
+    maxRetries:  2,
+    timeoutMs:   15_000,
+    backoffBase: 5_000,
+  },
+  [JOB_TYPE.THUMBNAIL_GENERATION]: {
+    priority:    JOB_PRIORITY.LOW,
+    maxRetries:  1,
+    timeoutMs:   30_000,
+    backoffBase: 5_000,
+  },
 };
 
 export const DEFAULT_JOB_CONFIG = {
@@ -81,12 +95,14 @@ export const DEFAULT_JOB_CONFIG = {
 
 // ── Arabic labels ─────────────────────────────────────────────
 export const JOB_TYPE_LABELS = {
-  [JOB_TYPE.SEND_NOTIFICATION]:  'إرسال إشعار',
-  [JOB_TYPE.SEND_REMINDER]:      'إرسال تذكير',
-  [JOB_TYPE.CLEANUP_LOGS]:       'تنظيف السجلات',
-  [JOB_TYPE.DAILY_SUMMARY]:      'ملخص يومي',
-  [JOB_TYPE.RETRY_FAILED_EVENT]: 'إعادة محاولة حدث',
-  [JOB_TYPE.SYNC_OFFLINE_DATA]:  'مزامنة البيانات',
+  [JOB_TYPE.SEND_NOTIFICATION]:    'إرسال إشعار',
+  [JOB_TYPE.SEND_REMINDER]:        'إرسال تذكير',
+  [JOB_TYPE.CLEANUP_LOGS]:         'تنظيف السجلات',
+  [JOB_TYPE.DAILY_SUMMARY]:        'ملخص يومي',
+  [JOB_TYPE.RETRY_FAILED_EVENT]:   'إعادة محاولة حدث',
+  [JOB_TYPE.SYNC_OFFLINE_DATA]:    'مزامنة البيانات',
+  [JOB_TYPE.ABSENT_CHECK]:         'فحص الغياب',
+  [JOB_TYPE.THUMBNAIL_GENERATION]: 'توليد الصورة المصغرة',
 };
 
 export const JOB_STATE_LABELS = {

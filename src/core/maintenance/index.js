@@ -31,8 +31,6 @@ export {
   isValidServiceName,
   isValidComponentName,
   isValidConstantName,
-  NAMING_RULES,
-  KNOWN_EVENT_NAMESPACES,
 } from './architecture/codeConsistency';
 
 // ── Performance Cleanup ────────────────────────────────────────

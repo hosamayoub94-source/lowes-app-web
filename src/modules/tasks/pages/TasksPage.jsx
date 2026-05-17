@@ -4,17 +4,121 @@
 // No business logic here — pure composition & layout.
 // =============================================================
 
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState, useRef } from 'react';
 import { cn } from '@utils/classNames';
 import { Button } from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
 import { Spinner } from '@components/ui/Loading';
 import { useTasks } from '../hooks/useTasks';
+import { useAuthStore } from '@stores/authStore';
 import { TaskCard } from '../components/TaskCard';
 import { TaskStatsBar } from '../components/TaskStatsBar';
 import { TaskFilters } from '../components/TaskFilters';
 import { TaskDetailsDrawer } from '../components/TaskDetailsDrawer';
 import { countActiveFilters } from '../utils/taskUtils';
+
+// ── Create task modal ─────────────────────────────────────────
+const PRIORITIES = [
+  { value: 'urgent', label: '⚡ عاجلة' },
+  { value: 'high',   label: '▲ مرتفعة' },
+  { value: 'medium', label: '△ متوسطة' },
+  { value: 'low',    label: '▽ منخفضة' },
+];
+
+function CreateTaskModal({ open, onClose, onSubmit, saving }) {
+  const formRef = useRef(null);
+  const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    onSubmit(form);
+  };
+
+  const handleClose = () => { setForm({ title: '', description: '', priority: 'medium', due_date: '' }); onClose(); };
+
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="إضافة مهمة جديدة"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} aria-hidden />
+
+      {/* Sheet */}
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        className="relative z-10 w-full max-w-lg bg-surface rounded-2xl shadow-modal p-6 space-y-4 animate-pop-in"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-text">مهمة جديدة</h2>
+          <button type="button" onClick={handleClose} className="text-muted hover:text-text text-xl leading-none">×</button>
+        </div>
+
+        {/* Title */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">عنوان المهمة *</label>
+          <input
+            autoFocus
+            required
+            value={form.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="أدخل عنوان المهمة..."
+            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">الوصف</label>
+          <textarea
+            rows={3}
+            value={form.description}
+            onChange={(e) => set('description', e.target.value)}
+            placeholder="تفاصيل اختيارية..."
+            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
+          />
+        </div>
+
+        {/* Priority + Due date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">الأولوية</label>
+            <select
+              value={form.priority}
+              onChange={(e) => set('priority', e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+            >
+              {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">تاريخ الاستحقاق</label>
+            <input
+              type="date"
+              value={form.due_date}
+              onChange={(e) => set('due_date', e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 pt-1">
+          <Button type="button" variant="outline" size="sm" onClick={handleClose}>إلغاء</Button>
+          <Button type="submit" variant="teal" size="sm" disabled={saving || !form.title.trim()} className="gap-2 min-w-[90px]">
+            {saving ? <Spinner size="sm" /> : 'إضافة المهمة'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 // ── Section header ────────────────────────────────────────────
 function SectionHeader({ count, hasFilters, onReset }) {
@@ -111,7 +215,7 @@ function UnseenIndicator({ count }) {
 }
 
 // ── Page header ───────────────────────────────────────────────
-function PageHeader({ unseenCount, onRefresh, loading }) {
+function PageHeader({ unseenCount, onRefresh, loading, onAdd }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -141,8 +245,8 @@ function PageHeader({ unseenCount, onRefresh, loading }) {
             <path d="M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
           </svg>
         </button>
-        {/* Add task — placeholder for future modal */}
-        <Button variant="teal" size="md" className="gap-2" disabled>
+        {/* Add task */}
+        <Button variant="teal" size="md" className="gap-2" onClick={onAdd}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
@@ -175,20 +279,53 @@ function TasksPage() {
     changeStatus,
     changeProgress,
     postComment,
+    addTask,
     clearError,
   } = useTasks();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const userId = useAuthStore((s) => s.user?.id);
 
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
 
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
 
+  const handleCreateSubmit = useCallback(async (form) => {
+    setCreating(true);
+    try {
+      await addTask({
+        title:       form.title.trim(),
+        description: form.description.trim() || null,
+        priority:    form.priority,
+        due_date:    form.due_date || null,
+        status:      'pending',
+        created_by:  userId || null,
+      }, userId);
+      setCreateOpen(false);
+    } catch {
+      /* error shown via store */
+    } finally {
+      setCreating(false);
+    }
+  }, [addTask, userId]);
+
   return (
     <div className="space-y-5 pb-24 sm:pb-8">
+      {/* ── Create task modal ── */}
+      <CreateTaskModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSubmit={handleCreateSubmit}
+        saving={creating}
+      />
+
       {/* ── Page header ── */}
       <PageHeader
         unseenCount={unseenCount}
         onRefresh={handleRefresh}
         loading={loading}
+        onAdd={() => setCreateOpen(true)}
       />
 
       {/* ── Error banner ── */}

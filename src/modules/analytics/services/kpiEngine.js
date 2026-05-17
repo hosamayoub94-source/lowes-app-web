@@ -209,8 +209,34 @@ async function _computeAttendanceKPIs(filters) {
 }
 
 async function _computeTaskKPIs(filters) {
-  // Placeholder — wire to tasks module if/when it exposes data
-  return _mockTaskKPIs();
+  try {
+    const { supabase } = await import('@services/supabase');
+    const today = new Date().toISOString().slice(0, 10);
+    const from = filters.from ?? today;
+    const to   = filters.to   ?? today;
+
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('status, progress, due_date, created_at')
+      .gte('created_at', from + 'T00:00:00Z')
+      .lte('created_at', to   + 'T23:59:59Z');
+
+    if (!tasks || tasks.length === 0) return _mockTaskKPIs();
+
+    const total     = tasks.length;
+    const completed = tasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+    const overdue   = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' && t.status !== 'done').length;
+    const avgProg   = tasks.reduce((s, t) => s + (t.progress ?? 0), 0) / total;
+
+    return {
+      [KPI.PRODUCTIVITY_SCORE]:   Math.round(avgProg),
+      [KPI.COMPLETED_TASKS]:      completed,
+      [KPI.OVERDUE_TASKS]:        overdue,
+      [KPI.TASK_COMPLETION_RATE]: total > 0 ? Math.round((completed / total) * 100) : 0,
+    };
+  } catch {
+    return _mockTaskKPIs();
+  }
 }
 
 async function _computeSystemKPIs(filters) {

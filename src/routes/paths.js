@@ -8,6 +8,7 @@ export const ROUTES = {
   TASKS: '/tasks',
   TEAM: '/team',
   HOLIDAYS: '/holidays',
+  CRM: '/crm',
   ACCOUNTING: '/accounting',
   ADMIN: '/admin',
   ADMIN_USERS: '/admin/users',

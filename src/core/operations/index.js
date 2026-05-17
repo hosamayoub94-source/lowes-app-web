@@ -35,13 +35,16 @@ export {
 // ── 2. Friction Tracker ───────────────────────────────────────
 export {
   initFrictionTracker,
-  trackFrictionEvent,
-  startActionWatch,
-  startFormWatch,
+  trackFrictionAction,
+  startPendingAction,
+  completePendingAction,
+  cancelPendingAction,
+  trackFormOpen,
+  trackFormAbandoned,
   getFrictionSummary,
   getFrictionByPage,
+  getFrictionEvents,
   clearFrictionData,
-  FRICTION_TYPES,
 } from './tracking/frictionTracker';
 
 // ── 3. Workflow Metrics ───────────────────────────────────────
@@ -49,38 +52,36 @@ export {
   startWorkflow,
   completeWorkflow,
   failWorkflow,
+  workflowStep,
   getAllWorkflowTypes,
+  getWorkflowStats,
   getFailureAnalysis,
-  getWorkflowById,
+  getProductivityPatterns,
   wireWorkflowMetricsToEventBus,
   loadPersistedMetrics,
-  clearWorkflowMetrics,
 } from './metrics/workflowMetrics';
 
 // ── 4. Productivity Metrics ───────────────────────────────────
 export {
-  recordEmployeeAction,
+  recordUserActivity,
   recordWorkflowCompletion,
   getProductivitySummary,
   getDailyActiveEmployees,
   getFeatureAdoption,
   getUserEngagementTiers,
-  getAttendanceConsistency,
-  getCRMResponseMetrics,
   getStuckUsers,
   loadPersistedProductivityMetrics,
-  clearProductivityMetrics,
 } from './metrics/productivityMetrics';
 
 // ── 5. Live Feedback ──────────────────────────────────────────
 export {
   submitReaction,
-  submitFriction,
+  reportFriction,
   submitSuggestion,
-  submitComplaint,
+  reportWorkflowComplaint,
   getFeedbackSummary,
   getFeedbackByPage,
-  getRecentFeedback,
+  getAllFeedback,
   clearFeedback,
   REACTIONS,
 } from './feedback/liveFeedback';
@@ -88,11 +89,12 @@ export {
 // ── 6. Operational Replay ─────────────────────────────────────
 export {
   startRecording,
-  getRecordedSequences,
+  stopRecording,
+  getReplayableQueueItems,
   replaySequence,
   replayQueueItem,
   replayDisconnectSequence,
-  clearRecordings,
+  getReplayLog,
 } from './replay/operationalReplay';
 
 // ── 7. Usage Reports ──────────────────────────────────────────

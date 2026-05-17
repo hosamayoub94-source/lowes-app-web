@@ -42,6 +42,7 @@ export function useTasks({ realtime = true } = {}) {
   const changeStatus  = useTaskStore((s) => s.changeStatus);
   const changeProgress= useTaskStore((s) => s.changeProgress);
   const postComment   = useTaskStore((s) => s.postComment);
+  const addTask       = useTaskStore((s) => s.addTask);
   const clearError    = useTaskStore((s) => s.clearError);
 
   // ── Initial load ──────────────────────────────────────────
@@ -68,6 +69,11 @@ export function useTasks({ realtime = true } = {}) {
     [postComment],
   );
 
+  const handleAddTask = useCallback(
+    (payload, actorId) => addTask(payload, actorId),
+    [addTask],
+  );
+
   return {
     // State
     tasks,
@@ -92,6 +98,7 @@ export function useTasks({ realtime = true } = {}) {
     changeStatus: handleStatusChange,
     changeProgress: handleProgressChange,
     postComment: handlePostComment,
+    addTask: handleAddTask,
     clearError,
   };
 }

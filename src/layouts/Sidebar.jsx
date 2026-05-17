@@ -34,11 +34,9 @@ export function Sidebar() {
           'fixed md:sticky top-0 z-50 md:z-10 h-screen w-72 shrink-0',
           'bg-surface border-e border-border flex flex-col',
           'transform transition-transform duration-200',
-          'md:translate-x-0',
+          // In RTL the sidebar sits on the physical RIGHT; translate-x-full hides it
+          // to the right (off-screen). translate-x-0 shows it. md always visible.
           sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0',
-          // RTL: drawer slides in from the start (right)
-          'rtl:translate-x-[-100%] rtl:md:translate-x-0',
-          sidebarOpen && 'rtl:translate-x-0',
         )}
         aria-label="Primary navigation"
       >

@@ -210,8 +210,8 @@ const useAnalyticsStore = create()(
         const { exportReport }   = await import('../services/exportService');
 
         // Determine metrics for this dashboard
-        const { _defaultMetricsForDashboard } = await import('../services/analyticsService');
-        const metrics = _defaultMetricsForDashboard?.(dashboardId) ?? Object.keys(get().kpis);
+        const { getDefaultMetricsForDashboard } = await import('../services/analyticsService');
+        const metrics = getDefaultMetricsForDashboard?.(dashboardId) ?? Object.keys(get().kpis);
 
         const { columns, rows } = await generateReport({
           reportType: dashboardId,

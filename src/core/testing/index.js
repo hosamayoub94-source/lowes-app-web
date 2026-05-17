@@ -10,28 +10,29 @@
 // ── QA Guards ─────────────────────────────────────────────────
 export {
   validate,
-  validateTask,
-  validateNotification,
-  validateQueueItem,
-  validateAuthSession,
-  validateEvent,
-  safeParse,
-  assertSchema,
+  guard,
+  assertValid,
+  validateArray,
+  safeGet,
+  SCHEMAS,
 } from './qa/runtimeValidations';
 
 // ── Health Checks ──────────────────────────────────────────────
 export {
   runAllHealthChecks,
-  runHealthCheck,
-  getLastHealthReport,
+  runCheck_byName,
+  getCheckNames,
 } from './health/healthChecks';
 
 // ── Environment Validation ─────────────────────────────────────
 export {
   validateEnvironment,
   validateFeatureFlags,
-  runDeploymentReadiness,
 } from './environment/envValidation';
+
+export {
+  runDeploymentReadiness,
+} from './environment/deploymentReadiness';
 
 // ── Mock Factories ─────────────────────────────────────────────
 export {
@@ -49,8 +50,10 @@ export {
 export {
   fireNotification,
   fireTaskUpdate,
+  fireTaskCreated,
+  fireTaskCompleted,
   fireCommentAdded,
-  firePresenceUpdate,
+  firePresenceChange,
   simulateActiveWorkday,
   burst,
 } from './mocks/mockRealtime';
@@ -59,7 +62,9 @@ export {
 export {
   simulateOffline,
   isSimulatingOffline,
-  simulateSlowNetwork,
+  withSlow3G,
+  withSlow2G,
+  withFlakiness,
   sleep,
 } from './mocks/networkSimulation';
 
@@ -91,21 +96,25 @@ export {
 // ── Performance Benchmarks ─────────────────────────────────────
 export {
   time,
-  timeSync,
+  createTimer,
   getStats,
   getSlowOperations,
   clearBenchmarks,
-  markStartup,
-  markRouteLoad,
-  markWidgetRender,
+  markAppStart,
+  markAppReady,
+  markRouteStart,
+  markRouteReady,
+  measureRender,
+  recordRealtimeLatency,
+  recordActionCompletion,
 } from './performance/benchmarkLayer';
 
 // ── Dev Toolbar (React component, DEV only) ────────────────────
 export { DevToolbar }           from './debug/devToolbar';
 
 // ── Operational Dashboard (React components) ──────────────────
-export { OperationalDashboard, QADashboardModal } from './dashboard/OperationalDashboard';
-export { buildSystemSnapshot, getQuickStatus }    from './dashboard/operationalDashboard';
+export { OperationalDashboard, QADashboardModal } from './dashboard/OperationalDashboard.jsx';
+export { buildSystemSnapshot, getQuickStatus }    from './dashboard/operationalDashboard.js';
 
 // ── Stress Testing ─────────────────────────────────────────────
 export {

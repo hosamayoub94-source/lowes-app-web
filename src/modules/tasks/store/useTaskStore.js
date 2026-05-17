@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
   fetchTasks,
+  createTask,
   updateTaskStatus,
   updateTaskProgress,
   addTaskComment,
@@ -136,9 +137,26 @@ export const useTaskStore = create()(
       }
     },
 
+    /** Create a new task and prepend to the list */
+    addTask: async (payload, actorId) => {
+      set({ actionLoading: true });
+      try {
+        const task = await createTask(payload, { actorId });
+        set((s) => ({ tasks: [task, ...s.tasks], actionLoading: false }));
+        return task;
+      } catch (err) {
+        set({ actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
     /** Mark task as seen */
     markSeen: (taskId) => {
-      markTaskSeen(taskId).catch(() => {});
+      // lazy import to avoid circular deps
+      import('@stores/authStore').then(({ useAuthStore }) => {
+        const userId = useAuthStore.getState().user?.id ?? null;
+        markTaskSeen(taskId, userId).catch(() => {});
+      }).catch(() => markTaskSeen(taskId, null).catch(() => {}));
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, seen: true } : t)),
       }));

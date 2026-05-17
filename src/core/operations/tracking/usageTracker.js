@@ -35,6 +35,7 @@ let _currentPage  = null;
 let _pageEnterTs  = null;
 let _sessionId    = null;
 let _userId       = null;
+let _flushHandle  = null;
 
 // ── Session init ───────────────────────────────────────────────
 export function initUsageTracker(userId = 'anonymous') {
@@ -43,7 +44,7 @@ export function initUsageTracker(userId = 'anonymous') {
   _loadPersistedData();
 
   // Flush periodically
-  setInterval(_flushToStorage, FLUSH_INTERVAL_MS);
+  _flushHandle = setInterval(_flushToStorage, FLUSH_INTERVAL_MS);
 
   // Flush on page unload
   window.addEventListener('beforeunload', _flushToStorage);
@@ -299,6 +300,16 @@ export function clearUsageData() {
   _slowLog.length   = 0;
   localStorage.removeItem(PERSIST_KEY);
   log.warn('Usage data cleared');
+}
+
+/** Alias so index.js barrel can export resetUsageData */
+export const resetUsageData = clearUsageData;
+
+/** Clean shutdown — stops the flush interval and removes the beforeunload listener. */
+export function shutdownUsageTracker() {
+  if (_flushHandle) { clearInterval(_flushHandle); _flushHandle = null; }
+  window.removeEventListener('beforeunload', _flushToStorage);
+  _flushToStorage(); // final flush
 }
 
 // ── Expose on window in DEV ────────────────────────────────────

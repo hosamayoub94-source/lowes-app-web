@@ -21,5 +21,16 @@
   ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "env": {
+    "VITE_SUPABASE_URL": "https://fghdumrgimoeqsafdhhh.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM",
+    "VITE_USE_MOCK_TASKS": "false",
+    "VITE_USE_MOCK_ATTENDANCE": "false",
+    "VITE_USE_MOCK_NOTIFICATIONS": "false",
+    "VITE_USE_MOCK_ANALYTICS": "false",
+    "VITE_USE_MOCK_AUDIT": "false",
+    "VITE_USE_MOCK_FILES": "false",
+    "VITE_USE_MOCK_CRM": "false"
+  }
 }

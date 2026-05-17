@@ -16,7 +16,7 @@ import { emit, on }      from '@/core/events/eventBus.js';
 import { EVENTS, EVENT_SOURCES } from '@/core/events/eventTypes.js';
 import { sendNotification }      from '@modules/notifications/services/notificationService';
 import { logActivity }           from '@modules/audit/services/auditService';
-import { enqueue }               from '@modules/queue/services/queueStore';
+import { useQueueStore }          from '@/core/queue/queueStore';
 
 // ── Mock mode ─────────────────────────────────────────────────
 const _flag   = String(import.meta.env.VITE_USE_MOCK_COLLAB ?? '').toLowerCase();
@@ -115,7 +115,7 @@ export async function createComment({
 
   // ── Mention notifications (batched via queue) ──────────────
   if (mentions.length > 0) {
-    enqueue('collab:mention_batch', { comment, mentions }, { delay: 500 });
+    useQueueStore.getState().enqueue('collab:mention_batch', { comment, mentions }, { delay: 500 });
     mentions.forEach((m) => {
       if (m.id && m.id !== authorId) {
         sendNotification({

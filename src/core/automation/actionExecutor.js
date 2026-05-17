@@ -117,17 +117,14 @@ async function _dispatch(type, params, payload, context) {
     case ACTION_TYPE.CREATE_AUDIT_LOG: {
       // Lazy import audit service — may not be in all builds
       try {
-        const auditModule = await import('@modules/audit/services/auditService');
-        const logFn = auditModule.logAuditEvent ?? auditModule.createAuditLog ?? auditModule.default;
-        if (typeof logFn === 'function') {
-          await logFn({
-            actionType:  params.actionType ?? 'automation_triggered',
-            entityType:  params.entityType ?? context.triggerType ?? 'automation',
-            entityId:    params.entityId   ?? context.ruleId,
-            entityLabel: params.entityLabel ?? context.ruleName,
-            metadata:    { triggerPayload: payload, ruleId: context.ruleId },
-          });
-        }
+        const { logActivity } = await import('@modules/audit/services/auditService');
+        await logActivity({
+          actionType:  params.actionType ?? 'automation_triggered',
+          entityType:  params.entityType ?? context.triggerType ?? 'automation',
+          entityId:    params.entityId   ?? context.ruleId,
+          entityLabel: params.entityLabel ?? context.ruleName,
+          metadata:    { triggerPayload: payload, ruleId: context.ruleId },
+        });
       } catch (_) {
         // Audit service might not exist — silently skip
       }

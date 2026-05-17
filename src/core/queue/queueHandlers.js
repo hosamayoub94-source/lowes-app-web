@@ -132,3 +132,51 @@ registerHandler(JOB_TYPE.SYNC_OFFLINE_DATA, async (job) => {
   console.info('[Queue] SYNC_OFFLINE_DATA executed for', job.payload);
   return { synced: true };
 });
+
+/**
+ * ABSENT_CHECK
+ * Runs ~90 min after a late check-in to see if the employee
+ * eventually checked in. If not, emits ATTENDANCE_ABSENT.
+ */
+registerHandler(JOB_TYPE.ABSENT_CHECK, async (job) => {
+  const { employeeId, employeeName } = job.payload ?? {};
+  if (!employeeId) return { skipped: true };
+
+  try {
+    // Dynamically check current attendance status
+    const { getAttendanceStatus } = await import(
+      '@modules/attendance/services/attendanceService'
+    );
+    const status = await getAttendanceStatus(employeeId);
+
+    // If still not checked in — flag as absent
+    if (!status?.checkedIn) {
+      const { emit } = await import('@/core/events');
+      const { EVENTS, EVENT_SOURCES } = await import('@/core/events/eventTypes');
+      emit(
+        EVENTS.ATTENDANCE_ABSENT,
+        { employeeId, employeeName, managerIds: status?.managerIds ?? [] },
+        { source: EVENT_SOURCES.ATTENDANCE },
+      );
+      return { absent: true, employeeId };
+    }
+  } catch {
+    // Attendance service may be in mock mode or unavailable — safe to ignore
+    console.warn('[Queue] ABSENT_CHECK: could not verify status for', employeeId);
+  }
+
+  return { absent: false, employeeId };
+});
+
+/**
+ * THUMBNAIL_GENERATION
+ * Placeholder — generates/queues thumbnail for uploaded files.
+ * Extend with real storage/image processing when needed.
+ */
+registerHandler(JOB_TYPE.THUMBNAIL_GENERATION, async (job) => {
+  const { fileId } = job.payload ?? {};
+  if (!fileId) return { skipped: true };
+  // Real implementation: call an edge function or storage transform.
+  console.info('[Queue] THUMBNAIL_GENERATION for fileId:', fileId);
+  return { thumbnailGenerated: false, fileId, note: 'stub' };
+});

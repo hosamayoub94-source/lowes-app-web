@@ -7,7 +7,7 @@
 // =============================================================
 import { createLogger }           from '@/core/production/productionLogger';
 import { runAllHealthChecks }      from '../health/healthChecks';
-import { runDeploymentReadiness }  from '../environment/envValidation';
+import { runDeploymentReadiness }  from '../environment/deploymentReadiness';
 import { runReleaseChecklist }     from '../release/releaseChecklist';
 import { getStats, getSlowOperations } from '../performance/benchmarkLayer';
 import { getDebugSummary }         from '../debug/debugToolkit';

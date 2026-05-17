@@ -17,8 +17,13 @@
     height: 100%;
   }
 
+  html {
+    overflow-x: hidden;
+  }
+
   body {
     margin: 0;
+    overflow-x: hidden;
     background: rgb(var(--color-cream));
     color: rgb(var(--color-text));
     font-family: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;

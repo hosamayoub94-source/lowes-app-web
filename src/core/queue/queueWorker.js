@@ -120,11 +120,20 @@ async function _onTick() {
 // ── Job processor ─────────────────────────────────────────────
 
 async function _processJob(job) {
+  let _timeoutHandle = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    _timeoutHandle = setTimeout(
+      () => reject(new Error(`Job ${job.id} timed out after ${job.timeoutMs}ms`)),
+      job.timeoutMs,
+    );
+  });
+
   try {
     const result = await Promise.race([
       executeHandler(job),
-      _timeoutPromise(job.timeoutMs, job.id),
+      timeoutPromise,
     ]);
+    clearTimeout(_timeoutHandle);
 
     _store.getState()._setJobState(job.id, JOB_STATE.COMPLETED, {
       result,
@@ -139,6 +148,8 @@ async function _processJob(job) {
     });
 
   } catch (err) {
+    clearTimeout(_timeoutHandle);
+
     const attempts    = (job.attempts ?? 0) + 1;
     const maxRetries  = job.maxRetries ?? 3;
     const errMsg      = err?.message ?? String(err);
@@ -169,17 +180,6 @@ async function _processJob(job) {
       });
     }
   }
-}
-
-// ── Helpers ───────────────────────────────────────────────────
-
-function _timeoutPromise(ms, jobId) {
-  return new Promise((_, reject) =>
-    setTimeout(
-      () => reject(new Error(`Job ${jobId} timed out after ${ms}ms`)),
-      ms,
-    ),
-  );
 }
 
 function _emitSafe(eventName, payload) {

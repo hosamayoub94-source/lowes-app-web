@@ -8,34 +8,55 @@ import { bootEventListeners }        from '@/core/events';
 import { bootQueue }                 from '@/core/queue';
 import { bootAutomation }            from '@/core/automation';
 import { bootAttendanceIntegration } from '@modules/attendance';
-import { bootFileIntegration }        from '@modules/files/integrations/fileEventBus';
+import { bootFileIntegration }       from '@modules/files/integrations/fileEventBus';
 import { bootAnalyticsIntegration }  from '@modules/analytics/integrations/analyticsEventBus';
 import { bootCRMIntegration }        from '@modules/crm/integrations/crmEventBus';
+import {
+  wireWorkflowMetricsToEventBus,
+  loadPersistedMetrics,
+  loadPersistedProductivityMetrics,
+  loadPersistedHeatmap,
+} from '@/core/operations';
+import { patchTimerTracking, scheduleMaintenanceCleanup } from '@/core/maintenance';
+import { validateEnvironment } from '@/core/testing';
 
 import './styles/theme.css';
 import './styles/globals.css';
 
-// 1. Wire cross-module event listeners.
-bootEventListeners();
+// ── Safe boot wrapper ─────────────────────────────────────────
+// Prevents any crashing subsystem from killing the whole app.
+function safeBoot(label, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`[Boot] ${label} failed — continuing:`, err);
+  }
+}
 
-// 2. Boot the background job queue (hydrates persistence, starts worker).
-bootQueue();
+// Warn if any mock modules are active in production
+if (!import.meta.env.DEV) {
+  const mockModules = ['VITE_USE_MOCK_TASKS','VITE_USE_MOCK_ATTENDANCE','VITE_USE_MOCK_NOTIFICATIONS','VITE_USE_MOCK_ANALYTICS','VITE_USE_MOCK_AUDIT','VITE_USE_MOCK_FILES','VITE_USE_MOCK_CRM'];
+  const active = mockModules.filter(k => String(import.meta.env[k] ?? '').toLowerCase() !== 'false');
+  if (active.length > 0) {
+    console.warn('[PRODUCTION WARNING] Mock modules are active:', active.join(', '));
+  }
+}
 
-// 3. Boot the automation rule engine (hydrates rules, wires event bridge).
-bootAutomation();
+// ── Boot sequence (each wrapped — one bad subsystem won't kill the app) ──
+safeBoot('EventListeners',      () => bootEventListeners());
+safeBoot('Queue',               () => bootQueue());
+safeBoot('Automation',          () => bootAutomation());
+safeBoot('AttendanceInteg',     () => bootAttendanceIntegration());
+safeBoot('FileInteg',           () => bootFileIntegration());
+safeBoot('AnalyticsInteg',      () => bootAnalyticsIntegration());
+safeBoot('CRMInteg',            () => bootCRMIntegration());
+safeBoot('EnvValidation',       () => validateEnvironment());
+safeBoot('TimerTracking',       () => patchTimerTracking());
+safeBoot('WorkflowMetrics',     () => wireWorkflowMetricsToEventBus());
+safeBoot('PersistedMetrics',    () => { loadPersistedMetrics(); loadPersistedProductivityMetrics(); loadPersistedHeatmap(); });
+safeBoot('MaintenanceCleanup',  () => scheduleMaintenanceCleanup());
 
-// 4. Wire attendance event bus bridges (check-in/out → notifications + queue).
-bootAttendanceIntegration();
-
-// 5. Wire file management event bus bridges (uploads → notifications + queue).
-bootFileIntegration();
-
-// 6. Wire analytics event bus bridges (attendance/tasks/files → realtime counters + KPI alerts).
-bootAnalyticsIntegration();
-
-// 7. Wire CRM event bus bridges (leads/deals/followups → notifications + queue + audit).
-bootCRMIntegration();
-
+// ── Mount ──────────────────────────────────────────────────────
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element #root not found');
 
