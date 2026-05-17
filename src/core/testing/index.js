@@ -110,7 +110,7 @@ export {
 } from './performance/benchmarkLayer';
 
 // ── Dev Toolbar (React component, DEV only) ────────────────────
-export { DevToolbar }           from './debug/devToolbar';
+export { DevToolbar }           from './debug/DevToolbar';
 
 // ── Operational Dashboard (React components) ──────────────────
 export { OperationalDashboard, QADashboardModal } from './dashboard/OperationalDashboard.jsx';
