@@ -270,10 +270,13 @@ BEGIN
   END IF;
 END $$;
 
--- ── 4. activity_logs — enable realtime (idempotent) ───────────────
+-- ── 4. activity_logs — enable realtime (only if table exists) ────────
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'activity_logs'
+  ) AND NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
     WHERE pubname    = 'supabase_realtime'
       AND schemaname = 'public'
