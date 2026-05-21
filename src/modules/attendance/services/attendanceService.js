@@ -30,7 +30,43 @@ const EVENTS_TABLE  = 'attendance_events';
 
 // ── Mock flag ─────────────────────────────────────────────────
 const _mockFlag = String(import.meta.env.VITE_USE_MOCK_ATTENDANCE ?? '').toLowerCase();
-export const USE_MOCK = _mockFlag !== 'false';
+export let USE_MOCK = _mockFlag !== 'false';
+
+// ── DB probe ──────────────────────────────────────────────────
+// If VITE_USE_MOCK_ATTENDANCE=false but attendance_records table doesn't exist,
+// automatically fall back to mock mode so the app doesn't break.
+let _probePromise = null;
+function _isTableMissing(error) {
+  return (
+    error?.code === '42P01' ||
+    (error?.message || '').includes('does not exist') ||
+    (error?.message || '').includes('relation')
+  );
+}
+function _ensureReady() {
+  if (USE_MOCK) return Promise.resolve();
+  if (!_probePromise) {
+    _probePromise = supabase
+      .from(RECORDS_TABLE)
+      .select('id', { count: 'exact', head: true })
+      .limit(0)
+      .then(({ error }) => {
+        if (error && _isTableMissing(error)) {
+          USE_MOCK = true;
+          _seedDemoTeam(); // eslint-disable-line no-use-before-define
+          // eslint-disable-next-line no-console
+          console.warn('[attendance] attendance_records table not found — falling back to mock mode');
+        }
+      })
+      .catch(() => {
+        USE_MOCK = true;
+        _seedDemoTeam(); // eslint-disable-line no-use-before-define
+      });
+  }
+  return _probePromise;
+}
+// Kick off probe immediately so it resolves before user interaction
+if (!USE_MOCK && typeof window !== 'undefined') _ensureReady();
 
 // ── Mock in-memory store ───────────────────────────────────────
 // Keys: "userId::YYYY-MM-DD"  →  attendance record object
@@ -209,6 +245,7 @@ async function _persistEvent(attendanceRecordId, userId, eventType, metadata = {
  * @returns {Promise<{ record: object, lateByMinutes: number, shift: object }>}
  */
 export async function checkIn(userId, opts = {}) {
+  await _ensureReady();
   const {
     source   = CHECK_IN_SOURCE.WEB,
     notes    = null,
@@ -315,6 +352,7 @@ export async function checkIn(userId, opts = {}) {
  * @returns {Promise<{ record: object, workedMinutes: number, overtimeMinutes: number, shift: object }>}
  */
 export async function checkOut(userId, opts = {}) {
+  await _ensureReady();
   const {
     source   = CHECK_IN_SOURCE.WEB,
     notes    = null,
@@ -426,6 +464,7 @@ export async function checkOut(userId, opts = {}) {
  * @returns {Promise<{ record: object, breakSession: object }>}
  */
 export async function startBreak(userId, breakType = BREAK_TYPE.REGULAR, now = new Date()) {
+  await _ensureReady();
   const date = now.toISOString().slice(0, 10);
 
   // ── Mock ──────────────────────────────────────────────────
@@ -517,6 +556,7 @@ export async function startBreak(userId, breakType = BREAK_TYPE.REGULAR, now = n
  * @returns {Promise<{ record: object, breakSession: object, durationMinutes: number }>}
  */
 export async function endBreak(userId, now = new Date()) {
+  await _ensureReady();
   const date = now.toISOString().slice(0, 10);
 
   // ── Mock ──────────────────────────────────────────────────
@@ -608,6 +648,7 @@ export async function endBreak(userId, now = new Date()) {
  * @returns {Promise<object|null>}
  */
 export async function fetchTodayRecord(userId, date = _today()) {
+  await _ensureReady();
   if (USE_MOCK) return _mockRecord(userId, date);
 
   const { data, error } = await supabase
@@ -630,6 +671,7 @@ export async function fetchTodayRecord(userId, date = _today()) {
  * @returns {Promise<object[]>}
  */
 export async function fetchTeamAttendance(date = _today()) {
+  await _ensureReady();
   if (USE_MOCK) {
     // Return all records for this date from mock store
     return Object.values(_mockStore)
@@ -660,6 +702,7 @@ export async function fetchTeamAttendance(date = _today()) {
  *   userId arrays
  */
 export async function detectLateEmployees(shift, now = new Date()) {
+  await _ensureReady();
   const date = now.toISOString().slice(0, 10);
 
   // Compute key thresholds
@@ -716,6 +759,7 @@ export async function detectLateEmployees(shift, now = new Date()) {
  * @returns {Promise<object>} updated record
  */
 export async function manualUpdateRecord(recordId, patch, actorId = null) {
+  await _ensureReady();
   if (USE_MOCK) {
     const rec = Object.values(_mockStore).find((r) => r && r.id === recordId);
     if (!rec) throw new Error('السجل غير موجود');
