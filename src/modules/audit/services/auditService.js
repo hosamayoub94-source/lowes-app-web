@@ -39,6 +39,7 @@ let _flushTimer   = null;          // setInterval handle
 let _lastEntryId  = null;          // for integrity chain
 let _mockStore    = MOCK_AUDIT_LOGS.map((l) => ({ ...l }));
 let _mockIdSeq    = _mockStore.length + 1;
+let _tableExists  = true;          // set false on 42P01 to stop retrying
 
 const _newMockId  = () => `log_${String(_mockIdSeq++).padStart(4, '0')}`;
 
@@ -109,8 +110,21 @@ function buildRow({
   };
 }
 
+// ── Undefined-table guard ────────────────────────────────────
+/** Returns true if the error means the table doesn't exist in this DB. */
+function isTableMissingError(error) {
+  return (
+    error?.code === '42P01' ||
+    error?.code === 'PGRST204' ||
+    (error?.message || '').includes('relation') ||
+    (error?.message || '').includes('does not exist')
+  );
+}
+
 // ── Supabase insert (single row) ─────────────────────────────
 async function insertRow(row, attempt = 0) {
+  if (!_tableExists) return null;
+
   const { data, error } = await supabase
     .from(TABLE)
     .insert(row)
@@ -118,6 +132,11 @@ async function insertRow(row, attempt = 0) {
     .single();
 
   if (error) {
+    if (isTableMissingError(error)) {
+      _tableExists = false;
+      console.warn('[audit] activity_logs table not found — audit logging disabled');
+      return null;
+    }
     if (attempt < RETRY_DELAYS.length - 1) {
       await sleep(RETRY_DELAYS[attempt]);
       return insertRow(row, attempt + 1);
@@ -131,12 +150,19 @@ async function insertRow(row, attempt = 0) {
 
 // ── Supabase batch insert ────────────────────────────────────
 async function insertBatch(rows, attempt = 0) {
+  if (!_tableExists) return null;
+
   const { data, error } = await supabase
     .from(TABLE)
     .insert(rows)
     .select('id');
 
   if (error) {
+    if (isTableMissingError(error)) {
+      _tableExists = false;
+      console.warn('[audit] activity_logs table not found — audit logging disabled');
+      return null;
+    }
     if (attempt < RETRY_DELAYS.length - 1) {
       await sleep(RETRY_DELAYS[attempt]);
       return insertBatch(rows, attempt + 1);
@@ -163,7 +189,7 @@ async function flushBuffer() {
 
 // ── Offline queue retry ──────────────────────────────────────
 export async function retryOfflineQueue() {
-  if (USE_MOCK_AUDIT) return;
+  if (USE_MOCK_AUDIT || !_tableExists) return;
   const queued = readOfflineQueue();
   if (queued.length === 0) return;
 
@@ -171,6 +197,9 @@ export async function retryOfflineQueue() {
   if (!error) {
     clearOfflineQueue();
     console.info(`[audit] Flushed ${queued.length} offline-queued entries`);
+  } else if (isTableMissingError(error)) {
+    _tableExists = false;
+    console.warn('[audit] activity_logs table not found — audit logging disabled');
   }
 }
 
@@ -332,7 +361,10 @@ export async function fetchLogs(params = {}) {
   }
 
   const { data, error, count } = await q;
-  if (error) throw error;
+  if (error) {
+    if (isTableMissingError(error)) { _tableExists = false; return { logs: [], total: 0 }; }
+    throw error;
+  }
   return { logs: data || [], total: count || 0 };
 }
 
@@ -377,6 +409,15 @@ export async function fetchAuditStats() {
     supabase.from(TABLE).select('id', { count: 'exact', head: true }).eq('action_type', 'login_failed').gte('created_at', week.toISOString()),
     supabase.from(TABLE).select('id', { count: 'exact', head: true }).eq('severity', SEVERITY.CRITICAL).gte('created_at', week.toISOString()),
   ]);
+
+  // If any result indicates table is missing, disable and return zeros
+  const allResults = [todayRes, weekRes, failedRes, criticalRes];
+  for (const r of allResults) {
+    if (r.error && isTableMissingError(r.error)) {
+      _tableExists = false;
+      return { totalToday: 0, totalWeek: 0, failedLogins: 0, criticalCount: 0, bySeverity: { info: 0, warning: 0, critical: 0 } };
+    }
+  }
 
   return {
     totalToday:    todayRes.count  || 0,
