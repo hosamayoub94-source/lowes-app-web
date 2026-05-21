@@ -205,6 +205,7 @@ export async function fetchNotifications({
 
 /**
  * Fast unread count for the current user (RLS scopes to auth.uid()).
+ * Returns 0 silently on any error (e.g. RLS rejection, table missing).
  * @returns {Promise<number>}
  */
 export async function fetchUnreadCount() {
@@ -212,13 +213,17 @@ export async function fetchUnreadCount() {
     return _mockStore.filter((n) => !n.is_read).length;
   }
 
-  const { count, error } = await supabase
-    .from(TABLE)
-    .select('id', { count: 'exact', head: true })
-    .eq('is_read', false);
+  try {
+    const { count, error } = await supabase
+      .from(TABLE)
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false);
 
-  if (error) throw error;
-  return count ?? 0;
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
