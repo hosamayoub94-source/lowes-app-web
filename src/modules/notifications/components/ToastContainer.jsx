@@ -15,7 +15,7 @@ import { cn }                  from '@utils/classNames';
 
 const SEVERITY_BORDER = {
   info:     'border-blue/40',
-  warning:  'border-amber-400/60',
+  warning:  'border-amber/60',
   critical: 'border-red/60',
 };
 

@@ -51,20 +51,20 @@ function _duration(checkInTime, checkOutTime) {
 function StatusBadge({ record }) {
   if (!record) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-surface-alt text-muted">
         ⬜ لم تسجّل بعد
       </span>
     );
   }
   if (record.check_out_time) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-bg text-blue-fg">
         ✅ مُنصرف — {_fmt(record.check_out_time)}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-bg text-green-fg">
       🟢 حاضر منذ {_fmt(record.check_in_time)}
     </span>
   );
@@ -206,39 +206,39 @@ export default function AttendanceScreen() {
         <CardSubtitle>آخر العمليات المُسجّلة</CardSubtitle>
         <div className="mt-4">
           {loading ? (
-            <p className="text-sm text-gray-400 animate-pulse">جاري التحميل…</p>
+            <p className="text-sm text-muted animate-pulse">جاري التحميل…</p>
           ) : !record ? (
             <EmptyState description="لم يتم تسجيل أي حركات بعد" />
           ) : (
             <div className="space-y-2 text-sm">
               {record.check_in_time && (
-                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <span className="text-gray-500">🟢 تسجيل الحضور</span>
-                  <span className="font-semibold text-green-600">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted">🟢 تسجيل الحضور</span>
+                  <span className="font-semibold text-green-fg">
                     {_fmt(record.check_in_time)}
                   </span>
                 </div>
               )}
               {record.late_minutes > 0 && (
-                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <span className="text-gray-500">⏰ تأخّر</span>
-                  <span className="font-semibold text-amber-600">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted">⏰ تأخّر</span>
+                  <span className="font-semibold text-amber-fg">
                     {record.late_minutes} دقيقة
                   </span>
                 </div>
               )}
               {(record._breaks ?? []).map((b, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <span className="text-gray-500">☕ استراحة {i + 1}</span>
-                  <span className="font-semibold text-blue-500">
+                <div key={i} className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted">☕ استراحة {i + 1}</span>
+                  <span className="font-semibold text-blue-fg">
                     {_fmt(b.start_time)} — {b.end_time ? _fmt(b.end_time) : 'جارية'}
                   </span>
                 </div>
               ))}
               {record.check_out_time && (
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-gray-500">🚪 تسجيل الانصراف</span>
-                  <span className="font-semibold text-red-500">
+                  <span className="text-muted">🚪 تسجيل الانصراف</span>
+                  <span className="font-semibold text-red-fg">
                     {_fmt(record.check_out_time)}
                   </span>
                 </div>

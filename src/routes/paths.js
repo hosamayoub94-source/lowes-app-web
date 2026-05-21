@@ -18,8 +18,18 @@ export const ROUTES = {
   ADMIN_QA:          '/admin/qa',
   ADMIN_MAINTENANCE: '/admin/maintenance',
   ADMIN_OPERATIONS:  '/admin/operations',
+  FILES: '/files',
+  ANALYTICS: '/analytics',
+  WORKSPACE: '/workspace',
+  NOTIFICATIONS: '/notifications',
   PROFILE: '/profile',
   NOT_FOUND: '*',
+
+  // Priority 1 modules
+  PAYROLL:    '/payroll',
+  REQUESTS:   '/requests',
+  LEDGER:     '/ledger',
+  SALES:      '/sales',
 };
 
 export default ROUTES;

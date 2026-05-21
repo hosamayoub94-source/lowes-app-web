@@ -21,8 +21,8 @@ const LiveIndicator = memo(function LiveIndicator({ active, count, onClear }) {
   return (
     <div className="flex items-center gap-2">
       {active && (
-        <span className="flex items-center gap-1.5 text-xs text-[var(--color-teal)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-teal)] animate-pulse" />
+        <span className="flex items-center gap-1.5 text-xs text-teal">
+          <span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse" />
           مباشر
         </span>
       )}
@@ -30,11 +30,7 @@ const LiveIndicator = memo(function LiveIndicator({ active, count, onClear }) {
         <button
           type="button"
           onClick={onClear}
-          className="
-            text-xs px-2 py-0.5 rounded-full
-            bg-[var(--color-teal-bg)] text-[var(--color-teal)] font-medium
-            hover:bg-[var(--color-teal)] hover:text-white transition-colors
-          "
+          className="text-xs px-2 py-0.5 rounded-full bg-teal/10 text-teal font-medium hover:bg-teal hover:text-white transition-colors"
         >
           +{count} جديد
         </button>
@@ -47,7 +43,7 @@ const LiveIndicator = memo(function LiveIndicator({ active, count, onClear }) {
 const ErrorBanner = memo(function ErrorBanner({ message, onDismiss }) {
   if (!message) return null;
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--color-red-bg)] border border-[var(--color-red)] text-[var(--color-red-fg)] text-sm">
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-bg border border-red text-red-fg text-sm">
       <span>⚠</span>
       <span className="flex-1">{message}</span>
       <button type="button" onClick={onDismiss} className="opacity-60 hover:opacity-100">✕</button>
@@ -59,7 +55,7 @@ const ErrorBanner = memo(function ErrorBanner({ message, onDismiss }) {
 const MockRibbon = memo(function MockRibbon() {
   if (!USE_MOCK_AUDIT) return null;
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-amber-bg)] border border-[var(--color-amber)] text-[var(--color-amber-fg)] text-xs">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-bg border border-amber text-amber-fg text-xs">
       <span>🧪</span>
       <span>بيانات تجريبية — اضبط <code className="font-mono">VITE_USE_MOCK_AUDIT=false</code> للتشغيل الحقيقي</span>
     </div>
@@ -86,16 +82,16 @@ export default function AuditDashboard() {
   }, [loadStats]);
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] px-4 py-6 md:px-6 lg:px-8" dir="rtl">
+    <div className="min-h-screen bg-surface px-4 py-6 md:px-6 lg:px-8" dir="rtl">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* ── Page header ─────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
+            <h1 className="text-2xl font-bold text-text">
               سجل النشاط
             </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            <p className="text-sm text-muted mt-1">
               سجل مراجعة كامل — للقراءة فقط، غير قابل للتعديل
             </p>
           </div>
@@ -119,7 +115,7 @@ export default function AuditDashboard() {
         <AuditStatsBar stats={stats} loading={statsLoading} />
 
         {/* ── Filters ──────────────────────────────────────── */}
-        <section className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border-subtle)] p-4">
+        <section className="bg-surface rounded-2xl border border-border p-4">
           <AuditFilters
             filters={filters}
             onFilter={setFilter}
@@ -133,18 +129,18 @@ export default function AuditDashboard() {
           {/* Section header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
+              <h2 className="text-base font-semibold text-text">
                 السجلات
               </h2>
               {!loading && (
-                <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
+                <span className="text-xs text-muted bg-surface-alt px-2 py-0.5 rounded-full">
                   {pagination.total.toLocaleString('ar-SA')} إدخال
                 </span>
               )}
             </div>
             {/* Page info */}
             {totalPages > 1 && (
-              <span className="text-xs text-[var(--color-text-muted)]">
+              <span className="text-xs text-muted">
                 صفحة {pagination.page} من {totalPages}
               </span>
             )}

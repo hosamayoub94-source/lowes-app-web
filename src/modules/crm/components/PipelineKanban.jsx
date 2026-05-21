@@ -1,13 +1,105 @@
 /**
  * PipelineKanban — drag-and-drop Kanban board for deals.
+ * Task #69/#8: Full mobile-first Tailwind rewrite.
  *
- * Uses native HTML5 drag-and-drop (no external DnD library needed).
- * Each stage column shows deals from useDealsGroupedByStage().
+ * Drag strategy:
+ *   • Desktop (mouse):   HTML5 DnD — native, no deps
+ *   • Mobile (touch):    Pointer Events — global move/up listeners,
+ *                        elementFromPoint for drop target, floating ghost tile
+ *
+ * Layout:
+ *   • Horizontal scroll + momentum on mobile (overflow-x-auto + touch-pan-x)
+ *   • Cards get touch-none so individual card touches don't trigger column pan
+ *   • data-stage-id attribute on each column for efficient hit testing
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { cn } from '@utils/classNames';
 import DealCard from './DealCard.jsx';
 import { formatCurrency } from '../types/crm.types.js';
 
+// ── Loading skeleton ───────────────────────────────────────────
+function KanbanSkeleton() {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-3 touch-pan-x">
+      {[1, 2, 3, 4].map(i => (
+        <div
+          key={i}
+          className="shrink-0 w-[200px] sm:w-[240px] h-96 rounded-xl bg-surface-alt border border-border animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Column header ──────────────────────────────────────────────
+function ColumnHeader({ stage, dealsCount, colValue }) {
+  return (
+    <div
+      className="px-3 pt-2.5 pb-2 flex items-center justify-between gap-2 border-b-2"
+      style={{ borderColor: stage.color ?? '#64748b' }}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-sm font-bold text-text truncate">{stage.name}</span>
+        <span className="text-[10px] font-bold bg-surface-alt text-muted px-1.5 py-px rounded-full shrink-0">
+          {dealsCount}
+        </span>
+      </div>
+      {colValue > 0 && (
+        <span className="text-[11px] text-muted font-semibold shrink-0 hidden sm:block">
+          {formatCurrency(colValue, 'SAR')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Empty column placeholder ───────────────────────────────────
+function EmptyColumn() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[80px] text-xs text-muted select-none">
+      اسحب صفقة هنا
+    </div>
+  );
+}
+
+// ── Add deal button ────────────────────────────────────────────
+function AddDealButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'mx-2 mb-2.5 w-[calc(100%-1rem)] py-1.5',
+        'text-xs text-muted font-medium',
+        'border border-dashed border-border rounded-lg',
+        'hover:bg-surface-alt hover:text-text hover:border-teal/40',
+        'transition-colors',
+      )}
+    >
+      + إضافة صفقة
+    </button>
+  );
+}
+
+// ── Touch drag ghost ───────────────────────────────────────────
+function DragGhost({ deal, x, y }) {
+  if (!deal) return null;
+  return (
+    <div
+      className="fixed z-[9999] pointer-events-none touch-none select-none"
+      style={{ left: x - 100, top: y - 36, width: 200 }}
+    >
+      <div className="bg-surface border-2 border-teal rounded-xl shadow-2xl px-3 py-2 rotate-2 opacity-90">
+        <span className="text-sm font-semibold text-text truncate block">{deal.title}</span>
+        {Number(deal.value) > 0 && (
+          <span className="text-xs text-teal">{formatCurrency(deal.value, 'SAR')}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────
 export default function PipelineKanban({
   stages = [],
   dealsMap = {},
@@ -16,13 +108,16 @@ export default function PipelineKanban({
   onCreateDeal,
   isLoading = false,
 }) {
-  const [draggingId, setDraggingId] = useState(null);
+  const [draggingId, setDraggingId]   = useState(null);
   const [overStageId, setOverStageId] = useState(null);
+  const [ghost, setGhost]             = useState(null); // { deal, x, y }
+  const touchDragRef                  = useRef(null);   // active touch drag state
 
-  const handleDragStart = useCallback((e, dealId) => {
-    setDraggingId(dealId);
+  // ── HTML5 DnD — mouse/desktop ────────────────────────────────
+  const handleDragStart = useCallback((e, deal) => {
+    setDraggingId(deal.id);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('dealId', dealId);
+    e.dataTransfer.setData('dealId', deal.id);
   }, []);
 
   const handleDragOver = useCallback((e, stageId) => {
@@ -34,150 +129,145 @@ export default function PipelineKanban({
   const handleDrop = useCallback((e, stageId) => {
     e.preventDefault();
     const dealId = e.dataTransfer.getData('dealId');
-    if (dealId && dealId !== draggingId) return; // safety
     if (dealId) onMoveDeal?.(dealId, stageId);
     setDraggingId(null);
     setOverStageId(null);
-  }, [draggingId, onMoveDeal]);
+  }, [onMoveDeal]);
 
   const handleDragEnd = useCallback(() => {
     setDraggingId(null);
     setOverStageId(null);
   }, []);
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '8px 0' }}>
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{
-            minWidth: 240, background: '#f8fafc', borderRadius: 10,
-            padding: 16, height: 400, animation: 'pulse 1.5s infinite',
-          }} />
-        ))}
-      </div>
-    );
-  }
+  // ── Pointer Events — touch/mobile ────────────────────────────
+  // We register global move/up listeners during the drag so events
+  // are received even when the pointer leaves the Kanban container.
+  const handlePointerDown = useCallback((e, deal) => {
+    // Only intercept touch; mouse is handled by HTML5 DnD above
+    if (e.pointerType === 'mouse') return;
+    // Prevent browser-generated click and scroll on this element
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const state  = { deal, dealId: deal.id, pointerId: e.pointerId, startX, startY, moved: false };
+    touchDragRef.current = state;
+
+    function onMove(ev) {
+      if (ev.pointerId !== state.pointerId) return;
+      const dx = Math.abs(ev.clientX - state.startX);
+      const dy = Math.abs(ev.clientY - state.startY);
+
+      if (!state.moved) {
+        if (dx < 8 && dy < 8) return; // still a potential tap
+        state.moved = true;
+        setDraggingId(state.dealId);
+      }
+
+      setGhost({ deal: state.deal, x: ev.clientX, y: ev.clientY });
+
+      // Find the column under the pointer. Ghost has pointer-events-none,
+      // so elementFromPoint correctly sees through it.
+      const el  = document.elementFromPoint(ev.clientX, ev.clientY);
+      const col = el?.closest('[data-stage-id]');
+      setOverStageId(col?.dataset.stageId ?? null);
+    }
+
+    function onUp(ev) {
+      if (ev.pointerId !== state.pointerId) return;
+      cleanup();
+
+      if (state.moved) {
+        // Re-check drop target at release position
+        const el  = document.elementFromPoint(ev.clientX, ev.clientY);
+        const col = el?.closest('[data-stage-id]');
+        if (col?.dataset.stageId) {
+          onMoveDeal?.(state.dealId, col.dataset.stageId);
+        }
+      } else {
+        // Pure tap — treat as card select
+        onSelectDeal?.(state.deal);
+      }
+
+      setDraggingId(null);
+      setOverStageId(null);
+      setGhost(null);
+      touchDragRef.current = null;
+    }
+
+    function cleanup() {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup',   onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+
+    window.addEventListener('pointermove',   onMove);
+    window.addEventListener('pointerup',     onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [onMoveDeal, onSelectDeal]);
+
+  if (isLoading) return <KanbanSkeleton />;
 
   const activeStages = stages.filter(s => !s.is_lost);
 
   return (
-    <div style={{
-      display: 'flex',
-      gap: 12,
-      overflowX: 'auto',
-      padding: '4px 0 12px',
-      direction: 'rtl',
-      minHeight: 500,
-    }}>
-      {activeStages.map(stage => {
-        const deals = dealsMap[stage.id] ?? [];
-        const colValue = deals.reduce((s, d) => s + Number(d.value || 0), 0);
-        const isOver = overStageId === stage.id;
+    <>
+      <div className="flex gap-3 overflow-x-auto pb-3 touch-pan-x -mx-1 px-1 min-h-[420px]">
+        {activeStages.map(stage => {
+          const deals    = dealsMap[stage.id] ?? [];
+          const colValue = deals.reduce((s, d) => s + Number(d.value || 0), 0);
+          const isOver   = overStageId === stage.id;
 
-        return (
-          <div
-            key={stage.id}
-            onDragOver={e => handleDragOver(e, stage.id)}
-            onDrop={e => handleDrop(e, stage.id)}
-            style={{
-              minWidth: 240,
-              maxWidth: 280,
-              flex: '0 0 240px',
-              background: isOver ? '#f0f9ff' : '#f8fafc',
-              border: `2px ${isOver ? 'dashed' : 'solid'} ${isOver ? '#0ea5e9' : '#e2e8f0'}`,
-              borderRadius: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'background 0.15s, border-color 0.15s',
-            }}
-          >
-            {/* Column header */}
-            <div style={{
-              padding: '10px 14px 8px',
-              borderBottom: `3px solid ${stage.color ?? '#64748b'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <div>
-                <span style={{
-                  fontSize: 13, fontWeight: 700, color: '#0f172a',
-                }}>
-                  {stage.name}
-                </span>
-                <span style={{
-                  marginRight: 6, fontSize: 11, background: '#e2e8f0',
-                  color: '#475569', padding: '1px 7px', borderRadius: 20,
-                }}>
-                  {deals.length}
-                </span>
+          return (
+            <div
+              key={stage.id}
+              data-stage-id={stage.id}
+              onDragOver={e => handleDragOver(e, stage.id)}
+              onDrop={e => handleDrop(e, stage.id)}
+              className={cn(
+                /* width: 200px mobile → 240px sm → 280px max */
+                'shrink-0 w-[200px] sm:w-[240px] max-w-[280px]',
+                'flex flex-col rounded-xl border-2 transition-colors duration-150',
+                isOver
+                  ? 'bg-blue-bg border-teal border-dashed'
+                  : 'bg-surface-alt border-border',
+              )}
+            >
+              <ColumnHeader stage={stage} dealsCount={deals.length} colValue={colValue} />
+
+              {/* Deals list */}
+              <div className="flex-1 flex flex-col gap-2 p-2 overflow-y-auto min-h-[60px]">
+                {deals.length === 0
+                  ? <EmptyColumn />
+                  : deals.map(deal => (
+                      <div
+                        key={deal.id}
+                        draggable
+                        onDragStart={e => handleDragStart(e, deal)}
+                        onDragEnd={handleDragEnd}
+                        onPointerDown={e => handlePointerDown(e, deal)}
+                        /* touch-none: prevent column horizontal pan when touching
+                           a card — gives pointer events full control on touch */
+                        className="touch-none select-none"
+                      >
+                        <DealCard
+                          deal={deal}
+                          onSelect={onSelectDeal}
+                          isDragging={draggingId === deal.id}
+                        />
+                      </div>
+                    ))
+                }
               </div>
-              {colValue > 0 && (
-                <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
-                  {formatCurrency(colValue, 'SAR')}
-                </span>
-              )}
+
+              {onCreateDeal && <AddDealButton onClick={() => onCreateDeal(stage.id)} />}
             </div>
+          );
+        })}
+      </div>
 
-            {/* Deals list */}
-            <div style={{
-              flex: 1,
-              padding: '10px 10px 6px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              overflowY: 'auto',
-              minHeight: 60,
-            }}>
-              {deals.map(deal => (
-                <div
-                  key={deal.id}
-                  draggable
-                  onDragStart={e => handleDragStart(e, deal.id)}
-                  onDragEnd={handleDragEnd}
-                >
-                  <DealCard
-                    deal={deal}
-                    onSelect={onSelectDeal}
-                    isDragging={draggingId === deal.id}
-                  />
-                </div>
-              ))}
-
-              {deals.length === 0 && (
-                <div style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#94a3b8', fontSize: 12, minHeight: 80,
-                }}>
-                  اسحب صفقة هنا
-                </div>
-              )}
-            </div>
-
-            {/* Add deal button */}
-            {onCreateDeal && (
-              <button
-                onClick={() => onCreateDeal(stage.id)}
-                style={{
-                  margin: '4px 10px 10px',
-                  background: 'transparent',
-                  border: '1px dashed #cbd5e1',
-                  borderRadius: 6,
-                  padding: '6px 0',
-                  color: '#64748b',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={e => { e.target.style.background = '#f1f5f9'; }}
-                onMouseLeave={e => { e.target.style.background = 'transparent'; }}
-              >
-                + إضافة صفقة
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {/* Floating ghost — only visible during touch drag */}
+      <DragGhost deal={ghost?.deal} x={ghost?.x} y={ghost?.y} />
+    </>
   );
 }

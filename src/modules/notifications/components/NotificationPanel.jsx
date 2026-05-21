@@ -2,9 +2,11 @@
 // Notifications Module — NotificationPanel
 // Dropdown panel: list + mark-all + load more.
 // =============================================================
+import { Link }              from 'react-router-dom';
 import { useNotifications }  from '../hooks/useNotifications';
 import { NotificationItem }  from './NotificationItem';
 import { cn }                from '@utils/classNames';
+import { ROUTES }            from '@routes/paths';
 
 export function NotificationPanel({ onClose }) {
   const {
@@ -93,7 +95,7 @@ export function NotificationPanel({ onClose }) {
 
       {/* Load more */}
       {hasMore && (
-        <div className="border-t border-border px-4 py-2.5">
+        <div className="px-4 pt-2 pb-1">
           <button
             onClick={loadMore}
             className="w-full text-sm text-teal hover:text-teal/70 transition-colors text-center"
@@ -102,6 +104,20 @@ export function NotificationPanel({ onClose }) {
           </button>
         </div>
       )}
+
+      {/* View all link */}
+      <div className="border-t border-border px-4 py-2.5">
+        <Link
+          to={ROUTES.NOTIFICATIONS}
+          onClick={onClose}
+          className="flex items-center justify-center gap-1.5 w-full text-sm text-muted hover:text-teal transition-colors"
+        >
+          عرض كل الإشعارات
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="rtl:rotate-180">
+            <path d="M7 5l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </Link>
+      </div>
     </div>
   );
 }

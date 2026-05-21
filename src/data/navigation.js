@@ -41,6 +41,34 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
+    id: 'files',
+    label: 'الملفات',
+    icon: '📁',
+    path: '/files',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'workspace',
+    label: 'مساحة العمل',
+    icon: '🗂️',
+    path: '/workspace',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'crm',
+    label: 'CRM',
+    icon: '🤝',
+    path: '/crm',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'analytics',
+    label: 'التحليلات',
+    icon: '📊',
+    path: '/analytics',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
+  },
+  {
     id: 'accounting',
     label: 'الحسابات',
     icon: '💰',
@@ -53,6 +81,36 @@ export const NAV_ITEMS = [
     icon: '⚙️',
     path: '/admin',
     roles: [ROLES.ADMIN],
+  },
+
+  // Priority 1 modules
+  {
+    id: 'payroll',
+    label: 'الرواتب',
+    icon: '💰',
+    path: '/payroll',
+    roles: [ROLES.ADMIN, ROLES.MANAGER],
+  },
+  {
+    id: 'requests',
+    label: 'الطلبات',
+    icon: '📋',
+    path: '/requests',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'ledger',
+    label: 'الحسابات+',
+    icon: '📒',
+    path: '/ledger',
+    roles: [ROLES.ADMIN, ROLES.MANAGER],
+  },
+  {
+    id: 'sales',
+    label: 'المبيعات',
+    icon: '📈',
+    path: '/sales',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
   },
 ];
 

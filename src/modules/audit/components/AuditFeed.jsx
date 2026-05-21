@@ -3,6 +3,7 @@
 // Scrollable log table with pagination and detail modal.
 // =============================================================
 import { memo, useState } from 'react';
+import { cn } from '@utils/classNames';
 import { AuditLogRow } from './AuditLogRow';
 import { SeverityBadge } from './SeverityBadge';
 import { ENTITY_META } from '../types/audit.types';
@@ -18,19 +19,19 @@ function LogDetailModal({ log, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+        className="bg-surface rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border-subtle)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <SeverityBadge severity={log.severity} />
-            <h3 className="font-semibold text-[var(--color-text-primary)]">{log.action_label}</h3>
+            <h3 className="font-semibold text-text">{log.action_label}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+            className="text-muted hover:text-text transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -63,13 +64,10 @@ function LogDetailModal({ log, onClose }) {
           {/* Metadata */}
           {log.metadata && Object.keys(log.metadata).length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wide">
                 البيانات الإضافية
               </p>
-              <pre className="
-                bg-[var(--color-bg-input)] rounded-lg p-3 text-xs
-                text-[var(--color-text-primary)] overflow-x-auto dir-ltr
-              ">
+              <pre className="bg-surface-alt rounded-lg p-3 text-xs text-text overflow-x-auto dir-ltr">
                 {JSON.stringify(log.metadata, null, 2)}
               </pre>
             </div>
@@ -83,8 +81,8 @@ function LogDetailModal({ log, onClose }) {
 function DetailRow({ label, value, mono }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="text-xs text-[var(--color-text-secondary)] w-32 flex-shrink-0 pt-0.5">{label}</span>
-      <span className={`text-[var(--color-text-primary)] break-all ${mono ? 'font-mono text-xs' : ''}`}>
+      <span className="text-xs text-muted w-32 flex-shrink-0 pt-0.5">{label}</span>
+      <span className={cn('text-text break-all', mono && 'font-mono text-xs')}>
         {value}
       </span>
     </div>
@@ -103,7 +101,12 @@ const Pagination = memo(function Pagination({ page, totalPages, onPage }) {
   return (
     <div className="flex items-center justify-center gap-1 py-4">
       <PageBtn disabled={page === 1} onClick={() => onPage(page - 1)} label="‹" />
-      {start > 1 && <><PageBtn label="1" onClick={() => onPage(1)} /><span className="px-1 text-[var(--color-text-muted)]">…</span></>}
+      {start > 1 && (
+        <>
+          <PageBtn label="1" onClick={() => onPage(1)} />
+          <span className="px-1 text-muted">…</span>
+        </>
+      )}
       {pages.map((p) => (
         <PageBtn
           key={p} label={String(p)}
@@ -111,7 +114,12 @@ const Pagination = memo(function Pagination({ page, totalPages, onPage }) {
           onClick={() => onPage(p)}
         />
       ))}
-      {end < totalPages && <><span className="px-1 text-[var(--color-text-muted)]">…</span><PageBtn label={String(totalPages)} onClick={() => onPage(totalPages)} /></>}
+      {end < totalPages && (
+        <>
+          <span className="px-1 text-muted">…</span>
+          <PageBtn label={String(totalPages)} onClick={() => onPage(totalPages)} />
+        </>
+      )}
       <PageBtn disabled={page === totalPages} onClick={() => onPage(page + 1)} label="›" />
     </div>
   );
@@ -123,13 +131,12 @@ function PageBtn({ label, active, disabled, onClick }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`
-        w-8 h-8 rounded-lg text-sm font-medium transition-colors
-        ${active
-          ? 'bg-[var(--color-teal)] text-white'
-          : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] disabled:opacity-40'
-        }
-      `}
+      className={cn(
+        'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
+        active
+          ? 'bg-teal text-white'
+          : 'bg-surface text-muted hover:bg-border/30 disabled:opacity-40',
+      )}
     >
       {label}
     </button>
@@ -150,13 +157,13 @@ export const AuditFeed = memo(function AuditFeed({ logs, loading, pagination, on
 
   if (loading) {
     return (
-      <div className="space-y-0 rounded-xl overflow-hidden border border-[var(--color-border-subtle)]">
+      <div className="space-y-0 rounded-xl overflow-hidden border border-border">
         {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[var(--color-border-subtle)] last:border-0 animate-pulse">
-            <div className="w-2 h-2 rounded-full bg-[var(--color-bg-hover)]" />
-            <div className="w-28 h-3 rounded bg-[var(--color-bg-hover)]" />
-            <div className="w-20 h-3 rounded bg-[var(--color-bg-hover)]" />
-            <div className="flex-1 h-3 rounded bg-[var(--color-bg-hover)]" />
+          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-border last:border-0 animate-pulse">
+            <div className="w-2 h-2 rounded-full bg-border/50" />
+            <div className="w-28 h-3 rounded bg-border/50" />
+            <div className="w-20 h-3 rounded bg-border/50" />
+            <div className="flex-1 h-3 rounded bg-border/50" />
           </div>
         ))}
       </div>
@@ -165,7 +172,7 @@ export const AuditFeed = memo(function AuditFeed({ logs, loading, pagination, on
 
   if (!logs?.length) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-[var(--color-text-muted)]">
+      <div className="flex flex-col items-center justify-center py-16 text-muted">
         <span className="text-4xl mb-3">📋</span>
         <p className="text-sm">لا توجد سجلات تطابق التصفية الحالية</p>
       </div>
@@ -175,19 +182,19 @@ export const AuditFeed = memo(function AuditFeed({ logs, loading, pagination, on
   return (
     <>
       {/* Table — desktop */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--color-border-subtle)]">
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm" dir="rtl">
           <thead>
-            <tr className="bg-[var(--color-bg-subtle)] border-b border-[var(--color-border-subtle)]">
+            <tr className="bg-surface-alt border-b border-border">
               <th className="px-3 py-2 w-8" />
-              <th className="px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] text-start">الوقت</th>
-              <th className="px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] text-start">المستخدم</th>
-              <th className="px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] text-start">الإجراء</th>
-              <th className="px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] text-start">الكيان</th>
-              <th className="px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] text-start">الخطورة</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted text-start">الوقت</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted text-start">المستخدم</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted text-start">الإجراء</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted text-start">الكيان</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted text-start">الخطورة</th>
             </tr>
           </thead>
-          <tbody className="bg-[var(--color-bg-card)]">
+          <tbody className="bg-surface">
             {logs.map((log) => (
               <AuditLogRow
                 key={log.id}
@@ -200,7 +207,7 @@ export const AuditFeed = memo(function AuditFeed({ logs, loading, pagination, on
       </div>
 
       {/* List — mobile */}
-      <div className="md:hidden rounded-xl border border-[var(--color-border-subtle)] overflow-hidden bg-[var(--color-bg-card)]">
+      <div className="md:hidden rounded-xl border border-border overflow-hidden bg-surface">
         {logs.map((log) => (
           <AuditLogRow
             key={log.id}

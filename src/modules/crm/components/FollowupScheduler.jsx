@@ -1,35 +1,173 @@
 /**
- * FollowupScheduler — displays upcoming/overdue followups + allows scheduling new ones.
+ * FollowupScheduler — upcoming/overdue followups + schedule new ones.
+ * Task #69/#8: Full Tailwind rewrite — no inline CSS.
  */
 import React, { useState } from 'react';
+import { cn } from '@utils/classNames';
+import { Spinner } from '@components/ui/Loading';
 import {
   FOLLOWUP_TYPE_LABELS,
   FOLLOWUP_TYPE_ICONS,
   FOLLOWUP_STATUS_LABELS,
-  FOLLOWUP_STATUS_COLORS,
 } from '../types/crm.types.js';
 import { useFollowupPanel } from '../hooks/useCRM.js';
 
 const TYPE_OPTIONS = Object.entries(FOLLOWUP_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 
-const STATUS_COLORS = {
-  pending:   { bg: '#fef3c7', color: '#92400e' },
-  overdue:   { bg: '#fee2e2', color: '#991b1b' },
-  done:      { bg: '#d1fae5', color: '#065f46' },
-  cancelled: { bg: '#f1f5f9', color: '#475569' },
+// Status → Tailwind badge tone
+const STATUS_TONE = {
+  pending:   'bg-amber-bg  text-amber-fg',
+  overdue:   'bg-red-bg    text-red-fg',
+  done:      'bg-green-bg  text-green-fg',
+  cancelled: 'bg-surface-alt text-muted',
 };
 
-const EMPTY_FORM = {
-  title: '',
-  followup_type: 'call',
-  due_at: '',
-  description: '',
-};
+const EMPTY_FORM = { title: '', followup_type: 'call', due_at: '', description: '' };
 
+// ── Shared form field wrapper ──────────────────────────────────
+function FieldLabel({ children }) {
+  return <label className="text-xs font-semibold text-muted block mb-1">{children}</label>;
+}
+const inputCls = 'w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40';
+
+// ── Add followup form ──────────────────────────────────────────
+function AddForm({ form, setForm, onSubmit, onCancel, isSubmitting }) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="bg-surface border border-border rounded-xl p-4 mb-4 space-y-3"
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>العنوان *</FieldLabel>
+          <input
+            value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            required
+            placeholder="عنوان المتابعة"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <FieldLabel>النوع</FieldLabel>
+          <select
+            value={form.followup_type}
+            onChange={e => setForm(f => ({ ...f, followup_type: e.target.value }))}
+            className={inputCls}
+          >
+            {TYPE_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>
+                {FOLLOWUP_TYPE_ICONS[o.value]} {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>الموعد *</FieldLabel>
+          <input
+            type="datetime-local"
+            value={form.due_at}
+            onChange={e => setForm(f => ({ ...f, due_at: e.target.value }))}
+            required
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <FieldLabel>ملاحظات</FieldLabel>
+          <input
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="اختياري"
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+        >
+          {isSubmitting ? <Spinner size="sm" /> : null}
+          {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-1.5 text-xs font-semibold text-muted border border-border rounded-lg hover:text-text transition-colors"
+        >
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Single followup row ────────────────────────────────────────
+function FollowupRow({ f, onComplete, onCancel: onCancelFu }) {
+  const isOverdue  = f.status === 'overdue';
+  const badgeTone  = STATUS_TONE[f.status] ?? STATUS_TONE.pending;
+  const icon       = FOLLOWUP_TYPE_ICONS[f.followup_type] ?? '📋';
+  const canAct     = f.status !== 'done' && f.status !== 'cancelled';
+
+  return (
+    <div className={cn(
+      'flex items-start gap-3 rounded-xl border px-3 sm:px-4 py-3 bg-surface transition-colors',
+      isOverdue ? 'border-red/30' : 'border-border',
+    )}>
+      <span className="text-lg shrink-0 mt-0.5" aria-hidden>{icon}</span>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="text-sm font-semibold text-text truncate">{f.title}</span>
+          <span className={cn(
+            'text-[10px] font-bold px-2 py-px rounded-full shrink-0',
+            badgeTone,
+          )}>
+            {FOLLOWUP_STATUS_LABELS[f.status] ?? f.status}
+          </span>
+        </div>
+
+        {f.description && (
+          <p className="text-xs text-muted mb-1 line-clamp-2">{f.description}</p>
+        )}
+
+        <div className={cn(
+          'text-[11px]',
+          isOverdue ? 'text-red-fg font-medium' : 'text-muted',
+        )}>
+          🗓 {new Date(f.due_at).toLocaleString('ar-SA')}
+        </div>
+      </div>
+
+      {canAct && (
+        <div className="flex gap-1.5 shrink-0 mt-0.5">
+          <button
+            type="button"
+            onClick={() => onComplete(f.id)}
+            className="px-2.5 py-1 text-[11px] font-semibold bg-green-bg text-green-fg rounded-lg hover:opacity-90 transition-opacity"
+          >
+            ✓ مكتمل
+          </button>
+          <button
+            type="button"
+            onClick={() => onCancelFu(f.id)}
+            className="px-2.5 py-1 text-[11px] font-semibold text-muted border border-border rounded-lg hover:text-text transition-colors"
+          >
+            إلغاء
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────
 export default function FollowupScheduler({ dealId, customerId, leadId }) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [activeTab, setActiveTab] = useState('active'); // active | done
+  const [showForm, setShowForm]   = useState(false);
+  const [form, setForm]           = useState({ ...EMPTY_FORM });
+  const [activeTab, setActiveTab] = useState('active');
 
   const {
     overdue, dueToday, upcoming, completed,
@@ -37,248 +175,96 @@ export default function FollowupScheduler({ dealId, customerId, leadId }) {
     scheduleFollowup, completeFollowup, cancelFollowup,
   } = useFollowupPanel();
 
-  // Filter by entity if provided
   const filterByEntity = list =>
     dealId || customerId || leadId
       ? list.filter(f =>
-          (dealId && f.deal_id === dealId) ||
+          (dealId     && f.deal_id     === dealId) ||
           (customerId && f.customer_id === customerId) ||
-          (leadId && f.lead_id === leadId)
+          (leadId     && f.lead_id     === leadId)
         )
       : list;
 
   const activeFollowups = filterByEntity([...overdue, ...dueToday, ...upcoming]);
-  const doneFollowups = filterByEntity(completed);
+  const doneFollowups   = filterByEntity(completed);
+  const displayList     = activeTab === 'active' ? activeFollowups : doneFollowups;
 
   const handleSubmit = async e => {
     e.preventDefault();
     if (!form.title || !form.due_at) return;
     await scheduleFollowup({
       ...form,
-      deal_id: dealId ?? null,
+      deal_id:     dealId     ?? null,
       customer_id: customerId ?? null,
-      lead_id: leadId ?? null,
+      lead_id:     leadId     ?? null,
     });
     setForm({ ...EMPTY_FORM });
     setShowForm(false);
   };
 
-  const displayList = activeTab === 'active' ? activeFollowups : doneFollowups;
-
   return (
-    <div style={{ direction: 'rtl' }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 14,
-      }}>
-        <div style={{ display: 'flex', gap: 8 }}>
+    <div className="space-y-4">
+
+      {/* ── Toolbar ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {/* Tabs */}
+        <div className="flex gap-1">
           {[
             { key: 'active', label: `نشطة (${activeFollowups.length})` },
-            { key: 'done', label: `مكتملة (${doneFollowups.length})` },
+            { key: 'done',   label: `مكتملة (${doneFollowups.length})` },
           ].map(t => (
             <button
               key={t.key}
+              type="button"
               onClick={() => setActiveTab(t.key)}
-              style={{
-                background: activeTab === t.key ? '#0ea5e9' : 'transparent',
-                color: activeTab === t.key ? '#fff' : '#64748b',
-                border: `1px solid ${activeTab === t.key ? '#0ea5e9' : '#e2e8f0'}`,
-                borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: 'pointer',
-              }}
+              className={cn(
+                'px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                activeTab === t.key
+                  ? 'bg-teal text-white border-teal'
+                  : 'bg-transparent text-muted border-border hover:text-text',
+              )}
             >
               {t.label}
             </button>
           ))}
         </div>
+
         <button
+          type="button"
           onClick={() => setShowForm(v => !v)}
-          style={{
-            background: '#0ea5e9', color: '#fff', border: 'none',
-            borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
-          }}
+          className="px-3 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity"
         >
           + جدولة متابعة
         </button>
       </div>
 
-      {/* New followup form */}
+      {/* ── Add form ── */}
       {showForm && (
-        <form
+        <AddForm
+          form={form}
+          setForm={setForm}
           onSubmit={handleSubmit}
-          style={{
-            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
-            padding: 16, marginBottom: 14,
-          }}
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                العنوان *
-              </label>
-              <input
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                required
-                placeholder="عنوان المتابعة"
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                النوع
-              </label>
-              <select
-                value={form.followup_type}
-                onChange={e => setForm(f => ({ ...f, followup_type: e.target.value }))}
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              >
-                {TYPE_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>
-                    {FOLLOWUP_TYPE_ICONS[o.value]} {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                الموعد *
-              </label>
-              <input
-                type="datetime-local"
-                value={form.due_at}
-                onChange={e => setForm(f => ({ ...f, due_at: e.target.value }))}
-                required
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                ملاحظات
-              </label>
-              <input
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="اختياري"
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start' }}>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                background: '#0ea5e9', color: '#fff', border: 'none',
-                borderRadius: 6, padding: '7px 18px', fontSize: 12, cursor: 'pointer',
-              }}
-            >
-              {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              style={{
-                background: 'transparent', color: '#64748b',
-                border: '1px solid #e2e8f0', borderRadius: 6,
-                padding: '7px 14px', fontSize: 12, cursor: 'pointer',
-              }}
-            >
-              إلغاء
-            </button>
-          </div>
-        </form>
+          onCancel={() => setShowForm(false)}
+          isSubmitting={isSubmitting}
+        />
       )}
 
-      {/* Followup list */}
+      {/* ── List ── */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 20 }}>
-          جاري التحميل...
-        </div>
+        <div className="flex justify-center py-8"><Spinner /></div>
       ) : displayList.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 24 }}>
+        <p className="text-center text-sm text-muted py-8">
           {activeTab === 'active' ? 'لا توجد متابعات نشطة' : 'لا توجد متابعات مكتملة'}
-        </div>
+        </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {displayList.map(f => {
-            const statusStyle = STATUS_COLORS[f.status] ?? STATUS_COLORS.pending;
-            const icon = FOLLOWUP_TYPE_ICONS[f.followup_type] ?? '📋';
-            const isOverdue = f.status === 'overdue';
-
-            return (
-              <div key={f.id} style={{
-                background: '#fff',
-                border: `1px solid ${isOverdue ? '#fca5a5' : '#e2e8f0'}`,
-                borderRadius: 8, padding: '12px 14px',
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-              }}>
-                <span style={{ fontSize: 18, marginTop: 1 }}>{icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
-                  }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>
-                      {f.title}
-                    </span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 600,
-                      background: statusStyle.bg, color: statusStyle.color,
-                      padding: '1px 7px', borderRadius: 20,
-                    }}>
-                      {FOLLOWUP_STATUS_LABELS[f.status] ?? f.status}
-                    </span>
-                  </div>
-                  {f.description && (
-                    <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>
-                      {f.description}
-                    </p>
-                  )}
-                  <div style={{ fontSize: 11, color: isOverdue ? '#ef4444' : '#94a3b8' }}>
-                    🗓 {new Date(f.due_at).toLocaleString('ar-SA')}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                {f.status !== 'done' && f.status !== 'cancelled' && (
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button
-                      onClick={() => completeFollowup(f.id)}
-                      style={{
-                        background: '#d1fae5', color: '#065f46', border: 'none',
-                        borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer',
-                      }}
-                    >
-                      ✓ مكتمل
-                    </button>
-                    <button
-                      onClick={() => cancelFollowup(f.id)}
-                      style={{
-                        background: 'transparent', color: '#94a3b8',
-                        border: '1px solid #e2e8f0', borderRadius: 6,
-                        padding: '4px 8px', fontSize: 11, cursor: 'pointer',
-                      }}
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="space-y-2">
+          {displayList.map(f => (
+            <FollowupRow
+              key={f.id}
+              f={f}
+              onComplete={completeFollowup}
+              onCancel={cancelFollowup}
+            />
+          ))}
         </div>
       )}
     </div>

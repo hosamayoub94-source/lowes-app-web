@@ -1,15 +1,20 @@
 /**
  * SalesTimeline — chronological activity timeline for a deal or customer.
- * Shows calls, emails, meetings, notes, stage changes, file uploads, etc.
+ * Task #69/#8: Full Tailwind rewrite — no inline CSS.
+ *
+ * Note: dynamic per-activity dot color still uses a style prop because
+ * Tailwind cannot safely construct arbitrary hex color classes at runtime.
  */
 import React, { useState } from 'react';
+import { cn } from '@utils/classNames';
+import { Spinner } from '@components/ui/Loading';
 import {
   ACTIVITY_TYPE_ICONS,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE,
 } from '../types/crm.types.js';
 
-// Color per activity type
+// Per-type dot color (hex — safe as inline style only)
 const TYPE_COLORS = {
   [ACTIVITY_TYPE.CALL]:         '#3b82f6',
   [ACTIVITY_TYPE.EMAIL]:        '#0ea5e9',
@@ -35,21 +40,111 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('ar-SA');
 }
 
+// ── Shared label + input styles ────────────────────────────────
+function FieldLabel({ children }) {
+  return <label className="text-xs font-semibold text-muted block mb-1">{children}</label>;
+}
+const inputCls = 'w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40';
+
+// ── Add activity form ──────────────────────────────────────────
+function AddForm({ form, setForm, onSubmit, onCancel, isSubmitting }) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="bg-surface border border-border rounded-xl p-4 mb-4 space-y-3"
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>النوع</FieldLabel>
+          <select
+            value={form.activity_type}
+            onChange={e => setForm(f => ({ ...f, activity_type: e.target.value }))}
+            className={inputCls}
+          >
+            {Object.entries(ACTIVITY_TYPE_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{ACTIVITY_TYPE_ICONS[v]} {l}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>العنوان *</FieldLabel>
+          <input
+            value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            required
+            placeholder="عنوان النشاط"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <FieldLabel>الوصف</FieldLabel>
+          <input
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="تفاصيل اختيارية"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <FieldLabel>المدة (دقائق)</FieldLabel>
+          <input
+            type="number"
+            min="1"
+            value={form.duration_minutes}
+            onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))}
+            placeholder="اختياري"
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>النتيجة</FieldLabel>
+        <input
+          value={form.outcome}
+          onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
+          placeholder="ما هي النتيجة؟"
+          className={inputCls}
+        />
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+        >
+          {isSubmitting ? <Spinner size="sm" /> : null}
+          {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-1.5 text-xs font-semibold text-muted border border-border rounded-lg hover:text-text transition-colors"
+        >
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────
 export default function SalesTimeline({
   activities = [],
   onAddActivity,
-  isLoading = false,
+  isLoading    = false,
   isSubmitting = false,
   dealId,
   customerId,
 }) {
-  const [filterType, setFilterType] = useState('all');
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [filterType,   setFilterType]   = useState('all');
+  const [showAddForm,  setShowAddForm]  = useState(false);
   const [form, setForm] = useState({
-    activity_type: ACTIVITY_TYPE.CALL,
-    title: '',
-    description: '',
-    outcome: '',
+    activity_type:    ACTIVITY_TYPE.CALL,
+    title:            '',
+    description:      '',
+    outcome:          '',
     duration_minutes: '',
   });
 
@@ -63,8 +158,8 @@ export default function SalesTimeline({
     if (!form.title) return;
     await onAddActivity?.({
       ...form,
-      deal_id: dealId ?? null,
-      customer_id: customerId ?? null,
+      deal_id:          dealId     ?? null,
+      customer_id:      customerId ?? null,
       duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
     });
     setForm({
@@ -80,24 +175,23 @@ export default function SalesTimeline({
   ];
 
   return (
-    <div style={{ direction: 'rtl' }}>
-      {/* Toolbar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 14, flexWrap: 'wrap', gap: 8,
-      }}>
+    <div className="space-y-4">
+
+      {/* ── Toolbar ── */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         {/* Filter chips */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div className="flex gap-1.5 flex-wrap">
           {FILTER_OPTIONS.slice(0, 6).map(o => (
             <button
               key={o.value}
+              type="button"
               onClick={() => setFilterType(o.value)}
-              style={{
-                background: filterType === o.value ? '#0ea5e9' : '#f1f5f9',
-                color: filterType === o.value ? '#fff' : '#475569',
-                border: 'none', borderRadius: 20,
-                padding: '3px 10px', fontSize: 11, cursor: 'pointer',
-              }}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-colors',
+                filterType === o.value
+                  ? 'bg-teal text-white border-teal'
+                  : 'bg-surface-alt text-muted border-transparent hover:text-text',
+              )}
             >
               {o.value !== 'all' && (ACTIVITY_TYPE_ICONS[o.value] ?? '')} {o.label}
             </button>
@@ -105,210 +199,83 @@ export default function SalesTimeline({
         </div>
 
         <button
+          type="button"
           onClick={() => setShowAddForm(v => !v)}
-          style={{
-            background: '#0ea5e9', color: '#fff', border: 'none',
-            borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
-          }}
+          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity"
         >
           + تسجيل نشاط
         </button>
       </div>
 
-      {/* Add activity form */}
+      {/* ── Add form ── */}
       {showAddForm && (
-        <form
+        <AddForm
+          form={form}
+          setForm={setForm}
           onSubmit={handleSubmit}
-          style={{
-            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
-            padding: 16, marginBottom: 14,
-          }}
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                النوع
-              </label>
-              <select
-                value={form.activity_type}
-                onChange={e => setForm(f => ({ ...f, activity_type: e.target.value }))}
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              >
-                {Object.entries(ACTIVITY_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{ACTIVITY_TYPE_ICONS[v]} {l}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                العنوان *
-              </label>
-              <input
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                required
-                placeholder="عنوان النشاط"
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                الوصف
-              </label>
-              <input
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="تفاصيل اختيارية"
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                المدة (دقائق)
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={form.duration_minutes}
-                onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))}
-                placeholder="اختياري"
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '7px 10px', fontSize: 13, boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
-              النتيجة
-            </label>
-            <input
-              value={form.outcome}
-              onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
-              placeholder="ما هي النتيجة؟"
-              style={{
-                width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                padding: '7px 10px', fontSize: 13, direction: 'rtl', boxSizing: 'border-box',
-                marginBottom: 10,
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                background: '#0ea5e9', color: '#fff', border: 'none',
-                borderRadius: 6, padding: '7px 18px', fontSize: 12, cursor: 'pointer',
-              }}
-            >
-              {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddForm(false)}
-              style={{
-                background: 'transparent', color: '#64748b',
-                border: '1px solid #e2e8f0', borderRadius: 6,
-                padding: '7px 14px', fontSize: 12, cursor: 'pointer',
-              }}
-            >
-              إلغاء
-            </button>
-          </div>
-        </form>
+          onCancel={() => setShowAddForm(false)}
+          isSubmitting={isSubmitting}
+        />
       )}
 
-      {/* Timeline */}
+      {/* ── Timeline ── */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 24, fontSize: 13 }}>
-          جاري التحميل...
-        </div>
+        <div className="flex justify-center py-8"><Spinner /></div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 32, fontSize: 13 }}>
-          لا توجد أنشطة مسجلة
-        </div>
+        <p className="text-center text-sm text-muted py-8">لا توجد أنشطة مسجلة</p>
       ) : (
-        <div style={{ position: 'relative', paddingRight: 28 }}>
+        /* RTL: line on the right, dots offset to the right */
+        <div className="relative pe-7">
           {/* Vertical line */}
-          <div style={{
-            position: 'absolute', right: 11, top: 0, bottom: 0,
-            width: 2, background: '#e2e8f0',
-          }} />
+          <div className="absolute end-[11px] top-0 bottom-0 w-px bg-border" />
 
-          {filtered.map((activity, idx) => {
-            const color = TYPE_COLORS[activity.activity_type] ?? '#64748b';
-            const icon = ACTIVITY_TYPE_ICONS[activity.activity_type] ?? '📋';
+          <div className="space-y-5">
+            {filtered.map(activity => {
+              const color = TYPE_COLORS[activity.activity_type] ?? '#64748b';
+              const icon  = ACTIVITY_TYPE_ICONS[activity.activity_type] ?? '📋';
 
-            return (
-              <div
-                key={activity.id}
-                style={{
-                  position: 'relative', marginBottom: idx < filtered.length - 1 ? 20 : 0,
-                  paddingRight: 0,
-                }}
-              >
-                {/* Dot */}
-                <div style={{
-                  position: 'absolute', right: -21, top: 8,
-                  width: 22, height: 22, borderRadius: '50%',
-                  background: color, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, zIndex: 1,
-                }}>
-                  {icon}
-                </div>
-
-                {/* Card */}
-                <div style={{
-                  background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8, padding: '10px 14px',
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 4,
-                  }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>
-                      {activity.title}
-                    </span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {timeAgo(activity.created_at)}
-                    </span>
+              return (
+                <div key={activity.id} className="relative">
+                  {/* Dot — dynamic color must stay inline */}
+                  <div
+                    className="absolute -end-[21px] top-2 w-[22px] h-[22px] rounded-full flex items-center justify-center text-[11px] z-10 shrink-0"
+                    style={{ background: color }}
+                    aria-hidden
+                  >
+                    {icon}
                   </div>
 
-                  {activity.description && (
-                    <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>
-                      {activity.description}
-                    </p>
-                  )}
+                  {/* Card */}
+                  <div className="bg-surface border border-border rounded-xl px-4 py-3">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <span className="text-sm font-semibold text-text truncate">
+                        {activity.title}
+                      </span>
+                      <span className="text-[11px] text-muted shrink-0">
+                        {timeAgo(activity.created_at)}
+                      </span>
+                    </div>
 
-                  {activity.outcome && (
-                    <p style={{ margin: 0, fontSize: 12, color: '#0ea5e9', fontStyle: 'italic' }}>
-                      النتيجة: {activity.outcome}
-                    </p>
-                  )}
+                    {activity.description && (
+                      <p className="text-xs text-muted mb-1">{activity.description}</p>
+                    )}
 
-                  {activity.duration_minutes && (
-                    <span style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, display: 'block' }}>
-                      ⏱ {activity.duration_minutes} دقيقة
-                    </span>
-                  )}
+                    {activity.outcome && (
+                      <p className="text-xs text-teal italic">
+                        النتيجة: {activity.outcome}
+                      </p>
+                    )}
+
+                    {activity.duration_minutes && (
+                      <span className="text-[10px] text-muted mt-1 block">
+                        ⏱ {activity.duration_minutes} دقيقة
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

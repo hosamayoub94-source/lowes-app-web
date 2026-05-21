@@ -1,38 +1,68 @@
 /**
  * CustomerProfile — full profile panel for a single customer.
- * Shows: info, contacts, linked deals, recent activities, notes.
+ * Task #69/#8: Full Tailwind rewrite — no inline CSS.
+ *
+ * Sections: header (gradient), tabs, overview / contacts / deals / activities / notes
  */
-import React, { useState, useEffect } from 'react';
-import { ACTIVITY_TYPE_ICONS, ACTIVITY_TYPE_LABELS, formatCurrency } from '../types/crm.types.js';
+import React, { useState } from 'react';
+import { cn } from '@utils/classNames';
+import { Spinner } from '@components/ui/Loading';
+import { ACTIVITY_TYPE_ICONS, formatCurrency } from '../types/crm.types.js';
 import { useCustomerProfile } from '../hooks/useCRM.js';
 
 const TABS = [
-  { key: 'overview', label: 'نظرة عامة' },
-  { key: 'contacts', label: 'جهات الاتصال' },
-  { key: 'deals', label: 'الصفقات' },
-  { key: 'activities', label: 'الأنشطة' },
-  { key: 'notes', label: 'الملاحظات' },
+  { key: 'overview',    label: 'نظرة عامة'    },
+  { key: 'contacts',   label: 'جهات الاتصال' },
+  { key: 'deals',      label: 'الصفقات'       },
+  { key: 'activities', label: 'الأنشطة'       },
+  { key: 'notes',      label: 'الملاحظات'     },
 ];
 
+// ── Small info cell (overview grid) ───────────────────────────
+function InfoCell({ label, value }) {
+  if (!value) return null;
+  return (
+    <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5">
+      <div className="text-[11px] text-muted mb-0.5">{label}</div>
+      <div className="text-sm font-medium text-text">{value}</div>
+    </div>
+  );
+}
+
+// ── Contact avatar ─────────────────────────────────────────────
+function ContactAvatar({ name, isPrimary }) {
+  return (
+    <div className={cn(
+      'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
+      isPrimary ? 'bg-teal text-white' : 'bg-surface-alt text-muted',
+    )}>
+      {name?.[0]?.toUpperCase() ?? '?'}
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────
 export default function CustomerProfile({ customerId, onClose }) {
   const [activeTab, setActiveTab] = useState('overview');
-  const [noteText, setNoteText] = useState('');
+  const [noteText, setNoteText]   = useState('');
 
   const {
     customer, contacts, deals, activities, notes,
     isLoading, isSubmitting,
-    addNote, deleteNote, updateCustomer,
+    addNote, deleteNote,
   } = useCustomerProfile(customerId);
 
   if (isLoading && !customer) {
     return (
-      <div style={{ padding: 32, textAlign: 'center', color: '#64748b' }}>جاري التحميل...</div>
+      <div className="flex items-center justify-center py-16 text-muted text-sm gap-3">
+        <Spinner /> جاري التحميل...
+      </div>
     );
   }
 
   if (!customer) {
     return (
-      <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>لم يتم العثور على العميل</div>
+      <p className="text-center text-muted text-sm py-16">لم يتم العثور على العميل</p>
     );
   }
 
@@ -43,44 +73,34 @@ export default function CustomerProfile({ customerId, onClose }) {
   };
 
   return (
-    <div style={{ direction: 'rtl', fontFamily: 'inherit' }}>
-      {/* Header */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
-        padding: '20px 24px',
-        borderRadius: '10px 10px 0 0',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
+    <div className="flex flex-col overflow-hidden rounded-2xl">
+
+      {/* ── Header gradient ── */}
+      <div className="bg-gradient-to-br from-navy to-[#1e3a5f] px-5 py-4 flex items-start justify-between gap-3">
         <div>
-          <h2 style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 700 }}>
-            {customer.company_name}
-          </h2>
-          <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+          <h2 className="text-white text-base sm:text-lg font-bold">{customer.company_name}</h2>
+          <div className="flex gap-3 mt-1.5 flex-wrap">
             {customer.industry && (
-              <span style={{ color: '#94a3b8', fontSize: 12 }}>{customer.industry}</span>
+              <span className="text-[12px] text-white/60">{customer.industry}</span>
             )}
             {customer.city && (
-              <span style={{ color: '#94a3b8', fontSize: 12 }}>📍 {customer.city}</span>
+              <span className="text-[12px] text-white/60">📍 {customer.city}</span>
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>
+
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right hidden sm:block">
+            <div className="text-white font-bold text-base">
               {formatCurrency(customer.total_revenue || 0, 'SAR')}
             </div>
-            <div style={{ color: '#94a3b8', fontSize: 10 }}>إجمالي الإيرادات</div>
+            <div className="text-[10px] text-white/50">إجمالي الإيرادات</div>
           </div>
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
-              style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none',
-                color: '#fff', borderRadius: 6, padding: '6px 12px',
-                cursor: 'pointer', fontSize: 12,
-              }}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
             >
               إغلاق
             </button>
@@ -88,96 +108,77 @@ export default function CustomerProfile({ customerId, onClose }) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{
-        display: 'flex', borderBottom: '1px solid #e2e8f0',
-        background: '#fff', padding: '0 16px',
-      }}>
+      {/* ── Tabs ── */}
+      <div className="flex gap-0 border-b border-border bg-surface overflow-x-auto scrollbar-none">
         {TABS.map(tab => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '10px 14px', fontSize: 13, fontWeight: 500,
-              color: activeTab === tab.key ? '#0ea5e9' : '#64748b',
-              borderBottom: `2px solid ${activeTab === tab.key ? '#0ea5e9' : 'transparent'}`,
-              marginBottom: -1,
-              transition: 'color 0.15s',
-            }}
+            className={cn(
+              'shrink-0 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold whitespace-nowrap',
+              'border-b-2 -mb-px transition-colors',
+              activeTab === tab.key
+                ? 'text-teal border-teal'
+                : 'text-muted border-transparent hover:text-text',
+            )}
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
-      <div style={{ background: '#f8fafc', padding: 20, borderRadius: '0 0 10px 10px' }}>
+      {/* ── Tab content ── */}
+      <div className="bg-surface-alt flex-1 overflow-y-auto p-4 rounded-b-2xl">
 
         {/* Overview */}
         {activeTab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { label: 'الموقع الإلكتروني', value: customer.website },
-              { label: 'العنوان', value: customer.address },
-              { label: 'الدولة', value: customer.country },
-              { label: 'إجمالي الصفقات', value: customer.total_deals },
-              { label: 'الحالة', value: customer.status === 'active' ? 'نشط' : 'غير نشط' },
-              {
-                label: 'آخر تواصل',
-                value: customer.last_contact_at
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <InfoCell label="الموقع الإلكتروني" value={customer.website} />
+            <InfoCell label="العنوان"            value={customer.address} />
+            <InfoCell label="الدولة"             value={customer.country} />
+            <InfoCell label="إجمالي الصفقات"     value={customer.total_deals} />
+            <InfoCell
+              label="الحالة"
+              value={customer.status === 'active' ? 'نشط ✅' : 'غير نشط'}
+            />
+            <InfoCell
+              label="آخر تواصل"
+              value={
+                customer.last_contact_at
                   ? new Date(customer.last_contact_at).toLocaleDateString('ar-SA')
-                  : 'لا يوجد',
-              },
-            ].map(({ label, value }) => value ? (
-              <div key={label} style={{
-                background: '#fff', borderRadius: 8, padding: '12px 14px',
-                border: '1px solid #e2e8f0',
-              }}>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 500 }}>{value}</div>
-              </div>
-            ) : null)}
+                  : 'لا يوجد'
+              }
+            />
           </div>
         )}
 
         {/* Contacts */}
         {activeTab === 'contacts' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="space-y-2.5">
             {contacts.length === 0 && (
-              <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
-                لا توجد جهات اتصال مضافة
-              </p>
+              <p className="text-center text-muted text-sm py-8">لا توجد جهات اتصال مضافة</p>
             )}
             {contacts.map(c => (
-              <div key={c.id} style={{
-                background: '#fff', borderRadius: 8, padding: '12px 14px',
-                border: '1px solid #e2e8f0', display: 'flex', gap: 12, alignItems: 'center',
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: c.is_primary ? '#0ea5e9' : '#e2e8f0',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: c.is_primary ? '#fff' : '#64748b', fontSize: 14, fontWeight: 600,
-                  flexShrink: 0,
-                }}>
-                  {c.full_name?.[0] ?? '?'}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>
-                    {c.full_name}
+              <div
+                key={c.id}
+                className="flex items-center gap-3 bg-surface rounded-xl border border-border px-3 py-3"
+              >
+                <ContactAvatar name={c.full_name} isPrimary={c.is_primary} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-text truncate">{c.full_name}</span>
                     {c.is_primary && (
-                      <span style={{
-                        marginRight: 6, fontSize: 10, background: '#dbeafe', color: '#1d4ed8',
-                        padding: '1px 6px', borderRadius: 10,
-                      }}>رئيسي</span>
+                      <span className="text-[10px] font-bold bg-blue-bg text-blue-fg px-2 py-px rounded-full shrink-0">
+                        رئيسي
+                      </span>
                     )}
                   </div>
-                  {c.role && <div style={{ fontSize: 11, color: '#64748b' }}>{c.role}</div>}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-                    {c.email && <span style={{ fontSize: 11, color: '#0ea5e9' }}>✉️ {c.email}</span>}
-                    {c.phone && <span style={{ fontSize: 11, color: '#64748b' }}>📞 {c.phone}</span>}
-                    {c.whatsapp && <span style={{ fontSize: 11, color: '#22c55e' }}>💬 {c.whatsapp}</span>}
+                  {c.role && <div className="text-xs text-muted">{c.role}</div>}
+                  <div className="flex gap-3 mt-1 flex-wrap">
+                    {c.email    && <span className="text-xs text-teal">✉️ {c.email}</span>}
+                    {c.phone    && <span className="text-xs text-muted">📞 {c.phone}</span>}
+                    {c.whatsapp && <span className="text-xs text-green-fg">💬 {c.whatsapp}</span>}
                   </div>
                 </div>
               </div>
@@ -187,23 +188,24 @@ export default function CustomerProfile({ customerId, onClose }) {
 
         {/* Deals */}
         {activeTab === 'deals' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="space-y-2">
             {deals.length === 0 && (
-              <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>لا توجد صفقات</p>
+              <p className="text-center text-muted text-sm py-8">لا توجد صفقات</p>
             )}
             {deals.map(d => (
-              <div key={d.id} style={{
-                background: '#fff', borderRadius: 8, padding: '12px 14px',
-                border: '1px solid #e2e8f0', display: 'flex',
-                justifyContent: 'space-between', alignItems: 'center',
-              }}>
+              <div
+                key={d.id}
+                className="flex items-center justify-between gap-3 bg-surface rounded-xl border border-border px-3 py-3"
+              >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{d.title}</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    {d.status === 'won' ? '✅ مكتملة' : d.status === 'lost' ? '❌ خاسرة' : '🔄 مفتوحة'}
+                  <div className="text-sm font-semibold text-text">{d.title}</div>
+                  <div className="text-xs text-muted mt-0.5">
+                    {d.status === 'won'  ? '✅ مكتملة'
+                    : d.status === 'lost' ? '❌ خاسرة'
+                    : '🔄 مفتوحة'}
                   </div>
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>
+                <span className="text-sm font-bold text-text shrink-0">
                   {formatCurrency(d.value, d.currency)}
                 </span>
               </div>
@@ -213,24 +215,24 @@ export default function CustomerProfile({ customerId, onClose }) {
 
         {/* Activities */}
         {activeTab === 'activities' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="space-y-2">
             {activities.length === 0 && (
-              <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>لا توجد أنشطة</p>
+              <p className="text-center text-muted text-sm py-8">لا توجد أنشطة</p>
             )}
             {activities.map(a => (
-              <div key={a.id} style={{
-                background: '#fff', borderRadius: 8, padding: '12px 14px',
-                border: '1px solid #e2e8f0', display: 'flex', gap: 12,
-              }}>
-                <span style={{ fontSize: 18 }}>
+              <div
+                key={a.id}
+                className="flex items-start gap-3 bg-surface rounded-xl border border-border px-3 py-3"
+              >
+                <span className="text-lg shrink-0 mt-0.5" aria-hidden>
                   {ACTIVITY_TYPE_ICONS[a.activity_type] ?? '📋'}
                 </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{a.title}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-text">{a.title}</div>
                   {a.description && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{a.description}</div>
+                    <div className="text-xs text-muted mt-0.5">{a.description}</div>
                   )}
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                  <div className="text-[11px] text-muted mt-1">
                     {new Date(a.created_at).toLocaleDateString('ar-SA')}
                   </div>
                 </div>
@@ -241,66 +243,55 @@ export default function CustomerProfile({ customerId, onClose }) {
 
         {/* Notes */}
         {activeTab === 'notes' && (
-          <div>
-            {/* Add note */}
-            <div style={{
-              background: '#fff', borderRadius: 8, padding: 14, border: '1px solid #e2e8f0',
-              marginBottom: 12,
-            }}>
+          <div className="space-y-3">
+            {/* Add note form */}
+            <div className="bg-surface rounded-xl border border-border p-3">
               <textarea
                 value={noteText}
                 onChange={e => setNoteText(e.target.value)}
                 placeholder="أضف ملاحظة..."
                 rows={3}
-                style={{
-                  width: '100%', border: '1px solid #e2e8f0', borderRadius: 6,
-                  padding: '8px 10px', fontSize: 13, resize: 'vertical',
-                  direction: 'rtl', boxSizing: 'border-box',
-                }}
+                className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
               />
               <button
+                type="button"
                 onClick={handleAddNote}
                 disabled={isSubmitting || !noteText.trim()}
-                style={{
-                  marginTop: 8, background: '#0ea5e9', color: '#fff',
-                  border: 'none', borderRadius: 6, padding: '7px 16px',
-                  fontSize: 12, cursor: 'pointer',
-                  opacity: isSubmitting || !noteText.trim() ? 0.6 : 1,
-                }}
+                className="mt-2 flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
               >
+                {isSubmitting ? <Spinner size="sm" /> : null}
                 {isSubmitting ? 'جاري الحفظ...' : 'حفظ الملاحظة'}
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {notes.length === 0 && (
-                <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>لا توجد ملاحظات</p>
-              )}
-              {notes.map(n => (
-                <div key={n.id} style={{
-                  background: '#fff', borderRadius: 8, padding: '12px 14px',
-                  border: '1px solid #e2e8f0',
-                }}>
-                  <p style={{ margin: '0 0 6px', fontSize: 13, color: '#0f172a' }}>{n.content}</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
+            {/* Notes list */}
+            {notes.length === 0 ? (
+              <p className="text-center text-muted text-sm py-4">لا توجد ملاحظات</p>
+            ) : (
+              notes.map(n => (
+                <div
+                  key={n.id}
+                  className="bg-surface rounded-xl border border-border px-3 py-3"
+                >
+                  <p className="text-sm text-text mb-2">{n.content}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted">
                       {new Date(n.created_at).toLocaleDateString('ar-SA')}
                     </span>
                     <button
+                      type="button"
                       onClick={() => deleteNote(n.id)}
-                      style={{
-                        background: 'none', border: 'none', color: '#ef4444',
-                        cursor: 'pointer', fontSize: 11,
-                      }}
+                      className="text-xs text-red-fg hover:underline"
                     >
                       حذف
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
         )}
+
       </div>
     </div>
   );

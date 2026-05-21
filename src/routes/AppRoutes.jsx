@@ -27,6 +27,10 @@ const AccountingScreen    = lazy(() => import(/* webpackChunkName: "accounting" 
 const ProfileScreen       = lazy(() => import(/* webpackChunkName: "profile"        */ '@screens/ProfileScreen'));
 const NotFoundScreen      = lazy(() => import(/* webpackChunkName: "404"            */ '@screens/NotFoundScreen'));
 const CRMDashboard        = lazy(() => import(/* webpackChunkName: "crm"            */ '@modules/crm/pages/CRMDashboard'));
+const FileManagerDashboard = lazy(() => import(/* webpackChunkName: "files"          */ '@modules/files/pages/FileManagerDashboard'));
+const ExecutiveDashboard   = lazy(() => import(/* webpackChunkName: "analytics"      */ '@modules/analytics/pages/ExecutiveDashboard'));
+const DailyWorkspacePage   = lazy(() => import(/* webpackChunkName: "workspace"      */ '@modules/workspace/pages/DailyWorkspacePage'));
+const NotificationsScreen = lazy(() => import(/* webpackChunkName: "notifications"  */ '@screens/NotificationsScreen'));
 const AdminScreen         = lazy(() => import(/* webpackChunkName: "admin"          */ '@screens/AdminScreen'));
 const AdminUsersScreen    = lazy(() => import(/* webpackChunkName: "admin-users"    */ '@screens/admin/AdminUsersScreen'));
 const AdminSettingsScreen = lazy(() => import(/* webpackChunkName: "admin-settings" */ '@screens/admin/AdminSettingsScreen'));
@@ -36,8 +40,16 @@ const QADashboard          = lazy(() => import(/* webpackChunkName: "admin-qa"  
 const MaintenanceDashboard = lazy(() => import(/* webpackChunkName: "admin-maintenance" */ '@/core/maintenance/dashboard/MaintenanceDashboard.jsx'));
 const OperationalInsights  = lazy(() => import(/* webpackChunkName: "admin-operations"  */ '@/core/operations/dashboard/OperationalInsightsDashboard.jsx'));
 
-const ALL_ROLES  = Object.values(ROLES);
-const MANAGEMENT = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
+// Priority 1 modules
+const PayrollDashboard  = lazy(() => import(/* webpackChunkName: "payroll"   */ '@modules/payroll/pages/PayrollDashboard'));
+const RequestsDashboard = lazy(() => import(/* webpackChunkName: "requests"  */ '@modules/requests/pages/RequestsDashboard'));
+const LedgerDashboard   = lazy(() => import(/* webpackChunkName: "ledger"    */ '@modules/accounting/pages/AccountingDashboard'));
+const SalesDashboard    = lazy(() => import(/* webpackChunkName: "sales"     */ '@modules/sales/pages/SalesDashboard'));
+
+const ALL_ROLES     = Object.values(ROLES);
+const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
+const FINANCE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
+const SALES_ROLES   = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER];
 
 export function AppRoutes() {
   return (
@@ -59,9 +71,13 @@ export function AppRoutes() {
           <Route index element={<HomeScreen />} />
           <Route path={ROUTES.ATTENDANCE} element={<AttendanceScreen />} />
           <Route path={ROUTES.TASKS}      element={<TasksScreen />}      />
-          <Route path={ROUTES.CRM}        element={<CRMDashboard />}     />
-          <Route path={ROUTES.TEAM}       element={<TeamScreen />}       />
+          <Route path={ROUTES.CRM}        element={<CRMDashboard />}        />
+          <Route path={ROUTES.FILES}      element={<FileManagerDashboard />} />
+          <Route path={ROUTES.ANALYTICS}  element={<ExecutiveDashboard />}   />
+          <Route path={ROUTES.WORKSPACE}  element={<DailyWorkspacePage />}   />
+          <Route path={ROUTES.TEAM}       element={<TeamScreen />}           />
           <Route path={ROUTES.HOLIDAYS}   element={<HolidaysScreen />}   />
+          <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsScreen />} />
           <Route path={ROUTES.PROFILE}    element={<ProfileScreen />}    />
 
           {/* Management-only */}
@@ -70,6 +86,33 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={MANAGEMENT}>
                 <AccountingScreen />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Priority 1 modules */}
+          <Route
+            path={ROUTES.PAYROLL}
+            element={
+              <ProtectedRoute roles={FINANCE_ROLES}>
+                <PayrollDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path={ROUTES.REQUESTS} element={<RequestsDashboard />} />
+          <Route
+            path={ROUTES.LEDGER}
+            element={
+              <ProtectedRoute roles={FINANCE_ROLES}>
+                <LedgerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.SALES}
+            element={
+              <ProtectedRoute roles={SALES_ROLES}>
+                <SalesDashboard />
               </ProtectedRoute>
             }
           />

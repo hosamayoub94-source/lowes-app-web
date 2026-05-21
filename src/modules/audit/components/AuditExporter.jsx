@@ -26,14 +26,7 @@ export const AuditExporter = memo(function AuditExporter({ onExport, count }) {
       type="button"
       onClick={handleExport}
       disabled={exporting || !count}
-      className="
-        flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium
-        bg-[var(--color-bg-card)] border border-[var(--color-border)]
-        text-[var(--color-text-secondary)]
-        hover:border-[var(--color-teal)] hover:text-[var(--color-teal)]
-        disabled:opacity-50 disabled:cursor-not-allowed
-        transition-colors
-      "
+      className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium bg-surface border border-border text-muted hover:border-teal hover:text-teal disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
     >
       {exporting ? (
         <>
@@ -49,7 +42,7 @@ export const AuditExporter = memo(function AuditExporter({ onExport, count }) {
           </svg>
           تصدير CSV
           {count != null && (
-            <span className="text-[var(--color-text-muted)] text-xs">({count.toLocaleString('ar-SA')})</span>
+            <span className="text-muted text-xs">({count.toLocaleString('ar-SA')})</span>
           )}
         </>
       )}

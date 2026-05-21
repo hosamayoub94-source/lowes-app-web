@@ -3,6 +3,7 @@
 // Single row in the audit log table / list.
 // =============================================================
 import { memo } from 'react';
+import { cn } from '@utils/classNames';
 import { SeverityBadge } from './SeverityBadge';
 import { ENTITY_META } from '../types/audit.types';
 
@@ -27,6 +28,12 @@ function timeAgo(iso) {
   return `منذ ${Math.floor(hrs / 24)} ي`;
 }
 
+function severityDot(s) {
+  if (s === 'critical') return 'bg-red';
+  if (s === 'warning')  return 'bg-amber';
+  return 'bg-blue';
+}
+
 /**
  * @param {object}   props
  * @param {object}   props.log         — activity_logs row
@@ -41,32 +48,28 @@ export const AuditLogRow = memo(function AuditLogRow({ log, compact = false, onC
       <button
         type="button"
         onClick={() => onClick?.(log)}
-        className={`
-          w-full text-start flex items-start gap-3 px-4 py-3
-          hover:bg-[var(--color-bg-hover)] transition-colors
-          border-b border-[var(--color-border-subtle)] last:border-0
-        `}
+        className="w-full text-start flex items-start gap-3 px-4 py-3 hover:bg-border/30 transition-colors border-b border-border last:border-0"
       >
         {/* Severity dot */}
-        <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${severityDot(log.severity)}`} />
+        <span className={cn('mt-1.5 w-2 h-2 rounded-full flex-shrink-0', severityDot(log.severity))} />
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+            <span className="text-sm font-medium text-text truncate">
               {log.action_label}
             </span>
             {log.entity_label && (
-              <span className="text-xs text-[var(--color-text-muted)] truncate">
+              <span className="text-xs text-muted truncate">
                 {entityMeta.icon} {log.entity_label}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {log.user_name && (
-              <span className="text-xs text-[var(--color-text-secondary)]">{log.user_name}</span>
+              <span className="text-xs text-muted">{log.user_name}</span>
             )}
-            <span className="text-xs text-[var(--color-text-muted)]">{timeAgo(log.created_at)}</span>
+            <span className="text-xs text-muted">{timeAgo(log.created_at)}</span>
           </div>
         </div>
 
@@ -79,48 +82,44 @@ export const AuditLogRow = memo(function AuditLogRow({ log, compact = false, onC
   return (
     <tr
       onClick={() => onClick?.(log)}
-      className={`
-        border-b border-[var(--color-border-subtle)] last:border-0
-        hover:bg-[var(--color-bg-hover)] transition-colors
-        ${onClick ? 'cursor-pointer' : ''}
-        ${log.severity === 'critical' ? 'bg-[var(--color-red-bg-subtle)]' : ''}
-      `}
+      className={cn(
+        'border-b border-border last:border-0 hover:bg-border/30 transition-colors',
+        onClick && 'cursor-pointer',
+        log.severity === 'critical' && 'bg-red-bg/40',
+      )}
     >
-      {/* Severity */}
+      {/* Severity dot */}
       <td className="px-3 py-3 w-8">
-        <span className={`block w-2 h-2 rounded-full mx-auto ${severityDot(log.severity)}`} />
+        <span className={cn('block w-2 h-2 rounded-full mx-auto', severityDot(log.severity))} />
       </td>
 
       {/* Time */}
       <td className="px-3 py-3 whitespace-nowrap">
-        <span
-          className="text-xs text-[var(--color-text-secondary)]"
-          title={log.created_at}
-        >
+        <span className="text-xs text-muted" title={log.created_at}>
           {formatTime(log.created_at)}
         </span>
       </td>
 
       {/* User */}
       <td className="px-3 py-3 max-w-[120px]">
-        <span className="text-sm text-[var(--color-text-primary)] truncate block">
+        <span className="text-sm text-text truncate block">
           {log.user_name || '—'}
         </span>
       </td>
 
       {/* Action */}
       <td className="px-3 py-3">
-        <span className="text-sm text-[var(--color-text-primary)]">{log.action_label}</span>
+        <span className="text-sm text-text">{log.action_label}</span>
       </td>
 
       {/* Entity */}
       <td className="px-3 py-3 max-w-[140px]">
         {log.entity_type ? (
-          <span className="text-xs text-[var(--color-text-secondary)] truncate block">
+          <span className="text-xs text-muted truncate block">
             {entityMeta.icon} {log.entity_label || log.entity_type}
           </span>
         ) : (
-          <span className="text-[var(--color-text-muted)] text-xs">—</span>
+          <span className="text-muted text-xs">—</span>
         )}
       </td>
 
@@ -131,9 +130,3 @@ export const AuditLogRow = memo(function AuditLogRow({ log, compact = false, onC
     </tr>
   );
 });
-
-function severityDot(s) {
-  if (s === 'critical') return 'bg-[var(--color-red)]';
-  if (s === 'warning')  return 'bg-[var(--color-amber)]';
-  return 'bg-[var(--color-blue)]';
-}
