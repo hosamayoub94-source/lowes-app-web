@@ -1,6 +1,7 @@
 // =============================================================
 // HomeScreen — landing dashboard once authenticated.
-// Fetches real KPI data from Supabase: attendance, tasks, notifications.
+// Fetches real KPI data from Supabase: attendance, tasks,
+// notifications, and leave balance.
 // =============================================================
 import { useEffect, useState } from 'react';
 import { Hero } from '@components/ui/Hero';
@@ -16,61 +17,77 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function thisMonthPrefix() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-async function fetchKPIs(name) {
+async function fetchKPIs(name, userId) {
   const today = todayISO();
-  const monthPrefix = thisMonthPrefix();
+  const year  = new Date().getFullYear();
 
-  const [attendanceRes, tasksRes, notifRes] = await Promise.allSettled([
-    // Today's attendance count for this employee
+  const [attendanceRes, tasksRes, notifRes, leaveRes] = await Promise.allSettled([
     supabase
       .from('attendance')
       .select('id', { count: 'exact', head: true })
       .eq('employee_name', name)
       .eq('date', today),
-
-    // Open tasks (assigned_to matches employee name OR all if manager)
     supabase
       .from('tasks')
       .select('id', { count: 'exact', head: true })
       .in('status', ['open', 'in_progress']),
-
-    // Unread notifications count
     supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('is_read', false),
+    userId
+      ? supabase
+          .from('leave_balances')
+          .select('total_days, used_days')
+          .eq('employee_id', userId)
+          .eq('year', year)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
-  const attendanceCount = attendanceRes.status === 'fulfilled' ? (attendanceRes.value.count ?? 0) : 0;
-  const tasksCount = tasksRes.status === 'fulfilled' ? (tasksRes.value.count ?? 0) : '—';
-  const notifCount = notifRes.status === 'fulfilled' ? (notifRes.value.count ?? 0) : '—';
+  const attendanceCount = attendanceRes.status === 'fulfilled'
+    ? (attendanceRes.value.count ?? 0) : 0;
+  const tasksCount = tasksRes.status === 'fulfilled'
+    ? (tasksRes.value.count ?? 0) : '—';
+  const notifCount = notifRes.status === 'fulfilled'
+    ? (notifRes.value.count ?? 0) : '—';
 
-  return { attendanceCount, tasksCount, notifCount };
+  let leaveBalance = '—';
+  if (leaveRes.status === 'fulfilled' && leaveRes.value?.data) {
+    const { total_days = 15, used_days = 0 } = leaveRes.value.data;
+    leaveBalance = total_days - used_days;
+  }
+
+  return { attendanceCount, tasksCount, notifCount, leaveBalance };
 }
 
 export default function HomeScreen() {
-  const { name, role } = useAuth();
+  const { name, role, id: userId } = useAuth();
   const items = navItemsForRole(role);
 
-  const [kpi, setKpi] = useState({ attendanceCount: '—', tasksCount: '—', notifCount: '—' });
+  const [kpi, setKpi] = useState({
+    attendanceCount: '—',
+    tasksCount: '—',
+    notifCount: '—',
+    leaveBalance: '—',
+  });
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!name) return;
-    fetchKPIs(name)
+    fetchKPIs(name, userId)
       .then(setKpi)
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, [name]);
+  }, [name, userId]);
 
   const attendanceLabel = loaded
     ? kpi.attendanceCount > 0 ? 'حاضر ✓' : 'غير مسجّل'
     : '—';
+
+  const leaveLabel = typeof kpi.leaveBalance === 'number'
+    ? kpi.leaveBalance + ' يوم'
+    : kpi.leaveBalance;
 
   return (
     <div className="space-y-5">
@@ -99,7 +116,8 @@ export default function HomeScreen() {
         />
         <StatCard
           label="رصيد الإجازات"
-          value="—"
+          value={leaveLabel}
+          hint={typeof kpi.leaveBalance === 'number' ? 'متبقٍّ لهذا العام' : undefined}
           tone="purple"
         />
       </div>
