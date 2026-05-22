@@ -22,19 +22,26 @@ async function fetchKPIs(name, userId) {
   const year  = new Date().getFullYear();
 
   const [attendanceRes, tasksRes, notifRes, leaveRes] = await Promise.allSettled([
+    // Today's attendance count for this employee
     supabase
       .from('attendance')
       .select('id', { count: 'exact', head: true })
       .eq('employee_name', name)
       .eq('date', today),
+
+    // Open tasks
     supabase
       .from('tasks')
       .select('id', { count: 'exact', head: true })
       .in('status', ['open', 'in_progress']),
+
+    // Unread notifications count
     supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('is_read', false),
+
+    // Leave balance for this employee this year
     userId
       ? supabase
           .from('leave_balances')
@@ -53,8 +60,10 @@ async function fetchKPIs(name, userId) {
     ? (notifRes.value.count ?? 0) : '—';
 
   let leaveBalance = '—';
-  if (leaveRes.status === 'fulfilled' && leaveRes.value?.data) {
-    const { total_days = 15, used_days = 0 } = leaveRes.value.data;
+  if (leaveRes.status === 'fulfilled') {
+    const d = leaveRes.value?.data;
+    const total_days = d?.total_days ?? 15;
+    const used_days  = d?.used_days  ?? 0;
     leaveBalance = total_days - used_days;
   }
 
@@ -86,7 +95,7 @@ export default function HomeScreen() {
     : '—';
 
   const leaveLabel = typeof kpi.leaveBalance === 'number'
-    ? kpi.leaveBalance + ' يوم'
+    ? `${kpi.leaveBalance} يوم`
     : kpi.leaveBalance;
 
   return (
@@ -117,7 +126,7 @@ export default function HomeScreen() {
         <StatCard
           label="رصيد الإجازات"
           value={leaveLabel}
-          hint={typeof kpi.leaveBalance === 'number' ? 'متبقٍّ لهذا العام' : undefined}
+          hint={typeof kpi.leaveBalance === 'number' ? 'متبقٍ لهذا العام' : undefined}
           tone="purple"
         />
       </div>
