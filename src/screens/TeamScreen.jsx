@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Hero } from '@components/ui/Hero';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { EmptyState } from '@components/ui/EmptyState';
-import { Loading } from '@components/ui/Loading';
+import { LoadingScreen } from '@components/ui/Loading';
 import { supabase } from '@services/supabase';
 import { ROLE_LABELS } from '@data/teams';
 
@@ -47,7 +47,7 @@ export default function TeamScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <LoadingScreen />;
   if (error) return (
     <div className="space-y-5">
       <Hero eyebrow="الفريق" title="فريق العمل" subtitle="تعرّف على زملائك في الفريق وأدوارهم." />
