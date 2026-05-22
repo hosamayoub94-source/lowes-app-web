@@ -1,73 +1,134 @@
 // =============================================================
-// AdminReportsScreen — management analytics dashboard.
-//
-// Charts are built with pure CSS/SVG (no external chart library):
-//   • Vertical bar chart — monthly attendance %
-//   • Horizontal bar chart — tasks by status
-//   • Donut ring — CRM stage distribution
-//   • KPI stat cards
-//
-// Data is mocked; replace `MOCK_*` with real store selectors
-// once reporting service is wired.
+// AdminReportsScreen — management analytics with real Supabase data
 // =============================================================
-import { useState } from 'react';
-import { cn }       from '@utils/classNames';
-import { Card }     from '@components/ui/Card';
+import { useState, useEffect, useCallback } from 'react';
+import { cn }   from '@utils/classNames';
+import { Card } from '@components/ui/Card';
 
-// ── Mock data ─────────────────────────────────────────────────
-const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-                   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                   'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
-const MOCK_ATTENDANCE = [
-  { month: 'أكتوبر', pct: 91 },
-  { month: 'نوفمبر', pct: 87 },
-  { month: 'ديسمبر', pct: 78 },
-  { month: 'يناير',  pct: 94 },
-  { month: 'فبراير', pct: 89 },
-  { month: 'مارس',   pct: 96 },
-];
+const TONE_BAR  = { teal:'bg-teal', blue:'bg-blue', amber:'bg-amber', red:'bg-red' };
+const TONE_TEXT = { teal:'text-teal', blue:'text-blue-fg', amber:'text-amber-fg', red:'text-red-fg' };
 
-const MOCK_TASKS = [
-  { label: 'مكتملة',   value: 148, tone: 'teal'   },
-  { label: 'قيد التنفيذ', value: 64, tone: 'blue'   },
-  { label: 'معلقة',    value: 29, tone: 'amber'  },
-  { label: 'متأخرة',   value: 17, tone: 'red'    },
-];
+function getRange(period) {
+  const now = new Date();
+  const to  = now.toISOString().slice(0, 10);
+  let from;
+  if (period === '90d') {
+    const d = new Date(now); d.setDate(d.getDate() - 90);
+    from = d.toISOString().slice(0, 10);
+  } else if (period === '1y') {
+    from = now.getFullYear() + '-01-01';
+  } else {
+    const d = new Date(now); d.setDate(d.getDate() - 30);
+    from = d.toISOString().slice(0, 10);
+  }
+  return { from, to };
+}
 
-const MOCK_CRM_STAGES = [
-  { label: 'توقع',    value: 12, color: '#0ea5e9' },
-  { label: 'عرض',     value: 8,  color: '#14b8a6' },
-  { label: 'تفاوض',   value: 5,  color: '#a855f7' },
-  { label: 'مكسوبة',  value: 21, color: '#22c55e' },
-  { label: 'خسارة',   value: 7,  color: '#ef4444' },
-];
+async function fetchReportData(period) {
+  const { supabase } = await import('@services/supabase');
+  const { from, to } = getRange(period);
 
-const MOCK_TOP_STAFF = [
-  { name: 'أحمد العمري',   dept: 'المبيعات',   tasks: 24, attendance: 98, score: 96 },
-  { name: 'سارة المطيري',  dept: 'الإدارة',    tasks: 19, attendance: 100, score: 94 },
-  { name: 'فهد الشمري',    dept: 'المبيعات',   tasks: 22, attendance: 95, score: 91 },
-  { name: 'نورة السالم',   dept: 'خدمة العملاء', tasks: 18, attendance: 97, score: 90 },
-  { name: 'خالد الدوسري',  dept: 'التقنية',    tasks: 20, attendance: 93, score: 88 },
-];
+  const { count: empCount } = await supabase
+    .from('profiles').select('id', { count: 'exact', head: true });
 
-// ── Colour helpers ────────────────────────────────────────────
-const TONE_BAR = {
-  teal:  'bg-teal',
-  blue:  'bg-blue',
-  amber: 'bg-amber',
-  red:   'bg-red',
-};
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const chartFrom = sixMonthsAgo.toISOString().slice(0, 10);
 
-const TONE_TEXT = {
-  teal:  'text-teal',
-  blue:  'text-blue-fg',
-  amber: 'text-amber-fg',
-  red:   'text-red-fg',
-};
+  const { data: attLogs = [] } = await supabase
+    .from('attendance_logs').select('employee_id, work_date')
+    .gte('work_date', chartFrom).lte('work_date', to);
 
-// ── KPI card ──────────────────────────────────────────────────
-function KPICard({ icon, label, value, sub, tone = 'teal', delta }) {
-  const deltaColor = delta > 0 ? 'text-green-fg' : delta < 0 ? 'text-red-fg' : 'text-muted';
+  const now = new Date();
+  const monthKeys = [];
+  for (let i = 5; i >= 0; i--) {
+    const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    monthKeys.push({ key, label: MONTHS_AR[d.getMonth()] });
+  }
+  const monthDays = {}; const monthEmpDays = {};
+  monthKeys.forEach(m => { monthDays[m.key] = new Set(); monthEmpDays[m.key] = new Set(); });
+  for (const log of (attLogs || [])) {
+    const mk = log.work_date ? log.work_date.slice(0, 7) : '';
+    if (monthDays[mk]) {
+      monthDays[mk].add(log.work_date);
+      monthEmpDays[mk].add(log.employee_id + '|' + log.work_date);
+    }
+  }
+  const attendanceByMonth = monthKeys.map(m => {
+    const days = monthDays[m.key].size;
+    const expected = days * (empCount || 1);
+    const pct = expected > 0 ? Math.round((monthEmpDays[m.key].size / expected) * 100) : 0;
+    return { month: m.label, pct: Math.min(pct, 100) };
+  });
+
+  const periodLogs = (attLogs || []).filter(l => l.work_date >= from && l.work_date <= to);
+  const periodDays = new Set(periodLogs.map(l => l.work_date));
+  const totalExpected = periodDays.size * (empCount || 1);
+  const overallAttRate = totalExpected > 0 ? Math.round((periodLogs.length / totalExpected) * 100) : 0;
+
+  const { data: tasks = [] } = await supabase.from('tasks').select('status, due_date');
+  const today = new Date().toISOString().slice(0, 10);
+  let completed = 0, in_progress = 0, pending = 0, overdue = 0;
+  for (const t of (tasks || [])) {
+    if (t.status === 'completed' || t.status === 'done') completed++;
+    else if (t.status === 'in_progress') in_progress++;
+    else if (t.due_date && t.due_date < today) overdue++;
+    else pending++;
+  }
+  const taskData = [
+    { label:'مكتملة', value:completed, tone:'teal' },
+    { label:'قيد التنفيذ', value:in_progress, tone:'blue' },
+    { label:'معلقة', value:pending, tone:'amber' },
+    { label:'متأخرة', value:overdue, tone:'red' },
+  ];
+  const totalTasks = completed + in_progress + pending + overdue;
+
+  const { data: salesRows = [] } = await supabase
+    .from('daily_sales_reports').select('total_sales_usd')
+    .gte('report_date', from).lte('report_date', to);
+  const totalSales = (salesRows || []).reduce((s, r) => s + Number(r.total_sales_usd || 0), 0);
+
+  let crmData = [];
+  try {
+    const { data: leads = [], error: crmErr } = await supabase
+      .from('crm_leads').select('stage')
+      .gte('created_at', from + 'T00:00:00Z').lte('created_at', to + 'T23:59:59Z');
+    if (!crmErr && leads && leads.length > 0) {
+      const stageMap = {};
+      for (const l of leads) { const s = l.stage || 'غير محدد'; stageMap[s] = (stageMap[s] || 0) + 1; }
+      const COLORS = ['#0ea5e9','#14b8a6','#a855f7','#22c55e','#ef4444','#f59e0b'];
+      crmData = Object.entries(stageMap).map(([label, value], i) => ({ label, value, color: COLORS[i % COLORS.length] }));
+    }
+  } catch (_) {}
+  if (!crmData.length) crmData = [{ label:'لا توجد بيانات', value:1, color:'#9ca3af' }];
+
+  const { data: profiles = [] } = await supabase.from('profiles').select('id, employee_name, name, team').limit(30);
+  const { data: assignedTasks = [] } = await supabase.from('tasks').select('assigned_to, status').not('assigned_to', 'is', null);
+  const tasksByEmp = {};
+  for (const t of (assignedTasks || [])) tasksByEmp[t.assigned_to] = (tasksByEmp[t.assigned_to] || 0) + 1;
+  const attByEmp = {};
+  for (const l of (attLogs || [])) { if (l.work_date >= from) attByEmp[l.employee_id] = (attByEmp[l.employee_id] || 0) + 1; }
+  const maxTasks = Math.max(1, ...Object.values(tasksByEmp));
+  const topStaff = (profiles || [])
+    .map(emp => {
+      const empName = emp.employee_name || emp.name || 'موظف';
+      const empTasks = tasksByEmp[emp.id] || 0;
+      const empAtt = attByEmp[emp.id] || 0;
+      const attPct = periodDays.size > 0 ? Math.round((empAtt / periodDays.size) * 100) : 0;
+      const score = Math.round((empTasks / maxTasks) * 60 + Math.min(attPct, 100) * 0.4);
+      return { name:empName, dept:emp.team||'—', tasks:empTasks, attendance:Math.min(attPct,100), score:Math.min(score,100) };
+    })
+    .filter(e => e.tasks > 0 || e.attendance > 0)
+    .sort((a, b) => b.score - a.score).slice(0, 5);
+
+  return { empCount:empCount||0, overallAttRate, totalTasks, completedTasks:completed, totalSales, attendanceByMonth, taskData, crmData, topStaff };
+}
+
+function KPICard({ icon, label, value, sub, tone='teal' }) {
   return (
     <div className="bg-surface rounded-xl border border-border p-4 relative overflow-hidden">
       <div className={cn('absolute top-0 inset-x-0 h-0.5', TONE_BAR[tone])} />
@@ -76,52 +137,27 @@ function KPICard({ icon, label, value, sub, tone = 'teal', delta }) {
         <span className="text-xs text-muted">{label}</span>
       </div>
       <div className="text-2xl font-extrabold text-text tracking-tight">{value}</div>
-      <div className="flex items-center gap-2 mt-1">
-        {sub && <span className="text-xs text-muted">{sub}</span>}
-        {delta != null && (
-          <span className={cn('text-xs font-semibold', deltaColor)}>
-            {delta > 0 ? `▲ ${delta}%` : delta < 0 ? `▼ ${Math.abs(delta)}%` : '—'}
-          </span>
-        )}
-      </div>
+      {sub && <div className="text-xs text-muted mt-1">{sub}</div>}
     </div>
   );
 }
 
-// ── Vertical bar chart ─────────────────────────────────────────
 function AttendanceChart({ data }) {
-  const max = Math.max(...data.map(d => d.pct));
+  const max = Math.max(...data.map(d => d.pct), 1);
   return (
     <div className="flex items-end justify-between gap-2 h-36 pt-2">
       {data.map((d, i) => {
         const h = Math.round((d.pct / max) * 100);
         const isLast = i === data.length - 1;
         return (
-          <div key={d.month} className="flex-1 flex flex-col items-center gap-1.5">
-            {/* Value label */}
-            <span className={cn(
-              'text-[10px] font-bold',
-              isLast ? 'text-teal' : 'text-muted',
-            )}>
-              {d.pct}%
-            </span>
-            {/* Bar */}
-            <div className="w-full rounded-t-md overflow-hidden bg-surface-alt" style={{ height: '80px' }}>
-              <div
-                className={cn(
-                  'w-full rounded-t-md transition-all duration-700',
-                  d.pct >= 90 ? 'bg-teal' : d.pct >= 80 ? 'bg-blue' : 'bg-amber',
-                )}
-                style={{ height: `${h}%`, marginTop: `${100 - h}%` }}
-              />
+          <div key={d.month + i} className="flex-1 flex flex-col items-center gap-1.5">
+            <span className={cn('text-[10px] font-bold', isLast ? 'text-teal' : 'text-muted')}>{d.pct}%</span>
+            <div className="w-full rounded-t-md overflow-hidden bg-surface-alt" style={{ height:'80px' }}>
+              <div className={cn('w-full rounded-t-md transition-all duration-700',
+                d.pct >= 90 ? 'bg-teal' : d.pct >= 80 ? 'bg-blue' : 'bg-amber')}
+                style={{ height: h + '%', marginTop: (100 - h) + '%' }} />
             </div>
-            {/* Month label */}
-            <span className={cn(
-              'text-[10px]',
-              isLast ? 'font-bold text-teal' : 'text-muted',
-            )}>
-              {d.month}
-            </span>
+            <span className={cn('text-[10px]', isLast ? 'font-bold text-teal' : 'text-muted')}>{d.month}</span>
           </div>
         );
       })}
@@ -129,7 +165,6 @@ function AttendanceChart({ data }) {
   );
 }
 
-// ── Horizontal bar chart ───────────────────────────────────────
 function TasksChart({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
@@ -145,10 +180,7 @@ function TasksChart({ data }) {
               </span>
             </div>
             <div className="h-2.5 w-full rounded-full bg-surface-alt overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all duration-700', TONE_BAR[d.tone])}
-                style={{ width: `${pct}%` }}
-              />
+              <div className={cn('h-full rounded-full transition-all duration-700', TONE_BAR[d.tone])} style={{ width: pct + '%' }} />
             </div>
           </div>
         );
@@ -157,31 +189,15 @@ function TasksChart({ data }) {
   );
 }
 
-// ── CRM donut ──────────────────────────────────────────────────
 function CRMDonut({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0);
-  // Build conic-gradient segments
   let cursor = 0;
-  const segments = data.map(d => {
-    const pct = total > 0 ? (d.value / total) * 100 : 0;
-    const seg = { ...d, start: cursor, pct };
-    cursor += pct;
-    return seg;
-  });
-
-  const gradient = segments
-    .map(s => `${s.color} ${s.start.toFixed(1)}% ${(s.start + s.pct).toFixed(1)}%`)
-    .join(', ');
-
+  const segments = data.map(d => { const pct = total > 0 ? (d.value / total) * 100 : 0; const seg = { ...d, start: cursor, pct }; cursor += pct; return seg; });
+  const gradient = segments.map(s => s.color + ' ' + s.start.toFixed(1) + '% ' + (s.start + s.pct).toFixed(1) + '%').join(', ');
   return (
     <div className="flex items-center gap-6">
-      {/* Ring */}
-      <div className="relative shrink-0" style={{ width: 100, height: 100 }}>
-        <div
-          className="w-full h-full rounded-full"
-          style={{ background: `conic-gradient(${gradient})` }}
-        />
-        {/* Hole */}
+      <div className="relative shrink-0" style={{ width:100, height:100 }}>
+        <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(' + gradient + ')' }} />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-[58px] h-[58px] rounded-full bg-surface flex flex-col items-center justify-center">
             <span className="text-lg font-extrabold text-text leading-none">{total}</span>
@@ -189,14 +205,10 @@ function CRMDonut({ data }) {
           </div>
         </div>
       </div>
-      {/* Legend */}
       <div className="flex-1 space-y-2">
         {segments.map(s => (
           <div key={s.label} className="flex items-center gap-2 text-xs">
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ background: s.color }}
-            />
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background:s.color }} />
             <span className="text-text flex-1">{s.label}</span>
             <span className="text-muted font-semibold">{s.value}</span>
           </div>
@@ -206,148 +218,126 @@ function CRMDonut({ data }) {
   );
 }
 
-// ── Score badge ────────────────────────────────────────────────
 function ScoreBadge({ score }) {
-  const tone = score >= 90 ? 'bg-teal/10 text-teal' : score >= 80 ? 'bg-blue-bg text-blue-fg' : 'bg-amber-bg text-amber-fg';
-  return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', tone)}>
-      {score}
-    </span>
-  );
+  const tone = score >= 90 ? 'bg-teal/10 text-teal' : score >= 70 ? 'bg-blue-bg text-blue-fg' : 'bg-amber-bg text-amber-fg';
+  return <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', tone)}>{score}</span>;
 }
 
-// ── Main screen ───────────────────────────────────────────────
+function SkeletonCard() {
+  return <div className="bg-surface-alt rounded-xl border border-border p-4 h-24 animate-pulse" />;
+}
+
 const PERIODS = [
-  { key: '30d', label: 'آخر 30 يوماً' },
-  { key: '90d', label: 'آخر 90 يوماً' },
-  { key: '1y',  label: 'هذا العام'    },
+  { key:'30d', label:'آخر 30 يوماً' },
+  { key:'90d', label:'آخر 90 يوماً' },
+  { key:'1y',  label:'هذا العام' },
 ];
 
+function fmtSales(v) {
+  if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+  if (v >= 1000)    return (v / 1000).toFixed(1) + 'K';
+  return String(Math.round(v));
+}
+
 export default function AdminReportsScreen() {
-  const [period, setPeriod] = useState('30d');
+  const [period,  setPeriod]  = useState('30d');
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  const load = useCallback(async (p) => {
+    setLoading(true); setError(null);
+    try { const result = await fetchReportData(p); setData(result); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(period); }, [period, load]);
 
   return (
     <div className="space-y-5 pb-6">
-
-      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-extrabold text-text">📊 التقارير والتحليلات</h1>
           <p className="text-sm text-muted mt-0.5">لوحة الأداء التشغيلي للمؤسسة</p>
         </div>
-
-        {/* Period selector */}
         <div className="flex items-center gap-1 bg-surface-alt rounded-xl p-1 border border-border">
           {PERIODS.map(p => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPeriod(p.key)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                period === p.key
-                  ? 'bg-surface text-text shadow-sm'
-                  : 'text-muted hover:text-text',
-              )}
-            >
+            <button key={p.key} type="button" onClick={() => setPeriod(p.key)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                period === p.key ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text')}>
               {p.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── KPI grid — 2 cols mobile → 4 cols lg ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard icon="👥" label="إجمالي الموظفين"  value="47"   sub="5 جدد هذا الشهر"  tone="blue"  delta={12}  />
-        <KPICard icon="📅" label="معدل الحضور"      value="93%"  sub="مارس 2026"         tone="teal"  delta={4}   />
-        <KPICard icon="✅" label="مهام مكتملة"      value="148"  sub="من أصل 258 مهمة"  tone="teal"  delta={8}   />
-        <KPICard icon="💰" label="قيمة خط المبيعات" value="1.4M" sub="ريال سعودي"        tone="amber" delta={-3}  />
-      </div>
+      {error && <div className="text-xs text-red-500 bg-red-50 rounded-xl px-4 py-3">{error}</div>}
 
-      {/* ── Charts row — 2 cards, stack on mobile ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[1,2,3,4].map(i => <SkeletonCard key={i} />)}</div>
+      ) : data && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard icon="👥" label="إجمالي الموظفين" value={data.empCount} tone="blue" />
+          <KPICard icon="📅" label="معدل الحضور" value={data.overallAttRate + '%'} tone="teal" />
+          <KPICard icon="✅" label="مهام مكتملة" value={data.completedTasks} sub={'من أصل ' + data.totalTasks + ' مهمة'} tone="teal" />
+          <KPICard icon="💰" label="إجمالي المبيعات" value={'$' + fmtSales(data.totalSales)} sub="USD" tone="amber" />
+        </div>
+      )}
 
-        {/* Attendance bar chart */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-text">معدل الحضور الشهري</h2>
-              <p className="text-xs text-muted">آخر 6 أشهر</p>
+      {!loading && data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div><h2 className="text-sm font-bold text-text">معدل الحضور الشهري</h2><p className="text-xs text-muted">آخر 6 أشهر</p></div>
+              <span className="text-xs px-2 py-1 rounded-full bg-teal/10 text-teal font-semibold">{data.overallAttRate}%</span>
             </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-teal/10 text-teal font-semibold">
-              متوسط 89%
-            </span>
-          </div>
-          <AttendanceChart data={MOCK_ATTENDANCE} />
-        </Card>
-
-        {/* Tasks horizontal bar */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-text">توزيع المهام</h2>
-              <p className="text-xs text-muted">إجمالي 258 مهمة</p>
+            <AttendanceChart data={data.attendanceByMonth} />
+          </Card>
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div><h2 className="text-sm font-bold text-text">توزيع المهام</h2><p className="text-xs text-muted">{'إجمالي ' + data.totalTasks + ' مهمة'}</p></div>
+              <span className="text-xs px-2 py-1 rounded-full bg-teal/10 text-teal font-semibold">
+                {data.totalTasks > 0 ? Math.round((data.completedTasks / data.totalTasks) * 100) : 0}% مكتملة
+              </span>
             </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-teal/10 text-teal font-semibold">
-              57% مكتملة
-            </span>
-          </div>
-          <TasksChart data={MOCK_TASKS} />
-        </Card>
-      </div>
+            <TasksChart data={data.taskData} />
+          </Card>
+        </div>
+      )}
 
-      {/* ── Second row — CRM donut + Top performers ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* CRM donut */}
-        <Card>
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-text">توزيع صفقات CRM</h2>
-            <p className="text-xs text-muted">حسب مرحلة خط المبيعات</p>
-          </div>
-          <CRMDonut data={MOCK_CRM_STAGES} />
-        </Card>
-
-        {/* Top performers table */}
-        <Card>
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-text">أفضل الموظفين أداءً</h2>
-            <p className="text-xs text-muted">بناءً على المهام والحضور</p>
-          </div>
-          <div className="space-y-0 -mx-1">
-            {MOCK_TOP_STAFF.map((s, i) => (
-              <div
-                key={s.name}
-                className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-border/20 transition-colors"
-              >
-                {/* Rank */}
-                <span className={cn(
-                  'w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0',
-                  i === 0 ? 'bg-amber text-white' : 'bg-surface-alt text-muted',
-                )}>
-                  {i + 1}
-                </span>
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-text truncate">{s.name}</p>
-                  <p className="text-xs text-muted truncate">{s.dept}</p>
-                </div>
-                {/* Stats */}
-                <div className="hidden sm:flex items-center gap-3 text-xs text-muted">
-                  <span title="مهام">✅ {s.tasks}</span>
-                  <span title="حضور">📅 {s.attendance}%</span>
-                </div>
-                <ScoreBadge score={s.score} />
+      {!loading && data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <div className="mb-4"><h2 className="text-sm font-bold text-text">توزيع صفقات CRM</h2><p className="text-xs text-muted">حسب مرحلة خط المبيعات</p></div>
+            <CRMDonut data={data.crmData} />
+          </Card>
+          <Card>
+            <div className="mb-4"><h2 className="text-sm font-bold text-text">أفضل الموظفين أداءً</h2><p className="text-xs text-muted">بناءً على المهام والحضور</p></div>
+            {data.topStaff.length === 0 ? (
+              <p className="text-xs text-muted text-center py-6">لا توجد بيانات كافية للفترة المحددة</p>
+            ) : (
+              <div className="space-y-0 -mx-1">
+                {data.topStaff.map((s, i) => (
+                  <div key={s.name + i} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-border/20 transition-colors">
+                    <span className={cn('w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0',
+                      i === 0 ? 'bg-amber text-white' : 'bg-surface-alt text-muted')}>{i+1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text truncate">{s.name}</p>
+                      <p className="text-xs text-muted truncate">{s.dept}</p>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-3 text-xs text-muted">
+                      <span title="مهام">✅ {s.tasks}</span>
+                      <span title="حضور">📅 {s.attendance}%</span>
+                    </div>
+                    <ScoreBadge score={s.score} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Disclaimer ── */}
-      <p className="text-center text-xs text-muted/60">
-        البيانات تجريبية — سيتم ربطها بالبيانات الفعلية عند تفعيل خدمة التقارير
-      </p>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
