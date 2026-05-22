@@ -41,10 +41,12 @@ const MaintenanceDashboard = lazy(() => import(/* webpackChunkName: "admin-maint
 const OperationalInsights  = lazy(() => import(/* webpackChunkName: "admin-operations"  */ '@/core/operations/dashboard/OperationalInsightsDashboard.jsx'));
 
 // Priority 1 modules
-const PayrollDashboard  = lazy(() => import(/* webpackChunkName: "payroll"   */ '@modules/payroll/pages/PayrollDashboard'));
-const RequestsDashboard = lazy(() => import(/* webpackChunkName: "requests"  */ '@modules/requests/pages/RequestsDashboard'));
-const LedgerDashboard   = lazy(() => import(/* webpackChunkName: "ledger"    */ '@modules/accounting/pages/AccountingDashboard'));
-const SalesDashboard    = lazy(() => import(/* webpackChunkName: "sales"     */ '@modules/sales/pages/SalesDashboard'));
+const PayrollDashboard  = lazy(() => import(/* webpackChunkName: "payroll"       */ '@modules/payroll/pages/PayrollDashboard'));
+const RequestsDashboard = lazy(() => import(/* webpackChunkName: "requests"      */ '@modules/requests/pages/RequestsDashboard'));
+const LedgerDashboard   = lazy(() => import(/* webpackChunkName: "ledger"        */ '@modules/accounting/pages/AccountingDashboard'));
+const SalesDashboard    = lazy(() => import(/* webpackChunkName: "sales"         */ '@modules/sales/pages/SalesDashboard'));
+const CampaignsScreen   = lazy(() => import(/* webpackChunkName: "campaigns"     */ '@screens/CampaignsScreen'));
+const TaskReportScreen  = lazy(() => import(/* webpackChunkName: "tasks-report"  */ '@screens/TaskReportScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -113,6 +115,22 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={SALES_ROLES}>
                 <SalesDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.CAMPAIGNS}
+            element={
+              <ProtectedRoute roles={SALES_ROLES}>
+                <CampaignsScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.TASKS_REPORT}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
+                <TaskReportScreen />
               </ProtectedRoute>
             }
           />
