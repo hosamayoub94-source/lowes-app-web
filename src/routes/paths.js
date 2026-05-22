@@ -26,10 +26,12 @@ export const ROUTES = {
   NOT_FOUND: '*',
 
   // Priority 1 modules
-  PAYROLL:    '/payroll',
-  REQUESTS:   '/requests',
-  LEDGER:     '/ledger',
-  SALES:      '/sales',
+  PAYROLL:      '/payroll',
+  REQUESTS:     '/requests',
+  LEDGER:       '/ledger',
+  SALES:        '/sales',
+  CAMPAIGNS:    '/campaigns',
+  TASKS_REPORT: '/tasks-report',
 };
 
 export default ROUTES;
