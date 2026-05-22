@@ -6,7 +6,7 @@ import { ROLES } from './teams';
 
 export const NAV_ITEMS = [
   {
-    id: 'workspace',
+    id: 'home',
     label: 'الرئيسية',
     icon: '🏠',
     path: '/',
@@ -48,7 +48,7 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
-    id: 'workspace',
+    id: 'daily-workspace',
     label: 'مساحة العمل',
     icon: '🗂️',
     path: '/workspace',
