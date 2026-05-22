@@ -149,12 +149,12 @@ export async function fetchPayrollEntries(runId) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('payroll_entries')
-    .select('*, profiles(full_name, role_type)')
+    .select('*, profiles(employee_name, role_type)')
     .eq('run_id', runId);
   if (error) throw new Error(error.message);
   return data.map(row => ({
     ...row,
-    employee_name: row.profiles?.full_name ?? '',
+    employee_name: row.profiles?.employee_name ?? '',
     role_type: row.profiles?.role_type ?? '',
   }));
 }
