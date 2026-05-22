@@ -32,19 +32,19 @@ const TASK_SELECT = `
   id, title, description, status, priority, progress,
   due_date, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, created_by,
-  assignee:profiles!tasks_assigned_to_fkey ( id, name, avatar_url, role_type, team ),
-  creator:profiles!tasks_created_by_fkey   ( id, name, avatar_url, role_type, team ),
+  assignee:profiles!tasks_assigned_to_fkey ( id, employee_name, avatar_url, role_type, team ),
+  creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
 `;
 
 const COMMENT_SELECT = `
   id, task_id, comment, created_at,
-  author:profiles!task_comments_user_id_fkey ( id, name, avatar_url, role_type )
+  author:profiles!task_comments_user_id_fkey ( id, employee_name, avatar_url, role_type )
 `;
 
 const ACTIVITY_SELECT = `
   id, task_id, action_type, action_label, metadata, created_at,
-  actor:profiles!task_activity_user_id_fkey ( id, name, avatar_url )
+  actor:profiles!task_activity_user_id_fkey ( id, employee_name, avatar_url )
 `;
 
 // -------------------------------------------------------------
@@ -326,13 +326,13 @@ export async function listAssignableProfiles() {
   }
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, avatar_url, role_type, team')
+    .select('id, employee_name, avatar_url, role_type, team')
     .eq('is_active', true)
-    .order('name');
+    .order('employee_name');
   if (error) throw error;
   return (data || []).map((p) => ({
     id: p.id,
-    name: p.name,
+    name: p.employee_name,
     avatar: p.avatar_url || null,
     role: p.role_type || null,
     team: p.team || null,
