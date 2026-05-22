@@ -20,7 +20,7 @@ export function mapProfile(row) {
   if (!row) return null;
   return {
     id: row.id,
-    name: row.name,
+    name: row.employee_name || row.name || null,
     avatar: row.avatar_url || null,
     avatar_url: row.avatar_url || null,
     role: row.role_type || row.role || null,
