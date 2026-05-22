@@ -60,14 +60,14 @@ export async function fetchRequests(filters = {}) {
   const { supabase } = await import('@services/supabase');
   let q = supabase
     .from('employee_requests')
-    .select('*, profiles(full_name)')
+    .select('*, profiles(employee_name)')
     .order('created_at', { ascending: false });
   if (filters.employeeId) q = q.eq('employee_id', filters.employeeId);
   if (filters.status)     q = q.eq('status', filters.status);
   if (filters.type)       q = q.eq('request_type', filters.type);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return data.map(r => ({ ...r, employee_name: r.profiles?.full_name ?? '' }));
+  return data.map(r => ({ ...r, employee_name: r.profiles?.employee_name ?? '' }));
 }
 
 export async function fetchRequest(id) {
@@ -75,11 +75,11 @@ export async function fetchRequest(id) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('employee_requests')
-    .select('*, profiles(full_name)')
+    .select('*, profiles(employee_name)')
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
-  return { ...data, employee_name: data.profiles?.full_name ?? '' };
+  return { ...data, employee_name: data.profiles?.employee_name ?? '' };
 }
 
 export async function createRequest(data) {
@@ -166,8 +166,8 @@ export async function fetchAllLeaveBalances(year) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('leave_balances')
-    .select('*, profiles(full_name)')
+    .select('*, profiles(employee_name)')
     .eq('year', year);
   if (error) throw new Error(error.message);
-  return data.map(b => ({ ...b, employee_name: b.profiles?.full_name ?? '' }));
+  return data.map(b => ({ ...b, employee_name: b.profiles?.employee_name ?? '' }));
 }
