@@ -6,7 +6,7 @@ import { ROLES } from './teams';
 
 export const NAV_ITEMS = [
   {
-    id: 'home',
+    id: 'workspace',
     label: 'الرئيسية',
     icon: '🏠',
     path: '/',
@@ -111,6 +111,20 @@ export const NAV_ITEMS = [
     icon: '📈',
     path: '/sales',
     roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
+    id: 'campaigns',
+    label: 'الحملات',
+    icon: '📣',
+    path: '/campaigns',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
+    id: 'tasks-report',
+    label: 'تقرير المهام',
+    icon: '📊',
+    path: '/tasks-report',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
   },
 ];
 
