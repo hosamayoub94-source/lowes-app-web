@@ -9,7 +9,7 @@ import { Card } from '@components/ui/Card';
 import { Badge } from '@components/ui/Badge';
 import { Avatar } from '@components/ui/Avatar';
 import { ProgressBar } from '@components/ui/ProgressBar';
-import { STATUS_META, PRIORITY_META, progressTone } from '../types/task.types';
+import { STATUS_META, PRIORITY_META, PLATFORM_META, TASK_TYPE_META, progressTone } from '../types/task.types';
 import { useCountdown } from '../hooks/useCountdown';
 import { shortDate, effectiveStatus } from '../utils/taskUtils';
 
@@ -65,9 +65,11 @@ export const TaskCard = memo(function TaskCard({
   if (!task) return null;
 
   const effStatus = effectiveStatus(task);
-  const { title, description, priority, progress, due_date, assigned_to, comments_count, seen, tags } = task;
+  const { title, description, priority, progress, due_date, assigned_to, comments_count, seen, tags, platform, task_type } = task;
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[priority] || null;
+  const platformMeta = platform ? PLATFORM_META[platform] : null;
+  const taskTypeMeta = task_type ? TASK_TYPE_META[task_type] : null;
   const isOverdue    = effStatus === 'overdue';
   const isCompleted  = effStatus === 'completed';
   const { label: countdown, colorClass: countdownColor } = useCountdown(due_date, effStatus);
@@ -102,6 +104,18 @@ export const TaskCard = memo(function TaskCard({
               <Badge tone={priorityMeta.tone} className="gap-1">
                 <span aria-hidden className="text-[10px]">{priorityMeta.icon}</span>
                 {priorityMeta.label}
+              </Badge>
+            )}
+            {platformMeta && (
+              <Badge tone="teal" className="gap-1 text-[10px] h-5 px-2">
+                <span aria-hidden>{platformMeta.icon}</span>
+                {platformMeta.label}
+              </Badge>
+            )}
+            {taskTypeMeta && !platformMeta && (
+              <Badge tone="neutral" className="gap-1 text-[10px] h-5 px-2">
+                <span aria-hidden>{taskTypeMeta.icon}</span>
+                {taskTypeMeta.label}
               </Badge>
             )}
             {tags?.slice(0, 2).map((tag) => (

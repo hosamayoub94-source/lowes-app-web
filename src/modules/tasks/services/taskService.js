@@ -30,21 +30,22 @@ export const USE_MOCK_DATA = explicit !== 'false';
 // -------------------------------------------------------------
 const TASK_SELECT = `
   id, title, description, status, priority, progress,
-  due_date, completed_at, created_at, updated_at,
+  due_date, due_time, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, created_by,
-  assignee:profiles!tasks_assigned_to_fkey ( id, name, avatar_url, role_type, team ),
-  creator:profiles!tasks_created_by_fkey   ( id, name, avatar_url, role_type, team ),
+  platform, task_type, attachments_note, completion_note,
+  assignee:profiles!tasks_assigned_to_fkey ( id, employee_name, avatar_url, role_type, team ),
+  creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
 `;
 
 const COMMENT_SELECT = `
   id, task_id, comment, created_at,
-  author:profiles!task_comments_user_id_fkey ( id, name, avatar_url, role_type )
+  author:profiles!task_comments_user_id_fkey ( id, employee_name, avatar_url, role_type )
 `;
 
 const ACTIVITY_SELECT = `
   id, task_id, action_type, action_label, metadata, created_at,
-  actor:profiles!task_activity_user_id_fkey ( id, name, avatar_url )
+  actor:profiles!task_activity_user_id_fkey ( id, employee_name, avatar_url )
 `;
 
 // -------------------------------------------------------------
@@ -181,11 +182,63 @@ export async function updateTask(id, patch, { actorId } = {}) {
   return after;
 }
 
-export const updateTaskStatus   = (id, status,   opts) => updateTask(id, { status },   opts);
+export async function updateTaskStatus(id, status, opts) {
+  const isDone = status === 'completed' || status === 'done';
+  if (isDone) {
+    const completedAt = new Date().toISOString();
+    const task = await fetchTask(id).catch(() => null);
+    const points = calcTaskPoints(task, completedAt);
+    const patch = { status, completed_at: completedAt };
+    const result = await updateTask(id, patch, opts);
+    // Award points — best-effort, never blocks UI
+    if (!USE_MOCK_DATA && task?.assigned_to?.name) {
+      awardPoints(task.assigned_to.name, id, points).catch(() => {});
+    }
+    return result;
+  }
+  return updateTask(id, { status }, opts);
+}
 export const updateTaskProgress = (id, progress, opts) => updateTask(id, { progress }, opts);
 export const updateTaskPriority = (id, priority, opts) => updateTask(id, { priority }, opts);
 export const reassignTask       = (id, userId,   opts) => updateTask(id, { assigned_to: userId }, opts);
 export const updateTaskDueDate  = (id, due_date, opts) => updateTask(id, { due_date }, opts);
+
+// ── Points helpers ────────────────────────────────────────────
+function calcTaskPoints(task, completedAt) {
+  const base = (() => {
+    if (!task?.due_date) return 15;
+    const due = new Date(task.due_date + 'T23:59:59');
+    const hoursLeft = (due - new Date(completedAt)) / 3_600_000;
+    if (hoursLeft >= 24) return 20; // early
+    if (hoursLeft >= 0)  return 15; // on time
+    return 5;                        // late
+  })();
+  const bonus = { urgent: 5, high: 3, medium: 1, low: 0 };
+  return base + (bonus[task?.priority] || 0);
+}
+
+async function awardPoints(employeeName, taskId, points) {
+  if (!employeeName || points <= 0) return;
+  const [{ error: insertErr }] = await Promise.all([
+    supabase.from('task_points').insert({
+      employee_name: employeeName,
+      task_id: taskId,
+      points,
+      reason: 'إتمام المهمة',
+    }),
+  ]);
+  if (insertErr) return; // task_points insert failed — still try profile update
+  const { data } = await supabase
+    .from('profiles')
+    .select('total_points')
+    .eq('employee_name', employeeName)
+    .single();
+  const current = typeof data?.total_points === 'number' ? data.total_points : 0;
+  await supabase
+    .from('profiles')
+    .update({ total_points: current + points })
+    .eq('employee_name', employeeName);
+}
 
 /** Delete a task — admin-only at the RLS level. */
 export async function deleteTask(id) {
@@ -326,13 +379,13 @@ export async function listAssignableProfiles() {
   }
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, avatar_url, role_type, team')
+    .select('id, employee_name, avatar_url, role_type, team')
     .eq('is_active', true)
-    .order('name');
+    .order('employee_name');
   if (error) throw error;
   return (data || []).map((p) => ({
     id: p.id,
-    name: p.name,
+    name: p.employee_name,
     avatar: p.avatar_url || null,
     role: p.role_type || null,
     team: p.team || null,

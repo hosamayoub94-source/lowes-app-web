@@ -31,6 +31,10 @@
     "VITE_USE_MOCK_ANALYTICS": "false",
     "VITE_USE_MOCK_AUDIT": "false",
     "VITE_USE_MOCK_FILES": "false",
-    "VITE_USE_MOCK_CRM": "false"
+    "VITE_USE_MOCK_CRM": "false",
+    "VITE_USE_MOCK_PAYROLL": "false",
+    "VITE_USE_MOCK_ACCOUNTING": "false",
+    "VITE_USE_MOCK_REQUESTS": "false",
+    "VITE_USE_MOCK_SALES": "false"
   }
 }

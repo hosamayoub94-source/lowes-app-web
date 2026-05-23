@@ -25,9 +25,38 @@ const PRIORITIES = [
   { value: 'low',    label: '▽ منخفضة' },
 ];
 
-function CreateTaskModal({ open, onClose, onSubmit, saving }) {
+const PLATFORMS = [
+  { value: 'instagram', label: '📸 Instagram' },
+  { value: 'tiktok',    label: '🎵 TikTok' },
+  { value: 'facebook',  label: '👥 Facebook' },
+  { value: 'youtube',   label: '▶️ YouTube' },
+  { value: 'snapchat',  label: '👻 Snapchat' },
+  { value: 'other',     label: '🌐 أخرى' },
+];
+
+const TASK_TYPES = [
+  { value: 'graphic_design',     label: '🎨 تصميم جرافيك' },
+  { value: 'post_story_design',  label: '🖼️ بوست / ستوري' },
+  { value: 'video_editing',      label: '🎬 مونتاج فيديو' },
+  { value: 'content_writing',    label: '✍️ كتابة محتوى' },
+  { value: 'photo_editing',      label: '📷 تعديل صور' },
+  { value: 'content_scheduling', label: '📅 جدولة محتوى' },
+  { value: 'performance_report', label: '📊 تقرير أداء' },
+  { value: 'design_revision',    label: '✏️ تعديل تصميم' },
+  { value: 'ad_campaign',        label: '📢 حملة إعلانية' },
+  { value: 'page_management',    label: '📱 إدارة صفحة' },
+  { value: 'other',              label: '📌 أخرى' },
+];
+
+const EMPTY_FORM = {
+  title: '', description: '', priority: 'medium',
+  due_date: '', due_time: '', assigned_to: '',
+  platform: '', task_type: '', attachments_note: '',
+};
+
+function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
   const formRef = useRef(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleSubmit = (e) => {
@@ -36,7 +65,7 @@ function CreateTaskModal({ open, onClose, onSubmit, saving }) {
     onSubmit(form);
   };
 
-  const handleClose = () => { setForm({ title: '', description: '', priority: 'medium', due_date: '' }); onClose(); };
+  const handleClose = () => { setForm(EMPTY_FORM); onClose(); };
 
   if (!open) return null;
   return (
@@ -53,63 +82,136 @@ function CreateTaskModal({ open, onClose, onSubmit, saving }) {
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-lg bg-surface rounded-2xl shadow-modal p-6 space-y-4 animate-pop-in"
+        className="relative z-10 w-full max-w-lg bg-surface rounded-2xl shadow-modal flex flex-col max-h-[90vh] animate-pop-in"
       >
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
           <h2 className="text-base font-bold text-text">مهمة جديدة</h2>
           <button type="button" onClick={handleClose} className="text-muted hover:text-text text-xl leading-none">×</button>
         </div>
 
-        {/* Title */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted">عنوان المهمة *</label>
-          <input
-            autoFocus
-            required
-            value={form.title}
-            onChange={(e) => set('title', e.target.value)}
-            placeholder="أدخل عنوان المهمة..."
-            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40"
-          />
-        </div>
-
-        {/* Description */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted">الوصف</label>
-          <textarea
-            rows={3}
-            value={form.description}
-            onChange={(e) => set('description', e.target.value)}
-            placeholder="تفاصيل اختيارية..."
-            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
-          />
-        </div>
-
-        {/* Priority + Due date */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-6 pb-2 space-y-4 flex-1">
+          {/* Title */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">الأولوية</label>
-            <select
-              value={form.priority}
-              onChange={(e) => set('priority', e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-            >
-              {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">تاريخ الاستحقاق</label>
+            <label className="text-xs font-semibold text-muted">عنوان المهمة *</label>
             <input
-              type="date"
-              value={form.due_date}
-              onChange={(e) => set('due_date', e.target.value)}
+              autoFocus
+              required
+              value={form.title}
+              onChange={(e) => set('title', e.target.value)}
+              placeholder="أدخل عنوان المهمة..."
+              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40"
+            />
+          </div>
+
+          {/* Platform + Task type */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">المنصة</label>
+              <select
+                value={form.platform}
+                onChange={(e) => set('platform', e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+              >
+                <option value="">— المنصة —</option>
+                {PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">نوع المهمة</label>
+              <select
+                value={form.task_type}
+                onChange={(e) => set('task_type', e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+              >
+                <option value="">— النوع —</option>
+                {TASK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Priority + Due date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">الأولوية</label>
+              <select
+                value={form.priority}
+                onChange={(e) => set('priority', e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+              >
+                {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">تاريخ الاستحقاق</label>
+              <input
+                type="date"
+                value={form.due_date}
+                onChange={(e) => set('due_date', e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+              />
+            </div>
+          </div>
+
+          {/* Due time */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">وقت الاستحقاق <span className="text-muted font-normal">(اختياري)</span></label>
+            <input
+              type="time"
+              value={form.due_time}
+              onChange={(e) => set('due_time', e.target.value)}
               className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+            />
+          </div>
+
+          {/* Assigned to */}
+          {employees && employees.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">تعيين إلى</label>
+              <select
+                value={form.assigned_to}
+                onChange={(e) => set('assigned_to', e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+              >
+                <option value="">— غير معيّن —</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.employee_name || emp.name || emp.id}
+                    {emp.team ? ' · ' + emp.team : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Description */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">الوصف</label>
+            <textarea
+              rows={2}
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              placeholder="تفاصيل اختيارية..."
+              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
+            />
+          </div>
+
+          {/* Attachments note */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">ملاحظات المرفقات <span className="text-muted font-normal">(اختياري)</span></label>
+            <textarea
+              rows={2}
+              value={form.attachments_note}
+              onChange={(e) => set('attachments_note', e.target.value)}
+              placeholder="رابط Drive، Dropbox، أو وصف المرفقات..."
+              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-1">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
           <Button type="button" variant="outline" size="sm" onClick={handleClose}>إلغاء</Button>
           <Button type="submit" variant="teal" size="sm" disabled={saving || !form.title.trim()} className="gap-2 min-w-[90px]">
             {saving ? <Spinner size="sm" /> : 'إضافة المهمة'}
@@ -295,12 +397,17 @@ function TasksPage() {
     setCreating(true);
     try {
       await addTask({
-        title:       form.title.trim(),
-        description: form.description.trim() || null,
-        priority:    form.priority,
-        due_date:    form.due_date || null,
-        status:      'pending',
-        created_by:  userId || null,
+        title:            form.title.trim(),
+        description:      form.description.trim() || null,
+        priority:         form.priority,
+        due_date:         form.due_date || null,
+        due_time:         form.due_time || null,
+        status:           'pending',
+        created_by:       userId || null,
+        assigned_to:      form.assigned_to || null,
+        platform:         form.platform || null,
+        task_type:        form.task_type || null,
+        attachments_note: form.attachments_note.trim() || null,
       }, userId);
       setCreateOpen(false);
     } catch {
@@ -318,6 +425,7 @@ function TasksPage() {
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreateSubmit}
         saving={creating}
+        employees={employees}
       />
 
       {/* ── Page header ── */}

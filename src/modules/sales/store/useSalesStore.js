@@ -133,6 +133,32 @@ const useSalesStore = create()(
       }
     },
 
+    // ── Ad & Channel results ───────────────────────────────────────────────
+
+    async createAdResult(data) {
+      try {
+        const { createAdResult } = await import('../services/salesService.js');
+        const row = await createAdResult(data);
+        set(s => ({ adResults: [...s.adResults, row] }));
+        return row;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      }
+    },
+
+    async createChannelResult(data) {
+      try {
+        const { createChannelResult } = await import('../services/salesService.js');
+        const row = await createChannelResult(data);
+        set(s => ({ channelResults: [...s.channelResults, row] }));
+        return row;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      }
+    },
+
     // ── Channels & Campaigns ───────────────────────────────────────────────
 
     async loadChannels() {

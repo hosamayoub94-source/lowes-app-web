@@ -48,7 +48,7 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
-    id: 'workspace',
+    id: 'daily-workspace',
     label: 'مساحة العمل',
     icon: '🗂️',
     path: '/workspace',
@@ -87,14 +87,14 @@ export const NAV_ITEMS = [
   {
     id: 'payroll',
     label: 'الرواتب',
-    icon: '💰',
+    icon: '💵',
     path: '/payroll',
     roles: [ROLES.ADMIN, ROLES.MANAGER],
   },
   {
     id: 'requests',
     label: 'الطلبات',
-    icon: '📋',
+    icon: '📝',
     path: '/requests',
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
@@ -111,6 +111,41 @@ export const NAV_ITEMS = [
     icon: '📈',
     path: '/sales',
     roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
+    id: 'campaigns',
+    label: 'الحملات',
+    icon: '📣',
+    path: '/campaigns',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
+    id: 'tasks-report',
+    label: 'تقرير المهام',
+    icon: '📉',
+    path: '/tasks-report',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'performance',
+    label: 'أداء الفريق',
+    icon: '🏆',
+    path: '/performance',
+    roles: [ROLES.ADMIN, ROLES.MANAGER],
+  },
+  {
+    id: 'inventory',
+    label: 'المخزون',
+    icon: '📦',
+    path: '/inventory',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'attendance-report',
+    label: 'تقرير الحضور',
+    icon: '📅',
+    path: '/attendance-report',
+    roles: [ROLES.ADMIN, ROLES.MANAGER],
   },
 ];
 

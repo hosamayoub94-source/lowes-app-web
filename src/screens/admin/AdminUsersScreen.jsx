@@ -1,18 +1,547 @@
-import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
-import { EmptyState } from '@components/ui/EmptyState';
-import { Button } from '@components/ui/Button';
+// =============================================================
+// AdminUsersScreen — employee management with extended profile fields
+// =============================================================
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@hooks/useAuth';
 
-export default function AdminUsersScreen() {
+const ROLE_LABELS = {
+  employee:       'موظف',
+  manager:        'مدير',
+  sales_manager:  'مدير مبيعات',
+  social_manager: 'مدير سوشيال',
+  media_buyer:    'ميديا باير',
+  admin:          'أدمن',
+};
+
+const ROLE_COLORS = {
+  admin:          'bg-purple-100 text-purple-700',
+  manager:        'bg-blue-100 text-blue-700',
+  sales_manager:  'bg-teal/10 text-teal',
+  social_manager: 'bg-pink-100 text-pink-700',
+  media_buyer:    'bg-orange-100 text-orange-700',
+  employee:       'bg-gray-100 text-gray-600',
+};
+
+const TEAM_OPTIONS = ['إسطنبول', 'دمشق', 'دبي', 'الرياض', 'عام', ''];
+
+const SHIFT_OPTIONS = [
+  { value: 'morning',  label: '🌅 صباحي (09:00–17:00)' },
+  { value: 'evening',  label: '🌇 مسائي (14:00–22:00)' },
+  { value: 'night',    label: '🌙 ليلي  (22:00–06:00)' },
+  { value: 'flexible', label: '🕐 مرن' },
+];
+
+const REST_DAY_OPTIONS = ['الجمعة', 'السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+// Mini level helper
+const LEVELS = [
+  { min: 500, icon: '🏆', label: 'أسطورة' },
+  { min: 300, icon: '💎', label: 'خبير'   },
+  { min: 150, icon: '🔥', label: 'محترف'  },
+  { min: 50,  icon: '⭐', label: 'نجم'    },
+  { min: 0,   icon: '🌱', label: 'مبتدئ' },
+];
+const getLevel = (pts = 0) => LEVELS.find(l => pts >= l.min) || LEVELS[LEVELS.length - 1];
+
+// ── SQL migration snippet ─────────────────────────────────────
+const MIGRATION_SQL = `ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS shift_type  text DEFAULT 'morning',
+  ADD COLUMN IF NOT EXISTS work_start  time DEFAULT '09:00',
+  ADD COLUMN IF NOT EXISTS work_end    time DEFAULT '17:00',
+  ADD COLUMN IF NOT EXISTS rest_day    text,
+  ADD COLUMN IF NOT EXISTS page_name   text,
+  ADD COLUMN IF NOT EXISTS admin_notes text;`;
+
+// ── Data layer ────────────────────────────────────────────────
+async function fetchProfiles() {
+  const { supabase } = await import('@services/supabase');
+
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes';
+  const { data, error } = await supabase
+    .from('profiles').select(extCols).order('role_type').order('employee_name');
+
+  if (error?.message?.includes('does not exist')) {
+    // Columns not migrated yet — fall back to base columns
+    const res = await supabase
+      .from('profiles')
+      .select('id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points')
+      .order('role_type').order('employee_name');
+    if (res.error) throw new Error(res.error.message);
+    return { profiles: res.data ?? [], hasExtCols: false };
+  }
+
+  if (error) throw new Error(error.message);
+  return { profiles: data ?? [], hasExtCols: true };
+}
+
+async function updateProfile(id, patch) {
+  const { supabase } = await import('@services/supabase');
+  const { error } = await supabase
+    .from('profiles').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+async function insertProfile(payload) {
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase.from('profiles').insert(payload).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ── Form defaults ─────────────────────────────────────────────
+const EMPTY_FORM = {
+  employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
+  shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
+};
+
+// ── Input helpers ─────────────────────────────────────────────
+function Field({ label, children }) {
   return (
-    <Card>
+    <div>
+      <label className="text-xs text-muted mb-1 block">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = 'w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
+const selectCls = inputCls;
+
+// ── Copy SQL ──────────────────────────────────────────────────
+function MigrationBanner({ onDismiss }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(MIGRATION_SQL).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+  return (
+    <div className="bg-amber-bg border border-amber/30 rounded-xl p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-amber-fg">⚠️ إعداد مطلوب</p>
+          <p className="text-xs text-muted mt-0.5">لتفعيل حقول الوردية والصفحة والملاحظات، نفّذ هذا SQL في Supabase:</p>
+        </div>
+        <button onClick={onDismiss} className="text-muted hover:text-text text-lg leading-none shrink-0">×</button>
+      </div>
+      <pre className="text-[11px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap">
+        {MIGRATION_SQL}
+      </pre>
+      <button
+        onClick={copy}
+        className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition"
+      >
+        {copied ? '✓ تم النسخ' : 'نسخ SQL'}
+      </button>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────
+export default function AdminUsersScreen() {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+
+  const [profiles, setProfiles]       = useState([]);
+  const [hasExtCols, setHasExtCols]   = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [search, setSearch]           = useState('');
+  const [roleFilter, setRoleFilter]   = useState('all');
+  const [editUser, setEditUser]       = useState(null);
+  const [form, setForm]               = useState(EMPTY_FORM);
+  const [saving, setSaving]           = useState(false);
+  const [saveError, setSaveError]     = useState(null);
+  const [showAdd, setShowAdd]         = useState(false);
+  const [showMigration, setShowMigration] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await fetchProfiles();
+      setProfiles(res.profiles);
+      setHasExtCols(res.hasExtCols);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // ── Filtering ────────────────────────────────────────────────
+  const filtered = profiles.filter(p => {
+    const q = search.toLowerCase();
+    return (!search || p.employee_name?.toLowerCase().includes(q) || p.team?.toLowerCase().includes(q))
+      && (roleFilter === 'all' || p.role_type === roleFilter);
+  });
+
+  // ── Edit ─────────────────────────────────────────────────────
+  const openEdit = (p) => {
+    setEditUser(p);
+    setForm({
+      employee_name: p.employee_name ?? '',
+      role_type:     p.role_type ?? 'employee',
+      team:          p.team ?? '',
+      manager_scope: p.manager_scope ?? '',
+      is_active:     p.is_active ?? true,
+      shift_type:    p.shift_type ?? 'morning',
+      work_start:    p.work_start ?? '09:00',
+      work_end:      p.work_end ?? '17:00',
+      rest_day:      p.rest_day ?? '',
+      page_name:     p.page_name ?? '',
+      admin_notes:   p.admin_notes ?? '',
+    });
+    setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    if (!form.employee_name.trim()) { setSaveError('اسم الموظف مطلوب'); return; }
+    setSaving(true); setSaveError(null);
+    try {
+      const patch = {
+        employee_name: form.employee_name.trim(),
+        role_type:     form.role_type,
+        team:          form.team || null,
+        manager_scope: form.manager_scope || null,
+        is_active:     form.is_active,
+      };
+      if (hasExtCols) {
+        patch.shift_type  = form.shift_type || null;
+        patch.work_start  = form.work_start || null;
+        patch.work_end    = form.work_end || null;
+        patch.rest_day    = form.rest_day || null;
+        patch.page_name   = form.page_name.trim() || null;
+        patch.admin_notes = form.admin_notes.trim() || null;
+      }
+      await updateProfile(editUser.id, patch);
+      setProfiles(ps => ps.map(p => p.id === editUser.id ? { ...p, ...patch } : p));
+      setEditUser(null);
+    } catch (e) { setSaveError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  // ── Toggle active ─────────────────────────────────────────────
+  const toggleActive = async (p) => {
+    try {
+      await updateProfile(p.id, { is_active: !p.is_active });
+      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, is_active: !p.is_active } : x));
+    } catch (e) { setError(e.message); }
+  };
+
+  // ── Add employee ──────────────────────────────────────────────
+  const [addForm, setAddForm]     = useState(EMPTY_FORM);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError]   = useState(null);
+
+  const handleAdd = async () => {
+    if (!addForm.employee_name.trim()) { setAddError('اسم الموظف مطلوب'); return; }
+    setAddSaving(true); setAddError(null);
+    try {
+      const payload = {
+        employee_name: addForm.employee_name.trim(),
+        role_type:     addForm.role_type,
+        team:          addForm.team || null,
+        manager_scope: addForm.manager_scope || null,
+        is_active:     addForm.is_active,
+      };
+      const newProfile = await insertProfile(payload);
+      setProfiles(ps => [newProfile, ...ps]);
+      setShowAdd(false); setAddForm(EMPTY_FORM);
+    } catch (e) {
+      setAddError(e.message || 'لا يمكن إنشاء موظف بدون Auth user. أنشئه أولاً من Supabase Dashboard.');
+    } finally { setAddSaving(false); }
+  };
+
+  // ── KPIs ──────────────────────────────────────────────────────
+  const total    = profiles.length;
+  const active   = profiles.filter(p => p.is_active).length;
+  const managers = profiles.filter(p => ['admin','manager','sales_manager'].includes(p.role_type)).length;
+
+  return (
+    <div className="space-y-5" dir="rtl">
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <CardTitle>المستخدمون</CardTitle>
-          <CardSubtitle>إضافة وتعديل وإلغاء تفعيل حسابات الموظفين.</CardSubtitle>
+          <h1 className="text-2xl font-bold text-text">👥 المستخدمون</h1>
+          <p className="text-sm text-muted mt-0.5">إدارة حسابات الموظفين والصلاحيات</p>
         </div>
-        <Button variant="teal" size="md">+ مستخدم</Button>
+        {isAdmin && (
+          <button
+            onClick={() => { setShowAdd(true); setAddForm(EMPTY_FORM); setAddError(null); }}
+            className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
+          >
+            + موظف
+          </button>
+        )}
       </div>
-      <div className="mt-4"><EmptyState description="ستظهر قائمة المستخدمين هنا" /></div>
-    </Card>
+
+      {/* Migration banner */}
+      {isAdmin && !hasExtCols && showMigration && (
+        <MigrationBanner onDismiss={() => setShowMigration(false)} />
+      )}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'إجمالي الموظفين', value: total,    icon: '👥' },
+          { label: 'نشطون',           value: active,   icon: '✅' },
+          { label: 'الإدارة',         value: managers, icon: '🏅' },
+        ].map(k => (
+          <div key={k.label} className="bg-surface border border-border rounded-xl p-4 text-center">
+            <div className="text-2xl mb-1">{k.icon}</div>
+            <div className="text-2xl font-bold text-text">{k.value}</div>
+            <div className="text-xs text-muted mt-0.5">{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="بحث بالاسم أو الفريق…"
+          className="flex-1 border border-border rounded-xl px-4 py-2 text-sm bg-surface text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/30"
+        />
+        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+          className="border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none"
+        >
+          <option value="all">كل الأدوار</option>
+          {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={load} className="underline text-xs">إعادة المحاولة</button>
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <div className="text-center py-16 text-muted text-sm">جار التحميل…</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-4xl mb-2">📭</div>
+          <p className="text-muted text-sm">{search ? 'لا نتائج مطابقة' : 'لا يوجد موظفون'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map(p => {
+            const lvl = getLevel(p.total_points ?? 0);
+            return (
+              <div
+                key={p.id}
+                className={['bg-surface border border-border rounded-2xl p-4 space-y-3 transition', !p.is_active && 'opacity-60'].filter(Boolean).join(' ')}
+              >
+                {/* Avatar + name */}
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-teal/10 flex items-center justify-center text-teal font-bold text-lg overflow-hidden">
+                      {p.avatar_url
+                        ? <img src={p.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        : (p.employee_name?.[0] ?? '?')}
+                    </div>
+                    <span className="absolute -bottom-0.5 -end-0.5 text-xs leading-none" title={lvl.label}>{lvl.icon}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-text truncate">{p.employee_name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {p.team && <p className="text-xs text-muted">{p.team}</p>}
+                      {p.page_name && (
+                        <span className="text-xs text-teal font-medium truncate">📱 {p.page_name}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Role + status + points */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[p.role_type] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {ROLE_LABELS[p.role_type] ?? p.role_type}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {(p.total_points ?? 0) > 0 && (
+                      <span className="text-xs font-semibold text-teal">{p.total_points} نقطة</span>
+                    )}
+                    <span className={`text-xs ${p.is_active ? 'text-green-600' : 'text-red-500'}`}>
+                      {p.is_active ? '● نشط' : '○ غير نشط'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Shift badge */}
+                {p.shift_type && (
+                  <div className="text-xs text-muted">
+                    {p.shift_type === 'morning' ? '🌅' : p.shift_type === 'evening' ? '🌇' : p.shift_type === 'night' ? '🌙' : '🕐'}
+                    {' '}
+                    {SHIFT_OPTIONS.find(s => s.value === p.shift_type)?.label.split(' ')[1] ?? p.shift_type}
+                    {p.rest_day && <span className="ms-2">🗓️ {p.rest_day}</span>}
+                  </div>
+                )}
+
+                {/* Actions */}
+                {isAdmin && (
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => openEdit(p)} className="flex-1 py-1.5 rounded-lg border border-border text-xs text-text hover:bg-surface-alt transition">
+                      تعديل
+                    </button>
+                    <button
+                      onClick={() => toggleActive(p)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'border border-green-200 text-green-600 hover:bg-green-50'}`}
+                    >
+                      {p.is_active ? 'إلغاء تفعيل' : 'تفعيل'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Edit Modal ── */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditUser(null)}>
+          <div
+            className="bg-surface rounded-2xl w-full max-w-md shadow-xl flex flex-col max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-3 border-b border-border shrink-0">
+              <h3 className="font-bold text-lg text-text">تعديل — {editUser.employee_name}</h3>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-4 space-y-3 flex-1">
+              {/* Basic */}
+              <Field label="الاسم">
+                <input type="text" value={form.employee_name} onChange={e => setForm(f => ({ ...f, employee_name: e.target.value }))} className={inputCls} />
+              </Field>
+              <Field label="الدور">
+                <select value={form.role_type} onChange={e => setForm(f => ({ ...f, role_type: e.target.value }))} className={selectCls}>
+                  {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </Field>
+              <Field label="الفريق">
+                <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>
+                  {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}
+                </select>
+              </Field>
+              <Field label="نطاق الإشراف (للمدراء)">
+                <input type="text" value={form.manager_scope} onChange={e => setForm(f => ({ ...f, manager_scope: e.target.value }))} placeholder="مثال: إسطنبول" className={inputCls} />
+              </Field>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="w-4 h-4 accent-teal" />
+                <span className="text-sm text-text">نشط</span>
+              </label>
+
+              {/* Extended — work schedule */}
+              {hasExtCols && (
+                <>
+                  <div className="border-t border-border pt-3 mt-1">
+                    <p className="text-xs font-semibold text-muted mb-3">🗓️ جدول العمل</p>
+                    <div className="space-y-3">
+                      <Field label="نوع الوردية">
+                        <select value={form.shift_type} onChange={e => setForm(f => ({ ...f, shift_type: e.target.value }))} className={selectCls}>
+                          {SHIFT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </Field>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="بداية الدوام">
+                          <input type="time" value={form.work_start} onChange={e => setForm(f => ({ ...f, work_start: e.target.value }))} className={inputCls} />
+                        </Field>
+                        <Field label="نهاية الدوام">
+                          <input type="time" value={form.work_end} onChange={e => setForm(f => ({ ...f, work_end: e.target.value }))} className={inputCls} />
+                        </Field>
+                      </div>
+                      <Field label="يوم الراحة">
+                        <select value={form.rest_day} onChange={e => setForm(f => ({ ...f, rest_day: e.target.value }))} className={selectCls}>
+                          <option value="">— بدون تحديد —</option>
+                          {REST_DAY_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+
+                  {/* Page name */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-3">📱 السوشال ميديا</p>
+                    <Field label="اسم الصفحة">
+                      <input type="text" value={form.page_name} onChange={e => setForm(f => ({ ...f, page_name: e.target.value }))} placeholder="@username أو اسم الصفحة" className={inputCls} />
+                    </Field>
+                  </div>
+
+                  {/* Admin notes */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-3">📝 ملاحظات الأدمن <span className="text-muted font-normal">(مخفية عن الموظف)</span></p>
+                    <textarea
+                      rows={3}
+                      value={form.admin_notes}
+                      onChange={e => setForm(f => ({ ...f, admin_notes: e.target.value }))}
+                      placeholder="ملاحظات داخلية خاصة بالموظف…"
+                      className={inputCls + ' resize-none'}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {saveError && (
+              <div className="mx-6 mb-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</div>
+            )}
+
+            <div className="flex gap-2 px-6 pb-6 pt-2 border-t border-border shrink-0">
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+              >
+                {saving ? 'جار الحفظ…' : 'حفظ'}
+              </button>
+              <button onClick={() => setEditUser(null)}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-surface-alt transition"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Employee Modal ── */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-lg text-text mb-1">موظف جديد</h3>
+            <p className="text-xs text-muted mb-4">ملاحظة: يجب إنشاء حساب Auth للموظف أولاً عبر Supabase Dashboard ثم ربطه.</p>
+            <div className="space-y-3">
+              <Field label="الاسم">
+                <input type="text" value={addForm.employee_name} onChange={e => setAddForm(f => ({ ...f, employee_name: e.target.value }))} className={inputCls} />
+              </Field>
+              <Field label="الدور">
+                <select value={addForm.role_type} onChange={e => setAddForm(f => ({ ...f, role_type: e.target.value }))} className={selectCls}>
+                  {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </Field>
+              <Field label="الفريق">
+                <select value={addForm.team} onChange={e => setAddForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>
+                  {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}
+                </select>
+              </Field>
+            </div>
+            {addError && (
+              <div className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{addError}</div>
+            )}
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleAdd} disabled={addSaving}
+                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+              >
+                {addSaving ? 'جار الإنشاء…' : 'إنشاء'}
+              </button>
+              <button onClick={() => setShowAdd(false)}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-surface-alt transition"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

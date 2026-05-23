@@ -14,7 +14,7 @@ import { Avatar } from '@components/ui/Avatar';
 import { Button } from '@components/ui/Button';
 import { ProgressBar } from '@components/ui/ProgressBar';
 import { Select } from '@components/ui/Input';
-import { STATUS_META, PRIORITY_META, STATUS_OPTIONS, progressTone } from '../types/task.types';
+import { STATUS_META, PRIORITY_META, STATUS_OPTIONS, PLATFORM_META, TASK_TYPE_META, progressTone, calcTaskPointsPreview } from '../types/task.types';
 import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
 import { useCountdown } from '../hooks/useCountdown';
 import { CommentThread } from './CommentThread';
@@ -163,7 +163,11 @@ function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
   const effStatus = effectiveStatus(task);
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[task.priority] || null;
+  const platformMeta = task.platform ? PLATFORM_META[task.platform] : null;
+  const taskTypeMeta = task.task_type ? TASK_TYPE_META[task.task_type] : null;
   const { label: countdown, colorClass: countdownColor } = useCountdown(task.due_date, effStatus);
+  const isCompleted = effStatus === 'completed' || effStatus === 'done';
+  const pointsPreview = calcTaskPointsPreview(task);
 
   const handleStatusChange = (e) => onStatusChange(e.target.value);
 
@@ -175,6 +179,11 @@ function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
         {task.description && (
           <p className="text-sm text-muted leading-relaxed">{task.description}</p>
         )}
+        {task.attachments_note && (
+          <div className="mt-2 p-2.5 rounded-xl bg-amber-bg border border-amber/20 text-xs text-amber-fg">
+            <span className="font-semibold">📎 ملاحظة مرفق: </span>{task.attachments_note}
+          </div>
+        )}
         {task.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {task.tags.map((tag) => (
@@ -183,6 +192,33 @@ function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
           </div>
         )}
       </Section>
+
+      {/* Social media info */}
+      {(platformMeta || taskTypeMeta || task.due_time) && (
+        <Section title="تفاصيل السوشال ميديا" icon="📱">
+          {platformMeta && (
+            <InfoRow label="المنصة">
+              <Badge tone="teal" className="gap-1">
+                <span aria-hidden>{platformMeta.icon}</span>
+                {platformMeta.label}
+              </Badge>
+            </InfoRow>
+          )}
+          {taskTypeMeta && (
+            <InfoRow label="نوع المهمة">
+              <Badge tone="neutral" className="gap-1">
+                <span aria-hidden>{taskTypeMeta.icon}</span>
+                {taskTypeMeta.label}
+              </Badge>
+            </InfoRow>
+          )}
+          {task.due_time && (
+            <InfoRow label="وقت التسليم">
+              <span className="text-sm font-semibold text-text">{task.due_time}</span>
+            </InfoRow>
+          )}
+        </Section>
+      )}
 
       {/* Info rows */}
       <Section>
@@ -224,6 +260,16 @@ function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
                 <span className={cn('text-xs', countdownColor)}>{countdown}</span>
               )}
             </div>
+          </InfoRow>
+        )}
+        {!isCompleted && (
+          <InfoRow label="نقاط متوقعة">
+            <span className="text-sm font-bold text-teal">+{pointsPreview} نقطة</span>
+          </InfoRow>
+        )}
+        {isCompleted && task.completed_at && (
+          <InfoRow label="أُنجزت في">
+            <span className="text-xs text-muted">{timeAgo(task.completed_at)}</span>
           </InfoRow>
         )}
         {task.created_at && (

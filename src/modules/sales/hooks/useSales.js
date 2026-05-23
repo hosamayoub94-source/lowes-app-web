@@ -31,17 +31,19 @@ export const usePendingReports = () =>
 
 export const useSalesActions = () =>
   useSalesStore(s => ({
-    loadReports:   s.loadReports,
-    createReport:  s.createReport,
-    updateReport:  s.updateReport,
-    submitReport:  s.submitReport,
-    approveReport: s.approveReport,
-    deleteReport:  s.deleteReport,
-    selectReport:  s.selectReport,
-    loadChannels:  s.loadChannels,
-    loadCampaigns: s.loadCampaigns,
-    setFilters:    s.setFilters,
-    clearError:    s.clearError,
+    loadReports:        s.loadReports,
+    createReport:       s.createReport,
+    updateReport:       s.updateReport,
+    submitReport:       s.submitReport,
+    approveReport:      s.approveReport,
+    deleteReport:       s.deleteReport,
+    selectReport:       s.selectReport,
+    loadChannels:       s.loadChannels,
+    loadCampaigns:      s.loadCampaigns,
+    createAdResult:     s.createAdResult,
+    createChannelResult:s.createChannelResult,
+    setFilters:         s.setFilters,
+    clearError:         s.clearError,
   }));
 
 // ── Compound hooks ─────────────────────────────────────────────────────────

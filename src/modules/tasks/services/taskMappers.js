@@ -20,7 +20,7 @@ export function mapProfile(row) {
   if (!row) return null;
   return {
     id: row.id,
-    name: row.name,
+    name: row.employee_name || row.name || null,
     avatar: row.avatar_url || null,
     avatar_url: row.avatar_url || null,
     role: row.role_type || row.role || null,
@@ -84,9 +84,14 @@ export function mapTask(row) {
     priority: row.priority || 'medium',
     progress: typeof row.progress === 'number' ? row.progress : 0,
     due_date: row.due_date || null,
+    due_time: row.due_time || null,
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
     completed_at: row.completed_at || null,
+    platform: row.platform || null,
+    task_type: row.task_type || null,
+    attachments_note: row.attachments_note || null,
+    completion_note: row.completion_note || null,
     assigned_to: mapProfile(row.assignee) || (row.assigned_to ? { id: row.assigned_to } : null),
     created_by: mapProfile(row.creator) || (row.created_by ? { id: row.created_by } : null),
     seen: Array.isArray(row.seen_by) ? row.seen_by.length > 0 : !!row.seen,
@@ -104,15 +109,10 @@ export function mapTask(row) {
 // derived state. Use before insert/update.
 // -------------------------------------------------------------
 const WRITABLE = [
-  'title',
-  'description',
-  'status',
-  'priority',
-  'progress',
-  'due_date',
-  'seen_by',
-  'attachments',
-  'tags',
+  'title', 'description', 'status', 'priority', 'progress',
+  'due_date', 'due_time', 'completed_at',
+  'seen_by', 'attachments', 'tags',
+  'platform', 'task_type', 'attachments_note', 'completion_note',
 ];
 
 export function toTaskInsert(input) {

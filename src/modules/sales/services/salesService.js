@@ -173,3 +173,35 @@ export async function fetchCampaigns() {
   if (error) throw new Error(error.message);
   return data;
 }
+
+export async function createAdResult(data) {
+  if (USE_MOCK) {
+    const row = { id: `ar-${Date.now()}`, ...data };
+    _mockAdResults.push(row);
+    return row;
+  }
+  const { supabase } = await import('@services/supabase');
+  const { data: row, error } = await supabase
+    .from('daily_sales_ad_results')
+    .insert(data)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return row;
+}
+
+export async function createChannelResult(data) {
+  if (USE_MOCK) {
+    const row = { id: `cr-${Date.now()}`, ...data };
+    _mockChannelResults.push(row);
+    return row;
+  }
+  const { supabase } = await import('@services/supabase');
+  const { data: row, error } = await supabase
+    .from('daily_sales_channel_results')
+    .insert(data)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return row;
+}

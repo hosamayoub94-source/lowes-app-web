@@ -10,6 +10,8 @@ import {
   useSelectedReportId,
   useReportDetail,
   useSalesLoading,
+  useSalesCampaigns,
+  useSalesChannels,
 } from '../hooks/useSales.js';
 import {
   REPORT_STATUS,
@@ -26,6 +28,284 @@ const STATUS_COLORS = {
   approved:  'bg-green-100 text-green-700',
 };
 
+// ── Empty campaign row ─────────────────────────────────────────
+const EMPTY_AD = { campaign_name: '', platform: 'meta', ad_spend_usd: '', orders: '', revenue_usd: '' };
+
+// ── New Report Modal ───────────────────────────────────────────
+function NewReportModal({ open, onClose, onSave, loading, campaigns, channels }) {
+  const [form, setForm] = useState({
+    report_date:        new Date().toISOString().slice(0, 10),
+    total_orders:       '',
+    total_sales_usd:    '',
+    total_ad_spend_usd: '',
+    notes:              '',
+  });
+  const [ads, setAds]         = useState([]);
+  const [tab, setTab]         = useState('summary'); // 'summary' | 'campaigns' | 'channels'
+  const [chanRows, setChanRows] = useState([]);
+
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Auto-sum from campaigns
+  const sumSpend   = ads.reduce((s, a) => s + (Number(a.ad_spend_usd) || 0), 0);
+  const sumRevenue = ads.reduce((s, a) => s + (Number(a.revenue_usd) || 0), 0);
+  const sumOrders  = ads.reduce((s, a) => s + (Number(a.orders) || 0), 0);
+
+  const addAd = () => setAds(p => [...p, { ...EMPTY_AD }]);
+  const setAd = (i, k, v) => setAds(p => p.map((a, idx) => idx === i ? { ...a, [k]: v } : a));
+  const removeAd = (i) => setAds(p => p.filter((_, idx) => idx !== i));
+
+  const addChan = () => setChanRows(p => [...p, { channel_name: '', orders: '', sales_usd: '' }]);
+  const setChan = (i, k, v) => setChanRows(p => p.map((c, idx) => idx === i ? { ...c, [k]: v } : c));
+  const removeChan = (i) => setChanRows(p => p.filter((_, idx) => idx !== i));
+
+  const handleSave = async () => {
+    // Use summed values if campaigns were entered
+    const totalSpend  = ads.length > 0 ? sumSpend   : Number(form.total_ad_spend_usd) || 0;
+    const totalSales  = ads.length > 0 ? sumRevenue : Number(form.total_sales_usd)    || 0;
+    const totalOrders = ads.length > 0 ? sumOrders  : Number(form.total_orders)       || 0;
+    const roas = totalSpend > 0 ? Number((totalSales / totalSpend).toFixed(2)) : 0;
+
+    await onSave({
+      summary: {
+        report_date:        form.report_date,
+        total_orders:       totalOrders,
+        total_sales_usd:    totalSales,
+        total_ad_spend_usd: totalSpend,
+        roas,
+        notes: form.notes,
+      },
+      ads:  ads.filter(a => a.campaign_name.trim()),
+      channels: chanRows.filter(c => c.channel_name.trim()),
+    });
+    // Reset
+    setForm({ report_date: new Date().toISOString().slice(0, 10), total_orders: '', total_sales_usd: '', total_ad_spend_usd: '', notes: '' });
+    setAds([]);
+    setChanRows([]);
+    setTab('summary');
+  };
+
+  if (!open) return null;
+  const roas = Number(form.total_sales_usd) / (Number(form.total_ad_spend_usd) || 1);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface rounded-2xl p-6 w-full max-w-lg shadow-xl overflow-y-auto max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        <h3 className="font-bold text-lg text-text mb-4">📊 تقرير مبيعات جديد</h3>
+
+        {/* Tab nav */}
+        <div className="flex gap-1 mb-4 bg-cream rounded-xl p-1">
+          {[
+            { key: 'summary',   label: 'الإجمالي' },
+            { key: 'campaigns', label: 'الحملات' },
+            { key: 'channels',  label: 'القنوات' },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={[
+                'flex-1 py-1.5 rounded-lg text-xs font-semibold transition',
+                tab === t.key ? 'bg-teal text-white' : 'text-muted hover:text-text',
+              ].join(' ')}
+            >
+              {t.label}
+              {t.key === 'campaigns' && ads.length > 0 && (
+                <span className="mr-1 bg-white/30 rounded-full px-1">{ads.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Summary tab */}
+        {tab === 'summary' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted mb-1 block">التاريخ</label>
+              <input type="date" value={form.report_date} onChange={e => setF('report_date', e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted mb-1 block">عدد الطلبات</label>
+                <input type="number" value={ads.length > 0 ? sumOrders : form.total_orders}
+                  readOnly={ads.length > 0}
+                  onChange={e => setF('total_orders', e.target.value)}
+                  placeholder="0"
+                  className={['w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text', ads.length > 0 ? 'opacity-60' : ''].join(' ')} />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">إجمالي المبيعات ($)</label>
+                <input type="number" value={ads.length > 0 ? sumRevenue : form.total_sales_usd}
+                  readOnly={ads.length > 0}
+                  onChange={e => setF('total_sales_usd', e.target.value)}
+                  placeholder="0"
+                  className={['w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text', ads.length > 0 ? 'opacity-60' : ''].join(' ')} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted mb-1 block">إنفاق إعلاني ($)</label>
+              <input type="number" value={ads.length > 0 ? sumSpend : form.total_ad_spend_usd}
+                readOnly={ads.length > 0}
+                onChange={e => setF('total_ad_spend_usd', e.target.value)}
+                placeholder="0"
+                className={['w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text', ads.length > 0 ? 'opacity-60' : ''].join(' ')} />
+            </div>
+            {ads.length === 0 && form.total_sales_usd && form.total_ad_spend_usd && Number(form.total_ad_spend_usd) > 0 && (
+              <div className="bg-cream rounded-xl p-3 text-center">
+                <span className="text-xs text-muted">ROAS المتوقع: </span>
+                <span className={`text-sm font-bold ${roasColor(roas)}`}>{formatROAS(roas)}</span>
+              </div>
+            )}
+            {ads.length > 0 && (
+              <div className="bg-teal/5 border border-teal/20 rounded-xl p-3 text-center text-xs text-muted">
+                القيم محسوبة تلقائياً من الحملات ({ads.length} حملة) — ROAS: <span className={`font-bold ${roasColor(sumSpend > 0 ? sumRevenue / sumSpend : 0)}`}>{formatROAS(sumSpend > 0 ? sumRevenue / sumSpend : 0)}</span>
+              </div>
+            )}
+            <div>
+              <label className="text-xs text-muted mb-1 block">ملاحظات</label>
+              <textarea value={form.notes} onChange={e => setF('notes', e.target.value)}
+                rows={2} className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text resize-none" placeholder="اختياري…" />
+            </div>
+          </div>
+        )}
+
+        {/* Campaigns tab */}
+        {tab === 'campaigns' && (
+          <div className="space-y-3">
+            {ads.length === 0 && (
+              <p className="text-xs text-muted text-center py-4">لا توجد حملات — أضف حملة لتفصيل الإنفاق الإعلاني</p>
+            )}
+            {ads.map((ad, i) => (
+              <div key={i} className="bg-cream border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={ad.campaign_name}
+                    onChange={e => setAd(i, 'campaign_name', e.target.value)}
+                    placeholder="اسم الحملة"
+                    className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text"
+                  />
+                  <select value={ad.platform} onChange={e => setAd(i, 'platform', e.target.value)}
+                    className="border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text">
+                    {Object.entries(AD_PLATFORM_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => removeAd(i)} className="text-red-400 hover:text-red-600 text-sm font-bold">×</button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-muted block mb-0.5">إنفاق ($)</label>
+                    <input type="number" value={ad.ad_spend_usd} onChange={e => setAd(i, 'ad_spend_usd', e.target.value)}
+                      placeholder="0" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-0.5">طلبات</label>
+                    <input type="number" value={ad.orders} onChange={e => setAd(i, 'orders', e.target.value)}
+                      placeholder="0" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-0.5">إيراد ($)</label>
+                    <input type="number" value={ad.revenue_usd} onChange={e => setAd(i, 'revenue_usd', e.target.value)}
+                      placeholder="0" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text" />
+                  </div>
+                </div>
+                {ad.ad_spend_usd && ad.revenue_usd && Number(ad.ad_spend_usd) > 0 && (
+                  <div className="text-xs text-right">
+                    ROAS: <span className={`font-bold ${roasColor(Number(ad.revenue_usd) / Number(ad.ad_spend_usd))}`}>
+                      {formatROAS(Number(ad.revenue_usd) / Number(ad.ad_spend_usd))}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+            <button onClick={addAd}
+              className="w-full py-2 border border-dashed border-teal/50 rounded-xl text-xs text-teal hover:bg-teal/5 transition">
+              + إضافة حملة
+            </button>
+            {/* Quick-add from existing campaigns */}
+            {campaigns && campaigns.length > 0 && (
+              <div>
+                <p className="text-xs text-muted mb-2">إضافة سريعة من الحملات المحفوظة:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {campaigns.map(c => (
+                    <button key={c.id} onClick={() => setAds(p => [...p, { campaign_name: c.name, platform: c.platform, ad_spend_usd: '', orders: '', revenue_usd: '' }])}
+                      className="text-xs px-2 py-1 rounded-lg border border-border bg-surface hover:border-teal/40 text-muted transition">
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Channels tab */}
+        {tab === 'channels' && (
+          <div className="space-y-3">
+            {chanRows.length === 0 && (
+              <p className="text-xs text-muted text-center py-4">لا توجد قنوات — أضف قناة لتفصيل المبيعات حسب المنصة</p>
+            )}
+            {chanRows.map((c, i) => (
+              <div key={i} className="bg-cream border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={c.channel_name}
+                    onChange={e => setChan(i, 'channel_name', e.target.value)}
+                    placeholder="اسم القناة"
+                    className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text"
+                  />
+                  <button onClick={() => removeChan(i)} className="text-red-400 hover:text-red-600 text-sm font-bold">×</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted block mb-0.5">طلبات</label>
+                    <input type="number" value={c.orders} onChange={e => setChan(i, 'orders', e.target.value)}
+                      placeholder="0" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-0.5">مبيعات ($)</label>
+                    <input type="number" value={c.sales_usd} onChange={e => setChan(i, 'sales_usd', e.target.value)}
+                      placeholder="0" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface text-text" />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={addChan}
+              className="w-full py-2 border border-dashed border-teal/50 rounded-xl text-xs text-teal hover:bg-teal/5 transition">
+              + إضافة قناة
+            </button>
+            {channels && channels.length > 0 && (
+              <div>
+                <p className="text-xs text-muted mb-2">إضافة سريعة من القنوات المحفوظة:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {channels.map(ch => (
+                    <button key={ch.id} onClick={() => setChanRows(p => [...p, { channel_name: ch.name, orders: '', sales_usd: '' }])}
+                      className="text-xs px-2 py-1 rounded-lg border border-border bg-surface hover:border-teal/40 text-muted transition">
+                      {ch.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={handleSave} disabled={loading.action}
+            className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+            {loading.action ? 'جار الحفظ…' : 'حفظ كمسودة'}
+          </button>
+          <button onClick={onClose}
+            className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-cream transition">
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Dashboard ─────────────────────────────────────────────
 export function SalesDashboard() {
   const { id, role } = useAuth();
   useSalesBootstrap(id);
@@ -33,33 +313,47 @@ export function SalesDashboard() {
   const { reports, kpis, isLoading } = useSalesDashboard();
   const { report, channelResults, adResults, isLoading: loadingDetail } = useReportDetail();
   const selectedReportId = useSelectedReportId();
-  const { createReport, selectReport, submitReport, approveReport, deleteReport } = useSalesActions();
-  const loading = useSalesLoading();
+  const { createReport, selectReport, submitReport, approveReport, deleteReport, createAdResult, createChannelResult } = useSalesActions();
+  const loading   = useSalesLoading();
+  const campaigns = useSalesCampaigns();
+  const channels  = useSalesChannels();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER || role === ROLES.SALES_MANAGER;
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    report_date: new Date().toISOString().slice(0, 10),
-    total_orders: '',
-    total_sales_usd: '',
-    total_ad_spend_usd: '',
-    notes: '',
-  });
 
-  const handleCreate = async () => {
-    const roas = form.total_ad_spend_usd > 0
-      ? Number(form.total_sales_usd) / Number(form.total_ad_spend_usd)
-      : 0;
-    await createReport({
-      ...form,
-      total_orders: Number(form.total_orders) || 0,
-      total_sales_usd: Number(form.total_sales_usd) || 0,
-      total_ad_spend_usd: Number(form.total_ad_spend_usd) || 0,
-      roas: Number(roas.toFixed(2)),
-    });
+  const handleCreate = async ({ summary, ads, channels: chanRows }) => {
+    const newReport = await createReport(summary);
+    if (!newReport) return;
+    // Insert campaign ad results
+    for (const ad of ads) {
+      try {
+        await createAdResult({
+          report_id:     newReport.id,
+          campaign_name: ad.campaign_name,
+          platform:      ad.platform,
+          ad_spend_usd:  Number(ad.ad_spend_usd) || 0,
+          orders:        Number(ad.orders) || 0,
+          revenue_usd:   Number(ad.revenue_usd) || 0,
+          roas: Number(ad.ad_spend_usd) > 0
+            ? Number((Number(ad.revenue_usd) / Number(ad.ad_spend_usd)).toFixed(2))
+            : 0,
+        });
+      } catch { /* continue */ }
+    }
+    // Insert channel results
+    for (const c of chanRows) {
+      try {
+        await createChannelResult({
+          report_id:    newReport.id,
+          channel_name: c.channel_name,
+          orders:       Number(c.orders) || 0,
+          sales_usd:    Number(c.sales_usd) || 0,
+        });
+      } catch { /* continue */ }
+    }
     setShowForm(false);
-    setForm({ report_date: new Date().toISOString().slice(0, 10), total_orders: '', total_sales_usd: '', total_ad_spend_usd: '', notes: '' });
+    selectReport(newReport.id);
   };
 
   return (
@@ -81,10 +375,10 @@ export function SalesDashboard() {
       {/* KPIs — last 7 days */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'طلبات آخر 7 أيام', value: kpis.last7Orders, icon: '🛒', color: 'text-text' },
-          { label: 'مبيعات آخر 7 أيام', value: `$${Number(kpis.last7Sales).toFixed(0)}`, icon: '💵', color: 'text-green-600' },
-          { label: 'إنفاق إعلاني',      value: `$${Number(kpis.last7Spend).toFixed(0)}`, icon: '📣', color: 'text-orange-500' },
-          { label: 'ROAS متوسط',         value: formatROAS(kpis.avgRoas), icon: '📊', color: roasColor(kpis.avgRoas) },
+          { label: 'طلبات آخر 7 أيام', value: kpis.last7Orders,                             icon: '🛒', color: 'text-text'       },
+          { label: 'مبيعات آخر 7 أيام', value: '$' + Number(kpis.last7Sales).toFixed(0),    icon: '💵', color: 'text-green-600'   },
+          { label: 'إنفاق إعلاني',      value: '$' + Number(kpis.last7Spend).toFixed(0),    icon: '📣', color: 'text-orange-500'  },
+          { label: 'ROAS متوسط',         value: formatROAS(kpis.avgRoas),                    icon: '📊', color: roasColor(kpis.avgRoas) },
         ].map(k => (
           <div key={k.label} className="bg-surface border border-border rounded-xl p-4">
             <div className="text-2xl mb-1">{k.icon}</div>
@@ -154,7 +448,7 @@ export function SalesDashboard() {
                         disabled={loading.action}
                         className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition"
                       >
-                        اعتماد
+                        اعتماد ✓
                       </button>
                     )}
                     {report.status === REPORT_STATUS.DRAFT && (
@@ -187,10 +481,28 @@ export function SalesDashboard() {
                 )}
               </div>
 
+              {/* Ad spend summary */}
+              {report.total_ad_spend_usd > 0 && (
+                <div className="bg-surface border border-border rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-text">الإنفاق الإعلاني</span>
+                    <span className="text-sm font-bold text-orange-500">${Number(report.total_ad_spend_usd).toFixed(0)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-xs text-muted">
+                    <span>تكلفة الطلب (CPA)</span>
+                    <span className="font-semibold">
+                      {report.total_orders > 0
+                        ? '$' + (Number(report.total_ad_spend_usd) / Number(report.total_orders)).toFixed(1)
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Channel breakdown */}
               {channelResults.length > 0 && (
                 <div className="bg-surface border border-border rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-text mb-3">حسب القناة</h3>
+                  <h3 className="text-sm font-semibold text-text mb-3">📦 حسب القناة</h3>
                   <div className="space-y-2">
                     {channelResults.map(c => (
                       <div key={c.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border last:border-0">
@@ -208,7 +520,7 @@ export function SalesDashboard() {
               {/* Ad results */}
               {adResults.length > 0 && (
                 <div className="bg-surface border border-border rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-text mb-3">نتائج الإعلانات</h3>
+                  <h3 className="text-sm font-semibold text-text mb-3">📣 نتائج الحملات الإعلانية</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
@@ -223,7 +535,7 @@ export function SalesDashboard() {
                       </thead>
                       <tbody>
                         {adResults.map(a => (
-                          <tr key={a.id} className="border-b border-border last:border-0">
+                          <tr key={a.id} className="border-b border-border last:border-0 hover:bg-cream/50 transition">
                             <td className="py-2 px-2 text-right text-text font-medium">{a.campaign_name}</td>
                             <td className="py-2 px-2 text-center text-muted">{AD_PLATFORM_LABELS[a.platform] ?? a.platform}</td>
                             <td className="py-2 px-2 text-center text-orange-500">${Number(a.ad_spend_usd).toFixed(0)}</td>
@@ -233,6 +545,21 @@ export function SalesDashboard() {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-border text-muted font-semibold">
+                          <td className="py-2 px-2 text-right text-xs" colSpan={2}>الإجمالي</td>
+                          <td className="py-2 px-2 text-center text-orange-500">
+                            ${adResults.reduce((s, a) => s + Number(a.ad_spend_usd ?? 0), 0).toFixed(0)}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {adResults.reduce((s, a) => s + Number(a.orders ?? 0), 0)}
+                          </td>
+                          <td className="py-2 px-2 text-center text-green-600">
+                            ${adResults.reduce((s, a) => s + Number(a.revenue_usd ?? 0), 0).toFixed(0)}
+                          </td>
+                          <td className="py-2 px-2 text-center"></td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </div>
@@ -242,62 +569,15 @@ export function SalesDashboard() {
         </div>
       </div>
 
-      {/* New Report Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-bold text-lg text-text mb-4">تقرير مبيعات جديد</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-muted mb-1 block">التاريخ</label>
-                <input type="date" value={form.report_date} onChange={e => setForm(f => ({ ...f, report_date: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-cream text-text" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-muted mb-1 block">عدد الطلبات</label>
-                  <input type="number" value={form.total_orders} onChange={e => setForm(f => ({ ...f, total_orders: e.target.value }))} placeholder="0" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-cream text-text" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted mb-1 block">إجمالي المبيعات ($)</label>
-                  <input type="number" value={form.total_sales_usd} onChange={e => setForm(f => ({ ...f, total_sales_usd: e.target.value }))} placeholder="0" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-cream text-text" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted mb-1 block">إنفاق إعلاني ($)</label>
-                <input type="number" value={form.total_ad_spend_usd} onChange={e => setForm(f => ({ ...f, total_ad_spend_usd: e.target.value }))} placeholder="0" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-cream text-text" />
-              </div>
-              {/* ROAS preview */}
-              {form.total_sales_usd && form.total_ad_spend_usd && Number(form.total_ad_spend_usd) > 0 && (
-                <div className="bg-cream rounded-lg p-3 text-center">
-                  <span className="text-xs text-muted">ROAS المتوقع: </span>
-                  <span className={`text-sm font-bold ${roasColor(Number(form.total_sales_usd) / Number(form.total_ad_spend_usd))}`}>
-                    {formatROAS(Number(form.total_sales_usd) / Number(form.total_ad_spend_usd))}
-                  </span>
-                </div>
-              )}
-              <div>
-                <label className="text-xs text-muted mb-1 block">ملاحظات</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-cream text-text resize-none" placeholder="اختياري…" />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleCreate}
-                disabled={loading.action}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
-              >
-                حفظ كمسودة
-              </button>
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-cream transition"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal */}
+      <NewReportModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        onSave={handleCreate}
+        loading={loading}
+        campaigns={campaigns}
+        channels={channels}
+      />
     </div>
   );
 }

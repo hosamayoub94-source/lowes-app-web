@@ -29,15 +29,17 @@ export const ENTRY_TYPE_ICONS = {
 export const PAYMENT_METHOD = {
   CASH:      'cash',
   BANK:      'bank',
+  SHAM_CASH: 'sham_cash',
   TRANSFER:  'transfer',
   CARD:      'card',
 };
 
 export const PAYMENT_METHOD_LABELS = {
-  [PAYMENT_METHOD.CASH]:     'نقداً',
-  [PAYMENT_METHOD.BANK]:     'تحويل بنكي',
-  [PAYMENT_METHOD.TRANSFER]: 'حوالة',
-  [PAYMENT_METHOD.CARD]:     'بطاقة',
+  [PAYMENT_METHOD.CASH]:      'نقداً',
+  [PAYMENT_METHOD.BANK]:      'تحويل بنكي',
+  [PAYMENT_METHOD.SHAM_CASH]: '💸 شام كاش',
+  [PAYMENT_METHOD.TRANSFER]:  'حوالة',
+  [PAYMENT_METHOD.CARD]:      'بطاقة',
 };
 
 export const ADVANCE_STATUS = {
