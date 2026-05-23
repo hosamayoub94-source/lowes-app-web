@@ -1,332 +1,544 @@
 // =============================================================
-// HomeScreen — landing dashboard with KPIs + Charts
+// HomeScreen 2.0 — مركز قيادة يومي
+// تحية بحسب الوقت · حضور سريع · مهام اليوم ·
+// آخر إعلان · تهنئة اليوم · KPIs · Charts
 // =============================================================
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { Hero }     from '@components/ui/Hero';
-import { StatCard } from '@components/ui/StatCard';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
-import { Button }   from '@components/ui/Button';
 import { useAuth }  from '@hooks/useAuth';
 import { navItemsForRole } from '@data/navigation';
 import { Link }     from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
-const MEDALS = ['🥇', '🥈', '🥉'];
-
-async function fetchMiniLeaderboard() {
-  const monthStart = new Date(
-    new Date().getFullYear(), new Date().getMonth(), 1
-  ).toISOString().slice(0, 10);
-
-  const [profilesRes, ptsRes, tasksRes] = await Promise.allSettled([
-    supabase.from('profiles').select('employee_name, avatar_url').eq('is_active', true),
-    supabase.from('task_points').select('employee_name, points').gte('created_at', monthStart + 'T00:00:00'),
-    supabase.from('tasks').select('assigned_to').eq('status', 'done').gte('completed_at', monthStart + 'T00:00:00'),
-  ]);
-
-  const profiles  = profilesRes.value?.data ?? [];
-  const pts       = ptsRes.value?.data       ?? [];
-  const tasks     = tasksRes.value?.data     ?? [];
-  const hasPts    = pts.length > 0;
-
-  const ptsMap   = {};
-  pts.forEach(r   => { ptsMap[r.employee_name]   = (ptsMap[r.employee_name]   || 0) + r.points; });
-  const tasksMap = {};
-  tasks.forEach(r => { tasksMap[r.assigned_to]   = (tasksMap[r.assigned_to]   || 0) + 1;        });
-
-  return profiles
-    .filter(p => p.employee_name)
-    .map(p => ({
-      name:    p.employee_name,
-      avatar:  p.avatar_url,
-      points:  hasPts ? (ptsMap[p.employee_name] || 0) : (tasksMap[p.employee_name] || 0) * 10,
-    }))
-    .sort((a, b) => b.points - a.points)
-    .slice(0, 3);
+// ── Time helpers ────────────────────────────────────────────────
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 5)  return { text: 'طاب مساؤك',    icon: '🌙' };
+  if (h < 12) return { text: 'صباح الخير',    icon: '🌅' };
+  if (h < 17) return { text: 'مساء الخير',    icon: '☀️' };
+  if (h < 21) return { text: 'أمسك سعيد',    icon: '🌇' };
+  return      { text: 'طاب مساؤك',            icon: '🌙' };
 }
-
-function MiniLeaderboard() {
-  const [top3, setTop3] = useState([]);
-  useEffect(() => { fetchMiniLeaderboard().then(setTop3).catch(() => {}); }, []);
-  if (top3.length === 0) return null;
-  return (
-    <Card>
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <CardTitle>🏆 ليدربورد الشهر</CardTitle>
-          <CardSubtitle>أفضل الموظفين هذا الشهر</CardSubtitle>
-        </div>
-        <Button as={Link} to="/achievements" variant="ghost" size="sm">عرض الكل ←</Button>
-      </div>
-      <div className="space-y-2">
-        {top3.map((e, idx) => (
-          <div key={e.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt">
-            <span className="text-xl w-7 text-center">{MEDALS[idx]}</span>
-            <div className="w-8 h-8 rounded-full bg-navy/10 overflow-hidden flex items-center justify-center font-bold text-navy text-sm flex-shrink-0">
-              {e.avatar ? <img src={e.avatar} className="w-full h-full object-cover" alt="" /> : e.name.charAt(0).toUpperCase()}
-            </div>
-            <p className="flex-1 font-semibold text-text text-sm truncate">{e.name}</p>
-            <span className="font-black text-teal text-sm">{e.points} نقطة</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function todayISO() { return new Date().toISOString().slice(0, 10); }
-
+function todayISO()  { return new Date().toISOString().slice(0, 10); }
 function last7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(); d.setDate(d.getDate() - i);
     days.push(d.toISOString().slice(0, 10));
   }
   return days;
 }
-
-function dayLabel(iso) {
-  return new Date(iso).toLocaleDateString('ar-SA', { weekday: 'short' });
+function dayLabel(iso) { return new Date(iso).toLocaleDateString('ar-SA', { weekday: 'short' }); }
+function fullDate() {
+  return new Date().toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function sameMonthDay(dateStr, today) {
+  if (!dateStr) return false;
+  try {
+    const d = new Date(dateStr);
+    return d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+  } catch { return false; }
 }
 
-async function fetchKPIs(name, userId, role) {
-  const today = todayISO();
-  const year  = new Date().getFullYear();
-  const days  = last7Days();
-  const from  = days[0];
-
-  const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
-
-  const queries = [
-    supabase
-      .from('attendance')
-      .select('id', { count: 'exact', head: true })
-      .eq('employee_name', name)
-      .eq('date', today),
-
-    supabase
-      .from('tasks')
-      .select('id', { count: 'exact', head: true })
-      .in('status', ['open', 'in_progress']),
-
-    supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_read', false),
-
-    userId
-      ? supabase
-          .from('leave_balances')
-          .select('total_days, used_days')
-          .eq('employee_id', userId)
-          .eq('year', year)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-
-    // Attendance last 7 days (all team)
-    supabase
-      .from('attendance_logs')
-      .select('work_date, employee_id')
-      .gte('work_date', from)
-      .lte('work_date', today),
-
-    // Sales last 7 days (managers only — skip for employees)
-    isManager
-      ? supabase
-          .from('daily_sales_reports')
-          .select('report_date, total_sales_usd, total_orders')
-          .gte('report_date', from)
-          .lte('report_date', today)
-      : Promise.resolve({ data: [], error: null }),
-  ];
-
-  const [attRes, tasksRes, notifRes, leaveRes, attLogsRes, salesRes] =
-    await Promise.allSettled(queries);
-
-  const attendanceCount = attRes.status === 'fulfilled' ? (attRes.value.count ?? 0) : 0;
-  const tasksCount      = tasksRes.status === 'fulfilled' ? (tasksRes.value.count ?? 0) : '—';
-  const notifCount      = notifRes.status === 'fulfilled' ? (notifRes.value.count ?? 0) : '—';
-
-  let leaveBalance = '—';
-  if (leaveRes.status === 'fulfilled') {
-    const d = leaveRes.value?.data;
-    leaveBalance = (d?.total_days ?? 15) - (d?.used_days ?? 0);
-  }
-
-  // Build attendance chart data (count unique employees per day)
-  const attByDay = {};
-  days.forEach(d => { attByDay[d] = new Set(); });
-  if (attLogsRes.status === 'fulfilled') {
-    (attLogsRes.value.data || []).forEach(r => {
-      if (attByDay[r.work_date]) attByDay[r.work_date].add(r.employee_id);
-    });
-  }
-  const attendanceChart = days.map(d => ({
-    day: dayLabel(d),
-    count: attByDay[d].size,
-  }));
-
-  // Build sales chart data
-  const salesByDay = {};
-  days.forEach(d => { salesByDay[d] = 0; });
-  if (salesRes.status === 'fulfilled') {
-    (salesRes.value.data || []).forEach(r => {
-      if (salesByDay[r.report_date] !== undefined)
-        salesByDay[r.report_date] += Number(r.total_sales_usd) || 0;
-    });
-  }
-  const salesChart = days.map(d => ({
-    day: dayLabel(d),
-    sales: Math.round(salesByDay[d]),
-  }));
-
-  return { attendanceCount, tasksCount, notifCount, leaveBalance, attendanceChart, salesChart };
+// ── Avatar color (consistent) ───────────────────────────────────
+function avatarColor(name) {
+  const colors = ['bg-teal/20 text-teal','bg-navy/20 text-navy','bg-amber-100 text-amber-700','bg-rose-100 text-rose-700','bg-violet-100 text-violet-700','bg-emerald-100 text-emerald-700'];
+  let h = 0; for (const c of (name||'')) h = (h*31+c.charCodeAt(0))%colors.length;
+  return colors[h];
 }
 
-// ── Custom Tooltip ──────────────────────────────────────────
+// ── Skeleton ────────────────────────────────────────────────────
+function Skel({ className = '' }) {
+  return <div className={`bg-surface-alt animate-pulse rounded-xl ${className}`} />;
+}
+
+// ── Custom Chart Tooltip ─────────────────────────────────────────
 function ChartTooltip({ active, payload, label, prefix = '', suffix = '' }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-surface border border-border rounded-xl px-3 py-2 text-xs shadow-soft">
+    <div className="bg-surface border border-border rounded-xl px-3 py-2 text-xs shadow-lg">
       <p className="text-muted mb-0.5">{label}</p>
       <p className="font-bold text-text">{prefix}{payload[0].value}{suffix}</p>
     </div>
   );
 }
 
-export default function HomeScreen() {
-  const { name, role, id: userId } = useAuth();
-  const items = navItemsForRole(role);
-  const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
+// ── Attendance Quick Card ────────────────────────────────────────
+function AttendanceCard({ name }) {
+  const [att, setAtt]         = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
 
-  const [kpi, setKpi] = useState({
-    attendanceCount: '—',
-    tasksCount: '—',
-    notifCount: '—',
-    leaveBalance: '—',
-    attendanceChart: [],
-    salesChart: [],
-  });
-  const [loaded, setLoaded] = useState(false);
+  const load = useCallback(async () => {
+    if (!name) return;
+    const { data } = await supabase.from('attendance').select('check_in,check_out,notes').eq('employee_name', name).eq('date', todayISO()).maybeSingle();
+    setAtt(data); setLoading(false);
+  }, [name]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const checkIn = async () => {
+    setSaving(true);
+    const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const { error } = await supabase.from('attendance').upsert({ employee_name: name, date: todayISO(), check_in: now }, { onConflict: 'employee_name,date' });
+    if (!error) await load();
+    setSaving(false);
+  };
+
+  const checkOut = async () => {
+    setSaving(true);
+    const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const { error } = await supabase.from('attendance').update({ check_out: now }).eq('employee_name', name).eq('date', todayISO());
+    if (!error) await load();
+    setSaving(false);
+  };
+
+  const isCheckedIn  = !!att?.check_in;
+  const isCheckedOut = !!att?.check_out;
+  const isComplete   = isCheckedIn && isCheckedOut;
+
+  return (
+    <div className={`rounded-2xl p-4 border transition-all ${
+      isComplete  ? 'bg-emerald-50 border-emerald-200' :
+      isCheckedIn ? 'bg-teal/5 border-teal/20' :
+                    'bg-surface border-border'
+    }`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">الحضور اليوم</p>
+          {loading ? (
+            <Skel className="h-6 w-32 mt-1" />
+          ) : isComplete ? (
+            <div>
+              <p className="text-base font-extrabold text-emerald-700">✅ اكتمل</p>
+              <p className="text-xs text-emerald-600 mt-0.5">
+                دخول {att.check_in} — خروج {att.check_out}
+              </p>
+            </div>
+          ) : isCheckedIn ? (
+            <div>
+              <p className="text-base font-extrabold text-teal">⏳ في العمل</p>
+              <p className="text-xs text-muted mt-0.5">دخول: {att.check_in}</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-base font-extrabold text-text">لم تسجّل بعد</p>
+              <p className="text-xs text-muted mt-0.5">{fullDate()}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0">
+          {!loading && !isComplete && (
+            isCheckedIn ? (
+              <button onClick={checkOut} disabled={saving}
+                className="px-4 py-2 rounded-xl bg-navy text-white text-sm font-bold hover:bg-navy/90 disabled:opacity-50 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                {saving ? '⏳' : '🏠 خروج'}
+              </button>
+            ) : (
+              <button onClick={checkIn} disabled={saving}
+                className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                {saving ? '⏳' : '✅ دخول'}
+              </button>
+            )
+          )}
+          {!loading && isComplete && (
+            <span className="text-3xl">🎉</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── My Tasks Widget ──────────────────────────────────────────────
+function MyTasksCard({ name }) {
+  const [tasks, setTasks]     = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!name) return;
-    fetchKPIs(name, userId, role)
-      .then(setKpi)
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, [name, userId, role]);
+    supabase.from('tasks')
+      .select('id,title,status,priority,due_date')
+      .ilike('assigned_to', `%${name}%`)
+      .not('status', 'in', '("done","completed","مكتملة")')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(4)
+      .then(({ data }) => { setTasks(data ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [name]);
 
-  const attendanceLabel = loaded
-    ? kpi.attendanceCount > 0 ? 'حاضر ✓' : 'غير مسجّل'
-    : '—';
-
-  const leaveLabel = typeof kpi.leaveBalance === 'number'
-    ? `${kpi.leaveBalance} يوم`
-    : kpi.leaveBalance;
+  const STATUS_DOT = {
+    pending: 'bg-amber-400', in_progress: 'bg-teal', review: 'bg-violet-400',
+    blocked: 'bg-red-400', open: 'bg-gray-300',
+  };
+  const isOverdue = due => due && new Date(due) < new Date() && !due.includes(todayISO());
+  const isToday   = due => due?.slice(0,10) === todayISO();
 
   return (
-    <div className="space-y-5">
-      <Hero
-        eyebrow="لوحة التحكم"
-        title={`أهلاً ${name || ''} 👋`}
-        subtitle="تابع حضورك ومهامك وأرقام يومك من مكان واحد."
-      />
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div>
+          <p className="text-[11px] font-bold text-muted uppercase tracking-wider">مهامي</p>
+          {!loading && <p className="text-xs text-muted/70 mt-0.5">{tasks.length} مهمة مفتوحة</p>}
+        </div>
+        <Link to="/tasks" className="text-xs text-teal font-semibold hover:underline">عرض الكل ←</Link>
+      </div>
+      <div className="px-4 pb-4 space-y-2">
+        {loading ? [1,2,3].map(i => <Skel key={i} className="h-10" />) :
+         tasks.length === 0 ? (
+          <div className="flex flex-col items-center py-5 text-center">
+            <span className="text-3xl mb-1.5 opacity-50">✅</span>
+            <p className="text-xs text-muted font-medium">لا توجد مهام مفتوحة!</p>
+          </div>
+        ) : tasks.map(t => (
+          <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-alt hover:bg-surface-alt/80 transition">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? 'bg-gray-300'}`} />
+            <p className="flex-1 text-sm text-text truncate font-medium">{t.title}</p>
+            {t.due_date && (
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                isOverdue(t.due_date) ? 'bg-red-100 text-red-600' :
+                isToday(t.due_date)  ? 'bg-amber-100 text-amber-700' : 'text-muted'
+              }`}>
+                {isOverdue(t.due_date) ? '⚠️ متأخر' : isToday(t.due_date) ? '⏰ اليوم' : t.due_date.slice(5)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="الحضور اليوم"
-          value={attendanceLabel}
-          hint="آخر تحديث الآن"
-          tone="teal"
-        />
-        <StatCard label="مهام مفتوحة"    value={kpi.tasksCount} tone="blue"   />
-        <StatCard label="الإشعارات الجديدة" value={kpi.notifCount} tone="amber" />
-        <StatCard
-          label="رصيد الإجازات"
-          value={leaveLabel}
-          hint={typeof kpi.leaveBalance === 'number' ? 'متبقٍ لهذا العام' : undefined}
-          tone="purple"
-        />
+// ── Latest Announcement ──────────────────────────────────────────
+function AnnouncementCard() {
+  const [ann, setAnn]         = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('announcements').select('id,title,body,is_pinned,created_at,created_by')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => { setAnn(data?.[0] ?? null); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Skel className="h-24" />;
+  if (!ann) return null;
+
+  return (
+    <Link to="/notifications" className="block bg-surface border border-border rounded-2xl px-4 py-3.5 hover:border-teal/30 hover:shadow-sm transition-all group">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-teal/10 text-teal flex items-center justify-center text-lg shrink-0 group-hover:bg-teal/20 transition">
+          {ann.is_pinned ? '📌' : '📢'}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-[10px] font-bold text-muted uppercase tracking-wider">آخر إعلان</p>
+            {ann.is_pinned && <span className="text-[9px] font-bold text-teal bg-teal/10 px-1.5 py-0.5 rounded-full">مثبّت</span>}
+          </div>
+          <p className="text-sm font-bold text-text truncate">{ann.title}</p>
+          {ann.body && <p className="text-xs text-muted mt-0.5 line-clamp-1">{ann.body}</p>}
+        </div>
+        <span className="text-muted text-sm group-hover:text-teal transition shrink-0">←</span>
+      </div>
+    </Link>
+  );
+}
+
+// ── Celebration Banner ───────────────────────────────────────────
+function CelebrationBanner() {
+  const [celebrations, setCelebrations] = useState([]);
+
+  useEffect(() => {
+    const today = new Date();
+    supabase.from('profiles').select('employee_name,birthday,join_date').eq('is_active', true)
+      .then(({ data }) => {
+        const found = [];
+        (data ?? []).forEach(p => {
+          if (sameMonthDay(p.birthday, today))
+            found.push({ type: 'birthday', name: p.employee_name });
+          if (sameMonthDay(p.join_date, today)) {
+            const yrs = today.getFullYear() - new Date(p.join_date).getFullYear();
+            if (yrs >= 1) found.push({ type: 'anniversary', name: p.employee_name, years: yrs });
+          }
+        });
+        setCelebrations(found);
+      }).catch(() => {});
+  }, []);
+
+  if (!celebrations.length) return null;
+
+  return (
+    <div className="bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-200 rounded-2xl px-4 py-3.5 animate-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl animate-bounce">🎉</span>
+        <div className="flex-1">
+          {celebrations.map((c, i) => (
+            <p key={i} className="text-sm font-bold text-amber-800">
+              {c.type === 'birthday'
+                ? `🎂 اليوم عيد ميلاد ${c.name}! — كل عام وأنت بخير 💙`
+                : `🏆 ${c.name} يكمل ${c.years === 1 ? 'سنة' : `${c.years} سنوات`} في Lowe's! — شكراً لعطاءك ✨`}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── KPI Bar ──────────────────────────────────────────────────────
+function KpiItem({ label, value, icon, tone, loading }) {
+  const tones = {
+    teal:   'bg-teal/10 text-teal',
+    blue:   'bg-blue-100 text-blue-700',
+    amber:  'bg-amber-100 text-amber-700',
+    purple: 'bg-violet-100 text-violet-700',
+    green:  'bg-emerald-100 text-emerald-700',
+  };
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col gap-2">
+      <div className={`w-9 h-9 rounded-xl ${tones[tone] ?? tones.teal} flex items-center justify-center text-lg`}>{icon}</div>
+      {loading ? <Skel className="h-7 w-12" /> : <p className="text-2xl font-extrabold text-text tabular-nums">{value}</p>}
+      <p className="text-xs text-muted font-medium leading-tight">{label}</p>
+    </div>
+  );
+}
+
+// ── Mini Leaderboard ─────────────────────────────────────────────
+const MEDALS = ['🥇','🥈','🥉'];
+function MiniLeaderboard() {
+  const [top3, setTop3]       = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
+    Promise.allSettled([
+      supabase.from('profiles').select('employee_name,avatar_url').eq('is_active', true),
+      supabase.from('task_points').select('employee_name,points').gte('created_at', monthStart+'T00:00:00'),
+    ]).then(([profRes, ptsRes]) => {
+      const profiles = profRes.value?.data ?? [];
+      const pts      = ptsRes.value?.data  ?? [];
+      const map = {};
+      pts.forEach(r => { map[r.employee_name] = (map[r.employee_name]||0) + r.points; });
+      const board = profiles
+        .filter(p => p.employee_name)
+        .map(p => ({ name: p.employee_name, avatar: p.avatar_url, points: map[p.employee_name]||0 }))
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 3)
+        .filter(p => p.points > 0);
+      setTop3(board); setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (!loading && !top3.length) return null;
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div>
+          <p className="text-[11px] font-bold text-muted uppercase tracking-wider">ليدربورد الشهر</p>
+          <p className="text-xs text-muted/70 mt-0.5">أفضل الموظفين هذا الشهر</p>
+        </div>
+        <Link to="/achievements" className="text-xs text-teal font-semibold hover:underline">عرض الكل ←</Link>
+      </div>
+      <div className="px-4 pb-4 space-y-2">
+        {loading ? [1,2,3].map(i => <Skel key={i} className="h-12" />) :
+         top3.map((e, idx) => (
+          <div key={e.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt">
+            <span className="text-xl w-7 text-center">{MEDALS[idx]}</span>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden ${avatarColor(e.name)}`}>
+              {e.avatar ? <img src={e.avatar} className="w-full h-full object-cover" alt="" /> : e.name.charAt(0)}
+            </div>
+            <p className="flex-1 font-semibold text-text text-sm truncate">{e.name}</p>
+            <span className="font-black text-teal text-sm tabular-nums">{e.points} نقطة</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Quick Shortcuts ──────────────────────────────────────────────
+function QuickShortcuts({ role }) {
+  const items = navItemsForRole(role).slice(0, 8);
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4">
+      <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-3">وصول سريع</p>
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        {items.map(item => (
+          <Link key={item.id} to={item.path}
+            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl hover:bg-surface-alt transition-all group hover:scale-105 active:scale-95">
+            <span className="text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
+            <span className="text-[10px] text-muted font-medium text-center leading-tight group-hover:text-teal transition-colors">{item.label}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Main HomeScreen
+// ════════════════════════════════════════════════════════════════
+export default function HomeScreen() {
+  const { name, role, id: userId } = useAuth();
+  const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
+  const g = greeting();
+
+  // KPIs
+  const [kpi, setKpi]         = useState({ tasks: '—', notifs: '—', leave: '—', sales: '—' });
+  const [kpiLoaded, setKpiLoaded] = useState(false);
+
+  // Charts
+  const [attChart, setAttChart]   = useState([]);
+  const [salesChart, setSalesChart] = useState([]);
+  const [chartsLoaded, setChartsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!name) return;
+    const today     = todayISO();
+    const year      = new Date().getFullYear();
+    const days      = last7Days();
+    const monthFrom = days[0];
+
+    Promise.allSettled([
+      // Open tasks for me
+      supabase.from('tasks').select('id',{count:'exact',head:true})
+        .ilike('assigned_to', `%${name}%`)
+        .not('status','in','("done","completed","مكتملة")'),
+      // Unread notifications
+      supabase.from('notifications').select('id',{count:'exact',head:true}).eq('is_read',false),
+      // Leave balance
+      userId ? supabase.from('leave_balances').select('total_days,used_days').eq('employee_id',userId).eq('year',year).maybeSingle()
+             : Promise.resolve({data:null}),
+      // Attendance chart
+      supabase.from('attendance').select('date,employee_name').gte('date',monthFrom).lte('date',today),
+      // Sales chart (managers)
+      isManager ? supabase.from('daily_sales_reports').select('report_date,total_sales_usd').gte('report_date',monthFrom).lte('report_date',today)
+                : Promise.resolve({data:[]}),
+    ]).then(([tRes, nRes, lRes, aRes, sRes]) => {
+      // KPIs
+      const tasks  = tRes.value?.count  ?? '—';
+      const notifs = nRes.value?.count  ?? '—';
+      const ld     = lRes.value?.data;
+      const leave  = ld ? `${(ld.total_days??15)-(ld.used_days??0)} يوم` : '—';
+
+      setKpi({ tasks, notifs, leave });
+      setKpiLoaded(true);
+
+      // Attendance chart (unique attendees per day)
+      const attByDay = {}; days.forEach(d => { attByDay[d] = new Set(); });
+      (aRes.value?.data??[]).forEach(r => { if(attByDay[r.date]) attByDay[r.date].add(r.employee_name); });
+      setAttChart(days.map(d => ({ day: dayLabel(d), count: attByDay[d].size })));
+
+      // Sales chart
+      const salesByDay = {}; days.forEach(d => { salesByDay[d] = 0; });
+      (sRes.value?.data??[]).forEach(r => {
+        if (salesByDay[r.report_date] !== undefined) salesByDay[r.report_date] += Number(r.total_sales_usd)||0;
+      });
+      setSalesChart(days.map(d => ({ day: dayLabel(d), sales: Math.round(salesByDay[d]) })));
+      setChartsLoaded(true);
+    }).catch(() => { setKpiLoaded(true); setChartsLoaded(true); });
+  }, [name, userId, isManager]);
+
+  return (
+    <div className="space-y-4" dir="rtl">
+
+      {/* ── Hero greeting ───────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-4 pt-1">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold text-xl shadow-sm ${avatarColor(name)}`}>
+            {name?.[0]?.toUpperCase() ?? '?'}
+          </div>
+          <div>
+            <p className="text-lg font-extrabold text-text leading-tight">
+              {g.icon} {g.text}{name ? `، ${name.split(' ')[0]}` : ''}
+            </p>
+            <p className="text-xs text-muted mt-0.5">{fullDate()}</p>
+          </div>
+        </div>
+        <Link to="/notifications" className="relative w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center text-muted hover:text-teal hover:border-teal/40 transition">
+          🔔
+          {typeof kpi.notifs === 'number' && kpi.notifs > 0 && (
+            <span className="absolute -top-1 -end-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold grid place-items-center shadow">
+              {kpi.notifs > 9 ? '9+' : kpi.notifs}
+            </span>
+          )}
+        </Link>
       </div>
 
-      {/* Charts row */}
-      {loaded && (
+      {/* ── Celebration ─────────────────────────────────────────── */}
+      <CelebrationBanner />
+
+      {/* ── 2-column layout (quick cards) ───────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <AttendanceCard name={name} />
+        <MyTasksCard name={name} />
+      </div>
+
+      {/* ── Latest Announcement ─────────────────────────────────── */}
+      <AnnouncementCard />
+
+      {/* ── KPI strip ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3">
+        <KpiItem label="مهام مفتوحة" icon="📋" value={kpi.tasks}  tone="blue"   loading={!kpiLoaded} />
+        <KpiItem label="إشعارات جديدة" icon="🔔" value={kpi.notifs} tone="amber"  loading={!kpiLoaded} />
+        <KpiItem label="رصيد الإجازة" icon="🏖️" value={kpi.leave}  tone="purple" loading={!kpiLoaded} />
+      </div>
+
+      {/* ── Charts ──────────────────────────────────────────────── */}
+      {chartsLoaded && (
         <div className={`grid gap-4 ${isManager ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-          {/* Attendance chart */}
-          <Card>
-            <CardTitle>حضور الفريق — آخر 7 أيام</CardTitle>
-            <CardSubtitle>عدد الموظفين الحاضرين يومياً</CardSubtitle>
-            <div className="mt-4 h-36">
+          <div className="bg-surface border border-border rounded-2xl p-4">
+            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">حضور الفريق</p>
+            <p className="text-xs text-muted/70 mb-4">آخر 7 أيام</p>
+            <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={kpi.attendanceChart} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border)/0.4)" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'rgb(var(--color-muted))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: 'rgb(var(--color-muted))' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: 'rgb(var(--color-surface-alt))' }} />
-                  <Bar dataKey="count" fill="rgb(var(--color-teal))" radius={[4, 4, 0, 0]} />
+                <BarChart data={attChart} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: 'rgba(13,115,119,0.06)' }} />
+                  <Bar dataKey="count" fill="rgb(13,115,119)" radius={[6,6,0,0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+          </div>
 
-          {/* Sales chart — managers only */}
           {isManager && (
-            <Card>
-              <CardTitle>المبيعات — آخر 7 أيام</CardTitle>
-              <CardSubtitle>إجمالي المبيعات اليومية بالدولار</CardSubtitle>
-              <div className="mt-4 h-36">
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">المبيعات</p>
+              <p className="text-xs text-muted/70 mb-4">آخر 7 أيام بالدولار</p>
+              <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={kpi.salesChart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border)/0.4)" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'rgb(var(--color-muted))' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: 'rgb(var(--color-muted))' }} axisLine={false} tickLine={false} />
+                  <LineChart data={salesChart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTooltip prefix="$" />} />
-                    <Line
-                      type="monotone"
-                      dataKey="sales"
-                      stroke="rgb(var(--color-green))"
-                      strokeWidth={2.5}
-                      dot={{ fill: 'rgb(var(--color-green))', r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
+                    <Line type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2.5}
+                      dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </Card>
+            </div>
           )}
         </div>
       )}
 
-      {/* Mini Leaderboard */}
+      {/* ── Leaderboard ─────────────────────────────────────────── */}
       <MiniLeaderboard />
 
-      {/* Quick shortcuts */}
-      <Card>
-        <CardTitle>اختصارات سريعة</CardTitle>
-        <CardSubtitle>الوصول السريع للأقسام التي تستخدمها بشكل متكرر</CardSubtitle>
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-          {items.map((item) => (
-            <Button
-              key={item.id}
-              as={Link}
-              to={item.path}
-              variant="secondary"
-              size="lg"
-              leftIcon={<span aria-hidden>{item.icon}</span>}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </Card>
+      {/* ── Quick shortcuts ──────────────────────────────────────── */}
+      <QuickShortcuts role={role} />
+
     </div>
   );
 }
