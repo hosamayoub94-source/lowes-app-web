@@ -20,6 +20,7 @@
 export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK_CRM ?? '').toLowerCase() !== 'false';
 
 import {
+  DEFAULT_STAGES,
   MOCK_PIPELINE,
   MOCK_STAGES,
   MOCK_CUSTOMERS,
@@ -33,6 +34,16 @@ import {
   ACTIVITY_TYPE,
   CUSTOMER_STATUS,
 } from '../types/crm.types';
+
+// ── DB missing flag (set when 42P01 error detected) ──────────
+export let CRM_DB_MISSING = false;
+function _handleNotFound(error, fallback = []) {
+  if (error?.code === '42P01' || error?.message?.includes('42P01')) {
+    CRM_DB_MISSING = true;
+    return fallback;
+  }
+  throw error;
+}
 
 // ── In-memory mock store ──────────────────────────────────────
 let _mockData = null;
@@ -68,20 +79,25 @@ export async function fetchPipelines() {
     .select('*')
     .eq('is_active', true)
     .order('created_at');
-  if (error) throw error;
-  return data ?? [];
+  if (error) return _handleNotFound(error, [MOCK_PIPELINE]);
+  // If no pipelines configured yet, return default
+  if (!data?.length) return [MOCK_PIPELINE];
+  return data;
 }
 
 export async function fetchStages(pipelineId) {
   if (USE_MOCK) return _getMock().stages.filter((s) => s.pipeline_id === pipelineId);
+  if (CRM_DB_MISSING) return DEFAULT_STAGES.map((s, i) => ({ id: `ds${i}`, pipeline_id: pipelineId, ...s }));
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('pipeline_stages')
     .select('*')
     .eq('pipeline_id', pipelineId)
     .order('position');
-  if (error) throw error;
-  return data ?? [];
+  if (error) return _handleNotFound(error, DEFAULT_STAGES.map((s, i) => ({ id: `ds${i}`, pipeline_id: pipelineId, ...s })));
+  // If no stages configured, return defaults
+  if (!data?.length) return DEFAULT_STAGES.map((s, i) => ({ id: `ds${i}`, pipeline_id: pipelineId, ...s }));
+  return data;
 }
 
 // ── Leads ─────────────────────────────────────────────────────
@@ -103,7 +119,7 @@ export async function fetchLeads(filters = {}) {
   if (filters.assigned_to) q = q.eq('assigned_to', filters.assigned_to);
   if (filters.search)      q = q.ilike('title', `%${filters.search}%`);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -248,7 +264,7 @@ export async function fetchDeals(filters = {}) {
   if (filters.status)      q = q.eq('status', filters.status);
   if (filters.assigned_to) q = q.eq('assigned_to', filters.assigned_to);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -367,7 +383,7 @@ export async function fetchCustomers(filters = {}) {
   let q = supabase.from('customers').select('*').order('company_name');
   if (filters.status) q = q.eq('status', filters.status);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -433,7 +449,7 @@ export async function fetchActivities(filters = {}) {
   if (filters.deal_id)     q = q.eq('deal_id', filters.deal_id);
   if (filters.customer_id) q = q.eq('customer_id', filters.customer_id);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -473,7 +489,7 @@ export async function fetchFollowups(filters = {}) {
   if (filters.deal_id)     q = q.eq('deal_id', filters.deal_id);
   if (filters.status)      q = q.eq('status', filters.status);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -536,7 +552,7 @@ export async function fetchNotes(filters = {}) {
   if (filters.deal_id)     q = q.eq('deal_id', filters.deal_id);
   if (filters.customer_id) q = q.eq('customer_id', filters.customer_id);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 
@@ -601,7 +617,7 @@ export async function fetchContacts(customerId) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase.from('customer_contacts')
     .select('*').eq('customer_id', customerId).order('is_primary', { ascending: false });
-  if (error) throw error;
+  if (error) return _handleNotFound(error, []);
   return data ?? [];
 }
 

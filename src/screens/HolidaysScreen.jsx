@@ -11,6 +11,68 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 
+// ── SQL for missing tables ────────────────────────────────────
+const SETUP_SQL = `-- جداول نظام الإجازات (نفّذ مرة واحدة في Supabase SQL Editor)
+CREATE TABLE IF NOT EXISTS leave_balances (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  employee_id uuid NOT NULL,
+  year int NOT NULL,
+  total_days int DEFAULT 15,
+  used_days int DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(employee_id, year)
+);
+ALTER TABLE leave_balances ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "leave_bal_all" ON leave_balances
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS employee_requests (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  employee_id uuid NOT NULL,
+  request_type text DEFAULT 'leave',
+  leave_type text CHECK (leave_type IN ('annual','sick','emergency','unpaid')),
+  leave_from date,
+  leave_to date,
+  leave_days int,
+  reason text,
+  status text DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','rejected','cancelled')),
+  admin_note text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE employee_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "emp_req_all" ON employee_requests
+  FOR ALL USING (true) WITH CHECK (true);`;
+
+// ── DB setup banner ───────────────────────────────────────────
+function SetupBanner({ onDismiss }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(SETUP_SQL).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="bg-amber-bg border border-amber/30 rounded-xl p-4 space-y-3" dir="rtl">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-amber-fg">⚠️ إعداد مطلوب — جداول الإجازات</p>
+          <p className="text-xs text-muted mt-0.5">
+            نفّذ هذا SQL في Supabase SQL Editor لتفعيل نظام الإجازات:
+          </p>
+        </div>
+        <button onClick={onDismiss} className="text-muted hover:text-text text-lg leading-none shrink-0">×</button>
+      </div>
+      <pre className="text-[10px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-40">
+        {SETUP_SQL}
+      </pre>
+      <button onClick={copy} className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
+        {copied ? '✓ تم النسخ' : 'نسخ SQL'}
+      </button>
+    </div>
+  );
+}
+
 // ── Helpers ────────────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -220,11 +282,13 @@ export default function HolidaysScreen() {
   const { id: userId } = useAuth();
   const year = new Date().getFullYear();
 
-  const [balance,  setBalance]  = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
+  const [balance,   setBalance]   = useState(null);
+  const [requests,  setRequests]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [dbMissing, setDbMissing] = useState(false);
+  const [showSetup, setShowSetup] = useState(true);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -246,6 +310,13 @@ export default function HolidaysScreen() {
           .order('created_at', { ascending: false })
           .limit(50),
       ]);
+
+      // Detect missing tables (42P01 = undefined_table)
+      const isMissing = (r) =>
+        r.status === 'fulfilled' && r.value?.error?.code === '42P01';
+      if (isMissing(balRes) || isMissing(reqRes)) {
+        setDbMissing(true);
+      }
 
       if (balRes.status === 'fulfilled' && !balRes.value.error) {
         setBalance(balRes.value.data);
@@ -281,6 +352,11 @@ export default function HolidaysScreen() {
           </Button>
         }
       />
+
+      {/* DB setup banner */}
+      {dbMissing && showSetup && (
+        <SetupBanner onDismiss={() => setShowSetup(false)} />
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

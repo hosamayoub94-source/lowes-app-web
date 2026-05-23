@@ -11,7 +11,7 @@ import { Button }    from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
 import { supabase }  from '@services/supabase';
 
-const CATEGORIES = ['ترطيب', 'تبييض', 'مكياج', 'عناية بالشعر', 'عطور', 'أخرى'];
+const CATEGORIES = ['العناية بالوجه', 'العناية بالبشرة', 'واقي الشمس', 'الماسك', 'العناية بالجسم', 'منتجات خاصة', 'العناية بالشعر', 'الأدوات'];
 
 // ── helpers ────────────────────────────────────────────────────
 const fmt  = n => Number(n || 0).toLocaleString('ar-SA');
@@ -25,10 +25,46 @@ function stockColor(qty, min) {
 
 // ── Empty form ─────────────────────────────────────────────────
 const EMPTY = {
-  name: '', sku: '', category: 'ترطيب', quantity: '',
+  name: '', sku: '', category: 'العناية بالبشرة', quantity: '',
   price_usd: '', price_try: '', min_stock: '5',
   description: '', is_active: true,
 };
+
+// ── Lowe's Professional product catalog (32 products) ─────────
+const LOWES_PRODUCTS = [
+  { name: 'غسول البشرة الدهنية والحساسة',    sku: 'LW-FC-204', category: 'العناية بالوجه'  },
+  { name: 'غسول البشرة العادية و الجافة',     sku: 'LW-FC-203', category: 'العناية بالوجه'  },
+  { name: 'تونر تنقية البشرة و تضييق المسام', sku: 'LW-FC-202', category: 'العناية بالوجه'  },
+  { name: 'جيل مقشر الوجه',                   sku: 'LW-FC-201', category: 'العناية بالوجه'  },
+  { name: 'سيروم فيتامين سي',                 sku: 'LW-SK-101', category: 'العناية بالبشرة' },
+  { name: 'سيروم الريتينول',                  sku: 'LW-SK-105', category: 'العناية بالبشرة' },
+  { name: 'سيروم مصحح البقع الداكنة',         sku: 'LW-SK-106', category: 'العناية بالبشرة' },
+  { name: 'سيروم الترطيب المكثف',             sku: 'LW-SK-107', category: 'العناية بالبشرة' },
+  { name: 'سيروم الكولاجين',                  sku: 'LW-SK-109', category: 'العناية بالبشرة' },
+  { name: 'سيروم الهالات و انتفاخ العين',     sku: 'LW-SK-108', category: 'العناية بالبشرة' },
+  { name: 'كريم تفتيح البشرة',                sku: 'LW-SK-102', category: 'العناية بالبشرة' },
+  { name: 'كريم الترطيب المكثف',              sku: 'LW-SK-104', category: 'العناية بالبشرة' },
+  { name: 'سيروم مضاد لحب الشباب',            sku: 'LW-SK-110', category: 'العناية بالبشرة' },
+  { name: 'ريتينال شوت',                      sku: 'LW-SK-111', category: 'العناية بالبشرة' },
+  { name: 'كريم الارز',                       sku: 'LW-SK-112', category: 'العناية بالبشرة' },
+  { name: 'سيروم الارز',                      sku: 'LW-SK-113', category: 'العناية بالبشرة' },
+  { name: 'واقي الشمس الوردي بالكالامين',     sku: 'LW-SN-501', category: 'واقي الشمس'      },
+  { name: 'واقي الشمس المضاد للبقع',          sku: 'LW-SN-502', category: 'واقي الشمس'      },
+  { name: 'ماسك الكولاجين المائي',             sku: 'LW-MS-601', category: 'الماسك'          },
+  { name: 'جل شد الجسم و السيليوليت',         sku: 'LW-SK-103', category: 'العناية بالجسم'  },
+  { name: 'تونر حليب الارز',                  sku: 'LW-TN-601', category: 'العناية بالجسم'  },
+  { name: 'كريم العناية بالثدي',              sku: 'LW-SP-701', category: 'منتجات خاصة'     },
+  { name: 'سيروم العناية بالثدي',             sku: 'LW-SP-702', category: 'منتجات خاصة'     },
+  { name: 'كريم العناية بالقدمين',            sku: 'LW-SP-704', category: 'منتجات خاصة'     },
+  { name: 'شامبو الروزماري',                  sku: 'LW-HR-301', category: 'العناية بالشعر'  },
+  { name: 'ماء الروزماري للشعر و البشرة',     sku: 'LW-HR-302', category: 'العناية بالشعر'  },
+  { name: 'زيت الروزماري',                    sku: 'LW-HR-303', category: 'العناية بالشعر'  },
+  { name: 'سيروم اللحية',                     sku: 'LW-SP-703', category: 'العناية بالشعر'  },
+  { name: 'ديرما رول 0.5mm',                  sku: 'LW-DR-103', category: 'الأدوات'         },
+  { name: 'ديرما رول 1mm',                    sku: 'LW-DR-104', category: 'الأدوات'         },
+  { name: 'مشط السيليكون',                    sku: 'LW-SC-105', category: 'الأدوات'         },
+  { name: 'رول مساج الوجه',                   sku: 'LW-GS-106', category: 'الأدوات'         },
+];
 
 // ── Product form modal ─────────────────────────────────────────
 function ProductModal({ open, initial, onClose, onSaved }) {
@@ -283,6 +319,7 @@ export default function InventoryScreen() {
   const [editProd, setEditProd] = useState(null);
   const [adjustProd, setAdjust] = useState(null);
   const [dbMissing, setDbMissing] = useState(false);
+  const [seeding,   setSeeding]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -325,6 +362,23 @@ export default function InventoryScreen() {
   const openNew  = () => { setEditProd(null); setShowForm(true); };
   const openEdit = (p) => { setEditProd(p);   setShowForm(true); };
 
+  const seedLowesProducts = async () => {
+    setSeeding(true);
+    try {
+      const rows = LOWES_PRODUCTS.map(p => ({
+        name: p.name, sku: p.sku, category: p.category,
+        quantity: 0, price_usd: 0, price_try: 0, min_stock: 5, is_active: true,
+      }));
+      const { error } = await supabase.from('products').insert(rows);
+      if (error) throw new Error(error.message);
+      await load();
+    } catch (e) {
+      alert('خطأ في التهيئة: ' + e.message);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   if (dbMissing) {
     return (
       <div className="space-y-5">
@@ -335,11 +389,12 @@ export default function InventoryScreen() {
             <p className="text-sm font-semibold text-text">جدول المنتجات غير موجود في قاعدة البيانات</p>
             <p className="text-xs text-muted">نفّذ SQL التالي في Supabase SQL Editor:</p>
             <pre className="text-left text-xs bg-surface-alt border border-border rounded-xl p-4 overflow-x-auto mt-2 text-muted">
-{`CREATE TABLE IF NOT EXISTS products (
+{`-- 1) إنشاء الجدول
+CREATE TABLE IF NOT EXISTS products (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL,
-  sku text,
-  category text DEFAULT 'أخرى',
+  sku text UNIQUE,
+  category text DEFAULT 'العناية بالبشرة',
   quantity int DEFAULT 0,
   price_usd numeric(10,2) DEFAULT 0,
   price_try numeric(10,2) DEFAULT 0,
@@ -350,7 +405,44 @@ export default function InventoryScreen() {
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "products_all" ON products FOR ALL USING (true) WITH CHECK (true);`}
+CREATE POLICY "products_all" ON products
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 2) تهيئة 32 منتج Lowe's Professional
+INSERT INTO products (name, sku, category, quantity, min_stock, is_active) VALUES
+('غسول البشرة الدهنية والحساسة','LW-FC-204','العناية بالوجه',0,5,true),
+('غسول البشرة العادية و الجافة','LW-FC-203','العناية بالوجه',0,5,true),
+('تونر تنقية البشرة و تضييق المسام','LW-FC-202','العناية بالوجه',0,5,true),
+('جيل مقشر الوجه','LW-FC-201','العناية بالوجه',0,5,true),
+('سيروم فيتامين سي','LW-SK-101','العناية بالبشرة',0,5,true),
+('سيروم الريتينول','LW-SK-105','العناية بالبشرة',0,5,true),
+('سيروم مصحح البقع الداكنة','LW-SK-106','العناية بالبشرة',0,5,true),
+('سيروم الترطيب المكثف','LW-SK-107','العناية بالبشرة',0,5,true),
+('سيروم الكولاجين','LW-SK-109','العناية بالبشرة',0,5,true),
+('سيروم الهالات و انتفاخ العين','LW-SK-108','العناية بالبشرة',0,5,true),
+('كريم تفتيح البشرة','LW-SK-102','العناية بالبشرة',0,5,true),
+('كريم الترطيب المكثف','LW-SK-104','العناية بالبشرة',0,5,true),
+('سيروم مضاد لحب الشباب','LW-SK-110','العناية بالبشرة',0,5,true),
+('ريتينال شوت','LW-SK-111','العناية بالبشرة',0,5,true),
+('كريم الارز','LW-SK-112','العناية بالبشرة',0,5,true),
+('سيروم الارز','LW-SK-113','العناية بالبشرة',0,5,true),
+('واقي الشمس الوردي بالكالامين','LW-SN-501','واقي الشمس',0,5,true),
+('واقي الشمس المضاد للبقع','LW-SN-502','واقي الشمس',0,5,true),
+('ماسك الكولاجين المائي','LW-MS-601','الماسك',0,5,true),
+('جل شد الجسم و السيليوليت','LW-SK-103','العناية بالجسم',0,5,true),
+('تونر حليب الارز','LW-TN-601','العناية بالجسم',0,5,true),
+('كريم العناية بالثدي','LW-SP-701','منتجات خاصة',0,5,true),
+('سيروم العناية بالثدي','LW-SP-702','منتجات خاصة',0,5,true),
+('كريم العناية بالقدمين','LW-SP-704','منتجات خاصة',0,5,true),
+('شامبو الروزماري','LW-HR-301','العناية بالشعر',0,5,true),
+('ماء الروزماري للشعر و البشرة','LW-HR-302','العناية بالشعر',0,5,true),
+('زيت الروزماري','LW-HR-303','العناية بالشعر',0,5,true),
+('سيروم اللحية','LW-SP-703','العناية بالشعر',0,5,true),
+('ديرما رول 0.5mm','LW-DR-103','الأدوات',0,5,true),
+('ديرما رول 1mm','LW-DR-104','الأدوات',0,5,true),
+('مشط السيليكون','LW-SC-105','الأدوات',0,5,true),
+('رول مساج الوجه','LW-GS-106','الأدوات',0,5,true)
+ON CONFLICT (sku) DO NOTHING;`}
             </pre>
             <Button variant="teal" onClick={load}>إعادة المحاولة</Button>
           </div>
@@ -410,7 +502,14 @@ CREATE POLICY "products_all" ON products FOR ALL USING (true) WITH CHECK (true);
           ) : error ? (
             <p className="text-sm text-red-fg py-2">⚠️ {error}</p>
           ) : filtered.length === 0 ? (
-            <EmptyState description="لا توجد منتجات — أضف أول منتج" />
+            <div className="py-4 space-y-4 text-center">
+              <EmptyState description="لا توجد منتجات — أضف أول منتج أو هيّئ كتالوج Lowe's" />
+              {products.length === 0 && (
+                <Button variant="teal" onClick={seedLowesProducts} disabled={seeding}>
+                  {seeding ? '⏳ جاري التهيئة…' : '🌱 تهيئة 32 منتج Lowe\'s Professional'}
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map(p => (

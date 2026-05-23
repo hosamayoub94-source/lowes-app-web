@@ -43,7 +43,7 @@ const LEVELS = [
 ];
 const getLevel = (pts = 0) => LEVELS.find(l => pts >= l.min) || LEVELS[LEVELS.length - 1];
 
-// ── SQL migration snippet ─────────────────────────────────────
+// ── SQL migration snippets ────────────────────────────────────
 const MIGRATION_SQL = `ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS shift_type  text DEFAULT 'morning',
   ADD COLUMN IF NOT EXISTS work_start  time DEFAULT '09:00',
@@ -51,6 +51,35 @@ const MIGRATION_SQL = `ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS rest_day    text,
   ADD COLUMN IF NOT EXISTS page_name   text,
   ADD COLUMN IF NOT EXISTS admin_notes text;`;
+
+// SQL for admin PIN reset function (run once in Supabase SQL Editor)
+const RESET_PIN_SQL = `-- دالة تغيير PIN من قبل الأدمن (نفّذها مرة واحدة في SQL Editor)
+CREATE OR REPLACE FUNCTION admin_reset_pin(
+  target_employee_name text,
+  new_pin text
+) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  target_id uuid;
+  synth_email text;
+BEGIN
+  -- التحقق أن المستدعي أدمن أو مدير
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role_type IN ('admin','manager')
+  ) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+
+  SELECT id INTO target_id FROM profiles
+  WHERE employee_name = target_employee_name LIMIT 1;
+  IF target_id IS NULL THEN RETURN false; END IF;
+
+  synth_email := target_id::text || '@auth.lowes-pro.local';
+  UPDATE auth.users
+  SET encrypted_password = crypt('lp:' || new_pin, gen_salt('bf', 10))
+  WHERE email = synth_email;
+  RETURN true;
+END;$$;
+REVOKE ALL ON FUNCTION admin_reset_pin FROM public;
+GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 
 // ── Data layer ────────────────────────────────────────────────
 async function fetchProfiles() {
@@ -88,6 +117,18 @@ async function insertProfile(payload) {
   return data;
 }
 
+async function adminResetPin(employeeName, newPin) {
+  if (!/^\d{4}$/.test(String(newPin))) throw new Error('PIN يجب أن يكون 4 أرقام');
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase.rpc('admin_reset_pin', {
+    target_employee_name: employeeName,
+    new_pin: String(newPin),
+  });
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('الموظف غير موجود أو لم يتم إنشاء حساب Auth له');
+  return true;
+}
+
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
   employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
@@ -107,30 +148,104 @@ function Field({ label, children }) {
 const inputCls = 'w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
 const selectCls = inputCls;
 
-// ── Copy SQL ──────────────────────────────────────────────────
-function MigrationBanner({ onDismiss }) {
+// ── SQL banners ───────────────────────────────────────────────
+function SQLBanner({ title, desc, sql, onDismiss }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    navigator.clipboard.writeText(MIGRATION_SQL).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    navigator.clipboard.writeText(sql).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
   return (
     <div className="bg-amber-bg border border-amber/30 rounded-xl p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-amber-fg">⚠️ إعداد مطلوب</p>
-          <p className="text-xs text-muted mt-0.5">لتفعيل حقول الوردية والصفحة والملاحظات، نفّذ هذا SQL في Supabase:</p>
+          <p className="text-sm font-semibold text-amber-fg">⚠️ {title}</p>
+          <p className="text-xs text-muted mt-0.5">{desc}</p>
         </div>
-        <button onClick={onDismiss} className="text-muted hover:text-text text-lg leading-none shrink-0">×</button>
+        {onDismiss && <button onClick={onDismiss} className="text-muted hover:text-text text-lg leading-none shrink-0">×</button>}
       </div>
-      <pre className="text-[11px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap">
-        {MIGRATION_SQL}
+      <pre className="text-[11px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-48">
+        {sql}
       </pre>
-      <button
-        onClick={copy}
-        className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition"
-      >
+      <button onClick={copy} className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
         {copied ? '✓ تم النسخ' : 'نسخ SQL'}
       </button>
+    </div>
+  );
+}
+
+// ── PIN Reset Modal ───────────────────────────────────────────
+function PinResetModal({ employee, onClose }) {
+  const [newPin, setNewPin]   = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState(null);
+  const [done, setDone]       = useState(false);
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(newPin)) { setErr('PIN يجب أن يكون 4 أرقام'); return; }
+    setSaving(true); setErr(null);
+    try {
+      await adminResetPin(employee.employee_name, newPin);
+      setDone(true);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!employee) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => onClose()}>
+      <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
+        <h3 className="font-bold text-lg text-text mb-1">🔑 تغيير PIN</h3>
+        <p className="text-sm text-muted mb-4">{employee.employee_name}</p>
+        {done ? (
+          <div className="text-center py-4 space-y-3">
+            <div className="text-4xl">✅</div>
+            <p className="text-sm font-semibold text-green-fg">تم تغيير PIN بنجاح</p>
+            <button onClick={onClose} className="w-full py-2 rounded-xl bg-teal text-white text-sm font-semibold">إغلاق</button>
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+            <div>
+              <label className="text-xs text-muted mb-1 block">PIN الجديد (4 أرقام)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={newPin}
+                onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0,4))}
+                placeholder="••••"
+                className="w-full border border-border rounded-xl px-3 py-3 text-center text-2xl tracking-[0.5em] bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+                autoFocus
+              />
+            </div>
+            {err && (
+              <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                ⚠️ {err}
+                {err.includes('function') && (
+                  <p className="mt-1 text-[10px]">
+                    نفّذ SQL التالي في Supabase أولاً (زر "إعداد مطلوب" أعلى الصفحة)
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving || newPin.length !== 4}
+                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+              >
+                {saving ? 'جار التغيير…' : 'تأكيد'}
+              </button>
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-surface-alt transition"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
@@ -151,7 +266,9 @@ export default function AdminUsersScreen() {
   const [saving, setSaving]           = useState(false);
   const [saveError, setSaveError]     = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
-  const [showMigration, setShowMigration] = useState(true);
+  const [showMigration, setShowMigration]   = useState(true);
+  const [showPinSetup, setShowPinSetup]     = useState(true);
+  const [pinResetUser, setPinResetUser]     = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -272,9 +389,22 @@ export default function AdminUsersScreen() {
         )}
       </div>
 
-      {/* Migration banner */}
+      {/* Migration banners */}
       {isAdmin && !hasExtCols && showMigration && (
-        <MigrationBanner onDismiss={() => setShowMigration(false)} />
+        <SQLBanner
+          title="إعداد مطلوب — حقول إضافية"
+          desc="لتفعيل حقول الوردية والصفحة والملاحظات، نفّذ هذا SQL في Supabase:"
+          sql={MIGRATION_SQL}
+          onDismiss={() => setShowMigration(false)}
+        />
+      )}
+      {isAdmin && showPinSetup && (
+        <SQLBanner
+          title="إعداد تغيير PIN (مرة واحدة فقط)"
+          desc="لتفعيل ميزة تغيير PIN من قبل الأدمن، نفّذ هذا SQL في Supabase SQL Editor:"
+          sql={RESET_PIN_SQL}
+          onDismiss={() => setShowPinSetup(false)}
+        />
       )}
 
       {/* KPIs */}
@@ -380,15 +510,23 @@ export default function AdminUsersScreen() {
 
                 {/* Actions */}
                 {isAdmin && (
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => openEdit(p)} className="flex-1 py-1.5 rounded-lg border border-border text-xs text-text hover:bg-surface-alt transition">
-                      تعديل
-                    </button>
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(p)} className="flex-1 py-1.5 rounded-lg border border-border text-xs text-text hover:bg-surface-alt transition">
+                        ✏️ تعديل
+                      </button>
+                      <button
+                        onClick={() => toggleActive(p)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'border border-green-200 text-green-600 hover:bg-green-50'}`}
+                      >
+                        {p.is_active ? '🔴 تعطيل' : '🟢 تفعيل'}
+                      </button>
+                    </div>
                     <button
-                      onClick={() => toggleActive(p)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'border border-green-200 text-green-600 hover:bg-green-50'}`}
+                      onClick={() => setPinResetUser(p)}
+                      className="w-full py-1.5 rounded-lg bg-amber-bg border border-amber/30 text-amber-fg text-xs font-medium hover:bg-amber/20 transition"
                     >
-                      {p.is_active ? 'إلغاء تفعيل' : 'تفعيل'}
+                      🔑 تغيير PIN
                     </button>
                   </div>
                 )}
@@ -502,6 +640,9 @@ export default function AdminUsersScreen() {
           </div>
         </div>
       )}
+
+      {/* ── PIN Reset Modal ── */}
+      <PinResetModal employee={pinResetUser} onClose={() => setPinResetUser(null)} />
 
       {/* ── Add Employee Modal ── */}
       {showAdd && (

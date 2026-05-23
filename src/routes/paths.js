@@ -22,6 +22,7 @@ export const ROUTES = {
   ANALYTICS: '/analytics',
   WORKSPACE: '/workspace',
   NOTIFICATIONS: '/notifications',
+  CHAT: '/chat',
   PROFILE: '/profile',
   NOT_FOUND: '*',
 
