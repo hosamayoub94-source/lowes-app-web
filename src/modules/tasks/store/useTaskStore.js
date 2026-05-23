@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
   fetchTasks,
+  fetchTask,
   createTask,
   updateTaskStatus,
   updateTaskProgress,
@@ -117,7 +118,14 @@ export const useTaskStore = create()(
     postComment: async (taskId, commentPayload) => {
       set({ actionLoading: true });
       try {
-        const comment = await addTaskComment(taskId, commentPayload);
+        // Resolve userId lazily (same pattern as markSeen) to avoid circular imports
+        let userId = null;
+        try {
+          const { useAuthStore } = await import('@stores/authStore');
+          userId = useAuthStore.getState().user?.id ?? null;
+        } catch { /* ignore */ }
+
+        const comment = await addTaskComment(taskId, { ...commentPayload, userId });
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
@@ -168,6 +176,16 @@ export const useTaskStore = create()(
       set({ selectedTaskId: taskId, drawerOpen: true });
       // Mark as seen when opened
       get().markSeen(taskId);
+      // Load full task with comments + activity in background
+      fetchTask(taskId)
+        .then((fullTask) => {
+          set((s) => ({
+            tasks: s.tasks.map((t) =>
+              t.id === taskId ? { ...t, ...fullTask } : t,
+            ),
+          }));
+        })
+        .catch(() => { /* silent — drawer shows cached task data */ });
     },
 
     closeDrawer: () => set({ selectedTaskId: null, drawerOpen: false }),
