@@ -22,7 +22,7 @@ const ROLE_COLORS = {
   employee:       'bg-gray-100 text-gray-600',
 };
 
-const TEAM_OPTIONS = ['إسطنبول', 'دمشق', 'دبي', 'الرياض', 'عام', ''];
+const TEAM_OPTIONS = ['عام', 'ميديا', 'سوريا', 'تركيا', 'إدارة', 'مبيعات', 'دبي', 'إسطنبول', 'دمشق', 'الرياض', ''];
 
 const SHIFT_OPTIONS = [
   { value: 'morning',  label: '🌅 صباحي (09:00–17:00)' },
@@ -333,6 +333,32 @@ export default function AdminUsersScreen() {
         patch.join_date   = form.join_date || null;
       }
       await updateProfile(editUser.id, patch);
+
+      // ── Auto-sync chat channel membership when team changes ──
+      const oldTeam = editUser.team;
+      const newTeam = form.team;
+      if (oldTeam !== newTeam) {
+        try {
+          const { supabase } = await import('@services/supabase');
+          const { data: chatRooms } = await supabase.from('chat_rooms').select('id,team,name').eq('type','group');
+          if (chatRooms?.length) {
+            // Remove from old team channel (but not 💬 عام)
+            if (oldTeam) {
+              const oldRoom = chatRooms.find(r => r.team === oldTeam && r.name !== '💬 عام');
+              if (oldRoom) await supabase.from('chat_room_members').delete().eq('room_id', oldRoom.id).eq('user_id', editUser.id);
+            }
+            // Add to new team channel
+            if (newTeam) {
+              const newRoom = chatRooms.find(r => r.team === newTeam && r.name !== '💬 عام');
+              if (newRoom) await supabase.from('chat_room_members').upsert(
+                { room_id: newRoom.id, user_id: editUser.id, user_name: form.employee_name.trim(), display_name: form.employee_name.trim(), role: 'member', joined_at: new Date().toISOString() },
+                { onConflict: 'room_id,user_id' }
+              );
+            }
+          }
+        } catch {} // chat sync is best-effort — don't block save
+      }
+
       setProfiles(ps => ps.map(p => p.id === editUser.id ? { ...p, ...patch } : p));
       setEditUser(null);
     } catch (e) { setSaveError(e.message); }

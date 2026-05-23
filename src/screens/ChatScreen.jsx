@@ -172,7 +172,7 @@ function FileMessage({msg,isMine}){
 }
 
 // ── MessageBubble ────────────────────────────────────────────────
-function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,reactions}){
+function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,reactions}){
   const[showMenu,setShowMenu]=useState(false),[editMode,setEditMode]=useState(false),[editText,setEditText]=useState('');
   const[showEmoji,setShowEmoji]=useState(false);
   const menuRef=useRef(null),editRef=useRef(null);
@@ -284,7 +284,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
                 isMine?'bg-gradient-to-br from-teal to-teal/90 text-white rounded-br-sm':'bg-surface border border-border/80 text-text rounded-bl-sm'
               }`}>
               {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>}
-              {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" className="max-w-[220px] rounded-xl max-h-60 object-cover" />}
+              {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" onClick={()=>onImageClick?.(msg.file_url)} className="max-w-[220px] rounded-xl max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />}
               {msg.message_type==='voice'&&msg.file_url&&<VoiceMessage url={msg.file_url} isMine={isMine} />}
               {msg.message_type==='file'&&<FileMessage msg={msg} isMine={isMine} />}
             </div>
@@ -646,6 +646,71 @@ function JoinRequestsPanel({userName,onApproved,onClose}){
   );
 }
 
+// ── LightboxModal ────────────────────────────────────────────────
+function LightboxModal({url,onClose}){
+  useEffect(()=>{
+    const h=e=>{if(e.key==='Escape')onClose();};
+    document.addEventListener('keydown',h);return()=>document.removeEventListener('keydown',h);
+  },[onClose]);
+  return(
+    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 end-4 w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition text-xl">✕</button>
+      <img src={url} alt="" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain animate-in zoom-in-90 duration-200" onClick={e=>e.stopPropagation()} />
+    </div>
+  );
+}
+
+// ── CreateChannelPanel ───────────────────────────────────────────
+function CreateChannelPanel({userId,userName,onCreated,onClose}){
+  const[name,setName]=useState(''),[desc,setDesc]=useState(''),[team,setTeam]=useState('عام'),[needsApproval,setNeedsApproval]=useState(false),[saving,setSaving]=useState(false);
+  const TEAMS=['عام','ميديا','سوريا','تركيا','إدارة','مبيعات','دبي'];
+  const create=async()=>{
+    if(!name.trim()){alert('أدخل اسم القناة');return;}setSaving(true);
+    try{
+      const{data:room,error}=await supabase.from('chat_rooms').insert({type:'group',name:name.trim(),description:desc.trim()||null,team,requires_approval:needsApproval,is_private:false,created_by:userId,created_by_name:userName}).select().single();
+      if(error)throw error;
+      await supabase.from('chat_room_members').insert({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'admin',joined_at:new Date().toISOString()}).catch(()=>{});
+      onCreated?.(room);
+    }catch(e){alert('خطأ: '+e.message);}finally{setSaving(false);}
+  };
+  return(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-250" dir="rtl">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+          <div><h2 className="font-bold text-text"># قناة جديدة</h2><p className="text-[11px] text-muted mt-0.5">أنشئ قناة عامة للفريق</p></div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="text-xs text-muted mb-1 block">اسم القناة *</label>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="مثال: 🇸🇾 فريق سوريا" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">وصف (اختياري)</label>
+            <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="وصف القناة…" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">الفريق</label>
+            <select value={team} onChange={e=>setTeam(e.target.value)} className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30">
+              {TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <label className="flex items-center gap-2.5 cursor-pointer bg-surface-alt rounded-xl px-3 py-2.5 border border-border hover:border-teal/40 transition">
+            <input type="checkbox" checked={needsApproval} onChange={e=>setNeedsApproval(e.target.checked)} className="w-4 h-4 accent-teal" />
+            <div>
+              <p className="text-sm text-text font-medium">يستلزم موافقة الانضمام</p>
+              <p className="text-[10px] text-muted">الأعضاء الجدد يحتاجون موافقتك</p>
+            </div>
+          </label>
+          <button onClick={create} disabled={saving||!name.trim()} className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
+            {saving?'⏳ جاري الإنشاء…':'✓ إنشاء القناة'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── CreateGroupPanel ─────────────────────────────────────────────
 function CreateGroupPanel({userId,userName,onCreated,onClose}){
   const[name,setName]=useState(''),[desc,setDesc]=useState(''),[profiles,setProfiles]=useState([]),[selected,setSelected]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
@@ -729,10 +794,16 @@ export default function ChatScreen(){
   const[showDiscover,setShowDiscover]=useState(false);
   const[showRequests,setShowRequests]=useState(false);
   const[showCreateGroup,setShowCreateGroup]=useState(false);
+  const[showCreateChannel,setShowCreateChannel]=useState(false);
   const[showNewDm,setShowNewDm]=useState(false);
   const[dmSearch,setDmSearch]=useState('');
+  const[lightboxUrl,setLightboxUrl]=useState(null);
+  const[showScrollBtn,setShowScrollBtn]=useState(false);
+  const[searchQuery,setSearchQuery]=useState('');
+  const[showSearch,setShowSearch]=useState(false);
+  const[onlineUsers,setOnlineUsers]=useState([]);
 
-  const msgEndRef=useRef(null),subRef=useRef(null);
+  const msgEndRef=useRef(null),subRef=useRef(null),msgContainerRef=useRef(null);
   const typingTimers=useRef({});
 
   // ── Pending count ──────────────────────────────────────────────
@@ -864,6 +935,7 @@ export default function ChatScreen(){
     markAsRead(activeRoom.id);
 
     subRef.current?.unsubscribe();
+    setOnlineUsers([]);
     subRef.current=supabase.channel(`room4:${activeRoom.id}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
         setMessages(p=>p.some(m=>m.id===payload.new.id)?p:[...p,payload.new]);
@@ -880,8 +952,17 @@ export default function ChatScreen(){
         clearTimeout(typingTimers.current[payload.userId]);
         typingTimers.current[payload.userId]=setTimeout(()=>setTypingUsers(p=>p.filter(n=>n!==payload.userName)),3000);
       })
-      .subscribe();
-    return()=>subRef.current?.unsubscribe();
+      .on('presence',{event:'sync'},()=>{
+        const state=subRef.current?.presenceState()??{};
+        const names=[...new Set(Object.values(state).flat().map(p=>p.userName).filter(Boolean))];
+        setOnlineUsers(names);
+      })
+      .subscribe(async status=>{
+        if(status==='SUBSCRIBED'&&subRef.current){
+          await subRef.current.track({userId,userName}).catch(()=>{});
+        }
+      });
+    return()=>{subRef.current?.unsubscribe();};
   },[activeRoom?.id,loadMessages,loadPinned,markAsRead,userId]);
 
   useEffect(()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
@@ -953,12 +1034,22 @@ export default function ChatScreen(){
   };
   const loadProfiles=async()=>{const{data}=await supabase.from('profiles').select('id,employee_name,role_type,team').eq('is_active',true).neq('id',userId).order('employee_name');setAllProfiles(data??[]);};
 
+  // ── Scroll handler ─────────────────────────────────────────────
+  const handleMsgScroll=useCallback(e=>{
+    const el=e.currentTarget;
+    setShowScrollBtn(el.scrollHeight-el.scrollTop-el.clientHeight>150);
+  },[]);
+  const scrollToBottom=()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});};
+
   // ── Render ─────────────────────────────────────────────────────
   const groupRooms=rooms.filter(r=>r.type==='group');
   const privateRooms=groupRooms.filter(r=>r.is_private);
   const publicRooms=groupRooms.filter(r=>!r.is_private);
   const dmRooms=rooms.filter(r=>r.type==='dm');
-  const grouped=groupByDay(messages);
+  const displayedMessages=searchQuery.trim()
+    ?messages.filter(m=>!m.is_deleted&&(m.content?.toLowerCase().includes(searchQuery.toLowerCase())||m.sender_name?.toLowerCase().includes(searchQuery.toLowerCase())))
+    :messages;
+  const grouped=groupByDay(displayedMessages);
   const filteredProfiles=allProfiles.filter(p=>!dmSearch||p.employee_name?.toLowerCase().includes(dmSearch.toLowerCase()));
 
   return(
@@ -971,6 +1062,7 @@ export default function ChatScreen(){
           <div className="flex items-center justify-between">
             <h2 className="font-extrabold text-text text-sm tracking-tight">Lowe's Pro 💙</h2>
             <div className="flex items-center gap-1">
+              {isAdmin&&<button onClick={()=>setShowCreateChannel(true)} className="w-7 h-7 rounded-lg bg-surface-alt border border-border text-muted text-xs flex items-center justify-center hover:text-teal hover:border-teal/40 transition" title="قناة جديدة">#</button>}
               {isAdmin&&<button onClick={()=>setShowCreateGroup(true)} className="w-7 h-7 rounded-lg bg-surface-alt border border-border text-muted text-xs flex items-center justify-center hover:text-teal hover:border-teal/40 transition" title="مجموعة خاصة">🔒</button>}
               <button onClick={()=>{setShowNewDm(true);loadProfiles();}} className="w-7 h-7 rounded-lg bg-teal/10 text-teal flex items-center justify-center hover:bg-teal/20 transition" title="رسالة خاصة">✎</button>
             </div>
@@ -1059,18 +1151,36 @@ export default function ChatScreen(){
               <p className="text-[11px] text-muted">استمع مع فريقك بشكل متزامن</p>
             </div>
           ):activeRoom?(
-            <div className="flex-1 min-w-0 flex items-center gap-2">
-              <div className="min-w-0">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-text truncate">{activeRoom.display_name??activeRoom.name}</p>
-                {activeRoom.description&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
+                {activeRoom.is_private&&<span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">🔒 خاص</span>}
               </div>
-              {activeRoom.is_private&&<span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">🔒 خاص</span>}
+              <div className="flex items-center gap-2 mt-0.5">
+                {activeRoom.description&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
+                {onlineUsers.length>0&&(
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
+                    {onlineUsers.length} متصل{onlineUsers.length>1?'ون':''}
+                  </span>
+                )}
+              </div>
             </div>
           ):null}
-          {!showMusicRoom&&activeRoom?.type==='group'&&(
-            <span className="text-xs text-muted shrink-0 hidden sm:block">{activeRoom.team??''}</span>
+          {!showMusicRoom&&activeRoom&&(
+            <button onClick={()=>{setShowSearch(v=>!v);setSearchQuery('');}}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm transition shrink-0 hover:scale-105 ${showSearch?'bg-teal text-white':'bg-surface-alt border border-border text-muted hover:text-teal hover:border-teal/40'}`}
+              title="بحث في الرسائل">🔍</button>
           )}
         </div>
+        {/* Search bar */}
+        {showSearch&&!showMusicRoom&&(
+          <div className="px-3 py-2 border-b border-border bg-surface-alt shrink-0 animate-in slide-in-from-top-2 duration-200">
+            <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="ابحث في الرسائل…" autoFocus
+              className="w-full border border-border rounded-xl px-4 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+            {searchQuery&&<p className="text-[10px] text-muted mt-1.5 px-1">{displayedMessages.length} نتيجة</p>}
+          </div>
+        )}
 
         {/* Pinned */}
         {!showMusicRoom&&pinnedMsg&&(
@@ -1083,7 +1193,12 @@ export default function ChatScreen(){
         {/* Messages + Input */}
         {!showMusicRoom&&(
           <>
-            <div className="flex-1 overflow-y-auto overscroll-contain" style={{background:'var(--color-surface-alt,#f8f7f4)'}}>
+            <div ref={msgContainerRef} onScroll={handleMsgScroll} className="flex-1 overflow-y-auto overscroll-contain relative" style={{background:'var(--color-surface-alt,#f8f7f4)'}}>
+              {showScrollBtn&&(
+                <button onClick={scrollToBottom} className="sticky bottom-4 end-4 float-end z-20 w-9 h-9 rounded-full bg-teal text-white shadow-lg flex items-center justify-center hover:bg-teal/90 hover:scale-110 transition-all animate-in fade-in duration-200 me-3">
+                  ↓
+                </button>
+              )}
               <div className="px-3 py-3 space-y-0.5 max-w-3xl mx-auto">
                 {!activeRoom?(
                   <div className="h-64 flex flex-col items-center justify-center text-muted">
@@ -1112,6 +1227,7 @@ export default function ChatScreen(){
                         userId={userId} isApprover={isApprover}
                         onReply={setReplyTo} onReact={handleReact}
                         onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin}
+                        onImageClick={setLightboxUrl}
                         reactions={reactions[item.id]}
                       />
                     );
@@ -1134,6 +1250,12 @@ export default function ChatScreen(){
       </div>
 
       {/* ══ Modals ════════════════════════════════════════════════ */}
+      {lightboxUrl&&<LightboxModal url={lightboxUrl} onClose={()=>setLightboxUrl(null)}/>}
+      {showCreateChannel&&(
+        <CreateChannelPanel userId={userId} userName={userName}
+          onCreated={room=>{setShowCreateChannel(false);loadRooms().then(()=>{});}}
+          onClose={()=>setShowCreateChannel(false)}/>
+      )}
       {showNewDm&&(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&setShowNewDm(false)}>
           <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-250" dir="rtl">
