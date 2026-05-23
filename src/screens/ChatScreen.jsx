@@ -1,10 +1,11 @@
 // =============================================================
 // ChatScreen 2.0 — واتساب + ديسكورد
-// قنوات الأقسام + رسائل خاصة + ردود + تفاعلات + صوت + صور
+// قنوات الأقسام + رسائل خاصة + ردود + تفاعلات + صوت + صور + موسيقى
 // =============================================================
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth }    from '@hooks/useAuth';
-import { supabase }   from '@services/supabase';
+import { useAuth }         from '@hooks/useAuth';
+import { supabase }        from '@services/supabase';
+import { MusicRoomPanel }  from '@components/chat/MusicRoomPanel';
 
 // ── القنوات الافتراضية ─────────────────────────────────────
 const DEFAULT_CHANNELS = [
@@ -570,11 +571,12 @@ export default function ChatScreen() {
   const [msgLoading,  setMsgLoading]  = useState(false);
   const [sending,     setSending]     = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [replyTo,     setReplyTo]     = useState(null);
-  const [allProfiles, setAllProfiles] = useState([]);
-  const [showNewDm,   setShowNewDm]   = useState(false);
-  const [dmSearch,    setDmSearch]    = useState('');
-  const [typingUsers, setTypingUsers] = useState([]);
+  const [replyTo,       setReplyTo]       = useState(null);
+  const [allProfiles,   setAllProfiles]   = useState([]);
+  const [showNewDm,     setShowNewDm]     = useState(false);
+  const [dmSearch,      setDmSearch]      = useState('');
+  const [typingUsers,   setTypingUsers]   = useState([]);
+  const [showMusicRoom, setShowMusicRoom] = useState(false);
 
   const msgEndRef  = useRef(null);
   const subRef     = useRef(null);
@@ -810,6 +812,18 @@ export default function ChatScreen() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
+          {/* Music Room shortcut */}
+          <button
+            onClick={() => { setShowMusicRoom(v => !v); }}
+            className={`w-full text-start px-2 py-2 rounded-xl transition flex items-center gap-2.5 ${
+              showMusicRoom ? 'bg-teal/10 text-teal' : 'text-muted hover:bg-surface-alt hover:text-text'
+            }`}
+          >
+            <span className="text-base w-6 text-center flex-shrink-0">🎵</span>
+            <span className={`flex-1 text-sm ${showMusicRoom ? 'font-bold' : 'font-medium'}`}>غرفة الموسيقى</span>
+            {showMusicRoom && <span className="text-[9px] text-teal font-semibold">مباشر</span>}
+          </button>
+
           {/* Channels */}
           <div>
             <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 mb-1">القنوات</p>
@@ -821,9 +835,9 @@ export default function ChatScreen() {
               <ChannelItem
                 key={r.id}
                 room={r}
-                active={activeRoom?.id === r.id}
+                active={activeRoom?.id === r.id && !showMusicRoom}
                 unread={unreadCounts[r.id] ?? 0}
-                onClick={() => setActiveRoom(r)}
+                onClick={() => { setActiveRoom(r); setShowMusicRoom(false); }}
               />
             ))}
           </div>
@@ -835,9 +849,9 @@ export default function ChatScreen() {
               {dmRooms.map(r => (
                 <button
                   key={r.id}
-                  onClick={() => setActiveRoom(r)}
+                  onClick={() => { setActiveRoom(r); setShowMusicRoom(false); }}
                   className={`w-full text-start px-2 py-2 rounded-xl transition flex items-center gap-2.5 ${
-                    activeRoom?.id === r.id ? 'bg-teal/10 text-teal' : 'text-muted hover:bg-surface-alt hover:text-text'
+                    activeRoom?.id === r.id && !showMusicRoom ? 'bg-teal/10 text-teal' : 'text-muted hover:bg-surface-alt hover:text-text'
                   }`}
                 >
                   <div className="relative">
@@ -866,7 +880,12 @@ export default function ChatScreen() {
             className="w-8 h-8 rounded-lg bg-surface-alt border border-border flex items-center justify-center text-muted hover:text-text transition"
           >☰</button>
 
-          {activeRoom && (
+          {showMusicRoom ? (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-text">🎵 غرفة الموسيقى</p>
+              <p className="text-[10px] text-muted">استمع مع فريقك بشكل متزامن</p>
+            </div>
+          ) : activeRoom && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-text truncate">
                 {activeRoom.display_name ?? activeRoom.name}
@@ -878,7 +897,7 @@ export default function ChatScreen() {
           )}
 
           {/* Members count placeholder */}
-          {activeRoom?.type === 'group' && (
+          {!showMusicRoom && activeRoom?.type === 'group' && (
             <div className="flex items-center gap-1 text-xs text-muted">
               <span>👥</span>
               <span>{groupRooms.find(r => r.id === activeRoom.id)?.team ?? ''}</span>
@@ -886,61 +905,69 @@ export default function ChatScreen() {
           )}
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto overscroll-contain" style={{ background: 'rgb(var(--color-cream, var(--color-surface-alt)))' }}>
-          <div className="px-4 py-4 space-y-0.5">
-            {!activeRoom ? (
-              <div className="h-64 flex flex-col items-center justify-center text-muted">
-                <p className="text-4xl mb-3">💬</p>
-                <p className="text-sm">اختر قناة لتبدأ</p>
-              </div>
-            ) : msgLoading ? (
-              <div className="flex justify-center py-12">
-                <div className="w-6 h-6 border-2 border-teal/30 border-t-teal rounded-full animate-spin" />
-              </div>
-            ) : grouped.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <p className="text-4xl mb-3">💬</p>
-                <p className="font-bold text-text">لا توجد رسائل بعد</p>
-                <p className="text-sm text-muted mt-1">كن أول من يبدأ النقاش!</p>
-              </div>
-            ) : (
-              grouped.map((item, idx) => {
-                if (item.type === 'divider') {
-                  return (
-                    <div key={item.key} className="flex items-center gap-3 py-3">
-                      <div className="flex-1 h-px bg-border" />
-                      <span className="text-[10px] text-muted font-medium px-2 bg-surface-alt rounded-full py-0.5">{item.label}</span>
-                      <div className="flex-1 h-px bg-border" />
-                    </div>
-                  );
-                }
-                return (
-                  <MessageBubble
-                    key={item.id}
-                    msg={item}
-                    isMine={item.sender_id === userId}
-                    userId={userId}
-                    userName={userName}
-                    onReply={setReplyTo}
-                    onReact={handleReact}
-                    reactions={reactions[item.id] ?? []}
-                  />
-                );
-              })
-            )}
-            <div ref={msgEndRef} />
-          </div>
-        </div>
+        {/* Music Room */}
+        {showMusicRoom && (
+          <MusicRoomPanel userId={userId} userName={userName} />
+        )}
 
-        {/* Input */}
-        {activeRoom && (
-          <MessageInput
-            onSend={handleSend}
-            disabled={sending}
-            replyTo={replyTo}
-            onCancelReply={() => setReplyTo(null)}
-          />
+        {/* Messages + Input (hidden when music room is open) */}
+        {!showMusicRoom && (
+          <>
+            <div className="flex-1 overflow-y-auto overscroll-contain" style={{ background: 'rgb(var(--color-cream, var(--color-surface-alt)))' }}>
+              <div className="px-4 py-4 space-y-0.5">
+                {!activeRoom ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-muted">
+                    <p className="text-4xl mb-3">💬</p>
+                    <p className="text-sm">اختر قناة لتبدأ</p>
+                  </div>
+                ) : msgLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-teal/30 border-t-teal rounded-full animate-spin" />
+                  </div>
+                ) : grouped.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <p className="text-4xl mb-3">💬</p>
+                    <p className="font-bold text-text">لا توجد رسائل بعد</p>
+                    <p className="text-sm text-muted mt-1">كن أول من يبدأ النقاش!</p>
+                  </div>
+                ) : (
+                  grouped.map((item) => {
+                    if (item.type === 'divider') {
+                      return (
+                        <div key={item.key} className="flex items-center gap-3 py-3">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-[10px] text-muted font-medium px-2 bg-surface-alt rounded-full py-0.5">{item.label}</span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      );
+                    }
+                    return (
+                      <MessageBubble
+                        key={item.id}
+                        msg={item}
+                        isMine={item.sender_id === userId}
+                        userId={userId}
+                        userName={userName}
+                        onReply={setReplyTo}
+                        onReact={handleReact}
+                        reactions={reactions[item.id] ?? []}
+                      />
+                    );
+                  })
+                )}
+                <div ref={msgEndRef} />
+              </div>
+            </div>
+
+            {activeRoom && (
+              <MessageInput
+                onSend={handleSend}
+                disabled={sending}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
+              />
+            )}
+          </>
         )}
       </div>
 
