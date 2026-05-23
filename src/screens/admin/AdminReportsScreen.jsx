@@ -198,7 +198,6 @@ function KPICard({ icon, label, value, sub, tone='teal' }) {
   );
 }
 
-// ── Vertical bar chart ─────────────────────────────────────────
 function AttendanceChart({ data }) {
   const max = Math.max(...data.map(d => d.pct), 1);
   return (
@@ -228,7 +227,6 @@ function AttendanceChart({ data }) {
   );
 }
 
-// ── Horizontal bar chart ───────────────────────────────────────
 function TasksChart({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
@@ -256,7 +254,6 @@ function TasksChart({ data }) {
   );
 }
 
-// ── CRM donut ──────────────────────────────────────────────────
 function CRMDonut({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   let cursor = 0;
@@ -295,7 +292,6 @@ function CRMDonut({ data }) {
   );
 }
 
-// ── Score badge ────────────────────────────────────────────────
 function ScoreBadge({ score }) {
   const tone = score >= 90
     ? 'bg-teal/10 text-teal'
@@ -350,8 +346,6 @@ export default function AdminReportsScreen() {
 
   return (
     <div className="space-y-5 pb-6">
-
-      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-extrabold text-text">📊 التقارير والتحليلات</h1>
