@@ -168,30 +168,6 @@ export default function HomeScreen() {
     ? `${kpi.leaveBalance} يوم`
     : kpi.leaveBalance;
 
-  const [kpi, setKpi] = useState({
-    attendanceCount: '—',
-    tasksCount: '—',
-    notifCount: '—',
-    leaveBalance: '—',
-  });
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!name) return;
-    fetchKPIs(name, userId)
-      .then(setKpi)
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, [name, userId]);
-
-  const attendanceLabel = loaded
-    ? kpi.attendanceCount > 0 ? 'حاضر ✓' : 'غير مسجّل'
-    : '—';
-
-  const leaveLabel = typeof kpi.leaveBalance === 'number'
-    ? `${kpi.leaveBalance} يوم`
-    : kpi.leaveBalance;
-
   return (
     <div className="space-y-5">
       <Hero

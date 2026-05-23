@@ -136,14 +136,6 @@ export default function ProfileScreen() {
   const shiftMeta = profile?.shift_type ? SHIFT_LABELS[profile.shift_type] : null;
   const hasSchedule = shiftMeta || profile?.work_start || profile?.rest_day;
 
-  const [stats, setStats]       = useState(null);
-  const [statsErr, setStatsErr] = useState(null);
-
-  useEffect(() => {
-    if (!id) return;
-    fetchProfileStats(id).then(setStats).catch(e => setStatsErr(e.message));
-  }, [id]);
-
   return (
     <div className="space-y-5" dir="rtl">
       <Hero eyebrow="الملف الشخصي" title="حسابي" subtitle="بياناتك الشخصية وإحصائياتك." />
