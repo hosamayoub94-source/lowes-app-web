@@ -1,10 +1,65 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'icons/*.png', 'icons/*.svg'],
+      manifest: {
+        name: "لوز برو — نظام الإدارة",
+        short_name: "لوز برو",
+        description: "نظام إدارة موظفي Lowe's Professional",
+        theme_color: '#0f1f3d',
+        background_color: '#0f1f3d',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        lang: 'ar',
+        dir: 'rtl',
+        icons: [
+          {
+            src: '/icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+          {
+            src: '/icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
+      },
+      workbox: {
+        // Cache JS/CSS/HTML
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Don't cache Supabase API calls
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            // Cache Supabase REST calls for 5 minutes (stale-while-revalidate)
+            urlPattern: /^https:\/\/fghdumrgimoeqsafdhhh\.supabase\.co\/rest\//i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api',
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 5,
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: false, // Don't run SW in dev (avoids confusing cache behavior)
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(process.cwd(), 'src'),

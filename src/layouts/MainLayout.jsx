@@ -15,6 +15,7 @@ import { BottomNav } from './BottomNav';
 import { ToastContainer } from './ToastContainer';
 import { ToastContainer as NotifToastContainer } from '@modules/notifications';
 import { useOnline } from '@hooks/useOnline';
+import { InstallPrompt } from '@components/ui/InstallPrompt';
 
 export function MainLayout() {
   // attach online listeners once for the whole app
@@ -32,6 +33,7 @@ export function MainLayout() {
       <BottomNav />
       <ToastContainer />
       <NotifToastContainer />
+      <InstallPrompt />
     </div>
   );
 }
