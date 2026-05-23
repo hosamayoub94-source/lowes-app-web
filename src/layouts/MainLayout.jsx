@@ -14,12 +14,15 @@ import { Header } from './Header';
 import { BottomNav } from './BottomNav';
 import { ToastContainer } from './ToastContainer';
 import { ToastContainer as NotifToastContainer } from '@modules/notifications';
-import { useOnline } from '@hooks/useOnline';
-import { InstallPrompt } from '@components/ui/InstallPrompt';
+import { useOnline }       from '@hooks/useOnline';
+import { useCelebrations }  from '@hooks/useCelebrations';
+import { InstallPrompt }    from '@components/ui/InstallPrompt';
 
 export function MainLayout() {
   // attach online listeners once for the whole app
   useOnline();
+  // auto-post birthday / anniversary announcements (admin + manager only)
+  useCelebrations();
 
   return (
     <div className="min-h-screen bg-cream text-text flex">

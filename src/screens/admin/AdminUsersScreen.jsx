@@ -85,7 +85,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -133,6 +133,7 @@ async function adminResetPin(employeeName, newPin) {
 const EMPTY_FORM = {
   employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
+  birthday: '', join_date: '',
 };
 
 // ── Input helpers ─────────────────────────────────────────────
@@ -304,6 +305,8 @@ export default function AdminUsersScreen() {
       rest_day:      p.rest_day ?? '',
       page_name:     p.page_name ?? '',
       admin_notes:   p.admin_notes ?? '',
+      birthday:      p.birthday ?? '',
+      join_date:     p.join_date ?? '',
     });
     setSaveError(null);
   };
@@ -326,6 +329,8 @@ export default function AdminUsersScreen() {
         patch.rest_day    = form.rest_day || null;
         patch.page_name   = form.page_name.trim() || null;
         patch.admin_notes = form.admin_notes.trim() || null;
+        patch.birthday    = form.birthday  || null;
+        patch.join_date   = form.join_date || null;
       }
       await updateProfile(editUser.id, patch);
       setProfiles(ps => ps.map(p => p.id === editUser.id ? { ...p, ...patch } : p));
@@ -604,6 +609,30 @@ export default function AdminUsersScreen() {
                     <Field label="اسم الصفحة">
                       <input type="text" value={form.page_name} onChange={e => setForm(f => ({ ...f, page_name: e.target.value }))} placeholder="@username أو اسم الصفحة" className={inputCls} />
                     </Field>
+                  </div>
+
+                  {/* Celebrations — birthday + join date */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-3">🎂 التهاني التلقائية</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="تاريخ الميلاد">
+                        <input
+                          type="date"
+                          value={form.birthday}
+                          onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))}
+                          className={inputCls}
+                        />
+                      </Field>
+                      <Field label="تاريخ التعيين">
+                        <input
+                          type="date"
+                          value={form.join_date}
+                          onChange={e => setForm(f => ({ ...f, join_date: e.target.value }))}
+                          className={inputCls}
+                        />
+                      </Field>
+                    </div>
+                    <p className="text-xs text-muted mt-1.5">يُنشر إعلان تلقائي يوم الميلاد وذكرى التعيين 📢</p>
                   </div>
 
                   {/* Admin notes */}
