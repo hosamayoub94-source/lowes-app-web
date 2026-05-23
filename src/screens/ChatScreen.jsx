@@ -49,6 +49,127 @@ function groupByDay(msgs) {
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
+// ── AI Bot ─────────────────────────────────────────────────
+const BOT_NAME = '🤖 مساعد لووز';
+const BOT_ID   = 'bot';
+
+async function buildBotResponse(cmdText, roomId, userId, userName) {
+  const cmd = cmdText.trim();
+  const cmdL = cmd.toLowerCase();
+  let response = '';
+
+  try {
+    // /مساعدة
+    if (['/مساعدة', '/help', '/مساعده'].includes(cmdL)) {
+      response = [
+        '🤖 الأوامر المتاحة:',
+        '',
+        '📋 /مهامي   — مهامي المفتوحة',
+        '📅 /حضور   — سجل حضوري اليوم',
+        '👥 /الفريق  — قائمة أعضاء الفريق',
+        '📢 /اعلانات — آخر 5 إعلانات',
+        '❓ /مساعدة  — هذه القائمة',
+      ].join('\n');
+    }
+    // /مهامي
+    else if (['/مهامي', '/tasks', '/مهام'].includes(cmdL)) {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('title,status,priority,due_date,assigned_to')
+        .ilike('assigned_to', `%${userName}%`)
+        .not('status', 'in', '("done","completed","مكتملة")')
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (error) throw error;
+      if (!data?.length) {
+        response = '✅ ليس لديك مهام مفتوحة حالياً!';
+      } else {
+        const icons = { pending: '⏳', in_progress: '🔄', review: '👀', blocked: '🚫' };
+        const lines = data.map(t => {
+          const icon = icons[t.status] ?? '📋';
+          const due  = t.due_date
+            ? ` — ${new Date(t.due_date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}`
+            : '';
+          return `${icon} ${t.title}${due}`;
+        });
+        response = `📋 مهامك المفتوحة (${data.length}):\n\n${lines.join('\n')}`;
+      }
+    }
+    // /حضور
+    else if (['/حضور', '/attendance', '/حضوري'].includes(cmdL)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from('attendance')
+        .select('check_in,check_out,status,notes')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .maybeSingle();
+
+      if (!data) {
+        response = `📅 حضورك اليوم (${today}):\n\n❌ لم يتم تسجيل حضور بعد`;
+      } else {
+        const ci = data.check_in  ? `✅ دخول:  ${data.check_in}` : '❌ لم تسجل دخول';
+        const co = data.check_out ? `🏠 خروج: ${data.check_out}` : '⏳ لم تسجل خروج بعد';
+        response = `📅 حضورك اليوم (${today}):\n\n${ci}\n${co}`;
+        if (data.notes) response += `\n📝 ${data.notes}`;
+      }
+    }
+    // /الفريق
+    else if (['/الفريق', '/team', '/فريق'].includes(cmdL)) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('employee_name,team,role_type')
+        .eq('is_active', true)
+        .order('employee_name')
+        .limit(25);
+
+      if (!data?.length) {
+        response = '⚠️ لا توجد بيانات الفريق.';
+      } else {
+        const lines = data.map(p => `• ${p.employee_name}${p.team ? ` — ${p.team}` : ''}`);
+        response = `👥 الفريق (${data.length} عضو):\n\n${lines.join('\n')}`;
+      }
+    }
+    // /اعلانات
+    else if (['/اعلانات', '/announcements', '/اعلان'].includes(cmdL)) {
+      const { data } = await supabase
+        .from('announcements')
+        .select('title,created_at,is_pinned')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!data?.length) {
+        response = '📢 لا توجد إعلانات حديثة.';
+      } else {
+        const lines = data.map(a => {
+          const date = new Date(a.created_at).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+          return `${a.is_pinned ? '📌' : '📢'} ${a.title} — ${date}`;
+        });
+        response = `📢 آخر الإعلانات:\n\n${lines.join('\n')}`;
+      }
+    }
+    // Unknown command
+    else {
+      response = `❓ أمر غير معروف: "${cmd}"\n\nاكتب /مساعدة لعرض الأوامر المتاحة.`;
+    }
+  } catch {
+    response = '⚠️ حدث خطأ أثناء معالجة الأمر. حاول مجدداً.';
+  }
+
+  return {
+    id:            `bot-${Date.now()}`,
+    room_id:       roomId,
+    sender_id:     BOT_ID,
+    sender_name:   BOT_NAME,
+    message_type:  'text',
+    content:       response,
+    created_at:    new Date().toISOString(),
+    reply_to:      null,
+    reply_preview: null,
+  };
+}
+
 // ── Voice recorder hook ─────────────────────────────────────
 function useVoiceRecorder(onDone) {
   const [recording, setRecording] = useState(false);
@@ -122,6 +243,22 @@ function MessageBubble({ msg, isMine, userId, userName, onReply, onReact, reacti
   const [showEmoji, setShowEmoji] = useState(false);
   const [playing,   setPlaying]   = useState(false);
   const audioRef = useRef(null);
+
+  // ── Bot card (different visual style) ───────────────────
+  const isBot = msg.sender_id === BOT_ID || msg.sender_name?.startsWith('🤖');
+  if (isBot) {
+    return (
+      <div className="flex justify-start mb-3">
+        <div className="max-w-[88%] sm:max-w-[75%]">
+          <span className="text-[10px] font-bold text-navy/50 ms-1 mb-1 block">🤖 مساعد لووز</span>
+          <div className="bg-navy/[0.06] border border-navy/12 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+            <pre className="text-sm text-text whitespace-pre-wrap font-[inherit] leading-relaxed">{msg.content}</pre>
+          </div>
+          <span className="text-[9px] text-muted ms-1 mt-0.5 block">{timeLabel(msg.created_at)}</span>
+        </div>
+      </div>
+    );
+  }
 
   const toggleVoice = () => {
     if (!audioRef.current) return;
@@ -366,7 +503,7 @@ function MessageInput({ onSend, disabled, replyTo, onCancelReply }) {
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="اكتب رسالة…"
+            placeholder="اكتب رسالة… أو /مساعدة للبوت"
             rows={1}
             disabled={disabled}
             className="flex-1 resize-none rounded-2xl border border-border bg-surface-alt px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/30 max-h-28 overflow-y-auto"
@@ -587,6 +724,13 @@ export default function ChatScreen() {
       const { error } = await supabase.from('chat_messages').insert(payload);
       if (error) throw error;
       setReplyTo(null);
+
+      // ── Bot command ──────────────────────────────────────
+      if (msgData.message_type === 'text' && msgData.content?.startsWith('/')) {
+        buildBotResponse(msgData.content, activeRoom.id, userId, userName)
+          .then(botMsg => setMessages(prev => [...prev, botMsg]))
+          .catch(() => {});
+      }
     } catch (e) { alert('فشل الإرسال: ' + e.message); }
     finally { setSending(false); }
   };
