@@ -41,6 +41,9 @@ export const ROUTES = {
 
   // Gamification
   ACHIEVEMENTS: '/achievements',
+
+  // Announcements
+  ANNOUNCEMENTS: '/announcements',
 };
 
 export default ROUTES;

@@ -41,6 +41,13 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
+    id: 'announcements',
+    label: 'الإعلانات',
+    icon: '📢',
+    path: '/announcements',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
     id: 'chat',
     label: 'المحادثات',
     icon: '💬',
