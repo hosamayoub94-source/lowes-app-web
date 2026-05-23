@@ -38,6 +38,9 @@ export const ROUTES = {
   PERFORMANCE:       '/performance',
   INVENTORY:         '/inventory',
   ATTENDANCE_REPORT: '/attendance-report',
+
+  // Gamification
+  ACHIEVEMENTS: '/achievements',
 };
 
 export default ROUTES;

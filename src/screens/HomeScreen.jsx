@@ -16,6 +16,69 @@ import { Link }     from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+async function fetchMiniLeaderboard() {
+  const monthStart = new Date(
+    new Date().getFullYear(), new Date().getMonth(), 1
+  ).toISOString().slice(0, 10);
+
+  const [profilesRes, ptsRes, tasksRes] = await Promise.allSettled([
+    supabase.from('profiles').select('employee_name, avatar_url').eq('is_active', true),
+    supabase.from('task_points').select('employee_name, points').gte('created_at', monthStart + 'T00:00:00'),
+    supabase.from('tasks').select('assigned_to').eq('status', 'done').gte('completed_at', monthStart + 'T00:00:00'),
+  ]);
+
+  const profiles  = profilesRes.value?.data ?? [];
+  const pts       = ptsRes.value?.data       ?? [];
+  const tasks     = tasksRes.value?.data     ?? [];
+  const hasPts    = pts.length > 0;
+
+  const ptsMap   = {};
+  pts.forEach(r   => { ptsMap[r.employee_name]   = (ptsMap[r.employee_name]   || 0) + r.points; });
+  const tasksMap = {};
+  tasks.forEach(r => { tasksMap[r.assigned_to]   = (tasksMap[r.assigned_to]   || 0) + 1;        });
+
+  return profiles
+    .filter(p => p.employee_name)
+    .map(p => ({
+      name:    p.employee_name,
+      avatar:  p.avatar_url,
+      points:  hasPts ? (ptsMap[p.employee_name] || 0) : (tasksMap[p.employee_name] || 0) * 10,
+    }))
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 3);
+}
+
+function MiniLeaderboard() {
+  const [top3, setTop3] = useState([]);
+  useEffect(() => { fetchMiniLeaderboard().then(setTop3).catch(() => {}); }, []);
+  if (top3.length === 0) return null;
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <CardTitle>🏆 ليدربورد الشهر</CardTitle>
+          <CardSubtitle>أفضل الموظفين هذا الشهر</CardSubtitle>
+        </div>
+        <Button as={Link} to="/achievements" variant="ghost" size="sm">عرض الكل ←</Button>
+      </div>
+      <div className="space-y-2">
+        {top3.map((e, idx) => (
+          <div key={e.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt">
+            <span className="text-xl w-7 text-center">{MEDALS[idx]}</span>
+            <div className="w-8 h-8 rounded-full bg-navy/10 overflow-hidden flex items-center justify-center font-bold text-navy text-sm flex-shrink-0">
+              {e.avatar ? <img src={e.avatar} className="w-full h-full object-cover" alt="" /> : e.name.charAt(0).toUpperCase()}
+            </div>
+            <p className="flex-1 font-semibold text-text text-sm truncate">{e.name}</p>
+            <span className="font-black text-teal text-sm">{e.points} نقطة</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 function last7Days() {
@@ -241,6 +304,9 @@ export default function HomeScreen() {
           )}
         </div>
       )}
+
+      {/* Mini Leaderboard */}
+      <MiniLeaderboard />
 
       {/* Quick shortcuts */}
       <Card>

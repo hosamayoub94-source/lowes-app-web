@@ -51,6 +51,7 @@ const PerformanceScreen        = lazy(() => import(/* webpackChunkName: "perform
 const InventoryScreen          = lazy(() => import(/* webpackChunkName: "inventory"     */ '@screens/InventoryScreen'));
 const AttendanceReportScreen   = lazy(() => import(/* webpackChunkName: "att-report"    */ '@screens/AttendanceReportScreen'));
 const ChatScreen               = lazy(() => import(/* webpackChunkName: "chat"           */ '@screens/ChatScreen'));
+const AchievementsScreen       = lazy(() => import(/* webpackChunkName: "achievements"   */ '@modules/gamification/pages/AchievementsScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -84,7 +85,8 @@ export function AppRoutes() {
           <Route path={ROUTES.TEAM}       element={<TeamScreen />}           />
           <Route path={ROUTES.HOLIDAYS}   element={<HolidaysScreen />}   />
           <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsScreen />} />
-          <Route path={ROUTES.CHAT}       element={<ChatScreen />}        />
+          <Route path={ROUTES.CHAT}         element={<ChatScreen />}         />
+          <Route path={ROUTES.ACHIEVEMENTS} element={<AchievementsScreen />} />
           <Route path={ROUTES.PROFILE}    element={<ProfileScreen />}    />
 
           {/* Management-only */}

@@ -48,6 +48,13 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
+    id: 'achievements',
+    label: 'الإنجازات',
+    icon: '🏆',
+    path: '/achievements',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
     id: 'files',
     label: 'الملفات',
     icon: '📁',
