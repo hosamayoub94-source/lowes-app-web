@@ -213,10 +213,40 @@
 
 /* ── Rose / Pink status ────────────────────────────────────── */
 [data-theme="dark"] .bg-rose-50  { background-color: rgb(var(--color-red-bg)); }
+[data-theme="dark"] .bg-pink-50,
+[data-theme="dark"] .bg-pink-100 { background-color: rgb(var(--color-red-bg)); }
 [data-theme="dark"] .text-rose-700,
 [data-theme="dark"] .text-rose-600,
-[data-theme="dark"] .text-pink-700 { color: rgb(var(--color-red-fg)); }
-[data-theme="dark"] .border-rose-200 { border-color: rgb(var(--color-red) / 0.25); }
+[data-theme="dark"] .text-pink-700,
+[data-theme="dark"] .text-pink-600 { color: rgb(var(--color-red-fg)); }
+[data-theme="dark"] .border-rose-200,
+[data-theme="dark"] .border-pink-200 { border-color: rgb(var(--color-red) / 0.25); }
+
+/* ── Yellow (maps to amber) ────────────────────────────────── */
+[data-theme="dark"] .bg-yellow-50,
+[data-theme="dark"] .bg-yellow-100 { background-color: rgb(var(--color-amber-bg)); }
+[data-theme="dark"] .text-yellow-900,
+[data-theme="dark"] .text-yellow-800,
+[data-theme="dark"] .text-yellow-700,
+[data-theme="dark"] .text-yellow-600 { color: rgb(var(--color-amber-fg)); }
+[data-theme="dark"] .border-yellow-200,
+[data-theme="dark"] .border-yellow-300 { border-color: rgb(var(--color-amber) / 0.25); }
+
+/* ── Green (non-emerald) ───────────────────────────────────── */
+[data-theme="dark"] .bg-green-50,
+[data-theme="dark"] .bg-green-100 { background-color: rgb(var(--color-green-bg)); }
+[data-theme="dark"] .text-green-900,
+[data-theme="dark"] .text-green-800,
+[data-theme="dark"] .text-green-700,
+[data-theme="dark"] .text-green-600 { color: rgb(var(--color-green-fg)); }
+[data-theme="dark"] .border-green-200,
+[data-theme="dark"] .border-green-300 { border-color: rgb(var(--color-green) / 0.25); }
+
+/* ── Teal (status use) ─────────────────────────────────────── */
+[data-theme="dark"] .bg-teal-50,
+[data-theme="dark"] .bg-teal-100 { background-color: rgb(var(--color-teal) / 0.15); }
+[data-theme="dark"] .text-teal-700,
+[data-theme="dark"] .text-teal-600 { color: rgb(var(--color-teal)); }
 
 /* ── Inputs & form elements ────────────────────────────────── */
 [data-theme="dark"] input[type="date"],
