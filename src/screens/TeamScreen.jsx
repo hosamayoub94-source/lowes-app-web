@@ -75,9 +75,9 @@ export default function TeamScreen() {
                 {team.members.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+                    className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt"
                   >
-                    <div className="w-9 h-9 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center text-teal-700 dark:text-teal-300 font-bold text-sm shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-teal/15 flex items-center justify-center text-teal font-bold text-sm shrink-0 overflow-hidden">
                       {m.avatar_url ? (
                         <img src={m.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                       ) : (
@@ -85,10 +85,10 @@ export default function TeamScreen() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <p className="text-sm font-semibold text-text truncate">
                         {m.employee_name}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-muted">
                         {ROLE_LABELS[m.role_type] || m.role_type}
                       </p>
                     </div>
