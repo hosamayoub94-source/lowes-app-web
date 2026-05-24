@@ -58,9 +58,9 @@ export const REQUESTS_REALTIME_INTERVAL_MS = 20_000;
 
 export function requestStatusColor(status) {
   return {
-    pending:   'bg-yellow-100 text-yellow-700',
-    approved:  'bg-green-100 text-green-700',
-    rejected:  'bg-red-100 text-red-600',
-    cancelled: 'bg-gray-100 text-gray-500',
-  }[status] ?? 'bg-gray-100 text-gray-500';
+    pending:   'bg-amber-bg text-amber-fg border border-amber/20',
+    approved:  'bg-green-bg text-green-fg border border-green/20',
+    rejected:  'bg-red-bg   text-red-fg   border border-red/20',
+    cancelled: 'bg-surface-alt text-muted border border-border/20',
+  }[status] ?? 'bg-surface-alt text-muted border border-border/20';
 }
