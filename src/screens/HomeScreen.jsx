@@ -38,6 +38,16 @@ function greeting() {
   return      { text: 'طاب مساؤك',            icon: '🌙' };
 }
 function todayISO()  { return new Date().toISOString().slice(0, 10); }
+/** "YYYY/MM/DD" — matches actual attendance table date format */
+function todaySlash() {
+  const d = new Date();
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+/** "HH:MM" locale-independent */
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
 function last7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
@@ -82,42 +92,70 @@ function ChartTooltip({ active, payload, label, prefix = '', suffix = '' }) {
 }
 
 // ── Attendance Quick Card ────────────────────────────────────────
-function AttendanceCard({ name }) {
+// Uses real schema: type="in"|"out" rows, date="YYYY/MM/DD", time_in column
+function AttendanceCard({ name, team }) {
+  // { checkIn: "HH:MM"|null, checkOut: "HH:MM"|null }
   const [att, setAtt]         = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
 
   const load = useCallback(async () => {
-    if (!name) return;
-    const { data } = await supabase.from('attendance').select('check_in,check_out,notes').eq('employee_name', name).eq('date', todayISO()).maybeSingle();
-    setAtt(data); setLoading(false);
+    if (!name) { setLoading(false); return; }
+    const { data } = await supabase
+      .from('attendance')
+      .select('type,time_in')
+      .eq('employee_name', name)
+      .eq('date', todaySlash())
+      .in('type', ['in', 'out']);
+    if (data) {
+      const inRow  = data.find(r => r.type === 'in');
+      const outRow = data.find(r => r.type === 'out');
+      setAtt({ checkIn: inRow?.time_in ?? null, checkOut: outRow?.time_in ?? null });
+    }
+    setLoading(false);
   }, [name]);
 
   useEffect(() => { load(); }, [load]);
 
-  const nowHHMM = () => {
-    const d = new Date();
-    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  };
+  const arabicDay = () => new Date().toLocaleDateString('ar-SA', { weekday: 'long' });
 
   const checkIn = async () => {
+    if (saving || att?.checkIn) return;
     setSaving(true);
     const now = nowHHMM();
-    const { error } = await supabase.from('attendance').upsert({ employee_name: name, date: todayISO(), check_in: now }, { onConflict: 'employee_name,date' });
-    if (!error) await load();
+    const dateVal = todaySlash();
+    await supabase.from('attendance').insert({
+      employee_name: name, team: team ?? null,
+      date: dateVal, day: arabicDay(),
+      type: 'in', time_in: now, time_out: null,
+      hours: 0, status: '✅ حاضر', recorded_at: now,
+      delay_minutes: 0, was_late: false, method: 'app',
+    });
+    await load();
     setSaving(false);
   };
 
   const checkOut = async () => {
+    if (saving || !att?.checkIn || att?.checkOut) return;
     setSaving(true);
     const now = nowHHMM();
-    const { error } = await supabase.from('attendance').update({ check_out: now }).eq('employee_name', name).eq('date', todayISO());
-    if (!error) await load();
+    const dateVal = todaySlash();
+    const [hi,mi] = (att.checkIn).split(':').map(Number);
+    const [ho,mo] = now.split(':').map(Number);
+    let mins = (ho*60+mo)-(hi*60+mi); if(mins<0) mins+=1440;
+    await supabase.from('attendance').insert({
+      employee_name: name, team: team ?? null,
+      date: dateVal, day: arabicDay(),
+      type: 'out', time_in: now, time_out: now,
+      hours: +(mins/60).toFixed(2), status: '🚪 خروج',
+      recorded_at: now, delay_minutes: 0, was_late: false, method: 'app',
+    });
+    await load();
     setSaving(false);
   };
 
-  const isCheckedIn  = !!att?.check_in;
-  const isCheckedOut = !!att?.check_out;
+  const isCheckedIn  = !!att?.checkIn;
+  const isCheckedOut = !!att?.checkOut;
   const isComplete   = isCheckedIn && isCheckedOut;
 
   return (
@@ -135,13 +173,13 @@ function AttendanceCard({ name }) {
             <div>
               <p className="text-base font-extrabold text-emerald-700">✅ اكتمل</p>
               <p className="text-xs text-emerald-600 mt-0.5">
-                دخول {att.check_in} — خروج {att.check_out}
+                دخول {att.checkIn} — خروج {att.checkOut}
               </p>
             </div>
           ) : isCheckedIn ? (
             <div>
               <p className="text-base font-extrabold text-teal">⏳ في العمل</p>
-              <p className="text-xs text-muted mt-0.5">دخول: {att.check_in}</p>
+              <p className="text-xs text-muted mt-0.5">دخول: {att.checkIn}</p>
             </div>
           ) : (
             <div>
@@ -406,7 +444,7 @@ function QuickShortcuts({ role }) {
 // Main HomeScreen
 // ════════════════════════════════════════════════════════════════
 export default function HomeScreen() {
-  const { name, role, id: userId } = useAuth();
+  const { name, role, id: userId, team } = useAuth();
   const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
   const g = greeting();
   const cc = useChartColors();
@@ -498,7 +536,7 @@ export default function HomeScreen() {
 
       {/* ── 2-column layout (quick cards) ───────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <AttendanceCard name={name} />
+        <AttendanceCard name={name} team={team} />
         <MyTasksCard name={name} />
       </div>
 

@@ -117,26 +117,34 @@ async function fetchLogs(employeeId, employeeName, ym, isMock) {
   // If table exists and has data → use it
   if (!logsErr && logsData?.length) return logsData;
 
-  // 2️⃣ Fallback: try main `attendance` table (employee_name-based)
+  // 2️⃣ Fallback: main `attendance` table
+  // Real schema: two rows per day (type="in" + type="out"), date="YYYY/MM/DD", time_in column
   if (employeeName) {
     const { data: attData, error: attErr } = await supabase
       .from('attendance')
-      .select('date, check_in, check_out, notes')
+      .select('id, date, type, time_in, note')
       .eq('employee_name', employeeName)
-      .gte('date', from)
+      .gte('date', from)   // Supabase casts YYYY/MM/DD text to date for range queries
       .lte('date', to)
+      .in('type', ['in', 'out'])
       .order('date');
 
     if (!attErr && attData?.length) {
-      // Normalise to same shape: convert HH:MM → full ISO timestamps
-      return attData.map(r => ({
-        id:         `att-${r.date}`,
-        work_date:  r.date,
-        // check_in may be "09:30" → convert to ISO for calcHours to work
-        check_in:   r.check_in  ? `${r.date}T${r.check_in}:00`  : null,
-        check_out:  r.check_out ? `${r.date}T${r.check_out}:00` : null,
-        status:     r.check_in ? (r.check_out ? 'checked_out' : 'present') : null,
-        notes:      r.notes,
+      // Aggregate: one entry per day
+      const byDate = {};
+      attData.forEach(r => {
+        const isoDate = r.date.replace(/\//g, '-'); // "2026/05/24" → "2026-05-24"
+        if (!byDate[isoDate]) byDate[isoDate] = { checkIn: null, checkOut: null };
+        if (r.type === 'in')  byDate[isoDate].checkIn  = r.time_in;
+        if (r.type === 'out') byDate[isoDate].checkOut = r.time_in;
+      });
+      return Object.entries(byDate).map(([isoDate, d]) => ({
+        id:         `att-${isoDate}`,
+        work_date:  isoDate,
+        // Convert "HH:MM" → ISO timestamp so calcHours works
+        check_in:   d.checkIn  ? `${isoDate}T${d.checkIn}:00`  : null,
+        check_out:  d.checkOut ? `${isoDate}T${d.checkOut}:00` : null,
+        status:     d.checkIn ? (d.checkOut ? 'checked_out' : 'present') : null,
       }));
     }
   }

@@ -1,99 +1,109 @@
 // =============================================================
-// AttendanceScreen 2.0 — سجل الحضور اليومي
-// • ساعة رقمية حية
-// • زر حضور/انصراف مع animation
-// • عرض أسبوعي للأيام السبعة الماضية
-// • مدة العمل مباشرة
-// • notes عند الانصراف
+// AttendanceScreen 3.0 — سجل الحضور اليومي
+// Schema الحقيقي: صفان لكل يوم (type:"in" + type:"out")
+//   date: "YYYY/MM/DD"  |  time_in: "HH:MM"  |  time_out: "HH:MM"
 // =============================================================
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth }   from '@hooks/useAuth';
 import { supabase }  from '@services/supabase';
 
-// ── Helpers ────────────────────────────────────────────────────
-function todayISO() { return new Date().toISOString().slice(0, 10); }
-
-function last7Days() {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d.toISOString().slice(0, 10);
-  });
+// ── Date helpers ───────────────────────────────────────────────
+/** Returns "YYYY/MM/DD" — matches DB format */
+function todaySlash() {
+  const d = new Date();
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function dayLabel(iso) {
-  const d = new Date(iso);
-  const today = todayISO();
-  if (iso === today) return 'اليوم';
-  const diff = Math.floor((new Date(today) - d) / 86400000);
+/** Returns Arabic day name from "YYYY/MM/DD" */
+function dayLabel(slash) {
+  const today = todaySlash();
+  if (slash === today) return 'اليوم';
+  const [y, m, day] = slash.split('/').map(Number);
+  const d    = new Date(y, m - 1, day);
+  const diff = Math.round((new Date(today.replace(/\//g, '-')) - d) / 86400000);
   if (diff === 1) return 'أمس';
   return d.toLocaleDateString('ar-SA', { weekday: 'short' });
 }
 
-function timeFmt(timeStr) {
-  if (!timeStr) return '—';
-  // If it's already HH:MM format
-  if (/^\d{2}:\d{2}/.test(timeStr)) return timeStr.slice(0, 5);
-  // If it's an ISO string
-  return new Date(timeStr).toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit', hour12: false });
+/** Returns array of last 7 days as "YYYY/MM/DD" */
+function last7Days() {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  });
 }
 
-function calcDuration(checkIn, checkOut) {
-  if (!checkIn) return null;
-  const start = new Date(`1970-01-01T${checkIn.slice(0, 5)}:00`);
-  const end   = checkOut ? new Date(`1970-01-01T${checkOut.slice(0, 5)}:00`) : new Date();
-  // Handle midnight crossing
-  let mins = Math.floor((end - start) / 60000);
+/** "YYYY/MM/DD" → "YYYY-MM-DD" for Supabase range queries */
+function toISO(slash) { return slash.replace(/\//g, '-'); }
+
+/** HH:MM — locale-independent, for DB storage */
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+/** HH:MM:SS — for live clock display */
+function nowHHMMSS() {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+
+/** Arabic day name (e.g. "الأربعاء") */
+function arabicDay(slash) {
+  const [y, m, day] = slash.split('/').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('ar-SA', { weekday: 'long' });
+}
+
+function calcDuration(timeIn, timeOut) {
+  if (!timeIn) return null;
+  const parse = t => { const [h,m] = t.slice(0,5).split(':').map(Number); return h*60+m; };
+  const start  = parse(timeIn);
+  const end    = timeOut ? parse(timeOut) : (new Date().getHours()*60 + new Date().getMinutes());
+  let mins = end - start;
   if (mins < 0) mins += 1440;
   if (mins <= 0) return null;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const h = Math.floor(mins / 60), m = mins % 60;
   return h > 0 ? `${h}س ${m}د` : `${m}د`;
 }
 
-/** HH:MM:SS — locale-independent (avoids Arabic-Indic numeral issue with ar-SA) */
-function nowHHMMSS() {
-  const d = new Date();
-  return [d.getHours(), d.getMinutes(), d.getSeconds()]
-    .map(n => String(n).padStart(2, '0')).join(':');
-}
-/** HH:MM only — for storing in DB */
-function nowHHMM() {
-  const d = new Date();
-  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-}
-function liveClock() { return nowHHMMSS(); }
-
-// ── Day status badge ───────────────────────────────────────────
-function DayBadge({ rec, iso }) {
-  const isToday = iso === todayISO();
-  const isFuture = iso > todayISO();
+// ── Day badge in weekly strip ──────────────────────────────────
+function DayBadge({ dayRec, slash }) {
+  const today   = todaySlash();
+  const isToday = slash === today;
+  const isFuture = slash > today;
 
   if (isFuture) return (
-    <div className={`flex flex-col items-center gap-1 p-2 rounded-xl border ${isToday ? 'border-teal bg-teal/5' : 'border-border bg-surface'} opacity-30`}>
-      <span className="text-[10px] font-bold text-muted">{dayLabel(iso)}</span>
+    <div className="flex flex-col items-center gap-1 p-2 rounded-xl border border-border bg-surface opacity-30">
+      <span className="text-[10px] font-bold text-muted">{dayLabel(slash)}</span>
       <span className="text-lg">—</span>
     </div>
   );
 
-  if (!rec) return (
+  const checkIn  = dayRec?.checkIn;
+  const checkOut = dayRec?.checkOut;
+  const complete = !!(checkIn && checkOut);
+
+  if (!checkIn) return (
     <div className={`flex flex-col items-center gap-1 p-2 rounded-xl border ${isToday ? 'border-teal/30 bg-teal/5' : 'border-border/50 bg-surface-alt/50'}`}>
-      <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : 'text-muted'}`}>{dayLabel(iso)}</span>
+      <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : 'text-muted'}`}>{dayLabel(slash)}</span>
       <span className="text-lg">{isToday ? '⏳' : '❌'}</span>
       <span className="text-[9px] text-muted/60">{isToday ? 'الآن' : 'غياب'}</span>
     </div>
   );
 
-  const isComplete = rec.check_in && rec.check_out;
   return (
     <div className={`flex flex-col items-center gap-1 p-2 rounded-xl border ${
-      isToday ? 'border-teal bg-teal/5' :
-      isComplete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+      isToday   ? 'border-teal bg-teal/5' :
+      complete  ? 'border-emerald-200 bg-emerald-50' :
+                  'border-amber-200 bg-amber-50'
     }`}>
-      <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : isComplete ? 'text-emerald-700' : 'text-amber-700'}`}>{dayLabel(iso)}</span>
-      <span className="text-lg">{isComplete ? '✅' : '⏳'}</span>
-      <span className={`text-[9px] font-semibold ${isToday ? 'text-teal' : isComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
-        {rec.check_in?.slice(0,5)}
+      <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : complete ? 'text-emerald-700' : 'text-amber-700'}`}>
+        {dayLabel(slash)}
+      </span>
+      <span className="text-lg">{complete ? '✅' : '⏳'}</span>
+      <span className={`text-[9px] font-semibold ${isToday ? 'text-teal' : complete ? 'text-emerald-600' : 'text-amber-600'}`}>
+        {checkIn?.slice(0,5)}
       </span>
     </div>
   );
@@ -101,11 +111,11 @@ function DayBadge({ rec, iso }) {
 
 // ── Main ───────────────────────────────────────────────────────
 export default function AttendanceScreen() {
-  const { name: userName } = useAuth();
+  const { name: userName, team } = useAuth();
 
-  const [clock, setClock]       = useState(liveClock());
-  const [today, setToday]       = useState(null);      // today's record
-  const [week, setWeek]         = useState({});         // { 'YYYY-MM-DD': record }
+  const [clock, setClock]       = useState(nowHHMMSS());
+  // week: { "YYYY/MM/DD": { checkIn: "HH:MM"|null, checkOut: "HH:MM"|null, inId, outId, noteIn, noteOut } }
+  const [week, setWeek]         = useState({});
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
@@ -114,112 +124,165 @@ export default function AttendanceScreen() {
   const [showNote, setShowNote] = useState(false);
   const [duration, setDuration] = useState('');
 
-  const days = last7Days();
+  const days    = last7Days();
   const noteRef = useRef(null);
+  const today   = week[todaySlash()] ?? null;
 
-  // Live clock + live duration
+  // Live clock
   useEffect(() => {
     const t = setInterval(() => {
-      setClock(liveClock());
-      if (today?.check_in && !today?.check_out) {
-        setDuration(calcDuration(today.check_in, null) ?? '');
+      setClock(nowHHMMSS());
+      if (today?.checkIn && !today?.checkOut) {
+        setDuration(calcDuration(today.checkIn, null) ?? '');
       }
     }, 1000);
     return () => clearInterval(t);
   }, [today]);
 
-  // Load this week's records
-  const loadData = useCallback(async () => {
-    if (!userName) { setLoading(false); return; }
-    setLoading(true);
-    try {
-      const from = days[0];
-      const { data, error: fetchErr } = await supabase.from('attendance')
-        .select('*')
-        .eq('employee_name', userName)
-        .gte('date', from)
-        .lte('date', todayISO());
-      if (fetchErr) throw new Error(fetchErr.message);
-      const map = {};
-      (data ?? []).forEach(r => { map[r.date] = r; });
-      setWeek(map);
-      setToday(map[todayISO()] ?? null);
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  }, [userName]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // Duration refresh when today changes
+  // Duration on today change
   useEffect(() => {
-    if (today?.check_in && !today?.check_out) {
-      setDuration(calcDuration(today.check_in, null) ?? '');
-    } else if (today?.check_in && today?.check_out) {
-      setDuration(calcDuration(today.check_in, today.check_out) ?? '');
+    if (today?.checkIn && today?.checkOut) {
+      setDuration(calcDuration(today.checkIn, today.checkOut) ?? '');
+    } else if (today?.checkIn) {
+      setDuration(calcDuration(today.checkIn, null) ?? '');
     } else {
       setDuration('');
     }
   }, [today]);
 
-  const flash = (msg) => {
-    setSuccess(msg);
-    setTimeout(() => setSuccess(''), 3000);
-  };
-
-  const handleCheckIn = async () => {
-    if (saving || today?.check_in) return;
-    setSaving(true); setError(null);
-    const now = nowHHMM();
+  // Load last-7-days data
+  const loadData = useCallback(async () => {
+    if (!userName) { setLoading(false); return; }
+    setLoading(true);
     try {
-      const { error: upsertErr } = await supabase.from('attendance').upsert(
-        { employee_name: userName, date: todayISO(), check_in: now },
-        { onConflict: 'employee_name,date' }
-      );
-      if (upsertErr) throw new Error(upsertErr.message);
+      const fromISO = toISO(days[0]);
+      const toISO_  = toISO(todaySlash());
+
+      // date column stores "YYYY/MM/DD" — use cast trick for range queries
+      const { data, error: fetchErr } = await supabase
+        .from('attendance')
+        .select('id,date,type,time_in,time_out,note')
+        .eq('employee_name', userName)
+        .gte('date', fromISO)   // Supabase casts text to date for comparison
+        .lte('date', toISO_)
+        .in('type', ['in', 'out']);
+
+      if (fetchErr) throw new Error(fetchErr.message);
+
+      // Aggregate: { "YYYY/MM/DD": { checkIn, checkOut, inId, outId } }
+      const map = {};
+      (data ?? []).forEach(r => {
+        const key = r.date; // "YYYY/MM/DD"
+        if (!map[key]) map[key] = { checkIn: null, checkOut: null, inId: null, outId: null, noteOut: null };
+        if (r.type === 'in') {
+          map[key].checkIn  = r.time_in;
+          map[key].inId     = r.id;
+        } else if (r.type === 'out') {
+          map[key].checkOut = r.time_in;  // for "out" rows, the departure time is in time_in
+          map[key].outId    = r.id;
+          map[key].noteOut  = r.note;
+        }
+      });
+
+      setWeek(map);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [userName]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3500); };
+
+  // ── Check-in ─────────────────────────────────────────────────
+  const handleCheckIn = async () => {
+    if (saving || today?.checkIn) return;
+    setSaving(true); setError(null);
+    const now  = nowHHMM();
+    const dateVal = todaySlash(); // "YYYY/MM/DD"
+    try {
+      const { error: insErr } = await supabase.from('attendance').insert({
+        employee_name: userName,
+        team:          team ?? null,
+        date:          dateVal,
+        day:           arabicDay(dateVal),
+        type:          'in',
+        time_in:       now,
+        time_out:      null,
+        hours:         0,
+        status:        '✅ حاضر',
+        recorded_at:   now,
+        delay_minutes: 0,
+        was_late:      false,
+        method:        'app',
+      });
+      if (insErr) throw new Error(insErr.message);
       flash('✅ تم تسجيل الحضور بنجاح!');
       await loadData();
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
 
+  // ── Check-out ─────────────────────────────────────────────────
   const handleCheckOut = async () => {
-    if (saving || !today?.check_in || today?.check_out) return;
-    if (showNote) {
-      setSaving(true); setError(null);
-      const now = nowHHMM();
-      try {
-        const { error: updateErr } = await supabase.from('attendance')
-          .update({ check_out: now, notes: note.trim() || null })
-          .eq('employee_name', userName)
-          .eq('date', todayISO());
-        if (updateErr) throw new Error(updateErr.message);
-        flash('🏠 تم تسجيل الانصراف بنجاح!');
-        setShowNote(false); setNote('');
-        await loadData();
-      } catch (e) { setError(e.message); }
-      finally { setSaving(false); }
-    } else {
-      setShowNote(true);
-      setTimeout(() => noteRef.current?.focus(), 100);
-    }
+    if (saving || !today?.checkIn || today?.checkOut) return;
+    if (!showNote) { setShowNote(true); setTimeout(() => noteRef.current?.focus(), 100); return; }
+
+    setSaving(true); setError(null);
+    const now      = nowHHMM();
+    const dateVal  = todaySlash();
+    const checkinTime = today.checkIn;
+    const workedMins  = (() => {
+      const [hi,mi] = checkinTime.slice(0,5).split(':').map(Number);
+      const [ho,mo] = now.split(':').map(Number);
+      let m = (ho*60+mo) - (hi*60+mi);
+      if (m < 0) m += 1440;
+      return m;
+    })();
+    const workedHrs = +(workedMins / 60).toFixed(2);
+
+    try {
+      const { error: insErr } = await supabase.from('attendance').insert({
+        employee_name: userName,
+        team:          team ?? null,
+        date:          dateVal,
+        day:           arabicDay(dateVal),
+        type:          'out',
+        time_in:       now,      // departure time stored in time_in for "out" rows
+        time_out:      now,
+        hours:         workedHrs,
+        status:        '🚪 خروج',
+        note:          note.trim() || null,
+        recorded_at:   now,
+        delay_minutes: 0,
+        was_late:      false,
+        method:        'app',
+      });
+      if (insErr) throw new Error(insErr.message);
+      flash('🏠 تم تسجيل الانصراف بنجاح!');
+      setShowNote(false); setNote('');
+      await loadData();
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const isCheckedIn  = !!today?.check_in;
-  const isCheckedOut = !!today?.check_out;
+  const isCheckedIn  = !!today?.checkIn;
+  const isCheckedOut = !!today?.checkOut;
   const isComplete   = isCheckedIn && isCheckedOut;
 
-  // Big button state
   const btnState = isComplete ? 'done' : isCheckedIn ? 'checkout' : 'checkin';
   const BIG_BTN = {
-    checkin:  { label: 'تسجيل الحضور',   icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
-    checkout: { label: showNote ? 'تأكيد الانصراف' : 'تسجيل الانصراف', icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
-    done:     { label: 'اليوم مكتمل 🎉',  icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
+    checkin:  { label: 'تسجيل الحضور',                                        icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
+    checkout: { label: showNote ? 'تأكيد الانصراف' : 'تسجيل الانصراف',        icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
+    done:     { label: 'اليوم مكتمل 🎉',                                       icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
   }[btnState];
 
   return (
     <div className="max-w-lg mx-auto space-y-4 pb-24 sm:pb-8" dir="rtl">
 
-      {/* ── Live clock card ────────────────────────────────────── */}
+      {/* ── Live clock card ──────────────────────────────────── */}
       <div className="bg-gradient-to-br from-navy to-navy/90 rounded-3xl p-6 text-white text-center shadow-xl shadow-navy/20">
         <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
           {new Date().toLocaleDateString('ar-SA', { weekday:'long', day:'numeric', month:'long' })}
@@ -233,7 +296,7 @@ export default function AttendanceScreen() {
           ) : isCheckedIn ? (
             <span className="flex items-center gap-1.5 text-sm font-bold text-teal/90">
               <span className="w-2 h-2 rounded-full bg-teal animate-pulse" />
-              في العمل منذ {today.check_in?.slice(0,5)} — {duration || '…'}
+              في العمل منذ {today.checkIn?.slice(0,5)} — {duration || '…'}
             </span>
           ) : (
             <span className="text-sm text-white/50">لم تسجّل حضورك بعد</span>
@@ -241,29 +304,28 @@ export default function AttendanceScreen() {
         </div>
       </div>
 
-      {/* ── Success / Error ────────────────────────────────────── */}
+      {/* ── Success / Error ──────────────────────────────────── */}
       {success && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 text-sm font-semibold text-center animate-in slide-in-from-top-2 duration-200">
           {success}
         </div>
       )}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl px-4 py-3 text-sm text-center">
+        <div className="bg-red-bg border border-red/20 text-red-fg rounded-2xl px-4 py-3 text-sm text-center">
           ⚠️ {error}
         </div>
       )}
 
-      {/* ── Main action button ─────────────────────────────────── */}
+      {/* ── Main action button ───────────────────────────────── */}
       <div className="bg-surface border border-border rounded-3xl p-5 space-y-3">
         <button
           onClick={btnState === 'done' ? undefined : (btnState === 'checkout' ? handleCheckOut : handleCheckIn)}
           disabled={saving || btnState === 'done'}
           className={`w-full py-5 rounded-2xl text-lg font-extrabold flex items-center justify-center gap-3 transition-all duration-200 shadow-lg ${BIG_BTN.cls} ${saving ? 'opacity-70' : 'hover:scale-[1.02] active:scale-[0.98]'} disabled:cursor-default`}>
-          {saving ? (
-            <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <span className="text-2xl">{BIG_BTN.icon}</span>
-          )}
+          {saving
+            ? <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : <span className="text-2xl">{BIG_BTN.icon}</span>
+          }
           {BIG_BTN.label}
         </button>
 
@@ -271,19 +333,23 @@ export default function AttendanceScreen() {
         {showNote && btnState === 'checkout' && (
           <div className="animate-in slide-in-from-bottom-2 duration-200 space-y-2">
             <label className="text-xs text-muted font-semibold block">ملاحظات (اختياري)</label>
-            <textarea ref={noteRef} value={note} onChange={e => setNote(e.target.value)} rows={2}
+            <textarea
+              ref={noteRef} value={note} onChange={e => setNote(e.target.value)} rows={2}
               placeholder="مثال: اجتماع مطوّل، عمل إضافي…"
-              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none" />
-            <button onClick={() => setShowNote(false)} className="text-xs text-muted hover:text-red-500 transition">إلغاء</button>
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none"
+            />
+            <button onClick={() => { setShowNote(false); setNote(''); }} className="text-xs text-muted hover:text-red-fg transition">
+              إلغاء
+            </button>
           </div>
         )}
 
-        {/* Today's times row */}
+        {/* Today's stat row */}
         <div className="grid grid-cols-3 gap-3 pt-1">
           {[
-            { label: 'الدخول',    val: today?.check_in?.slice(0,5)  || '—', color: 'text-teal'    },
-            { label: 'مدة العمل', val: duration || '—',                     color: 'text-amber-600' },
-            { label: 'الخروج',    val: today?.check_out?.slice(0,5) || '—', color: 'text-navy'    },
+            { label: 'الدخول',    val: today?.checkIn?.slice(0,5)  || '—', color: 'text-teal'     },
+            { label: 'مدة العمل', val: duration || '—',                    color: 'text-amber-600' },
+            { label: 'الخروج',    val: today?.checkOut?.slice(0,5) || '—', color: 'text-navy'     },
           ].map(s => (
             <div key={s.label} className="text-center">
               <p className={`text-xl font-extrabold tabular-nums ${s.color}`}>{s.val}</p>
@@ -293,7 +359,7 @@ export default function AttendanceScreen() {
         </div>
       </div>
 
-      {/* ── Weekly view ────────────────────────────────────────── */}
+      {/* ── Weekly strip ─────────────────────────────────────── */}
       <div className="bg-surface border border-border rounded-3xl p-4">
         <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-3">آخر 7 أيام</p>
         {loading ? (
@@ -302,17 +368,16 @@ export default function AttendanceScreen() {
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-1.5">
-            {days.map(iso => <DayBadge key={iso} iso={iso} rec={week[iso]} />)}
+            {days.map(slash => <DayBadge key={slash} slash={slash} dayRec={week[slash]} />)}
           </div>
         )}
 
-        {/* Week stats */}
         {!loading && (
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
             {[
-              { label: 'أيام الحضور',   val: days.filter(d => week[d]?.check_in).length,                          icon: '✅' },
-              { label: 'أيام الغياب',   val: days.filter(d => d <= todayISO() && !week[d]?.check_in).length,      icon: '❌' },
-              { label: 'أيام مكتملة',   val: days.filter(d => week[d]?.check_in && week[d]?.check_out).length,    icon: '🏆' },
+              { label: 'أيام الحضور',  val: days.filter(d => week[d]?.checkIn).length,                               icon: '✅' },
+              { label: 'أيام الغياب',  val: days.filter(d => d <= todaySlash() && !week[d]?.checkIn).length,         icon: '❌' },
+              { label: 'أيام مكتملة',  val: days.filter(d => week[d]?.checkIn && week[d]?.checkOut).length,          icon: '🏆' },
             ].map(s => (
               <div key={s.label} className="text-center flex-1">
                 <p className="text-xl font-extrabold text-text">{s.icon} {s.val}</p>
@@ -323,13 +388,13 @@ export default function AttendanceScreen() {
         )}
       </div>
 
-      {/* ── Today's notes (if any) ─────────────────────────────── */}
-      {today?.notes && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2">
+      {/* ── Today's note ─────────────────────────────────────── */}
+      {today?.noteOut && (
+        <div className="bg-amber-bg border border-amber/20 rounded-2xl px-4 py-3 flex items-start gap-2">
           <span className="text-lg shrink-0">📝</span>
           <div>
-            <p className="text-xs font-bold text-amber-700 mb-0.5">ملاحظات اليوم</p>
-            <p className="text-sm text-amber-800">{today.notes}</p>
+            <p className="text-xs font-bold text-amber-fg mb-0.5">ملاحظات اليوم</p>
+            <p className="text-sm text-amber-fg/80">{today.noteOut}</p>
           </div>
         </div>
       )}
