@@ -48,19 +48,27 @@ export default function LoginScreen() {
       .finally(() => setLoadingProfiles(false));
   }, [role, toast]);
 
+  // Auto-advance for DIRECT_ROLES when only 1 profile exists
+  useEffect(() => {
+    if (step !== STEPS.NAME) return;
+    if (!role || !DIRECT_ROLES.has(role)) return;
+    if (loadingProfiles) return;
+    if (profiles.length === 1) {
+      setName(profiles[0].employee_name);
+      setPin('');
+      setStep(STEPS.PIN);
+    }
+  }, [profiles, loadingProfiles, step, role]);
+
   const filteredProfiles = useMemo(() => profiles, [profiles]);
 
   const onPickRole = (r) => {
     setRole(r);
     setPin('');
-    if (DIRECT_ROLES.has(r)) {
-      // دور إداري — استخدم المسمى الوظيفي مباشرة وانتقل للـ PIN
-      setName(ROLE_LABELS[r]);
-      setStep(STEPS.PIN);
-    } else {
-      setName(null);
-      setStep(STEPS.NAME);
-    }
+    setName(null);
+    // Always show name picker — for DIRECT_ROLES with 1 profile the
+    // useEffect above will auto-advance to PIN once profiles load.
+    setStep(STEPS.NAME);
   };
 
   const onPickName = (n) => {
@@ -88,8 +96,22 @@ export default function LoginScreen() {
 
   const back = () => {
     setPin('');
-    if (step === STEPS.PIN) setStep(STEPS.NAME);
-    else if (step === STEPS.NAME) setStep(STEPS.ROLE);
+    if (step === STEPS.PIN) {
+      // If DIRECT_ROLE with single profile, skip name picker and go straight to role
+      if (role && DIRECT_ROLES.has(role) && profiles.length === 1) {
+        setRole(null);
+        setName(null);
+        setProfiles([]);
+        setStep(STEPS.ROLE);
+      } else {
+        setStep(STEPS.NAME);
+      }
+    } else if (step === STEPS.NAME) {
+      setRole(null);
+      setName(null);
+      setProfiles([]);
+      setStep(STEPS.ROLE);
+    }
   };
 
   return (

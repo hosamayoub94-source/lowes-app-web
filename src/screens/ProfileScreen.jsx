@@ -7,6 +7,7 @@ import { useAuth }    from '@hooks/useAuth';
 import { useTheme }   from '@hooks/useTheme';
 import { useUiStore } from '@stores/uiStore';
 import { supabase }   from '@services/supabase';
+import { changeMyPin } from '@services/authService';
 import { ROLE_LABELS } from '@data/teams';
 
 // ── Level system ───────────────────────────────────────────────
@@ -81,6 +82,13 @@ export default function ProfileScreen() {
   const [loading, setLoading]         = useState(true);
   const [uploading, setUploading]     = useState(false);
   const fileRef = useRef(null);
+
+  // PIN change state
+  const [pinModal, setPinModal]       = useState(false);  // 'new' | 'confirm' | false
+  const [newPin, setNewPin]           = useState('');
+  const [confirmPin, setConfirmPin]   = useState('');
+  const [pinSaving, setPinSaving]     = useState(false);
+  const [pinMsg, setPinMsg]           = useState(null);   // { type: 'ok'|'err', text }
 
   // Load everything in parallel
   useEffect(() => {
@@ -328,9 +336,116 @@ export default function ProfileScreen() {
         </div>
       </div>
 
+      {/* ── Change PIN ────────────────────────────────────────── */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <p className="text-sm font-bold text-text">🔐 الأمان</p>
+        </div>
+        {!pinModal ? (
+          <div className="px-4 pb-4">
+            <button
+              onClick={() => { setPinModal('new'); setNewPin(''); setConfirmPin(''); setPinMsg(null); }}
+              className="w-full py-2.5 rounded-xl border border-border bg-surface-alt hover:border-teal/40 text-sm font-semibold text-text transition-colors">
+              تغيير الرمز السري (PIN)
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-muted">
+              {pinModal === 'new' ? 'أدخل الرمز السري الجديد (4 أرقام)' : 'أعد إدخال الرمز السري للتأكيد'}
+            </p>
+
+            {/* PIN dots display */}
+            <div className="flex items-center justify-center gap-3">
+              {[0,1,2,3].map(i => {
+                const filled = pinModal === 'new' ? newPin.length > i : confirmPin.length > i;
+                return <span key={i} className={`w-4 h-4 rounded-full transition-colors ${filled ? 'bg-teal' : 'bg-border'}`} />;
+              })}
+            </div>
+
+            {/* PIN keypad */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {[1,2,3,4,5,6,7,8,9].map(d => (
+                <button key={d} type="button" disabled={pinSaving}
+                  onClick={() => {
+                    if (pinModal === 'new' && newPin.length < 4) setNewPin(p => p + d);
+                    if (pinModal === 'confirm' && confirmPin.length < 4) setConfirmPin(p => p + d);
+                  }}
+                  className="h-11 rounded-xl bg-surface-alt hover:bg-surface border border-border text-base font-extrabold disabled:opacity-50 transition-colors">
+                  {d}
+                </button>
+              ))}
+              <button type="button" disabled={pinSaving}
+                onClick={() => {
+                  if (pinModal === 'new') setNewPin(p => p.slice(0,-1));
+                  else setConfirmPin(p => p.slice(0,-1));
+                }}
+                className="h-11 rounded-xl bg-surface-alt hover:bg-surface border border-border text-xs font-bold disabled:opacity-50 transition-colors">
+                مسح
+              </button>
+              <button type="button" disabled={pinSaving}
+                onClick={() => {
+                  if (pinModal === 'new' && newPin.length < 4) setNewPin(p => p + '0');
+                  if (pinModal === 'confirm' && confirmPin.length < 4) setConfirmPin(p => p + '0');
+                }}
+                className="h-11 rounded-xl bg-surface-alt hover:bg-surface border border-border text-base font-extrabold disabled:opacity-50 transition-colors">
+                0
+              </button>
+              <div />
+            </div>
+
+            {/* Auto-advance or submit when 4 digits entered */}
+            {pinModal === 'new' && newPin.length === 4 && (
+              <button
+                onClick={() => { setPinModal('confirm'); setConfirmPin(''); setPinMsg(null); }}
+                className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition">
+                التالي — تأكيد الرمز
+              </button>
+            )}
+            {pinModal === 'confirm' && confirmPin.length === 4 && (
+              <button
+                disabled={pinSaving}
+                onClick={async () => {
+                  if (newPin !== confirmPin) {
+                    setPinMsg({ type: 'err', text: 'الرمزان غير متطابقَين، حاول مجدداً' });
+                    setConfirmPin('');
+                    return;
+                  }
+                  setPinSaving(true); setPinMsg(null);
+                  try {
+                    await changeMyPin(newPin);
+                    setPinMsg({ type: 'ok', text: '✅ تم تغيير الرمز السري بنجاح!' });
+                    setTimeout(() => { setPinModal(false); setPinMsg(null); }, 1800);
+                  } catch (e) {
+                    setPinMsg({ type: 'err', text: e?.message || 'حدث خطأ، حاول مجدداً' });
+                  } finally {
+                    setPinSaving(false);
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl bg-navy text-white text-sm font-bold hover:opacity-90 transition disabled:opacity-60">
+                {pinSaving ? 'جاري الحفظ…' : 'حفظ الرمز السري'}
+              </button>
+            )}
+
+            {/* Feedback */}
+            {pinMsg && (
+              <p className={`text-xs text-center font-semibold ${pinMsg.type === 'ok' ? 'text-green-fg' : 'text-red-fg'}`}>
+                {pinMsg.text}
+              </p>
+            )}
+
+            {/* Cancel */}
+            <button onClick={() => { setPinModal(false); setPinMsg(null); }}
+              className="w-full text-xs text-muted hover:text-red-fg transition">
+              إلغاء
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* ── Logout ────────────────────────────────────────────── */}
       <button onClick={logout}
-        className="w-full py-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-600 font-bold text-sm hover:bg-red-100 transition-all hover:scale-[1.01] active:scale-[0.99]">
+        className="w-full py-3.5 rounded-2xl bg-red-bg border border-red/20 text-red-fg font-bold text-sm hover:opacity-80 transition-all hover:scale-[1.01] active:scale-[0.99]">
         🚪 تسجيل الخروج
       </button>
     </div>

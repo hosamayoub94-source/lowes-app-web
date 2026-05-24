@@ -228,7 +228,7 @@ export default function AttendanceScreen() {
 
       {/* ── Success / Error ────────────────────────────────────── */}
       {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 text-sm font-semibold text-center animate-in slide-in-from-top-2 duration-200">
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 text-sm font-semibold text-center animate-fade-in">
           {success}
         </div>
       )}
@@ -254,7 +254,7 @@ export default function AttendanceScreen() {
 
         {/* Note input (check-out only) */}
         {showNote && btnState === 'checkout' && (
-          <div className="animate-in slide-in-from-bottom-2 duration-200 space-y-2">
+          <div className="animate-slide-up space-y-2">
             <label className="text-xs text-muted font-semibold block">ملاحظات (اختياري)</label>
             <textarea ref={noteRef} value={note} onChange={e => setNote(e.target.value)} rows={2}
               placeholder="مثال: اجتماع مطوّل، عمل إضافي…"
