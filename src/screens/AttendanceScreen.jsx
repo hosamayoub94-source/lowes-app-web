@@ -51,9 +51,18 @@ function calcDuration(checkIn, checkOut) {
   return h > 0 ? `${h}س ${m}د` : `${m}د`;
 }
 
-function liveClock() {
-  return new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false });
+/** HH:MM:SS — locale-independent (avoids Arabic-Indic numeral issue with ar-SA) */
+function nowHHMMSS() {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':');
 }
+/** HH:MM only — for storing in DB */
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function liveClock() { return nowHHMMSS(); }
 
 // ── Day status badge ───────────────────────────────────────────
 function DayBadge({ rec, iso }) {
@@ -121,15 +130,16 @@ export default function AttendanceScreen() {
 
   // Load this week's records
   const loadData = useCallback(async () => {
-    if (!userName) return;
+    if (!userName) { setLoading(false); return; }
     setLoading(true);
     try {
       const from = days[0];
-      const { data } = await supabase.from('attendance')
+      const { data, error: fetchErr } = await supabase.from('attendance')
         .select('*')
         .eq('employee_name', userName)
         .gte('date', from)
         .lte('date', todayISO());
+      if (fetchErr) throw new Error(fetchErr.message);
       const map = {};
       (data ?? []).forEach(r => { map[r.date] = r; });
       setWeek(map);
@@ -159,12 +169,13 @@ export default function AttendanceScreen() {
   const handleCheckIn = async () => {
     if (saving || today?.check_in) return;
     setSaving(true); setError(null);
-    const now = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit', hour12:false });
+    const now = nowHHMM();
     try {
-      await supabase.from('attendance').upsert(
+      const { error: upsertErr } = await supabase.from('attendance').upsert(
         { employee_name: userName, date: todayISO(), check_in: now },
         { onConflict: 'employee_name,date' }
       );
+      if (upsertErr) throw new Error(upsertErr.message);
       flash('✅ تم تسجيل الحضور بنجاح!');
       await loadData();
     } catch (e) { setError(e.message); }
@@ -175,9 +186,13 @@ export default function AttendanceScreen() {
     if (saving || !today?.check_in || today?.check_out) return;
     if (showNote) {
       setSaving(true); setError(null);
-      const now = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit', hour12:false });
+      const now = nowHHMM();
       try {
-        await supabase.from('attendance').update({ check_out: now, notes: note.trim()||null }).eq('employee_name', userName).eq('date', todayISO());
+        const { error: updateErr } = await supabase.from('attendance')
+          .update({ check_out: now, notes: note.trim() || null })
+          .eq('employee_name', userName)
+          .eq('date', todayISO());
+        if (updateErr) throw new Error(updateErr.message);
         flash('🏠 تم تسجيل الانصراف بنجاح!');
         setShowNote(false); setNote('');
         await loadData();
