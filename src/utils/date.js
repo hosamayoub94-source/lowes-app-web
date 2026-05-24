@@ -13,6 +13,14 @@ export function todayS() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+/** Slash-style today (YYYY/MM/DD) — matches real attendance table date format. */
+export function todaySlash() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}/${m}/${day}`;
+}
+
 /** YYYY-MM for the current month. */
 export function currMonth() {
   const d = new Date();

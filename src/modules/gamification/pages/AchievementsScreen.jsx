@@ -238,12 +238,13 @@ export default function AchievementsScreen() {
           .select('employee_name, points')
           .gte('created_at', monthStart + 'T00:00:00'),
 
-        // Monthly attendance count per employee
+        // Monthly attendance count per employee — date stored as 'YYYY/MM/DD'
         supabase
           .from('attendance')
           .select('employee_name')
-          .gte('date', monthStart)
-          .lte('date', today),
+          .eq('type', 'in')
+          .gte('date', monthStart.replace(/-/g, '/'))
+          .lte('date', today.replace(/-/g, '/')),
 
         // Monthly done tasks count per employee
         supabase

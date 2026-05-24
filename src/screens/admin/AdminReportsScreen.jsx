@@ -39,23 +39,26 @@ async function fetchReportData(period) {
     .from('profiles')
     .select('id', { count: 'exact', head: true });
 
-  // 2. Attendance logs — last 6 months for chart + period for KPI
+  // 2. Attendance logs — real table uses type='in'/'out', date='YYYY/MM/DD'
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  const chartFrom = sixMonthsAgo.toISOString().slice(0, 10);
+  const chartFrom = sixMonthsAgo.toISOString().slice(0, 10).replace(/-/g, '/');
+  const toSlash   = to.replace(/-/g, '/');
+  const fromSlash = from.replace(/-/g, '/');
 
   const { data: attLogs = [] } = await supabase
-    .from('attendance_logs')
-    .select('employee_id, work_date')
-    .gte('work_date', chartFrom)
-    .lte('work_date', to);
+    .from('attendance')
+    .select('employee_name, date')
+    .eq('type', 'in')           // count each day once via the 'in' row
+    .gte('date', chartFrom)
+    .lte('date', toSlash);
 
   // Build per-month attendance map (last 6 months)
   const now = new Date();
   const monthKeys = [];
   for (let i = 5; i >= 0; i--) {
     const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const key = d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0');
     monthKeys.push({ key, label: MONTHS_AR[d.getMonth()] });
   }
   const monthDays = {};
@@ -63,10 +66,11 @@ async function fetchReportData(period) {
   monthKeys.forEach(m => { monthDays[m.key] = new Set(); monthEmpDays[m.key] = new Set(); });
 
   for (const log of (attLogs || [])) {
-    const mk = log.work_date ? log.work_date.slice(0, 7) : '';
+    // date is 'YYYY/MM/DD' — first 7 chars = 'YYYY/MM'
+    const mk = log.date ? log.date.slice(0, 7) : '';
     if (monthDays[mk]) {
-      monthDays[mk].add(log.work_date);
-      monthEmpDays[mk].add(log.employee_id + '|' + log.work_date);
+      monthDays[mk].add(log.date);
+      monthEmpDays[mk].add(log.employee_name + '|' + log.date);
     }
   }
 
@@ -78,8 +82,8 @@ async function fetchReportData(period) {
   });
 
   // KPI: attendance rate within selected period
-  const periodLogs = (attLogs || []).filter(l => l.work_date >= from && l.work_date <= to);
-  const periodDays = new Set(periodLogs.map(l => l.work_date));
+  const periodLogs = (attLogs || []).filter(l => l.date >= fromSlash && l.date <= toSlash);
+  const periodDays = new Set(periodLogs.map(l => l.date));
   const totalExpected = periodDays.size * (empCount || 1);
   const overallAttRate = totalExpected > 0
     ? Math.round((periodLogs.length / totalExpected) * 100)

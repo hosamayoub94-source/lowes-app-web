@@ -3,13 +3,13 @@
 // Mirrors the `attendance` table.
 // =============================================================
 import { supabase } from './supabase';
-import { todayS } from '@utils/date';
+import { todaySlash } from '@utils/date';
 
 export async function listToday() {
   const { data, error } = await supabase
     .from('attendance')
     .select('*')
-    .eq('date', todayS())
+    .eq('date', todaySlash())
     .order('created_at');
   if (error) throw error;
   return data || [];
@@ -37,7 +37,7 @@ export async function listForEmployee(employeeName, yyyymm) {
 }
 
 export async function recordEntry({
-  employeeName, team, type, day, date = todayS(), timeIn, timeOut, hours, status, note,
+  employeeName, team, type, day, date = todaySlash(), timeIn, timeOut, hours, status, note,
 }) {
   const payload = {
     employee_name: employeeName,
@@ -62,7 +62,7 @@ export async function checkOnceToday(employeeName, type) {
     .from('attendance')
     .select('id')
     .eq('employee_name', employeeName)
-    .eq('date', todayS())
+    .eq('date', todaySlash())
     .eq('type', type)
     .limit(1);
   if (error) throw error;
