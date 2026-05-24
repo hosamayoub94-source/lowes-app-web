@@ -98,24 +98,51 @@ async function fetchEmployees() {
   return data?.length ? data : MOCK_EMPLOYEES;
 }
 
-async function fetchLogs(employeeId, ym, isMock) {
+async function fetchLogs(employeeId, employeeName, ym, isMock) {
   if (isMock) return buildMockData(employeeId, ym);
   const { supabase } = await import('@services/supabase');
   const from = `${ym}-01`;
   const days = daysInMonth(ym);
   const to   = `${ym}-${String(days).padStart(2, '0')}`;
-  const { data, error } = await supabase
+
+  // 1️⃣ Try attendance_logs (UUID-based, advanced table)
+  const { data: logsData, error: logsErr } = await supabase
     .from('attendance_logs')
     .select('id, work_date, check_in, check_out, status')
     .eq('employee_id', employeeId)
     .gte('work_date', from)
     .lte('work_date', to)
     .order('work_date');
-  if (error?.message?.includes('does not exist') || error?.message?.includes('relation')) {
-    return buildMockData(employeeId, ym);
+
+  // If table exists and has data → use it
+  if (!logsErr && logsData?.length) return logsData;
+
+  // 2️⃣ Fallback: try main `attendance` table (employee_name-based)
+  if (employeeName) {
+    const { data: attData, error: attErr } = await supabase
+      .from('attendance')
+      .select('date, check_in, check_out, notes')
+      .eq('employee_name', employeeName)
+      .gte('date', from)
+      .lte('date', to)
+      .order('date');
+
+    if (!attErr && attData?.length) {
+      // Normalise to same shape: convert HH:MM → full ISO timestamps
+      return attData.map(r => ({
+        id:         `att-${r.date}`,
+        work_date:  r.date,
+        // check_in may be "09:30" → convert to ISO for calcHours to work
+        check_in:   r.check_in  ? `${r.date}T${r.check_in}:00`  : null,
+        check_out:  r.check_out ? `${r.date}T${r.check_out}:00` : null,
+        status:     r.check_in ? (r.check_out ? 'checked_out' : 'present') : null,
+        notes:      r.notes,
+      }));
+    }
   }
-  if (error) return buildMockData(employeeId, ym);
-  return data ?? buildMockData(employeeId, ym);
+
+  // 3️⃣ Last resort: mock
+  return buildMockData(employeeId, ym);
 }
 
 // ── Excel Export ──────────────────────────────────────────────────────────
@@ -203,11 +230,12 @@ export default function AttendanceReportScreen() {
   useEffect(() => {
     if (!selectedEmp) return;
     setLoadingLogs(true);
-    fetchLogs(selectedEmp, month, isMock).then(data => {
+    const emp = employees.find(e => e.id === selectedEmp);
+    fetchLogs(selectedEmp, emp?.employee_name, month, isMock).then(data => {
       setLogs(data);
       setLoadingLogs(false);
     });
-  }, [selectedEmp, month, isMock]);
+  }, [selectedEmp, month, isMock, employees]);
 
   // Teams for filter dropdown
   const teams = useMemo(() => [...new Set(employees.map(e => e.team).filter(Boolean))], [employees]);

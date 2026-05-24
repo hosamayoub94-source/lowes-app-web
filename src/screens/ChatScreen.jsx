@@ -93,7 +93,7 @@ async function buildBotResponse(cmdText,roomId,userId,userName){
       response=!data?.length?'✅ ليس لديك مهام مفتوحة!':`📋 مهامك المفتوحة (${data.length}):\n\n${data.map(t=>`${({pending:'⏳',in_progress:'🔄',review:'👀',blocked:'🚫'}[t.status]??'📋')} ${t.title}${t.due_date?` — ${new Date(t.due_date).toLocaleDateString('ar-SA',{month:'short',day:'numeric'})}`:''}`).join('\n')}`;
     }else if(['/حضور','/attendance','/حضوري'].includes(cmdL)){
       const today=new Date().toISOString().slice(0,10);
-      const{data}=await supabase.from('attendance').select('check_in,check_out,notes').eq('user_id',userId).eq('date',today).maybeSingle();
+      const{data}=await supabase.from('attendance').select('check_in,check_out,notes').eq('employee_name',userName).eq('date',today).maybeSingle();
       response=!data?`📅 اليوم (${today}):\n\n❌ لا يوجد حضور مسجّل`:`📅 اليوم (${today}):\n\n${data.check_in?`✅ دخول: ${data.check_in}`:'❌ لم تسجّل دخول'}\n${data.check_out?`🏠 خروج: ${data.check_out}`:'⏳ لم تسجّل خروج'}${data.notes?`\n📝 ${data.notes}`:''}`;
     }else if(['/الفريق','/team','/فريق'].includes(cmdL)){
       const{data}=await supabase.from('profiles').select('employee_name,team').eq('is_active',true).order('employee_name').limit(25);

@@ -95,9 +95,14 @@ function AttendanceCard({ name }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const nowHHMM = () => {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  };
+
   const checkIn = async () => {
     setSaving(true);
-    const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = nowHHMM();
     const { error } = await supabase.from('attendance').upsert({ employee_name: name, date: todayISO(), check_in: now }, { onConflict: 'employee_name,date' });
     if (!error) await load();
     setSaving(false);
@@ -105,7 +110,7 @@ function AttendanceCard({ name }) {
 
   const checkOut = async () => {
     setSaving(true);
-    const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = nowHHMM();
     const { error } = await supabase.from('attendance').update({ check_out: now }).eq('employee_name', name).eq('date', todayISO());
     if (!error) await load();
     setSaving(false);
