@@ -475,8 +475,9 @@ export default function HomeScreen() {
       // Leave balance
       userId ? supabase.from('leave_balances').select('total_days,used_days').eq('employee_id',userId).eq('year',year).maybeSingle()
              : Promise.resolve({data:null}),
-      // Attendance chart
-      supabase.from('attendance').select('date,employee_name').gte('date',monthFrom).lte('date',today),
+      // Attendance chart — attendance table uses 'YYYY/MM/DD' date format
+      supabase.from('attendance').select('date,employee_name').eq('type','in')
+        .gte('date',monthFrom.replace(/-/g,'/')).lte('date',today.replace(/-/g,'/')),
       // Sales chart (managers)
       isManager ? supabase.from('daily_sales_reports').select('report_date,total_sales_usd').gte('report_date',monthFrom).lte('report_date',today)
                 : Promise.resolve({data:[]}),
@@ -491,8 +492,12 @@ export default function HomeScreen() {
       setKpiLoaded(true);
 
       // Attendance chart (unique attendees per day)
+      // r.date is 'YYYY/MM/DD' — convert to ISO 'YYYY-MM-DD' for key lookup
       const attByDay = {}; days.forEach(d => { attByDay[d] = new Set(); });
-      (aRes.value?.data??[]).forEach(r => { if(attByDay[r.date]) attByDay[r.date].add(r.employee_name); });
+      (aRes.value?.data??[]).forEach(r => {
+        const isoDate = r.date?.replace(/\//g, '-');
+        if(attByDay[isoDate]) attByDay[isoDate].add(r.employee_name);
+      });
       setAttChart(days.map(d => ({ day: dayLabel(d), count: attByDay[d].size })));
 
       // Sales chart

@@ -105,11 +105,12 @@ export default function ProfileScreen() {
         .eq('employee_name', name)
         .gte('created_at', monthStart + 'T00:00:00'),
 
-      // Attendance this month (simple attendance table)
-      supabase.from('attendance').select('date,check_in,check_out')
+      // Attendance this month — real schema: type='in'/'out', date='YYYY/MM/DD'
+      supabase.from('attendance').select('date,type,time_in')
         .eq('employee_name', name)
-        .gte('date', monthStart)
-        .lte('date', today.toISOString().slice(0,10)),
+        .in('type', ['in', 'out'])
+        .gte('date', monthStart.replace(/-/g, '/'))
+        .lte('date', today.toISOString().slice(0,10).replace(/-/g, '/')),
 
       // Last 5 completed tasks
       supabase.from('tasks').select('id,title,completed_at,priority')
@@ -124,9 +125,13 @@ export default function ProfileScreen() {
       setMonthPts(pts);
 
       const logs = attRes.value?.data ?? [];
-      const daysPresent = logs.filter(l => l.check_in).length;
-      const daysComplete = logs.filter(l => l.check_in && l.check_out).length;
-      setAttStats({ daysPresent, daysComplete, daysTotal: logs.length });
+      // Aggregate into unique dates (two rows per day: type in/out)
+      const inDates  = new Set(logs.filter(l => l.type === 'in').map(l => l.date));
+      const outDates = new Set(logs.filter(l => l.type === 'out').map(l => l.date));
+      const allDates = new Set([...inDates, ...outDates]);
+      const daysPresent  = inDates.size;
+      const daysComplete = [...inDates].filter(d => outDates.has(d)).length;
+      setAttStats({ daysPresent, daysComplete, daysTotal: allDates.size });
 
       setRecentTasks(taskRes.value?.data ?? []);
       setLoading(false);

@@ -153,6 +153,10 @@ export default function PerformanceScreen() {
       ).toISOString().slice(0, 10);
 
       // Fetch all data in parallel
+      // attendance table uses 'YYYY/MM/DD' date format
+      const fromSlash = from.replace(/-/g, '/');
+      const toSlash   = to.replace(/-/g, '/');
+
       const [profRes, attRes, taskRes] = await Promise.allSettled([
         supabase
           .from('profiles')
@@ -161,10 +165,11 @@ export default function PerformanceScreen() {
           .order('employee_name'),
 
         supabase
-          .from('attendance_logs')
-          .select('employee_id, work_date')
-          .gte('work_date', from)
-          .lte('work_date', to),
+          .from('attendance')
+          .select('employee_name, date, type')
+          .in('type', ['in', 'out'])
+          .gte('date', fromSlash)
+          .lte('date', toSlash),
 
         supabase
           .from('tasks')
@@ -188,11 +193,12 @@ export default function PerformanceScreen() {
       }
       workDays = Math.max(workDays, 1);
 
-      // Aggregate attendance per employee
+      // Aggregate attendance per employee (only 'in' rows = a worked day)
       const attByEmp = {};
       attLogs.forEach(l => {
-        attByEmp[l.employee_id] = (attByEmp[l.employee_id] || new Set());
-        attByEmp[l.employee_id].add(l.work_date);
+        if (l.type !== 'in') return; // count each day once via the 'in' row
+        if (!attByEmp[l.employee_name]) attByEmp[l.employee_name] = new Set();
+        attByEmp[l.employee_name].add(l.date);
       });
 
       // Aggregate tasks per employee
@@ -205,9 +211,9 @@ export default function PerformanceScreen() {
 
       // Build scored list
       const scored = profiles.map(p => {
-        const attDays  = attByEmp[p.id]?.size || 0;
+        const attDays  = attByEmp[p.employee_name]?.size || 0;
         const attPct   = clamp(Math.round((attDays / workDays) * 100));
-        const tData    = taskByEmp[p.id] || { total: 0, done: 0 };
+        const tData    = taskByEmp[p.employee_name] || { total: 0, done: 0 };
         const taskPct  = tData.total > 0 ? clamp(Math.round((tData.done / tData.total) * 100)) : 0;
 
         // Score formula: attendance 50% + tasks 50%
