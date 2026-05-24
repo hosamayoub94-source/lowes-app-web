@@ -37,6 +37,14 @@ function timeLabel(iso) {
   if (diff < 86400000) return d.toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
   return d.toLocaleDateString('ar-SA',{month:'short',day:'numeric'});
 }
+function formatLastSeen(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000)    return 'للتو';
+  if (diff < 3600000)  return `منذ ${Math.floor(diff/60000)} دقيقة`;
+  if (diff < 86400000) return `منذ ${Math.floor(diff/3600000)} ساعة`;
+  return new Date(iso).toLocaleDateString('ar-SA',{month:'short',day:'numeric'});
+}
 function dateDivider(iso) {
   const d = new Date(iso), diff = Math.floor((Date.now()-d)/86400000);
   if (diff===0) return 'اليوم';
@@ -172,7 +180,7 @@ function FileMessage({msg,isMine}){
 }
 
 // ── MessageBubble ────────────────────────────────────────────────
-function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,reactions}){
+function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,reactions,isOnline}){
   const[showMenu,setShowMenu]=useState(false),[editMode,setEditMode]=useState(false),[editText,setEditText]=useState('');
   const[showEmoji,setShowEmoji]=useState(false);
   const menuRef=useRef(null),editRef=useRef(null);
@@ -224,8 +232,11 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
     <div className={`flex mb-1.5 group animate-in slide-in-from-bottom-1 duration-150 ${isMine?'justify-end':'justify-start'}`}>
       {/* Avatar */}
       {!isMine&&(
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 me-2 mt-auto mb-0.5 select-none ${avatarColor(msg.sender_name)}`}>
-          {msg.sender_name?.[0]?.toUpperCase()??' '}
+        <div className="relative shrink-0 me-2 mt-auto mb-0.5">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs select-none ${avatarColor(msg.sender_name)}`}>
+            {msg.sender_name?.[0]?.toUpperCase()??' '}
+          </div>
+          {isOnline&&<span className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-surface block"/>}
         </div>
       )}
 
@@ -802,8 +813,10 @@ export default function ChatScreen(){
   const[searchQuery,setSearchQuery]=useState('');
   const[showSearch,setShowSearch]=useState(false);
   const[onlineUsers,setOnlineUsers]=useState([]);
+  const[globalOnline,setGlobalOnline]=useState(()=>new Set());
+  const[lastSeenMap,setLastSeenMap]=useState({});
 
-  const msgEndRef=useRef(null),subRef=useRef(null),msgContainerRef=useRef(null);
+  const msgEndRef=useRef(null),subRef=useRef(null),msgContainerRef=useRef(null),globalSubRef=useRef(null);
   const typingTimers=useRef({});
 
   // ── Pending count ──────────────────────────────────────────────
@@ -812,6 +825,30 @@ export default function ChatScreen(){
     const{count}=await supabase.from('chat_join_requests').select('*',{count:'exact',head:true}).eq('status','pending');
     setPendingCount(count??0);
   },[isApprover]);
+
+  // ── Global presence (online dots + last seen) ─────────────────
+  useEffect(()=>{
+    if(!userId||!userName)return;
+    const ch=supabase.channel('presence:global',{config:{presence:{key:userId}}});
+    globalSubRef.current=ch;
+    ch.on('presence',{event:'sync'},()=>{
+      const state=ch.presenceState()??{};
+      const names=new Set(Object.values(state).flat().map(p=>p.userName).filter(Boolean));
+      setGlobalOnline(names);
+    })
+    .on('presence',{event:'leave'},({leftPresences})=>{
+      const now=new Date().toISOString();
+      setLastSeenMap(prev=>{
+        const next={...prev};
+        leftPresences.forEach(p=>{if(p.userName&&p.userName!==userName)next[p.userName]=now;});
+        return next;
+      });
+    })
+    .subscribe(async status=>{
+      if(status==='SUBSCRIBED'){await ch.track({userId,userName}).catch(()=>{});}
+    });
+    return()=>{ch.unsubscribe();};
+  },[userId,userName]);
 
   // ── Load unread counts (2 queries for all rooms) ───────────────
   const loadUnreadCounts=useCallback(async(allRooms)=>{
@@ -1115,19 +1152,32 @@ export default function ChatScreen(){
           {dmRooms.length>0&&(
             <div>
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 mb-1">رسائل خاصة</p>
-              {dmRooms.map(r=>(
+              {dmRooms.map(r=>{
+                const dmName=r.display_name??r.name;
+                const isOnline=globalOnline.has(dmName);
+                return(
                 <button key={r.id} onClick={()=>{setActiveRoom(r);setShowMusicRoom(false);}}
                   className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${activeRoom?.id===r.id&&!showMusicRoom?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarColor(r.display_name??r.name)}`}>
-                    {(r.display_name??r.name)?.[0]?.toUpperCase()}
+                  <div className="relative shrink-0">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${avatarColor(dmName)}`}>
+                      {dmName?.[0]?.toUpperCase()}
+                    </div>
+                    {isOnline&&<span className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-surface block"/>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate block">{r.display_name??r.name}</span>
-                    {lastMsgs[r.id]&&<span className="text-[10px] text-muted/60 truncate block">{lastMsgs[r.id]}</span>}
+                    <span className="text-sm font-medium truncate block">{dmName}</span>
+                    {isOnline
+                      ? <span className="text-[10px] text-emerald-600 font-medium">متصل الآن</span>
+                      : lastMsgs[r.id]
+                        ? <span className="text-[10px] text-muted/60 truncate block">{lastMsgs[r.id]}</span>
+                        : lastSeenMap[dmName]
+                          ? <span className="text-[10px] text-muted/50">{formatLastSeen(lastSeenMap[dmName])}</span>
+                          : null
+                    }
                   </div>
                   {(unreadCounts[r.id]??0)>0&&<span className="w-5 h-5 rounded-full bg-teal text-white text-[9px] font-bold grid place-items-center shrink-0">{unreadCounts[r.id]}</span>}
                 </button>
-              ))}
+              );})}
             </div>
           )}
 
@@ -1157,12 +1207,27 @@ export default function ChatScreen(){
                 {activeRoom.is_private&&<span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">🔒 خاص</span>}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                {activeRoom.description&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
-                {onlineUsers.length>0&&(
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
-                    {onlineUsers.length} متصل{onlineUsers.length>1?'ون':''}
-                  </span>
+                {activeRoom.description&&!activeRoom.is_dm&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
+                {activeRoom.is_dm ? (
+                  globalOnline.has(activeRoom.display_name??activeRoom.name) ? (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
+                      متصل الآن
+                    </span>
+                  ) : lastSeenMap[activeRoom.display_name??activeRoom.name] ? (
+                    <span className="text-[10px] text-muted">
+                      آخر ظهور {formatLastSeen(lastSeenMap[activeRoom.display_name??activeRoom.name])}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted/60">غير متصل</span>
+                  )
+                ) : (
+                  onlineUsers.length>0&&(
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
+                      {onlineUsers.length} متصل{onlineUsers.length>1?'ون':''}
+                    </span>
+                  )
                 )}
               </div>
             </div>
@@ -1229,6 +1294,7 @@ export default function ChatScreen(){
                         onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin}
                         onImageClick={setLightboxUrl}
                         reactions={reactions[item.id]}
+                        isOnline={item.sender_id!==userId&&globalOnline.has(item.sender_name)}
                       />
                     );
                   })
