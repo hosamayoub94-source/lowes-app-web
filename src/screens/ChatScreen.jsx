@@ -11,11 +11,16 @@ import { ROLES }          from '@data/teams';
 
 // ── Constants ──────────────────────────────────────────────────
 const DEFAULT_CHANNELS = [
-  { name: '💬 عام',                team: 'عام',   description: 'قناة عامة للجميع',          requires_approval: false, is_private: false },
-  { name: '📱 الميديا والمحتوى',  team: 'ميديا', description: 'فريق السوشال ميديا',         requires_approval: true,  is_private: false },
-  { name: '🇸🇾 مبيعات سوريا',      team: 'سوريا', description: 'فريق المبيعات سوريا',       requires_approval: true,  is_private: false },
-  { name: '🇹🇷 مبيعات تركيا',      team: 'تركيا', description: 'فريق المبيعات تركيا',       requires_approval: true,  is_private: false },
-  { name: '⚙️ الإدارة والعمليات', team: 'إدارة', description: 'الإدارة والعمليات',          requires_approval: true,  is_private: false },
+  { name: '💬 عام',                team: 'عام',     description: 'قناة عامة للجميع',          requires_approval: false, is_private: false },
+  { name: '📱 الميديا والمحتوى',  team: 'ميديا',   description: 'فريق السوشال ميديا',         requires_approval: false, is_private: false },
+  { name: '🇸🇾 مبيعات سوريا',      team: 'سوريا',   description: 'فريق المبيعات سوريا',       requires_approval: false, is_private: false },
+  { name: '🇹🇷 مبيعات تركيا',      team: 'تركيا',   description: 'فريق المبيعات تركيا',       requires_approval: false, is_private: false },
+  { name: '⚙️ الإدارة والعمليات', team: 'إدارة',   description: 'الإدارة والعمليات',          requires_approval: false, is_private: false },
+  { name: '💼 المبيعات',           team: 'مبيعات',  description: 'فريق المبيعات',              requires_approval: false, is_private: false },
+  { name: '🇦🇪 دبي',               team: 'دبي',     description: 'فريق الإمارات',              requires_approval: false, is_private: false },
+  { name: '🌐 إسطنبول',            team: 'إسطنبول', description: 'فريق إسطنبول',              requires_approval: false, is_private: false },
+  { name: '🇸🇾 دمشق',              team: 'دمشق',    description: 'فريق دمشق',                 requires_approval: false, is_private: false },
+  { name: '🇸🇦 الرياض',            team: 'الرياض',  description: 'فريق الرياض',               requires_approval: false, is_private: false },
 ];
 const APPROVER_ROLES = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER];
 const QUICK_EMOJIS   = ['👍','❤️','😂','😮','😢','🔥'];
@@ -566,8 +571,19 @@ function DiscoverPanel({allChannels,memberRoomIds,userId,userName,onClose,onRequ
   const requestJoin=async room=>{
     setSending(room.id);
     try{
-      await supabase.from('chat_join_requests').upsert({room_id:room.id,room_name:room.name,user_id:userId,user_name:userName,status:'pending',requested_at:new Date().toISOString()},{onConflict:'room_id,user_id'});
-      setRequests(p=>({...p,[room.id]:'pending'}));onRequestSent?.();
+      if(!room.requires_approval){
+        // Join directly — no approval needed
+        await supabase.from('chat_room_members').upsert(
+          {room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()},
+          {onConflict:'room_id,user_id'}
+        );
+        setRequests(p=>({...p,[room.id]:'approved'}));
+        onRequestSent?.();
+      }else{
+        await supabase.from('chat_join_requests').upsert({room_id:room.id,room_name:room.name,user_id:userId,user_name:userName,status:'pending',requested_at:new Date().toISOString()},{onConflict:'room_id,user_id'});
+        setRequests(p=>({...p,[room.id]:'pending'}));
+        onRequestSent?.();
+      }
     }catch(e){alert('فشل: '+e.message);}finally{setSending(null);}
   };
   return(
@@ -587,10 +603,10 @@ function DiscoverPanel({allChannels,memberRoomIds,userId,userName,onClose,onRequ
                 <div className="w-9 h-9 rounded-xl bg-teal/10 text-teal flex items-center justify-center text-lg font-bold shrink-0">#</div>
                 <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-text truncate">{room.name}</p><p className="text-xs text-muted truncate">{room.description}</p></div>
                 {status==='pending'?<span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">⏳ معلق</span>
-                :status==='approved'?<span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">✓ مقبول</span>
+                :status==='approved'?<span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">✓ تم الانضمام</span>
                 :status==='rejected'?<span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">✕ مرفوض</span>
                 :<button onClick={()=>requestJoin(room)} disabled={sending===room.id} className="px-3 py-1.5 rounded-xl bg-teal text-white text-[11px] font-bold hover:bg-teal/90 disabled:opacity-50 transition shrink-0">
-                  {sending===room.id?'⏳':'+  طلب'}
+                  {sending===room.id?'⏳':room.requires_approval?'طلب انضمام':'+ انضمام'}
                 </button>}
               </div>
             );
@@ -962,6 +978,17 @@ export default function ChatScreen(){
     if(!subRef.current||!userId)return;
     try{subRef.current.send({type:'broadcast',event:'typing',payload:{userId,userName}});}catch{}
   },[userId,userName]);
+
+  // ── Auto-refresh sidebar when membership changes ──────────────
+  useEffect(()=>{
+    if(!userId)return;
+    const ch=supabase.channel(`members:${userId}`)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_room_members',filter:`user_id=eq.${userId}`},()=>{
+        loadRooms();
+      })
+      .subscribe();
+    return()=>{ch.unsubscribe();};
+  },[userId,loadRooms]);
 
   // ── Room subscription ──────────────────────────────────────────
   useEffect(()=>{
