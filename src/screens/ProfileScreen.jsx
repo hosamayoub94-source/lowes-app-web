@@ -1,130 +1,129 @@
 // =============================================================
-// ProfileScreen — employee profile with points, level & schedule
+// ProfileScreen 2.0 — بطاقة الموظف الشخصية
+// avatar · level ring · stats · جدول العمل · تفضيلات
 // =============================================================
-import { useEffect, useState } from 'react';
-import { Hero } from '@components/ui/Hero';
-import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
-import { Avatar } from '@components/ui/Avatar';
-import { Button } from '@components/ui/Button';
-import { useAuth } from '@hooks/useAuth';
-import { useTheme } from '@hooks/useTheme';
+import { useEffect, useState, useRef } from 'react';
+import { useAuth }    from '@hooks/useAuth';
+import { useTheme }   from '@hooks/useTheme';
 import { useUiStore } from '@stores/uiStore';
+import { supabase }   from '@services/supabase';
 import { ROLE_LABELS } from '@data/teams';
 
-// ── Level system (mirrors task.types) ────────────────────────
+// ── Level system ───────────────────────────────────────────────
 const LEVELS = [
-  { min: 500, max: Infinity, icon: '🏆', label: 'أسطورة',  cls: 'bg-green-bg text-green-fg'  },
-  { min: 300, max: 499,      icon: '💎', label: 'خبير',    cls: 'bg-teal/10 text-teal'       },
-  { min: 150, max: 299,      icon: '🔥', label: 'محترف',   cls: 'bg-amber-bg text-amber-fg'  },
-  { min: 50,  max: 149,      icon: '⭐', label: 'نجم',     cls: 'bg-blue-bg text-blue-fg'    },
-  { min: 0,   max: 49,       icon: '🌱', label: 'مبتدئ',  cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
+  { min: 500, icon: '🏆', label: 'أسطورة',  ring: '#10b981', bg: 'from-emerald-500 to-teal-600' },
+  { min: 300, icon: '💎', label: 'خبير',    ring: '#0d7377', bg: 'from-teal-500 to-cyan-600'    },
+  { min: 150, icon: '🔥', label: 'محترف',   ring: '#f59e0b', bg: 'from-amber-500 to-orange-500' },
+  { min: 50,  icon: '⭐', label: 'نجم',     ring: '#3b82f6', bg: 'from-blue-500 to-indigo-500'  },
+  { min: 0,   icon: '🌱', label: 'مبتدئ',  ring: '#6b7280', bg: 'from-gray-400 to-slate-500'   },
 ];
-function getLevel(pts = 0) {
-  return LEVELS.find(l => pts >= l.min && pts <= l.max) || LEVELS[LEVELS.length - 1];
+function getLevel(pts = 0) { return LEVELS.find(l => pts >= l.min) ?? LEVELS[LEVELS.length-1]; }
+
+const SHIFT_ICONS = { morning:'🌅', evening:'🌇', night:'🌙', flexible:'🕐' };
+const SHIFT_NAMES = { morning:'صباحي', evening:'مسائي', night:'ليلي', flexible:'مرن' };
+
+// ── Avatar color (same as chat) ────────────────────────────────
+function avatarBg(name) {
+  const colors = ['#0d7377','#0f1f3d','#f59e0b','#e11d48','#7c3aed','#059669'];
+  let h = 0; for (const c of (name||'')) h = (h*31+c.charCodeAt(0))%colors.length;
+  return colors[h];
 }
 
-// ── Shift labels ──────────────────────────────────────────────
-const SHIFT_LABELS = {
-  morning:  { label: 'صباحي',  icon: '🌅' },
-  evening:  { label: 'مسائي',  icon: '🌇' },
-  night:    { label: 'ليلي',   icon: '🌙' },
-  flexible: { label: 'مرن',    icon: '🕐' },
-};
-
-// ── Data fetchers ─────────────────────────────────────────────
-async function fetchFullProfile(userId) {
-  const { supabase } = await import('@services/supabase');
-  const { data, error } = await supabase
-    .from('profiles').select('*').eq('id', userId).single();
-  if (error) throw error;
-  return data;
-}
-
-async function fetchMonthlyPoints(employeeName) {
-  if (!employeeName) return 0;
-  const { supabase } = await import('@services/supabase');
-  const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
-  const { data } = await supabase
-    .from('task_points').select('points')
-    .eq('employee_name', employeeName)
-    .gte('created_at', from.toISOString());
-  return (data ?? []).reduce((s, r) => s + (r.points || 0), 0);
-}
-
-async function fetchProfileStats(userId) {
-  const { supabase } = await import('@services/supabase');
-  const month = new Date().toISOString().slice(0, 7);
-  const [attRes, salRes] = await Promise.all([
-    supabase.from('attendance_logs')
-      .select('check_in, check_out, work_date')
-      .eq('employee_id', userId)
-      .gte('work_date', month + '-01')
-      .lte('work_date', month + '-31')
-      .order('work_date', { ascending: false }),
-    supabase.from('employee_salary_settings')
-      .select('base_salary_usd, currency')
-      .eq('employee_id', userId)
-      .order('effective_date', { ascending: false })
-      .limit(1).maybeSingle(),
-  ]);
-  const logs = attRes.data ?? [];
-  let mins = 0;
-  for (const l of logs) {
-    if (l.check_in && l.check_out) mins += (new Date(l.check_out) - new Date(l.check_in)) / 60000;
-  }
-  return {
-    daysWorked:   logs.length,
-    hoursWorked:  Math.round(mins / 60),
-    lastWorkDate: logs[0]?.work_date ?? null,
-    salary:       salRes.data?.base_salary_usd ? Number(salRes.data.base_salary_usd).toLocaleString() : null,
-    salaryCur:    salRes.data?.currency ?? 'USD',
-  };
-}
-
-// ── Sub-components ────────────────────────────────────────────
-function InfoRow({ label, value }) {
-  if (!value) return null;
+// ── Circular progress (SVG) ────────────────────────────────────
+function LevelRing({ pct, color, icon, size = 96 }) {
+  const r = size/2 - 8;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * (1 - pct/100);
   return (
-    <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-      <span className="text-xs text-muted">{label}</span>
-      <span className="text-sm font-semibold text-text">{value}</span>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth="7" className="text-border/30" />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeDasharray={circ} strokeDashoffset={dash}
+          strokeLinecap="round" className="transition-all duration-1000" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-3xl">{icon}</div>
     </div>
   );
 }
 
-function StatCard({ icon, label, value, tone = 'teal' }) {
-  const cls = { teal: 'text-teal', green: 'text-green-fg', blue: 'text-blue-fg', amber: 'text-amber-fg' };
+// ── Skel ───────────────────────────────────────────────────────
+function Skel({ className='' }) {
+  return <div className={`bg-surface-alt animate-pulse rounded-xl ${className}`} />;
+}
+
+// ── Toggle switch ──────────────────────────────────────────────
+function Toggle({ checked, onChange, label, sub }) {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col gap-1">
-      <div className="text-2xl">{icon}</div>
-      <div className={`text-xl font-bold ${cls[tone] ?? 'text-teal'}`}>{value}</div>
-      <div className="text-xs text-muted">{label}</div>
-    </div>
+    <button onClick={onChange} className="flex items-center justify-between w-full py-3 gap-3 text-start">
+      <div>
+        <p className="text-sm font-semibold text-text">{label}</p>
+        {sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}
+      </div>
+      <div className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${checked ? 'bg-teal' : 'bg-border'}`}>
+        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0.5 rtl:translate-x-[-2px]'}`} />
+      </div>
+    </button>
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 export default function ProfileScreen() {
   const { id, name, role, team, avatar_url, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme }   = useTheme();
   const lang       = useUiStore(s => s.lang);
   const toggleLang = useUiStore(s => s.toggleLang);
 
   const [profile, setProfile]         = useState(null);
-  const [stats, setStats]             = useState(null);
-  const [monthPoints, setMonthPoints] = useState(0);
-  const [statsErr, setStatsErr]       = useState(null);
+  const [monthPts, setMonthPts]       = useState(0);
+  const [attStats, setAttStats]       = useState(null);
+  const [recentTasks, setRecentTasks] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [uploading, setUploading]     = useState(false);
+  const fileRef = useRef(null);
 
+  // Load everything in parallel
   useEffect(() => {
-    if (!id) return;
-    fetchFullProfile(id).then(setProfile).catch(() => {});
-    fetchProfileStats(id).then(setStats).catch(e => setStatsErr(e.message));
-  }, [id]);
+    if (!id || !name) return;
+    const today    = new Date();
+    const monthStr = today.toISOString().slice(0, 7);
+    const monthStart = monthStr + '-01';
 
-  useEffect(() => {
-    if (!profile?.employee_name) return;
-    fetchMonthlyPoints(profile.employee_name).then(setMonthPoints).catch(() => {});
-  }, [profile?.employee_name]);
+    Promise.allSettled([
+      supabase.from('profiles').select('*').eq('id', id).single(),
+
+      // Monthly points
+      supabase.from('task_points').select('points')
+        .eq('employee_name', name)
+        .gte('created_at', monthStart + 'T00:00:00'),
+
+      // Attendance this month (simple attendance table)
+      supabase.from('attendance').select('date,check_in,check_out')
+        .eq('employee_name', name)
+        .gte('date', monthStart)
+        .lte('date', today.toISOString().slice(0,10)),
+
+      // Last 5 completed tasks
+      supabase.from('tasks').select('id,title,completed_at,priority')
+        .ilike('assigned_to', `%${name}%`)
+        .in('status', ['done','completed','مكتملة'])
+        .order('completed_at', { ascending: false })
+        .limit(5),
+    ]).then(([pRes, ptRes, attRes, taskRes]) => {
+      if (pRes.status === 'fulfilled') setProfile(pRes.value.data);
+
+      const pts = (ptRes.value?.data ?? []).reduce((s,r) => s+(r.points||0), 0);
+      setMonthPts(pts);
+
+      const logs = attRes.value?.data ?? [];
+      const daysPresent = logs.filter(l => l.check_in).length;
+      const daysComplete = logs.filter(l => l.check_in && l.check_out).length;
+      setAttStats({ daysPresent, daysComplete, daysTotal: logs.length });
+
+      setRecentTasks(taskRes.value?.data ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [id, name]);
 
   const totalPoints = profile?.total_points ?? 0;
   const level       = getLevel(totalPoints);
@@ -133,174 +132,207 @@ export default function ProfileScreen() {
     ? Math.min(Math.round(((totalPoints - level.min) / (nextLevel.min - level.min)) * 100), 99)
     : 100;
 
-  const shiftMeta = profile?.shift_type ? SHIFT_LABELS[profile.shift_type] : null;
-  const hasSchedule = shiftMeta || profile?.work_start || profile?.rest_day;
+  // Avatar upload
+  const handleAvatarChange = async e => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setUploading(true);
+    try {
+      const path = `avatars/${id}.${file.name.split('.').pop()}`;
+      const { data, error } = await supabase.storage.from('chat-files').upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data: u } = supabase.storage.from('chat-files').getPublicUrl(data.path);
+      await supabase.from('profiles').update({ avatar_url: u.publicUrl }).eq('id', id);
+      setProfile(p => ({ ...p, avatar_url: u.publicUrl }));
+    } catch (e) { alert('فشل رفع الصورة: ' + e.message); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
+
+  const avatarSrc  = profile?.avatar_url ?? avatar_url;
+  const shiftMeta  = profile?.shift_type ? { icon: SHIFT_ICONS[profile.shift_type], name: SHIFT_NAMES[profile.shift_type] } : null;
 
   return (
-    <div className="space-y-5" dir="rtl">
-      <Hero eyebrow="الملف الشخصي" title="حسابي" subtitle="بياناتك الشخصية وإحصائياتك." />
+    <div className="max-w-lg mx-auto space-y-4 pb-24 sm:pb-8" dir="rtl">
 
-      {/* ── Identity card ── */}
-      <Card>
-        <div className="flex items-start gap-4">
+      {/* ── Hero card ────────────────────────────────────────── */}
+      <div className={`bg-gradient-to-br ${level.bg} rounded-3xl p-6 text-white shadow-xl relative overflow-hidden`}>
+        {/* bg decoration */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -top-8 -start-8 w-40 h-40 rounded-full bg-white" />
+          <div className="absolute -bottom-12 -end-12 w-56 h-56 rounded-full bg-white" />
+        </div>
+
+        <div className="relative flex items-center gap-4">
+          {/* Avatar */}
           <div className="relative shrink-0">
-            <Avatar name={name || ''} src={avatar_url} size="2xl" />
-            <span className="absolute -bottom-1 -end-1 text-xl leading-none" title={level.label}>
-              {level.icon}
-            </span>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading}
+              className="relative block group">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg border-2 border-white/30">
+                {avatarSrc
+                  ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-3xl font-extrabold text-white"
+                      style={{ background: avatarBg(name) }}>
+                      {name?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                }
+              </div>
+              <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center">
+                {uploading
+                  ? <span className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                  : <span className="text-white opacity-0 group-hover:opacity-100 text-lg">📷</span>
+                }
+              </div>
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xl font-extrabold truncate text-text">{name || '—'}</div>
-            <div className="text-sm text-muted">{ROLE_LABELS[role] ?? role ?? ''}</div>
-            {team && <div className="text-xs text-muted mt-0.5">الفريق: {team}</div>}
-            <span className={`inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-full text-xs font-bold ${level.cls}`}>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-extrabold truncate leading-tight">{name || '—'}</p>
+            <p className="text-sm text-white/80 mt-0.5">{ROLE_LABELS[role] ?? role ?? ''}</p>
+            {team && <p className="text-xs text-white/60 mt-0.5">الفريق: {team}</p>}
+            <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-white/20 text-sm font-bold">
               {level.icon} {level.label}
             </span>
           </div>
-        </div>
-        <div className="mt-4">
-          <InfoRow label="الدور"      value={ROLE_LABELS[role] ?? role} />
-          <InfoRow label="الفريق"     value={team} />
-          {profile?.page_name && <InfoRow label="اسم الصفحة"   value={profile.page_name} />}
-          {stats?.lastWorkDate && (
-            <InfoRow label="آخر حضور" value={new Date(stats.lastWorkDate).toLocaleDateString('ar')} />
-          )}
-          {stats?.salary && <InfoRow label="الراتب" value={`$${stats.salary}`} />}
-        </div>
-      </Card>
 
-      {/* ── Points & Level ── */}
-      <Card>
-        <CardTitle>⭐ النقاط والمستوى</CardTitle>
-        <CardSubtitle>تقدمك في نظام مكافآت الفريق</CardSubtitle>
-        <div className="mt-4 space-y-4">
-          {/* Level badge + progress */}
-          <div className="flex items-center gap-3">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${level.cls}`}>
-              {level.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-bold text-text">{level.label}</span>
-                <span className="text-xs font-semibold text-teal">{totalPoints} نقطة</span>
+          {/* Level ring */}
+          <LevelRing pct={levelPct} color="rgba(255,255,255,0.85)" icon={level.icon} />
+        </div>
+
+        {/* Points bar */}
+        <div className="relative mt-5">
+          <div className="flex items-center justify-between text-xs text-white/70 mb-1.5">
+            <span>{totalPoints} نقطة</span>
+            {nextLevel && <span>{nextLevel.min - totalPoints} للـ {nextLevel.icon}</span>}
+          </div>
+          <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
+            <div className="h-2 rounded-full bg-white transition-all duration-700" style={{ width: `${levelPct}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stats row ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: '⭐', val: loading ? '…' : totalPoints,           label: 'إجمالي النقاط',   color: 'text-teal' },
+          { icon: '📈', val: loading ? '…' : `+${monthPts}`,        label: 'نقاط هذا الشهر',  color: 'text-emerald-600' },
+          { icon: '📅', val: loading ? '…' : (attStats?.daysPresent ?? '—'), label: 'أيام الحضور',      color: 'text-blue-600' },
+        ].map(s => (
+          <div key={s.label} className="bg-surface border border-border rounded-2xl p-3.5 text-center">
+            <p className="text-lg mb-1">{s.icon}</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${s.color}`}>{s.val}</p>
+            <p className="text-[10px] text-muted mt-0.5 font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Level ladder ──────────────────────────────────────── */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-sm font-bold text-text">سلّم المستويات</p>
+        </div>
+        <div className="p-3 space-y-1.5">
+          {[...LEVELS].reverse().map(l => {
+            const isCurrent = l.label === level.label;
+            return (
+              <div key={l.label}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isCurrent ? `bg-gradient-to-l ${l.bg} text-white font-bold` : 'text-muted hover:bg-surface-alt'}`}>
+                <span className="text-xl shrink-0">{l.icon}</span>
+                <span className="flex-1 text-sm">{l.label}</span>
+                <span className={`text-xs tabular-nums font-semibold ${isCurrent ? 'text-white/80' : ''}`}>{l.min}+ نقطة</span>
+                {isCurrent && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">أنت هنا</span>}
               </div>
-              <div className="w-full bg-border rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-2 rounded-full bg-teal transition-all duration-700"
-                  style={{ width: `${levelPct}%` }}
-                />
-              </div>
-              {nextLevel ? (
-                <div className="text-[10px] text-muted mt-1">
-                  {nextLevel.min - totalPoints} نقطة للوصول إلى {nextLevel.icon} {nextLevel.label}
-                </div>
-              ) : (
-                <div className="text-[10px] text-teal mt-1 font-semibold">المستوى الأعلى — أسطورة الفريق! 🎉</div>
-              )}
-            </div>
-          </div>
-
-          {/* Points stat grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-surface-alt rounded-xl p-3 text-center">
-              <div className="text-2xl font-bold text-teal">{totalPoints}</div>
-              <div className="text-xs text-muted mt-0.5">إجمالي النقاط</div>
-            </div>
-            <div className="bg-surface-alt rounded-xl p-3 text-center">
-              <div className="text-2xl font-bold text-green-fg">+{monthPoints}</div>
-              <div className="text-xs text-muted mt-0.5">نقاط هذا الشهر</div>
-            </div>
-          </div>
-
-          {/* All levels reference */}
-          <div>
-            <div className="text-xs font-semibold text-muted mb-2">سلّم المستويات</div>
-            <div className="space-y-1">
-              {[...LEVELS].reverse().map(l => (
-                <div
-                  key={l.label}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs ${l.label === level.label ? 'font-bold ' + l.cls : 'text-muted'}`}
-                >
-                  <span>{l.icon} {l.label}</span>
-                  <span>{l.min === 0 ? '0' : l.min === Infinity ? '∞' : l.min}+ نقطة</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            );
+          })}
         </div>
-        <div className="mt-4">
-          <InfoRow label="الدور"   value={ROLE_LABELS[role] ?? role} />
-          <InfoRow label="الفريق"  value={team} />
-          {stats?.lastWorkDate && (
-            <InfoRow label="آخر حضور" value={new Date(stats.lastWorkDate).toLocaleDateString('ar')} />
-          )}
-          {stats?.salary && (
-            <InfoRow label="الراتب الأساسي" value={'$' + stats.salary} />
-          )}
-        </div>
-      </Card>
+      </div>
 
-      {/* ── Work schedule ── */}
-      {hasSchedule && (
-        <Card>
-          <CardTitle>🗓️ جدول العمل</CardTitle>
-          <CardSubtitle>ورديتك وساعات دوامك الرسمي</CardSubtitle>
-          <div className="mt-4">
+      {/* ── Work schedule ─────────────────────────────────────── */}
+      {(shiftMeta || profile?.work_start || profile?.rest_day) && (
+        <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+          <p className="text-sm font-bold text-text">🗓️ جدول العمل</p>
+          <div className="space-y-0">
             {shiftMeta && (
-              <InfoRow label="نوع الوردية" value={`${shiftMeta.icon} ${shiftMeta.label}`} />
+              <div className="flex items-center justify-between py-2.5 border-b border-border/50">
+                <span className="text-xs text-muted">نوع الوردية</span>
+                <span className="text-sm font-semibold text-text">{shiftMeta.icon} {shiftMeta.name}</span>
+              </div>
             )}
             {profile?.work_start && profile?.work_end && (
-              <InfoRow label="ساعات العمل" value={`${profile.work_start} – ${profile.work_end}`} />
+              <div className="flex items-center justify-between py-2.5 border-b border-border/50">
+                <span className="text-xs text-muted">ساعات الدوام</span>
+                <span className="text-sm font-semibold text-text font-mono">{profile.work_start} – {profile.work_end}</span>
+              </div>
             )}
             {profile?.rest_day && (
-              <InfoRow label="يوم الراحة" value={profile.rest_day} />
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted">يوم الراحة</span>
+                <span className="text-sm font-semibold text-text">{profile.rest_day}</span>
+              </div>
             )}
           </div>
-        </Card>
-      )}
-
-      {/* ── Attendance stats ── */}
-      {statsErr ? (
-        <div className="text-xs text-red-500 bg-red-50 rounded-xl px-4 py-3">{statsErr}</div>
-      ) : (
-        <div>
-          <h2 className="text-sm font-semibold text-muted mb-3">إحصائيات الشهر الحالي</h2>
-          {stats === null ? (
-            <div className="text-center py-8 text-muted text-sm">جار التحميل…</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <StatCard icon="📅" label="أيام الحضور"    value={stats.daysWorked}                  tone="teal"  />
-              <StatCard icon="⏱️" label="ساعات العمل"    value={stats.hoursWorked + ' ساعة'}       tone="blue"  />
-              {stats.salary && (
-                <StatCard icon="💰" label="الراتب الأساسي" value={'$' + stats.salary}              tone="green" />
-              )}
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Preferences ── */}
-      <Card>
-        <CardTitle>التفضيلات</CardTitle>
-        <CardSubtitle>تخصيص واجهة الاستخدام</CardSubtitle>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button variant="secondary" size="lg" onClick={toggleTheme}>
-            الثيم: {theme === 'dark' ? 'ليلي 🌙' : 'نهاري ☀️'} — تبديل
-          </Button>
-          <Button variant="secondary" size="lg" onClick={toggleLang}>
-            اللغة: {lang === 'ar' ? 'العربية' : 'English'} — تبديل
-          </Button>
+      {/* ── Recent completed tasks ────────────────────────────── */}
+      {recentTasks.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-bold text-text">✅ آخر المهام المنجزة</p>
+          </div>
+          <div className="divide-y divide-border/50">
+            {recentTasks.map(t => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <p className="flex-1 text-sm text-text truncate font-medium">{t.title}</p>
+                {t.completed_at && (
+                  <span className="text-[10px] text-muted shrink-0">
+                    {new Date(t.completed_at).toLocaleDateString('ar-SA', { month:'short', day:'numeric' })}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </Card>
+      )}
 
-      {/* ── Session ── */}
-      <Card>
-        <CardTitle>الجلسة</CardTitle>
-        <CardSubtitle>إدارة الجلسة الحالية</CardSubtitle>
-        <div className="mt-4">
-          <Button variant="danger" onClick={logout}>تسجيل الخروج</Button>
+      {/* ── Profile info ──────────────────────────────────────── */}
+      {profile?.page_name && (
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">السوشال ميديا</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📱</span>
+            <span className="text-sm font-semibold text-text">{profile.page_name}</span>
+          </div>
         </div>
-      </Card>
+      )}
+
+      {/* ── Preferences ───────────────────────────────────────── */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-sm font-bold text-text mb-1">التفضيلات</p>
+        </div>
+        <div className="px-4 divide-y divide-border/50 pb-2">
+          <Toggle
+            checked={theme === 'dark'}
+            onChange={toggleTheme}
+            label="الوضع المظلم"
+            sub={theme === 'dark' ? 'مفعّل 🌙' : 'غير مفعّل ☀️'}
+          />
+          <Toggle
+            checked={lang !== 'ar'}
+            onChange={toggleLang}
+            label="اللغة الإنجليزية"
+            sub={lang === 'ar' ? 'العربية حالياً' : 'English mode'}
+          />
+        </div>
+      </div>
+
+      {/* ── Logout ────────────────────────────────────────────── */}
+      <button onClick={logout}
+        className="w-full py-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-600 font-bold text-sm hover:bg-red-100 transition-all hover:scale-[1.01] active:scale-[0.99]">
+        🚪 تسجيل الخروج
+      </button>
     </div>
   );
 }

@@ -219,6 +219,88 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
   );
 }
 
+// ── Kanban View ───────────────────────────────────────────────
+const KANBAN_COLS = [
+  { key:'pending',     label:'⏳ قيد الانتظار', color:'border-amber-300 bg-amber-50/50',   dot:'bg-amber-400' },
+  { key:'in_progress', label:'🔄 جارية',         color:'border-teal/30 bg-teal/5',          dot:'bg-teal'      },
+  { key:'review',      label:'👀 مراجعة',         color:'border-violet-300 bg-violet-50/50', dot:'bg-violet-400'},
+  { key:'done',        label:'✅ منجزة',          color:'border-emerald-300 bg-emerald-50/50',dot:'bg-emerald-500'},
+];
+const STATUS_COL_MAP = {
+  pending:'pending', open:'pending', 'قيد الانتظار':'pending',
+  in_progress:'in_progress', 'جارية':'in_progress', 'قيد التنفيذ':'in_progress',
+  review:'review', blocked:'review', 'مراجعة':'review',
+  done:'done', completed:'done', 'مكتملة':'done', 'منجزة':'done',
+};
+
+const PRIORITY_COLOR = { urgent:'text-red-500', high:'text-orange-500', medium:'text-amber-500', low:'text-blue-400' };
+const PRIORITY_ICON  = { urgent:'⚡', high:'▲', medium:'△', low:'▽' };
+
+function KanbanCard({ task, onClick }) {
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','مكتملة'].includes(task.status);
+  return (
+    <button onClick={onClick} className="w-full text-start bg-surface border border-border rounded-xl p-3 shadow-sm hover:border-teal/30 hover:shadow-md transition-all duration-150 group active:scale-[0.98]">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-sm font-semibold text-text leading-snug line-clamp-2 flex-1">{task.title}</p>
+        {task.priority && (
+          <span className={`text-xs shrink-0 ${PRIORITY_COLOR[task.priority] ?? 'text-muted'}`} title={task.priority}>
+            {PRIORITY_ICON[task.priority] ?? '·'}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap mt-2">
+        {task.assigned_to && (
+          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full truncate max-w-[100px]">👤 {task.assigned_to}</span>
+        )}
+        {task.due_date && (
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
+            {isOverdue ? '⚠️' : '📅'} {task.due_date.slice(5)}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function KanbanView({ tasks, onOpen }) {
+  const byCol = useMemo(() => {
+    const m = {};
+    KANBAN_COLS.forEach(c => { m[c.key] = []; });
+    tasks.forEach(t => {
+      const col = STATUS_COL_MAP[t.status] ?? 'pending';
+      m[col].push(t);
+    });
+    return m;
+  }, [tasks]);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1 snap-x" style={{ minHeight: '400px' }}>
+      {KANBAN_COLS.map(col => (
+        <div key={col.key} className={`shrink-0 w-64 sm:w-72 rounded-2xl border-2 ${col.color} flex flex-col snap-start`}>
+          {/* Column header */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/5">
+            <div className={`w-2 h-2 rounded-full ${col.dot}`} />
+            <span className="text-xs font-bold text-text">{col.label}</span>
+            <span className="ms-auto text-xs font-bold text-muted bg-surface/70 px-2 py-0.5 rounded-full">
+              {byCol[col.key].length}
+            </span>
+          </div>
+          {/* Cards */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]">
+            {byCol[col.key].length === 0 ? (
+              <div className="flex items-center justify-center h-24 text-muted/40 text-xs font-medium">
+                لا توجد مهام
+              </div>
+            ) : (
+              byCol[col.key].map(t => <KanbanCard key={t.id} task={t} onClick={() => onOpen(t.id)} />)
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionHeader({ count, hasFilters, onReset }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -270,7 +352,7 @@ function UnseenIndicator({ count }) {
   );
 }
 
-function PageHeader({ unseenCount, onRefresh, loading, onAdd }) {
+function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewChange }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -281,6 +363,23 @@ function PageHeader({ unseenCount, onRefresh, loading, onAdd }) {
         <p className="text-sm text-muted mt-0.5">تابع وأدِر جميع مهام الفريق من مكان واحد</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {/* View toggle */}
+        <div className="flex items-center bg-surface border border-border rounded-xl overflow-hidden">
+          <button type="button" onClick={() => onViewChange('grid')} title="عرض شبكي"
+            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'grid' ? 'bg-teal text-white' : 'text-muted hover:text-text')}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </button>
+          <button type="button" onClick={() => onViewChange('kanban')} title="عرض كانبان"
+            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'kanban' ? 'bg-teal text-white' : 'text-muted hover:text-text')}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="14" rx="1"/>
+              <rect x="17" y="3" width="5" height="10" rx="1"/>
+            </svg>
+          </button>
+        </div>
         <button type="button" onClick={onRefresh} disabled={loading}
           className={cn('w-9 h-9 rounded-xl bg-surface border border-border grid place-items-center','text-muted hover:text-text hover:border-teal/40 transition-all',loading && 'animate-spin')}
           aria-label="تحديث">
@@ -307,6 +406,7 @@ function TasksPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
   const userId = useAuthStore((s) => s.user?.id);
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
@@ -348,6 +448,8 @@ function TasksPage() {
         onRefresh={handleRefresh}
         loading={loading}
         onAdd={() => setCreateOpen(true)}
+        viewMode={viewMode}
+        onViewChange={setViewMode}
       />
 
       {/* ── Error banner ── */}
@@ -361,7 +463,10 @@ function TasksPage() {
       ) : (
         <div className="space-y-3">
           <SectionHeader count={filteredTasks.length} hasFilters={hasFilters} onReset={resetFilters} />
-          <TaskGrid tasks={filteredTasks} onOpen={openTask} />
+          {viewMode === 'kanban'
+            ? <KanbanView tasks={filteredTasks} onOpen={openTask} />
+            : <TaskGrid tasks={filteredTasks} onOpen={openTask} />
+          }
         </div>
       )}
       <TaskDetailsDrawer task={selectedTask} open={drawerOpen} onClose={closeDrawer} onStatusChange={changeStatus} onProgressChange={changeProgress} onAddComment={postComment} actionLoading={actionLoading} />
