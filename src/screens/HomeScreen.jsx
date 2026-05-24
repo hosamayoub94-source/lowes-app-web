@@ -3,17 +3,30 @@
 // تحية بحسب الوقت · حضور سريع · مهام اليوم ·
 // آخر إعلان · تهنئة اليوم · KPIs · Charts
 // =============================================================
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { useAuth }  from '@hooks/useAuth';
+import { useTheme } from '@hooks/useTheme';
 import { navItemsForRole } from '@data/navigation';
 import { Link }     from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
+
+// ── Chart colors (theme-aware) ──────────────────────────────────
+function useChartColors() {
+  const { isDark } = useTheme();
+  return useMemo(() => ({
+    axis:   isDark ? '#8b949e' : '#6b7280',
+    grid:   isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,31,61,0.08)',
+    teal:   'rgb(13,115,119)',
+    green:  isDark ? '#3fb950' : '#10b981',
+    cursor: isDark ? 'rgba(13,115,119,0.12)' : 'rgba(13,115,119,0.06)',
+  }), [isDark]);
+}
 
 // ── Time helpers ────────────────────────────────────────────────
 function greeting() {
@@ -47,7 +60,7 @@ function sameMonthDay(dateStr, today) {
 
 // ── Avatar color (consistent) ───────────────────────────────────
 function avatarColor(name) {
-  const colors = ['bg-teal/20 text-teal','bg-navy/20 text-navy','bg-amber-100 text-amber-700','bg-rose-100 text-rose-700','bg-violet-100 text-violet-700','bg-emerald-100 text-emerald-700'];
+  const colors = ['bg-teal/20 text-teal','bg-navy/20 text-navy','bg-amber/20 text-amber','bg-red/20 text-red','bg-purple/20 text-purple','bg-green/20 text-green'];
   let h = 0; for (const c of (name||'')) h = (h*31+c.charCodeAt(0))%colors.length;
   return colors[h];
 }
@@ -391,6 +404,7 @@ export default function HomeScreen() {
   const { name, role, id: userId } = useAuth();
   const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
   const g = greeting();
+  const cc = useChartColors();
 
   // KPIs
   const [kpi, setKpi]         = useState({ tasks: '—', notifs: '—', leave: '—', sales: '—' });
@@ -502,11 +516,11 @@ export default function HomeScreen() {
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={attChart} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: 'rgba(13,115,119,0.06)' }} />
-                  <Bar dataKey="count" fill="rgb(13,115,119)" radius={[6,6,0,0]} maxBarSize={40} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: cc.cursor }} />
+                  <Bar dataKey="count" fill={cc.teal} radius={[6,6,0,0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -519,12 +533,12 @@ export default function HomeScreen() {
               <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={salesChart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTooltip prefix="$" />} />
-                    <Line type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2.5}
-                      dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="sales" stroke={cc.green} strokeWidth={2.5}
+                      dot={{ fill: cc.green, r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

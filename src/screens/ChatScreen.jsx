@@ -77,7 +77,7 @@ function fileIcon(name) {
 }
 // Consistent avatar color from name
 function avatarColor(name) {
-  const colors=['bg-teal/20 text-teal','bg-navy/20 text-navy','bg-amber-100 text-amber-700','bg-rose-100 text-rose-700','bg-violet-100 text-violet-700','bg-emerald-100 text-emerald-700'];
+  const colors=['bg-teal/20 text-teal','bg-navy/20 text-navy','bg-amber/20 text-amber','bg-red/20 text-red','bg-purple/20 text-purple','bg-green/20 text-green'];
   let h=0; for(const c of (name||'')) h=(h*31+c.charCodeAt(0))%colors.length;
   return colors[h];
 }

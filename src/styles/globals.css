@@ -105,3 +105,134 @@
   border-radius: 8px;
 }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* =============================================================
+   Dark mode overrides — maps hardcoded Tailwind color classes
+   to our theme tokens so existing components work in dark mode
+   without requiring per-file edits.
+   ============================================================= */
+
+/* ── Surfaces ──────────────────────────────────────────────── */
+[data-theme="dark"] .bg-white { background-color: rgb(var(--color-surface)); }
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-zinc-50,
+[data-theme="dark"] .bg-slate-50  { background-color: rgb(var(--color-surface-alt)); }
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-zinc-100,
+[data-theme="dark"] .bg-slate-100 { background-color: rgb(var(--color-surface-alt)); }
+[data-theme="dark"] .bg-gray-200,
+[data-theme="dark"] .bg-zinc-200  { background-color: rgb(var(--color-border) / 0.4); }
+
+/* ── Text ──────────────────────────────────────────────────── */
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-zinc-900,
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-zinc-800 { color: rgb(var(--color-text)); }
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-zinc-700,
+[data-theme="dark"] .text-slate-700 { color: rgb(var(--color-text) / 0.85); }
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-zinc-600,
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-zinc-500,
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-zinc-400  { color: rgb(var(--color-muted)); }
+
+/* ── Borders ───────────────────────────────────────────────── */
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-zinc-200,
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-zinc-300 { border-color: rgb(var(--color-border) / 0.3); }
+
+/* ── Emerald / Green status ────────────────────────────────── */
+[data-theme="dark"] .bg-emerald-50  { background-color: rgb(var(--color-green-bg)); }
+[data-theme="dark"] .bg-emerald-100 { background-color: rgb(var(--color-green-bg)); }
+[data-theme="dark"] .text-emerald-900,
+[data-theme="dark"] .text-emerald-800,
+[data-theme="dark"] .text-emerald-700 { color: rgb(var(--color-green-fg)); }
+[data-theme="dark"] .text-emerald-600 { color: rgb(var(--color-green-fg) / 0.85); }
+[data-theme="dark"] .border-emerald-200,
+[data-theme="dark"] .border-emerald-300 { border-color: rgb(var(--color-green) / 0.25); }
+
+/* ── Amber / Orange status ─────────────────────────────────── */
+[data-theme="dark"] .bg-amber-50  { background-color: rgb(var(--color-amber-bg)); }
+[data-theme="dark"] .bg-amber-100 { background-color: rgb(var(--color-amber-bg)); }
+[data-theme="dark"] .bg-orange-50 { background-color: rgb(var(--color-amber-bg)); }
+[data-theme="dark"] .text-amber-900,
+[data-theme="dark"] .text-amber-800,
+[data-theme="dark"] .text-amber-700 { color: rgb(var(--color-amber-fg)); }
+[data-theme="dark"] .text-amber-600 { color: rgb(var(--color-amber-fg) / 0.85); }
+[data-theme="dark"] .text-orange-700,
+[data-theme="dark"] .text-orange-600 { color: rgb(var(--color-amber-fg)); }
+[data-theme="dark"] .border-amber-200,
+[data-theme="dark"] .border-amber-300,
+[data-theme="dark"] .border-orange-200 { border-color: rgb(var(--color-amber) / 0.25); }
+
+/* ── Red status ────────────────────────────────────────────── */
+[data-theme="dark"] .bg-red-50  { background-color: rgb(var(--color-red-bg)); }
+[data-theme="dark"] .bg-red-100 { background-color: rgb(var(--color-red-bg)); }
+[data-theme="dark"] .text-red-900,
+[data-theme="dark"] .text-red-800,
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-red-600 { color: rgb(var(--color-red-fg)); }
+[data-theme="dark"] .border-red-200,
+[data-theme="dark"] .border-red-300 { border-color: rgb(var(--color-red) / 0.25); }
+
+/* ── Blue / Sky status ─────────────────────────────────────── */
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-sky-50,
+[data-theme="dark"] .bg-indigo-50 { background-color: rgb(var(--color-blue-bg)); }
+[data-theme="dark"] .bg-blue-100  { background-color: rgb(var(--color-blue-bg)); }
+[data-theme="dark"] .text-blue-900,
+[data-theme="dark"] .text-blue-800,
+[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .text-blue-600,
+[data-theme="dark"] .text-sky-700,
+[data-theme="dark"] .text-indigo-700 { color: rgb(var(--color-blue-fg)); }
+[data-theme="dark"] .border-blue-200,
+[data-theme="dark"] .border-blue-300,
+[data-theme="dark"] .border-sky-200 { border-color: rgb(var(--color-blue) / 0.25); }
+
+/* ── Violet / Purple status ────────────────────────────────── */
+[data-theme="dark"] .bg-violet-50,
+[data-theme="dark"] .bg-purple-50  { background-color: rgb(var(--color-purple-bg)); }
+[data-theme="dark"] .bg-violet-100 { background-color: rgb(var(--color-purple-bg)); }
+[data-theme="dark"] .text-violet-900,
+[data-theme="dark"] .text-violet-800,
+[data-theme="dark"] .text-violet-700,
+[data-theme="dark"] .text-violet-600,
+[data-theme="dark"] .text-purple-700,
+[data-theme="dark"] .text-purple-600 { color: rgb(var(--color-purple-fg)); }
+[data-theme="dark"] .border-violet-200,
+[data-theme="dark"] .border-violet-300,
+[data-theme="dark"] .border-purple-200 { border-color: rgb(var(--color-purple) / 0.25); }
+
+/* ── Rose / Pink status ────────────────────────────────────── */
+[data-theme="dark"] .bg-rose-50  { background-color: rgb(var(--color-red-bg)); }
+[data-theme="dark"] .text-rose-700,
+[data-theme="dark"] .text-rose-600,
+[data-theme="dark"] .text-pink-700 { color: rgb(var(--color-red-fg)); }
+[data-theme="dark"] .border-rose-200 { border-color: rgb(var(--color-red) / 0.25); }
+
+/* ── Inputs & form elements ────────────────────────────────── */
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+/* ── Gradients that use from-gray / to-gray ────────────────── */
+[data-theme="dark"] .from-gray-50  { --tw-gradient-from: rgb(var(--color-surface-alt)); }
+[data-theme="dark"] .to-gray-50    { --tw-gradient-to:   rgb(var(--color-surface-alt)); }
+[data-theme="dark"] .from-white    { --tw-gradient-from: rgb(var(--color-surface)); }
+[data-theme="dark"] .to-white      { --tw-gradient-to:   rgb(var(--color-surface)); }
