@@ -14,12 +14,12 @@ const ROLE_LABELS = {
 };
 
 const ROLE_COLORS = {
-  admin:          'bg-purple-100 text-purple-700',
-  manager:        'bg-blue-100 text-blue-700',
+  admin:          'bg-purple-bg text-purple-fg',
+  manager:        'bg-blue-bg text-blue-fg',
   sales_manager:  'bg-teal/10 text-teal',
-  social_manager: 'bg-pink-100 text-pink-700',
-  media_buyer:    'bg-orange-100 text-orange-700',
-  employee:       'bg-gray-100 text-gray-600',
+  social_manager: 'bg-red-bg text-red-fg',
+  media_buyer:    'bg-amber-bg text-amber-fg',
+  employee:       'bg-surface-alt text-muted',
 };
 
 const TEAM_OPTIONS = ['عام', 'ميديا', 'سوريا', 'تركيا', 'إدارة', 'مبيعات', 'دبي', 'إسطنبول', 'دمشق', 'الرياض', ''];
@@ -223,7 +223,7 @@ function PinResetModal({ employee, onClose }) {
               />
             </div>
             {err && (
-              <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              <div className="text-xs text-red-fg bg-red-bg border border-red/20 rounded-lg px-3 py-2">
                 ⚠️ {err}
                 {err.includes('function') && (
                   <p className="mt-1 text-[10px]">
@@ -470,7 +470,7 @@ export default function AdminUsersScreen() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+        <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm flex items-center justify-between">
           <span>{error}</span>
           <button onClick={load} className="underline text-xs">إعادة المحاولة</button>
         </div>
@@ -523,7 +523,7 @@ export default function AdminUsersScreen() {
                     {(p.total_points ?? 0) > 0 && (
                       <span className="text-xs font-semibold text-teal">{p.total_points} نقطة</span>
                     )}
-                    <span className={`text-xs ${p.is_active ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className={`text-xs ${p.is_active ? 'text-green-fg' : 'text-red-fg'}`}>
                       {p.is_active ? '● نشط' : '○ غير نشط'}
                     </span>
                   </div>
@@ -548,7 +548,7 @@ export default function AdminUsersScreen() {
                       </button>
                       <button
                         onClick={() => toggleActive(p)}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'border border-green-200 text-green-600 hover:bg-green-50'}`}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red/20 text-red-fg hover:bg-red-bg' : 'border border-green/20 text-green-fg hover:bg-green-bg'}`}
                       >
                         {p.is_active ? '🔴 تعطيل' : '🟢 تفعيل'}
                       </button>
@@ -677,7 +677,7 @@ export default function AdminUsersScreen() {
             </div>
 
             {saveError && (
-              <div className="mx-6 mb-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</div>
+              <div className="mx-6 mb-3 text-xs text-red-fg bg-red-bg border border-red/20 rounded-lg px-3 py-2">{saveError}</div>
             )}
 
             <div className="flex gap-2 px-6 pb-6 pt-2 border-t border-border shrink-0">
@@ -721,7 +721,7 @@ export default function AdminUsersScreen() {
               </Field>
             </div>
             {addError && (
-              <div className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{addError}</div>
+              <div className="mt-3 text-xs text-red-fg bg-red-bg border border-red/20 rounded-lg px-3 py-2">{addError}</div>
             )}
             <div className="flex gap-2 mt-5">
               <button onClick={handleAdd} disabled={addSaving}

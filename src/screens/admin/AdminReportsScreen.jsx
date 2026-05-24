@@ -370,7 +370,7 @@ export default function AdminReportsScreen() {
 
       {/* ── Error ── */}
       {error && (
-        <div className="text-xs text-red-500 bg-red-50 rounded-xl px-4 py-3">{error}</div>
+        <div className="text-xs text-red-fg bg-red-bg border border-red/20 rounded-xl px-4 py-3">{error}</div>
       )}
 
       {/* ── KPI grid ── */}
