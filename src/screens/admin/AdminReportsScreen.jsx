@@ -164,18 +164,20 @@ async function fetchReportData(period) {
       doneByEmp[t.assigned_to] = (doneByEmp[t.assigned_to] || 0) + 1;
   }
 
+  // attLogs is already filtered to the selected range (gte/lte in the query above)
+  // and keyed by employee_name (real schema)
   const attByEmp = {};
   for (const l of (attLogs || [])) {
-    if (l.work_date >= from)
-      attByEmp[l.employee_id] = (attByEmp[l.employee_id] || 0) + 1;
+    if (l.date >= fromSlash)
+      attByEmp[l.employee_name] = (attByEmp[l.employee_name] || 0) + 1;
   }
 
   const maxTasks = Math.max(1, ...Object.values(tasksByEmp));
   const topStaff = (profiles || [])
     .map(emp => {
       const empName  = emp.employee_name || emp.name || 'موظف';
-      const empTasks = tasksByEmp[emp.id] || 0;
-      const empAtt   = attByEmp[emp.id]   || 0;
+      const empTasks = tasksByEmp[empName] || 0;
+      const empAtt   = attByEmp[empName]   || 0;
       const attPct   = periodDays.size > 0 ? Math.round((empAtt / periodDays.size) * 100) : 0;
       const score    = Math.round((empTasks / maxTasks) * 60 + Math.min(attPct, 100) * 0.4);
       return { name:empName, dept:emp.team||'—', tasks:empTasks, attendance:Math.min(attPct,100), score:Math.min(score,100) };

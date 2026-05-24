@@ -180,28 +180,38 @@ export function compareKPIs(current, previous) {
 async function _computeAttendanceKPIs(filters) {
   try {
     const { supabase } = await import('@services/supabase');
-    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date(filters.from ?? new Date());
+    const todaySlash = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 
-    const { data: records } = await supabase
-      .from('attendance_records')
-      .select('status, late_by_minutes, worked_minutes, overtime_minutes, check_in_time')
-      .eq('date', filters.from ?? today);
+    // Real attendance table: two rows per day per employee (type='in'/'out')
+    const { data: rows } = await supabase
+      .from('attendance')
+      .select('employee_name, type, hours, was_late')
+      .eq('date', todaySlash);
 
-    if (!records || records.length === 0) return _mockAttendanceKPIs();
+    if (!rows || rows.length === 0) return _mockAttendanceKPIs();
 
-    const total      = records.length;
-    const present    = records.filter((r) => r.status !== 'absent' && r.check_in_time).length;
-    const late       = records.filter((r) => r.late_by_minutes > 0).length;
-    const absent     = records.filter((r) => r.status === 'absent').length;
-    const worked     = records.reduce((a, r) => a + (r.worked_minutes ?? 0), 0) / 60;
-    const overtime   = records.reduce((a, r) => a + (r.overtime_minutes ?? 0), 0) / 60;
+    // Aggregate: count unique employees present (has 'in' row)
+    const inRows  = rows.filter((r) => r.type === 'in');
+    const outRows = rows.filter((r) => r.type === 'out');
+    const present = inRows.length;
+    const late    = inRows.filter((r) => r.was_late).length;
+    const worked  = outRows.reduce((a, r) => a + (Number(r.hours) || 0), 0);
+
+    // Get total active employees for absent calculation
+    const { count: total = present } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true);
+
+    const absent = Math.max(0, (total || present) - present);
 
     return {
       [KPI.ATTENDANCE_RATE]:      total ? Math.round((present / total) * 100) : 0,
       [KPI.LATE_EMPLOYEES]:       late,
       [KPI.ABSENT_EMPLOYEES]:     absent,
       [KPI.WORKED_HOURS_TOTAL]:   +worked.toFixed(1),
-      [KPI.OVERTIME_HOURS_TOTAL]: +overtime.toFixed(1),
+      [KPI.OVERTIME_HOURS_TOTAL]: 0, // no overtime_minutes column in real schema
     };
   } catch {
     return _mockAttendanceKPIs();
