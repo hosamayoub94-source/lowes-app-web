@@ -167,7 +167,8 @@
 [data-theme="dark"] .text-amber-700 { color: rgb(var(--color-amber-fg)); }
 [data-theme="dark"] .text-amber-600 { color: rgb(var(--color-amber-fg) / 0.85); }
 [data-theme="dark"] .text-orange-700,
-[data-theme="dark"] .text-orange-600 { color: rgb(var(--color-amber-fg)); }
+[data-theme="dark"] .text-orange-600,
+[data-theme="dark"] .text-orange-500 { color: rgb(var(--color-amber-fg)); }
 [data-theme="dark"] .border-amber-200,
 [data-theme="dark"] .border-amber-300,
 [data-theme="dark"] .border-orange-200 { border-color: rgb(var(--color-amber) / 0.25); }
@@ -178,15 +179,17 @@
 [data-theme="dark"] .text-red-900,
 [data-theme="dark"] .text-red-800,
 [data-theme="dark"] .text-red-700,
-[data-theme="dark"] .text-red-600 { color: rgb(var(--color-red-fg)); }
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-500 { color: rgb(var(--color-red-fg)); }
 [data-theme="dark"] .border-red-200,
 [data-theme="dark"] .border-red-300 { border-color: rgb(var(--color-red) / 0.25); }
 
 /* ── Blue / Sky status ─────────────────────────────────────── */
 [data-theme="dark"] .bg-blue-50,
 [data-theme="dark"] .bg-sky-50,
-[data-theme="dark"] .bg-indigo-50 { background-color: rgb(var(--color-blue-bg)); }
-[data-theme="dark"] .bg-blue-100  { background-color: rgb(var(--color-blue-bg)); }
+[data-theme="dark"] .bg-indigo-50  { background-color: rgb(var(--color-blue-bg)); }
+[data-theme="dark"] .bg-blue-100,
+[data-theme="dark"] .bg-indigo-100 { background-color: rgb(var(--color-blue-bg)); }
 [data-theme="dark"] .text-blue-900,
 [data-theme="dark"] .text-blue-800,
 [data-theme="dark"] .text-blue-700,

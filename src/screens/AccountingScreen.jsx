@@ -304,7 +304,7 @@ export default function AccountingScreen() {
                         <button
                           onClick={() => handleDelete(e.id)}
                           disabled={loading.action}
-                          className="text-red-500 hover:text-red-700 text-xs transition"
+                          className="text-red-fg hover:opacity-70 text-xs transition"
                         >
                           حذف
                         </button>
@@ -451,7 +451,7 @@ export default function AccountingScreen() {
             </div>
 
             {saveError && (
-              <div className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</div>
+              <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{saveError}</div>
             )}
 
             <div className="flex gap-2 mt-5">

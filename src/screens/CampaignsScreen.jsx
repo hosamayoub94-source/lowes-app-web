@@ -21,9 +21,9 @@ function fmtNum(n) { return (n ?? 0).toLocaleString('ar-SA'); }
 function fmtUSD(n) { return '$' + (Number(n) || 0).toFixed(2); }
 
 const STATUS_COLOR = {
-  active:   'bg-green-100 text-green-700',
-  inactive: 'bg-gray-100 text-gray-500',
-  paused:   'bg-amber-100 text-amber-700',
+  active:   'bg-green-bg text-green-fg border border-green/20',
+  inactive: 'bg-surface-alt text-muted border border-border/20',
+  paused:   'bg-amber-bg text-amber-fg border border-amber/20',
 };
 
 // ── Status badge ───────────────────────────────────────────────
@@ -137,7 +137,7 @@ function NewCampaignModal({ open, onClose, onSaved }) {
               className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
             />
           </div>
-          {err && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">⚠️ {err}</p>}
+          {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>}
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
             <Button type="submit" variant="teal" className="flex-1" disabled={saving}>

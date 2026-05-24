@@ -88,10 +88,10 @@ function diffDays(from, to) {
 }
 
 const STATUS_META = {
-  pending:   { label: 'بانتظار الاعتماد', color: 'text-amber-600 bg-amber-50' },
-  approved:  { label: 'مُعتمدة',          color: 'text-green-700 bg-green-50'  },
-  rejected:  { label: 'مرفوضة',           color: 'text-red-600 bg-red-50'      },
-  cancelled: { label: 'ملغاة',            color: 'text-gray-500 bg-gray-100'   },
+  pending:   { label: 'بانتظار الاعتماد', color: 'bg-amber-bg text-amber-fg border border-amber/20'  },
+  approved:  { label: 'مُعتمدة',          color: 'bg-green-bg text-green-fg border border-green/20'  },
+  rejected:  { label: 'مرفوضة',           color: 'bg-red-bg text-red-fg border border-red/20'        },
+  cancelled: { label: 'ملغاة',            color: 'bg-surface-alt text-muted border border-border/20' },
 };
 
 const LEAVE_TYPES = [
@@ -259,7 +259,7 @@ function NewRequestModal({ open, onClose, onSubmitted, userId, remaining }) {
 
           {/* Error */}
           {err && (
-            <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">⚠️ {err}</p>
+            <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>
           )}
 
           {/* Actions */}
@@ -374,7 +374,7 @@ export default function HolidaysScreen() {
           {loading ? (
             <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
           ) : error ? (
-            <p className="text-sm text-red-500 py-2">⚠️ {error}</p>
+            <p className="text-sm text-red-fg py-2">⚠️ {error}</p>
           ) : requests.length === 0 ? (
             <EmptyState description="لا توجد طلبات إجازة بعد" />
           ) : (
