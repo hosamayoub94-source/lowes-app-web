@@ -1,52 +1,55 @@
 // =============================================================
-// EntryRow — single payroll entry row for the run detail table
+// EntryRow — single payroll entry row (theme-aware)
 // =============================================================
 import { formatCurrency, calcNetSalary } from '../types/payroll.types.js';
 
 export function EntryRow({ entry, onEdit, onDelete, canEdit }) {
   const net = calcNetSalary(entry);
+  const totalDeductions = Number(entry.deductions_usd ?? 0) + Number(entry.advance_deduction_usd ?? 0);
 
   return (
-    <tr className="border-b border-border hover:bg-surface/50 transition-colors">
-      <td className="py-3 px-4 text-sm font-medium text-text text-right">
+    <tr className="border-b border-border/40 hover:bg-surface-alt/50 transition-colors">
+      <td className="py-3 px-4 text-sm font-semibold text-text text-right whitespace-nowrap">
         {entry.employee_name}
       </td>
       <td className="py-3 px-4 text-sm text-muted text-center">
-        {entry.working_days ?? '-'}
+        {entry.working_days ?? '—'}
       </td>
       <td className="py-3 px-4 text-sm text-center">
-        {entry.absent_days > 0 ? (
-          <span className="text-red-500 font-medium">{entry.absent_days}</span>
+        {(entry.absent_days ?? 0) > 0 ? (
+          <span className="text-red-fg font-semibold">{entry.absent_days}</span>
         ) : (
-          <span className="text-muted">0</span>
+          <span className="text-muted">—</span>
         )}
       </td>
-      <td className="py-3 px-4 text-sm text-center text-text">
+      <td className="py-3 px-4 text-sm text-center text-text tabular-nums">
         {formatCurrency(entry.base_salary_usd, 'USD')}
       </td>
-      <td className="py-3 px-4 text-sm text-center text-green-600">
-        {entry.bonus_usd > 0 ? `+${formatCurrency(entry.bonus_usd, 'USD')}` : '-'}
+      <td className="py-3 px-4 text-sm text-center tabular-nums">
+        {(entry.bonus_usd ?? 0) > 0
+          ? <span className="text-green-fg font-semibold">+{formatCurrency(entry.bonus_usd, 'USD')}</span>
+          : <span className="text-muted">—</span>}
       </td>
-      <td className="py-3 px-4 text-sm text-center text-red-500">
-        {(entry.deductions_usd > 0 || entry.advance_deduction_usd > 0)
-          ? `-${formatCurrency((Number(entry.deductions_usd) + Number(entry.advance_deduction_usd)), 'USD')}`
-          : '-'}
+      <td className="py-3 px-4 text-sm text-center tabular-nums">
+        {totalDeductions > 0
+          ? <span className="text-red-fg font-semibold">-{formatCurrency(totalDeductions, 'USD')}</span>
+          : <span className="text-muted">—</span>}
       </td>
-      <td className="py-3 px-4 text-sm font-bold text-center text-teal">
+      <td className="py-3 px-4 text-sm font-extrabold text-center text-teal tabular-nums">
         {formatCurrency(net, 'USD')}
       </td>
       {canEdit && (
         <td className="py-3 px-4 text-center">
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-1.5">
             <button
               onClick={() => onEdit?.(entry)}
-              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 transition"
+              className="text-xs px-2.5 py-1 rounded-lg bg-blue-bg text-blue-fg border border-blue/20 hover:opacity-80 transition font-semibold"
             >
               تعديل
             </button>
             <button
               onClick={() => onDelete?.(entry.id)}
-              className="text-xs px-2 py-1 rounded bg-red-100 text-red-600 hover:bg-red-200 transition"
+              className="text-xs px-2.5 py-1 rounded-lg bg-red-bg text-red-fg border border-red/20 hover:opacity-80 transition font-semibold"
             >
               حذف
             </button>
