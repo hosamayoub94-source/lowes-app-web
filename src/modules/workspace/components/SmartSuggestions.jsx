@@ -4,12 +4,12 @@
 //         pending approvals · inactive CRM followups
 // =============================================================
 import { useMemo } from 'react';
-import { useNavigate }          from 'react-router-dom';
-import { useTaskStore }         from '@modules/tasks/store/useTaskStore';
-import { useNotificationStore } from '@modules/notifications/store/useNotificationStore';
-import useAttendanceStore       from '@modules/attendance/store/useAttendanceStore';
-import useCRMStore              from '@modules/crm/store/useCRMStore';
-import { ROUTES }               from '@routes/paths';
+import { useNavigate }              from 'react-router-dom';
+import { useTaskStore }             from '@modules/tasks/store/useTaskStore';
+import { useNotificationStore }     from '@modules/notifications/store/useNotificationStore';
+import { useMyAttendanceToday }     from '@hooks/useMyAttendanceToday';
+import useCRMStore                  from '@modules/crm/store/useCRMStore';
+import { ROUTES }                   from '@routes/paths';
 
 // ── Suggestion card ────────────────────────────────────────────
 function SuggestionCard({ icon, title, subtitle, color, onClick, actionLabel = 'عرض' }) {
@@ -38,28 +38,27 @@ function SuggestionCard({ icon, title, subtitle, color, onClick, actionLabel = '
 export function SmartSuggestions() {
   const navigate = useNavigate();
 
-  const tasks         = useTaskStore((s) => s.tasks);
-  const unreadCount   = useNotificationStore((s) => s.unreadCount);
-  const myRecord      = useAttendanceStore((s) => s.myRecord);
-  const followups     = useCRMStore((s) => s.followups ?? []);
+  const tasks       = useTaskStore((s) => s.tasks);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const followups   = useCRMStore((s) => s.followups ?? []);
+
+  // Real attendance from DB (not broken useAttendanceStore)
+  const { checkedIn, checkedOut } = useMyAttendanceToday();
 
   const now = new Date();
 
   const suggestions = useMemo(() => {
     const list = [];
+    const hour = now.getHours();
 
     // ── 1. Missing attendance ──────────────────────────────────
-    const isCheckedIn  = Boolean(myRecord?.check_in_time);
-    const isCheckedOut = myRecord?.status === 'checked_out';
-    const hour         = now.getHours();
-
-    if (!isCheckedIn && hour >= 8 && hour < 17) {
+    if (!checkedIn && hour >= 8 && hour < 17) {
       list.push({
         id:          'missing-attendance',
         icon:        '🕒',
         title:       'لم تسجل حضورك بعد',
         subtitle:    `الساعة ${now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}`,
-        color:       'bg-amber-50 border-amber-200 text-amber-800',
+        color:       'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300',
         path:        ROUTES.ATTENDANCE,
         actionLabel: 'تسجيل',
         priority:    10,
@@ -76,7 +75,7 @@ export function SmartSuggestions() {
         icon:        '⚠️',
         title:       `${overdue.length} مهمة متأخرة`,
         subtitle:    overdue.slice(0, 2).map((t) => t.title).join(' · '),
-        color:       'bg-red-50 border-red-200 text-red-800',
+        color:       'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300',
         path:        ROUTES.TASKS,
         actionLabel: 'معالجة',
         priority:    9,
@@ -94,7 +93,7 @@ export function SmartSuggestions() {
         icon:        '📅',
         title:       `${dueToday.length} مهمة تستحق اليوم`,
         subtitle:    dueToday.slice(0, 2).map((t) => t.title).join(' · '),
-        color:       'bg-indigo-50 border-indigo-200 text-indigo-800',
+        color:       'bg-indigo-50 border-indigo-200 text-indigo-800 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300',
         path:        ROUTES.TASKS,
         actionLabel: 'عرض',
         priority:    8,
@@ -108,8 +107,8 @@ export function SmartSuggestions() {
         icon:        '🔔',
         title:       `${unreadCount} إشعار غير مقروء`,
         subtitle:    'لديك إشعارات تنتظر مراجعتك',
-        color:       'bg-blue-50 border-blue-200 text-blue-800',
-        path:        null,
+        color:       'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300',
+        path:        ROUTES.NOTIFICATIONS,
         actionLabel: 'مراجعة',
         priority:    5,
       });
@@ -125,21 +124,21 @@ export function SmartSuggestions() {
         icon:        '📞',
         title:       `${overdueFollowups.length} متابعة CRM متأخرة`,
         subtitle:    overdueFollowups.slice(0, 1).map((f) => f.title ?? f.notes ?? 'متابعة').join(''),
-        color:       'bg-purple-50 border-purple-200 text-purple-800',
-        path:        null,
+        color:       'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300',
+        path:        ROUTES.CRM,
         actionLabel: 'متابعة',
         priority:    7,
       });
     }
 
     // ── 6. End of day reminder ─────────────────────────────────
-    if (isCheckedIn && !isCheckedOut && hour >= 17) {
+    if (checkedIn && !checkedOut && hour >= 17) {
       list.push({
         id:          'end-of-day',
         icon:        '🏠',
         title:       'لا تنسَ تسجيل الانصراف',
-        subtitle:    `وقت العمل: ${myRecord?.worked_minutes ? `${Math.floor(myRecord.worked_minutes / 60)}س ${myRecord.worked_minutes % 60}د` : '–'}`,
-        color:       'bg-gray-50 border-gray-200 text-gray-700',
+        subtitle:    'وقت العمل ينتهي — سجّل خروجك',
+        color:       'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800/40 dark:border-gray-600 dark:text-gray-300',
         path:        ROUTES.ATTENDANCE,
         actionLabel: 'تسجيل',
         priority:    9,
@@ -148,7 +147,7 @@ export function SmartSuggestions() {
 
     // Sort by priority desc, take top 4
     return list.sort((a, b) => b.priority - a.priority).slice(0, 4);
-  }, [tasks, unreadCount, myRecord, followups]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks, unreadCount, checkedIn, checkedOut, followups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (suggestions.length === 0) return null;
 

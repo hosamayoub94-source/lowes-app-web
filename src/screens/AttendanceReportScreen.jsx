@@ -100,56 +100,50 @@ async function fetchEmployees() {
 
 async function fetchLogs(employeeId, employeeName, ym, isMock) {
   if (isMock) return buildMockData(employeeId, ym);
+
   const { supabase } = await import('@services/supabase');
-  const from = `${ym}-01`;
   const days = daysInMonth(ym);
-  const to   = `${ym}-${String(days).padStart(2, '0')}`;
 
-  // 1️⃣ Try attendance_logs (UUID-based, advanced table)
-  const { data: logsData, error: logsErr } = await supabase
-    .from('attendance_logs')
-    .select('id, work_date, check_in, check_out, status')
-    .eq('employee_id', employeeId)
-    .gte('work_date', from)
-    .lte('work_date', to)
-    .order('work_date');
+  // attendance table stores dates as "YYYY/MM/DD" — use slash format for range queries
+  const ymSlash   = ym.replace('-', '/');            // "2026-05" → "2026/05"
+  const fromSlash = `${ymSlash}/01`;                 // "2026/05/01"
+  const toSlash   = `${ymSlash}/${String(days).padStart(2, '0')}`; // "2026/05/31"
 
-  // If table exists and has data → use it
-  if (!logsErr && logsData?.length) return logsData;
-
-  // 2️⃣ Fallback: main `attendance` table
-  // Real schema: two rows per day (type="in" + type="out"), date="YYYY/MM/DD", time_in column
   if (employeeName) {
-    const { data: attData, error: attErr } = await supabase
-      .from('attendance')
-      .select('id, date, type, time_in, note')
-      .eq('employee_name', employeeName)
-      .gte('date', from)   // Supabase casts YYYY/MM/DD text to date for range queries
-      .lte('date', to)
-      .in('type', ['in', 'out'])
-      .order('date');
+    try {
+      const { data: attData, error: attErr } = await supabase
+        .from('attendance')
+        .select('id, date, type, time_in, note')
+        .eq('employee_name', employeeName)
+        .gte('date', fromSlash)
+        .lte('date', toSlash)
+        .in('type', ['in', 'out'])
+        .order('date');
 
-    if (!attErr && attData?.length) {
-      // Aggregate: one entry per day
-      const byDate = {};
-      attData.forEach(r => {
-        const isoDate = r.date.replace(/\//g, '-'); // "2026/05/24" → "2026-05-24"
-        if (!byDate[isoDate]) byDate[isoDate] = { checkIn: null, checkOut: null };
-        if (r.type === 'in')  byDate[isoDate].checkIn  = r.time_in;
-        if (r.type === 'out') byDate[isoDate].checkOut = r.time_in;
-      });
-      return Object.entries(byDate).map(([isoDate, d]) => ({
-        id:         `att-${isoDate}`,
-        work_date:  isoDate,
-        // Convert "HH:MM" → ISO timestamp so calcHours works
-        check_in:   d.checkIn  ? `${isoDate}T${d.checkIn}:00`  : null,
-        check_out:  d.checkOut ? `${isoDate}T${d.checkOut}:00` : null,
-        status:     d.checkIn ? (d.checkOut ? 'checked_out' : 'present') : null,
-      }));
+      if (!attErr && attData?.length) {
+        // Aggregate two rows per day → one entry
+        const byDate = {};
+        attData.forEach(r => {
+          const isoDate = r.date.replace(/\//g, '-'); // "2026/05/24" → "2026-05-24"
+          if (!byDate[isoDate]) byDate[isoDate] = { checkIn: null, checkOut: null };
+          if (r.type === 'in')  byDate[isoDate].checkIn  = r.time_in;
+          if (r.type === 'out') byDate[isoDate].checkOut = r.time_in;
+        });
+        return Object.entries(byDate).map(([isoDate, d]) => ({
+          id:        `att-${isoDate}`,
+          work_date: isoDate,
+          // "HH:MM" → ISO timestamp so calcHours works
+          check_in:  d.checkIn  ? `${isoDate}T${d.checkIn}:00`  : null,
+          check_out: d.checkOut ? `${isoDate}T${d.checkOut}:00` : null,
+          status:    d.checkIn ? (d.checkOut ? 'checked_out' : 'present') : null,
+        }));
+      }
+    } catch {
+      // fall through to mock
     }
   }
 
-  // 3️⃣ Last resort: mock
+  // Last resort: mock
   return buildMockData(employeeId, ym);
 }
 
@@ -297,7 +291,7 @@ export default function AttendanceReportScreen() {
 
       {isMock && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2 text-xs text-amber-700 dark:text-amber-400">
-          ⚠️ بيانات تجريبية — جدول <code>attendance_logs</code> غير موجود في Supabase
+          ⚠️ بيانات تجريبية — لا توجد بيانات حضور حقيقية في قاعدة البيانات
         </div>
       )}
 
