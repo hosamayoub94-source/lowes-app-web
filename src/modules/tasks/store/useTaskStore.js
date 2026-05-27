@@ -14,6 +14,8 @@ import {
   updateTaskProgress,
   addTaskComment,
   markTaskSeen,
+  uploadTaskAttachment,
+  removeTaskAttachment,
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
 
@@ -154,6 +156,46 @@ export const useTaskStore = create()(
         return task;
       } catch (err) {
         set({ actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
+    /** Upload a file attachment */
+    uploadAttachment: async (taskId, file) => {
+      set({ actionLoading: true });
+      try {
+        const att = await uploadTaskAttachment(taskId, file);
+        // Optimistically append to task's attachments array
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, attachments: [...(t.attachments || []), att] }
+              : t,
+          ),
+          actionLoading: false,
+        }));
+        return att;
+      } catch (err) {
+        set({ actionLoading: false, error: err?.message || 'فشل رفع الملف' });
+        throw err;
+      }
+    },
+
+    /** Remove a file attachment */
+    removeAttachment: async (taskId, attachmentId) => {
+      const prev = get().tasks;
+      // Optimistic remove
+      set((s) => ({
+        tasks: s.tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, attachments: (t.attachments || []).filter((a) => a.id !== attachmentId) }
+            : t,
+        ),
+      }));
+      try {
+        await removeTaskAttachment(taskId, attachmentId);
+      } catch (err) {
+        set({ tasks: prev, error: err?.message || 'فشل حذف المرفق' });
         throw err;
       }
     },

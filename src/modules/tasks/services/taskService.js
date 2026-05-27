@@ -486,3 +486,137 @@ function appendMockActivity(before, after, actorId) {
     }];
   }
 }
+
+// -------------------------------------------------------------
+// Attachment helpers
+// -------------------------------------------------------------
+function _formatSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function _fileType(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (['jpg','jpeg','png','gif','webp','svg','avif'].includes(ext)) return 'image';
+  if (['mp4','mov','avi','mkv','webm'].includes(ext)) return 'video';
+  if (['pdf'].includes(ext)) return 'pdf';
+  if (['zip','rar','7z','tar','gz'].includes(ext)) return 'archive';
+  if (['doc','docx'].includes(ext)) return 'doc';
+  if (['xls','xlsx','csv'].includes(ext)) return 'excel';
+  if (['ppt','pptx'].includes(ext)) return 'ppt';
+  return 'file';
+}
+
+/**
+ * Upload a file attachment to Supabase Storage and append metadata to
+ * the task's `attachments` JSONB column.
+ */
+export async function uploadTaskAttachment(taskId, file) {
+  if (USE_MOCK_DATA) {
+    await sleep(600);
+    const blobUrl = URL.createObjectURL(file);
+    const att = {
+      id:         newId('att'),
+      name:       file.name,
+      size:       file.size,
+      mime:       file.type,
+      type:       _fileType(file.name),
+      url:        blobUrl,
+      created_at: new Date().toISOString(),
+    };
+    _mockStore = _mockStore.map((t) =>
+      t.id === taskId
+        ? { ...t, attachments: [...(t.attachments || []), att] }
+        : t,
+    );
+    return att;
+  }
+
+  // Build a unique storage path
+  const ext  = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+  const path = `tasks/${taskId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+  // Upload to Supabase Storage (bucket: task-attachments, must be pre-created)
+  const { data: uploadData, error: uploadErr } = await supabase.storage
+    .from('task-attachments')
+    .upload(path, file, { upsert: false, contentType: file.type || undefined });
+  if (uploadErr) throw uploadErr;
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('task-attachments')
+    .getPublicUrl(path);
+
+  const att = {
+    id:         path, // use storage path as stable id
+    name:       file.name,
+    size:       file.size,
+    mime:       file.type,
+    type:       _fileType(file.name),
+    url:        publicUrl,
+    path:       uploadData.path,
+    created_at: new Date().toISOString(),
+  };
+
+  // Append to task's attachments array
+  const { data: taskRow, error: readErr } = await supabase
+    .from('tasks').select('attachments').eq('id', taskId).single();
+  if (readErr) throw readErr;
+
+  const current = Array.isArray(taskRow?.attachments) ? taskRow.attachments : [];
+  const { error: updateErr } = await supabase
+    .from('tasks')
+    .update({ attachments: [...current, att] })
+    .eq('id', taskId);
+  if (updateErr) throw updateErr;
+
+  logActivity({
+    task_id: taskId,
+    user_id: null,
+    action_type: 'attachment_added',
+    action_label: `أُرفق ملف: ${file.name}`,
+    metadata: { name: file.name, size: file.size },
+  }).catch(() => {});
+
+  return att;
+}
+
+/**
+ * Remove an attachment from Supabase Storage and from the task's
+ * `attachments` JSONB column.
+ */
+export async function removeTaskAttachment(taskId, attachmentId) {
+  if (USE_MOCK_DATA) {
+    await sleep(250);
+    _mockStore = _mockStore.map((t) =>
+      t.id === taskId
+        ? { ...t, attachments: (t.attachments || []).filter((a) => a.id !== attachmentId) }
+        : t,
+    );
+    return true;
+  }
+
+  // Fetch current attachments
+  const { data: taskRow, error: readErr } = await supabase
+    .from('tasks').select('attachments').eq('id', taskId).single();
+  if (readErr) throw readErr;
+
+  const current = Array.isArray(taskRow?.attachments) ? taskRow.attachments : [];
+  const att = current.find((a) => a.id === attachmentId);
+
+  // Remove from storage
+  const storagePath = att?.path || (typeof attachmentId === 'string' && attachmentId.includes('/') ? attachmentId : null);
+  if (storagePath) {
+    await supabase.storage.from('task-attachments').remove([storagePath]).catch(() => {});
+  }
+
+  // Update DB
+  const { error: updateErr } = await supabase
+    .from('tasks')
+    .update({ attachments: current.filter((a) => a.id !== attachmentId) })
+    .eq('id', taskId);
+  if (updateErr) throw updateErr;
+  return true;
+}

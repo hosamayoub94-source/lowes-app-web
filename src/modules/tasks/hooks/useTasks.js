@@ -33,17 +33,19 @@ export function useTasks({ realtime = true } = {}) {
   const unseenCount    = useTaskStore(selectUnseenCount);
 
   // ── Store actions ─────────────────────────────────────────
-  const loadTasks     = useTaskStore((s) => s.loadTasks);
-  const openTask      = useTaskStore((s) => s.openTask);
-  const closeDrawer   = useTaskStore((s) => s.closeDrawer);
-  const setFilter     = useTaskStore((s) => s.setFilter);
-  const toggleFilter  = useTaskStore((s) => s.toggleFilter);
-  const resetFilters  = useTaskStore((s) => s.resetFilters);
-  const changeStatus  = useTaskStore((s) => s.changeStatus);
-  const changeProgress= useTaskStore((s) => s.changeProgress);
-  const postComment   = useTaskStore((s) => s.postComment);
-  const addTask       = useTaskStore((s) => s.addTask);
-  const clearError    = useTaskStore((s) => s.clearError);
+  const loadTasks        = useTaskStore((s) => s.loadTasks);
+  const openTask         = useTaskStore((s) => s.openTask);
+  const closeDrawer      = useTaskStore((s) => s.closeDrawer);
+  const setFilter        = useTaskStore((s) => s.setFilter);
+  const toggleFilter     = useTaskStore((s) => s.toggleFilter);
+  const resetFilters     = useTaskStore((s) => s.resetFilters);
+  const changeStatus     = useTaskStore((s) => s.changeStatus);
+  const changeProgress   = useTaskStore((s) => s.changeProgress);
+  const postComment      = useTaskStore((s) => s.postComment);
+  const addTask          = useTaskStore((s) => s.addTask);
+  const clearError       = useTaskStore((s) => s.clearError);
+  const uploadAttachment = useTaskStore((s) => s.uploadAttachment);
+  const removeAttachment = useTaskStore((s) => s.removeAttachment);
 
   // ── Initial load ──────────────────────────────────────────
   useEffect(() => {
@@ -74,6 +76,16 @@ export function useTasks({ realtime = true } = {}) {
     [addTask],
   );
 
+  const handleUploadAttachment = useCallback(
+    (taskId, file) => uploadAttachment(taskId, file),
+    [uploadAttachment],
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (taskId, attachmentId) => removeAttachment(taskId, attachmentId),
+    [removeAttachment],
+  );
+
   return {
     // State
     tasks,
@@ -100,6 +112,8 @@ export function useTasks({ realtime = true } = {}) {
     postComment: handlePostComment,
     addTask: handleAddTask,
     clearError,
+    uploadAttachment: handleUploadAttachment,
+    removeAttachment: handleRemoveAttachment,
   };
 }
 

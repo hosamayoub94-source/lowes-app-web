@@ -4,7 +4,7 @@
 // No business logic here — pure composition & layout.
 // =============================================================
 
-import { memo, useCallback, useMemo, useState, useRef } from 'react';
+import { memo, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { cn } from '@utils/classNames';
 import { Button } from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
@@ -236,12 +236,27 @@ const STATUS_COL_MAP = {
 const PRIORITY_COLOR = { urgent:'text-red-500', high:'text-orange-500', medium:'text-amber-500', low:'text-blue-400' };
 const PRIORITY_ICON  = { urgent:'⚡', high:'▲', medium:'△', low:'▽' };
 
-function KanbanCard({ task, onClick }) {
+function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','مكتملة'].includes(task.status);
   return (
-    <button onClick={onClick} className="w-full text-start bg-surface border border-border rounded-xl p-3 shadow-sm hover:border-teal/30 hover:shadow-md transition-all duration-150 group active:scale-[0.98]">
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(task); }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'w-full text-start bg-surface border border-border rounded-xl p-3 shadow-sm',
+        'hover:border-teal/30 hover:shadow-md transition-all duration-150 cursor-grab active:cursor-grabbing',
+        isDragging && 'opacity-40 scale-95',
+      )}
+    >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-sm font-semibold text-text leading-snug line-clamp-2 flex-1">{task.title}</p>
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex-1 text-start text-sm font-semibold text-text leading-snug line-clamp-2 hover:text-teal transition-colors"
+        >
+          {task.title}
+        </button>
         {task.priority && (
           <span className={`text-xs shrink-0 ${PRIORITY_COLOR[task.priority] ?? 'text-muted'}`} title={task.priority}>
             {PRIORITY_ICON[task.priority] ?? '·'}
@@ -250,19 +265,30 @@ function KanbanCard({ task, onClick }) {
       </div>
       <div className="flex items-center gap-2 flex-wrap mt-2">
         {task.assigned_to && (
-          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full truncate max-w-[100px]">👤 {task.assigned_to}</span>
+          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full truncate max-w-[100px]">
+            👤 {task.assigned_to?.name || task.assigned_to}
+          </span>
         )}
         {task.due_date && (
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
             {isOverdue ? '⚠️' : '📅'} {task.due_date.slice(5)}
           </span>
         )}
+        {(task.comments_count > 0 || task.comments?.length > 0) && (
+          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full">
+            💬 {task.comments_count || task.comments?.length}
+          </span>
+        )}
       </div>
-    </button>
+    </div>
   );
 }
 
-function KanbanView({ tasks, onOpen }) {
+function KanbanView({ tasks, onOpen, onStatusChange }) {
+  const [draggingTask, setDraggingTask]   = useState(null);
+  const [dragOverCol, setDragOverCol]     = useState(null);
+  const [dragOverTask, setDragOverTask]   = useState(null);
+
   const byCol = useMemo(() => {
     const m = {};
     KANBAN_COLS.forEach(c => { m[c.key] = []; });
@@ -273,30 +299,98 @@ function KanbanView({ tasks, onOpen }) {
     return m;
   }, [tasks]);
 
+  const handleDragStart = useCallback((task) => {
+    setDraggingTask(task);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingTask(null);
+    setDragOverCol(null);
+    setDragOverTask(null);
+  }, []);
+
+  const handleColDragOver = useCallback((e, colKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverCol(colKey);
+  }, []);
+
+  const handleColDrop = useCallback((e, colKey) => {
+    e.preventDefault();
+    if (!draggingTask) return;
+    const srcCol = STATUS_COL_MAP[draggingTask.status] ?? 'pending';
+    if (srcCol !== colKey) {
+      onStatusChange?.(draggingTask.id, colKey);
+    }
+    setDraggingTask(null);
+    setDragOverCol(null);
+  }, [draggingTask, onStatusChange]);
+
+  const handleColDragLeave = useCallback((e) => {
+    // Only clear if leaving the column container (not a child)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverCol(null);
+    }
+  }, []);
+
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1 snap-x" style={{ minHeight: '400px' }}>
-      {KANBAN_COLS.map(col => (
-        <div key={col.key} className={`shrink-0 w-64 sm:w-72 rounded-2xl border-2 ${col.color} flex flex-col snap-start`}>
-          {/* Column header */}
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/5">
-            <div className={`w-2 h-2 rounded-full ${col.dot}`} />
-            <span className="text-xs font-bold text-text">{col.label}</span>
-            <span className="ms-auto text-xs font-bold text-muted bg-surface/70 px-2 py-0.5 rounded-full">
-              {byCol[col.key].length}
-            </span>
-          </div>
-          {/* Cards */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]">
-            {byCol[col.key].length === 0 ? (
-              <div className="flex items-center justify-center h-24 text-muted/40 text-xs font-medium">
-                لا توجد مهام
-              </div>
-            ) : (
-              byCol[col.key].map(t => <KanbanCard key={t.id} task={t} onClick={() => onOpen(t.id)} />)
+      {KANBAN_COLS.map(col => {
+        const isOver = dragOverCol === col.key;
+        return (
+          <div
+            key={col.key}
+            onDragOver={(e) => handleColDragOver(e, col.key)}
+            onDrop={(e) => handleColDrop(e, col.key)}
+            onDragLeave={handleColDragLeave}
+            className={cn(
+              'shrink-0 w-64 sm:w-72 rounded-2xl border-2 flex flex-col snap-start transition-all duration-150',
+              col.color,
+              isOver && 'ring-2 ring-teal ring-offset-1 scale-[1.01]',
             )}
+          >
+            {/* Column header */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/5">
+              <div className={`w-2 h-2 rounded-full ${col.dot}`} />
+              <span className="text-xs font-bold text-text">{col.label}</span>
+              <span className="ms-auto text-xs font-bold text-muted bg-surface/70 px-2 py-0.5 rounded-full">
+                {byCol[col.key].length}
+              </span>
+            </div>
+            {/* Cards */}
+            <div className={cn(
+              'flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px] rounded-b-2xl transition-colors duration-150',
+              isOver && draggingTask && 'bg-teal/5',
+            )}>
+              {byCol[col.key].length === 0 ? (
+                <div className={cn(
+                  'flex items-center justify-center h-24 text-xs font-medium rounded-xl border-2 border-dashed transition-colors',
+                  isOver ? 'border-teal/40 text-teal' : 'border-transparent text-muted/40',
+                )}>
+                  {isOver ? 'أفلت هنا' : 'لا توجد مهام'}
+                </div>
+              ) : (
+                <>
+                  {byCol[col.key].map(t => (
+                    <KanbanCard
+                      key={t.id}
+                      task={t}
+                      onClick={() => onOpen(t.id)}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      isDragging={draggingTask?.id === t.id}
+                    />
+                  ))}
+                  {/* Drop zone hint at bottom */}
+                  {isOver && draggingTask && (
+                    <div className="h-1.5 rounded-full bg-teal/30 animate-pulse" />
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -402,6 +496,7 @@ function TasksPage() {
     selectedTask, employees, unseenCount, drawerOpen,
     loadTasks, openTask, closeDrawer, setFilter, toggleFilter,
     resetFilters, changeStatus, changeProgress, postComment, addTask, clearError,
+    uploadAttachment, removeAttachment,
   } = useTasks();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -464,12 +559,23 @@ function TasksPage() {
         <div className="space-y-3">
           <SectionHeader count={filteredTasks.length} hasFilters={hasFilters} onReset={resetFilters} />
           {viewMode === 'kanban'
-            ? <KanbanView tasks={filteredTasks} onOpen={openTask} />
+            ? <KanbanView tasks={filteredTasks} onOpen={openTask} onStatusChange={changeStatus} />
             : <TaskGrid tasks={filteredTasks} onOpen={openTask} />
           }
         </div>
       )}
-      <TaskDetailsDrawer task={selectedTask} open={drawerOpen} onClose={closeDrawer} onStatusChange={changeStatus} onProgressChange={changeProgress} onAddComment={postComment} actionLoading={actionLoading} />
+      <TaskDetailsDrawer
+        task={selectedTask}
+        open={drawerOpen}
+        onClose={closeDrawer}
+        onStatusChange={changeStatus}
+        onProgressChange={changeProgress}
+        onAddComment={postComment}
+        onUploadAttachment={uploadAttachment}
+        onRemoveAttachment={removeAttachment}
+        actionLoading={actionLoading}
+        employees={employees}
+      />
     </div>
   );
 }

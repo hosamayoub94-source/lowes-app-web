@@ -267,6 +267,50 @@ const MIGRATIONS = [
         FOR ALL USING (true) WITH CHECK (true);
     `,
   },
+
+  // ── 10. task-attachments: Supabase Storage bucket ────────────
+  {
+    name: 'task-attachments storage bucket',
+    check: async () => {
+      // Check if bucket already exists
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/bucket/task-attachments`, {
+        headers: { apikey: SERVICE_ROLE, Authorization: 'Bearer ' + SERVICE_ROLE },
+      });
+      return res.ok; // true = exists, skip
+    },
+    sql: null, // handled via Storage API, not SQL
+    storageAction: async () => {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          apikey:          SERVICE_ROLE,
+          Authorization:   'Bearer ' + SERVICE_ROLE,
+        },
+        body: JSON.stringify({
+          id:              'task-attachments',
+          name:            'task-attachments',
+          public:          true,
+          file_size_limit: 10485760, // 10 MB
+          allowed_mime_types: [
+            'image/*', 'video/*', 'application/pdf',
+            'application/zip', 'application/x-rar-compressed',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/*',
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        if (body.includes('already exists') || body.includes('Duplicate')) return true;
+        throw new Error(`Storage bucket create: HTTP ${res.status} — ${body.slice(0, 200)}`);
+      }
+      return true;
+    },
+  },
 ];
 
 // ── exec helper via Management API ───────────────────────────
@@ -315,8 +359,16 @@ async function main() {
         console.log(' (already done — skipped)');
         continue;
       }
+      // Storage-only migration (no SQL)
+      if (!m.sql && m.storageAction) {
+        await m.storageAction();
+        console.log(' ✅ done');
+        continue;
+      }
       const ok = await runSQL(m.sql, m.name);
       if (ok) {
+        // Run optional storage action after SQL
+        if (m.storageAction) await m.storageAction().catch(() => {});
         console.log(' ✅ done');
       } else {
         console.log(' ⚠️  needs manual PAT');

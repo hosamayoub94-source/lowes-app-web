@@ -19,6 +19,7 @@ import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
 import { useCountdown } from '../hooks/useCountdown';
 import { CommentThread } from './CommentThread';
 import { ActivityTimeline } from './ActivityTimeline';
+import { TaskAttachments } from './TaskAttachments';
 
 // ── Section wrapper ───────────────────────────────────────────
 function Section({ title, icon, children, className = '' }) {
@@ -91,37 +92,7 @@ function ProgressEditor({ value, onChange, loading }) {
   );
 }
 
-// ── Attachment placeholder ────────────────────────────────────
-function AttachmentsSection({ attachments = [] }) {
-  return (
-    <Section title="المرفقات" icon="📎">
-      {attachments.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-6 rounded-xl border border-dashed border-border text-center">
-          <div className="w-10 h-10 rounded-xl bg-surface-alt grid place-items-center text-muted">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </div>
-          <span className="text-xs text-muted">لا توجد مرفقات — سيتم إضافة رفع الملفات قريباً</span>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {attachments.map((att) => (
-            <div key={att.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt">
-              <div className="w-8 h-8 rounded-lg bg-blue-bg grid place-items-center text-blue-fg text-xs font-bold shrink-0">
-                {att.type === 'pdf' ? 'PDF' : att.type === 'archive' ? 'ZIP' : 'FILE'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-text truncate">{att.name}</p>
-                <p className="text-[10px] text-muted">{att.size}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
+// AttachmentsSection is replaced by TaskAttachments component (imported above)
 
 // ── Tab bar ───────────────────────────────────────────────────
 const TABS = [
@@ -159,7 +130,7 @@ function TabBar({ active, onChange, commentCount }) {
 }
 
 // ── Details tab ───────────────────────────────────────────────
-function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
+function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment, onRemoveAttachment, actionLoading }) {
   const effStatus = effectiveStatus(task);
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[task.priority] || null;
@@ -308,7 +279,12 @@ function DetailsTab({ task, onStatusChange, onProgressChange, actionLoading }) {
       )}
 
       {/* Attachments */}
-      <AttachmentsSection attachments={task.attachments} />
+      <TaskAttachments
+        attachments={task.attachments || []}
+        taskId={task.id}
+        onUpload={onUploadAttachment}
+        onRemove={onRemoveAttachment}
+      />
     </div>
   );
 }
@@ -321,7 +297,10 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   onStatusChange,
   onProgressChange,
   onAddComment,
+  onUploadAttachment,
+  onRemoveAttachment,
   actionLoading = false,
+  employees = [],
 }) {
   const [activeTab, setActiveTab] = useState('details');
 
@@ -427,6 +406,8 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
               task={task}
               onStatusChange={handleStatusChange}
               onProgressChange={handleProgressChange}
+              onUploadAttachment={onUploadAttachment}
+              onRemoveAttachment={onRemoveAttachment}
               actionLoading={actionLoading}
             />
           )}
@@ -436,6 +417,7 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
                 comments={task.comments || []}
                 onAddComment={handleAddComment}
                 loading={actionLoading}
+                employees={employees}
               />
             </div>
           )}
