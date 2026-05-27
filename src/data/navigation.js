@@ -168,6 +168,20 @@ export const NAV_ITEMS = [
     path: '/attendance-report',
     roles: [ROLES.ADMIN, ROLES.MANAGER],
   },
+  {
+    id: 'leave',
+    label: 'طلبات الإجازة',
+    icon: '🏖️',
+    path: '/leave',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'hr',
+    label: 'الموارد البشرية',
+    icon: '👥',
+    path: '/hr',
+    roles: [ROLES.ADMIN, ROLES.MANAGER],
+  },
 ];
 
 export function navItemsForRole(role) {

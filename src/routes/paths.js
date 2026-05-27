@@ -44,6 +44,10 @@ export const ROUTES = {
 
   // Announcements
   ANNOUNCEMENTS: '/announcements',
+
+  // HR & Leave
+  LEAVE: '/leave',
+  HR:    '/hr',
 };
 
 export default ROUTES;

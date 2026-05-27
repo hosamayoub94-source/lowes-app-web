@@ -53,6 +53,8 @@ const AttendanceReportScreen   = lazy(() => import(/* webpackChunkName: "att-rep
 const ChatScreen               = lazy(() => import(/* webpackChunkName: "chat"           */ '@screens/ChatScreen'));
 const AchievementsScreen       = lazy(() => import(/* webpackChunkName: "achievements"      */ '@modules/gamification/pages/AchievementsScreen'));
 const AnnouncementsScreen      = lazy(() => import(/* webpackChunkName: "announcements"    */ '@screens/AnnouncementsScreen'));
+const LeaveRequestsScreen      = lazy(() => import(/* webpackChunkName: "leave"            */ '@screens/LeaveRequestsScreen'));
+const HRDashboard              = lazy(() => import(/* webpackChunkName: "hr"               */ '@screens/HRDashboard'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -164,6 +166,22 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
                 <AttendanceReportScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.LEAVE}
+            element={
+              <ProtectedRoute roles={ALL_ROLES}>
+                <LeaveRequestsScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.HR}
+            element={
+              <ProtectedRoute roles={FINANCE_ROLES}>
+                <HRDashboard />
               </ProtectedRoute>
             }
           />

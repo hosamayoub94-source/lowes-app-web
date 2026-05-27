@@ -215,7 +215,7 @@ const MIGRATIONS = [
 
   // ── 8. push_subscriptions: Web Push endpoints ─────────────
   {
-    name: 'push_subscriptions table',
+    name: 'push_subscriptions table (already done)',
     check: () => tableExists('push_subscriptions'),
     sql: `
       CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -233,6 +233,37 @@ const MIGRATIONS = [
       ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
       DROP POLICY IF EXISTS "push_subs_owner" ON push_subscriptions;
       CREATE POLICY "push_subs_owner" ON push_subscriptions
+        FOR ALL USING (true) WITH CHECK (true);
+    `,
+  },
+
+  // ── 9. leave_requests: إجازات workflow ───────────────────
+  {
+    name: 'leave_requests table',
+    check: () => tableExists('leave_requests'),
+    sql: `
+      CREATE TABLE IF NOT EXISTS leave_requests (
+        id            uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+        employee_id   uuid        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        employee_name text        NOT NULL,
+        type          text        NOT NULL DEFAULT 'annual',
+        start_date    date        NOT NULL,
+        end_date      date        NOT NULL,
+        days          int         NOT NULL DEFAULT 1,
+        reason        text,
+        status        text        NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','approved','rejected')),
+        manager_id    uuid        REFERENCES profiles(id),
+        manager_note  text,
+        created_at    timestamptz DEFAULT now(),
+        updated_at    timestamptz DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_leave_req_employee ON leave_requests(employee_id);
+      CREATE INDEX IF NOT EXISTS idx_leave_req_status   ON leave_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_leave_req_start    ON leave_requests(start_date);
+      ALTER TABLE leave_requests ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "leave_req_all" ON leave_requests;
+      CREATE POLICY "leave_req_all" ON leave_requests
         FOR ALL USING (true) WITH CHECK (true);
     `,
   },
