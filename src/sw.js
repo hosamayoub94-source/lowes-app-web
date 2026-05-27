@@ -37,7 +37,15 @@ registerRoute(
   })
 );
 
-// ── Skip waiting on activate message ──────────────────────────
+// ── Skip waiting immediately on install (force instant update) ──
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+// ── Also handle manual SKIP_WAITING message ───────────────────
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });

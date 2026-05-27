@@ -15,6 +15,7 @@ const SUB_TABS = [
   { id: 'qa',          label: '🔬 QA Dashboard',    path: ROUTES.ADMIN_QA          },
   { id: 'maintenance', label: '🛠️ Maintenance',    path: ROUTES.ADMIN_MAINTENANCE },
   { id: 'operations',  label: '📊 Operations',      path: ROUTES.ADMIN_OPERATIONS  },
+  { id: 'quiz',        label: '🧠 اختبارات التدريب', path: ROUTES.ADMIN_QUIZ        },
 ];
 
 export default function AdminScreen() {

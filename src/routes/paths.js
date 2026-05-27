@@ -48,6 +48,10 @@ export const ROUTES = {
   // HR & Leave
   LEAVE: '/leave',
   HR:    '/hr',
+
+  // Training / Daily Quiz
+  TRAINING:   '/training',
+  ADMIN_QUIZ: '/admin/quiz',
 };
 
 export default ROUTES;

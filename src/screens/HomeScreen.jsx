@@ -595,6 +595,18 @@ export default function HomeScreen() {
         </div>
       )}
 
+      {/* ── Daily Training Card ─────────────────────────────────── */}
+      <Link to="/training" className="block">
+        <div className="bg-gradient-to-r from-teal to-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-teal/10">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">🧠</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-black text-sm">التدريب اليومي</p>
+            <p className="text-white/70 text-xs mt-0.5">أسئلة وأجوبة — زد معرفتك بالمنتجات يومياً</p>
+          </div>
+          <span className="text-white/50 text-lg shrink-0">←</span>
+        </div>
+      </Link>
+
       {/* ── Leaderboard ─────────────────────────────────────────── */}
       <MiniLeaderboard />
 

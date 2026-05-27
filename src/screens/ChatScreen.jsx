@@ -847,7 +847,7 @@ function CreateChannelPanel({userId,userName,onCreated,onClose}){
     try{
       const{data:room,error}=await supabase.from('chat_rooms').insert({type:'group',name:name.trim(),description:desc.trim()||null,team,requires_approval:needsApproval,is_private:false,created_by:userId,created_by_name:userName}).select().single();
       if(error)throw error;
-      await supabase.from('chat_room_members').insert({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'admin',joined_at:new Date().toISOString()}).catch(()=>{});
+      try{ await supabase.from('chat_room_members').insert({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'admin',joined_at:new Date().toISOString()}); }catch{}
       onCreated?.(room);
     }catch(e){alert('خطأ: '+e.message);}finally{setSaving(false);}
   };
@@ -1084,19 +1084,25 @@ export default function ChatScreen(){
       }
       setAllChannels(allGroups);
 
-      const{data:memberships}=await supabase.from('chat_room_members').select('room_id').eq('user_id',userId);
-      const memberIds=(memberships??[]).map(m=>m.room_id);
+      // ── Memberships ───────────────────────────────────────────────
+      let memberIds=[];
+      try{
+        const{data:memberships}=await supabase.from('chat_room_members').select('room_id').eq('user_id',userId);
+        memberIds=(memberships??[]).map(m=>m.room_id);
+      }catch{}
 
-      // Auto-join: join all public channels that don't require approval
-      const toJoin=[];
-      for(const room of allGroups){
-        if(memberIds.includes(room.id))continue;
-        if(!room.is_private && !room.requires_approval){
-          toJoin.push({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()});
-        }
-      }
+      // Also include rooms where join request was approved
+      try{
+        const{data:approved}=await supabase.from('chat_join_requests').select('room_id').eq('user_id',userId).eq('status','approved');
+        (approved??[]).forEach(r=>{if(!memberIds.includes(r.room_id))memberIds.push(r.room_id);});
+      }catch{}
+
+      // Auto-join ALL public channels (upsert — safe even if already member)
+      const toJoin=allGroups
+        .filter(r=>!r.is_private&&!memberIds.includes(r.id))
+        .map(r=>({room_id:r.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()}));
       if(toJoin.length){
-        await supabase.from('chat_room_members').insert(toJoin).catch(()=>{});
+        try{ await supabase.from('chat_room_members').upsert(toJoin,{onConflict:'room_id,user_id'}); }catch{}
         toJoin.forEach(m=>{if(!memberIds.includes(m.room_id))memberIds.push(m.room_id);});
       }
       setMemberRoomIds([...memberIds]);
@@ -1105,28 +1111,34 @@ export default function ChatScreen(){
 
       // DMs
       let dmRooms=[];
-      if(memberIds.length){
-        const{data:dms}=await supabase.from('chat_rooms').select('id,type,name,team').eq('type','dm').in('id',memberIds);
-        if(dms?.length){
-          const enriched=await Promise.all(dms.map(async r=>{
-            const{data:members}=await supabase.from('chat_room_members').select('user_id,display_name').eq('room_id',r.id);
-            const other=members?.find(m=>m.user_id!==userId);
-            return{...r,display_name:other?.display_name??r.name};
-          }));
-          dmRooms=enriched;
+      try{
+        if(memberIds.length){
+          const{data:dms}=await supabase.from('chat_rooms').select('id,type,name,team').eq('type','dm').in('id',memberIds);
+          if(dms?.length){
+            const enriched=await Promise.all(dms.map(async r=>{
+              try{
+                const{data:members}=await supabase.from('chat_room_members').select('user_id,display_name').eq('room_id',r.id);
+                const other=members?.find(m=>m.user_id!==userId);
+                return{...r,display_name:other?.display_name??r.name};
+              }catch{return r;}
+            }));
+            dmRooms=enriched;
+          }
         }
-      }
+      }catch{}
 
       const allRooms=[...myGroups,...dmRooms];
       setRooms(allRooms);
 
-      // Last messages
+      // Last messages + unread counts
       if(allRooms.length){
-        const{data:lms}=await supabase.from('chat_messages').select('room_id,content,message_type,created_at,sender_id').in('room_id',allRooms.map(r=>r.id)).order('created_at',{ascending:false}).limit(200);
-        const map={};
-        (lms??[]).forEach(m=>{if(!map[m.room_id])map[m.room_id]=m.message_type==='text'?m.content:m.message_type==='image'?'📷 صورة':m.message_type==='file'?`📎 ${m.file_name||'ملف'}`:'🎙️ رسالة صوتية';});
-        setLastMsgs(map);
-        await loadUnreadCounts(allRooms);
+        try{
+          const{data:lms}=await supabase.from('chat_messages').select('room_id,content,message_type,created_at,sender_id').in('room_id',allRooms.map(r=>r.id)).order('created_at',{ascending:false}).limit(200);
+          const map={};
+          (lms??[]).forEach(m=>{if(!map[m.room_id])map[m.room_id]=m.message_type==='text'?m.content:m.message_type==='image'?'📷 صورة':m.message_type==='file'?`📎 ${m.file_name||'ملف'}`:'🎙️ رسالة صوتية';});
+          setLastMsgs(map);
+        }catch{}
+        try{ await loadUnreadCounts(allRooms); }catch{}
       }
 
       if(allRooms.length&&!activeRoom)setActiveRoom(allRooms[0]);

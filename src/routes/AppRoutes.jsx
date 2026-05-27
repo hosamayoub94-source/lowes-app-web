@@ -55,6 +55,8 @@ const AchievementsScreen       = lazy(() => import(/* webpackChunkName: "achieve
 const AnnouncementsScreen      = lazy(() => import(/* webpackChunkName: "announcements"    */ '@screens/AnnouncementsScreen'));
 const LeaveRequestsScreen      = lazy(() => import(/* webpackChunkName: "leave"            */ '@screens/LeaveRequestsScreen'));
 const HRDashboard              = lazy(() => import(/* webpackChunkName: "hr"               */ '@screens/HRDashboard'));
+const TrainingScreen           = lazy(() => import(/* webpackChunkName: "training"         */ '@screens/TrainingScreen'));
+const AdminQuizScreen          = lazy(() => import(/* webpackChunkName: "admin-quiz"       */ '@screens/admin/AdminQuizScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -185,6 +187,7 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route path={ROUTES.TRAINING} element={<TrainingScreen />} />
 
           {/* Admin only — nested */}
           <Route
@@ -202,6 +205,7 @@ export function AppRoutes() {
             <Route path="qa"          element={<QADashboard />}          />
             <Route path="maintenance" element={<MaintenanceDashboard />} />
             <Route path="operations"  element={<OperationalInsights />}  />
+            <Route path="quiz"        element={<AdminQuizScreen />}       />
           </Route>
         </Route>
 
