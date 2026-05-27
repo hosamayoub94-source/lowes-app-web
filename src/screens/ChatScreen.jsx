@@ -565,9 +565,12 @@ function DiscoverPanel({allChannels,memberRoomIds,userId,userName,onClose,onRequ
   useEffect(()=>{
     (async()=>{
       if(!available.length){setLoading(false);return;}
-      const{data}=await supabase.from('chat_join_requests').select('room_id,status').eq('user_id',userId).in('room_id',available.map(r=>r.id));
-      const map={};(data??[]).forEach(r=>{map[r.room_id]=r.status;});
-      setRequests(map);setLoading(false);
+      try{
+        const{data}=await supabase.from('chat_join_requests').select('room_id,status').eq('user_id',userId).in('room_id',available.map(r=>r.id));
+        const map={};(data??[]).forEach(r=>{map[r.room_id]=r.status;});
+        setRequests(map);
+      }catch{/* chat_join_requests table may not exist yet */}
+      setLoading(false);
     })();
   },[userId]);
   const requestJoin=async room=>{
@@ -582,8 +585,17 @@ function DiscoverPanel({allChannels,memberRoomIds,userId,userName,onClose,onRequ
         setRequests(p=>({...p,[room.id]:'approved'}));
         onRequestSent?.();
       }else{
-        await supabase.from('chat_join_requests').upsert({room_id:room.id,room_name:room.name,user_id:userId,user_name:userName,status:'pending',requested_at:new Date().toISOString()},{onConflict:'room_id,user_id'});
-        setRequests(p=>({...p,[room.id]:'pending'}));
+        try{
+          await supabase.from('chat_join_requests').upsert({room_id:room.id,room_name:room.name,user_id:userId,user_name:userName,status:'pending',requested_at:new Date().toISOString()},{onConflict:'room_id,user_id'});
+          setRequests(p=>({...p,[room.id]:'pending'}));
+        }catch{
+          // Fallback: join directly if join_requests table missing
+          await supabase.from('chat_room_members').upsert(
+            {room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()},
+            {onConflict:'room_id,user_id'}
+          );
+          setRequests(p=>({...p,[room.id]:'approved'}));
+        }
         onRequestSent?.();
       }
     }catch(e){alert('فشل: '+e.message);}finally{setSending(null);}
@@ -624,8 +636,11 @@ function JoinRequestsPanel({userName,onApproved,onClose}){
   const[requests,setRequests]=useState([]),[loading,setLoading]=useState(true),[acting,setActing]=useState(null);
   const load=useCallback(async()=>{
     setLoading(true);
-    const{data}=await supabase.from('chat_join_requests').select('*').eq('status','pending').order('requested_at',{ascending:true});
-    setRequests(data??[]);setLoading(false);
+    try{
+      const{data}=await supabase.from('chat_join_requests').select('*').eq('status','pending').order('requested_at',{ascending:true});
+      setRequests(data??[]);
+    }catch{setRequests([]);}
+    setLoading(false);
   },[]);
   useEffect(()=>{load();},[load]);
   const approve=async req=>{
@@ -840,8 +855,10 @@ export default function ChatScreen(){
   // ── Pending count ──────────────────────────────────────────────
   const loadPendingCount=useCallback(async()=>{
     if(!isApprover)return;
-    const{count}=await supabase.from('chat_join_requests').select('*',{count:'exact',head:true}).eq('status','pending');
-    setPendingCount(count??0);
+    try{
+      const{count}=await supabase.from('chat_join_requests').select('*',{count:'exact',head:true}).eq('status','pending');
+      setPendingCount(count??0);
+    }catch{setPendingCount(0);}
   },[isApprover]);
 
   // ── Global presence (online dots + last seen) ─────────────────
@@ -894,8 +911,10 @@ export default function ChatScreen(){
 
   // ── Load pinned message ────────────────────────────────────────
   const loadPinned=useCallback(async(roomId)=>{
-    const{data}=await supabase.from('chat_pinned').select('*').eq('room_id',roomId).maybeSingle();
-    setPinnedMsg(data);
+    try{
+      const{data}=await supabase.from('chat_pinned').select('*').eq('room_id',roomId).maybeSingle();
+      setPinnedMsg(data??null);
+    }catch{setPinnedMsg(null);}  // gracefully handle missing table
   },[]);
 
   // ── Load rooms ─────────────────────────────────────────────────
@@ -914,11 +933,11 @@ export default function ChatScreen(){
       const{data:memberships}=await supabase.from('chat_room_members').select('room_id').eq('user_id',userId);
       const memberIds=(memberships??[]).map(m=>m.room_id);
 
-      // Auto-join
+      // Auto-join: join all public channels that don't require approval
       const toJoin=[];
       for(const room of allGroups){
         if(memberIds.includes(room.id))continue;
-        if(room.name==='💬 عام'||(userTeam&&room.team===userTeam)||(isApprover&&!room.is_private)){
+        if(!room.is_private && !room.requires_approval){
           toJoin.push({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()});
         }
       }

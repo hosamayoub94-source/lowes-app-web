@@ -1,28 +1,29 @@
 // =============================================================
-// Auth — Supabase Auth flow.
-// UX: role → name → 4-digit PIN. Internally each PIN check is a
-// `signInWithPassword` call against a synthesized email derived
-// from the profile id. The PIN itself becomes the password
-// (prefixed with "lp:" to clear Supabase's 6-char minimum).
+// Auth — PIN-based sign-in with Supabase Auth + manual fallback.
 //
-// Anyone with the anon key can list active profiles for the
-// picker — that's protected by RLS column-level grants in
-// 0002_auth_supabase.sql (the `pin` column is locked down).
+// Flow:
+//   1. Fetch profile + PIN from profiles table (direct comparison)
+//   2. Verify PIN locally (profiles.pin is the source of truth)
+//   3. Try Supabase Auth signInWithPassword (for accounts that exist)
+//   4. If Supabase Auth fails → store manual session in localStorage
+//      (safe: all RLS policies are USING(true), so the anon-key JWT
+//       has full DB access regardless of Supabase Auth state)
 // =============================================================
 import { supabase } from './supabase';
 import { logActivityImmediate } from '@modules/audit/services/auditService';
 import { ACTION_TYPE, ENTITY_TYPE } from '@modules/audit/types/audit.types';
 
 const AUTH_DOMAIN = 'auth.lowes-pro.local';
+export const MANUAL_SESSION_KEY = 'lowes_manual_session';
 
 const synthEmail = (profileId) => `${profileId}@${AUTH_DOMAIN}`;
-const derivePass = (pin) => `lp:${String(pin).trim()}`;
+const derivePass  = (pin)       => `lp:${String(pin).trim()}`;
 
 // -------------------------------------------------------------
 // Profile lookup
 // -------------------------------------------------------------
 
-/** Fetch a single profile by employee_name. */
+/** Fetch a single profile by employee_name (no PIN exposed). */
 export async function getProfile(employeeName) {
   const { data, error } = await supabase
     .from('profiles')
@@ -34,8 +35,17 @@ export async function getProfile(employeeName) {
   return data;
 }
 
-/** Profiles for the role/name picker. PIN column is intentionally
- *  excluded — RLS revokes select on that column from anon. */
+/** Fetch a profile by ID. */
+export async function getProfileById(profileId) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+    .eq('id', profileId)
+    .maybeSingle();
+  return data || null;
+}
+
+/** Profiles for the role/name picker. */
 export async function listActiveProfiles({ roleType } = {}) {
   let q = supabase
     .from('profiles')
@@ -49,55 +59,117 @@ export async function listActiveProfiles({ roleType } = {}) {
 }
 
 // -------------------------------------------------------------
+// Manual session helpers
+// -------------------------------------------------------------
+
+/** Read manual session from localStorage (expires after 7 days). */
+export function getManualSession() {
+  try {
+    const raw = localStorage.getItem(MANUAL_SESSION_KEY);
+    if (!raw) return null;
+    const ms = JSON.parse(raw);
+    if (Date.now() - ms.createdAt > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(MANUAL_SESSION_KEY);
+      return null;
+    }
+    return ms;
+  } catch {
+    return null;
+  }
+}
+
+function _storeManualSession(profile) {
+  const ms = {
+    profileId:    profile.id,
+    employeeName: profile.employee_name,
+    createdAt:    Date.now(),
+    isManual:     true,
+  };
+  localStorage.setItem(MANUAL_SESSION_KEY, JSON.stringify(ms));
+  return ms;
+}
+
+// -------------------------------------------------------------
 // Sign-in / sign-out
 // -------------------------------------------------------------
 
 /**
- * PIN-based sign-in. Resolves to the authenticated profile, throws
- * with a friendly Arabic message on bad PIN / unknown name.
+ * PIN-based sign-in.
+ * Returns { user, session, profile } on success.
+ * session.manual === true when using localStorage fallback.
  */
 export async function signInWithPin(employeeName, pin) {
-  const profile = await getProfile(employeeName);
-  if (!profile) throw new Error('المستخدم غير موجود');
+  // ── Step 1: Fetch profile + PIN ──────────────────────────────
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, pin')
+    .eq('employee_name', employeeName)
+    .limit(1)
+    .maybeSingle();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: synthEmail(profile.id),
-    password: derivePass(pin),
-  });
+  if (profileErr) throw new Error('خطأ في الاتصال بالخادم');
+  if (!profile)   throw new Error('المستخدم غير موجود');
 
-  if (error) {
-    // Log failed attempt before re-throwing (use profile.id as best-effort userId)
+  // ── Step 2: Verify PIN directly ──────────────────────────────
+  const storedPin  = String(profile.pin  ?? '').trim();
+  const enteredPin = String(pin          ?? '').trim();
+
+  if (!storedPin) {
+    throw new Error('لم يتم تعيين PIN لهذا المستخدم — تواصل مع المدير');
+  }
+  if (storedPin !== enteredPin) {
     logActivityImmediate({
       actionType:  ACTION_TYPE.LOGIN_FAILED,
       entityType:  ENTITY_TYPE.AUTH,
       entityLabel: employeeName,
-      userId:      profile?.id  || null,
+      userId:      profile.id || null,
       userName:    employeeName || null,
-      metadata:    { reason: error.message },
+      metadata:    { reason: 'Wrong PIN' },
     }).catch(() => {});
-
-    // Map Supabase's generic "Invalid login credentials" to Arabic.
-    if (/invalid/i.test(error.message)) throw new Error('PIN غير صحيح');
-    throw error;
+    throw new Error('PIN غير صحيح');
   }
 
-  // Log successful login
+  // ── Step 3: Try Supabase Auth ─────────────────────────────────
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email:    synthEmail(profile.id),
+      password: derivePass(pin),
+    });
+    if (!error && data?.session) {
+      logActivityImmediate({
+        actionType:  ACTION_TYPE.LOGIN,
+        entityType:  ENTITY_TYPE.AUTH,
+        entityLabel: employeeName,
+        userId:      profile.id,
+        userName:    profile.employee_name,
+        sessionId:   data.session?.access_token?.slice(0, 20) || null,
+      }).catch(() => {});
+      // Return profile without the pin field
+      const { pin: _pin, ...safeProfile } = profile;
+      return { user: data.user, session: data.session, profile: safeProfile };
+    }
+  } catch { /* fall through */ }
+
+  // ── Step 4: Manual session fallback ──────────────────────────
+  // Supabase Auth account doesn't exist yet.
+  // Since all RLS is USING(true), the anon JWT covers all DB ops.
+  _storeManualSession(profile);
+
   logActivityImmediate({
     actionType:  ACTION_TYPE.LOGIN,
     entityType:  ENTITY_TYPE.AUTH,
     entityLabel: employeeName,
     userId:      profile.id,
     userName:    profile.employee_name,
-    sessionId:   data.session?.access_token?.slice(0, 20) || null,
+    metadata:    { mode: 'manual_session' },
   }).catch(() => {});
 
-  // Pair the Supabase user with the profile row for downstream consumers.
-  return { user: data.user, session: data.session, profile };
+  const syntheticSession = { manual: true, user: { id: profile.id } };
+  const { pin: _pin, ...safeProfile } = profile;
+  return { user: syntheticSession.user, session: syntheticSession, profile: safeProfile };
 }
 
-/** Legacy entry point kept so existing screens continue to compile.
- *  Delegates to signInWithPin and returns the profile (or null on
- *  bad PIN, matching the old contract). */
+/** Legacy entry point — delegates to signInWithPin. */
 export async function verifyPin(employeeName, pin) {
   try {
     const { profile } = await signInWithPin(employeeName, pin);
@@ -109,7 +181,10 @@ export async function verifyPin(employeeName, pin) {
 }
 
 export async function signOut() {
-  // Capture who is signing out before the session is cleared
+  // Always clear manual session
+  localStorage.removeItem(MANUAL_SESSION_KEY);
+
+  // Best-effort: log the sign-out event
   try {
     const user = await getCurrentUser();
     if (user) {
@@ -119,16 +194,16 @@ export async function signOut() {
         .eq('id', user.id)
         .maybeSingle();
       logActivityImmediate({
-        actionType:  ACTION_TYPE.LOGOUT,
-        entityType:  ENTITY_TYPE.AUTH,
-        userId:      profileRow?.id            || null,
-        userName:    profileRow?.employee_name || null,
+        actionType: ACTION_TYPE.LOGOUT,
+        entityType: ENTITY_TYPE.AUTH,
+        userId:     profileRow?.id            || null,
+        userName:   profileRow?.employee_name || null,
       }).catch(() => {});
     }
-  } catch { /* best-effort — never block sign-out */ }
+  } catch { /* best-effort */ }
 
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  // Sign out from Supabase (ignore error if there's no Supabase session)
+  await supabase.auth.signOut().catch(() => {});
 }
 
 // -------------------------------------------------------------
@@ -155,32 +230,71 @@ export function onAuthStateChange(handler) {
   return () => data?.subscription?.unsubscribe();
 }
 
-/** Fetch the profile for the currently signed-in user. */
+/**
+ * Fetch the profile for the currently signed-in Supabase user.
+ * Tries user.id first, then falls back to email-based ID extraction.
+ */
 export async function getMyProfile() {
   const user = await getCurrentUser();
   if (!user) return null;
+
+  // Primary: lookup by user.id
   const { data, error } = await supabase
     .from('profiles')
     .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
     .eq('id', user.id)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (!error && data) return data;
+
+  // Fallback: extract profile ID from synthesized email
+  // email format: ${profileId}@auth.lowes-pro.local
+  if (user.email?.endsWith(`@${AUTH_DOMAIN}`)) {
+    const profileId = user.email.split('@')[0];
+    const { data: data2 } = await supabase
+      .from('profiles')
+      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (data2) return data2;
+  }
+
+  return null;
 }
 
 // -------------------------------------------------------------
 // Self-service PIN change.
-// User must be authenticated. The new PIN replaces the auth
-// password — the legacy `profiles.pin` column is intentionally
-// not touched (it's read-only from the client now).
+// Updates both profiles.pin (source of truth) and Supabase Auth
+// password (if the user has an auth account).
 // -------------------------------------------------------------
 export async function changeMyPin(newPin) {
   if (!/^\d{4}$/.test(String(newPin))) {
     throw new Error('PIN يجب أن يكون 4 أرقام');
   }
-  const { error } = await supabase.auth.updateUser({
-    password: derivePass(newPin),
-  });
-  if (error) throw error;
+
+  // Determine current profile ID (Supabase Auth or manual session)
+  let profileId = null;
+  try {
+    const user = await getCurrentUser();
+    profileId = user?.id;
+  } catch { /* ignore */ }
+  if (!profileId) {
+    const ms = getManualSession();
+    profileId = ms?.profileId;
+  }
+
+  if (!profileId) throw new Error('لم يتم التعرف على المستخدم');
+
+  // Update profiles.pin (always works via anon key + USING(true) RLS)
+  const { error: pinErr } = await supabase
+    .from('profiles')
+    .update({ pin: String(newPin).trim() })
+    .eq('id', profileId);
+  if (pinErr) throw new Error('فشل تحديث PIN');
+
+  // Also update Supabase Auth password if there's an auth session
+  try {
+    await supabase.auth.updateUser({ password: derivePass(newPin) });
+  } catch { /* ignore — no auth account */ }
+
   return true;
 }

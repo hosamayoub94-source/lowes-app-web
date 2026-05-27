@@ -151,6 +151,67 @@ const MIGRATIONS = [
     },
     sql: `UPDATE chat_rooms SET requires_approval = false WHERE type = 'group' AND is_private = false;`,
   },
+
+  // ── 5. chat_pinned table ───────────────────────────────────
+  {
+    name: 'chat_pinned table',
+    check: () => tableExists('chat_pinned'),
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_pinned (
+        id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        room_id    uuid NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
+        message_id uuid NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+        pinned_by  text,
+        pinned_at  timestamptz DEFAULT now(),
+        UNIQUE(room_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_pinned_room ON chat_pinned(room_id);
+      ALTER TABLE chat_pinned ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "chat_pinned_all" ON chat_pinned;
+      CREATE POLICY "chat_pinned_all" ON chat_pinned FOR ALL USING (true) WITH CHECK (true);
+    `,
+  },
+
+  // ── 6. chat_join_requests table ───────────────────────────
+  {
+    name: 'chat_join_requests table',
+    check: () => tableExists('chat_join_requests'),
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_join_requests (
+        id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        room_id      uuid NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
+        room_name    text,
+        user_id      text NOT NULL,
+        user_name    text,
+        status       text DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+        requested_at timestamptz DEFAULT now(),
+        reviewed_by  text,
+        reviewed_at  timestamptz,
+        UNIQUE(room_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_jr_room   ON chat_join_requests(room_id);
+      CREATE INDEX IF NOT EXISTS idx_chat_jr_user   ON chat_join_requests(user_id);
+      CREATE INDEX IF NOT EXISTS idx_chat_jr_status ON chat_join_requests(status);
+      ALTER TABLE chat_join_requests ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "chat_jr_all" ON chat_join_requests;
+      CREATE POLICY "chat_jr_all" ON chat_join_requests FOR ALL USING (true) WITH CHECK (true);
+    `,
+  },
+
+  // ── 7. profiles: ensure pin column exists ─────────────────
+  {
+    name: 'profiles: add pin column if missing',
+    check: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('pin')
+        .limit(1);
+      return data !== null; // column exists if query doesn't error
+    },
+    sql: `
+      ALTER TABLE profiles ADD COLUMN IF NOT EXISTS pin text;
+    `,
+  },
 ];
 
 // ── exec helper via Management API ───────────────────────────

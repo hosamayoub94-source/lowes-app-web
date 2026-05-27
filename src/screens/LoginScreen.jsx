@@ -11,6 +11,7 @@ import { Spinner } from '@components/ui/Loading';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { signInWithPin, listActiveProfiles } from '@services/authService';
+import { useAuthStore } from '@stores/authStore';
 import { ROLES, ROLE_LABELS } from '@data/teams';
 import { ROUTES } from '@routes/paths';
 
@@ -80,11 +81,18 @@ export default function LoginScreen() {
   const onSubmitPin = async (digits) => {
     setVerifying(true);
     try {
-      // signInWithPin handles Supabase Auth — AuthBoot's
-      // onAuthStateChange listener will populate the auth store
-      // automatically. We just navigate after success.
-      const { profile } = await signInWithPin(name, digits);
-      toast.success(`أهلاً ${profile.employee_name}`);
+      const result = await signInWithPin(name, digits);
+      const { profile, session } = result;
+
+      // For manual sessions (no Supabase Auth account), onAuthStateChange
+      // will NOT fire — update the auth store directly here.
+      if (session?.manual) {
+        useAuthStore.getState().setSupaSession(session, profile);
+      }
+      // For real Supabase Auth sessions, AuthBoot's onAuthStateChange
+      // listener will update the store automatically.
+
+      toast.success(`أهلاً ${profile.employee_name} 👋`);
       navigate(ROUTES.HOME, { replace: true });
     } catch (err) {
       toast.error(err?.message || 'PIN غير صحيح');
