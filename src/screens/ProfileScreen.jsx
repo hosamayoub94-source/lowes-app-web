@@ -223,6 +223,33 @@ export default function ProfileScreen() {
 
   useEffect(() => { loadPartners(); loadEmployees(); }, [name]);
 
+  // ── Realtime: shift partner requests ───────────────────────
+  useEffect(() => {
+    if (!name) return;
+    let channel;
+    try {
+      channel = supabase
+        .channel(`shift_partners:${name}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'shift_partners' },
+          (payload) => {
+            // Refresh only if this user is involved
+            const row = payload.new || payload.old || {};
+            if (row.requester === name || row.partner === name) {
+              loadPartners();
+            }
+          },
+        )
+        .subscribe();
+    } catch {
+      // Realtime unavailable or table doesn't exist — silently ignore
+    }
+    return () => {
+      try { if (channel) supabase.removeChannel(channel); } catch {}
+    };
+  }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Level calculations ─────────────────────────────────────
   const totalPoints = profile?.total_points ?? 0;
   const level       = getLevel(totalPoints);
