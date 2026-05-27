@@ -186,8 +186,65 @@ function FileMessage({msg,isMine}){
   );
 }
 
+// ── Highlight @mentions in message text ─────────────────────────
+function MsgText({text}){
+  if(!text)return null;
+  const parts=text.split(/(@[\w؀-ۿ][\w؀-ۿ\s.-]{0,30}?(?=\s|@|$))/g);
+  return<>{parts.map((p,i)=>p.startsWith('@')?<span key={i} className="font-semibold text-teal">{p}</span>:<span key={i}>{p}</span>)}</>;
+}
+
+// ── ForwardPanel ─────────────────────────────────────────────────
+function ForwardPanel({msg,rooms,userId,userName,onClose}){
+  const[sel,setSel]=useState(null),[sending,setSending]=useState(false);
+  const fwd=async()=>{
+    if(!sel||!msg)return;setSending(true);
+    try{
+      const payload={room_id:sel.id,sender_id:userId,sender_name:userName,created_at:new Date().toISOString(),
+        message_type:msg.message_type,content:msg.message_type==='text'?`↩ تم التوجيه من ${msg.sender_name}:\n${msg.content}`:null,
+        file_url:msg.file_url??null,file_name:msg.file_name??null,file_size:msg.file_size??null};
+      await supabase.from('chat_messages').insert(payload);
+      onClose();
+    }catch(e){alert('فشل التوجيه: '+e.message);}finally{setSending(false);}
+  };
+  const available=rooms.filter(r=>r.id!==msg?.room_id);
+  return(
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-250" dir="rtl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div><h2 className="font-bold text-text text-sm">↗ إعادة توجيه الرسالة</h2><p className="text-[11px] text-muted mt-0.5">اختر القناة أو المحادثة</p></div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
+        </div>
+        {/* Message preview */}
+        <div className="px-4 py-2.5 bg-surface-alt border-b border-border">
+          <p className="text-xs text-muted mb-0.5">الرسالة المُوجَّهة:</p>
+          <p className="text-sm text-text truncate">
+            {msg?.message_type==='text'?msg.content:msg?.message_type==='image'?'📷 صورة':msg?.message_type==='voice'?'🎙️ رسالة صوتية':`📎 ${msg?.file_name||'ملف'}`}
+          </p>
+        </div>
+        {/* Room list */}
+        <div className="max-h-56 overflow-y-auto p-2 space-y-1">
+          {available.length===0?<p className="text-center text-sm text-muted py-4">لا توجد قنوات أخرى</p>:
+          available.map(r=>(
+            <button key={r.id} onClick={()=>setSel(r)}
+              className={`w-full text-start px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-sm transition ${sel?.id===r.id?'bg-teal/10 text-teal border border-teal/30':'hover:bg-surface-alt text-text border border-transparent'}`}>
+              <span className="text-base shrink-0">{r.type==='dm'?'👤':r.is_private?'🔒':'#'}</span>
+              <span className="flex-1 font-medium truncate">{r.display_name??r.name}</span>
+              {sel?.id===r.id&&<span className="text-teal font-bold text-xs shrink-0">✓</span>}
+            </button>
+          ))}
+        </div>
+        <div className="px-4 py-3 border-t border-border">
+          <button onClick={fwd} disabled={!sel||sending} className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+            {sending?'⏳ جاري الإرسال…':'↗ إرسال'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── MessageBubble ────────────────────────────────────────────────
-function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,reactions,isOnline}){
+function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,onForward,reactions,isOnline,roomReadMap,isDm}){
   const[showMenu,setShowMenu]=useState(false),[editMode,setEditMode]=useState(false),[editText,setEditText]=useState('');
   const[showEmoji,setShowEmoji]=useState(false);
   const menuRef=useRef(null),editRef=useRef(null);
@@ -201,6 +258,13 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
   const rxMap=useMemo(()=>{
     const m={};(reactions??[]).forEach(r=>{m[r.emoji]=(m[r.emoji]??0)+1;});return m;
   },[reactions]);
+
+  // ── Read receipt: is this message read by someone else? ────────
+  const isRead=useMemo(()=>{
+    if(!isMine||!roomReadMap)return false;
+    const msgTime=new Date(msg.created_at).getTime();
+    return Object.entries(roomReadMap).some(([uid,readAt])=>uid!==userId&&new Date(readAt).getTime()>msgTime);
+  },[isMine,msg.created_at,roomReadMap,userId]);
 
   const startEdit=()=>{setEditText(msg.content||'');setEditMode(true);setShowMenu(false);setTimeout(()=>editRef.current?.focus(),50);};
   const submitEdit=async()=>{
@@ -259,28 +323,55 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
 
         {/* Bubble */}
         <div className="relative">
-          {/* Action buttons (hover) */}
-          <div className={`absolute top-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-150 z-10 ${isMine?'-left-20':'-right-20'}`}>
-            <button onClick={()=>setShowEmoji(v=>!v)} className="w-6 h-6 rounded-full bg-surface border border-border shadow-sm text-xs flex items-center justify-center hover:scale-110 transition-transform">😊</button>
-            <button onClick={()=>onReply?.(msg)} className="w-6 h-6 rounded-full bg-surface border border-border shadow-sm text-xs flex items-center justify-center hover:scale-110 transition-transform">↩</button>
-            {(isMine||isApprover)&&(
-              <div className="relative" ref={menuRef}>
-                <button onClick={()=>setShowMenu(v=>!v)} className="w-6 h-6 rounded-full bg-surface border border-border shadow-sm text-xs flex items-center justify-center hover:scale-110 transition-transform">⋯</button>
-                {showMenu&&(
-                  <div className={`absolute top-8 bg-surface border border-border rounded-2xl shadow-xl py-1.5 z-20 min-w-[130px] animate-in zoom-in-90 duration-150 ${isMine?'left-0':'right-0'}`}>
-                    {isMine&&msg.message_type==='text'&&<button onClick={startEdit} className="w-full text-start px-4 py-2 text-sm text-text hover:bg-surface-alt transition flex items-center gap-2"><span>✏️</span> تعديل</button>}
-                    {isApprover&&<button onClick={()=>{onPin?.(msg);setShowMenu(false);}} className="w-full text-start px-4 py-2 text-sm text-text hover:bg-surface-alt transition flex items-center gap-2"><span>📌</span> تثبيت</button>}
-                    {(isMine||isApprover)&&<button onClick={()=>{onDelete?.(msg.id);setShowMenu(false);}} className="w-full text-start px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition flex items-center gap-2"><span>🗑️</span> حذف</button>}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ── Action pill — appears above bubble on hover ──────── */}
+          <div className={`absolute -top-9 ${isMine?'end-0':'start-0'} opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 pointer-events-none group-hover:pointer-events-auto`}>
+            <div className="flex items-center bg-surface border border-border rounded-full shadow-lg px-1.5 py-1 gap-0.5 animate-in zoom-in-75 duration-150 origin-bottom">
+              {/* Quick emojis */}
+              {QUICK_EMOJIS.map(e=>(
+                <button key={e} onClick={()=>onReact?.(msg.id,e)}
+                  className="w-7 h-7 rounded-full text-base flex items-center justify-center hover:bg-surface-alt hover:scale-125 transition-all duration-100 leading-none">
+                  {e}
+                </button>
+              ))}
+              <div className="w-px h-4 bg-border/60 mx-0.5 shrink-0"/>
+              {/* Full picker toggle */}
+              <button onClick={()=>setShowEmoji(v=>!v)}
+                className="w-7 h-7 rounded-full text-[11px] flex items-center justify-center text-muted hover:bg-surface-alt hover:text-teal transition-all">
+                😊
+              </button>
+              {/* Reply */}
+              <button onClick={()=>onReply?.(msg)}
+                className="w-7 h-7 rounded-full text-xs flex items-center justify-center text-muted hover:bg-surface-alt hover:text-teal transition-all">
+                ↩
+              </button>
+              {/* Forward */}
+              <button onClick={()=>onForward?.(msg)}
+                className="w-7 h-7 rounded-full text-xs flex items-center justify-center text-muted hover:bg-surface-alt hover:text-teal transition-all">
+                ↗
+              </button>
+              {/* Context menu */}
+              {(isMine||isApprover)&&(
+                <div className="relative" ref={menuRef}>
+                  <button onClick={()=>setShowMenu(v=>!v)}
+                    className="w-7 h-7 rounded-full text-xs flex items-center justify-center text-muted hover:bg-surface-alt hover:text-text transition-all">
+                    ⋯
+                  </button>
+                  {showMenu&&(
+                    <div className={`absolute top-8 bg-surface border border-border rounded-2xl shadow-xl py-1.5 z-30 min-w-[130px] animate-in zoom-in-90 duration-150 ${isMine?'end-0':'start-0'}`}>
+                      {isMine&&msg.message_type==='text'&&<button onClick={startEdit} className="w-full text-start px-4 py-2 text-sm text-text hover:bg-surface-alt transition flex items-center gap-2"><span>✏️</span> تعديل</button>}
+                      {isApprover&&<button onClick={()=>{onPin?.(msg);setShowMenu(false);}} className="w-full text-start px-4 py-2 text-sm text-text hover:bg-surface-alt transition flex items-center gap-2"><span>📌</span> تثبيت</button>}
+                      {(isMine||isApprover)&&<button onClick={()=>{onDelete?.(msg.id);setShowMenu(false);}} className="w-full text-start px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition flex items-center gap-2"><span>🗑️</span> حذف</button>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Emoji picker (inline) */}
+          {/* Full Emoji picker */}
           {showEmoji&&(
-            <div className={`absolute top-8 z-20 ${isMine?'left-0':'right-0'}`}>
-              <EmojiPicker onSelect={e=>onReact?.(msg.id,e)} onClose={()=>setShowEmoji(false)} />
+            <div className={`absolute -top-12 z-30 ${isMine?'end-0':'start-0'}`} style={{transform:'translateY(-100%)'}}>
+              <EmojiPicker onSelect={e=>{onReact?.(msg.id,e);setShowEmoji(false);}} onClose={()=>setShowEmoji(false)} />
             </div>
           )}
 
@@ -301,7 +392,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
               className={`px-3.5 py-2.5 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
                 isMine?'bg-gradient-to-br from-teal to-teal/90 text-white rounded-br-sm':'bg-surface border border-border/80 text-text rounded-bl-sm'
               }`}>
-              {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>}
+              {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
               {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" onClick={()=>onImageClick?.(msg.file_url)} className="max-w-[220px] rounded-xl max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />}
               {msg.message_type==='voice'&&msg.file_url&&<VoiceMessage url={msg.file_url} isMine={isMine} />}
               {msg.message_type==='file'&&<FileMessage msg={msg} isMine={isMine} />}
@@ -321,10 +412,15 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
           </div>
         )}
 
-        {/* Timestamp + edited badge */}
-        <div className={`flex items-center gap-1.5 mt-0.5 ${isMine?'flex-row-reverse':''}`}>
+        {/* Timestamp + edited badge + read receipt */}
+        <div className={`flex items-center gap-1 mt-0.5 ${isMine?'flex-row-reverse':''}`}>
           <span className="text-[9px] text-muted/60">{timeLabel(msg.created_at)}</span>
           {msg.edited_at&&<span className="text-[9px] text-muted/50 italic">تم التعديل</span>}
+          {isMine&&(
+            <span className={`text-[10px] font-bold leading-none transition-colors ${isRead?'text-teal':'text-muted/40'}`} title={isRead?'تمت القراءة':'تم الإرسال'}>
+              {isRead?'✓✓':'✓'}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -362,13 +458,15 @@ function PinnedBanner({pinned,onUnpin,isApprover}){
 }
 
 // ── MessageInput ─────────────────────────────────────────────────
-function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping}){
+function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]}){
   const[text,setText]=useState('');
   const[uploading,setUploading]=useState(false);
   const[imgPreview,setImgPreview]=useState(null);
   const[imgFile,setImgFile]=useState(null);
   const[attachedFile,setAttachedFile]=useState(null);
   const[showEmoji,setShowEmoji]=useState(false);
+  // @mention state
+  const[mentionQ,setMentionQ]=useState(null),[mentionStart,setMentionStart]=useState(-1),[mentionIdx,setMentionIdx]=useState(0);
   const fileRef=useRef(null),textRef=useRef(null);
 
   const voice=useVoiceRecorder(async(blob)=>{
@@ -422,15 +520,43 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping}){
     e.target.value='';
   };
 
+  // @mention detection
+  const insertMention=useCallback(name=>{
+    if(mentionStart<0)return;
+    const cur=textRef.current?.selectionStart??text.length;
+    const newText=text.slice(0,mentionStart)+'@'+name+' '+text.slice(cur);
+    setText(newText);setMentionQ(null);setMentionStart(-1);
+    requestAnimationFrame(()=>{if(!textRef.current)return;const p=mentionStart+name.length+2;textRef.current.setSelectionRange(p,p);textRef.current.focus();});
+  },[mentionStart,text]);
+
+  const filteredMembers=useMemo(()=>mentionQ===null?[]:members.filter(m=>(m.name||'').toLowerCase().includes(mentionQ.toLowerCase())).slice(0,6),[mentionQ,members]);
+
   const handleTextChange=e=>{
-    setText(e.target.value);
-    onTyping?.();
+    const val=e.target.value;const cur=e.target.selectionStart;
+    setText(val);onTyping?.();
     e.target.style.height='auto';
     e.target.style.height=Math.min(e.target.scrollHeight,128)+'px';
+    // detect @
+    const slice=val.slice(0,cur);const match=slice.match(/@(\w*)$/);
+    if(match){setMentionQ(match[1]);setMentionStart(cur-match[0].length);setMentionIdx(0);}
+    else{setMentionQ(null);setMentionStart(-1);}
   };
 
   return(
     <div className="shrink-0 border-t border-border bg-surface">
+      {/* @mention dropdown */}
+      {mentionQ!==null&&filteredMembers.length>0&&(
+        <div className="mx-3 mb-1 bg-surface border border-border rounded-2xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-150">
+          <p className="text-[10px] font-bold text-muted px-3 pt-2 pb-1">ذكر موظف</p>
+          {filteredMembers.map((m,i)=>(
+            <button key={m.id||m.name} onMouseDown={e=>{e.preventDefault();insertMention(m.name);}}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition ${i===mentionIdx?'bg-teal/10 text-teal':'hover:bg-surface-alt text-text'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(m.name)}`}>{m.name?.[0]?.toUpperCase()}</div>
+              <span className="font-medium truncate">{m.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {/* Reply */}
       {replyTo&&(
         <div className="flex items-center gap-2 px-3 pt-2 pb-1 animate-in slide-in-from-bottom-1 duration-150">
@@ -506,7 +632,15 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping}){
                 ref={textRef}
                 value={text}
                 onChange={handleTextChange}
-                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}}}
+                onKeyDown={e=>{
+                  if(mentionQ!==null&&filteredMembers.length>0){
+                    if(e.key==='ArrowDown'){e.preventDefault();setMentionIdx(i=>Math.min(i+1,filteredMembers.length-1));return;}
+                    if(e.key==='ArrowUp'){e.preventDefault();setMentionIdx(i=>Math.max(i-1,0));return;}
+                    if(e.key==='Enter'){e.preventDefault();insertMention(filteredMembers[mentionIdx]?.name||'');return;}
+                    if(e.key==='Escape'){setMentionQ(null);return;}
+                  }
+                  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}
+                }}
                 placeholder="اكتب رسالة… أو /مساعدة للبوت"
                 rows={1}
                 disabled={disabled||uploading}
@@ -832,6 +966,9 @@ export default function ChatScreen(){
   const[pendingCount,setPendingCount]=useState(0);
   const[typingUsers,setTypingUsers]=useState([]);
   const[pinnedMsg,setPinnedMsg]=useState(null);
+  const[roomReadMap,setRoomReadMap]=useState({});  // {userId: read_at} for current room
+  const[roomMembers,setRoomMembers]=useState([]);  // [{id, name}] for @mention
+  const[forwardMsg,setForwardMsg]=useState(null);  // message to forward
 
   // Panels
   const[showMusicRoom,setShowMusicRoom]=useState(false);
@@ -916,6 +1053,23 @@ export default function ChatScreen(){
       setPinnedMsg(data??null);
     }catch{setPinnedMsg(null);}  // gracefully handle missing table
   },[]);
+
+  // ── Load per-user last_read for read receipts ─────────────────
+  const loadRoomReads=useCallback(async(roomId)=>{
+    try{
+      const{data}=await supabase.from('chat_last_read').select('user_id,read_at').eq('room_id',roomId);
+      const m={};(data??[]).forEach(r=>{m[r.user_id]=r.read_at;});
+      setRoomReadMap(m);
+    }catch{setRoomReadMap({});}
+  },[]);
+
+  // ── Load room members for @mention ───────────────────────────
+  const loadRoomMembers=useCallback(async(roomId)=>{
+    try{
+      const{data}=await supabase.from('chat_room_members').select('user_id,display_name,user_name').eq('room_id',roomId);
+      setRoomMembers((data??[]).map(m=>({id:m.user_id,name:m.display_name||m.user_name||''})).filter(m=>m.name&&m.id!==userId));
+    }catch{setRoomMembers([]);}
+  },[userId]);
 
   // ── Load rooms ─────────────────────────────────────────────────
   const loadRooms=useCallback(async()=>{
@@ -1014,9 +1168,11 @@ export default function ChatScreen(){
   // ── Room subscription ──────────────────────────────────────────
   useEffect(()=>{
     if(!activeRoom?.id)return;
-    setReplyTo(null);setTypingUsers([]);setPinnedMsg(null);
+    setReplyTo(null);setTypingUsers([]);setPinnedMsg(null);setRoomReadMap({});setRoomMembers([]);
     loadMessages(activeRoom.id);
     loadPinned(activeRoom.id);
+    loadRoomReads(activeRoom.id);
+    loadRoomMembers(activeRoom.id);
     markAsRead(activeRoom.id);
 
     subRef.current?.unsubscribe();
@@ -1048,7 +1204,7 @@ export default function ChatScreen(){
         }
       });
     return()=>{subRef.current?.unsubscribe();};
-  },[activeRoom?.id,loadMessages,loadPinned,markAsRead,userId]);
+  },[activeRoom?.id,loadMessages,loadPinned,loadRoomReads,loadRoomMembers,markAsRead,userId]);
 
   useEffect(()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
 
@@ -1340,9 +1496,10 @@ export default function ChatScreen(){
                         userId={userId} isApprover={isApprover}
                         onReply={setReplyTo} onReact={handleReact}
                         onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin}
-                        onImageClick={setLightboxUrl}
+                        onImageClick={setLightboxUrl} onForward={setForwardMsg}
                         reactions={reactions[item.id]}
                         isOnline={item.sender_id!==userId&&globalOnline.has(item.sender_name)}
+                        roomReadMap={roomReadMap} isDm={activeRoom?.type==='dm'}
                       />
                     );
                   })
@@ -1357,7 +1514,7 @@ export default function ChatScreen(){
             </div>
 
             {activeRoom&&(
-              <MessageInput onSend={handleSend} disabled={sending} replyTo={replyTo} onCancelReply={()=>setReplyTo(null)} onTyping={broadcastTyping}/>
+              <MessageInput onSend={handleSend} disabled={sending} replyTo={replyTo} onCancelReply={()=>setReplyTo(null)} onTyping={broadcastTyping} members={roomMembers}/>
             )}
           </>
         )}
@@ -1365,6 +1522,7 @@ export default function ChatScreen(){
 
       {/* ══ Modals ════════════════════════════════════════════════ */}
       {lightboxUrl&&<LightboxModal url={lightboxUrl} onClose={()=>setLightboxUrl(null)}/>}
+      {forwardMsg&&<ForwardPanel msg={forwardMsg} rooms={rooms} userId={userId} userName={userName} onClose={()=>setForwardMsg(null)}/>}
       {showCreateChannel&&(
         <CreateChannelPanel userId={userId} userName={userName}
           onCreated={room=>{setShowCreateChannel(false);loadRooms().then(()=>{});}}
