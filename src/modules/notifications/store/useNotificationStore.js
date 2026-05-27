@@ -157,6 +157,27 @@ export const useNotificationStore = create(
           toasts: [...s.toasts, toast],
         };
       });
+
+      // Show system notification if app is open but page is not focused
+      if (
+        typeof window !== 'undefined' &&
+        Notification?.permission === 'granted' &&
+        document.visibilityState !== 'visible'
+      ) {
+        navigator.serviceWorker?.ready
+          .then((reg) =>
+            reg.showNotification(notification.title ?? 'إشعار جديد', {
+              body:  notification.message ?? '',
+              icon:  '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              dir:   'rtl',
+              lang:  'ar',
+              tag:   notification.id,
+              data:  { url: '/' },
+            })
+          )
+          .catch(() => {});
+      }
     },
 
     // ── Toasts ─────────────────────────────────────────────────

@@ -3,12 +3,13 @@
 // avatar · level ring · stats · جدول العمل · تفضيلات
 // =============================================================
 import { useEffect, useState, useRef } from 'react';
-import { useAuth }    from '@hooks/useAuth';
-import { useTheme }   from '@hooks/useTheme';
-import { useUiStore } from '@stores/uiStore';
-import { supabase }   from '@services/supabase';
-import { changeMyPin } from '@services/authService';
-import { ROLE_LABELS } from '@data/teams';
+import { useAuth }              from '@hooks/useAuth';
+import { useTheme }             from '@hooks/useTheme';
+import { useUiStore }           from '@stores/uiStore';
+import { supabase }             from '@services/supabase';
+import { changeMyPin }          from '@services/authService';
+import { ROLE_LABELS }          from '@data/teams';
+import { usePushNotifications } from '@hooks/usePushNotifications';
 
 // ── Level system ───────────────────────────────────────────────
 const LEVELS = [
@@ -74,6 +75,16 @@ export default function ProfileScreen() {
   const { theme, toggleTheme }   = useTheme();
   const lang       = useUiStore(s => s.lang);
   const toggleLang = useUiStore(s => s.toggleLang);
+
+  const {
+    supported:  pushSupported,
+    permission: pushPermission,
+    subscribed: pushSubscribed,
+    loading:    pushLoading,
+    error:      pushError,
+    subscribe:  subscribePush,
+    unsubscribe: unsubscribePush,
+  } = usePushNotifications();
 
   const [profile, setProfile]         = useState(null);
   const [monthPts, setMonthPts]       = useState(0);
@@ -319,6 +330,50 @@ export default function ProfileScreen() {
           </div>
         </div>
       )}
+
+      {/* ── Push Notifications ────────────────────────────────── */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-sm font-bold text-text mb-0.5">🔔 الإشعارات</p>
+          <p className="text-xs text-muted">إشعارات النظام حتى عندما يكون التطبيق مغلقاً</p>
+        </div>
+        <div className="px-4 pb-3">
+          {!pushSupported ? (
+            <p className="text-xs text-muted py-2">
+              ⚠️ المتصفح الحالي لا يدعم إشعارات Push
+            </p>
+          ) : pushPermission === 'denied' ? (
+            <div className="py-2">
+              <p className="text-xs text-red-500">
+                🚫 تم رفض إذن الإشعارات — يرجى السماح من إعدادات المتصفح
+              </p>
+              <p className="text-[11px] text-muted mt-1">
+                Settings → Site Settings → Notifications → Allow
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              <Toggle
+                checked={pushSubscribed}
+                onChange={pushSubscribed ? unsubscribePush : subscribePush}
+                label={pushSubscribed ? 'الإشعارات مفعّلة 🟢' : 'تفعيل الإشعارات'}
+                sub={
+                  pushLoading
+                    ? 'جاري المعالجة…'
+                    : pushSubscribed
+                      ? 'ستصلك إشعارات المهام والحضور والرسائل'
+                      : 'اضغط لتلقّي إشعارات النظام'
+                }
+              />
+              {pushError && (
+                <p className="text-[11px] text-red-500 pt-2 pb-1 leading-relaxed">
+                  ⚠️ {pushError}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Preferences ───────────────────────────────────────── */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">

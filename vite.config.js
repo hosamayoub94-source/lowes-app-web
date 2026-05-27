@@ -8,7 +8,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      strategies:    'injectManifest', // use our own src/sw.js
+      srcDir:        'src',
+      filename:      'sw.js',
+      registerType:  'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png', 'icons/*.svg'],
       manifest: {
         name: "لوز برو — نظام الإدارة",
@@ -37,26 +40,13 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        // Cache JS/CSS/HTML
+      // injectManifest — runtime caching handled in src/sw.js
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Don't cache Supabase API calls
-        navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            // Cache Supabase REST calls for 5 minutes (stale-while-revalidate)
-            urlPattern: /^https:\/\/fghdumrgimoeqsafdhhh\.supabase\.co\/rest\//i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 5,
-            },
-          },
-        ],
       },
       devOptions: {
         enabled: false, // Don't run SW in dev (avoids confusing cache behavior)
+        type:    'module',
       },
     }),
   ],

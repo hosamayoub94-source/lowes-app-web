@@ -212,6 +212,30 @@ const MIGRATIONS = [
       ALTER TABLE profiles ADD COLUMN IF NOT EXISTS pin text;
     `,
   },
+
+  // ── 8. push_subscriptions: Web Push endpoints ─────────────
+  {
+    name: 'push_subscriptions table',
+    check: () => tableExists('push_subscriptions'),
+    sql: `
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id     uuid        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        endpoint    text        NOT NULL,
+        p256dh      text,
+        auth        text,
+        user_agent  text,
+        created_at  timestamptz DEFAULT now(),
+        updated_at  timestamptz DEFAULT now(),
+        UNIQUE(user_id, endpoint)
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
+      ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "push_subs_owner" ON push_subscriptions;
+      CREATE POLICY "push_subs_owner" ON push_subscriptions
+        FOR ALL USING (true) WITH CHECK (true);
+    `,
+  },
 ];
 
 // ── exec helper via Management API ───────────────────────────
