@@ -16,6 +16,68 @@ import { Link }     from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
+// ── Daily motivation quotes ─────────────────────────────────────
+const MOTIVATIONS = [
+  { text: 'كل يوم هو فرصة جديدة لتكون أفضل مما كنت عليه بالأمس.', icon: '🌅' },
+  { text: 'النجاح ليس نهاية الطريق — إنه استمرار في العطاء والتميز.', icon: '🏆' },
+  { text: 'العميل الراضي هو أقوى إعلان يمكن أن تحصل عليه.', icon: '⭐' },
+  { text: 'الفريق الذي يتواصل بصدق هو الفريق الذي ينجح دائماً.', icon: '🤝' },
+  { text: 'ابدأ يومك بنية صادقة وستجد الطريق يُفتح أمامك.', icon: '✨' },
+  { text: 'التفاصيل الصغيرة هي ما تصنع الفرق الكبير في تجربة العميل.', icon: '🔍' },
+  { text: 'لووز بروفشنال — نحن لا نبيع منتجات فحسب، نبيع ثقة وجودة.', icon: '💎' },
+  { text: 'كل سؤال من عميل هو فرصة لتترك انطباعاً لا يُنسى.', icon: '💬' },
+  { text: 'المثابرة تحول الصعب إلى ممكن، والممكن إلى سهل.', icon: '💪' },
+  { text: 'الجودة ليست صدفة — هي نتيجة جهد متواصل وعناية حقيقية.', icon: '🌟' },
+  { text: 'تعلّم شيئاً جديداً عن منتجاتنا اليوم — معرفتك قوتك.', icon: '📚' },
+  { text: 'ابتسامتك في بداية اليوم تُعدي كل من حولك بالطاقة الإيجابية.', icon: '😊' },
+  { text: 'العناية بالبشرة علم وفن — أنت سفير لووز في هذا العالم.', icon: '🧴' },
+  { text: 'كل هدف كبير يبدأ بخطوة صغيرة — ابدأ الآن.', icon: '🎯' },
+  { text: 'الاحترافية تعني الوفاء بوعودك حتى حين لا يراك أحد.', icon: '🏅' },
+  { text: 'زميلك نجاحه نجاحك — ادعم فريقك لتنجح معه.', icon: '👥' },
+  { text: 'كل شكوى عميل هي بذرة تحسين — اسمع بقلب مفتوح.', icon: '👂' },
+  { text: 'الوقت ثمين — استثمر كل دقيقة في ما يُضيف قيمة حقيقية.', icon: '⏰' },
+  { text: 'البشرة الصحية تبدأ بمنتج موثوق ومستشار صادق — أنت ذلك المستشار.', icon: '✅' },
+  { text: 'السعادة في العمل تأتي حين تؤمن بما تقدمه لعملائك.', icon: '❤️' },
+  { text: 'كن الموظف الذي يتذكره العميل ليس لأنه باع له، بل لأنه ساعده.', icon: '🌈' },
+  { text: 'الحماس معدٍ — عاملك وعميلك يشعران بطاقتك.', icon: '⚡' },
+  { text: 'تميّز بالمعرفة — من يعرف المنتج جيداً يُقنع بسهولة.', icon: '🔬' },
+  { text: 'الصدق مع العميل أطول عمراً من أي بيع سريع.', icon: '🤲' },
+  { text: 'لا تنتظر الفرصة — اصنعها بنفسك من خلال عملك اليومي.', icon: '🚀' },
+  { text: 'الهدوء في المواقف الصعبة هو أكبر دليل على الاحترافية.', icon: '🌊' },
+  { text: 'اليوم الذي تتعلم فيه شيئاً جديداً ليس يوماً ضائعاً.', icon: '💡' },
+  { text: 'عميلنا الراضي يجلب معه عشرة عملاء آخرين.', icon: '📈' },
+  { text: 'أفضل استثمار هو استثمارك في تطوير نفسك ومهاراتك.', icon: '🌱' },
+  { text: 'روتين الصباح الجيد يحدد مسار يومك كله — ابدأ بقوة.', icon: '☀️' },
+  { text: 'الفشل ليس نهاية — هو درس يقربك من النجاح.', icon: '🔄' },
+  { text: 'اجعل كل تفاعل مع العميل يستحق أن يُحكى.', icon: '💫' },
+  { text: 'معرفة المكونات تجعلك مستشاراً لا بائعاً.', icon: '🧪' },
+  { text: 'شركتنا تنمو بنمو كل فرد فينا — أنت جزء من هذا النجاح.', icon: '🏢' },
+  { text: 'الطاقة الإيجابية التي تحضرها معك تنعكس على نتائجك.', icon: '🌞' },
+];
+
+function DailyMotivation() {
+  const dayIndex = Math.floor(Date.now() / 86400000);
+  const q = MOTIVATIONS[dayIndex % MOTIVATIONS.length];
+  const [visible, setVisible] = useState(true);
+  if (!visible) return null;
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-teal/20 bg-gradient-to-l from-teal/8 to-navy/5 px-4 py-3.5">
+      <button
+        onClick={() => setVisible(false)}
+        className="absolute top-2 end-2 text-muted/40 hover:text-muted text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-surface-alt transition"
+        aria-label="إغلاق"
+      >✕</button>
+      <div className="flex gap-3 items-start pe-5">
+        <span className="text-2xl shrink-0 mt-0.5">{q.icon}</span>
+        <div>
+          <p className="text-[10px] font-bold text-teal/70 uppercase tracking-widest mb-1">طاقة اليوم</p>
+          <p className="text-sm font-semibold text-text leading-relaxed">{q.text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Chart colors (theme-aware) ──────────────────────────────────
 function useChartColors() {
   const { isDark } = useTheme();
@@ -213,21 +275,24 @@ function AttendanceCard({ name, team }) {
 }
 
 // ── My Tasks Widget ──────────────────────────────────────────────
-function MyTasksCard({ name }) {
+function MyTasksCard({ name, userId }) {
   const [tasks, setTasks]     = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!name) return;
+    const filter = userId
+      ? `assigned_to.ilike.%${name}%,assigned_to.eq.${userId}`
+      : `assigned_to.ilike.%${name}%`;
     supabase.from('tasks')
       .select('id,title,status,priority,due_date')
-      .ilike('assigned_to', `%${name}%`)
+      .or(filter)
       .not('status', 'in', '("done","completed","مكتملة")')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(4)
       .then(({ data }) => { setTasks(data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [name]);
+  }, [name, userId]);
 
   const STATUS_DOT = {
     pending: 'bg-amber-400', in_progress: 'bg-teal', review: 'bg-violet-400',
@@ -466,12 +531,14 @@ export default function HomeScreen() {
     const monthFrom = days[0];
 
     Promise.allSettled([
-      // Open tasks for me
+      // Open tasks for me (name or UUID assignment)
       supabase.from('tasks').select('id',{count:'exact',head:true})
-        .ilike('assigned_to', `%${name}%`)
+        .or(userId ? `assigned_to.ilike.%${name}%,assigned_to.eq.${userId}` : `assigned_to.ilike.%${name}%`)
         .not('status','in','("done","completed","مكتملة")'),
-      // Unread notifications
-      supabase.from('notifications').select('id',{count:'exact',head:true}).eq('is_read',false),
+      // Unread notifications (current user's only)
+      userId
+        ? supabase.from('notifications').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('is_read',false)
+        : Promise.resolve({count:0}),
       // Leave balance
       userId ? supabase.from('leave_balances').select('total_days,used_days').eq('employee_id',userId).eq('year',year).maybeSingle()
              : Promise.resolve({data:null}),
@@ -536,13 +603,16 @@ export default function HomeScreen() {
         </Link>
       </div>
 
+      {/* ── Daily motivation ────────────────────────────────────── */}
+      <DailyMotivation />
+
       {/* ── Celebration ─────────────────────────────────────────── */}
       <CelebrationBanner />
 
       {/* ── 2-column layout (quick cards) ───────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <AttendanceCard name={name} team={team} />
-        <MyTasksCard name={name} />
+        <MyTasksCard name={name} userId={userId} />
       </div>
 
       {/* ── Latest Announcement ─────────────────────────────────── */}
