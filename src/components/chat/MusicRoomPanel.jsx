@@ -85,12 +85,11 @@ export function MusicRoomPanel({ userId, userName }) {
       setSetupNeeded(true);
     } else if (!data) {
       // Table exists but row missing — insert seed row
-      const { data: seeded } = await supabase
-        .from('music_room_state')
-        .insert({ id: 1 })
-        .select()
-        .single()
-        .catch(() => ({ data: null }));
+      let seeded = null;
+      try {
+        const { data: s } = await supabase.from('music_room_state').insert({ id: 1 }).select().single();
+        seeded = s;
+      } catch {}
       setState(seeded ?? { id: 1, video_id: null, is_playing: false, dj_id: null, dj_name: null });
     } else {
       setState(data);

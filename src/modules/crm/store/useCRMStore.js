@@ -163,7 +163,8 @@ const useCRMStore = create()(
         set(s => ({ leads: [lead, ...s.leads] }));
 
         // Emit event
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js');
+        const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(EVENT_TYPES.LEAD_CREATED, { lead }, { source: EVENT_SOURCES.CRM });
 
         return lead;
@@ -218,7 +219,7 @@ const useCRMStore = create()(
           deals: [deal, ...s.deals],
         }));
 
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(EVENT_TYPES.CUSTOMER_CREATED, { customer }, { source: EVENT_SOURCES.CRM });
 
         return { customer, deal };
@@ -286,7 +287,7 @@ const useCRMStore = create()(
         const updated = await updateDealStage(dealId, stageId, get()._userId);
         set(s => ({ deals: s.deals.map(d => (d.id === dealId ? updated : d)) }));
 
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(
           EVENT_TYPES.DEAL_STAGE_CHANGED,
           { deal: updated, prevStageId: prevDeal.stage_id, newStageId: stageId },
@@ -356,7 +357,7 @@ const useCRMStore = create()(
         const customer = await createCustomer(data);
         set(s => ({ customers: [customer, ...s.customers] }));
 
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(EVENT_TYPES.CUSTOMER_CREATED, { customer }, { source: EVENT_SOURCES.CRM });
 
         return customer;
@@ -435,7 +436,7 @@ const useCRMStore = create()(
         const followup = await scheduleFollowup({ ...data, assigned_to: get()._userId });
         set(s => ({ followups: [followup, ...s.followups] }));
 
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(EVENT_TYPES.FOLLOWUP_SCHEDULED, { followup }, { source: EVENT_SOURCES.CRM });
 
         return followup;
@@ -564,7 +565,7 @@ const useCRMStore = create()(
           set(s => ({ customers: s.customers.map(c => (c.id === entityId ? updated : c)) }));
         }
 
-        const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+        const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
         emit(
           EVENT_TYPES.CRM_AGENT_ASSIGNED,
           { entityType, entityId, agentId },
@@ -728,7 +729,7 @@ const useCRMStore = create()(
           }));
 
           // Emit event for notification integration
-          const { emit, EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventBus.js');
+          const { emit } = await import('@/core/events/eventBus.js'); const { EVENTS: EVENT_TYPES, EVENT_SOURCES } = await import('@/core/events/eventTypes.js');
           overdue.forEach(f => {
             emit(EVENT_TYPES.FOLLOWUP_DUE, { followup: f }, { source: EVENT_SOURCES.CRM });
           });
