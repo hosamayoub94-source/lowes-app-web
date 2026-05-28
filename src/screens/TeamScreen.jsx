@@ -9,6 +9,7 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { Spinner } from '@components/ui/Loading';
 import { supabase } from '@services/supabase';
 import { ROLE_LABELS } from '@data/teams';
+import EmployeeProfileModal from '@components/ui/EmployeeProfileModal';
 
 /** Fetch all active profiles and group them by team. */
 async function fetchTeams() {
@@ -39,6 +40,7 @@ export default function TeamScreen() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
     fetchTeams()
@@ -73,9 +75,10 @@ export default function TeamScreen() {
               <CardSubtitle>{team.members.length} عضو نشط</CardSubtitle>
               <div className="mt-4 space-y-2">
                 {team.members.map((m) => (
-                  <div
+                  <button
                     key={m.id}
-                    className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt"
+                    onClick={() => setSelectedProfile(m)}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-surface-alt hover:bg-teal/5 hover:border-teal/20 border border-transparent transition text-right"
                   >
                     <div className="w-9 h-9 rounded-full bg-teal/15 flex items-center justify-center text-teal font-bold text-sm shrink-0 overflow-hidden">
                       {m.avatar_url ? (
@@ -92,12 +95,19 @@ export default function TeamScreen() {
                         {ROLE_LABELS[m.role_type] || m.role_type}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </Card>
           ))}
         </div>
+      )}
+
+      {selectedProfile && (
+        <EmployeeProfileModal
+          profile={selectedProfile}
+          onClose={() => setSelectedProfile(null)}
+        />
       )}
     </div>
   );

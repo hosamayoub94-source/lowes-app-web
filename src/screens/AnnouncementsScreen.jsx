@@ -114,14 +114,14 @@ function AnnouncementCard({ item, canManage, onPin, onDelete }) {
 
 // ── Create Modal ──────────────────────────────────────────────
 function CreateModal({ open, onClose, onCreate, authorName }) {
-  const [form, setForm] = useState({ title: '', body: '', emoji: '📢' });
+  const [form, setForm] = useState({ title: '', body: '', emoji: '📢', is_emergency: false, expires_hours: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const titleRef = useRef(null);
 
   useEffect(() => {
     if (open) {
-      setForm({ title: '', body: '', emoji: '📢' });
+      setForm({ title: '', body: '', emoji: '📢', is_emergency: false, expires_hours: '' });
       setError('');
       setTimeout(() => titleRef.current?.focus(), 100);
     }
@@ -133,12 +133,17 @@ function CreateModal({ open, onClose, onCreate, authorName }) {
     setSaving(true);
     setError('');
     try {
+      const expires_at = form.is_emergency && form.expires_hours
+        ? new Date(Date.now() + Number(form.expires_hours) * 3600000).toISOString()
+        : null;
       const { error: err } = await supabase.from('announcements').insert({
-        title:      form.title.trim(),
-        body:       form.body.trim(),
-        emoji:      form.emoji,
-        created_by: authorName,
-        is_pinned:  false,
+        title:        form.title.trim(),
+        body:         form.body.trim(),
+        emoji:        form.is_emergency ? '🚨' : form.emoji,
+        created_by:   authorName,
+        is_pinned:    false,
+        is_emergency: form.is_emergency,
+        expires_at,
       });
       if (err) throw err;
       onCreate();
@@ -199,6 +204,39 @@ function CreateModal({ open, onClose, onCreate, authorName }) {
           </span>
         </Field>
 
+        {/* Emergency toggle */}
+        <div className={`rounded-2xl border p-3.5 transition-colors ${form.is_emergency ? 'border-red-300 bg-red-50' : 'border-border bg-surface-alt'}`}>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              onClick={() => setForm(f => ({ ...f, is_emergency: !f.is_emergency }))}
+              className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${form.is_emergency ? 'bg-red-500' : 'bg-border'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.is_emergency ? 'right-0.5' : 'left-0.5'}`} />
+            </div>
+            <div>
+              <p className={`text-sm font-bold ${form.is_emergency ? 'text-red-600' : 'text-text'}`}>🚨 إعلان طارئ</p>
+              <p className="text-xs text-muted">يظهر شريط أحمر مميز في الصفحة الرئيسية</p>
+            </div>
+          </label>
+          {form.is_emergency && (
+            <div className="mt-3">
+              <label className="text-xs font-bold text-muted mb-1.5 block">ينتهي بعد (اختياري)</label>
+              <select
+                value={form.expires_hours}
+                onChange={e => setForm(f => ({ ...f, expires_hours: e.target.value }))}
+                className="w-full bg-white border border-red-200 rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-red-400"
+              >
+                <option value="">لا ينتهي تلقائياً</option>
+                <option value="1">ساعة واحدة</option>
+                <option value="3">3 ساعات</option>
+                <option value="6">6 ساعات</option>
+                <option value="12">12 ساعة</option>
+                <option value="24">يوم كامل</option>
+              </select>
+            </div>
+          )}
+        </div>
+
         {error && (
           <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{error}</p>
         )}
@@ -206,7 +244,7 @@ function CreateModal({ open, onClose, onCreate, authorName }) {
       <ModalFooter>
         <Button variant="ghost" onClick={onClose} disabled={saving}>إلغاء</Button>
         <Button variant="primary" onClick={handleSubmit} disabled={saving}>
-          {saving ? 'جاري النشر…' : 'نشر الإعلان 📢'}
+          {saving ? 'جاري النشر…' : (form.is_emergency ? 'نشر الإعلان الطارئ 🚨' : 'نشر الإعلان 📢')}
         </Button>
       </ModalFooter>
     </Modal>

@@ -337,12 +337,51 @@ function MyTasksCard({ name, userId }) {
 }
 
 // ── Latest Announcement ──────────────────────────────────────────
+// ── Emergency Announcement Banner ───────────────────────────────
+function EmergencyBanner() {
+  const [ann, setAnn]         = useState(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const now = new Date().toISOString();
+    supabase.from('announcements')
+      .select('id,title,body,created_at')
+      .eq('is_emergency', true)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => setAnn(data?.[0] ?? null))
+      .catch(() => {});
+  }, []);
+
+  if (!ann || dismissed) return null;
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-red-300 bg-red-50 px-4 py-3.5 shadow-sm" dir="rtl">
+      <button
+        onClick={() => setDismissed(true)}
+        className="absolute top-2 end-2 text-red-300 hover:text-red-500 text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 transition"
+        aria-label="إغلاق"
+      >✕</button>
+      <div className="flex gap-3 items-start pe-5">
+        <span className="text-2xl shrink-0 mt-0.5 animate-pulse">🚨</span>
+        <div>
+          <p className="text-[10px] font-extrabold text-red-600 uppercase tracking-widest mb-1">إعلان طارئ</p>
+          <p className="text-sm font-extrabold text-red-700 leading-snug">{ann.title}</p>
+          {ann.body && <p className="text-xs text-red-600 mt-1 leading-relaxed">{ann.body}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnnouncementCard() {
   const [ann, setAnn]         = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('announcements').select('id,title,body,is_pinned,created_at,created_by')
+    supabase.from('announcements').select('id,title,body,is_pinned,is_emergency,created_at,created_by')
+      .eq('is_emergency', false)
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
@@ -579,6 +618,9 @@ export default function HomeScreen() {
 
   return (
     <div className="space-y-4" dir="rtl">
+
+      {/* ── Emergency banner ────────────────────────────────────── */}
+      <EmergencyBanner />
 
       {/* ── Hero greeting ───────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 pt-1">

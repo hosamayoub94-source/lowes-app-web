@@ -52,6 +52,11 @@ export const ROUTES = {
   // Training / Daily Quiz
   TRAINING:   '/training',
   ADMIN_QUIZ: '/admin/quiz',
+
+  // HR Features
+  SCHEDULE:  '/schedule',
+  ADVANCES:  '/advances',
+  REVIEWS:   '/reviews',
 };
 
 export default ROUTES;

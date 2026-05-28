@@ -189,6 +189,29 @@ export const NAV_ITEMS = [
     path: '/hr',
     roles: [ROLES.ADMIN, ROLES.MANAGER],
   },
+
+  // New HR features
+  {
+    id: 'schedule',
+    label: 'جدول الورديات',
+    icon: '📅',
+    path: '/schedule',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'advances',
+    label: 'السلف والخصومات',
+    icon: '💵',
+    path: '/advances',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
+    id: 'reviews',
+    label: 'تقييم الأداء',
+    icon: '⭐',
+    path: '/reviews',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
+  },
 ];
 
 export function navItemsForRole(role) {
