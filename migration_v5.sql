@@ -127,11 +127,11 @@ ALTER TABLE task_activity ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "task_activity_select" ON task_activity;
 CREATE POLICY "task_activity_select" ON task_activity
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "task_activity_insert" ON task_activity;
 CREATE POLICY "task_activity_insert" ON task_activity
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 5: task_points — create if not exists              │
@@ -156,11 +156,11 @@ ALTER TABLE task_points ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "task_points_select" ON task_points;
 CREATE POLICY "task_points_select" ON task_points
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "task_points_insert" ON task_points;
 CREATE POLICY "task_points_insert" ON task_points
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 6: announcements — create if not exists            │
@@ -189,19 +189,19 @@ ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "announcements_select" ON announcements;
 CREATE POLICY "announcements_select" ON announcements
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "announcements_insert" ON announcements;
 CREATE POLICY "announcements_insert" ON announcements
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "announcements_update" ON announcements;
 CREATE POLICY "announcements_update" ON announcements
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
+  FOR UPDATE USING (true);
 
 DROP POLICY IF EXISTS "announcements_delete" ON announcements;
 CREATE POLICY "announcements_delete" ON announcements
-  FOR DELETE USING (auth.uid() IS NOT NULL);
+  FOR DELETE USING (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 7: quiz_questions — create if not exists           │
@@ -300,20 +300,13 @@ CREATE INDEX IF NOT EXISTS idx_shift_partners_partner
 ALTER TABLE shift_partners ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "shift_partners_select" ON shift_partners;
-CREATE POLICY "shift_partners_select" ON shift_partners
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
 DROP POLICY IF EXISTS "shift_partners_insert" ON shift_partners;
-CREATE POLICY "shift_partners_insert" ON shift_partners
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
 DROP POLICY IF EXISTS "shift_partners_update" ON shift_partners;
-CREATE POLICY "shift_partners_update" ON shift_partners
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
-
 DROP POLICY IF EXISTS "shift_partners_delete" ON shift_partners;
-CREATE POLICY "shift_partners_delete" ON shift_partners
-  FOR DELETE USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "shift_partners_all"    ON shift_partners;
+
+CREATE POLICY "shift_partners_all" ON shift_partners
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 10: leave_requests — create if not exists          │
@@ -556,11 +549,11 @@ ALTER TABLE employee_badges ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "employee_badges_select" ON employee_badges;
 CREATE POLICY "employee_badges_select" ON employee_badges
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "employee_badges_insert" ON employee_badges;
 CREATE POLICY "employee_badges_insert" ON employee_badges
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 15: profiles — add birthday + hire_date columns    │
@@ -676,7 +669,7 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock  int      DEFAULT 0;
 -- RLS
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "products_all" ON products;
-CREATE POLICY "products_all" ON products FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "products_all" ON products FOR ALL USING (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 21: ad_campaigns + campaign_ads + ad_results       │
@@ -726,13 +719,13 @@ ALTER TABLE campaign_ads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ad_results   ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "ad_campaigns_all" ON ad_campaigns;
-CREATE POLICY "ad_campaigns_all" ON ad_campaigns FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "ad_campaigns_all" ON ad_campaigns FOR ALL USING (true);
 
 DROP POLICY IF EXISTS "campaign_ads_all" ON campaign_ads;
-CREATE POLICY "campaign_ads_all" ON campaign_ads FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "campaign_ads_all" ON campaign_ads FOR ALL USING (true);
 
 DROP POLICY IF EXISTS "ad_results_all" ON ad_results;
-CREATE POLICY "ad_results_all" ON ad_results FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "ad_results_all" ON ad_results FOR ALL USING (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 22: chat tables                                    │
@@ -855,21 +848,21 @@ ALTER TABLE chat_pinned       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE music_room_state  ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "chat_rooms_all" ON chat_rooms;
-CREATE POLICY "chat_rooms_all"        ON chat_rooms        FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_rooms_all"        ON chat_rooms        FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_members_all" ON chat_room_members;
-CREATE POLICY "chat_members_all"      ON chat_room_members FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_members_all"      ON chat_room_members FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_messages_all" ON chat_messages;
-CREATE POLICY "chat_messages_all"     ON chat_messages     FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_messages_all"     ON chat_messages     FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_reactions_all" ON chat_reactions;
-CREATE POLICY "chat_reactions_all"    ON chat_reactions    FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_reactions_all"    ON chat_reactions    FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_last_read_all" ON chat_last_read;
-CREATE POLICY "chat_last_read_all"    ON chat_last_read    FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_last_read_all"    ON chat_last_read    FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_join_all" ON chat_join_requests;
-CREATE POLICY "chat_join_all"         ON chat_join_requests FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_join_all"         ON chat_join_requests FOR ALL USING (true);
 DROP POLICY IF EXISTS "chat_pinned_all" ON chat_pinned;
-CREATE POLICY "chat_pinned_all"       ON chat_pinned       FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "chat_pinned_all"       ON chat_pinned       FOR ALL USING (true);
 DROP POLICY IF EXISTS "music_all" ON music_room_state;
-CREATE POLICY "music_all"             ON music_room_state  FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "music_all"             ON music_room_state  FOR ALL USING (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  NOTE: Module-specific schemas live in their own files.     │
@@ -898,7 +891,7 @@ ALTER TABLE exchange_rates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "exrates_read" ON exchange_rates;
 CREATE POLICY "exrates_read"   ON exchange_rates FOR SELECT USING (true);
 DROP POLICY IF EXISTS "exrates_insert" ON exchange_rates;
-CREATE POLICY "exrates_insert" ON exchange_rates FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "exrates_insert" ON exchange_rates FOR INSERT WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 24: employee_salary_settings (AdminSettingsScreen) │
@@ -921,7 +914,7 @@ CREATE TABLE IF NOT EXISTS employee_salary_settings (
 ALTER TABLE employee_salary_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "sal_settings_all" ON employee_salary_settings;
 CREATE POLICY "sal_settings_all" ON employee_salary_settings
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 25: accounting_entries (AccountingDashboard)       │
@@ -945,7 +938,7 @@ CREATE TABLE IF NOT EXISTS accounting_entries (
 ALTER TABLE accounting_entries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "acc_entries_all" ON accounting_entries;
 CREATE POLICY "acc_entries_all" ON accounting_entries
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 CREATE INDEX IF NOT EXISTS idx_acc_entries_date ON accounting_entries(entry_date);
 CREATE INDEX IF NOT EXISTS idx_acc_entries_type ON accounting_entries(entry_type);
 
@@ -963,7 +956,7 @@ DROP POLICY IF EXISTS "acc_cats_read" ON accounting_categories;
 CREATE POLICY "acc_cats_read"   ON accounting_categories FOR SELECT USING (true);
 DROP POLICY IF EXISTS "acc_cats_write" ON accounting_categories;
 CREATE POLICY "acc_cats_write"  ON accounting_categories
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- Seed default categories
 INSERT INTO accounting_categories (name, entry_type) VALUES
@@ -998,7 +991,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
 ALTER TABLE payroll_runs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "payroll_runs_all" ON payroll_runs;
 CREATE POLICY "payroll_runs_all" ON payroll_runs
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 28: payroll_entries (PayrollDashboard)             │
@@ -1022,7 +1015,7 @@ CREATE TABLE IF NOT EXISTS payroll_entries (
 ALTER TABLE payroll_entries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "payroll_entries_all" ON payroll_entries;
 CREATE POLICY "payroll_entries_all" ON payroll_entries
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 29: daily_sales_reports (SalesDashboard)           │
@@ -1044,7 +1037,7 @@ CREATE TABLE IF NOT EXISTS daily_sales_reports (
 ALTER TABLE daily_sales_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "dsr_all" ON daily_sales_reports;
 CREATE POLICY "dsr_all" ON daily_sales_reports
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 CREATE INDEX IF NOT EXISTS idx_dsr_date ON daily_sales_reports(report_date);
 
 -- ┌─────────────────────────────────────────────────────────────┐
@@ -1062,7 +1055,7 @@ DROP POLICY IF EXISTS "sc_read" ON sales_channels;
 CREATE POLICY "sc_read"  ON sales_channels FOR SELECT USING (true);
 DROP POLICY IF EXISTS "sc_write" ON sales_channels;
 CREATE POLICY "sc_write" ON sales_channels
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- Seed default channels
 INSERT INTO sales_channels (name, channel_type) VALUES
@@ -1095,7 +1088,7 @@ CREATE TABLE IF NOT EXISTS daily_sales_channel_results (
 ALTER TABLE daily_sales_channel_results ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "dscr_all" ON daily_sales_channel_results;
 CREATE POLICY "dscr_all" ON daily_sales_channel_results
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 33: daily_sales_ad_results (SalesDashboard)        │
@@ -1114,7 +1107,7 @@ CREATE TABLE IF NOT EXISTS daily_sales_ad_results (
 ALTER TABLE daily_sales_ad_results ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "dsar_all" ON daily_sales_ad_results;
 CREATE POLICY "dsar_all" ON daily_sales_ad_results
-  FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 34: employees view (useMentions @mention feature)  │

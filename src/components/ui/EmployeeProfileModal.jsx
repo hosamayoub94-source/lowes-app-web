@@ -52,7 +52,7 @@ export default function EmployeeProfileModal({ profile, onClose }) {
     const n = profile.employee_name;
 
     Promise.all([
-      supabase.from('profiles').select('phone,personal_email,work_location,birthday,join_date,bio,skills').eq('employee_name', n).single(),
+      supabase.from('profiles').select('phone,personal_email,work_location,birthday,hire_date,bio,skills').eq('employee_name', n).single(),
       supabase.from('performance_reviews').select('rating_overall,rating_attendance,rating_tasks,rating_attitude,rating_knowledge').eq('employee_name', n).order('period_year', { ascending: false }).order('period_month', { ascending: false }).limit(1).single(),
       supabase.from('shift_partners').select('partner').eq('requester', n).eq('status', 'accepted'),
     ]).then(([profRes, revRes, partRes]) => {
@@ -136,7 +136,7 @@ export default function EmployeeProfileModal({ profile, onClose }) {
             )}
 
             <InfoRow icon="📍" label="موقع العمل"       value={extended?.work_location} />
-            <InfoRow icon="📅" label="تاريخ الانضمام"   value={extended?.join_date ? new Date(extended.join_date).toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' }) : null} />
+            <InfoRow icon="📅" label="تاريخ الانضمام"   value={extended?.hire_date ? new Date(extended.hire_date).toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' }) : null} />
             <InfoRow icon="🎂" label="تاريخ الميلاد"    value={extended?.birthday   ? new Date(extended.birthday).toLocaleDateString('ar-SA', { month:'long', day:'numeric' }) : null} />
             <InfoRow icon="🧩" label="المهارات"          value={extended?.skills} />
             {partners.length > 0 && (
