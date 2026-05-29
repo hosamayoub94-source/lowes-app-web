@@ -49,21 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_shift_schedule_employee
 
 ALTER TABLE shift_schedule ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "shift_schedule_select" ON shift_schedule;
-CREATE POLICY "shift_schedule_select" ON shift_schedule
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "shift_schedule_insert" ON shift_schedule;
-CREATE POLICY "shift_schedule_insert" ON shift_schedule
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "shift_schedule_update" ON shift_schedule;
-CREATE POLICY "shift_schedule_update" ON shift_schedule
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "shift_schedule_delete" ON shift_schedule;
-CREATE POLICY "shift_schedule_delete" ON shift_schedule
-  FOR DELETE USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "shift_schedule_all" ON shift_schedule;
+CREATE POLICY "shift_schedule_all" ON shift_schedule FOR ALL USING (true) WITH CHECK (true);
 
 
 -- ┌─────────────────────────────────────────────────────────────┐
@@ -95,17 +82,8 @@ CREATE INDEX IF NOT EXISTS idx_advance_requests_created
 
 ALTER TABLE advance_requests ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "advance_requests_select" ON advance_requests;
-CREATE POLICY "advance_requests_select" ON advance_requests
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "advance_requests_insert" ON advance_requests;
-CREATE POLICY "advance_requests_insert" ON advance_requests
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "advance_requests_update" ON advance_requests;
-CREATE POLICY "advance_requests_update" ON advance_requests
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "advance_requests_all" ON advance_requests;
+CREATE POLICY "advance_requests_all" ON advance_requests FOR ALL USING (true) WITH CHECK (true);
 
 
 -- ┌─────────────────────────────────────────────────────────────┐
@@ -137,21 +115,8 @@ CREATE INDEX IF NOT EXISTS idx_perf_reviews_period
 
 ALTER TABLE performance_reviews ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "perf_reviews_select" ON performance_reviews;
-CREATE POLICY "perf_reviews_select" ON performance_reviews
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "perf_reviews_insert" ON performance_reviews;
-CREATE POLICY "perf_reviews_insert" ON performance_reviews
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "perf_reviews_update" ON performance_reviews;
-CREATE POLICY "perf_reviews_update" ON performance_reviews
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
-
-DROP POLICY IF EXISTS "perf_reviews_delete" ON performance_reviews;
-CREATE POLICY "perf_reviews_delete" ON performance_reviews
-  FOR DELETE USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "perf_reviews_all" ON performance_reviews;
+CREATE POLICY "perf_reviews_all" ON performance_reviews FOR ALL USING (true) WITH CHECK (true);
 
 
 -- ┌─────────────────────────────────────────────────────────────┐

@@ -235,21 +235,18 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_checkout
 -- RLS
 ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
 
+-- Open policies: app uses PIN/manual-session (anon key) — authService design requires USING(true)
 DROP POLICY IF EXISTS "quiz_questions_select" ON quiz_questions;
-CREATE POLICY "quiz_questions_select" ON quiz_questions
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "quiz_questions_select" ON quiz_questions FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "quiz_questions_insert" ON quiz_questions;
-CREATE POLICY "quiz_questions_insert" ON quiz_questions
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "quiz_questions_insert" ON quiz_questions FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "quiz_questions_update" ON quiz_questions;
-CREATE POLICY "quiz_questions_update" ON quiz_questions
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "quiz_questions_update" ON quiz_questions FOR UPDATE USING (true);
 
 DROP POLICY IF EXISTS "quiz_questions_delete" ON quiz_questions;
-CREATE POLICY "quiz_questions_delete" ON quiz_questions
-  FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "quiz_questions_delete" ON quiz_questions FOR DELETE USING (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 8: quiz_responses — create if not exists           │
@@ -274,12 +271,10 @@ CREATE INDEX IF NOT EXISTS idx_quiz_responses_created_at
 ALTER TABLE quiz_responses ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "quiz_responses_select" ON quiz_responses;
-CREATE POLICY "quiz_responses_select" ON quiz_responses
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "quiz_responses_select" ON quiz_responses FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "quiz_responses_insert" ON quiz_responses;
-CREATE POLICY "quiz_responses_insert" ON quiz_responses
-  FOR INSERT WITH CHECK (true);  -- allow anonymous submissions
+CREATE POLICY "quiz_responses_insert" ON quiz_responses FOR INSERT WITH CHECK (true);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  SECTION 9: shift_partners — create if not exists           │
