@@ -279,11 +279,15 @@ export default function HRDashboard() {
       const tasks     = taskRes.status  === 'fulfilled' ? (taskRes.value.data  ?? []) : [];
       const leaves    = leaveRes.status === 'fulfilled' ? (leaveRes.value.data ?? []) : [];
 
-      // Working days in month (skip Friday only — company policy)
+      // Working days in month (Mon-Fri only — same formula as PerformanceScreen)
       let workDays = 0;
       const cur = new Date(from);
       const end = new Date(to);
-      while (cur <= end) { if (cur.getDay() !== 5) workDays++; cur.setDate(cur.getDate() + 1); }
+      while (cur <= end) {
+        const dow = cur.getDay();
+        if (dow !== 0 && dow !== 6) workDays++;
+        cur.setDate(cur.getDate() + 1);
+      }
       workDays = Math.max(workDays, 1);
 
       // Attendance by employee (count distinct 'in' days)
@@ -324,7 +328,10 @@ export default function HRDashboard() {
         const tData = taskByEmp[p.employee_name] ?? taskByEmp[p.id] ?? { total: 0, done: 0 };
         const taskPct  = tData.total > 0 ? clamp(Math.round((tData.done / tData.total) * 100)) : 0;
 
-        const score = Math.round(attPct * 0.5 + taskPct * 0.5);
+        // If no tasks assigned yet, score is based on attendance only
+        const score = tData.total === 0
+          ? clamp(Math.round(attPct))
+          : clamp(Math.round(attPct * 0.5 + taskPct * 0.5));
 
         return {
           ...p,

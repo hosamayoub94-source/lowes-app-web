@@ -70,7 +70,7 @@ export function useSmartReminders({ attendanceStatus = null } = {}) {
 
     // ── Overdue tasks ──────────────────────────────────────────
     const overdue = tasks.filter((t) => {
-      if (t.status === 'done' || t.status === 'cancelled') return false;
+      if (t.status === 'done' || t.status === 'completed' || t.status === 'cancelled') return false;
       if (!t.due_date) return false;
       return new Date(t.due_date).getTime() < now;
     });

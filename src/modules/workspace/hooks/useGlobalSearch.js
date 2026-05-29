@@ -100,8 +100,8 @@ export function useGlobalSearch(query = '') {
       .map((t) => ({
         id:       `task-${t.id}`,
         label:    t.title,
-        subtitle: t.status === 'done' ? 'مكتملة' : t.due_date ? `تستحق: ${new Date(t.due_date).toLocaleDateString('ar-SA')}` : '',
-        icon:     t.status === 'done' ? '✅' : t.status === 'in_progress' ? '🔵' : '📋',
+        subtitle: (t.status === 'done' || t.status === 'completed') ? 'مكتملة' : t.due_date ? `تستحق: ${new Date(t.due_date).toLocaleDateString('ar-SA')}` : '',
+        icon:     (t.status === 'done' || t.status === 'completed') ? '✅' : t.status === 'in_progress' ? '🔵' : '📋',
         type:     RESULT_TYPES.TASK,
         path:     ROUTES.TASKS,
         meta:     t,

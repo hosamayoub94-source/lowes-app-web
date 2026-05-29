@@ -7,10 +7,13 @@ import { ROUTES }       from '@routes/paths';
 
 const STATUS_DOT = {
   done:        '✅',
+  completed:   '✅',
   in_progress: '🔵',
   pending:     '⚪',
   blocked:     '🔴',
 };
+
+const isFinished = (s) => s === 'done' || s === 'completed';
 
 export function TasksWidget() {
   const navigate = useNavigate();
@@ -25,10 +28,10 @@ export function TasksWidget() {
   );
 
   const overdue = tasks.filter((t) =>
-    t?.due_date && new Date(t.due_date) < now && t?.status !== 'done'
+    t?.due_date && new Date(t.due_date) < now && !isFinished(t?.status)
   );
 
-  const done    = todayTasks.filter((t) => t.status === 'done').length;
+  const done    = todayTasks.filter((t) => isFinished(t.status)).length;
   const total   = todayTasks.length;
 
   if (loading && tasks.length === 0) {
@@ -69,8 +72,8 @@ export function TasksWidget() {
       )}
 
       <ul className="space-y-1">
-        {[...overdue.slice(0, 2), ...todayTasks.filter((t) => t.status !== 'done').slice(0, 3)].map((t) => {
-          const isOverdue = new Date(t.due_date) < now && t.status !== 'done';
+        {[...overdue.slice(0, 2), ...todayTasks.filter((t) => !isFinished(t.status)).slice(0, 3)].map((t) => {
+          const isOverdue = new Date(t.due_date) < now && !isFinished(t.status);
           return (
             <li
               key={t.id}
@@ -78,7 +81,7 @@ export function TasksWidget() {
               onClick={() => navigate(ROUTES.TASKS)}
             >
               <span className="text-base">{STATUS_DOT[t.status] ?? '⚪'}</span>
-              <span className={`flex-1 truncate ${t.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+              <span className={`flex-1 truncate ${isFinished(t.status) ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                 {t.title}
               </span>
               {isOverdue && <span className="text-xs text-red-500">متأخرة</span>}

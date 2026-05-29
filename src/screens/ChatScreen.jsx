@@ -89,7 +89,8 @@ async function buildBotResponse(cmdText,roomId,userId,userName){
   try{
     if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
-      const{data}=await supabase.from('tasks').select('title,status,due_date').ilike('assigned_to',`%${userName}%`).not('status','in','("done","completed","مكتملة")').order('created_at',{ascending:false}).limit(8);
+      const taskFilter=userId?`assigned_to.ilike.%${userName}%,assigned_to.eq.${userId}`:`assigned_to.ilike.%${userName}%`;
+      const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","مكتملة")').order('created_at',{ascending:false}).limit(8);
       response=!data?.length?'✅ ليس لديك مهام مفتوحة!':`📋 مهامك المفتوحة (${data.length}):\n\n${data.map(t=>`${({pending:'⏳',in_progress:'🔄',review:'👀',blocked:'🚫'}[t.status]??'📋')} ${t.title}${t.due_date?` — ${new Date(t.due_date).toLocaleDateString('ar-SA',{month:'short',day:'numeric'})}`:''}`).join('\n')}`;
     }else if(['/حضور','/attendance','/حضوري'].includes(cmdL)){
       const d=new Date();const today=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;

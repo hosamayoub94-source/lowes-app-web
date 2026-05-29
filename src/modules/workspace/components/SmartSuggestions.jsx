@@ -67,7 +67,7 @@ export function SmartSuggestions() {
 
     // ── 2. Overdue tasks ───────────────────────────────────────
     const overdue = tasks.filter(
-      (t) => t?.due_date && new Date(t.due_date) < now && t?.status !== 'done'
+      (t) => t?.due_date && new Date(t.due_date) < now && t?.status !== 'done' && t?.status !== 'completed'
     );
     if (overdue.length > 0) {
       list.push({
@@ -84,7 +84,7 @@ export function SmartSuggestions() {
 
     // ── 3. Tasks due today (not done) ──────────────────────────
     const dueToday = tasks.filter((t) => {
-      if (!t?.due_date || t?.status === 'done') return false;
+      if (!t?.due_date || t?.status === 'done' || t?.status === 'completed') return false;
       return new Date(t.due_date).toDateString() === now.toDateString();
     });
     if (dueToday.length > 0) {

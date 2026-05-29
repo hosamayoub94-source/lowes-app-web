@@ -34,10 +34,11 @@ async function fetchReportData(period) {
   const { supabase } = await import('@services/supabase');
   const { from, to } = getRange(period);
 
-  // 1. Employee count
+  // 1. Employee count (active only)
   const { count: empCount } = await supabase
     .from('profiles')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true })
+    .eq('is_active', true);
 
   // 2. Attendance logs — real table uses type='in'/'out', date='YYYY/MM/DD'
   const sixMonthsAgo = new Date();
@@ -123,15 +124,15 @@ async function fetchReportData(period) {
   let crmData = [];
   try {
     const { data: leads = [], error: crmErr } = await supabase
-      .from('crm_leads')
-      .select('stage')
+      .from('leads')
+      .select('status')
       .gte('created_at', from + 'T00:00:00Z')
       .lte('created_at', to + 'T23:59:59Z');
 
     if (!crmErr && leads && leads.length > 0) {
       const stageMap = {};
       for (const l of leads) {
-        const s = l.stage || 'غير محدد';
+        const s = l.status || 'غير محدد';
         stageMap[s] = (stageMap[s] || 0) + 1;
       }
       const COLORS = ['#0ea5e9','#14b8a6','#a855f7','#22c55e','#ef4444','#f59e0b'];

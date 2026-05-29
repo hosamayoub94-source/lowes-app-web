@@ -8,18 +8,21 @@ import { TASK_STATUS } from '../types/task.types';
 
 // ── Date helpers ──────────────────────────────────────────────
 
+/** Returns true if a task status counts as finished (done OR completed) */
+const isFinishedStatus = (s) => s === TASK_STATUS.COMPLETED || s === 'done';
+
 /** Returns true if task is past its due_date and not completed/cancelled */
 export function isOverdue(task) {
   if (!task.due_date) return false;
-  if (task.status === TASK_STATUS.COMPLETED || task.status === TASK_STATUS.CANCELLED) return false;
+  if (isFinishedStatus(task.status) || task.status === TASK_STATUS.CANCELLED) return false;
   return new Date(task.due_date) < new Date();
 }
 
 /** Compute effective status — auto-promotes to overdue when past due */
 export function effectiveStatus(task) {
-  if (isOverdue(task) && task.status !== TASK_STATUS.COMPLETED && task.status !== TASK_STATUS.CANCELLED) {
-    return TASK_STATUS.OVERDUE;
-  }
+  if (isOverdue(task)) return TASK_STATUS.OVERDUE;
+  // Normalise legacy 'done' → 'completed' so the rest of the tasks module sees one value
+  if (task.status === 'done') return TASK_STATUS.COMPLETED;
   return task.status;
 }
 
@@ -45,7 +48,7 @@ export function countdownLabel(due_date) {
 
 /** Tailwind text-color class for due date label */
 export function dueDateColorClass(due_date, status) {
-  if (!due_date || status === TASK_STATUS.COMPLETED || status === TASK_STATUS.CANCELLED) {
+  if (!due_date || isFinishedStatus(status) || status === TASK_STATUS.CANCELLED) {
     return 'text-muted';
   }
   const days = daysUntilDue(due_date);

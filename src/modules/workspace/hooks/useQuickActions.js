@@ -42,7 +42,7 @@ export function useQuickActions() {
   const timeBlock = getTimeBlock();
 
   const overdueTasks = useMemo(
-    () => tasks.filter((t) => t?.due_date && new Date(t.due_date) < new Date() && t?.status !== 'done'),
+    () => tasks.filter((t) => t?.due_date && new Date(t.due_date) < new Date() && t?.status !== 'done' && t?.status !== 'completed'),
     [tasks]
   );
 

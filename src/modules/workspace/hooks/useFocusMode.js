@@ -13,14 +13,14 @@ export function useFocusMode() {
 
   const overdueTasks = useMemo(
     () => tasks.filter((t) =>
-      t?.due_date && new Date(t.due_date) < now && t?.status !== 'done'
+      t?.due_date && new Date(t.due_date) < now && t?.status !== 'done' && t?.status !== 'completed'
     ),
     [tasks] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const dueTodayTasks = useMemo(
     () => tasks.filter((t) => {
-      if (!t?.due_date || t?.status === 'done') return false;
+      if (!t?.due_date || t?.status === 'done' || t?.status === 'completed') return false;
       const d = new Date(t.due_date);
       return d >= now && d.toDateString() === now.toDateString();
     }),

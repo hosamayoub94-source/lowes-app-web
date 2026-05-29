@@ -32,7 +32,7 @@ export async function updateTask(id, patch) {
 }
 
 export async function setTaskStatus(id, status) {
-  const completed_at = status === 'done' ? new Date().toISOString() : null;
+  const completed_at = (status === 'done' || status === 'completed') ? new Date().toISOString() : null;
   return updateTask(id, { status, completed_at });
 }
 

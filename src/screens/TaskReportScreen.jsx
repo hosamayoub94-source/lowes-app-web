@@ -118,16 +118,17 @@ export default function TaskReportScreen() {
       }
 
       const now = new Date();
+      const isDone = (s) => s === 'done' || s === 'completed';
       const enriched = tasks.map(t => ({
         ...t,
-        isLate: t.status !== 'done' && t.status !== 'cancelled' && t.due_date && new Date(t.due_date) < now,
+        isLate: !isDone(t.status) && t.status !== 'cancelled' && t.due_date && new Date(t.due_date) < now,
         employee_name: profs[t.assigned_to]?.employee_name || t.assigned_to || '—',
         team: profs[t.assigned_to]?.team || '—',
       }));
 
       // Overall stats
       const total     = enriched.length;
-      const done      = enriched.filter(t => t.status === 'done').length;
+      const done      = enriched.filter(t => isDone(t.status)).length;
       const late      = enriched.filter(t => t.isLate).length;
       const cancelled = enriched.filter(t => t.status === 'cancelled').length;
       setStats({ total, done, late, cancelled });
@@ -143,7 +144,7 @@ export default function TaskReportScreen() {
           total: 0, done: 0, inProgress: 0, late: 0,
         };
         byEmp[key].total++;
-        if (t.status === 'done') byEmp[key].done++;
+        if (isDone(t.status)) byEmp[key].done++;
         else if (t.status === 'in_progress') byEmp[key].inProgress++;
         if (t.isLate) byEmp[key].late++;
       });

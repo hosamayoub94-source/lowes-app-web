@@ -31,9 +31,9 @@ export const USE_MOCK_DATA = explicit !== 'false';
 const TASK_SELECT = `
   id, title, description, status, priority, progress,
   due_date, due_time, completed_at, created_at, updated_at,
-  seen_by, attachments, tags, assigned_to, created_by,
+  seen_by, attachments, tags, assigned_to, assignee_id, created_by,
   platform, task_type, attachments_note, completion_note,
-  assignee:profiles!tasks_assigned_to_fkey ( id, employee_name, avatar_url, role_type, team ),
+  assignee:profiles!tasks_assignee_id_fkey ( id, employee_name, avatar_url, role_type, team ),
   creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
 `;

@@ -418,14 +418,14 @@ function CelebrationBanner() {
 
   useEffect(() => {
     const today = new Date();
-    supabase.from('profiles').select('employee_name,birthday,join_date').eq('is_active', true)
+    supabase.from('profiles').select('employee_name,birthday,hire_date').eq('is_active', true)
       .then(({ data }) => {
         const found = [];
         (data ?? []).forEach(p => {
           if (sameMonthDay(p.birthday, today))
             found.push({ type: 'birthday', name: p.employee_name });
-          if (sameMonthDay(p.join_date, today)) {
-            const yrs = today.getFullYear() - new Date(p.join_date).getFullYear();
+          if (sameMonthDay(p.hire_date, today)) {
+            const yrs = today.getFullYear() - new Date(p.hire_date).getFullYear();
             if (yrs >= 1) found.push({ type: 'anniversary', name: p.employee_name, years: yrs });
           }
         });
@@ -578,9 +578,9 @@ export default function HomeScreen() {
       userId
         ? supabase.from('notifications').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('is_read',false)
         : Promise.resolve({count:0}),
-      // Leave balance
-      userId ? supabase.from('leave_balances').select('total_days,used_days').eq('employee_id',userId).eq('year',year).maybeSingle()
-             : Promise.resolve({data:null}),
+      // Leave balance — compute from approved annual leave_requests this year
+      userId ? supabase.from('leave_requests').select('days').eq('employee_id',userId).eq('type','annual').eq('status','approved').gte('start_date',year+'-01-01').lte('start_date',year+'-12-31')
+             : Promise.resolve({data:[]}),
       // Attendance chart — attendance table uses 'YYYY/MM/DD' date format
       supabase.from('attendance').select('date,employee_name').eq('type','in')
         .gte('date',monthFrom.replace(/-/g,'/')).lte('date',today.replace(/-/g,'/')),
@@ -591,8 +591,9 @@ export default function HomeScreen() {
       // KPIs
       const tasks  = tRes.value?.count  ?? '—';
       const notifs = nRes.value?.count  ?? '—';
-      const ld     = lRes.value?.data;
-      const leave  = ld ? `${(ld.total_days??15)-(ld.used_days??0)} يوم` : '—';
+      const leaveRows  = lRes.value?.data ?? [];
+      const usedDays   = leaveRows.reduce((s, r) => s + (r.days || 0), 0);
+      const leave      = `${21 - usedDays} يوم`;
 
       setKpi({ tasks, notifs, leave });
       setKpiLoaded(true);

@@ -115,13 +115,7 @@ function DashboardBuilder({ editable = false, style = {} }) {
       )}
 
       {/* Widget grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 16,
-        '@media (max-width: 1024px)': { gridTemplateColumns: 'repeat(2, 1fr)' },
-        '@media (max-width: 640px)':  { gridTemplateColumns: '1fr' },
-      }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {visibleWidgets.map((widget) => {
           const id = widget.id ?? widget.sort_order;
           return (

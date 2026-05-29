@@ -79,7 +79,7 @@ export function useWorkspace() {
   });
 
   const overdueTasks = tasks.filter((t) =>
-    t?.due_date && new Date(t.due_date) < new Date() && t?.status !== 'done'
+    t?.due_date && new Date(t.due_date) < new Date() && t?.status !== 'done' && t?.status !== 'completed'
   );
 
   return {

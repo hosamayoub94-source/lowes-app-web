@@ -206,14 +206,14 @@ export default function PerformanceScreen() {
       tasks.forEach(t => {
         if (!taskByEmp[t.assigned_to]) taskByEmp[t.assigned_to] = { total: 0, done: 0 };
         taskByEmp[t.assigned_to].total++;
-        if (t.status === 'done' || t.status === 'completed') taskByEmp[t.assigned_to].done++;
+        if (['done', 'completed', 'مكتملة'].includes(t.status)) taskByEmp[t.assigned_to].done++;
       });
 
       // Build scored list
       const scored = profiles.map(p => {
         const attDays  = attByEmp[p.employee_name]?.size || 0;
         const attPct   = clamp(Math.round((attDays / workDays) * 100));
-        const tData    = taskByEmp[p.employee_name] || { total: 0, done: 0 };
+        const tData    = taskByEmp[p.employee_name] || taskByEmp[p.id] || { total: 0, done: 0 };
         const taskPct  = tData.total > 0 ? clamp(Math.round((tData.done / tData.total) * 100)) : 0;
 
         // Score formula: attendance 50% + tasks 50%

@@ -246,11 +246,11 @@ export default function AchievementsScreen() {
           .gte('date', monthStart.replace(/-/g, '/'))
           .lte('date', today.replace(/-/g, '/')),
 
-        // Monthly done tasks count per employee
+        // Monthly done tasks count per employee (handle both 'done' and 'completed')
         supabase
           .from('tasks')
           .select('assigned_to')
-          .eq('status', 'done')
+          .in('status', ['done', 'completed'])
           .gte('completed_at', monthStart + 'T00:00:00'),
 
         // My points history
@@ -306,9 +306,9 @@ export default function AchievementsScreen() {
           totalPoints:   p.total_points || 0,
           monthlyPoints: hasPtsData
             ? (ptsMap[p.employee_name] || 0)
-            : (tasksMap[p.employee_name] || 0) * 10,
+            : (tasksMap[p.employee_name] || tasksMap[p.id] || 0) * 10,
           attendanceDays: attMap[p.employee_name] || 0,
-          doneTasks:      tasksMap[p.employee_name] || 0,
+          doneTasks:      tasksMap[p.employee_name] || tasksMap[p.id] || 0,
         }))
         .sort((a, b) => b.monthlyPoints - a.monthlyPoints);
 

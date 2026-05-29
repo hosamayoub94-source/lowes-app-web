@@ -1,6 +1,7 @@
 // =============================================================
-// HolidaysScreen — leave balance + request history + new request
-// Tables: leave_balances, employee_requests
+// HolidaysScreen — عرض رصيد الإجازات + تقديم طلب سريع
+// يستخدم نفس جدول leave_requests الذي يستخدمه LeaveRequestsScreen
+// حتى يرى المدير الطلبات ويوافق عليها من /leave
 // =============================================================
 import { useEffect, useState, useCallback } from 'react';
 import { Hero } from '@components/ui/Hero';
@@ -11,67 +12,8 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 
-// ── SQL for missing tables ────────────────────────────────────
-const SETUP_SQL = `-- جداول نظام الإجازات (نفّذ مرة واحدة في Supabase SQL Editor)
-CREATE TABLE IF NOT EXISTS leave_balances (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  employee_id uuid NOT NULL,
-  year int NOT NULL,
-  total_days int DEFAULT 15,
-  used_days int DEFAULT 0,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(employee_id, year)
-);
-ALTER TABLE leave_balances ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "leave_bal_all" ON leave_balances
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE TABLE IF NOT EXISTS employee_requests (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  employee_id uuid NOT NULL,
-  request_type text DEFAULT 'leave',
-  leave_type text CHECK (leave_type IN ('annual','sick','emergency','unpaid')),
-  leave_from date,
-  leave_to date,
-  leave_days int,
-  reason text,
-  status text DEFAULT 'pending'
-    CHECK (status IN ('pending','approved','rejected','cancelled')),
-  admin_note text,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE employee_requests ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "emp_req_all" ON employee_requests
-  FOR ALL USING (true) WITH CHECK (true);`;
-
-// ── DB setup banner ───────────────────────────────────────────
-function SetupBanner({ onDismiss }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(SETUP_SQL).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2000);
-    });
-  };
-  return (
-    <div className="bg-amber-bg border border-amber/30 rounded-xl p-4 space-y-3" dir="rtl">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-amber-fg">⚠️ إعداد مطلوب — جداول الإجازات</p>
-          <p className="text-xs text-muted mt-0.5">
-            نفّذ هذا SQL في Supabase SQL Editor لتفعيل نظام الإجازات:
-          </p>
-        </div>
-        <button onClick={onDismiss} className="text-muted hover:text-text text-lg leading-none shrink-0">×</button>
-      </div>
-      <pre className="text-[10px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-40">
-        {SETUP_SQL}
-      </pre>
-      <button onClick={copy} className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
-        {copied ? '✓ تم النسخ' : 'نسخ SQL'}
-      </button>
-    </div>
-  );
-}
+// الرصيد السنوي الثابت (يُحسب من leave_requests إن وُجدت leave_balances)
+const ANNUAL_ALLOWANCE = 21;
 
 // ── Helpers ────────────────────────────────────────────────────
 function fmtDate(iso) {
@@ -88,20 +30,21 @@ function diffDays(from, to) {
 }
 
 const STATUS_META = {
-  pending:   { label: 'بانتظار الاعتماد', color: 'bg-amber-bg text-amber-fg border border-amber/20'  },
-  approved:  { label: 'مُعتمدة',          color: 'bg-green-bg text-green-fg border border-green/20'  },
-  rejected:  { label: 'مرفوضة',           color: 'bg-red-bg text-red-fg border border-red/20'        },
-  cancelled: { label: 'ملغاة',            color: 'bg-surface-alt text-muted border border-border/20' },
+  pending:  { label: 'بانتظار الاعتماد', color: 'bg-amber-bg text-amber-fg border border-amber/20'  },
+  approved: { label: 'مُعتمدة',          color: 'bg-green-bg text-green-fg border border-green/20'  },
+  rejected: { label: 'مرفوضة',           color: 'bg-red-bg text-red-fg border border-red/20'        },
 };
 
 const LEAVE_TYPES = [
-  { value: 'annual',    label: 'إجازة سنوية'       },
-  { value: 'sick',      label: 'إجازة مرضية'       },
-  { value: 'emergency', label: 'إجازة طارئة'       },
-  { value: 'unpaid',    label: 'إجازة بدون راتب'   },
+  { value: 'annual',    label: 'إجازة سنوية'     },
+  { value: 'sick',      label: 'إجازة مرضية'     },
+  { value: 'emergency', label: 'إجازة طارئة'     },
+  { value: 'unpaid',    label: 'إجازة بدون راتب' },
 ];
 
-const LEAVE_TYPE_LABEL = Object.fromEntries(LEAVE_TYPES.map(t => [t.value, t.label]));
+const LEAVE_TYPE_LABEL = {
+  annual: 'سنوية', sick: 'مرضية', emergency: 'طارئة', unpaid: 'بدون راتب', other: 'أخرى',
+};
 
 // ── Status badge ───────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -119,14 +62,17 @@ function RequestRow({ req }) {
     <div className="flex items-start justify-between gap-3 py-3 border-b border-border last:border-0">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-text">
-          {LEAVE_TYPE_LABEL[req.leave_type] || req.leave_type || 'إجازة'}
+          {LEAVE_TYPE_LABEL[req.type] || req.type || 'إجازة'}
         </p>
         <p className="text-xs text-muted mt-0.5">
-          {fmtDate(req.leave_from)} — {fmtDate(req.leave_to)}
-          {req.leave_days ? ` (${req.leave_days} أيام)` : ''}
+          {fmtDate(req.start_date)} — {fmtDate(req.end_date)}
+          {req.days ? ` (${req.days} أيام)` : ''}
         </p>
         {req.reason && (
           <p className="text-xs text-muted mt-0.5 truncate max-w-[220px]">{req.reason}</p>
+        )}
+        {req.manager_note && (
+          <p className="text-xs text-teal mt-0.5">💬 {req.manager_note}</p>
         )}
       </div>
       <div className="shrink-0 flex flex-col items-end gap-1">
@@ -140,35 +86,34 @@ function RequestRow({ req }) {
 // ── New request modal ─────────────────────────────────────────
 const EMPTY_FORM = { leave_type: 'annual', leave_from: '', leave_to: '', reason: '' };
 
-function NewRequestModal({ open, onClose, onSubmitted, userId, remaining }) {
+function NewRequestModal({ open, onClose, onSubmitted, userId, userName, remaining }) {
   const [form,   setForm]   = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState(null);
 
   const days = diffDays(form.leave_from, form.leave_to);
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.leave_from || !form.leave_to) { setErr('يرجى تحديد تاريخ البداية والنهاية'); return; }
     if (days <= 0) { setErr('تاريخ النهاية يجب أن يكون بعد تاريخ البداية'); return; }
     if (form.leave_type === 'annual' && days > remaining) {
-      setErr('الأيام المطلوبة تتجاوز رصيدك المتاح (' + remaining + ' يوم)');
+      setErr(`الأيام المطلوبة تتجاوز رصيدك المتاح (${remaining} يوم)`);
       return;
     }
     setSaving(true);
     setErr(null);
     try {
-      const { error } = await supabase.from('employee_requests').insert({
-        employee_id:  userId,
-        request_type: 'leave',
-        leave_type:   form.leave_type,
-        leave_from:   form.leave_from,
-        leave_to:     form.leave_to,
-        leave_days:   days,
-        reason:       form.reason.trim() || null,
-        status:       'pending',
+      const { error } = await supabase.from('leave_requests').insert({
+        employee_id:   userId,
+        employee_name: userName,
+        type:          form.leave_type,
+        start_date:    form.leave_from,
+        end_date:      form.leave_to,
+        days:          days,
+        reason:        form.reason.trim() || null,
+        status:        'pending',
       });
       if (error) throw new Error(error.message);
       setForm(EMPTY_FORM);
@@ -184,7 +129,10 @@ function NewRequestModal({ open, onClose, onSubmitted, userId, remaining }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
       <div className="w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border overflow-hidden" dir="rtl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -194,7 +142,6 @@ function NewRequestModal({ open, onClose, onSubmitted, userId, remaining }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-
           {/* Leave type */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted">نوع الإجازة</label>
@@ -279,51 +226,28 @@ function NewRequestModal({ open, onClose, onSubmitted, userId, remaining }) {
 
 // ── Main screen ────────────────────────────────────────────────
 export default function HolidaysScreen() {
-  const { id: userId } = useAuth();
+  const { id: userId, name: userName } = useAuth();
   const year = new Date().getFullYear();
 
-  const [balance,   setBalance]   = useState(null);
   const [requests,  setRequests]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [dbMissing, setDbMissing] = useState(false);
-  const [showSetup, setShowSetup] = useState(true);
 
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
-      const [balRes, reqRes] = await Promise.allSettled([
-        supabase
-          .from('leave_balances')
-          .select('total_days, used_days')
-          .eq('employee_id', userId)
-          .eq('year', year)
-          .maybeSingle(),
-        supabase
-          .from('employee_requests')
-          .select('id, leave_type, leave_from, leave_to, leave_days, reason, status, created_at')
-          .eq('employee_id', userId)
-          .eq('request_type', 'leave')
-          .order('created_at', { ascending: false })
-          .limit(50),
-      ]);
+      const { data, error: dbErr } = await supabase
+        .from('leave_requests')
+        .select('id, type, start_date, end_date, days, reason, status, manager_note, created_at')
+        .eq('employee_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      // Detect missing tables (42P01 = undefined_table)
-      const isMissing = (r) =>
-        r.status === 'fulfilled' && r.value?.error?.code === '42P01';
-      if (isMissing(balRes) || isMissing(reqRes)) {
-        setDbMissing(true);
-      }
-
-      if (balRes.status === 'fulfilled' && !balRes.value.error) {
-        setBalance(balRes.value.data);
-      }
-      if (reqRes.status === 'fulfilled' && !reqRes.value.error) {
-        setRequests(reqRes.value.data || []);
-      }
+      if (dbErr) throw new Error(dbErr.message);
+      setRequests(data || []);
     } catch (e) {
       setError(e?.message || 'تعذّر تحميل البيانات');
     } finally {
@@ -334,9 +258,12 @@ export default function HolidaysScreen() {
   useEffect(() => { load(); }, [load]);
 
   // ── Derived stats ──────────────────────────────────────────
-  const totalDays   = balance?.total_days ?? 15;
-  const usedDays    = balance?.used_days  ?? 0;
-  const remaining   = totalDays - usedDays;
+  const usedAnnual = requests
+    .filter(r => r.type === 'annual' && r.status === 'approved' &&
+                 new Date(r.start_date).getFullYear() === year)
+    .reduce((s, r) => s + (r.days || 0), 0);
+
+  const remaining   = ANNUAL_ALLOWANCE - usedAnnual;
   const pendingCnt  = requests.filter(r => r.status === 'pending').length;
   const rejectedCnt = requests.filter(r => r.status === 'rejected').length;
 
@@ -353,17 +280,12 @@ export default function HolidaysScreen() {
         }
       />
 
-      {/* DB setup banner */}
-      {dbMissing && showSetup && (
-        <SetupBanner onDismiss={() => setShowSetup(false)} />
-      )}
-
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="رصيد متبقٍ"       value={loading ? '—' : remaining + ' يوم'} tone="green" />
-        <StatCard label="مستخدم"            value={loading ? '—' : usedDays + ' يوم'}  tone="amber" />
-        <StatCard label="بانتظار اعتماد"   value={loading ? '—' : pendingCnt}          tone="blue"  />
-        <StatCard label="مرفوضة"            value={loading ? '—' : rejectedCnt}         tone="red"   />
+        <StatCard label="رصيد متبقٍ"      value={loading ? '—' : remaining + ' يوم'} tone="green" />
+        <StatCard label="مستخدم"           value={loading ? '—' : usedAnnual + ' يوم'} tone="amber" />
+        <StatCard label="بانتظار اعتماد"  value={loading ? '—' : pendingCnt}          tone="blue"  />
+        <StatCard label="مرفوضة"           value={loading ? '—' : rejectedCnt}         tone="red"   />
       </div>
 
       {/* Request history */}
@@ -376,7 +298,7 @@ export default function HolidaysScreen() {
           ) : error ? (
             <p className="text-sm text-red-fg py-2">⚠️ {error}</p>
           ) : requests.length === 0 ? (
-            <EmptyState description="لا توجد طلبات إجازة بعد" />
+            <EmptyState description="لا توجد طلبات إجازة بعد — اضغط «+ طلب إجازة» لتقديم طلبك" />
           ) : (
             <div>
               {requests.map(req => (
@@ -393,6 +315,7 @@ export default function HolidaysScreen() {
         onClose={() => setShowModal(false)}
         onSubmitted={load}
         userId={userId}
+        userName={userName}
         remaining={remaining}
       />
     </div>
