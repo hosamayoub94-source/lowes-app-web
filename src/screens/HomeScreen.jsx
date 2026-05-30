@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // HomeScreen 2.0 — مركز قيادة يومي
 // تحية بحسب الوقت · حضور سريع · مهام اليوم ·
 // آخر إعلان · تهنئة اليوم · KPIs · Charts
@@ -12,7 +12,7 @@ import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { useAuth }  from '@hooks/useAuth';
 import { useTheme } from '@hooks/useTheme';
 import { navItemsForRole } from '@data/navigation';
-import { Link }     from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
@@ -24,13 +24,13 @@ const MOTIVATIONS = [
   { text: 'الفريق الذي يتواصل بصدق هو الفريق الذي ينجح دائماً.', icon: '🤝' },
   { text: 'ابدأ يومك بنية صادقة وستجد الطريق يُفتح أمامك.', icon: '✨' },
   { text: 'التفاصيل الصغيرة هي ما تصنع الفرق الكبير في تجربة العميل.', icon: '🔍' },
-  { text: 'لووز بروفشنال — نحن لا نبيع منتجات فحسب، نبيع ثقة وجودة.', icon: '💎' },
+  { text: 'لويز بروفشنال — نحن لا نبيع منتجات فحسب، نبيع ثقة وجودة.', icon: '💎' },
   { text: 'كل سؤال من عميل هو فرصة لتترك انطباعاً لا يُنسى.', icon: '💬' },
   { text: 'المثابرة تحول الصعب إلى ممكن، والممكن إلى سهل.', icon: '💪' },
   { text: 'الجودة ليست صدفة — هي نتيجة جهد متواصل وعناية حقيقية.', icon: '🌟' },
   { text: 'تعلّم شيئاً جديداً عن منتجاتنا اليوم — معرفتك قوتك.', icon: '📚' },
   { text: 'ابتسامتك في بداية اليوم تُعدي كل من حولك بالطاقة الإيجابية.', icon: '😊' },
-  { text: 'العناية بالبشرة علم وفن — أنت سفير لووز في هذا العالم.', icon: '🧴' },
+  { text: 'العناية بالبشرة علم وفن — أنت سفير لويز في هذا العالم.', icon: '🧴' },
   { text: 'كل هدف كبير يبدأ بخطوة صغيرة — ابدأ الآن.', icon: '🎯' },
   { text: 'الاحترافية تعني الوفاء بوعودك حتى حين لا يراك أحد.', icon: '🏅' },
   { text: 'زميلك نجاحه نجاحك — ادعم فريقك لتنجح معه.', icon: '👥' },
@@ -118,9 +118,9 @@ function last7Days() {
   }
   return days;
 }
-function dayLabel(iso) { return new Date(iso).toLocaleDateString('ar-SA', { weekday: 'short' }); }
+function dayLabel(iso) { return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'short' }); }
 function fullDate() {
-  return new Date().toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 function sameMonthDay(dateStr, today) {
   if (!dateStr) return false;
@@ -179,7 +179,7 @@ function AttendanceCard({ name, team }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const arabicDay = () => new Date().toLocaleDateString('ar-SA', { weekday: 'long' });
+  const arabicDay = () => new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' });
 
   const checkIn = async () => {
     if (saving || att?.checkIn) return;
@@ -281,13 +281,13 @@ function MyTasksCard({ name, userId }) {
 
   useEffect(() => {
     if (!name) return;
+    // Filter by assignee_id (UUID FK) or assigned_to (UUID) — both point to profile.id
     const filter = userId
-      ? `assigned_to.ilike.%${name}%,assigned_to.eq.${userId}`
-      : `assigned_to.ilike.%${name}%`;
-    supabase.from('tasks')
-      .select('id,title,status,priority,due_date')
-      .or(filter)
-      .not('status', 'in', '("done","completed","مكتملة")')
+      ? `assignee_id.eq.${userId},assigned_to.eq.${userId}`
+      : null;
+    let q = supabase.from('tasks').select('id,title,status,priority,due_date');
+    if (filter) q = q.or(filter);
+    q.not('status', 'in', '("done","completed","cancelled")')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(4)
       .then(({ data }) => { setTasks(data ?? []); setLoading(false); })
@@ -295,11 +295,13 @@ function MyTasksCard({ name, userId }) {
   }, [name, userId]);
 
   const STATUS_DOT = {
-    pending: 'bg-amber-400', in_progress: 'bg-teal', review: 'bg-violet-400',
-    blocked: 'bg-red-400', open: 'bg-gray-300',
+    pending: 'bg-amber-400', in_progress: 'bg-teal', in_review: 'bg-violet-400',
+    review: 'bg-violet-400', overdue: 'bg-red-400', blocked: 'bg-red-400', open: 'bg-gray-300',
   };
   const isOverdue = due => due && new Date(due) < new Date() && !due.includes(todayISO());
   const isToday   = due => due?.slice(0,10) === todayISO();
+  const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const fmtDueDateShort = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS_AR[d.getMonth()]}`; };
 
   return (
     <div className="bg-surface border border-border rounded-2xl overflow-hidden">
@@ -326,7 +328,7 @@ function MyTasksCard({ name, userId }) {
                 isOverdue(t.due_date) ? 'bg-red-100 text-red-600' :
                 isToday(t.due_date)  ? 'bg-amber-100 text-amber-700' : 'text-muted'
               }`}>
-                {isOverdue(t.due_date) ? '⚠️ متأخر' : isToday(t.due_date) ? '⏰ اليوم' : t.due_date.slice(5)}
+                {isOverdue(t.due_date) ? '⚠️ متأخر' : isToday(t.due_date) ? '⏰ اليوم' : fmtDueDateShort(t.due_date)}
               </span>
             )}
           </div>
@@ -544,6 +546,132 @@ function QuickShortcuts({ role }) {
   );
 }
 
+// ── Today Team Status (manager only) ────────────────────────────
+const ROLE_LABELS_SHORT = {
+  manager:'مدير', admin:'أدمن', sales_manager:'مبيعات',
+  social_manager:'سوشال', media_buyer:'ميديا', employee:'موظف',
+};
+
+function TodayTeamStatus() {
+  const [data, setData] = useState(null); // { present: [], absent: [] }
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const dateSlash = todaySlash();
+    Promise.allSettled([
+      supabase.from('profiles').select('id,employee_name,role,team').order('employee_name'),
+      supabase.from('attendance').select('employee_name,time_in').eq('type','in').eq('date',dateSlash),
+    ]).then(([pRes, aRes]) => {
+      const profiles = pRes.value?.data ?? [];
+      const checkedIn = new Map((aRes.value?.data ?? []).map(r => [r.employee_name, r.time_in]));
+      const present = [], absent = [];
+      profiles.forEach(p => {
+        if (!p.employee_name) return;
+        const timeIn = checkedIn.get(p.employee_name);
+        if (timeIn) present.push({ ...p, timeIn });
+        else         absent.push(p);
+      });
+      setData({ present, absent });
+    });
+  }, []);
+
+  if (!data) return (
+    <div className="bg-surface border border-border rounded-2xl p-4 animate-pulse">
+      <div className="h-4 w-40 bg-surface-alt rounded mb-3" />
+      <div className="grid grid-cols-3 gap-2">
+        {[1,2,3].map(i => <div key={i} className="h-16 bg-surface-alt rounded-xl" />)}
+      </div>
+    </div>
+  );
+
+  const total = data.present.length + data.absent.length;
+  const pct   = total > 0 ? Math.round((data.present.length / total) * 100) : 0;
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      {/* Header */}
+      <button
+        className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-surface-alt/50 transition"
+        onClick={() => setOpen(o => !o)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-teal/10 flex items-center justify-center text-lg shrink-0">👥</div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-text">حضور الفريق اليوم</p>
+            <p className="text-xs text-muted">
+              <span className="text-teal font-semibold">{data.present.length}</span> حاضر
+              {data.absent.length > 0 && <span className="text-muted"> · {data.absent.length} غائب</span>}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Mini progress ring */}
+          <div className="relative w-10 h-10">
+            <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--color-border)" strokeWidth="3" />
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#0d7377" strokeWidth="3"
+                strokeDasharray={`${pct * 0.942} 94.2`} strokeLinecap="round" />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-teal">{pct}%</span>
+          </div>
+          <span className={`text-muted text-xs transition-transform duration-200 ${open ? 'rotate-90' : '-rotate-90'}`}>‹</span>
+        </div>
+      </button>
+
+      {/* Expanded list */}
+      {open && (
+        <div className="border-t border-border/40">
+          {/* Present */}
+          {data.present.length > 0 && (
+            <div className="px-4 pt-3 pb-2">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">✅ حاضرون ({data.present.length})</p>
+              <div className="space-y-1.5">
+                {data.present.map(p => (
+                  <div key={p.id} className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-green-bg/40">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-teal/20 flex items-center justify-center text-xs font-bold text-teal shrink-0">
+                        {p.employee_name?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-text leading-none">{p.employee_name}</p>
+                        <p className="text-[10px] text-muted mt-0.5">{ROLE_LABELS_SHORT[p.role] ?? p.role}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-green-fg tabular-nums">{p.timeIn ?? '—'}</span>
+                      <button
+                        onClick={() => navigate(`/chat?dm=${encodeURIComponent(p.employee_name)}`)}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-teal/10 text-teal hover:bg-teal/20 transition font-semibold"
+                        title="رسالة مباشرة"
+                      >💬</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Absent */}
+          {data.absent.length > 0 && (
+            <div className="px-4 pt-2 pb-3">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">❌ لم يسجلوا بعد ({data.absent.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.absent.map(p => (
+                  <span key={p.id}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-surface-alt border border-border text-muted">
+                    {p.employee_name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════
 // Main HomeScreen
 // ════════════════════════════════════════════════════════════════
@@ -570,10 +698,12 @@ export default function HomeScreen() {
     const monthFrom = days[0];
 
     Promise.allSettled([
-      // Open tasks for me (name or UUID assignment)
-      supabase.from('tasks').select('id',{count:'exact',head:true})
-        .or(userId ? `assigned_to.ilike.%${name}%,assigned_to.eq.${userId}` : `assigned_to.ilike.%${name}%`)
-        .not('status','in','("done","completed","مكتملة")'),
+      // Open tasks for me — filter by UUID (assignee_id or assigned_to)
+      userId
+        ? supabase.from('tasks').select('id',{count:'exact',head:true})
+            .or(`assignee_id.eq.${userId},assigned_to.eq.${userId}`)
+            .not('status','in','("done","completed","cancelled")')
+        : Promise.resolve({count: 0}),
       // Unread notifications (current user's only)
       userId
         ? supabase.from('notifications').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('is_read',false)
@@ -593,7 +723,7 @@ export default function HomeScreen() {
       const notifs = nRes.value?.count  ?? '—';
       const leaveRows  = lRes.value?.data ?? [];
       const usedDays   = leaveRows.reduce((s, r) => s + (r.days || 0), 0);
-      const leave      = `${21 - usedDays} يوم`;
+      const leave      = `${15 - usedDays} يوم`;
 
       setKpi({ tasks, notifs, leave });
       setKpiLoaded(true);
@@ -707,6 +837,9 @@ export default function HomeScreen() {
           )}
         </div>
       )}
+
+      {/* ── Today Team Status (managers only) ──────────────────── */}
+      {isManager && <TodayTeamStatus />}
 
       {/* ── Daily Training Card ─────────────────────────────────── */}
       <Link to="/training" className="block">

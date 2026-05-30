@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // AchievementsScreen — نظام النقاط والشارات والليدربورد
 // Points from task_points table + attendance-based bonuses
 // =============================================================
@@ -526,7 +526,7 @@ export default function AchievementsScreen() {
                 <div>
                   <p className="text-sm text-text font-medium">{p.reason || 'إنجاز مهمة'}</p>
                   <p className="text-xs text-muted mt-0.5">
-                    {new Date(p.created_at).toLocaleDateString('ar-SA', {
+                    {new Date(p.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
                       day: 'numeric', month: 'short', year: 'numeric'
                     })}
                   </p>

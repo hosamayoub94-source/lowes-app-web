@@ -2,7 +2,8 @@
 // SalesDashboard 2.0 — واجهة مبيعات احترافية
 // KPI cards · ROAS bars · Sales trend · Dark-mode ready
 // =============================================================
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import {
   useSalesBootstrap, useSalesDashboard, useSalesActions,
@@ -475,6 +476,118 @@ function ReportDetail({ report, channelResults, adResults, isAdmin, loading, onS
   );
 }
 
+// ── Sales Target Widget ──────────────────────────────────────────
+const MONTHS_AR_SALES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+function SalesTargetWidget({ isAdmin, monthSales }) {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  const [target, setTarget]   = useState(null);   // DB row or null
+  const [editing, setEditing] = useState(false);
+  const [input,   setInput]   = useState('');
+  const [saving,  setSaving]  = useState(false);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('sales_targets').select('*')
+      .eq('year', year).eq('month', month).maybeSingle();
+    setTarget(data);
+    setInput(String(data?.target_usd ?? ''));
+  }, [year, month]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Sync achieved from live sales data
+  useEffect(() => {
+    if (target?.id && monthSales > 0) {
+      supabase.from('sales_targets')
+        .update({ achieved_usd: monthSales, updated_at: new Date().toISOString() })
+        .eq('id', target.id).then(() => setTarget(t => t ? { ...t, achieved_usd: monthSales } : t));
+    }
+  }, [monthSales, target?.id]);
+
+  const save = async () => {
+    const val = Number(input);
+    if (!val || isNaN(val)) return;
+    setSaving(true);
+    const row = { year, month, target_usd: val, achieved_usd: monthSales ?? 0, updated_at: new Date().toISOString() };
+    const { data } = target?.id
+      ? await supabase.from('sales_targets').update(row).eq('id', target.id).select().single()
+      : await supabase.from('sales_targets').insert(row).select().single();
+    setTarget(data);
+    setEditing(false);
+    setSaving(false);
+  };
+
+  const achieved = Number(target?.achieved_usd ?? monthSales ?? 0);
+  const tgt      = Number(target?.target_usd ?? 0);
+  const pct      = tgt > 0 ? Math.min(100, Math.round((achieved / tgt) * 100)) : 0;
+  const barColor = pct >= 100 ? 'bg-green' : pct >= 70 ? 'bg-teal' : pct >= 40 ? 'bg-amber' : 'bg-red';
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold text-text">🎯 هدف المبيعات — {MONTHS_AR_SALES[month-1]} {year}</p>
+          {!target?.target_usd && <p className="text-xs text-muted mt-0.5">لم يُحدد هدف للشهر الحالي</p>}
+        </div>
+        {isAdmin && !editing && (
+          <button onClick={() => setEditing(true)}
+            className="text-xs font-semibold text-teal hover:opacity-80 transition px-2 py-1 rounded-lg bg-teal/10">
+            ✏️ {target?.target_usd ? 'تعديل' : 'تحديد هدف'}
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="px-4 pb-3 flex gap-2">
+          <div className="flex-1 flex items-center gap-1 bg-surface-alt border border-border rounded-xl px-3 py-2">
+            <span className="text-sm text-muted">$</span>
+            <input
+              type="number" value={input} onChange={e => setInput(e.target.value)}
+              placeholder="مثال: 10000" autoFocus
+              className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-muted/40"
+            />
+          </div>
+          <button onClick={save} disabled={saving}
+            className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-60 transition">
+            {saving ? '…' : 'حفظ'}
+          </button>
+          <button onClick={() => setEditing(false)}
+            className="px-3 py-2 rounded-xl border border-border text-sm text-muted hover:text-text transition">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {tgt > 0 && (
+        <div className="px-4 pb-4 space-y-2">
+          <div className="flex items-end justify-between">
+            <div>
+              <span className={`text-2xl font-extrabold tabular-nums ${pct >= 100 ? 'text-green-fg' : 'text-text'}`}>
+                ${achieved.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-sm text-muted mr-1">/ ${tgt.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+            <span className={`text-lg font-extrabold tabular-nums ${pct >= 100 ? 'text-green-fg' : pct >= 70 ? 'text-teal' : 'text-amber-fg'}`}>
+              {pct}%
+            </span>
+          </div>
+          <div className="h-3 bg-surface-alt rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pct}%` }} />
+          </div>
+          <p className="text-[11px] text-muted">
+            {pct >= 100
+              ? `🎉 تم تحقيق الهدف! زيادة ${(achieved - tgt).toLocaleString('en-US', {maximumFractionDigits:0})}$`
+              : `تبقّى $${(tgt - achieved).toLocaleString('en-US', {maximumFractionDigits:0})} لإتمام الهدف`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════
 // Main SalesDashboard
 // ══════════════════════════════════════════════════════════════════
@@ -491,6 +604,16 @@ export function SalesDashboard() {
 
   const isAdmin = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
   const [showForm, setShowForm] = useState(false);
+
+  // Monthly total sales — fed into SalesTargetWidget for auto-sync
+  const monthSales = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    const prefix = `${y}-${m}`;
+    return reports
+      .filter(r => r.report_date?.startsWith(prefix))
+      .reduce((s, r) => s + Number(r.total_sales_usd ?? 0), 0);
+  }, [reports]);
 
   const handleCreate = async ({ summary, ads, channels: chanRows }) => {
     const newReport = await createReport(summary);
@@ -532,6 +655,9 @@ export function SalesDashboard() {
           <span className="hidden sm:inline">تقرير جديد</span>
         </button>
       </div>
+
+      {/* Sales Target */}
+      <SalesTargetWidget isAdmin={isAdmin} monthSales={monthSales} />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

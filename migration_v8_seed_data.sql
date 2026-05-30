@@ -147,21 +147,10 @@ WHERE NOT EXISTS (
 -- └─────────────────────────────────────────────────────────────┘
 
 -- إنشاء الجدول إن لم يكن موجوداً (with all needed columns)
-CREATE TABLE IF NOT EXISTS tasks (
-  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  title       text        NOT NULL,
-  description text,
-  status      text        NOT NULL DEFAULT 'pending'
-              CHECK (status IN ('pending','in_progress','review','done','completed','blocked','مكتملة')),
-  priority    text        DEFAULT 'medium'
-              CHECK (priority IN ('low','medium','high','urgent')),
-  assigned_to text,
-  team        text,
-  due_date    date,
-  created_by  text,
-  created_at  timestamptz DEFAULT now(),
-  updated_at  timestamptz DEFAULT now()
-);
+-- NOTE: tasks table already exists in production with correct schema.
+-- Real status values: pending, in_progress, in_review, done, completed, cancelled, overdue
+-- assigned_to and created_by are UUID type (not text)
+-- No 'team' column exists
 
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "tasks_all" ON tasks;

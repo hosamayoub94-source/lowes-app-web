@@ -1,9 +1,10 @@
-// =============================================================
+﻿// =============================================================
 // ChatScreen 4.0 — سريع · سهل · جميل
 // ✏️ تعديل/حذف  📌 تثبيت  ✍️ يكتب…  🔢 غير مقروء
 // 📎 ملفات  😄 إيموجي  🔔 إشعارات فورية
 // =============================================================
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation }    from 'react-router-dom';
 import { useAuth }        from '@hooks/useAuth';
 import { supabase }       from '@services/supabase';
 import { MusicRoomPanel } from '@components/chat/MusicRoomPanel';
@@ -40,7 +41,7 @@ function timeLabel(iso) {
   if (diff < 60000)    return 'الآن';
   if (diff < 3600000)  return `${Math.floor(diff/60000)}د`;
   if (diff < 86400000) return d.toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  return d.toLocaleDateString('ar-SA',{month:'short',day:'numeric'});
+  return d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric'});
 }
 function formatLastSeen(iso) {
   if (!iso) return '';
@@ -48,13 +49,13 @@ function formatLastSeen(iso) {
   if (diff < 60000)    return 'للتو';
   if (diff < 3600000)  return `منذ ${Math.floor(diff/60000)} دقيقة`;
   if (diff < 86400000) return `منذ ${Math.floor(diff/3600000)} ساعة`;
-  return new Date(iso).toLocaleDateString('ar-SA',{month:'short',day:'numeric'});
+  return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric'});
 }
 function dateDivider(iso) {
   const d = new Date(iso), diff = Math.floor((Date.now()-d)/86400000);
   if (diff===0) return 'اليوم';
   if (diff===1) return 'أمس';
-  return d.toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long'});
+  return d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{weekday:'long',day:'numeric',month:'long'});
 }
 function groupByDay(msgs) {
   const groups=[]; let lastDay=null;
@@ -83,15 +84,15 @@ function avatarColor(name) {
 }
 
 // ── AI Bot ──────────────────────────────────────────────────────
-const BOT_NAME='🤖 مساعد لووز', BOT_ID='bot';
+const BOT_NAME='🤖 مساعد لويز', BOT_ID='bot';
 async function buildBotResponse(cmdText,roomId,userId,userName){
   const cmd=cmdText.trim(),cmdL=cmd.toLowerCase();let response='';
   try{
     if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
-      const taskFilter=userId?`assigned_to.ilike.%${userName}%,assigned_to.eq.${userId}`:`assigned_to.ilike.%${userName}%`;
-      const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","مكتملة")').order('created_at',{ascending:false}).limit(8);
-      response=!data?.length?'✅ ليس لديك مهام مفتوحة!':`📋 مهامك المفتوحة (${data.length}):\n\n${data.map(t=>`${({pending:'⏳',in_progress:'🔄',review:'👀',blocked:'🚫'}[t.status]??'📋')} ${t.title}${t.due_date?` — ${new Date(t.due_date).toLocaleDateString('ar-SA',{month:'short',day:'numeric'})}`:''}`).join('\n')}`;
+      const taskFilter=userId?`assignee_id.eq.${userId},assigned_to.eq.${userId}`:`assigned_to.eq.${userId}`;
+      const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","cancelled")').order('created_at',{ascending:false}).limit(8);
+      response=!data?.length?'✅ ليس لديك مهام مفتوحة!':`📋 مهامك المفتوحة (${data.length}):\n\n${data.map(t=>`${({pending:'⏳',in_progress:'🔄',in_review:'👀',overdue:'🚨'}[t.status]??'📋')} ${t.title}${t.due_date?` — ${new Date(t.due_date).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric'})}`:''}`).join('\n')}`;
     }else if(['/حضور','/attendance','/حضوري'].includes(cmdL)){
       const d=new Date();const today=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
       const{data:rows}=await supabase.from('attendance').select('type,time_in,note').eq('employee_name',userName).eq('date',today).in('type',['in','out']);
@@ -103,7 +104,7 @@ async function buildBotResponse(cmdText,roomId,userId,userName){
       response=!data?.length?'⚠️ لا توجد بيانات.':`👥 الفريق (${data.length}):\n\n${data.map(p=>`• ${p.employee_name}${p.team?` — ${p.team}`:''}`).join('\n')}`;
     }else if(['/اعلانات','/announcements','/اعلان'].includes(cmdL)){
       const{data}=await supabase.from('announcements').select('title,created_at,is_pinned').order('created_at',{ascending:false}).limit(5);
-      response=!data?.length?'📢 لا توجد إعلانات.':`📢 آخر الإعلانات:\n\n${data.map(a=>`${a.is_pinned?'📌':'📢'} ${a.title} — ${new Date(a.created_at).toLocaleDateString('ar-SA',{month:'short',day:'numeric'})}`).join('\n')}`;
+      response=!data?.length?'📢 لا توجد إعلانات.':`📢 آخر الإعلانات:\n\n${data.map(a=>`${a.is_pinned?'📌':'📢'} ${a.title} — ${new Date(a.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric'})}`).join('\n')}`;
     }else{response=`❓ أمر غير معروف: "${cmd}"\nاكتب /مساعدة للأوامر.`;}
   }catch{response='⚠️ حدث خطأ. حاول مجدداً.';}
   return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
@@ -279,7 +280,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
     return(
       <div className="flex justify-start mb-3 animate-in slide-in-from-bottom-2 duration-200">
         <div className="max-w-[88%] sm:max-w-[75%]">
-          <span className="text-[10px] font-bold text-navy/40 ms-1 mb-1 block">🤖 مساعد لووز</span>
+          <span className="text-[10px] font-bold text-navy/40 ms-1 mb-1 block">🤖 مساعد لويز</span>
           <div className="bg-navy/[0.05] border border-navy/10 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
             <pre className="text-sm text-text whitespace-pre-wrap font-[inherit] leading-relaxed">{msg.content}</pre>
           </div>
@@ -389,14 +390,27 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
               </div>
             </div>
           ):(
-            <div onDoubleClick={()=>onReact?.(msg.id,'❤️')}
-              className={`px-3.5 py-2.5 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
-                isMine?'bg-gradient-to-br from-teal to-teal/90 text-white rounded-br-sm':'bg-surface border border-border/80 text-text rounded-bl-sm'
+            <div onDoubleClick={()=>onReact?.(msg.id,'❤️')} className="relative">
+              {/* WhatsApp-style bubble tail */}
+              {isMine?(
+                <svg className="absolute -end-[7px] bottom-2 text-teal" width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden>
+                  <path d="M1 0C1 0 0 9 0 13C2.5 10 6.5 6.5 8 5L1 0Z"/>
+                </svg>
+              ):(
+                <svg className="absolute -start-[7px] bottom-2 text-surface" width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden style={{filter:'drop-shadow(-1px 0 0 var(--color-border))'}}>
+                  <path d="M7 0C7 0 8 9 8 13C5.5 10 1.5 6.5 0 5L7 0Z"/>
+                </svg>
+              )}
+              <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
+                isMine
+                  ? 'bg-gradient-to-br from-teal to-teal/90 text-white rounded-br-sm'
+                  : 'bg-surface border border-border/80 text-text rounded-bl-sm'
               }`}>
-              {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
-              {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" onClick={()=>onImageClick?.(msg.file_url)} className="max-w-[220px] rounded-xl max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />}
-              {msg.message_type==='voice'&&msg.file_url&&<VoiceMessage url={msg.file_url} isMine={isMine} />}
-              {msg.message_type==='file'&&<FileMessage msg={msg} isMine={isMine} />}
+                {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
+                {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" onClick={()=>onImageClick?.(msg.file_url)} className="max-w-[220px] rounded-xl max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />}
+                {msg.message_type==='voice'&&msg.file_url&&<VoiceMessage url={msg.file_url} isMine={isMine} />}
+                {msg.message_type==='file'&&<FileMessage msg={msg} isMine={isMine} />}
+              </div>
             </div>
           )}
         </div>
@@ -948,6 +962,8 @@ export default function ChatScreen(){
   const{id:userId,name:userName,role,team:userTeam}=useAuth();
   const isApprover=APPROVER_ROLES.includes(role);
   const isAdmin=role===ROLES.ADMIN;
+  const location=useLocation();
+  const dmTarget=useMemo(()=>new URLSearchParams(location.search).get('dm'),[location.search]);
 
   // State
   const[rooms,setRooms]=useState([]);
@@ -1147,6 +1163,33 @@ export default function ChatScreen(){
   },[userId,userTeam,isApprover,loadUnreadCounts]);
 
   useEffect(()=>{loadRooms();loadPendingCount();},[loadRooms,loadPendingCount]);
+
+  // ── Auto-open DM from ?dm= URL param ──────────────────────────
+  useEffect(()=>{
+    if(!dmTarget||!userId||!rooms.length)return;
+    // Check if DM already exists
+    const existing=rooms.find(r=>r.type==='dm'&&r.display_name===dmTarget);
+    if(existing){setActiveRoom(existing);setSidebarOpen(false);return;}
+    // Create new DM room
+    const createDm=async()=>{
+      try{
+        const{data:otherProfile}=await supabase.from('profiles').select('id,employee_name').eq('employee_name',dmTarget).single();
+        if(!otherProfile)return;
+        const dmName=[userName,otherProfile.employee_name].sort().join('::');
+        const{data:room}=await supabase.from('chat_rooms').insert({type:'dm',name:dmName,team:'dm',created_by:userId,created_by_name:userName,requires_approval:false,is_private:true}).select().single();
+        if(!room)return;
+        await supabase.from('chat_room_members').insert([
+          {room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()},
+          {room_id:room.id,user_id:otherProfile.id,user_name:otherProfile.employee_name,display_name:otherProfile.employee_name,role:'member',joined_at:new Date().toISOString()},
+        ]);
+        const roomWithDisplay={...room,display_name:dmTarget};
+        setRooms(r=>[...r,roomWithDisplay]);
+        setActiveRoom(roomWithDisplay);
+        setSidebarOpen(false);
+      }catch{}
+    };
+    createDm();
+  },[dmTarget,userId,userName,rooms.length]);
 
   // ── Load messages ──────────────────────────────────────────────
   const loadMessages=useCallback(async(roomId)=>{

@@ -14,6 +14,20 @@
 import { supabase } from '@services/supabase';
 import { resolveNotifSeverity } from '../types/notification.types';
 
+// ── Web Push helper ───────────────────────────────────────────
+/**
+ * Fire-and-forget: call the send-push Edge Function for one user.
+ * Never throws — push failure should never block the main flow.
+ */
+async function sendPushToUser(userId, { title, message, url = '/' } = {}) {
+  if (!userId || USE_MOCK) return;
+  try {
+    await supabase.functions.invoke('send-push', {
+      body: { userId, title, body: message || title, url },
+    });
+  } catch { /* silent — push is best-effort */ }
+}
+
 const TABLE      = 'notifications';
 const PAGE_SIZE  = 20;
 const TTL_DAYS   = 30;
@@ -98,6 +112,9 @@ export async function sendNotification({
     if (error.code === '23505') return null;
     throw error;
   }
+
+  // Fire-and-forget push notification — runs in background, never blocks
+  sendPushToUser(userId, { title, message, url: `/?notif=${data?.id || ''}` });
 
   return data;
 }

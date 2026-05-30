@@ -124,7 +124,7 @@ export const useTaskStore = create()(
         let userId = null;
         try {
           const { useAuthStore } = await import('@stores/authStore');
-          userId = useAuthStore.getState().user?.id ?? null;
+          userId = useAuthStore.getState().session?.id ?? null;
         } catch { /* ignore */ }
 
         const comment = await addTaskComment(taskId, { ...commentPayload, userId });
@@ -140,6 +140,26 @@ export const useTaskStore = create()(
           ),
           actionLoading: false,
         }));
+
+        // Fire push notification to the task owner (if someone else commented)
+        try {
+          const task = get().tasks.find((t) => t.id === taskId);
+          const recipientId = task?.assigned_to ?? task?.created_by ?? null;
+          if (recipientId && recipientId !== userId) {
+            const { sendNotification } = await import('@modules/notifications/services/notificationService');
+            const commenterName = comment?.author?.name ?? 'أحد الزملاء';
+            await sendNotification({
+              userId:     recipientId,
+              type:       'task_comment',
+              title:      `💬 تعليق جديد على مهمتك`,
+              message:    `علّق ${commenterName} على: ${task?.title ?? 'مهمة'}`,
+              entityType: 'task',
+              entityId:   taskId,
+              skipDedup:  true,
+            });
+          }
+        } catch { /* silent — notifications are best-effort */ }
+
         return comment;
       } catch (err) {
         set({ actionLoading: false, error: err?.message });
@@ -153,6 +173,23 @@ export const useTaskStore = create()(
       try {
         const task = await createTask(payload, { actorId });
         set((s) => ({ tasks: [task, ...s.tasks], actionLoading: false }));
+
+        // Notify the assigned employee (if different from creator)
+        const assignedTo = task.assigned_to ?? task.assignee_id ?? null;
+        if (assignedTo && assignedTo !== actorId) {
+          import('@modules/notifications/services/notificationService').then(({ sendNotification }) => {
+            sendNotification({
+              userId:     assignedTo,
+              type:       'task_assigned',
+              title:      `📋 مهمة جديدة بانتظارك`,
+              message:    task.title ?? 'تم تعيين مهمة جديدة لك',
+              entityType: 'task',
+              entityId:   task.id,
+              skipDedup:  false,
+            }).catch(() => {});
+          }).catch(() => {});
+        }
+
         return task;
       } catch (err) {
         set({ actionLoading: false, error: err?.message });
@@ -204,7 +241,7 @@ export const useTaskStore = create()(
     markSeen: (taskId) => {
       // lazy import to avoid circular deps
       import('@stores/authStore').then(({ useAuthStore }) => {
-        const userId = useAuthStore.getState().user?.id ?? null;
+        const userId = useAuthStore.getState().session?.id ?? null;
         markTaskSeen(taskId, userId).catch(() => {});
       }).catch(() => markTaskSeen(taskId, null).catch(() => {}));
       set((s) => ({

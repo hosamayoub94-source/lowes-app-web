@@ -90,6 +90,13 @@ export const NAV_ITEMS = [
     roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
   },
   {
+    id: 'field-crm',
+    label: 'الزيارات',
+    icon: '🚶',
+    path: '/field-crm',
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
     id: 'analytics',
     label: 'التحليلات',
     icon: '📊',
@@ -155,11 +162,18 @@ export const NAV_ITEMS = [
     roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
   },
   {
+    id: 'mystery-shopper',
+    label: 'Mystery Shopper',
+    icon: '🕵️',
+    path: '/mystery-shopper',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
+  },
+  {
     id: 'performance',
-    label: 'أداء الفريق',
-    icon: '🏆',
+    label: 'KPI والعمولات',
+    icon: '🎯',
     path: '/performance',
-    roles: [ROLES.ADMIN, ROLES.MANAGER],
+    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
     id: 'inventory',

@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Audit — AuditExporter
 // CSV export button with loading state.
 // =============================================================
@@ -42,7 +42,7 @@ export const AuditExporter = memo(function AuditExporter({ onExport, count }) {
           </svg>
           تصدير CSV
           {count != null && (
-            <span className="text-muted text-xs">({count.toLocaleString('ar-SA')})</span>
+            <span className="text-muted text-xs">({count.toLocaleString('ar-SA-u-nu-latn')})</span>
           )}
         </>
       )}

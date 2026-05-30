@@ -223,21 +223,25 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
 const KANBAN_COLS = [
   { key:'pending',     label:'⏳ قيد الانتظار', color:'border-amber-300 bg-amber-50/50',   dot:'bg-amber-400' },
   { key:'in_progress', label:'🔄 جارية',         color:'border-teal/30 bg-teal/5',          dot:'bg-teal'      },
-  { key:'review',      label:'👀 مراجعة',         color:'border-violet-300 bg-violet-50/50', dot:'bg-violet-400'},
+  { key:'in_review',   label:'👀 مراجعة',         color:'border-violet-300 bg-violet-50/50', dot:'bg-violet-400'},
   { key:'done',        label:'✅ منجزة',          color:'border-emerald-300 bg-emerald-50/50',dot:'bg-emerald-500'},
 ];
 const STATUS_COL_MAP = {
   pending:'pending', open:'pending', 'قيد الانتظار':'pending',
   in_progress:'in_progress', 'جارية':'in_progress', 'قيد التنفيذ':'in_progress',
-  review:'review', blocked:'review', 'مراجعة':'review',
+  in_review:'in_review', review:'in_review', blocked:'in_review', 'مراجعة':'in_review',
   done:'done', completed:'done', 'مكتملة':'done', 'منجزة':'done',
+  cancelled:'done', overdue:'pending',
 };
 
 const PRIORITY_COLOR = { urgent:'text-red-500', high:'text-orange-500', medium:'text-amber-500', low:'text-blue-400' };
 const PRIORITY_ICON  = { urgent:'⚡', high:'▲', medium:'△', low:'▽' };
 
+const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function fmtDueDateShort(iso) { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS_AR[d.getMonth()]}`; }
+
 function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
-  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','مكتملة'].includes(task.status);
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','in_review','cancelled'].includes(task.status);
   return (
     <div
       draggable
@@ -271,7 +275,7 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
         )}
         {task.due_date && (
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
-            {isOverdue ? '⚠️' : '📅'} {task.due_date.slice(5)}
+            {isOverdue ? '⚠️' : '📅'} {fmtDueDateShort(task.due_date)}
           </span>
         )}
         {(task.comments_count > 0 || task.comments?.length > 0) && (
@@ -502,7 +506,7 @@ function TasksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
-  const userId = useAuthStore((s) => s.user?.id);
+  const userId = useAuthStore((s) => s.session?.id);
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
 

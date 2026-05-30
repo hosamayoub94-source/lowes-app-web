@@ -60,6 +60,8 @@ const AdminQuizScreen          = lazy(() => import(/* webpackChunkName: "admin-q
 const ShiftScheduleScreen      = lazy(() => import(/* webpackChunkName: "schedule"         */ '@screens/ShiftScheduleScreen'));
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
+const FieldCRMScreen           = lazy(() => import(/* webpackChunkName: "field-crm"        */ '@modules/field-crm/pages/FieldCRMScreen'));
+const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -153,7 +155,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PERFORMANCE}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+              <ProtectedRoute roles={ALL_ROLES}>
                 <PerformanceScreen />
               </ProtectedRoute>
             }
@@ -194,6 +196,12 @@ export function AppRoutes() {
           <Route path={ROUTES.SCHEDULE} element={<ShiftScheduleScreen />} />
           <Route path={ROUTES.ADVANCES} element={<AdvanceRequestsScreen />} />
           <Route path={ROUTES.REVIEWS}  element={<PerformanceReviewScreen />} />
+          <Route path="/field-crm"      element={<FieldCRMScreen />} />
+          <Route path="/mystery-shopper" element={
+            <ProtectedRoute roles={MANAGEMENT}>
+              <MysteryShopperScreen />
+            </ProtectedRoute>
+          } />
 
           {/* Admin only — nested */}
           <Route

@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Audit — AuditDashboard (Admin Page)
 //
 // Full-screen admin view for browsing, filtering, and exporting
@@ -134,7 +134,7 @@ export default function AuditDashboard() {
               </h2>
               {!loading && (
                 <span className="text-xs text-muted bg-surface-alt px-2 py-0.5 rounded-full">
-                  {pagination.total.toLocaleString('ar-SA')} إدخال
+                  {pagination.total.toLocaleString('ar-SA-u-nu-latn')} إدخال
                 </span>
               )}
             </div>

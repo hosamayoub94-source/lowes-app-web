@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Audit — AuditFeed
 // Scrollable log table with pagination and detail modal.
 // =============================================================
@@ -42,7 +42,7 @@ function LogDetailModal({ log, onClose }) {
         {/* Body */}
         <div className="p-5 space-y-3 text-sm">
           <DetailRow label="التاريخ والوقت" value={
-            new Date(log.created_at).toLocaleString('ar-SA', {
+            new Date(log.created_at).toLocaleString('ar-SA-u-nu-latn', {
               year: 'numeric', month: 'long', day: 'numeric',
               hour: '2-digit', minute: '2-digit', second: '2-digit',
             })

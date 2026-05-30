@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // TaskReportScreen — Task performance report by employee.
 // Tables: tasks, profiles
 // =============================================================
@@ -17,7 +17,7 @@ function monthOptions() {
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const val = d.toISOString().slice(0, 7);
-    const label = d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long' });
+    const label = d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'long' });
     opts.push({ val, label });
   }
   return opts;

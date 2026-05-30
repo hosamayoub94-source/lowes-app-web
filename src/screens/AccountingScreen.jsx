@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // AccountingScreen — multi-currency ledger (wired to real data)
 // =============================================================
 import { useState, useMemo } from 'react';
@@ -41,9 +41,9 @@ const EMPTY_FORM = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function fmtUSD(n) { return n ? `$${Number(n).toLocaleString('ar-SA', { maximumFractionDigits: 2 })}` : '—'; }
-function fmtTRY(n) { return n ? `₺${Number(n).toLocaleString('ar-SA', { maximumFractionDigits: 2 })}` : '—'; }
-function fmtSYP(n) { return n ? `£${Number(n).toLocaleString('ar-SA', { maximumFractionDigits: 0 })}` : '—'; }
+function fmtUSD(n) { return n ? `$${Number(n).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 2 })}` : '—'; }
+function fmtTRY(n) { return n ? `₺${Number(n).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 2 })}` : '—'; }
+function fmtSYP(n) { return n ? `£${Number(n).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}` : '—'; }
 
 function currentMonth() { return new Date().toISOString().slice(0, 7); }
 
@@ -77,15 +77,15 @@ function CurrencyBlock({ currency, symbol, income, expense, net }) {
       <div className="text-xs font-bold text-muted uppercase tracking-wider">{currency}</div>
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
-          <div className="text-sm font-bold text-green-600">{symbol}{Number(income).toLocaleString('ar-SA', { maximumFractionDigits: 0 })}</div>
+          <div className="text-sm font-bold text-green-600">{symbol}{Number(income).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}</div>
           <div className="text-[10px] text-muted mt-0.5">دخل</div>
         </div>
         <div>
-          <div className="text-sm font-bold text-red-500">{symbol}{Number(expense).toLocaleString('ar-SA', { maximumFractionDigits: 0 })}</div>
+          <div className="text-sm font-bold text-red-500">{symbol}{Number(expense).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}</div>
           <div className="text-[10px] text-muted mt-0.5">مصروف</div>
         </div>
         <div>
-          <div className={`text-sm font-bold ${netTone}`}>{net >= 0 ? '+' : ''}{symbol}{Math.abs(net).toLocaleString('ar-SA', { maximumFractionDigits: 0 })}</div>
+          <div className={`text-sm font-bold ${netTone}`}>{net >= 0 ? '+' : ''}{symbol}{Math.abs(net).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}</div>
           <div className="text-[10px] text-muted mt-0.5">صافي</div>
         </div>
       </div>
@@ -294,7 +294,7 @@ export default function AccountingScreen() {
                       {fmtSYP(e.amount_syp)}
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-muted">
-                      {e.entry_date ? new Date(e.entry_date).toLocaleDateString('ar') : '—'}
+                      {e.entry_date ? new Date(e.entry_date).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory') : '—'}
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-muted">
                       {PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method ?? '—'}

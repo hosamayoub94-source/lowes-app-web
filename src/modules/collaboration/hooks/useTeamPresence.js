@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // useTeamPresence — online/offline status + active section
 // Uses Supabase Presence when available, falls back to mock data
 // =============================================================
@@ -89,7 +89,7 @@ export function useTeamPresence({ section = 'workspace' } = {}) {
     if (diff < 60_000)    return 'الآن';
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} د`;
     if (diff < 86_400_000)return `${Math.floor(diff / 3_600_000)} س`;
-    return new Date(ts).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+    return new Date(ts).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' });
   }
 
   return {

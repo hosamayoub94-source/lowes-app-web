@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // File Module — FileList
 //
 // Compact table-style list view of files.
@@ -162,7 +162,7 @@ export default function FileList({ userId, className = '' }) {
 function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOpen, onMenuClose, userId }) {
   const accentColor = FILE_TYPE_COLORS[file.file_type] ?? '#94a3b8';
   const dateStr     = file.created_at
-    ? new Date(file.created_at).toLocaleDateString('ar-SA', { dateStyle: 'short' })
+    ? new Date(file.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'short' })
     : '—';
 
   return (

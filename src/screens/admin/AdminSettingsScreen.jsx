@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // AdminSettingsScreen — exchange rates + salary settings
 // Tables: exchange_rates (from_cur, to_cur, rate)
 //         employee_salary_settings (per employee)
@@ -82,8 +82,9 @@ async function upsertSalarySetting(payload) {
 // ── Component ──────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'rates',   label: '💱 أسعار الصرف' },
-  { key: 'salary',  label: '💰 إعدادات الرواتب' },
+  { key: 'rates',         label: '💱 أسعار الصرف'    },
+  { key: 'salary',        label: '💰 إعدادات الرواتب' },
+  { key: 'announcements', label: '📢 الإعلانات'        },
 ];
 
 export default function AdminSettingsScreen() {
@@ -114,8 +115,139 @@ export default function AdminSettingsScreen() {
         ))}
       </div>
 
-      {tab === 'rates'  && <ExchangeRatesTab />}
-      {tab === 'salary' && <SalarySettingsTab />}
+      {tab === 'rates'         && <ExchangeRatesTab />}
+      {tab === 'salary'        && <SalarySettingsTab />}
+      {tab === 'announcements' && <AnnouncementsTab />}
+    </div>
+  );
+}
+
+// ── Announcements Tab ──────────────────────────────────────────────────────
+
+function AnnouncementsTab() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState(null);
+  const [title,     setTitle]     = useState('');
+  const [body,      setBody]      = useState('');
+  const [isPinned,  setIsPinned]  = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [msg,       setMsg]       = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const sb = await getSupabase();
+      const { data, error: e } = await sb
+        .from('announcements')
+        .select('id, title, body, is_pinned, is_emergency, created_by, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (e) throw new Error(e.message);
+      setAnnouncements(data ?? []);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handlePost = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || !body.trim()) { setMsg({ type: 'err', text: 'العنوان والمحتوى مطلوبان' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const sb = await getSupabase();
+      const { error: e } = await sb.from('announcements').insert({
+        title:        title.trim(),
+        body:         body.trim(),
+        message:      body.trim(),
+        is_pinned:    isPinned,
+        is_emergency: isEmergency,
+        created_by:   'الإدارة',
+      });
+      if (e) throw new Error(e.message);
+      setTitle(''); setBody(''); setIsPinned(false); setIsEmergency(false);
+      setMsg({ type: 'ok', text: '✅ تم نشر الإعلان بنجاح' });
+      await load();
+    } catch (e) { setMsg({ type: 'err', text: e.message }); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('حذف هذا الإعلان؟')) return;
+    const sb = await getSupabase();
+    await sb.from('announcements').delete().eq('id', id);
+    setAnnouncements(a => a.filter(x => x.id !== id));
+  };
+
+  return (
+    <div className="space-y-5 mt-2" dir="rtl">
+      {/* Compose */}
+      <div className="bg-surface border border-border rounded-2xl p-4">
+        <p className="text-sm font-bold text-text mb-3">📝 إعلان جديد</p>
+        <form onSubmit={handlePost} className="space-y-3">
+          <input
+            value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="عنوان الإعلان…"
+            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+          />
+          <textarea
+            value={body} onChange={e => setBody(e.target.value)}
+            placeholder="محتوى الإعلان…"
+            rows={4}
+            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
+          />
+          <div className="flex items-center gap-4 text-sm text-muted">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} className="accent-teal" />
+              📌 مثبّت
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={isEmergency} onChange={e => setIsEmergency(e.target.checked)} className="accent-red-500" />
+              🚨 عاجل
+            </label>
+          </div>
+          {msg && <p className={`text-xs font-semibold ${msg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{msg.text}</p>}
+          <button type="submit" disabled={saving}
+            className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition">
+            {saving ? 'جاري النشر…' : '📢 نشر الإعلان'}
+          </button>
+        </form>
+      </div>
+
+      {/* List */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-sm font-bold text-text">آخر الإعلانات</p>
+        </div>
+        {loading ? (
+          <p className="text-sm text-muted px-4 py-6 animate-pulse">جاري التحميل…</p>
+        ) : error ? (
+          <p className="text-sm text-red-500 px-4 py-4">⚠️ {error}</p>
+        ) : announcements.length === 0 ? (
+          <p className="text-sm text-muted px-4 py-6 text-center">لا توجد إعلانات بعد</p>
+        ) : (
+          <div className="divide-y divide-border/50">
+            {announcements.map(a => (
+              <div key={a.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-text truncate">{a.title}</span>
+                    {a.is_pinned    && <span className="text-[10px] bg-teal/10 text-teal px-1.5 py-0.5 rounded-full font-bold">مثبّت</span>}
+                    {a.is_emergency && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full font-bold">عاجل</span>}
+                  </div>
+                  <p className="text-xs text-muted mt-0.5 line-clamp-2">{a.body}</p>
+                  <p className="text-[11px] text-muted/60 mt-1">
+                    {new Date(a.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+                <button onClick={() => handleDelete(a.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0 mt-1 transition">حذف</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -205,10 +337,10 @@ function ExchangeRatesTab() {
                     <td className="py-3 px-4 font-semibold text-text">{fc}</td>
                     <td className="py-3 px-4 text-muted">→ {tc}</td>
                     <td className="py-3 px-4 text-center font-mono font-bold text-teal">
-                      {r ? Number(r.rate).toLocaleString('ar-SA', { maximumFractionDigits: 6 }) : '—'}
+                      {r ? Number(r.rate).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 6 }) : '—'}
                     </td>
                     <td className="py-3 px-4 text-center text-xs text-muted">
-                      {r ? new Date(r.created_at).toLocaleDateString('ar') : '—'}
+                      {r ? new Date(r.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory') : '—'}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button
@@ -258,7 +390,7 @@ function ExchangeRatesTab() {
           </div>
           {cvtResult !== null && (
             <div className="bg-teal/10 rounded-xl px-4 py-2 text-sm font-bold text-teal">
-              = {Number(cvtResult).toLocaleString('ar-SA')} {cvtTo}
+              = {Number(cvtResult).toLocaleString('ar-SA-u-nu-latn')} {cvtTo}
             </div>
           )}
           {cvtAmount && !cvtRate && cvtFrom !== cvtTo && (

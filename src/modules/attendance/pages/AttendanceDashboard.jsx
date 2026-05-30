@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Attendance — Dashboard Page
 //
 // Full-page view combining:
@@ -40,7 +40,7 @@ export default function AttendanceDashboard() {
 
   const today = useMemo(
     () =>
-      new Date().toLocaleDateString('ar-SA', {
+      new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
         weekday: 'long',
         year:    'numeric',
         month:   'long',

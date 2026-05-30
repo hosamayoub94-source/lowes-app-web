@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FollowupScheduler — upcoming/overdue followups + schedule new ones.
  * Task #69/#8: Full Tailwind rewrite — no inline CSS.
  */
@@ -137,7 +137,7 @@ function FollowupRow({ f, onComplete, onCancel: onCancelFu }) {
           'text-[11px]',
           isOverdue ? 'text-red-fg font-medium' : 'text-muted',
         )}>
-          🗓 {new Date(f.due_at).toLocaleString('ar-SA')}
+          🗓 {new Date(f.due_at).toLocaleString('ar-SA-u-nu-latn')}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SalesTimeline — chronological activity timeline for a deal or customer.
  * Task #69/#8: Full Tailwind rewrite — no inline CSS.
  *
@@ -37,7 +37,7 @@ function timeAgo(dateStr) {
   if (h < 24) return `منذ ${h} ساعة`;
   const d = Math.floor(h / 24);
   if (d < 30) return `منذ ${d} يوم`;
-  return new Date(dateStr).toLocaleDateString('ar-SA');
+  return new Date(dateStr).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory');
 }
 
 // ── Shared label + input styles ────────────────────────────────

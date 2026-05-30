@@ -305,7 +305,7 @@ export default function HRDashboard() {
         if (!key) return;
         if (!taskByEmp[key]) taskByEmp[key] = { total: 0, done: 0 };
         taskByEmp[key].total++;
-        if (['done','completed','مكتملة'].includes(t.status)) taskByEmp[key].done++;
+        if (['done','completed'].includes(t.status)) taskByEmp[key].done++;
       });
 
       // Leaves by employee_id

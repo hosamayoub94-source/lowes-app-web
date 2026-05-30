@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // HolidaysScreen — عرض رصيد الإجازات + تقديم طلب سريع
 // يستخدم نفس جدول leave_requests الذي يستخدمه LeaveRequestsScreen
 // حتى يرى المدير الطلبات ويوافق عليها من /leave
@@ -12,13 +12,13 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 
-// الرصيد السنوي الثابت (يُحسب من leave_requests إن وُجدت leave_balances)
-const ANNUAL_ALLOWANCE = 21;
+// الرصيد السنوي الثابت
+const ANNUAL_ALLOWANCE = 15;
 
 // ── Helpers ────────────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ar-SA', {
+  return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
     year: 'numeric', month: 'short', day: 'numeric',
   });
 }

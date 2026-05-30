@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // CampaignsScreen — Ad Campaign management for Media Buyer,
 // Sales Manager, and Admin.
 // Tables: ad_campaigns, campaign_ads, ad_results
@@ -15,9 +15,9 @@ import { supabase }                from '@services/supabase';
 // ── helpers ────────────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' });
 }
-function fmtNum(n) { return (n ?? 0).toLocaleString('ar-SA'); }
+function fmtNum(n) { return (n ?? 0).toLocaleString('ar-SA-u-nu-latn'); }
 function fmtUSD(n) { return '$' + (Number(n) || 0).toFixed(2); }
 
 const STATUS_COLOR = {
@@ -133,7 +133,7 @@ function NewCampaignModal({ open, onClose, onSaved }) {
             <input
               value={form.channel_name}
               onChange={e => set('channel_name', e.target.value)}
-              placeholder="صفحة لوز الرسمية..."
+              placeholder="صفحة لويز الرسمية..."
               className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
             />
           </div>

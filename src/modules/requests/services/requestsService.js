@@ -38,8 +38,8 @@ let _mockRequests = [
 ];
 
 let _mockLeaveBalances = [
-  { id: 'lb-1', employee_id: 'emp-1', year: 2026, annual_days: 21, used_days: 0 },
-  { id: 'lb-2', employee_id: 'emp-2', year: 2026, annual_days: 21, used_days: 5 },
+  { id: 'lb-1', employee_id: 'emp-1', year: 2026, annual_days: 15, used_days: 0 },
+  { id: 'lb-2', employee_id: 'emp-2', year: 2026, annual_days: 15, used_days: 5 },
 ];
 
 function _getMock() {

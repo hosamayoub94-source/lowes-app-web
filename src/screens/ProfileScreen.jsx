@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // ProfileScreen 3.0 — بطاقة الموظف الموسعة
 // avatar · level ring · معلومات شغل · شركاء الوردية ·
 // طلبات الشراكة · إعدادات · PIN change
@@ -11,6 +11,7 @@ import { supabase }             from '@services/supabase';
 import { changeMyPin }          from '@services/authService';
 import { ROLE_LABELS }          from '@data/teams';
 import { usePushNotifications } from '@hooks/usePushNotifications';
+import { useOnboardingStore }  from '@/core/rollout/onboarding/useOnboardingStore';
 
 // ── Level system ───────────────────────────────────────────────
 const LEVELS = [
@@ -97,6 +98,7 @@ export default function ProfileScreen() {
   const { theme, toggleTheme }   = useTheme();
   const lang       = useUiStore(s => s.lang);
   const toggleLang = useUiStore(s => s.toggleLang);
+  const scheduleReonboarding = useOnboardingStore(s => s.scheduleReonboarding);
 
   const {
     supported:   pushSupported,
@@ -115,6 +117,9 @@ export default function ProfileScreen() {
   const [recentTasks, setRecentTasks] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [uploading, setUploading]     = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [activeTab, setActiveTab]     = useState('info');
+  const [certification, setCertification] = useState(null);
   const fileRef = useRef(null);
 
   // ── Work info edit state ───────────────────────────────────
@@ -161,11 +166,19 @@ export default function ProfileScreen() {
         .lte('date', today.toISOString().slice(0, 10).replace(/-/g, '/')),
 
       supabase.from('tasks').select('id,title,completed_at,priority')
-        .ilike('assigned_to', `%${name}%`)
-        .in('status', ['done', 'completed', 'مكتملة'])
+        .or(`assignee_id.eq.${id},assigned_to.eq.${id}`)
+        .in('status', ['done', 'completed'])
         .order('completed_at', { ascending: false })
         .limit(5),
-    ]).then(([pRes, ptRes, attRes, taskRes]) => {
+
+      supabase.from('leave_balances').select('*')
+        .eq('employee_id', id)
+        .eq('year', today.getFullYear())
+        .maybeSingle(),
+
+      supabase.from('quiz_certifications').select('*')
+        .eq('employee_id', id).eq('certified', true).maybeSingle(),
+    ]).then(([pRes, ptRes, attRes, taskRes, lbRes, certRes]) => {
       if (pRes.status === 'fulfilled' && pRes.value.data) {
         const p = pRes.value.data;
         setProfile(p);
@@ -188,6 +201,19 @@ export default function ProfileScreen() {
       setAttStats({ daysPresent: inDates.size, daysComplete: [...inDates].filter(d => outDates.has(d)).length, daysTotal: allDates.size });
 
       setRecentTasks(taskRes.value?.data ?? []);
+
+      const lb = lbRes.value?.data;
+      if (lb) {
+        const total = lb.total_days ?? lb.annual_days ?? 15;
+        const used  = lb.used_days ?? 0;
+        setLeaveBalance({ total, used, remaining: Math.max(0, total - used) });
+      } else {
+        // Default if no record yet — show policy default
+        setLeaveBalance({ total: 15, used: 0, remaining: 15 });
+      }
+
+      if (certRes.value?.data) setCertification(certRes.value.data);
+
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id, name]);
@@ -415,6 +441,31 @@ export default function ProfileScreen() {
           </div>
         ))}
       </div>
+
+      {/* ── Tab Bar ───────────────────────────────────────────── */}
+      <div className="flex gap-1 p-1 bg-surface-alt rounded-2xl border border-border">
+        {[
+          { key: 'info',         icon: '👤', label: 'معلوماتي' },
+          { key: 'achievements', icon: '🏆', label: 'إنجازاتي' },
+          { key: 'settings',     icon: '⚙️', label: 'الإعدادات' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === tab.key
+                ? 'bg-surface text-text shadow-sm border border-border'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ══ TAB: معلوماتي ════════════════════════════════════════ */}
+      {activeTab === 'info' && (<>
 
       {/* ── Work Info ─────────────────────────────────────────── */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
@@ -689,7 +740,7 @@ export default function ProfileScreen() {
                 <p className="flex-1 text-sm text-text truncate font-medium">{t.title}</p>
                 {t.completed_at && (
                   <span className="text-[10px] text-muted shrink-0">
-                    {new Date(t.completed_at).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                    {new Date(t.completed_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' })}
                   </span>
                 )}
               </div>
@@ -697,6 +748,132 @@ export default function ProfileScreen() {
           </div>
         </div>
       )}
+
+      </>)} {/* end tab: معلوماتي */}
+
+      {/* ══ TAB: إنجازاتي ════════════════════════════════════════ */}
+      {activeTab === 'achievements' && (<>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: '⭐', val: loading ? '…' : totalPoints,                    label: 'إجمالي النقاط',  color: 'text-teal' },
+          { icon: '📈', val: loading ? '…' : `+${monthPts}`,                label: 'نقاط هذا الشهر', color: 'text-emerald-600' },
+          { icon: '📅', val: loading ? '…' : (attStats?.daysPresent ?? '—'), label: 'أيام الحضور',    color: 'text-blue-600' },
+        ].map(s => (
+          <div key={s.label} className="bg-surface border border-border rounded-2xl p-3.5 text-center">
+            <p className="text-lg mb-1">{s.icon}</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${s.color}`}>{s.val}</p>
+            <p className="text-[10px] text-muted mt-0.5 font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Leave Balance */}
+      {leaveBalance && (
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
+            <p className="text-sm font-bold text-text mb-0.5">🏖️ رصيد الإجازة السنوية</p>
+            <p className="text-xs text-muted">{new Date().getFullYear()}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 px-4 pb-3">
+            {[
+              { label: 'المخصص',  value: leaveBalance.total,     color: 'text-text' },
+              { label: 'المستخدم', value: leaveBalance.used,      color: leaveBalance.used > 0 ? 'text-amber-500' : 'text-muted' },
+              { label: 'المتبقي',  value: leaveBalance.remaining, color: leaveBalance.remaining > 5 ? 'text-teal' : leaveBalance.remaining > 0 ? 'text-amber-500' : 'text-red-500' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="flex flex-col items-center justify-center bg-surface-alt rounded-xl py-3">
+                <span className={`text-2xl font-extrabold tabular-nums ${color}`}>{value}</span>
+                <span className="text-[10px] text-muted mt-0.5 font-medium">{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 pb-4">
+            <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-teal transition-all duration-500"
+                style={{ width: `${Math.min(100,(leaveBalance.used/leaveBalance.total)*100)}%` }} />
+            </div>
+            <p className="text-[10px] text-muted mt-1 text-center">استخدمت {leaveBalance.used} من أصل {leaveBalance.total} يوم</p>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Tasks */}
+      {recentTasks.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-bold text-text">✅ آخر المهام المنجزة</p>
+          </div>
+          <div className="divide-y divide-border/50">
+            {recentTasks.map(t => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <p className="flex-1 text-sm text-text truncate font-medium">{t.title}</p>
+                {t.completed_at && (
+                  <span className="text-[10px] text-muted shrink-0">
+                    {new Date(t.completed_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric'})}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Certification Badge */}
+      {certification ? (
+        <div className="bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl p-5 text-white shadow-lg">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl shrink-0">🏆</div>
+            <div>
+              <p className="font-extrabold text-base">خبير منتجات لويز</p>
+              <p className="text-white/80 text-xs mt-0.5">نتيجة: {certification.score_pct}% · {certification.correct_answers}/{certification.total_questions} إجابة صحيحة</p>
+              <p className="text-white/60 text-[10px] mt-0.5">
+                صدرت: {new Date(certification.certified_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory',{month:'short',day:'numeric',year:'numeric'})}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-surface border border-dashed border-amber-400/40 rounded-2xl p-4 text-center">
+          <p className="text-2xl mb-1">🎓</p>
+          <p className="text-sm font-bold text-text">شهادة خبير المنتجات</p>
+          <p className="text-xs text-muted mt-0.5">أجب على 80%+ في التدريب اليومي للحصول عليها</p>
+        </div>
+      )}
+
+      {/* Level info card */}
+      <div className="bg-surface border border-border rounded-2xl p-4">
+        <p className="text-sm font-bold text-text mb-3">🎖️ نظام المستويات</p>
+        <div className="space-y-2">
+          {[
+            { min: 500, icon: '🏆', label: 'أسطورة' },
+            { min: 300, icon: '💎', label: 'خبير' },
+            { min: 150, icon: '🔥', label: 'محترف' },
+            { min: 50,  icon: '⭐', label: 'نجم' },
+            { min: 0,   icon: '🌱', label: 'مبتدئ' },
+          ].map(lvl => {
+            const isActive = totalPoints >= lvl.min && (lvl.min === 0 || true);
+            const isPassed = totalPoints >= lvl.min;
+            return (
+              <div key={lvl.label}
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors ${isPassed ? 'bg-teal/10 border border-teal/20' : 'bg-surface-alt border border-border/50'}`}>
+                <span className="text-xl shrink-0">{lvl.icon}</span>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${isPassed ? 'text-teal' : 'text-muted'}`}>{lvl.label}</p>
+                  <p className="text-[10px] text-muted">{lvl.min}+ نقطة</p>
+                </div>
+                {isPassed && <span className="text-teal text-sm font-bold">✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      </>)} {/* end tab: إنجازاتي */}
+
+      {/* ══ TAB: الإعدادات ════════════════════════════════════════ */}
+      {activeTab === 'settings' && (<>
 
       {/* ── Push Notifications ────────────────────────────────── */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
@@ -734,6 +911,21 @@ export default function ProfileScreen() {
         <div className="px-4 divide-y divide-border/50 pb-2">
           <Toggle checked={theme === 'dark'} onChange={toggleTheme} label="الوضع المظلم" sub={theme === 'dark' ? 'مفعّل 🌙' : 'غير مفعّل ☀️'} />
           <Toggle checked={lang !== 'ar'} onChange={toggleLang} label="اللغة الإنجليزية" sub={lang === 'ar' ? 'العربية حالياً' : 'English mode'} />
+        </div>
+      </div>
+
+      {/* ── App Tour ──────────────────────────────────────────── */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-sm font-bold text-text mb-0.5">🎓 التدريب</p>
+          <p className="text-xs text-muted">أعد مشاهدة دليل التطبيق في أي وقت</p>
+        </div>
+        <div className="px-4 pb-4 pt-2">
+          <button
+            onClick={() => { scheduleReonboarding(); window.location.reload(); }}
+            className="w-full py-2.5 rounded-xl border border-teal/30 bg-teal/5 hover:bg-teal/10 text-sm font-semibold text-teal transition-colors">
+            🚀 إعادة جولة التطبيق
+          </button>
         </div>
       </div>
 
@@ -820,6 +1012,8 @@ export default function ProfileScreen() {
         className="w-full py-3.5 rounded-2xl bg-red-bg border border-red/20 text-red-fg font-bold text-sm hover:opacity-80 transition-all hover:scale-[1.01] active:scale-[0.99]">
         🚪 تسجيل الخروج
       </button>
+
+      </>)} {/* end tab: الإعدادات */}
 
     </div>
   );

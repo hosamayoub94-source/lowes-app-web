@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // AttendanceScreen 5.0 — سجل الحضور اليومي
 // Schema الحقيقي في DB:
 //   date: text "YYYY/MM/DD"
@@ -41,12 +41,12 @@ function dayLabelSlash(slash) {
   const tDay = new Date(slashToISO(today)  + 'T00:00:00');
   const diff = Math.round((tDay - d) / 86400000);
   if (diff === 1) return 'أمس';
-  return d.toLocaleDateString('ar-SA', { weekday: 'short' });
+  return d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'short' });
 }
 
 /** Arabic full day name from "YYYY/MM/DD" */
 function arabicDaySlash(slash) {
-  return new Date(slashToISO(slash) + 'T00:00:00').toLocaleDateString('ar-SA', { weekday: 'long' });
+  return new Date(slashToISO(slash) + 'T00:00:00').toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' });
 }
 
 /** HH:MM for DB storage */
@@ -332,7 +332,7 @@ export default function AttendanceScreen() {
       {/* ── Live clock card ──────────────────────────────────── */}
       <div className="bg-gradient-to-br from-navy to-navy/90 rounded-3xl p-6 text-white text-center shadow-xl shadow-navy/20">
         <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
-          {new Date().toLocaleDateString('ar-SA', { weekday:'long', day:'numeric', month:'long' })}
+          {new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday:'long', day:'numeric', month:'long' })}
         </p>
         <p className="text-5xl font-black tabular-nums tracking-tight font-mono">{clock}</p>
         <div className="mt-4 flex items-center justify-center gap-2">

@@ -1,8 +1,10 @@
 // =============================================================
 // PayrollDashboard — Payroll Hub (theme-aware v2)
 // =============================================================
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
+import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
 import {
   usePayrollBootstrap,
   usePayrollDashboard,
@@ -21,6 +23,22 @@ import {
   periodLabel,
 } from '../types/payroll.types.js';
 import { ROLES } from '@data/teams';
+import { printRunReport } from '../utils/printPayslip.js';
+
+// ── Commission levels from SALES_RULES.md ──────────────────────
+const COMMISSION_LEVELS = {
+  junior:       { base: 8  },
+  active:       { base: 5  },
+  professional: { base: 10 },
+  agent:        { base: 20 },
+};
+function calcVolumeBonus(level, achievePct) {
+  if (achievePct >= 150) return { junior:7, active:7, professional:10, agent:12 }[level] ?? 0;
+  if (achievePct >= 120) return { junior:0, active:5, professional:7,  agent:9  }[level] ?? 0;
+  if (achievePct >= 100) return { junior:0, active:3, professional:5,  agent:6  }[level] ?? 0;
+  if (achievePct >= 80)  return { junior:0, active:1, professional:2,  agent:3  }[level] ?? 0;
+  return 0;
+}
 
 // ─── Input class ─────────────────────────────────────────────
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text outline-none focus:border-teal transition';
@@ -108,6 +126,77 @@ export function PayrollDashboard() {
   const [editEntry, setEditEntry] = useState(null);
   const [entryForm, setEntryForm] = useState({});
 
+  // ── Attendance import
+  const [attLoading, setAttLoading] = useState(false);
+  const [attResult,  setAttResult]  = useState(null);
+
+  // ── Commission auto-calc
+  const [commLoading, setCommLoading] = useState(false);
+  const [commMsg,     setCommMsg]     = useState(null);
+
+  const handleAutoCommission = useCallback(async () => {
+    if (!run || entries.length === 0) return;
+    setCommLoading(true); setCommMsg(null);
+    try {
+      const rows = [];
+      for (const e of entries) {
+        const kpiRes = await supabase.from('employee_kpis').select('level,sales_score,sales_target')
+          .eq('employee_id', e.employee_id).eq('year', run.period_year).eq('month', run.period_month).maybeSingle();
+        const kpi = kpiRes.data;
+        const level = kpi?.level ?? 'junior';
+        const salesTarget = kpi?.sales_target ?? 0;
+        const salesActual = kpi?.sales_score ?? Number(e.net_salary_usd ?? 0);
+        const achievePct  = salesTarget > 0 ? Math.round((salesActual / salesTarget) * 100) : 0;
+        const basePct     = COMMISSION_LEVELS[level]?.base ?? 8;
+        const bonusPct    = calcVolumeBonus(level, achievePct);
+        const totalPct    = basePct + bonusPct;
+        const commUsd     = (salesActual * totalPct) / 100;
+        rows.push({
+          employee_id: e.employee_id, year: run.period_year, month: run.period_month,
+          level, base_commission_pct: basePct, volume_bonus_pct: bonusPct,
+          total_sales_usd: salesActual, total_commission_usd: commUsd,
+          status: 'pending', updated_at: new Date().toISOString(),
+        });
+      }
+      for (const r of rows) {
+        await supabase.from('commissions').upsert(r, { onConflict: 'employee_id,year,month' });
+      }
+      setCommMsg(`✅ تم احتساب عمولات ${rows.length} موظف — إجمالي: $${rows.reduce((s,r)=>s+r.total_commission_usd,0).toFixed(2)}`);
+    } catch (err) {
+      setCommMsg('⚠️ ' + err.message);
+    } finally { setCommLoading(false); }
+  }, [run, entries]);
+
+  /** Pull attendance data for the selected run's period and auto-fill the entry form */
+  const handleImportAttendance = useCallback(async () => {
+    if (!run || !entryForm.employee_id) return;
+    setAttLoading(true);
+    setAttResult(null);
+    try {
+      const summary = await fetchMonthlyAttendanceSummary(
+        entryForm.employee_id,
+        run.period_year,
+        run.period_month,
+      );
+      setAttResult(summary);
+      if (!summary.error) {
+        const deduction = calcAbsenceDeduction(
+          entryForm.base_salary_usd,
+          summary.workingDays,
+          summary.absentDays,
+        );
+        setEntryForm((f) => ({
+          ...f,
+          absent_days:   summary.absentDays,
+          working_days:  summary.workingDays,
+          deductions_usd: deduction,
+        }));
+      }
+    } finally {
+      setAttLoading(false);
+    }
+  }, [run, entryForm.employee_id, entryForm.base_salary_usd]);
+
   const handleCreateRun = async () => {
     try {
       const newRun = await createRun({
@@ -123,6 +212,7 @@ export function PayrollDashboard() {
 
   const openEditEntry = (entry) => {
     setEditEntry(entry);
+    setAttResult(null);
     setEntryForm({
       id: entry.id,
       employee_id: entry.employee_id,
@@ -233,8 +323,19 @@ export function PayrollDashboard() {
                     {entries.length} موظف
                     {entries.length > 0 && <span className="text-teal font-semibold mr-2"> · {formatCurrency(runTotal)}</span>}
                   </p>
+                  {commMsg && <p className={`text-xs mt-1 font-semibold ${commMsg.startsWith('✅') ? 'text-green-fg' : 'text-amber-fg'}`}>{commMsg}</p>}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {entries.length > 0 && (
+                    <ActionBtn onClick={() => printRunReport(entries, run)} variant="blue">
+                      🖨️ طباعة التقرير
+                    </ActionBtn>
+                  )}
+                  {isAdmin && entries.length > 0 && (
+                    <ActionBtn onClick={handleAutoCommission} disabled={commLoading} variant="green">
+                      {commLoading ? '⏳…' : '💰 احتساب العمولات'}
+                    </ActionBtn>
+                  )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={approveRun} disabled={isSubmitting} variant="blue">
                       ✓ اعتماد
@@ -274,9 +375,7 @@ export function PayrollDashboard() {
                         <th className="py-2.5 px-4 text-center font-semibold">مكافأة</th>
                         <th className="py-2.5 px-4 text-center font-semibold">خصومات</th>
                         <th className="py-2.5 px-4 text-center font-semibold">الصافي</th>
-                        {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                          <th className="py-2.5 px-4 text-center font-semibold">إجراء</th>
-                        )}
+                        <th className="py-2.5 px-4 text-center font-semibold">إجراء</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -284,6 +383,7 @@ export function PayrollDashboard() {
                         <EntryRow
                           key={e.id}
                           entry={e}
+                          run={run}
                           canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
                           onEdit={openEditEntry}
                           onDelete={deleteEntry}
@@ -377,6 +477,54 @@ export function PayrollDashboard() {
             </>
           }
         >
+          {/* ── Attendance Import button ── */}
+          <div className="rounded-xl border border-border bg-surface-alt p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-text">استيراد من الحضور</p>
+                <p className="text-[11px] text-muted">
+                  يملأ أيام الغياب والعمل تلقائياً من سجلات الحضور لـ
+                  <span className="font-semibold text-teal"> {run ? `${MONTHS_AR[run.period_month - 1]} ${run.period_year}` : '—'}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleImportAttendance}
+                disabled={attLoading || !entryForm.employee_id}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal/10 text-teal text-xs font-bold border border-teal/20 hover:bg-teal/20 disabled:opacity-50 transition"
+              >
+                {attLoading ? (
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                )}
+                {attLoading ? 'جار الاستيراد…' : '🔗 استيراد'}
+              </button>
+            </div>
+
+            {/* Result summary */}
+            {attResult && !attResult.error && (
+              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/60">
+                {[
+                  { label: 'أيام العمل', value: attResult.workingDays, color: 'text-text' },
+                  { label: 'أيام الحضور', value: attResult.presentDays, color: 'text-green-fg' },
+                  { label: 'أيام الغياب', value: attResult.absentDays, color: attResult.absentDays > 0 ? 'text-red-500' : 'text-muted' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="text-center">
+                    <div className={`text-lg font-extrabold tabular-nums ${color}`}>{value}</div>
+                    <div className="text-[10px] text-muted">{label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {attResult?.error && (
+              <p className="text-[11px] text-red-500 border-t border-border/60 pt-1">{attResult.error}</p>
+            )}
+            {!entryForm.employee_id && (
+              <p className="text-[11px] text-amber-fg">لا يوجد معرف موظف مرتبط — الاستيراد غير متاح</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             {[
               { key: 'base_salary_usd',       label: 'الراتب الأساسي ($)' },

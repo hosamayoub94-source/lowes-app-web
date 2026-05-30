@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CustomerProfile — full profile panel for a single customer.
  * Task #69/#8: Full Tailwind rewrite — no inline CSS.
  *
@@ -146,7 +146,7 @@ export default function CustomerProfile({ customerId, onClose }) {
               label="آخر تواصل"
               value={
                 customer.last_contact_at
-                  ? new Date(customer.last_contact_at).toLocaleDateString('ar-SA')
+                  ? new Date(customer.last_contact_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')
                   : 'لا يوجد'
               }
             />
@@ -233,7 +233,7 @@ export default function CustomerProfile({ customerId, onClose }) {
                     <div className="text-xs text-muted mt-0.5">{a.description}</div>
                   )}
                   <div className="text-[11px] text-muted mt-1">
-                    {new Date(a.created_at).toLocaleDateString('ar-SA')}
+                    {new Date(a.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')}
                   </div>
                 </div>
               </div>
@@ -276,7 +276,7 @@ export default function CustomerProfile({ customerId, onClose }) {
                   <p className="text-sm text-text mb-2">{n.content}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted">
-                      {new Date(n.created_at).toLocaleDateString('ar-SA')}
+                      {new Date(n.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')}
                     </span>
                     <button
                       type="button"

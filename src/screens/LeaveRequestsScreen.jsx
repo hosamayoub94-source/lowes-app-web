@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // LeaveRequestsScreen — نظام طلبات الإجازة الكامل
 //
 // Employee view  → submit request + history
@@ -32,7 +32,7 @@ const STATUS_CONFIG = {
 const MANAGER_ROLES = [ROLES.MANAGER, ROLES.ADMIN];
 
 // Annual leave allocation per year
-const ANNUAL_ALLOWANCE = 21;
+const ANNUAL_ALLOWANCE = 15;
 
 // ── Helpers ────────────────────────────────────────────────────
 function calcDays(start, end) {
@@ -45,7 +45,7 @@ function calcDays(start, end) {
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -107,7 +107,7 @@ function RequestCard({ req, showEmployee = false }) {
       )}
 
       <p className="text-[10px] text-muted">
-        {new Date(req.created_at).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}
+        {new Date(req.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' })}
       </p>
     </div>
   );
@@ -132,7 +132,7 @@ function ApprovalCard({ req, onDecide, deciding }) {
           </div>
         </div>
         <p className="text-[10px] text-muted shrink-0">
-          {new Date(req.created_at).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+          {new Date(req.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' })}
         </p>
       </div>
 

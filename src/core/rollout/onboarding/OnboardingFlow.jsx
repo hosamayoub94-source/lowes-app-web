@@ -55,11 +55,12 @@ const ROLE_GUIDES = {
 };
 
 const WORKSPACE_HIGHLIGHTS = [
-  { icon: '🏠', label: 'الرئيسية',     desc: 'لوحتك اليومية — حضور، مهام، إشعارات' },
-  { icon: '✅', label: 'المهام',        desc: 'كل مهامك في مكان واحد مع الأولويات' },
-  { icon: '👥', label: 'الحضور',       desc: 'تسجيل الحضور والانصراف وتاريخ الإجازات' },
-  { icon: '🔔', label: 'الإشعارات',   desc: 'كل التنبيهات والرسائل من فريقك' },
-  { icon: '💬', label: 'التعاون',      desc: 'تعليقات، @mentions، وتواصل الفريق' },
+  { icon: '🏠', label: 'الرئيسية',      desc: 'لوحتك اليومية — تحية، حضور سريع، مهامك وإشعاراتك' },
+  { icon: '⏰', label: 'الحضور',        desc: 'سجّل دخولك صباحاً وخروجك بنهاية الدوام من هنا' },
+  { icon: '✅', label: 'المهام',         desc: 'كل مهامك مُرتّبة بالأولوية — حدّث حالتها باستمرار' },
+  { icon: '🏖️', label: 'الإجازات',      desc: 'قدّم طلب إجازة وتابع رصيدك المتبقي (15 يوم سنوياً)' },
+  { icon: '🔔', label: 'الإشعارات',    desc: 'كل التنبيهات والإعلانات الإدارية من هنا' },
+  { icon: '👤', label: 'ملفي الشخصي',  desc: 'معلوماتك، تغيير الـ PIN، وإعدادات التطبيق' },
 ];
 
 const SHORTCUT_HINTS = [
@@ -114,7 +115,7 @@ function WelcomeStep({ name, role }) {
           {greeting}، {name || 'زميلنا'}!
         </h2>
         <p className="text-gray-500 dark:text-gray-400 text-base">
-          مرحباً بك في منظومة لوز — سنأخذك في جولة سريعة لتبدأ بشكل صحيح.
+          مرحباً بك في منظومة لويز — سنأخذك في جولة سريعة لتبدأ بشكل صحيح.
         </p>
       </div>
       <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 text-right">
@@ -145,6 +146,47 @@ function RoleGuideStep({ role }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const DAILY_STEPS = [
+  { num: 1, time: 'الصباح',    icon: '🌅', title: 'تسجيل الحضور',        desc: 'افتح التطبيق → الرئيسية → اضغط «تسجيل الدخول»' },
+  { num: 2, time: 'طوال اليوم', icon: '✅', title: 'متابعة المهام',         desc: 'المهام → حدّث حالة مهامك (قيد التنفيذ / منجز)' },
+  { num: 3, time: 'عند الحاجة', icon: '🏖️', title: 'طلب إجازة',           desc: 'الإجازات → «+ طلب إجازة» → اختر النوع والتاريخ' },
+  { num: 4, time: 'المساء',     icon: '🚪', title: 'تسجيل الانصراف',       desc: 'الرئيسية → اضغط «تسجيل الخروج» قبل المغادرة' },
+  { num: 5, time: 'يومياً',     icon: '🔔', title: 'تحقق من الإشعارات',    desc: 'الإشعارات → اقرأ كل التنبيهات والإعلانات الجديدة' },
+];
+
+function DailyFlowStep() {
+  return (
+    <div className="space-y-4">
+      <div className="text-center">
+        <div className="text-4xl mb-2">📋</div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">روتينك اليومي</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">5 خطوات تضمن يوم عمل ناجح</p>
+      </div>
+      <div className="space-y-2">
+        {DAILY_STEPS.map(s => (
+          <div key={s.num} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-base flex-shrink-0 mt-0.5">
+              {s.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-gray-900 dark:text-white">{s.title}</span>
+                <span className="text-[10px] text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full font-semibold">{s.time}</span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+        <p className="text-xs text-amber-700 dark:text-amber-400 text-center">
+          ⚠️ لا تنسَ تسجيل الدخول والخروج يومياً — يُحتسب في تقرير الحضور
+        </p>
+      </div>
     </div>
   );
 }
@@ -235,6 +277,7 @@ export function OnboardingFlow() {
   const StepContent = {
     [ONBOARDING_STEPS.WELCOME]:     <WelcomeStep name={name} role={role} />,
     [ONBOARDING_STEPS.ROLE_GUIDE]:  <RoleGuideStep role={role} />,
+    [ONBOARDING_STEPS.DAILY_FLOW]:  <DailyFlowStep />,
     [ONBOARDING_STEPS.WALKTHROUGH]: <WalkthroughStep />,
     [ONBOARDING_STEPS.SHORTCUTS]:   <ShortcutsStep />,
   }[currentStep] ?? null;

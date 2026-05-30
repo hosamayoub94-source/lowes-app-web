@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // CommentThread — threaded comments for any entity
 // Usage: <CommentThread entityType="task" entityId={task.id} />
 // =============================================================
@@ -14,7 +14,7 @@ function timeAgo(ts) {
   if (diff < 60_000)    return 'الآن';
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} د`;
   if (diff < 86_400_000)return `${Math.floor(diff / 3_600_000)} س`;
-  return new Date(ts).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  return new Date(ts).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' });
 }
 
 // ── Avatar ─────────────────────────────────────────────────────

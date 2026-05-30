@@ -18,6 +18,7 @@ import { useOnline }             from '@hooks/useOnline';
 import { useCelebrations }        from '@hooks/useCelebrations';
 import { usePushNotifications }   from '@hooks/usePushNotifications';
 import { InstallPrompt }          from '@components/ui/InstallPrompt';
+import { AIAssistantWidget }      from '@components/ai/AIAssistantWidget';
 
 export function MainLayout() {
   // attach online listeners once for the whole app
@@ -40,6 +41,7 @@ export function MainLayout() {
       <ToastContainer />
       <NotifToastContainer />
       <InstallPrompt />
+      <AIAssistantWidget />
     </div>
   );
 }

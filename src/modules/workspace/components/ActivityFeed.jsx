@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // ActivityFeed — recent activity across all modules
 // =============================================================
 import useWorkspaceStore from '../store/useWorkspaceStore';
@@ -8,7 +8,7 @@ function timeAgo(ts) {
   if (diff < 60_000)  return 'الآن';
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)} د`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} س`;
-  return new Date(ts).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  return new Date(ts).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' });
 }
 
 const TYPE_COLORS = {

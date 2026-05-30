@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // EmployeeProfileModal — بطاقة تعريفية للموظف
 // يُستخدم في TeamScreen وغيرها لعرض بروفايل أي موظف
 // =============================================================
@@ -136,8 +136,8 @@ export default function EmployeeProfileModal({ profile, onClose }) {
             )}
 
             <InfoRow icon="📍" label="موقع العمل"       value={extended?.work_location} />
-            <InfoRow icon="📅" label="تاريخ الانضمام"   value={extended?.hire_date ? new Date(extended.hire_date).toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' }) : null} />
-            <InfoRow icon="🎂" label="تاريخ الميلاد"    value={extended?.birthday   ? new Date(extended.birthday).toLocaleDateString('ar-SA', { month:'long', day:'numeric' }) : null} />
+            <InfoRow icon="📅" label="تاريخ الانضمام"   value={extended?.hire_date ? new Date(extended.hire_date).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year:'numeric', month:'long', day:'numeric' }) : null} />
+            <InfoRow icon="🎂" label="تاريخ الميلاد"    value={extended?.birthday   ? new Date(extended.birthday).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month:'long', day:'numeric' }) : null} />
             <InfoRow icon="🧩" label="المهارات"          value={extended?.skills} />
             {partners.length > 0 && (
               <InfoRow icon="🤝" label="شركاء الوردية"  value={partners.join('، ')} />

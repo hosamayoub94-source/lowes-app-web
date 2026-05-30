@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // DailyWorkspacePage v2 — Mobile-first, fast, polished
 // الصفحة الرئيسية الموحدة — mobile-first, keyboard-ready, smart
 // =============================================================
@@ -104,7 +104,7 @@ export function DailyWorkspacePage() {
   // Activate global keyboard shortcuts
   useKeyboardShortcuts({ enabled: true });
 
-  const today = new Date().toLocaleDateString('ar-SA', {
+  const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
     weekday: 'long',
     year:    'numeric',
     month:   'long',

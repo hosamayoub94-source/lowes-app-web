@@ -59,7 +59,7 @@ self.addEventListener('push', (event) => {
   catch { payload = { title: 'إشعار جديد', body: event.data.text() }; }
 
   const {
-    title  = 'لوز برو 🌿',
+    title  = 'لويز برو 🌿',
     body   = '',
     icon   = '/icons/icon-192.png',
     badge  = '/icons/icon-192.png',

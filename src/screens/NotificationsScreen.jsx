@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // NotificationsScreen 2.0
 // • tabs: الكل / مهام / حضور / النظام / إعلانات
 // • action link per notification type
@@ -63,7 +63,7 @@ function timeAgo(dateStr) {
     const d = Math.floor(h / 24);
     if (d === 1) return 'أمس';
     if (d < 7)   return `منذ ${d} أيام`;
-    return new Date(dateStr).toLocaleDateString('ar-SA', { month:'short', day:'numeric' });
+    return new Date(dateStr).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month:'short', day:'numeric' });
   } catch { return ''; }
 }
 function getDateGroup(dateStr) {

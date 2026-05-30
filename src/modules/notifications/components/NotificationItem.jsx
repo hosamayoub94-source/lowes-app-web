@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Notifications Module — NotificationItem
 // Single notification row (used in panel + toast).
 // =============================================================
@@ -16,7 +16,7 @@ function timeAgo(dateStr) {
     const days = Math.floor(hrs / 24);
     if (days === 1)    return 'أمس';
     if (days < 7)      return `منذ ${days} أيام`;
-    return new Date(dateStr).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { month: 'short', day: 'numeric' });
   } catch {
     return '';
   }

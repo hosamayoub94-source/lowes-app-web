@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Audit — AuditLogRow
 // Single row in the audit log table / list.
 // =============================================================
@@ -10,7 +10,7 @@ import { ENTITY_META } from '../types/audit.types';
 function formatTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleString('ar-SA', {
+  return d.toLocaleString('ar-SA-u-nu-latn', {
     month:  'short', day: 'numeric',
     hour:   '2-digit', minute: '2-digit',
     hour12: false,

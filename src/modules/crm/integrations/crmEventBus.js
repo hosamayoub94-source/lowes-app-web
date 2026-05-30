@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CRM Event Bus Integration
  *
  * Bridges the global Event Bus with the CRM module:
@@ -60,7 +60,7 @@ export function bootCRMIntegration() {
       await sendNotification({
         userId: deal.assigned_to ?? deal.owner_id,
         title: '🎉 صفقة مكتملة!',
-        message: `تهانينا! تم إغلاق صفقة "${deal.title}" بقيمة ${deal.currency} ${Number(deal.value).toLocaleString('ar-SA')}`,
+        message: `تهانينا! تم إغلاق صفقة "${deal.title}" بقيمة ${deal.currency} ${Number(deal.value).toLocaleString('ar-SA-u-nu-latn')}`,
         type: 'success',
         metadata: { dealId: deal.id, value: deal.value },
       });

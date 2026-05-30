@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // InventoryScreen — Product & stock management
 // Table: products (id, name, sku, category, quantity, price_usd,
 //                  price_try, min_stock, description, is_active)
@@ -14,7 +14,7 @@ import { supabase }  from '@services/supabase';
 const CATEGORIES = ['العناية بالوجه', 'العناية بالبشرة', 'واقي الشمس', 'الماسك', 'العناية بالجسم', 'منتجات خاصة', 'العناية بالشعر', 'الأدوات'];
 
 // ── helpers ────────────────────────────────────────────────────
-const fmt  = n => Number(n || 0).toLocaleString('ar-SA');
+const fmt  = n => Number(n || 0).toLocaleString('ar-SA-u-nu-latn');
 const fmtU = n => '$' + Number(n || 0).toFixed(2);
 
 function stockColor(qty, min) {

@@ -1,9 +1,9 @@
-// =============================================================
+﻿// =============================================================
 // TrainingScreen — التدريب اليومي على المنتجات والمعرفة
 // اختبارات يومية · أسئلة وأجوبة · تثقيف الموظفين
 // مجهولة تمامًا — لا يُحفظ اسم المستجيب في قاعدة البيانات
 // =============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { Link }     from 'react-router-dom';
@@ -27,18 +27,38 @@ function todayISO() {
 
 function formatDate(iso) {
   try {
-    return new Date(iso).toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   } catch { return iso; }
+}
+
+// ── Seeded shuffle — same order per question ID per session ───────
+function seededRandom(seed) {
+  let s = seed;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 4294967296; };
+}
+function shuffleOptions(options, questionId) {
+  // Use question ID as seed so order is consistent within a session
+  const rng  = seededRandom(questionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+  const copy = [...options];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 // ── Single Question Card ───────────────────────────────────────
 function QuestionCard({ question, answered, onAnswer }) {
-  const options = [
-    { key: 'a', text: question.option_a },
-    { key: 'b', text: question.option_b },
-    { key: 'c', text: question.option_c },
-    { key: 'd', text: question.option_d },
-  ].filter(o => o.text);
+  // Shuffle options so correct answer isn't always in position A
+  const options = useMemo(() => {
+    const raw = [
+      { key: 'a', text: question.option_a },
+      { key: 'b', text: question.option_b },
+      { key: 'c', text: question.option_c },
+      { key: 'd', text: question.option_d },
+    ].filter(o => o.text);
+    return shuffleOptions(raw, question.id);
+  }, [question.id, question.option_a, question.option_b, question.option_c, question.option_d]);
 
   const isAnswered   = !!answered;
   const correctKey   = question.correct_answer;
@@ -120,36 +140,54 @@ function QuestionCard({ question, answered, onAnswer }) {
 
 // ── Main Screen ────────────────────────────────────────────────
 export default function TrainingScreen() {
-  const { role } = useAuth();
+  const { role, id: userId, name: userName } = useAuth();
   const isAdmin  = role === 'admin' || role === 'manager';
 
   const [questions, setQuestions]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [activeCategory, setActiveCat] = useState('all');
-  const [answered, setAnswered]     = useState({}); // { [questionId]: { selected, isCorrect } }
-  const [statsMap, setStatsMap]     = useState({}); // { [questionId]: { total, correct } }
+  const [answered, setAnswered]     = useState({});
+  const [statsMap, setStatsMap]     = useState({});
+  const [sessionId]                 = useState(() => `sess-${Date.now()}`);
+  const [certAwarded, setCertAwarded] = useState(null); // badge info if just earned
 
-  // Load today's questions
+  // Load today's questions — priority: scheduled for today, then daily-rotated pool
   const loadQuestions = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const today = todayISO();
-      const { data, error: e } = await supabase
-        .from('quiz_questions')
-        .select('*')
-        .eq('question_date', today)
-        .eq('is_active', true)
+
+      // 1. Try scheduled questions for today first
+      const { data: todayQ, error: e1 } = await supabase
+        .from('quiz_questions').select('*')
+        .eq('question_date', today).eq('is_active', true)
         .order('created_at', { ascending: true });
 
-      if (e) {
-        if (e.code === 'PGRST205' || e.code === '42P01') {
-          setError('لم يتم إعداد نظام الاختبارات بعد. يرجى تشغيل ملف الـ migration SQL.');
-          setQuestions([]);
-          return;
-        }
-        throw e;
+      if (e1 && (e1.code === 'PGRST205' || e1.code === '42P01')) {
+        setError('لم يتم إعداد نظام الاختبارات بعد. يرجى تشغيل ملف الـ migration SQL.');
+        setQuestions([]); setLoading(false); return;
       }
+      if (e1) throw e1;
+
+      let data = todayQ ?? [];
+
+      // 2. Fallback: general pool (no date) — 10 questions per day, rotated by date
+      if (data.length === 0) {
+        const { data: pool } = await supabase
+          .from('quiz_questions').select('*')
+          .is('question_date', null).eq('is_active', true)
+          .order('id', { ascending: true });
+
+        if (pool?.length) {
+          const seed = today.replace(/-/g,'').split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+          const rng  = seededRandom(seed);
+          data = [...pool].sort(() => rng() - 0.5).slice(0, 10);
+        }
+      }
+
+      const e = null;
+
       setQuestions(data ?? []);
 
       // Load response stats for today
@@ -177,20 +215,62 @@ export default function TrainingScreen() {
 
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
 
+  // Check and award certification when session completes
+  const checkCertification = useCallback(async (newAnswered, allQuestions) => {
+    if (!userId || !allQuestions.length) return;
+    const total   = allQuestions.length;
+    const correct = Object.values(newAnswered).filter(a => a.isCorrect).length;
+    const pct     = Math.round((correct / total) * 100);
+    if (pct < 80) return; // minimum 80% to certify
+
+    try {
+      const now = new Date().toISOString();
+      const { data: existing } = await supabase.from('quiz_certifications')
+        .select('id,score_pct,certified').eq('employee_id', userId).eq('category', 'all').maybeSingle();
+
+      if (!existing || pct > (existing.score_pct ?? 0)) {
+        await supabase.from('quiz_certifications').upsert({
+          employee_id:     userId,
+          employee_name:   userName,
+          category:        'all',
+          score_pct:       pct,
+          total_questions: total,
+          correct_answers: correct,
+          certified:       true,
+          certified_at:    now,
+          attempts:        (existing?.attempts ?? 0) + 1,
+          updated_at:      now,
+        }, { onConflict: 'employee_id,category' });
+
+        if (!existing?.certified) {
+          setCertAwarded({ pct, correct, total });
+        }
+      }
+    } catch {}
+  }, [userId, userName]);
+
   // Handle answering a question
   const handleAnswer = async (question, selectedKey) => {
     if (answered[question.id]) return;
 
     const isCorrect = selectedKey === question.correct_answer;
-    setAnswered(a => ({ ...a, [question.id]: { selected: selectedKey, isCorrect } }));
+    const newAnswered = { ...answered, [question.id]: { selected: selectedKey, isCorrect } };
+    setAnswered(newAnswered);
 
-    // Submit anonymous response to DB
+    // Check if session complete → try award certification
+    if (Object.keys(newAnswered).length === questions.length) {
+      checkCertification(newAnswered, questions);
+    }
+
+    // Submit tracked response to DB
     try {
       await supabase.from('quiz_responses').insert({
         question_id:     question.id,
         selected_answer: selectedKey,
         is_correct:      isCorrect,
         source:          'training',
+        employee_id:     userId ?? null,
+        session_id:      sessionId,
       });
       // Update local stats
       setStatsMap(sm => ({
@@ -340,15 +420,40 @@ export default function TrainingScreen() {
 
           {/* Completion message */}
           {answeredCount === questions.length && questions.length > 0 && (
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white text-center shadow-lg">
-              <p className="text-4xl mb-3">🎉</p>
-              <p className="text-lg font-black">أحسنت! أجبت على كل الأسئلة</p>
+            <div className={`rounded-2xl p-6 text-white text-center shadow-lg ${correctCount/answeredCount >= 0.8 ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-navy to-navy/80'}`}>
+              <p className="text-4xl mb-3">{correctCount/answeredCount >= 0.8 ? '🏆' : '📚'}</p>
+              <p className="text-lg font-black">
+                {correctCount/answeredCount >= 0.8 ? 'أحسنت! نتيجة ممتازة' : 'أجبت على كل الأسئلة'}
+              </p>
               <p className="text-white/80 text-sm mt-1">
                 {correctCount} صحيحة من {answeredCount} — {Math.round(correctCount / answeredCount * 100)}%
               </p>
-              {correctCount === answeredCount && (
-                <p className="text-white/70 text-xs mt-2">💯 إجابات كاملة! أنت محترف حقيقي 🌟</p>
+              {correctCount / answeredCount >= 0.8 && (
+                <p className="text-white/80 text-xs mt-2">✅ تجاوزت حد الشهادة (80%)</p>
               )}
+              {correctCount / answeredCount < 0.8 && (
+                <p className="text-white/70 text-xs mt-2">تحتاج 80%+ للحصول على شهادة خبير لويز</p>
+              )}
+            </div>
+          )}
+
+          {/* 🎓 Certification Award Popup */}
+          {certAwarded && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+              <div className="bg-surface rounded-3xl p-8 text-center max-w-sm w-full shadow-2xl border border-yellow-400/30 animate-in zoom-in-90 duration-300">
+                <div className="text-6xl mb-4">🏆</div>
+                <h2 className="text-xl font-extrabold text-text mb-1">مبروك! حصلت على شهادة</h2>
+                <p className="text-sm font-bold text-teal mb-4">خبير منتجات لويز Professional</p>
+                <div className="bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl p-4 mb-4">
+                  <p className="text-white font-extrabold text-3xl tabular-nums">{certAwarded.pct}%</p>
+                  <p className="text-white/80 text-xs mt-1">{certAwarded.correct}/{certAwarded.total} إجابة صحيحة</p>
+                </div>
+                <p className="text-xs text-muted mb-5">الشهادة ظاهرة في بروفايلك تحت تبويب "إنجازاتي"</p>
+                <button onClick={() => setCertAwarded(null)}
+                  className="w-full py-3 rounded-2xl bg-teal text-white font-bold hover:bg-teal/90 transition">
+                  🎉 رائع!
+                </button>
+              </div>
             </div>
           )}
         </div>

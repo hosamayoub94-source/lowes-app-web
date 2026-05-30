@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // useAdminOps — Admin operations center data hook
 //
 // Aggregates: system health, online employees, failed jobs,
@@ -17,9 +17,9 @@ const REFRESH_INTERVAL = 30_000;
 // ── Mock daily activity (replace with real service calls) ──────
 function _mockDailyActivity() {
   const now     = new Date();
-  const dayName = now.toLocaleDateString('ar-SA', { weekday: 'long' });
+  const dayName = now.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' });
   return {
-    date:             now.toLocaleDateString('ar-SA'),
+    date:             now.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory'),
     dayName,
     checkedIn:        Math.floor(Math.random() * 8) + 10,
     totalEmployees:   18,

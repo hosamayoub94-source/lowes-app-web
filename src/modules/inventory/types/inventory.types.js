@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Inventory Module — Types, constants, helpers, and mock data.
  */
 
@@ -277,7 +277,7 @@ export function getAvailableQty(stockLevel) {
  * Format currency — SAR by default.
  */
 export function formatPrice(amount, currency = 'SAR') {
-  return `${currency} ${Number(amount ?? 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency} ${Number(amount ?? 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**

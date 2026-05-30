@@ -1,4 +1,4 @@
-// =============================================================
+﻿// =============================================================
 // Analytics Module — Export Service
 //
 // Browser-side export engine. Produces downloadable files from
@@ -156,7 +156,7 @@ function _buildPrintHTML(columns, rows, title) {
 </head>
 <body>
 <h1>${_esc(title)}</h1>
-<p class="meta">تاريخ التصدير: ${new Date().toLocaleDateString('ar-SA')} — ${rows.length} صف</p>
+<p class="meta">تاريخ التصدير: ${new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')} — ${rows.length} صف</p>
 <table>
   <thead><tr>${headerCells}</tr></thead>
   <tbody>${bodyRows}</tbody>
