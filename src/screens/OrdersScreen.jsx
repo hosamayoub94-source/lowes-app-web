@@ -362,7 +362,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
                 <label className={LBL}>المبلغ</label>
-                <input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} className={INP} placeholder="0" />
+                <input type="number" inputMode="decimal" value={form.amount} onChange={e => set('amount', e.target.value)} className={INP} placeholder="0" style={{direction:'ltr', textAlign:'right'}} />
               </div>
               <div>
                 <label className={LBL}>العملة</label>
@@ -412,7 +412,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 <label className={LBL}>رقم التتبع</label>
                 <div className="flex gap-2">
                   <input value={form.tracking_number} onChange={e => set('tracking_number', e.target.value)}
-                    className={`${INP} flex-1`} placeholder="6422898622431" />
+                    className={`${INP} flex-1`} placeholder="مثال: 6422898622431" />
                   {form.tracking_number && trackingLink(form.shipping_company, form.tracking_number) && (
                     <a href={trackingLink(form.shipping_company, form.tracking_number)}
                       target="_blank" rel="noreferrer"
