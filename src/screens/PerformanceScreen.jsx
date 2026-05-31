@@ -95,7 +95,43 @@ function KpiEntryModal({ employee, month, year, existing, onSave, onClose }) {
     level:        existing?.level ?? 'junior',
     notes:        existing?.notes ?? '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [autoDisc,      setAutoDisc]      = useState(null);
+  const [autoSales,     setAutoSales]     = useState(null);
+
+  // Auto-fetch attendance-based discipline score + sales from DB
+  useEffect(() => {
+    if (!employee?.id || existing?.discipline_score) return;
+    const from = `${year}-${String(month).padStart(2,'0')}-01`;
+    const to   = new Date(year, month, 0).toISOString().slice(0,10);
+    Promise.allSettled([
+      // Attendance days
+      supabase.from('attendance').select('date', { count: 'exact', head: true })
+        .eq('employee_name', employee.employee_name)
+        .gte('date', from).lte('date', to),
+      // Sales from daily_reports
+      supabase.from('daily_reports').select('total_sales_usd')
+        .eq('employee_id', employee.id)
+        .gte('report_date', from).lte('report_date', to),
+    ]).then(([attRes, salesRes]) => {
+      const workDays  = 22;
+      const attended  = attRes.value?.count ?? 0;
+      const discScore = Math.min(10, Math.round((attended / workDays) * 10));
+      setAutoDisc(discScore);
+      if (!existing?.discipline_score) {
+        setForm(f => ({ ...f, discipline: String(discScore) }));
+      }
+      const totalSales = (salesRes.value?.data ?? [])
+        .reduce((s, r) => s + (Number(r.total_sales_usd) || 0), 0);
+      if (totalSales > 0) {
+        setAutoSales(Math.round(totalSales));
+        if (!existing?.sales_score) {
+          setForm(f => ({ ...f, sales: String(Math.round(totalSales)) }));
+        }
+      }
+    }).catch(() => {});
+  }, [employee?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const totalScore = useMemo(() => calcTotalScore({
     sales: Number(form.sales), sales_target: Number(form.sales_target),
@@ -136,7 +172,10 @@ function KpiEntryModal({ employee, month, year, existing, onSave, onClose }) {
           {/* Sales */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs font-bold text-muted block mb-1.5">💵 المبيعات الفعلية ($)</label>
+              <label className="text-xs font-bold text-muted block mb-1.5">
+                💵 المبيعات الفعلية ($)
+                {autoSales > 0 && <span className="ms-1 text-[10px] text-teal font-normal">⚡ تلقائي من التقارير</span>}
+              </label>
               <input type="number" value={form.sales} onChange={e => setForm(f=>({...f,sales:e.target.value}))} className={INP} placeholder="0" />
             </div>
             <div>
@@ -147,14 +186,17 @@ function KpiEntryModal({ employee, month, year, existing, onSave, onClose }) {
 
           {/* Other KPIs */}
           {[
-            { key: 'visits',      label: '🚶 الزيارات اليومية (متوسط)', placeholder: '15' },
-            { key: 'new_clients', label: '🆕 عملاء جدد هذا الشهر',     placeholder: '4' },
-            { key: 'retention',   label: '🔄 نسبة إعادة الطلب (%)',    placeholder: '70' },
-            { key: 'collection',  label: '💳 نسبة التحصيل (%)',        placeholder: '95' },
-            { key: 'discipline',  label: '📋 نقطة الانضباط (من 10)',   placeholder: '8' },
-          ].map(({ key, label, placeholder }) => (
+            { key: 'visits',      label: '🚶 الزيارات اليومية (متوسط)', placeholder: '15', auto: null },
+            { key: 'new_clients', label: '🆕 عملاء جدد هذا الشهر',     placeholder: '4',  auto: null },
+            { key: 'retention',   label: '🔄 نسبة إعادة الطلب (%)',    placeholder: '70', auto: null },
+            { key: 'collection',  label: '💳 نسبة التحصيل (%)',        placeholder: '95', auto: null },
+            { key: 'discipline',  label: '📋 نقطة الانضباط (من 10)',   placeholder: '8',  auto: autoDisc },
+          ].map(({ key, label, placeholder, auto }) => (
             <div key={key}>
-              <label className="text-xs font-bold text-muted block mb-1.5">{label}</label>
+              <label className="text-xs font-bold text-muted block mb-1.5">
+                {label}
+                {auto !== null && <span className="ms-1 text-[10px] text-teal font-normal">⚡ تلقائي من الحضور ({auto}/10)</span>}
+              </label>
               <input type="number" value={form[key]} onChange={e => setForm(f=>({...f,[key]:e.target.value}))} className={INP} placeholder={placeholder} />
             </div>
           ))}
@@ -263,7 +305,7 @@ function EmployeeKpiCard({ emp, kpi, isAdmin, onEdit }) {
 }
 
 // ── My Own KPI Card (employee view) ────────────────────────────
-function MyKpiView({ kpi, month, year }) {
+function MyKpiView({ kpi, month, year, userId }) {
   const level = LEVELS[kpi?.level ?? 'junior'];
   const total = kpi?.total_score ?? 0;
   const salesPct = kpi?.sales_target > 0 ? Math.round((kpi.sales_score / kpi.sales_target) * 100) : 0;
@@ -271,11 +313,45 @@ function MyKpiView({ kpi, month, year }) {
   const commissionPct = level.base_commission + volBonus;
   const commissionUsd = kpi?.sales_score ? ((kpi.sales_score * commissionPct) / 100).toFixed(2) : null;
 
+  // Auto-commission estimate when no KPI record yet
+  const [estSales,  setEstSales]  = useState(null);
+  const [estLoading, setEstLoading] = useState(false);
+
+  const calcEstimate = async () => {
+    setEstLoading(true);
+    try {
+      const from = `${year}-${String(month).padStart(2,'0')}-01`;
+      const to   = new Date(year, month, 0).toISOString().slice(0,10);
+      const { data } = await supabase.from('daily_reports')
+        .select('total_sales_usd').eq('employee_id', userId)
+        .gte('report_date', from).lte('report_date', to);
+      const total = (data ?? []).reduce((s,r) => s + (Number(r.total_sales_usd)||0), 0);
+      setEstSales(Math.round(total));
+    } catch {}
+    finally { setEstLoading(false); }
+  };
+
   if (!kpi) return (
-    <div className="bg-surface border border-border rounded-2xl p-8 text-center">
-      <p className="text-4xl mb-3">📊</p>
+    <div className="bg-surface border border-border rounded-2xl p-6 text-center space-y-3">
+      <p className="text-4xl">📊</p>
       <p className="text-base font-bold text-text">لم تُحدَّد بياناتك لهذا الشهر</p>
-      <p className="text-xs text-muted mt-1">سيقوم المدير بإدخال بيانات KPI الخاصة بك قريباً</p>
+      <p className="text-xs text-muted">سيقوم المدير بإدخال بيانات KPI الخاصة بك قريباً</p>
+      {estSales === null ? (
+        <button onClick={calcEstimate} disabled={estLoading}
+          className="mx-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition disabled:opacity-50">
+          {estLoading ? '…جاري الحساب' : '💰 احسب عمولتي التقديرية'}
+        </button>
+      ) : (
+        <div className="bg-teal/10 rounded-2xl p-4 space-y-1">
+          <p className="text-xs text-muted">مبيعاتك المسجلة هذا الشهر</p>
+          <p className="text-2xl font-extrabold text-teal tabular-nums">${estSales.toLocaleString('en-US')}</p>
+          <p className="text-xs text-muted mt-1">
+            عمولة مبدئية (~{LEVELS.junior.base_commission}%):
+            <span className="font-bold text-text ms-1">${((estSales * LEVELS.junior.base_commission) / 100).toFixed(2)}</span>
+          </p>
+          <p className="text-[10px] text-muted/70">* تقديرية — النهائية بعد تأكيد المدير</p>
+        </div>
+      )}
     </div>
   );
 
@@ -546,7 +622,7 @@ export default function PerformanceScreen() {
           )}
         </>
       ) : (
-        <MyKpiView kpi={myKpi} month={month} year={year} />
+        <MyKpiView kpi={myKpi} month={month} year={year} userId={userId} />
       )}
 
       {/* Edit Modal */}

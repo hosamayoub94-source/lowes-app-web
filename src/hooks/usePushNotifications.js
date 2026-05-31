@@ -16,8 +16,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth }  from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '';
-const TABLE            = 'push_subscriptions';
+const VAPID_PUBLIC_KEY  = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '';
+const VAPID_CONFIGURED  = VAPID_PUBLIC_KEY.length > 10;
+const TABLE             = 'push_subscriptions';
 
 /** Convert VAPID base64url string → Uint8Array for PushManager */
 function urlBase64ToUint8Array(base64) {
@@ -65,8 +66,8 @@ export function usePushNotifications() {
   const subscribe = useCallback(async () => {
     if (!supported || !userId) return;
 
-    if (!VAPID_PUBLIC_KEY) {
-      setError('VITE_VAPID_PUBLIC_KEY غير مضبوط في .env — شغّل: npx web-push generate-vapid-keys');
+    if (!VAPID_CONFIGURED) {
+      setError('خدمة الإشعارات غير مفعّلة على هذا الخادم');
       return;
     }
 
@@ -166,6 +167,7 @@ export function usePushNotifications() {
 
   return {
     supported,
+    vapidConfigured: VAPID_CONFIGURED,
     permission,
     subscribed,
     loading,

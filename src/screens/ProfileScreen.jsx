@@ -101,13 +101,14 @@ export default function ProfileScreen() {
   const scheduleReonboarding = useOnboardingStore(s => s.scheduleReonboarding);
 
   const {
-    supported:   pushSupported,
-    permission:  pushPermission,
-    subscribed:  pushSubscribed,
-    loading:     pushLoading,
-    error:       pushError,
-    subscribe:   subscribePush,
-    unsubscribe: unsubscribePush,
+    supported:       pushSupported,
+    vapidConfigured: pushVapidOk,
+    permission:      pushPermission,
+    subscribed:      pushSubscribed,
+    loading:         pushLoading,
+    error:           pushError,
+    subscribe:       subscribePush,
+    unsubscribe:     unsubscribePush,
   } = usePushNotifications();
 
   // ── Core profile state ─────────────────────────────────────
@@ -117,7 +118,7 @@ export default function ProfileScreen() {
   const [recentTasks, setRecentTasks] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [uploading, setUploading]     = useState(false);
-  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [leaveBalance, setLeaveBalance] = useState({ total: 15, used: 0, remaining: 15 });
   const [activeTab, setActiveTab]     = useState('info');
   const [certification, setCertification] = useState(null);
   const fileRef = useRef(null);
@@ -770,8 +771,7 @@ export default function ProfileScreen() {
       </div>
 
       {/* Leave Balance */}
-      {leaveBalance && (
-        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
           <div className="px-4 pt-4 pb-2">
             <p className="text-sm font-bold text-text mb-0.5">🏖️ رصيد الإجازة السنوية</p>
             <p className="text-xs text-muted">{new Date().getFullYear()}</p>
@@ -796,7 +796,6 @@ export default function ProfileScreen() {
             <p className="text-[10px] text-muted mt-1 text-center">استخدمت {leaveBalance.used} من أصل {leaveBalance.total} يوم</p>
           </div>
         </div>
-      )}
 
       {/* Recent Tasks */}
       {recentTasks.length > 0 && (
@@ -882,7 +881,9 @@ export default function ProfileScreen() {
           <p className="text-xs text-muted">إشعارات النظام حتى عندما يكون التطبيق مغلقاً</p>
         </div>
         <div className="px-4 pb-3">
-          {!pushSupported ? (
+          {!pushVapidOk ? (
+            <p className="text-xs text-muted py-2">🔔 هذه الميزة ستكون متاحة قريباً</p>
+          ) : !pushSupported ? (
             <p className="text-xs text-muted py-2">⚠️ المتصفح الحالي لا يدعم إشعارات Push</p>
           ) : pushPermission === 'denied' ? (
             <div className="py-2">

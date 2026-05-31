@@ -168,7 +168,7 @@ lowes-app-web/src/
 │   ├── theme.css         ← CSS variables (navy/teal/cream)
 │   └── globals.css       ← Tailwind + base resets
 ├── routes/
-│   ├── AppRoutes.jsx     ← كل الـ routes (40+)
+│   ├── AppRoutes.jsx     ← كل الـ routes (50+)
 │   ├── ProtectedRoute.jsx
 │   └── paths.js          ← ROUTES constants
 ├── context/
@@ -178,51 +178,66 @@ lowes-app-web/src/
 │   ├── LoginScreen.jsx
 │   ├── HomeScreen.jsx
 │   ├── AttendanceScreen.jsx
+│   ├── AttendanceReportScreen.jsx
 │   ├── TeamScreen.jsx
 │   ├── HolidaysScreen.jsx
 │   ├── AccountingScreen.jsx
-│   ├── ProfileScreen.jsx
+│   ├── ProfileScreen.jsx       ← tabs: my info / achievements / settings
 │   ├── NotificationsScreen.jsx
 │   ├── NotFoundScreen.jsx
 │   ├── CampaignsScreen.jsx
 │   ├── TaskReportScreen.jsx
-│   ├── TrainingScreen.jsx    ← (اختبارات المنتجات اليومية)
+│   ├── TrainingScreen.jsx      ← Daily Quiz (اختبار المنتجات)
+│   ├── PerformanceScreen.jsx   ← KPI + Commission (نظام 100 نقطة)
+│   ├── InventoryScreen.jsx
+│   ├── ChatScreen.jsx
+│   ├── AnnouncementsScreen.jsx
+│   ├── LeaveRequestsScreen.jsx
+│   ├── HRDashboard.jsx
+│   ├── ShiftScheduleScreen.jsx
+│   ├── AdvanceRequestsScreen.jsx
+│   ├── PerformanceReviewScreen.jsx
 │   └── admin/
 │       ├── AdminScreen.jsx
 │       ├── AdminUsersScreen.jsx
 │       ├── AdminSettingsScreen.jsx
 │       ├── AdminReportsScreen.jsx
-│       └── AdminQuizScreen.jsx   ← (إدارة أسئلة الاختبار)
+│       ├── AdminQuizScreen.jsx
+│       └── MysteryShopperScreen.jsx  ← مراقبة الأسعار
 ├── modules/
 │   ├── tasks/pages/TasksPage.jsx
 │   ├── crm/pages/CRMDashboard.jsx
+│   ├── field-crm/pages/FieldCRMScreen.jsx  ← زيارات ميدانية
 │   ├── files/pages/FileManagerDashboard.jsx
 │   ├── analytics/pages/ExecutiveDashboard.jsx
 │   ├── workspace/pages/DailyWorkspacePage.jsx
 │   ├── audit/pages/AuditDashboard.jsx
-│   ├── payroll/pages/PayrollDashboard.jsx
+│   ├── payroll/pages/PayrollDashboard.jsx  ← + PDF payslip
 │   ├── requests/pages/RequestsDashboard.jsx
 │   ├── accounting/pages/AccountingDashboard.jsx
-│   ├── sales/pages/SalesDashboard.jsx
-│   ├── hr/pages/HRDashboard.jsx   ← (HR Dashboard)
+│   ├── sales/pages/SalesDashboard.jsx      ← + sales targets widget
+│   ├── gamification/pages/AchievementsScreen.jsx
+│   ├── inventory/
 │   ├── attendance/
 │   ├── crm/integrations/crmEventBus.js
 │   ├── files/integrations/fileEventBus.js
 │   └── analytics/integrations/analyticsEventBus.js
+├── components/
+│   ├── ui/               ← Card, Button, Avatar, Loading, Modal...
+│   ├── ai/AIAssistantWidget.jsx   ← Floating AI Bot (Claude API)
+│   ├── chat/MusicRoomPanel.jsx
+│   ├── feature/
+│   └── dev/MockModeBanner.jsx
 ├── core/
 │   ├── events/           ← Event Bus
 │   ├── queue/            ← Queue system
 │   ├── automation/       ← Automation system
-│   ├── operations/       ← Workflow metrics
-│   ├── maintenance/      ← Maintenance dashboard
-│   └── testing/          ← validateEnvironment
+│   ├── operations/       ← Workflow metrics + OperationalInsightsDashboard
+│   ├── maintenance/      ← MaintenanceDashboard
+│   └── testing/          ← QA dashboard + validateEnvironment
 ├── layouts/
-│   ├── MainLayout.jsx
+│   ├── MainLayout.jsx    ← يتضمن AIAssistantWidget
 │   └── AuthLayout.jsx
-├── components/
-│   ├── ui/               ← Card, Button, Avatar, Loading...
-│   ├── feature/
-│   └── dev/MockModeBanner.jsx
 ├── services/
 │   ├── supabase.js
 │   └── authService.js
@@ -257,36 +272,52 @@ lowes-app-web/src/
 
 ---
 
-## 11. الشاشات والمسارات الكاملة
+## 11. الشاشات والمسارات الكاملة (50+ route)
 
 | المسار | الشاشة / الملف | الأدوار المسموحة |
 |--------|----------------|-----------------|
 | `/` | HomeScreen | الكل |
 | `/login` | LoginScreen | — |
 | `/attendance` | AttendanceScreen | الكل |
+| `/attendance-report` | AttendanceReportScreen | Admin, Manager |
 | `/tasks` | TasksPage | الكل |
+| `/tasks-report` | TaskReportScreen | Admin, Manager, Sales Mgr |
 | `/crm` | CRMDashboard | الكل |
+| `/field-crm` | FieldCRMScreen | الكل |
 | `/files` | FileManagerDashboard | الكل |
 | `/analytics` | ExecutiveDashboard | الكل |
 | `/workspace` | DailyWorkspacePage | الكل |
 | `/team` | TeamScreen | الكل |
 | `/holidays` | HolidaysScreen | الكل |
+| `/chat` | ChatScreen | الكل |
+| `/announcements` | AnnouncementsScreen | الكل |
+| `/notifications` | NotificationsScreen | الكل |
+| `/profile` | ProfileScreen | الكل |
+| `/achievements` | AchievementsScreen | الكل |
 | `/training` | TrainingScreen | الكل |
+| `/performance` | PerformanceScreen (KPI) | الكل |
+| `/leave` | LeaveRequestsScreen | الكل |
+| `/schedule` | ShiftScheduleScreen | الكل |
+| `/advances` | AdvanceRequestsScreen | الكل |
+| `/reviews` | PerformanceReviewScreen | الكل |
+| `/requests` | RequestsDashboard | الكل |
 | `/accounting` | AccountingScreen | Manager, Admin |
 | `/payroll` | PayrollDashboard | Admin, Manager |
-| `/requests` | RequestsDashboard | الكل |
 | `/ledger` | AccountingDashboard | Admin, Manager |
-| `/sales` | SalesDashboard | Sales roles |
-| `/campaigns` | CampaignsScreen | Sales roles |
-| `/tasks-report` | TaskReportScreen | Admin, Manager, Sales Mgr |
+| `/sales` | SalesDashboard | Admin, Manager, Sales Mgr, Media Buyer |
+| `/campaigns` | CampaignsScreen | Admin, Manager, Sales Mgr, Media Buyer |
+| `/inventory` | InventoryScreen | Admin, Manager, Sales Mgr |
 | `/hr` | HRDashboard | Admin, Manager |
-| `/profile` | ProfileScreen | الكل |
-| `/notifications` | NotificationsScreen | الكل |
+| `/mystery-shopper` | MysteryShopperScreen | Admin, Manager, Sales Mgr |
 | `/admin` | AdminScreen | Admin فقط |
 | `/admin/users` | AdminUsersScreen | Admin فقط |
 | `/admin/settings` | AdminSettingsScreen | Admin فقط |
 | `/admin/reports` | AdminReportsScreen | Admin فقط |
+| `/admin/audit` | AuditDashboard | Admin فقط |
 | `/admin/quiz` | AdminQuizScreen | Admin فقط |
+| `/admin/qa` | QADashboard | Admin فقط |
+| `/admin/maintenance` | MaintenanceDashboard | Admin فقط |
+| `/admin/operations` | OperationalInsights | Admin فقط |
 
 ---
 
@@ -478,16 +509,62 @@ status: pending / under_review / approved / rejected / cancelled
 ## 21. آخر Commits (مايو 2026)
 
 ```
-feat(profile): add realtime subscription for shift partner requests
+fix: AI bot — use direct fetch instead of supabase.functions.invoke
+  (App uses PIN auth not Supabase Auth → functions.invoke fails → direct fetch بـ anon key)
+
+feat: mega sprint — AI bot + CRM field visits + KPI/commission + certifications
+  + mystery shopper + WhatsApp share + payroll PDF + profile tabs
+  + push notifications + quiz shuffle + sales targets + chat improvements
+
+fix: disable mock data, fix @media grid, unify leave system, standardize formulas
+fix: add missing profile columns + fix chat/profile RLS
+feat: 5 new HR features — shift schedule, advances, performance reviews, employee modal, announcements
+feat(home): daily motivational quote card
+feat(quiz): 50 real Lowe's product questions in template library
+fix: chat channels, payroll, profiles, quiz redesign
+feat(profile): realtime subscription for shift partner requests
 feat: Enhanced Profile (work info + shift partners) + Daily Quiz Training System
-feat(chat): Feature #8 — Quick emoji strip, read receipts, @mention, forward message
-feat: Feature #4 — Enhanced Task System (Kanban DnD + @mention + File Attachments)
+feat(chat): Quick emoji, read receipts, @mention, forward message
+feat: Enhanced Task System (Kanban DnD + @mention + File Attachments)
 feat: VAPID keys + Leave Requests system + HR Dashboard
 ```
 
 ---
 
-## 22. كيفية إجراء Migration جديدة على Supabase
+## 22. AI Assistant (Floating Bot)
+
+**المكوّن:** `src/components/ai/AIAssistantWidget.jsx`
+**مُضمَّن في:** `MainLayout.jsx` (يظهر في كل الشاشات)
+
+### كيفية العمل:
+- يستدعي Supabase Edge Function: `ask-ai`
+- **⚠️ مهم:** يستخدم `direct fetch` بدلاً من `supabase.functions.invoke`
+  لأن التطبيق يعتمد PIN auth وليس Supabase Auth → `functions.invoke` يفشل
+- URL: `https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/ask-ai`
+- Headers: `{ Authorization: 'Bearer <anon_key>', 'Content-Type': 'application/json' }`
+- Edge Function تحتاج: `verify_jwt: false` في Supabase Dashboard
+
+### Edge Function Secret المطلوب:
+```
+ANTHROPIC_API_KEY = <your-claude-api-key>
+```
+
+---
+
+## 22b. جداول DB الجديدة (أضيفت في mega sprint)
+
+| الجدول | الوصف |
+|--------|-------|
+| `crm_clients` | عملاء زيارات CRM الميدانية |
+| `crm_visits` | سجل الزيارات الميدانية (field-crm) |
+| `employee_certifications` | شهادات الموظفين (80% quiz → gold badge) |
+| `kpi_records` | سجلات KPI الأسبوعية/الشهرية |
+| `mystery_shopper_reports` | تقارير Mystery Shopper |
+| `sales_targets` | أهداف المبيعات الشهرية |
+
+---
+
+## 23. كيفية إجراء Migration جديدة على Supabase
 
 1. افتح [Supabase Dashboard](https://supabase.com/dashboard/project/fghdumrgimoeqsafdhhh)
 2. انتقل لـ SQL Editor
@@ -501,7 +578,7 @@ const token = (await fetch('/rest/v1/', {credentials: 'include'})).headers.get('
 
 ---
 
-## 23. Profiles الأساسية (موظفون في DB)
+## 24. Profiles الأساسية (موظفون في DB)
 
 ```
 اسم الموظف          الفريق                  الدور
@@ -515,7 +592,7 @@ Hamza Nsr           تيم السوشال ميديا       employee
 
 ---
 
-## 24. الأقسام (Departments)
+## 25. الأقسام (Departments)
 
 ```
 syria   → تيم سوريا
@@ -527,7 +604,7 @@ finance → المحاسبة
 
 ---
 
-## 25. نصائح للمبرمج القادم
+## 26. نصائح للمبرمج القادم
 
 1. **قبل أي شيء** — شغّل `npm run dev` وتأكد إن الصفحة تفتح على 5173
 2. **الـ Glob لا يعمل** — استخدم `Read` مع المسار الكامل دائماً
@@ -536,7 +613,10 @@ finance → المحاسبة
 5. **نظام Auth** له fallback يدوي في localStorage — إذا رأيت `lowes_manual_session` فهذا طبيعي
 6. **الـ schema SQL** في `supabase_schema.sql` هو المرجع الكامل للجداول
 7. **الـ HANDOFF.md للمشروع الثاني** موجود في: `C:\Users\acer\Desktop\my projects\lowes-professional\HANDOFF.md`
+8. **AI Bot** يستخدم direct fetch — لا تغيره إلى `supabase.functions.invoke` (سيفشل مع PIN auth)
+9. **ProfileScreen** له 3 tabs: "معلوماتي" / "الإنجازات" / "الإعدادات"
+10. **PerformanceScreen** (/performance) هو نظام KPI بـ 100 نقطة — راجع SALES_RULES.md إن وُجد
 
 ---
 
-*آخر تحديث: مايو 2026*
+*آخر تحديث: 31 مايو 2026*

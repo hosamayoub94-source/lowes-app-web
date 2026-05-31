@@ -36,6 +36,7 @@
     "VITE_USE_MOCK_PAYROLL": "false",
     "VITE_USE_MOCK_ACCOUNTING": "false",
     "VITE_USE_MOCK_REQUESTS": "false",
-    "VITE_USE_MOCK_SALES": "false"
+    "VITE_USE_MOCK_SALES": "false",
+    "VITE_VAPID_PUBLIC_KEY": "BOjFSpYCptZ0EgkoDFBtrEKe_jd58xeEnN354PxsXoK2jgJVTyo7hPPD0OrAhYVJjttS0nYBeP0J-_phRyl6kY4"
   }
 }

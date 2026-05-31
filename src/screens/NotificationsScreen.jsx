@@ -15,6 +15,7 @@ import { supabase }          from '@services/supabase';
 const TYPE_ROUTE = {
   task_assigned:      '/tasks',
   task_overdue:       '/tasks',
+  task_due_soon:      '/tasks',
   task_completed:     '/tasks',
   task_commented:     '/tasks',
   task_status_change: '/tasks',
@@ -39,7 +40,7 @@ const TABS = [
   { key: 'announcements', label: 'إعلانات',  icon: '📢' },
 ];
 
-const TASK_TYPES  = new Set(['task_assigned','task_overdue','task_completed','task_commented','task_status_change']);
+const TASK_TYPES  = new Set(['task_assigned','task_overdue','task_due_soon','task_completed','task_commented','task_status_change']);
 const ATT_TYPES   = new Set(['attendance_alert','absence_alert','vacation_approved']);
 const SYS_TYPES   = new Set(['payroll_alert','expense_alert','audit_critical','login_failed_alert','role_changed','system_alert','user_mention']);
 

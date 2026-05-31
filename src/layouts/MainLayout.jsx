@@ -16,9 +16,11 @@ import { ToastContainer } from './ToastContainer';
 import { ToastContainer as NotifToastContainer } from '@modules/notifications';
 import { useOnline }             from '@hooks/useOnline';
 import { useCelebrations }        from '@hooks/useCelebrations';
-import { usePushNotifications }   from '@hooks/usePushNotifications';
-import { InstallPrompt }          from '@components/ui/InstallPrompt';
-import { AIAssistantWidget }      from '@components/ai/AIAssistantWidget';
+import { usePushNotifications }      from '@hooks/usePushNotifications';
+import { useTaskDueSoonAlerts }      from '@hooks/useTaskDueSoonAlerts';
+import { useKpiMonthReminder }       from '@hooks/useKpiMonthReminder';
+import { InstallPrompt }             from '@components/ui/InstallPrompt';
+import { AIAssistantWidget }         from '@components/ai/AIAssistantWidget';
 
 export function MainLayout() {
   // attach online listeners once for the whole app
@@ -27,6 +29,10 @@ export function MainLayout() {
   useCelebrations();
   // browser push notifications for chat messages + announcements
   usePushNotifications();
+  // in-app alerts for tasks due in 1–3 days
+  useTaskDueSoonAlerts();
+  // remind managers to enter last month's KPI on days 1–5
+  useKpiMonthReminder();
 
   return (
     <div className="min-h-screen bg-cream text-text flex">

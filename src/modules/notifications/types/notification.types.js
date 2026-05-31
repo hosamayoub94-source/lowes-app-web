@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPE = {
   // Tasks
   TASK_ASSIGNED:      'task_assigned',
   TASK_OVERDUE:       'task_overdue',
+  TASK_DUE_SOON:      'task_due_soon',
   TASK_COMPLETED:     'task_completed',
   TASK_COMMENTED:     'task_commented',
   TASK_STATUS_CHANGE: 'task_status_change',
@@ -31,6 +32,7 @@ export const NOTIFICATION_TYPE = {
 export const TYPE_META = {
   task_assigned:       { icon: '📋', label: 'مهمة جديدة',         colorClass: 'text-blue-fg    bg-blue-bg'   },
   task_overdue:        { icon: '⏰', label: 'مهمة متأخرة',        colorClass: 'text-amber-fg   bg-amber-bg'  },
+  task_due_soon:       { icon: '📅', label: 'موعد قريب',          colorClass: 'text-amber-fg   bg-amber-bg'  },
   task_completed:      { icon: '✅', label: 'مهمة مكتملة',        colorClass: 'text-teal       bg-teal/10'   },
   task_commented:      { icon: '💬', label: 'تعليق جديد',         colorClass: 'text-blue-fg    bg-blue-bg'   },
   task_status_change:  { icon: '🔄', label: 'تغيير حالة مهمة',    colorClass: 'text-blue-fg    bg-blue-bg'   },
@@ -57,6 +59,7 @@ export const NOTIFICATION_SEVERITY = {
 export const TYPE_SEVERITY = {
   task_assigned:       'info',
   task_overdue:        'warning',
+  task_due_soon:       'warning',
   task_completed:      'info',
   task_commented:      'info',
   task_status_change:  'info',

@@ -461,6 +461,16 @@ export default function FieldCRMScreen() {
           onClose={() => { setShowModal(false); setPreselected(null); }}
         />
       )}
+
+      {/* Floating Action Button — always visible for quick visit entry */}
+      <button
+        onClick={() => { setPreselected(null); setShowModal(true); }}
+        className="fixed bottom-24 end-5 z-40 w-14 h-14 rounded-full bg-teal text-white shadow-2xl flex items-center justify-center text-2xl hover:bg-teal/90 active:scale-95 transition-transform md:bottom-8"
+        aria-label="تسجيل زيارة سريعة"
+        title="تسجيل زيارة سريعة"
+      >
+        🚶
+      </button>
     </div>
   );
 }
