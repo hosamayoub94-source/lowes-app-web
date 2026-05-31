@@ -112,7 +112,9 @@ async function updateProfile(id, patch) {
 
 async function insertProfile(payload) {
   const { supabase } = await import('@services/supabase');
-  const { data, error } = await supabase.from('profiles').insert(payload).select().single();
+  // Explicit columns — never select pin/password (revoked from anon role)
+  const { data, error } = await supabase.from('profiles').insert(payload)
+    .select('id, employee_name, role_type, team, is_active').single();
   if (error) throw new Error(error.message);
   return data;
 }

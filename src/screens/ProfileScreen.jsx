@@ -154,7 +154,14 @@ export default function ProfileScreen() {
     const monthStart = monthStr + '-01';
 
     Promise.allSettled([
-      supabase.from('profiles').select('*').eq('id', id).single(),
+      // Explicit columns (never select pin/password — revoked from the anon role)
+      supabase.from('profiles').select(
+        'id, employee_name, team, email, address, job_title, page_name, work_phone, ' +
+        'work_email, bio, avatar_url, birthday, weekly_dayoff, manager_scope, total_points, ' +
+        'role_type, is_active, department, hire_date, join_date, shift_type, shift_start, ' +
+        'shift_end, work_start, work_end, rest_day, phone, personal_email, work_location, ' +
+        'skills, order_role, order_market, face_photo_url, two_fa_enabled, last_login_at'
+      ).eq('id', id).single(),
 
       supabase.from('task_points').select('points')
         .eq('employee_name', name)

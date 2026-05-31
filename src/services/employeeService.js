@@ -4,8 +4,11 @@
 // =============================================================
 import { supabase } from './supabase';
 
+// Never select pin (revoked from anon role)
+const EMP_COLS = 'id, name, team, is_active, created_at';
+
 export async function listEmployees({ activeOnly = true } = {}) {
-  let q = supabase.from('employees').select('*').order('team').order('name');
+  let q = supabase.from('employees').select(EMP_COLS).order('team').order('name');
   if (activeOnly) q = q.eq('is_active', true);
   const { data, error } = await q;
   if (error) throw error;
@@ -15,7 +18,7 @@ export async function listEmployees({ activeOnly = true } = {}) {
 export async function getEmployee(name) {
   const { data, error } = await supabase
     .from('employees')
-    .select('*')
+    .select(EMP_COLS)
     .eq('name', name)
     .maybeSingle();
   if (error) throw error;
@@ -26,7 +29,8 @@ export async function upsertProfile(profile) {
   const { data, error } = await supabase
     .from('profiles')
     .upsert(profile, { onConflict: 'employee_name' })
-    .select()
+    // Explicit columns — never select pin/password (revoked from anon role)
+    .select('id, employee_name, avatar_url, team, role_type')
     .single();
   if (error) throw error;
   return data;

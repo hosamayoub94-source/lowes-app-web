@@ -2,12 +2,12 @@
 // Auth — PIN-based sign-in with Supabase Auth + manual fallback.
 //
 // Flow:
-//   1. Fetch profile + PIN from profiles table (direct comparison)
-//   2. Verify PIN locally (profiles.pin is the source of truth)
-//   3. Try Supabase Auth signInWithPassword (for accounts that exist)
-//   4. If Supabase Auth fails → store manual session in localStorage
-//      (safe: all RLS policies are USING(true), so the anon-key JWT
-//       has full DB access regardless of Supabase Auth state)
+//   1. Verify PIN SERVER-SIDE via the verify-pin Edge Function
+//      (the `pin` column is not readable by the anon key — only the
+//       service role inside the function can read it). The function
+//       returns the profile WITHOUT the pin on success.
+//   2. Try Supabase Auth signInWithPassword (for accounts that exist)
+//   3. If Supabase Auth fails → store manual session in localStorage
 // =============================================================
 import { supabase } from './supabase';
 import { logActivityImmediate } from '@modules/audit/services/auditService';
@@ -18,6 +18,19 @@ export const MANUAL_SESSION_KEY = 'lowes_manual_session';
 
 const synthEmail = (profileId) => `${profileId}@${AUTH_DOMAIN}`;
 const derivePass  = (pin)       => `lp:${String(pin).trim()}`;
+
+// Server-side PIN verification. Returns { ok, profile?, error? }.
+async function verifyPinServerSide(employeeName, pin) {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-pin`, {
+    method:  'POST',
+    headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ employeeName, pin }),
+  });
+  if (!res.ok && res.status >= 500) throw new Error('خطأ في الاتصال بالخادم');
+  return res.json();
+}
 
 // -------------------------------------------------------------
 // Profile lookup
@@ -99,35 +112,24 @@ function _storeManualSession(profile) {
  * session.manual === true when using localStorage fallback.
  */
 export async function signInWithPin(employeeName, pin) {
-  // ── Step 1: Fetch profile + PIN ──────────────────────────────
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, pin')
-    .eq('employee_name', employeeName)
-    .limit(1)
-    .maybeSingle();
+  // ── Step 1+2: Verify PIN server-side (pin never sent to client) ──
+  const result = await verifyPinServerSide(employeeName, pin);
 
-  if (profileErr) throw new Error('خطأ في الاتصال بالخادم');
-  if (!profile)   throw new Error('المستخدم غير موجود');
-
-  // ── Step 2: Verify PIN directly ──────────────────────────────
-  const storedPin  = String(profile.pin  ?? '').trim();
-  const enteredPin = String(pin          ?? '').trim();
-
-  if (!storedPin) {
-    throw new Error('لم يتم تعيين PIN لهذا المستخدم — تواصل مع المدير');
-  }
-  if (storedPin !== enteredPin) {
+  if (!result?.ok) {
+    if (result?.error === 'not_found')  throw new Error('المستخدم غير موجود');
+    if (result?.error === 'no_pin_set') throw new Error('لم يتم تعيين PIN لهذا المستخدم — تواصل مع المدير');
+    // wrong_pin (or anything else) → log + generic message
     logActivityImmediate({
       actionType:  ACTION_TYPE.LOGIN_FAILED,
       entityType:  ENTITY_TYPE.AUTH,
       entityLabel: employeeName,
-      userId:      profile.id || null,
       userName:    employeeName || null,
       metadata:    { reason: 'Wrong PIN' },
     }).catch(() => {});
     throw new Error('PIN غير صحيح');
   }
+
+  const profile = result.profile; // already stripped of pin server-side
 
   // ── Step 3: Try Supabase Auth ─────────────────────────────────
   try {
@@ -144,9 +146,7 @@ export async function signInWithPin(employeeName, pin) {
         userName:    profile.employee_name,
         sessionId:   data.session?.access_token?.slice(0, 20) || null,
       }).catch(() => {});
-      // Return profile without the pin field
-      const { pin: _pin, ...safeProfile } = profile;
-      return { user: data.user, session: data.session, profile: safeProfile };
+      return { user: data.user, session: data.session, profile };
     }
   } catch { /* fall through */ }
 
@@ -165,8 +165,7 @@ export async function signInWithPin(employeeName, pin) {
   }).catch(() => {});
 
   const syntheticSession = { manual: true, user: { id: profile.id } };
-  const { pin: _pin, ...safeProfile } = profile;
-  return { user: syntheticSession.user, session: syntheticSession, profile: safeProfile };
+  return { user: syntheticSession.user, session: syntheticSession, profile };
 }
 
 /** Legacy entry point — delegates to signInWithPin. */
