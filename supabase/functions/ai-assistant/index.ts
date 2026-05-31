@@ -150,7 +150,6 @@ Deno.serve(async (req: Request) => {
     // Fetch employee's live data in parallel
     const today = new Date();
     const dateSlash = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
-    const monthStart = today.toISOString().slice(0, 7) + '-01';
 
     const [tasksRes, attRes, lbRes, kpiRes] = await Promise.allSettled([
       supabase.from('tasks').select('title,status,due_date')
@@ -161,8 +160,10 @@ Deno.serve(async (req: Request) => {
       supabase.from('attendance').select('type,time_in')
         .eq('employee_name', userName).eq('date', dateSlash).in('type', ['in','out']),
 
-      supabase.from('leave_balances').select('total_days,used_days')
-        .eq('employee_id', userId).eq('year', today.getFullYear()).maybeSingle(),
+      // Leave: compute from approved annual leave_requests (same source as the app UI)
+      supabase.from('leave_requests').select('days')
+        .eq('employee_id', userId).eq('type', 'annual').eq('status', 'approved')
+        .gte('start_date', today.getFullYear() + '-01-01'),
 
       supabase.from('employee_kpis').select('total_score,level')
         .eq('employee_id', userId)
@@ -171,7 +172,7 @@ Deno.serve(async (req: Request) => {
 
     const tasks     = tasksRes.status === 'fulfilled' ? (tasksRes.value.data ?? []) : [];
     const attRows   = attRes.status === 'fulfilled'   ? (attRes.value.data ?? [])   : [];
-    const lb        = lbRes.status === 'fulfilled'    ? lbRes.value.data            : null;
+    const leaveRows = lbRes.status === 'fulfilled'    ? (lbRes.value.data ?? [])    : [];
     const kpi       = kpiRes.status === 'fulfilled'   ? kpiRes.value.data           : null;
 
     const inRow  = attRows.find((r: any) => r.type === 'in');
@@ -182,11 +183,13 @@ Deno.serve(async (req: Request) => {
       checkedOut: !!outRow,
       timeOut:    outRow?.time_in ?? null,
     };
-    const leaveBalance = lb ? {
-      total:     lb.total_days ?? lb.annual_days ?? 15,
-      used:      lb.used_days ?? 0,
-      remaining: Math.max(0, (lb.total_days ?? lb.annual_days ?? 15) - (lb.used_days ?? 0)),
-    } : null;
+    const ANNUAL = 15;
+    const usedDays = leaveRows.reduce((s: number, r: any) => s + (Number(r.days) || 0), 0);
+    const leaveBalance = {
+      total:     ANNUAL,
+      used:      usedDays,
+      remaining: Math.max(0, ANNUAL - usedDays),
+    };
 
     const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi });
 

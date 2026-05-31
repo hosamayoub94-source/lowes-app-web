@@ -5,10 +5,10 @@
 // Deploy:
 //   supabase functions deploy send-push --no-verify-jwt
 //
-// Required secrets (Dashboard → Edge Functions → Secrets):
-//   VAPID_PUBLIC_KEY  = BOjFSpYCptZ0EgkoDFBtrEKe_jd58xeEnN354PxsXoK2jgJVTyo7hPPD0OrAhYVJjttS0nYBeP0J-_phRyl6kY4
-//   VAPID_PRIVATE_KEY = wj14OeGO_YKISt_T03cIqr70O9Mv9N7znArXL6oN1a8
-//   VAPID_SUBJECT     = mailto:hosam.ayoub94@gmail.com
+// Required secrets (Dashboard → Edge Functions → Secrets) — values NOT stored here:
+//   VAPID_PUBLIC_KEY   (public key is also in client .env)
+//   VAPID_PRIVATE_KEY  (secret — set in Supabase Secrets only)
+//   VAPID_SUBJECT      = mailto:hosam.ayoub94@gmail.com
 //   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 // =============================================================
 

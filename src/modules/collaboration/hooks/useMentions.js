@@ -10,8 +10,24 @@ import { listEmployees }    from '@services/employeeService';
 // Format: @[Display Name](userId)
 export const buildMentionText = (name, id) => `@[${name}](${id})`;
 
+// Escape any HTML so user-authored comment text can never inject markup
+// when rendered via dangerouslySetInnerHTML. MUST run before we add our
+// own <strong> mention tags.
+const escapeHtml = (str = '') =>
+  str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 export const renderMentions = (content = '') =>
-  content.replace(/@\[([^\]]+)\]\([^)]+\)/g, '<strong class="text-indigo-600">@$1</strong>');
+  // 1) escape the whole string  2) re-style the (already-escaped) mention tokens.
+  // After escaping, `@[Name](id)` stays intact (no HTML chars), so the regex still matches.
+  escapeHtml(content).replace(
+    /@\[([^\]]+)\]\([^)]+\)/g,
+    '<strong class="text-indigo-600">@$1</strong>',
+  );
 
 export const stripMentionSyntax = (content = '') =>
   content.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');

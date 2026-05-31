@@ -4,8 +4,14 @@
 // =============================================================
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_ROLE  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://fghdumrgimoeqsafdhhh.supabase.co';
+// Service-role key bypasses RLS — NEVER hardcode it. Read from env only.
+//   PowerShell:  $env:SUPABASE_SERVICE_ROLE="..."; node scripts/migrate.mjs
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SERVICE_ROLE) {
+  console.error('❌ SUPABASE_SERVICE_ROLE env var is required (key bypasses RLS — never hardcode). Aborting.');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false },

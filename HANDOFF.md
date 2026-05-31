@@ -37,9 +37,12 @@ npm run dev
 | **Supabase Ref** | `fghdumrgimoeqsafdhhh` |
 | **URL** | `https://fghdumrgimoeqsafdhhh.supabase.co` |
 | **Anon Key** | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM` |
-| **Service Role Key** | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs` |
+| **Service Role Key** | ⚠️ **محذوف من هذا الملف لأسباب أمنية** — موجود في Supabase Dashboard → Settings → API |
 
-Service Role يُستخدم فقط في سكريبتات Node.js المحلية (مش في المتصفح).
+> 🔐 **تحذير أمني:** المفتاح القديم كان مكشوفاً في git history. يُفضّل **تدويره (rotate)** من
+> Supabase Dashboard → Settings → API → "Reset service_role key".
+> Service Role يبطل الـ RLS بالكامل — لا يوضع أبداً في كود المتصفح، فقط في سكريبتات Node.js المحلية
+> عبر متغير بيئة `SUPABASE_SERVICE_ROLE` (وليس مكتوباً في الكود).
 
 ---
 
@@ -48,7 +51,7 @@ Service Role يُستخدم فقط في سكريبتات Node.js المحلية 
 | البند | القيمة |
 |-------|--------|
 | **Public Key** | `BOjFSpYCptZ0EgkoDFBtrEKe_jd58xeEnN354PxsXoK2jgJVTyo7hPPD0OrAhYVJjttS0nYBeP0J-_phRyl6kY4` |
-| **Private Key** | `wj14OeGO_YKISt_T03cIqr70O9Mv9N7znArXL6oN1a8` |
+| **Private Key** | ⚠️ **محذوف** — موجود في Supabase → Edge Functions → Secrets كـ `VAPID_PRIVATE_KEY` |
 | **VAPID Subject** | `mailto:hosam.ayoub94@gmail.com` |
 
 **أين كل مفتاح:**
@@ -82,7 +85,7 @@ Service Role يُستخدم فقط في سكريبتات Node.js المحلية 
 ```env
 VITE_SUPABASE_URL=https://fghdumrgimoeqsafdhhh.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM
-SUPABASE_SERVICE_ROLE=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs
+# SUPABASE_SERVICE_ROLE — لا يوضع هنا. صدّره كمتغير بيئة عند الحاجة فقط (سكريبتات محلية)
 
 VITE_USE_MOCK_TASKS=false
 VITE_USE_MOCK_ATTENDANCE=false
@@ -473,7 +476,7 @@ resolve: {
 - **hook:** `src/hooks/usePushNotifications.js`
 - **الجدول:** `push_subscriptions`
 - **Edge Function:** مُضبوطة في Supabase مع:
-  - `VAPID_PRIVATE_KEY=wj14OeGO_YKISt_T03cIqr70O9Mv9N7znArXL6oN1a8`
+  - `VAPID_PRIVATE_KEY` → ⚠️ محذوف من هنا، موجود في Supabase Secrets فقط
   - `VAPID_SUBJECT=mailto:hosam.ayoub94@gmail.com`
   - `VAPID_PUBLIC_KEY=BOjFSpYCptZ0EgkoDFBtrEKe_jd58xeEnN354PxsXoK2jgJVTyo7hPPD0OrAhYVJjttS0nYBeP0J-_phRyl6kY4`
 

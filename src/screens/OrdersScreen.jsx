@@ -2,7 +2,7 @@
 // OrdersScreen — نظام إدارة الطلبات
 // تركيا 🇹🇷 + سوريا 🇸🇾
 // =============================================================
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';

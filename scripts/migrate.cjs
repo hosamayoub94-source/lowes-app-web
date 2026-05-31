@@ -4,8 +4,12 @@
 // =============================================================
 const { Client } = require('pg');
 
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
+// Service-role key bypasses RLS — read from env only, never hardcode.
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SERVICE_ROLE) {
+  console.error('❌ SUPABASE_SERVICE_ROLE env var is required. Aborting.');
+  process.exit(1);
+}
 const REF = 'fghdumrgimoeqsafdhhh';
 
 // Connection configs to try in order
