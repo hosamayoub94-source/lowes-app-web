@@ -118,23 +118,38 @@ export function AIAssistantWidget() {
 
     try {
       // Fetch today's visits count for richer context
-      const today = new Date().toISOString().slice(0,10);
-      const { count: todayVisits } = await supabase
-        .from('crm_visits').select('id', { count: 'exact', head: true })
-        .eq('rep_id', userId).eq('visit_date', today).catch(() => ({ count: null }));
+      let todayVisits = 0;
+      try {
+        const today = new Date().toISOString().slice(0,10);
+        const { count } = await supabase.from('crm_visits')
+          .select('id', { count: 'exact', head: true })
+          .eq('rep_id', userId).eq('visit_date', today);
+        todayVisits = count ?? 0;
+      } catch {}
 
-      const { data, error: fnErr } = await supabase.functions.invoke('ai-assistant', {
-        body: {
-          messages:  history,
+      // Use direct fetch — supabase.functions.invoke needs Supabase Auth
+      // but this app uses PIN auth, so we call the Edge Function directly
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ANON_KEY}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          messages:    history,
           userId,
           userName,
-          userRole:  role,
+          userRole:    role,
           isManager,
-          todayVisits: todayVisits ?? 0,
-        },
+          todayVisits,
+        }),
       });
 
-      if (fnErr) throw fnErr;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
 
       const reply = data?.reply ?? 'عذراً، لم أستطع المعالجة. حاول مجدداً.';
 
