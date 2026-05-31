@@ -67,5 +67,7 @@ function mapProfileToSession(profile) {
     team: profile.team,
     manager_scope: profile.manager_scope,
     avatar_url: profile.avatar_url,
+    order_role:   profile.order_role   ?? null,
+    order_market: profile.order_market ?? null,
   };
 }

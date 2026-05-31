@@ -9,12 +9,29 @@ import { ROLES }    from '@data/teams';
 
 // ── Constants ────────────────────────────────────────────────
 const STATUSES = {
-  pending:   { label: 'بالانتظار',   icon: '⏳', bg: 'bg-surface-alt',   text: 'text-muted',      border: 'border-border'        },
-  preparing: { label: 'في التجهيز',  icon: '📦', bg: 'bg-amber-bg',      text: 'text-amber-fg',   border: 'border-amber/30'      },
-  shipped:   { label: 'في النقل',    icon: '🚚', bg: 'bg-blue-100',      text: 'text-blue-700',   border: 'border-blue-200'      },
-  delivered: { label: 'تم التوصيل', icon: '✅', bg: 'bg-green-bg',      text: 'text-green-fg',   border: 'border-green/30'      },
-  cancelled: { label: 'ملغي',        icon: '❌', bg: 'bg-red-bg',        text: 'text-red-fg',     border: 'border-red/30'        },
+  pending:   { label: 'وارد جديد',    icon: '📥', bg: 'bg-surface-alt',  text: 'text-muted',    border: 'border-border'   },
+  preparing: { label: 'قيد التجهيز',  icon: '📦', bg: 'bg-amber-bg',     text: 'text-amber-fg', border: 'border-amber/30' },
+  ready:     { label: 'جاهز للشحن',   icon: '🚀', bg: 'bg-violet-100',   text: 'text-violet-700', border: 'border-violet-200' },
+  shipped:   { label: 'في الشحن',     icon: '🚚', bg: 'bg-blue-100',     text: 'text-blue-700', border: 'border-blue-200' },
+  delivered: { label: 'تم التوصيل',  icon: '✅', bg: 'bg-green-bg',     text: 'text-green-fg', border: 'border-green/30' },
+  cancelled: { label: 'ملغي',         icon: '❌', bg: 'bg-red-bg',       text: 'text-red-fg',   border: 'border-red/30'   },
 };
+
+// Team → market mapping
+const TEAM_MARKET = {
+  'تركيا': 'turkey',
+  'تيم تركيا': 'turkey',
+  'سوريا': 'syria',
+  'تيم سوريا': 'syria',
+};
+
+function teamToMarket(team) {
+  if (!team) return null;
+  for (const [k,v] of Object.entries(TEAM_MARKET)) {
+    if (team.includes(k.replace('تيم ',''))) return v;
+  }
+  return null;
+}
 
 const SYRIA_COMPANIES  = ['شركة الكرم','سامتاك','ضد الدفع','واصل','أخرى'];
 const TURKEY_COMPANIES = ['yurtiçi','Aras','ptt','توصيل الموتور','أخرى'];
@@ -81,16 +98,15 @@ function StatusBadge({ status, size = 'sm' }) {
 }
 
 // ── Order Card ─────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, onEdit }) {
+function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
   const [changing, setChanging] = useState(false);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
   const itemsSummary = (order.items ?? []).slice(0,3).map(i => `${i.name} ×${i.qty}`).join(' · ');
   const moreItems = (order.items ?? []).length - 3;
 
-  const nextStatus = {
-    pending: 'preparing', preparing: 'shipped', shipped: 'delivered', delivered: null, cancelled: null,
-  }[order.status];
+  const NEXT = { pending:'preparing', preparing:'ready', ready:'shipped', shipped:'delivered', delivered:null, cancelled:null };
+  const nextStatus = canAdvance ? NEXT[order.status] : null;
 
   const handleAdvance = async () => {
     if (!nextStatus || changing) return;
@@ -450,27 +466,33 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
 // Main Screen
 // ══════════════════════════════════════════════════════════════
 export default function OrdersScreen() {
-  const { role } = useAuth();
-  const isManager = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
+  const { role, team, order_role, order_market } = useAuth();
 
-  const [orders,   setOrders]   = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [market,   setMarket]   = useState('all');
-  const [status,   setStatus]   = useState('all');
-  const [search,   setSearch]   = useState('');
-  const [modal,    setModal]    = useState(null); // null | 'new' | order_obj
+  const isManager     = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
+  const isFulfillment = order_role === 'fulfillment';
+  // Market this user can see
+  const userMarket    = order_market ?? teamToMarket(team) ?? null;
+  // Fulfillment workers can advance status; managers can advance; sales cannot
+  const canAdvanceOrders = isFulfillment || isManager;
+
+  const [orders,  setOrders]  = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [market,  setMarket]  = useState(userMarket ?? 'all');
+  const [status,  setStatus]  = useState(isFulfillment ? 'pending' : 'all');
+  const [search,  setSearch]  = useState('');
+  const [modal,   setModal]   = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('orders')
-        .select('*')
-        .order('order_date', { ascending: false });
+      let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
+      // Non-managers only see their market
+      if (!isManager && userMarket) q = q.eq('market', userMarket);
+      const { data } = await q;
       setOrders(data ?? []);
     } catch {}
     finally { setLoading(false); }
-  }, []);
+  }, [isManager, userMarket]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -511,8 +533,11 @@ export default function OrdersScreen() {
   const stats = useMemo(() => ({
     total:     orders.length,
     pending:   orders.filter(o => o.status === 'pending').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    ready:     orders.filter(o => o.status === 'ready').length,
     shipped:   orders.filter(o => o.status === 'shipped').length,
     delivered: orders.filter(o => o.status === 'delivered').length,
+    actionable: orders.filter(o => ['pending','preparing','ready'].includes(o.status)).length,
   }), [orders]);
 
   return (
@@ -521,44 +546,71 @@ export default function OrdersScreen() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-extrabold text-text">إدارة الطلبات</h1>
-          <p className="text-xs text-muted mt-0.5">{stats.total} طلب إجمالي · {stats.pending} بالانتظار · {stats.shipped} في الطريق</p>
+          <h1 className="text-xl font-extrabold text-text">
+            {isFulfillment ? '📦 طلبات التجهيز' : 'إدارة الطلبات'}
+          </h1>
+          <p className="text-xs text-muted mt-0.5">
+            {isFulfillment
+              ? `${stats.actionable} طلب يحتاج عملك · ${stats.delivered} تم توصيله`
+              : `${stats.total} طلب · ${stats.pending} وارد · ${stats.shipped} في الشحن`}
+          </p>
         </div>
-        <button onClick={() => setModal('new')}
-          className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
-          + طلب جديد
-        </button>
+        {!isFulfillment && (
+          <button onClick={() => setModal('new')}
+            className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
+            + طلب جديد
+          </button>
+        )}
       </div>
+
+      {/* Fulfillment banner */}
+      {isFulfillment && stats.pending > 0 && (
+        <div className="bg-amber-bg border border-amber/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <span className="text-2xl">📥</span>
+          <div>
+            <p className="text-sm font-bold text-amber-fg">{stats.pending} طلب وارد ينتظر التجهيز</p>
+            <p className="text-xs text-muted">اضغط على الطلب للبدء بالفرز والتغليف</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: 'انتظار',  value: stats.pending,   color: 'text-muted',      bg: 'bg-surface-alt' },
-          { label: 'تجهيز+نقل', value: orders.filter(o=>['preparing','shipped'].includes(o.status)).length, color: 'text-blue-700', bg: 'bg-blue-50' },
-          { label: 'وصل',    value: stats.delivered, color: 'text-green-fg',   bg: 'bg-green-bg'   },
-          { label: 'ملغي',   value: orders.filter(o=>o.status==='cancelled').length, color: 'text-red-fg', bg: 'bg-red-bg' },
+          { label: 'وارد',     value: stats.pending,   color: 'text-muted',      bg: 'bg-surface-alt',
+            onClick: () => setStatus('pending')  },
+          { label: 'تجهيز',   value: stats.preparing + stats.ready,
+            color: 'text-amber-fg', bg: 'bg-amber-bg',
+            onClick: () => setStatus('preparing') },
+          { label: 'شحن',      value: stats.shipped,   color: 'text-blue-700',   bg: 'bg-blue-50',
+            onClick: () => setStatus('shipped')  },
+          { label: 'وصل',      value: stats.delivered, color: 'text-green-fg',   bg: 'bg-green-bg',
+            onClick: () => setStatus('delivered') },
         ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-2xl p-3 text-center`}>
+          <button key={s.label} onClick={s.onClick}
+            className={`${s.bg} rounded-2xl p-3 text-center hover:opacity-80 transition cursor-pointer`}>
             <p className={`text-xl font-extrabold tabular-nums ${s.color}`}>{s.value}</p>
             <p className="text-[10px] text-muted mt-0.5 font-medium">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Market tabs */}
-      <div className="flex gap-2">
-        {[
-          { key: 'all',    label: 'الكل',   icon: '🌍' },
-          { key: 'turkey', label: 'تركيا',  icon: '🇹🇷' },
-          { key: 'syria',  label: 'سوريا',  icon: '🇸🇾' },
-        ].map(m => (
-          <button key={m.key} onClick={() => setMarket(m.key)}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
-              ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
-            {m.icon} {m.label}
           </button>
         ))}
       </div>
+
+      {/* Market tabs — managers only */}
+      {isManager && (
+        <div className="flex gap-2">
+          {[
+            { key: 'all',    label: 'الكل',   icon: '🌍' },
+            { key: 'turkey', label: 'تركيا',  icon: '🇹🇷' },
+            { key: 'syria',  label: 'سوريا',  icon: '🇸🇾' },
+          ].map(m => (
+            <button key={m.key} onClick={() => setMarket(m.key)}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+                ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
+              {m.icon} {m.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Status filter */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -599,6 +651,7 @@ export default function OrdersScreen() {
         <div className="space-y-3">
           {filtered.map(o => (
             <OrderCard key={o.id} order={o}
+              canAdvance={canAdvanceOrders}
               onStatusChange={handleStatusChange}
               onEdit={(o) => setModal(o)} />
           ))}

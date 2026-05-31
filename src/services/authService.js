@@ -27,7 +27,7 @@ const derivePass  = (pin)       => `lp:${String(pin).trim()}`;
 export async function getProfile(employeeName) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market')
     .eq('employee_name', employeeName)
     .limit(1)
     .maybeSingle();
@@ -39,7 +39,7 @@ export async function getProfile(employeeName) {
 export async function getProfileById(profileId) {
   const { data } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market')
     .eq('id', profileId)
     .maybeSingle();
   return data || null;
@@ -49,7 +49,7 @@ export async function getProfileById(profileId) {
 export async function listActiveProfiles({ roleType } = {}) {
   let q = supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market')
     .eq('is_active', true)
     .order('employee_name');
   if (roleType) q = q.eq('role_type', roleType);
@@ -102,7 +102,7 @@ export async function signInWithPin(employeeName, pin) {
   // ── Step 1: Fetch profile + PIN ──────────────────────────────
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, pin')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, pin')
     .eq('employee_name', employeeName)
     .limit(1)
     .maybeSingle();
@@ -241,7 +241,7 @@ export async function getMyProfile() {
   // Primary: lookup by user.id
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+    .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market')
     .eq('id', user.id)
     .maybeSingle();
   if (!error && data) return data;
@@ -252,7 +252,7 @@ export async function getMyProfile() {
     const profileId = user.email.split('@')[0];
     const { data: data2 } = await supabase
       .from('profiles')
-      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active')
+      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market')
       .eq('id', profileId)
       .maybeSingle();
     if (data2) return data2;
