@@ -1,0 +1,626 @@
+// =============================================================
+// OrdersScreen — نظام إدارة الطلبات
+// تركيا 🇹🇷 + سوريا 🇸🇾
+// =============================================================
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { supabase } from '@services/supabase';
+import { useAuth }  from '@hooks/useAuth';
+import { ROLES }    from '@data/teams';
+
+// ── Constants ────────────────────────────────────────────────
+const STATUSES = {
+  pending:   { label: 'بالانتظار',   icon: '⏳', bg: 'bg-surface-alt',   text: 'text-muted',      border: 'border-border'        },
+  preparing: { label: 'في التجهيز',  icon: '📦', bg: 'bg-amber-bg',      text: 'text-amber-fg',   border: 'border-amber/30'      },
+  shipped:   { label: 'في النقل',    icon: '🚚', bg: 'bg-blue-100',      text: 'text-blue-700',   border: 'border-blue-200'      },
+  delivered: { label: 'تم التوصيل', icon: '✅', bg: 'bg-green-bg',      text: 'text-green-fg',   border: 'border-green/30'      },
+  cancelled: { label: 'ملغي',        icon: '❌', bg: 'bg-red-bg',        text: 'text-red-fg',     border: 'border-red/30'        },
+};
+
+const SYRIA_COMPANIES  = ['شركة الكرم','سامتاك','ضد الدفع','واصل','أخرى'];
+const TURKEY_COMPANIES = ['yurtiçi','Aras','ptt','توصيل الموتور','أخرى'];
+const CURRENCIES       = ['TRY','SYP','USD'];
+const PICKUP_TYPES     = ['عنوان منزل','استلام من المركز'];
+
+const TRACKING_URLS = {
+  'yurtiçi': (n) => `https://yurticikargo.com/tr/online-islemler/gonderi-sorgula?code=${n}`,
+  'Aras':     (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
+  'ptt':      (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
+};
+
+function waLink(phone, market) {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g,'');
+  if (market === 'turkey') return `https://wa.me/90${digits.replace(/^0/,'')}`;
+  return `https://wa.me/963${digits.replace(/^0/,'')}`;
+}
+
+function trackingLink(company, number) {
+  if (!number || !company) return null;
+  const fn = TRACKING_URLS[company];
+  return fn ? fn(number) : null;
+}
+
+function nextOrderId(market, orders) {
+  const prefix = market === 'syria' ? 'SA-' : 'S';
+  const existing = orders
+    .filter(o => o.market === market && o.order_id)
+    .map(o => {
+      const m = o.order_id.match(/\d+$/);
+      return m ? parseInt(m[0], 10) : 0;
+    });
+  const max = existing.length ? Math.max(...existing) : 0;
+  const next = String(max + 1);
+  const now  = new Date();
+  const month = now.getMonth() + 1;
+  if (market === 'syria') return `${month}${prefix}${next}`;
+  return `${month}${prefix}${next}`;
+}
+
+const EMPTY_FORM = {
+  market: 'turkey', order_id: '', order_date: new Date().toISOString().slice(0,16),
+  handler_name: '', status: 'pending', notes: '',
+  customer_name: '', phone_1: '', phone_2: '', wa_number: '',
+  city: '', district: '', address: '',
+  amount: '', currency: 'TRY', payment_method: 'دفع عند الباب', payment_status: 'unpaid',
+  shipping_company: 'yurtiçi', pickup_type: 'عنوان منزل', tracking_number: '',
+};
+
+const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 placeholder:text-muted/50';
+const LBL = 'text-xs font-bold text-muted block mb-1.5';
+
+// ── Status Badge ──────────────────────────────────────────────
+function StatusBadge({ status, size = 'sm' }) {
+  const s = STATUSES[status] ?? STATUSES.pending;
+  return (
+    <span className={`inline-flex items-center gap-1 font-bold border rounded-full
+      ${size === 'sm' ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-1'}
+      ${s.bg} ${s.text} ${s.border}`}>
+      {s.icon} {s.label}
+    </span>
+  );
+}
+
+// ── Order Card ─────────────────────────────────────────────────
+function OrderCard({ order, onStatusChange, onEdit }) {
+  const [changing, setChanging] = useState(false);
+  const wa   = waLink(order.wa_number || order.phone_1, order.market);
+  const tUrl = trackingLink(order.shipping_company, order.tracking_number);
+  const itemsSummary = (order.items ?? []).slice(0,3).map(i => `${i.name} ×${i.qty}`).join(' · ');
+  const moreItems = (order.items ?? []).length - 3;
+
+  const nextStatus = {
+    pending: 'preparing', preparing: 'shipped', shipped: 'delivered', delivered: null, cancelled: null,
+  }[order.status];
+
+  const handleAdvance = async () => {
+    if (!nextStatus || changing) return;
+    setChanging(true);
+    await onStatusChange(order.id, nextStatus);
+    setChanging(false);
+  };
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-3 active:scale-[0.99] transition-transform">
+      {/* Top row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {order.order_id}</span>
+            <StatusBadge status={order.status} />
+          </div>
+          <p className="text-sm font-bold text-text mt-1 truncate">{order.customer_name}</p>
+          {order.city && <p className="text-[11px] text-muted">{order.city}{order.district ? ` · ${order.district}` : ''}</p>}
+        </div>
+        <div className="flex gap-1 shrink-0">
+          {wa && (
+            <a href={wa} target="_blank" rel="noreferrer"
+              className="w-8 h-8 rounded-xl bg-green-bg flex items-center justify-center text-green-fg hover:opacity-80 transition">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.138.561 4.14 1.541 5.876L.057 23.886a.5.5 0 00.606.617l6.218-1.632A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.901 0-3.68-.498-5.22-1.371l-.374-.22-3.878 1.018 1.034-3.776-.241-.389A9.96 9.96 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+              </svg>
+            </a>
+          )}
+          {tUrl && (
+            <a href={tUrl} target="_blank" rel="noreferrer"
+              className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 text-xs hover:opacity-80 transition font-bold">
+              تتبع
+            </a>
+          )}
+          <button onClick={() => onEdit(order)}
+            className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition text-sm">
+            ✏️
+          </button>
+        </div>
+      </div>
+
+      {/* Items */}
+      <p className="text-[11px] text-muted leading-relaxed">
+        📦 {itemsSummary || 'لا توجد منتجات'}
+        {moreItems > 0 && <span className="text-teal font-semibold"> +{moreItems} أخرى</span>}
+      </p>
+
+      {/* Bottom row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {order.amount > 0 && (
+            <span className="text-xs font-bold text-text">
+              {order.amount} {order.currency}
+            </span>
+          )}
+          <span className={`text-[10px] font-semibold ${order.payment_status === 'paid' ? 'text-green-fg' : 'text-amber-fg'}`}>
+            {order.payment_status === 'paid' ? '💰 مدفوع' : '⏳ غير مدفوع'}
+          </span>
+        </div>
+        {nextStatus && (
+          <button onClick={handleAdvance} disabled={changing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition disabled:opacity-40">
+            {changing ? '…' : `${STATUSES[nextStatus].icon} ${STATUSES[nextStatus].label}`}
+          </button>
+        )}
+      </div>
+
+      {/* Handler + date */}
+      <div className="flex items-center justify-between pt-1 border-t border-border/40">
+        <span className="text-[10px] text-muted">{order.handler_name || '—'}</span>
+        <span className="text-[10px] text-muted">
+          {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day:'numeric', month:'short' }) : '—'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Item Row in form ──────────────────────────────────────────
+function ItemRow({ item, index, onChange, onRemove }) {
+  return (
+    <div className="flex gap-2 items-center">
+      <input
+        value={item.name} onChange={e => onChange(index, 'name', e.target.value)}
+        placeholder="اسم المنتج"
+        className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+      />
+      <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0">
+        <button onClick={() => onChange(index, 'qty', Math.max(1, item.qty - 1))}
+          className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">−</button>
+        <span className="px-2 text-sm font-bold text-text tabular-nums min-w-[1.5rem] text-center">{item.qty}</span>
+        <button onClick={() => onChange(index, 'qty', item.qty + 1)}
+          className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">+</button>
+      </div>
+      <button onClick={() => onRemove(index)}
+        className="w-8 h-8 rounded-xl bg-red-bg text-red-fg flex items-center justify-center text-xs hover:opacity-80 transition shrink-0">
+        🗑
+      </button>
+    </div>
+  );
+}
+
+// ── Order Form Modal ──────────────────────────────────────────
+function OrderFormModal({ order, onClose, onSave, allOrders }) {
+  const { name: userName } = useAuth();
+  const isEdit = !!order?.id;
+
+  const [form, setForm] = useState(isEdit ? {
+    market:           order.market,
+    order_id:         order.order_id         ?? '',
+    order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    handler_name:     order.handler_name     ?? userName ?? '',
+    status:           order.status           ?? 'pending',
+    notes:            order.notes            ?? '',
+    customer_name:    order.customer_name    ?? '',
+    phone_1:          order.phone_1          ?? '',
+    phone_2:          order.phone_2          ?? '',
+    wa_number:        order.wa_number        ?? '',
+    city:             order.city             ?? '',
+    district:         order.district         ?? '',
+    address:          order.address          ?? '',
+    amount:           order.amount           ?? '',
+    currency:         order.currency         ?? 'TRY',
+    payment_method:   order.payment_method   ?? 'دفع عند الباب',
+    payment_status:   order.payment_status   ?? 'unpaid',
+    shipping_company: order.shipping_company ?? 'yurtiçi',
+    pickup_type:      order.pickup_type      ?? 'عنوان منزل',
+    tracking_number:  order.tracking_number  ?? '',
+  } : { ...EMPTY_FORM, handler_name: userName ?? '' });
+
+  const [items,  setItems]  = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
+  const [saving, setSaving] = useState(false);
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // When market changes, reset shipping company and currency
+  const handleMarketChange = (market) => {
+    set('market', market);
+    set('currency', market === 'turkey' ? 'TRY' : 'SYP');
+    set('shipping_company', market === 'turkey' ? 'yurtiçi' : 'شركة الكرم');
+    set('payment_method', market === 'turkey' ? 'دفع عند الباب' : 'دفع عند الاستلام');
+    if (!isEdit) {
+      set('order_id', nextOrderId(market, allOrders));
+    }
+  };
+
+  // Auto-suggest order ID on mount for new orders
+  useEffect(() => {
+    if (!isEdit && !form.order_id) {
+      set('order_id', nextOrderId(form.market, allOrders));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addItem    = () => setItems(p => [...p, { name: '', qty: 1 }]);
+  const removeItem = (i) => setItems(p => p.filter((_, idx) => idx !== i));
+  const changeItem = (i, k, v) => setItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+
+  const handleSave = async () => {
+    if (!form.customer_name.trim()) return;
+    setSaving(true);
+    const payload = {
+      ...form,
+      amount:     form.amount ? Number(form.amount) : null,
+      order_date: new Date(form.order_date).toISOString(),
+      items:      items.filter(i => i.name.trim()),
+    };
+    try { await onSave(payload, order?.id); }
+    finally { setSaving(false); }
+  };
+
+  const companies = form.market === 'turkey' ? TURKEY_COMPANIES : SYRIA_COMPANIES;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-surface rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto"
+        dir="rtl" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between shrink-0 bg-gradient-to-r from-navy/5 to-transparent">
+          <div>
+            <h3 className="font-bold text-base text-text">{isEdit ? '✏️ تعديل طلب' : '+ طلب جديد'}</h3>
+            {isEdit && <p className="text-xs text-muted mt-0.5">{order.order_id}</p>}
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted">✕</button>
+        </div>
+
+        <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
+
+          {/* Market */}
+          <div className="flex gap-2">
+            {[
+              { key: 'turkey', label: 'تركيا', flag: '🇹🇷' },
+              { key: 'syria',  label: 'سوريا', flag: '🇸🇾' },
+            ].map(m => (
+              <button key={m.key} onClick={() => handleMarketChange(m.key)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
+                  ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
+                {m.flag} {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Order Info */}
+          <div className="space-y-3">
+            <p className="text-xs font-extrabold text-muted uppercase tracking-wider">📋 معلومات الطلب</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LBL}>رقم الطلب</label>
+                <input value={form.order_id} onChange={e => set('order_id', e.target.value)} className={INP} placeholder="5S100" />
+              </div>
+              <div>
+                <label className={LBL}>البائع / Handler</label>
+                <input value={form.handler_name} onChange={e => set('handler_name', e.target.value)} className={INP} placeholder="الاسم" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LBL}>التاريخ</label>
+                <input type="datetime-local" value={form.order_date} onChange={e => set('order_date', e.target.value)} className={INP} />
+              </div>
+              <div>
+                <label className={LBL}>الحالة</label>
+                <select value={form.status} onChange={e => set('status', e.target.value)} className={INP}>
+                  {Object.entries(STATUSES).map(([k, v]) => (
+                    <option key={k} value={k}>{v.icon} {v.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer */}
+          <div className="space-y-3">
+            <p className="text-xs font-extrabold text-muted uppercase tracking-wider">👤 العميل</p>
+            <input value={form.customer_name} onChange={e => set('customer_name', e.target.value)} className={INP} placeholder="اسم العميل *" />
+            <div className="grid grid-cols-2 gap-3">
+              <input value={form.phone_1} onChange={e => set('phone_1', e.target.value)} className={INP} placeholder="الهاتف 1" />
+              <input value={form.phone_2} onChange={e => set('phone_2', e.target.value)} className={INP} placeholder="الهاتف 2" />
+            </div>
+            <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
+              placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
+            <div className={`grid gap-3 ${form.market === 'turkey' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <input value={form.city} onChange={e => set('city', e.target.value)} className={INP} placeholder="المدينة" />
+              {form.market === 'turkey' && (
+                <input value={form.district} onChange={e => set('district', e.target.value)} className={INP} placeholder="المنطقة / الحي" />
+              )}
+            </div>
+            <input value={form.address} onChange={e => set('address', e.target.value)} className={INP} placeholder="العنوان التفصيلي" />
+          </div>
+
+          {/* Products */}
+          <div className="space-y-3">
+            <p className="text-xs font-extrabold text-muted uppercase tracking-wider">📦 المنتجات</p>
+            {items.map((item, i) => (
+              <ItemRow key={i} item={item} index={i} onChange={changeItem} onRemove={removeItem} />
+            ))}
+            <button onClick={addItem}
+              className="w-full py-2 rounded-xl border-2 border-dashed border-teal/30 text-teal text-sm font-semibold hover:border-teal/60 hover:bg-teal/5 transition">
+              + أضف منتج
+            </button>
+          </div>
+
+          {/* Financial */}
+          <div className="space-y-3">
+            <p className="text-xs font-extrabold text-muted uppercase tracking-wider">💰 المالية</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className={LBL}>المبلغ</label>
+                <input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} className={INP} placeholder="0" />
+              </div>
+              <div>
+                <label className={LBL}>العملة</label>
+                {form.market === 'turkey' ? (
+                  <div className="border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-muted">TRY</div>
+                ) : (
+                  <select value={form.currency} onChange={e => set('currency', e.target.value)} className={INP}>
+                    {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LBL}>طريقة الدفع</label>
+                <input value={form.payment_method} onChange={e => set('payment_method', e.target.value)} className={INP} />
+              </div>
+              <div>
+                <label className={LBL}>حالة الدفع</label>
+                <select value={form.payment_status} onChange={e => set('payment_status', e.target.value)} className={INP}>
+                  <option value="unpaid">⏳ غير مدفوع</option>
+                  <option value="paid">💰 مدفوع</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Shipping */}
+          <div className="space-y-3">
+            <p className="text-xs font-extrabold text-muted uppercase tracking-wider">🚚 الشحن</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LBL}>شركة الشحن</label>
+                <select value={form.shipping_company} onChange={e => set('shipping_company', e.target.value)} className={INP}>
+                  {companies.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LBL}>نوع الاستلام</label>
+                <select value={form.pickup_type} onChange={e => set('pickup_type', e.target.value)} className={INP}>
+                  {PICKUP_TYPES.map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            {form.market === 'turkey' && (
+              <div>
+                <label className={LBL}>رقم التتبع</label>
+                <div className="flex gap-2">
+                  <input value={form.tracking_number} onChange={e => set('tracking_number', e.target.value)}
+                    className={`${INP} flex-1`} placeholder="6422898622431" />
+                  {form.tracking_number && trackingLink(form.shipping_company, form.tracking_number) && (
+                    <a href={trackingLink(form.shipping_company, form.tracking_number)}
+                      target="_blank" rel="noreferrer"
+                      className="px-3 py-2 rounded-xl bg-blue-100 text-blue-700 text-xs font-bold hover:opacity-80 transition shrink-0">
+                      🔍 تتبع
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={LBL}>ملاحظات</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              rows={2} className={`${INP} resize-none`} placeholder="أي ملاحظة على الطلب..." />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 px-5 py-4 border-t border-border/40 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
+          <button onClick={handleSave} disabled={!form.customer_name.trim() || saving}
+            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            {saving ? '…جاري الحفظ' : isEdit ? '✓ حفظ التعديلات' : '✓ إنشاء الطلب'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Main Screen
+// ══════════════════════════════════════════════════════════════
+export default function OrdersScreen() {
+  const { role } = useAuth();
+  const isManager = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
+
+  const [orders,   setOrders]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [market,   setMarket]   = useState('all');
+  const [status,   setStatus]   = useState('all');
+  const [search,   setSearch]   = useState('');
+  const [modal,    setModal]    = useState(null); // null | 'new' | order_obj
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .order('order_date', { ascending: false });
+      setOrders(data ?? []);
+    } catch {}
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleStatusChange = async (id, newStatus) => {
+    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
+  };
+
+  const handleSave = async (form, existingId) => {
+    if (existingId) {
+      await supabase.from('orders').update(form).eq('id', existingId);
+    } else {
+      await supabase.from('orders').insert(form);
+    }
+    setModal(null);
+    load();
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('حذف هذا الطلب؟')) return;
+    await supabase.from('orders').delete().eq('id', id);
+    setOrders(p => p.filter(o => o.id !== id));
+  };
+
+  const filtered = useMemo(() => orders.filter(o => {
+    if (market !== 'all' && o.market !== market) return false;
+    if (status !== 'all' && o.status !== status) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return o.customer_name?.toLowerCase().includes(q) ||
+             o.order_id?.toLowerCase().includes(q) ||
+             o.phone_1?.includes(q);
+    }
+    return true;
+  }), [orders, market, status, search]);
+
+  // Stats
+  const stats = useMemo(() => ({
+    total:     orders.length,
+    pending:   orders.filter(o => o.status === 'pending').length,
+    shipped:   orders.filter(o => o.status === 'shipped').length,
+    delivered: orders.filter(o => o.status === 'delivered').length,
+  }), [orders]);
+
+  return (
+    <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold text-text">إدارة الطلبات</h1>
+          <p className="text-xs text-muted mt-0.5">{stats.total} طلب إجمالي · {stats.pending} بالانتظار · {stats.shipped} في الطريق</p>
+        </div>
+        <button onClick={() => setModal('new')}
+          className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
+          + طلب جديد
+        </button>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'انتظار',  value: stats.pending,   color: 'text-muted',      bg: 'bg-surface-alt' },
+          { label: 'تجهيز+نقل', value: orders.filter(o=>['preparing','shipped'].includes(o.status)).length, color: 'text-blue-700', bg: 'bg-blue-50' },
+          { label: 'وصل',    value: stats.delivered, color: 'text-green-fg',   bg: 'bg-green-bg'   },
+          { label: 'ملغي',   value: orders.filter(o=>o.status==='cancelled').length, color: 'text-red-fg', bg: 'bg-red-bg' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-2xl p-3 text-center`}>
+            <p className={`text-xl font-extrabold tabular-nums ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-muted mt-0.5 font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Market tabs */}
+      <div className="flex gap-2">
+        {[
+          { key: 'all',    label: 'الكل',   icon: '🌍' },
+          { key: 'turkey', label: 'تركيا',  icon: '🇹🇷' },
+          { key: 'syria',  label: 'سوريا',  icon: '🇸🇾' },
+        ].map(m => (
+          <button key={m.key} onClick={() => setMarket(m.key)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+              ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
+            {m.icon} {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Status filter */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        <button onClick={() => setStatus('all')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition
+            ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
+          الكل
+        </button>
+        {Object.entries(STATUSES).map(([k, v]) => (
+          <button key={k} onClick={() => setStatus(k)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition border
+              ${status === k ? `${v.bg} ${v.text} ${v.border}` : 'bg-surface border-border text-muted'}`}>
+            {v.icon} {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+
+      {/* List */}
+      {loading ? (
+        <div className="space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
+          <p className="text-4xl mb-3">📋</p>
+          <p className="text-sm font-bold">لا توجد طلبات</p>
+          <button onClick={() => setModal('new')}
+            className="mt-4 px-4 py-2 rounded-xl bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition">
+            + أضف أول طلب
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(o => (
+            <OrderCard key={o.id} order={o}
+              onStatusChange={handleStatusChange}
+              onEdit={(o) => setModal(o)} />
+          ))}
+        </div>
+      )}
+
+      {/* FAB */}
+      <button onClick={() => setModal('new')}
+        className="fixed bottom-24 end-5 z-40 w-14 h-14 rounded-full bg-navy text-white shadow-2xl flex items-center justify-center text-2xl hover:bg-navy/90 active:scale-95 transition-transform md:bottom-8"
+        aria-label="طلب جديد">
+        +
+      </button>
+
+      {/* Modal */}
+      {modal && (
+        <OrderFormModal
+          order={modal === 'new' ? null : modal}
+          allOrders={orders}
+          onClose={() => setModal(null)}
+          onSave={handleSave}
+        />
+      )}
+    </div>
+  );
+}

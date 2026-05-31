@@ -60,6 +60,9 @@ export const ROUTES = {
 
   // Product Catalog
   ADMIN_PRODUCTS: '/admin/products',
+
+  // Orders
+  ORDERS: '/orders',
 };
 
 export default ROUTES;

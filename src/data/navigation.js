@@ -90,6 +90,13 @@ export const NAV_ITEMS = [
     roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
   },
   {
+    id: 'orders',
+    label: 'الطلبات',
+    icon: '🛒',
+    path: '/orders',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
     id: 'field-crm',
     label: 'الزيارات',
     icon: '🚶',
