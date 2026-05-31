@@ -18,7 +18,8 @@ import { useOnline }             from '@hooks/useOnline';
 import { useCelebrations }        from '@hooks/useCelebrations';
 import { usePushNotifications }      from '@hooks/usePushNotifications';
 import { useTaskDueSoonAlerts }      from '@hooks/useTaskDueSoonAlerts';
-import { useKpiMonthReminder }       from '@hooks/useKpiMonthReminder';
+import { useKpiMonthReminder }           from '@hooks/useKpiMonthReminder';
+import { useAutoAttendanceReminder }     from '@hooks/useAutoAttendanceReminder';
 import { InstallPrompt }             from '@components/ui/InstallPrompt';
 import { AIAssistantWidget }         from '@components/ai/AIAssistantWidget';
 
@@ -33,6 +34,8 @@ export function MainLayout() {
   useTaskDueSoonAlerts();
   // remind managers to enter last month's KPI on days 1–5
   useKpiMonthReminder();
+  // remind all users to check in if they haven't after 90s
+  useAutoAttendanceReminder();
 
   return (
     <div className="min-h-screen bg-cream text-text flex">

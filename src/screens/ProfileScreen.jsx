@@ -172,10 +172,12 @@ export default function ProfileScreen() {
         .order('completed_at', { ascending: false })
         .limit(5),
 
-      supabase.from('leave_balances').select('*')
+      // Compute leave balance from leave_requests (same source as LeaveRequestsScreen)
+      supabase.from('leave_requests').select('days, type, status, start_date')
         .eq('employee_id', id)
-        .eq('year', today.getFullYear())
-        .maybeSingle(),
+        .eq('type', 'annual')
+        .eq('status', 'approved')
+        .gte('start_date', today.getFullYear() + '-01-01'),
 
       supabase.from('quiz_certifications').select('*')
         .eq('employee_id', id).eq('certified', true).maybeSingle(),
@@ -203,15 +205,9 @@ export default function ProfileScreen() {
 
       setRecentTasks(taskRes.value?.data ?? []);
 
-      const lb = lbRes.value?.data;
-      if (lb) {
-        const total = lb.total_days ?? lb.annual_days ?? 15;
-        const used  = lb.used_days ?? 0;
-        setLeaveBalance({ total, used, remaining: Math.max(0, total - used) });
-      } else {
-        // Default if no record yet — show policy default
-        setLeaveBalance({ total: 15, used: 0, remaining: 15 });
-      }
+      const leaveRows = lbRes.value?.data ?? [];
+      const used  = leaveRows.reduce((s, r) => s + (Number(r.days) || 0), 0);
+      setLeaveBalance({ total: 15, used, remaining: Math.max(0, 15 - used) });
 
       if (certRes.value?.data) setCertification(certRes.value.data);
 

@@ -16,6 +16,7 @@ const SUB_TABS = [
   { id: 'maintenance', label: '🛠️ Maintenance',    path: ROUTES.ADMIN_MAINTENANCE },
   { id: 'operations',  label: '📊 Operations',      path: ROUTES.ADMIN_OPERATIONS  },
   { id: 'quiz',        label: '🧠 اختبارات التدريب', path: ROUTES.ADMIN_QUIZ        },
+  { id: 'products',    label: '🏷️ كتالوج المنتجات',  path: ROUTES.ADMIN_PRODUCTS    },
 ];
 
 export default function AdminScreen() {

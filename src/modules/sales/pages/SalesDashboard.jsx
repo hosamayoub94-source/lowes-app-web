@@ -633,6 +633,31 @@ export function SalesDashboard() {
     selectReport(newReport.id);
   };
 
+  // Weekly/daily summary — computed from reports
+  const weeklySummary = useMemo(() => {
+    const now     = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - ((dayOfWeek + 6) % 7)); // Monday
+    const weekStartStr = weekStart.toISOString().slice(0, 10);
+
+    const lastWeekEnd   = new Date(weekStart); lastWeekEnd.setDate(weekStart.getDate() - 1);
+    const lastWeekStart = new Date(lastWeekEnd); lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+    const lastWeekStartStr = lastWeekStart.toISOString().slice(0, 10);
+    const lastWeekEndStr   = lastWeekEnd.toISOString().slice(0, 10);
+
+    const todaySales    = reports.filter(r => r.report_date === todayStr)
+                                 .reduce((s, r) => s + Number(r.total_sales_usd ?? 0), 0);
+    const thisWeekSales = reports.filter(r => r.report_date >= weekStartStr && r.report_date <= todayStr)
+                                 .reduce((s, r) => s + Number(r.total_sales_usd ?? 0), 0);
+    const lastWeekSales = reports.filter(r => r.report_date >= lastWeekStartStr && r.report_date <= lastWeekEndStr)
+                                 .reduce((s, r) => s + Number(r.total_sales_usd ?? 0), 0);
+    const weekChange    = lastWeekSales > 0 ? Math.round(((thisWeekSales - lastWeekSales) / lastWeekSales) * 100) : null;
+
+    return { todaySales, thisWeekSales, lastWeekSales, weekChange };
+  }, [reports]);
+
   // KPI config
   const kpiCards = [
     { label: 'طلبات آخر 7 أيام', val: kpis.last7Orders,                          icon: '🛒', cls: 'text-text' },
@@ -654,6 +679,43 @@ export function SalesDashboard() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span className="hidden sm:inline">تقرير جديد</span>
         </button>
+      </div>
+
+      {/* Weekly / Daily Summary */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          {
+            label:   'اليوم',
+            value:   usd(weeklySummary.todaySales),
+            icon:    '📅',
+            sub:     weeklySummary.todaySales > 0 ? 'تقارير اليوم' : 'لا توجد تقارير',
+            color:   weeklySummary.todaySales > 0 ? 'text-teal' : 'text-muted',
+          },
+          {
+            label:   'هذا الأسبوع',
+            value:   usd(weeklySummary.thisWeekSales),
+            icon:    '📊',
+            sub:     weeklySummary.weekChange !== null
+              ? `${weeklySummary.weekChange >= 0 ? '▲' : '▼'} ${Math.abs(weeklySummary.weekChange)}% عن الأسبوع الماضي`
+              : 'أول أسبوع',
+            color:   weeklySummary.weekChange === null ? 'text-text'
+              : weeklySummary.weekChange >= 0 ? 'text-green-fg' : 'text-red-fg',
+          },
+          {
+            label:   'الأسبوع الماضي',
+            value:   usd(weeklySummary.lastWeekSales),
+            icon:    '📈',
+            sub:     'للمقارنة',
+            color:   'text-muted',
+          },
+        ].map(c => (
+          <div key={c.label} className="bg-surface border border-border rounded-2xl p-4 space-y-1.5">
+            <span className="text-xl">{c.icon}</span>
+            <p className={`text-lg font-extrabold tabular-nums ${c.color}`}>{c.value}</p>
+            <p className="text-[10px] text-muted font-medium">{c.label}</p>
+            <p className="text-[9px] text-muted/60">{c.sub}</p>
+          </div>
+        ))}
       </div>
 
       {/* Sales Target */}

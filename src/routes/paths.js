@@ -57,6 +57,9 @@ export const ROUTES = {
   SCHEDULE:  '/schedule',
   ADVANCES:  '/advances',
   REVIEWS:   '/reviews',
+
+  // Product Catalog
+  ADMIN_PRODUCTS: '/admin/products',
 };
 
 export default ROUTES;

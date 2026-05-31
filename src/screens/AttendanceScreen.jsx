@@ -73,11 +73,91 @@ function calcDuration(timeIn, timeOut) {
   return h > 0 ? `${h}س ${m}د` : `${m}د`;
 }
 
+// ── Absence reason options ────────────────────────────────────
+const ABSENCE_REASONS = [
+  { key: 'sick',       label: 'مرض',          icon: '🤒' },
+  { key: 'vacation',   label: 'إجازة',         icon: '🏖️' },
+  { key: 'permission', label: 'إذن مسبق',      icon: '📋' },
+  { key: 'emergency',  label: 'ظرف طارئ',     icon: '🆘' },
+  { key: 'other',      label: 'سبب آخر',       icon: '📌' },
+];
+
+// ── Absence reason modal ───────────────────────────────────────
+function AbsenceReasonModal({ slash, userName, existingReason, onSave, onClose }) {
+  const [selected, setSelected] = useState(existingReason ?? '');
+  const [note,     setNote]     = useState('');
+  const [saving,   setSaving]   = useState(false);
+
+  const handleSave = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const dayName = arabicDaySlash(slash);
+      const reason  = note.trim() ? `${selected} — ${note.trim()}` : selected;
+      await supabase.from('attendance').insert({
+        employee_name: userName,
+        date:          slash,
+        day:           dayName,
+        type:          'absent',
+        time_in:       '00:00',
+        note:          reason,
+        method:        'manual',
+        recorded_at:   nowHHMM(),
+        status:        '❌ غائب',
+      });
+      onSave();
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center p-4"
+      onClick={onClose}>
+      <div className="bg-surface rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden" dir="rtl"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-border/40">
+          <p className="font-bold text-text">📝 سبب الغياب</p>
+          <p className="text-xs text-muted mt-0.5">{arabicDaySlash(slash)} — {slash}</p>
+        </div>
+        <div className="p-4 space-y-2">
+          {ABSENCE_REASONS.map(r => (
+            <button key={r.key} onClick={() => setSelected(r.key)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition ${
+                selected === r.key
+                  ? 'border-teal bg-teal/10 text-teal'
+                  : 'border-border bg-surface-alt text-text hover:border-teal/40'
+              }`}>
+              <span className="text-xl">{r.icon}</span>
+              {r.label}
+            </button>
+          ))}
+          {selected && (
+            <input
+              value={note} onChange={e => setNote(e.target.value)}
+              placeholder="ملاحظة إضافية (اختياري)"
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 mt-1"
+            />
+          )}
+        </div>
+        <div className="flex gap-2 px-4 pb-4">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
+          <button onClick={handleSave} disabled={!selected || saving}
+            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            {saving ? '…' : '✓ حفظ السبب'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Day badge in weekly strip ──────────────────────────────────
-function DayBadge({ dayRec, slash }) {
-  const today   = todaySlash();
-  const isToday = slash === today;
-  const isFuture = slash > today;
+function DayBadge({ dayRec, slash, userName, onReasonSaved }) {
+  const today     = todaySlash();
+  const isToday   = slash === today;
+  const isFuture  = slash > today;
+  const isPast    = slash < today;
+  const [showModal, setShowModal] = useState(false);
 
   if (isFuture) return (
     <div className="flex flex-col items-center gap-1 p-2 rounded-xl border border-border bg-surface opacity-30">
@@ -86,16 +166,30 @@ function DayBadge({ dayRec, slash }) {
     </div>
   );
 
-  const checkIn  = dayRec?.checkIn;
-  const checkOut = dayRec?.checkOut;
-  const complete = !!(checkIn && checkOut);
+  const checkIn     = dayRec?.checkIn;
+  const checkOut    = dayRec?.checkOut;
+  const complete    = !!(checkIn && checkOut);
+  const hasAbsReason = dayRec?.absReason;
 
   if (!checkIn) return (
-    <div className={`flex flex-col items-center gap-1 p-2 rounded-xl border ${isToday ? 'border-teal/30 bg-teal/5' : 'border-border/50 bg-surface-alt/50'}`}>
-      <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : 'text-muted'}`}>{dayLabelSlash(slash)}</span>
-      <span className="text-lg">{isToday ? '⏳' : '❌'}</span>
-      <span className="text-[9px] text-muted/60">{isToday ? 'الآن' : 'غياب'}</span>
-    </div>
+    <>
+      <div
+        onClick={() => isPast && !hasAbsReason && setShowModal(true)}
+        className={`flex flex-col items-center gap-1 p-2 rounded-xl border cursor-pointer transition
+          ${isToday ? 'border-teal/30 bg-teal/5' : hasAbsReason ? 'border-purple-200 bg-purple-50' : 'border-border/50 bg-surface-alt/50 hover:border-red-300'}`}>
+        <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : 'text-muted'}`}>{dayLabelSlash(slash)}</span>
+        <span className="text-lg">{isToday ? '⏳' : hasAbsReason ? '📝' : '❌'}</span>
+        <span className="text-[9px] text-muted/60">{isToday ? 'الآن' : hasAbsReason ? 'مبرر' : 'غياب'}</span>
+      </div>
+      {showModal && (
+        <AbsenceReasonModal
+          slash={slash} userName={userName}
+          existingReason={hasAbsReason}
+          onSave={() => { setShowModal(false); onReasonSaved?.(); }}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
   );
 
   return (
@@ -178,19 +272,21 @@ export default function AttendanceScreen() {
 
       if (fetchErr) throw new Error(fetchErr.message);
 
-      // Build map: { "YYYY/MM/DD": { checkIn, checkOut, inId, outId } }
+      // Build map: { "YYYY/MM/DD": { checkIn, checkOut, inId, outId, absReason } }
       const map = {};
-      daysArr.forEach(d => { map[d] = { checkIn: null, checkOut: null, inId: null, outId: null }; });
+      daysArr.forEach(d => { map[d] = { checkIn: null, checkOut: null, inId: null, outId: null, absReason: null }; });
 
       (data ?? []).forEach(r => {
         const key = r.date; // already "YYYY/MM/DD"
-        if (!map[key]) map[key] = { checkIn: null, checkOut: null, inId: null, outId: null };
+        if (!map[key]) map[key] = { checkIn: null, checkOut: null, inId: null, outId: null, absReason: null };
         if (r.type === 'in') {
           map[key].checkIn = r.time_in ?? null;
           map[key].inId    = r.id;
         } else if (r.type === 'out') {
-          map[key].checkOut = r.time_in ?? null; // time_in used for both
+          map[key].checkOut = r.time_in ?? null;
           map[key].outId    = r.id;
+        } else if (r.type === 'absent') {
+          map[key].absReason = r.note ?? 'مسجّل';
         }
       });
 
@@ -512,7 +608,8 @@ export default function AttendanceScreen() {
 
         <div className="grid grid-cols-7 gap-1">
           {days.map(slash => (
-            <DayBadge key={slash} dayRec={week[slash]} slash={slash} />
+            <DayBadge key={slash} dayRec={week[slash]} slash={slash}
+              userName={userName} onReasonSaved={loadData} />
           ))}
         </div>
 
