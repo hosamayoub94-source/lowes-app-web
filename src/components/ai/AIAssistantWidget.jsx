@@ -1,16 +1,19 @@
 // =============================================================
-// AIAssistantWidget — زر عائم + chat panel للمساعد الذكي
-// يظهر على كل شاشة · يستدعي Edge Function ai-assistant
+// AIAssistantWidget — لوزي 🌸
+// مساعدة لويز Professional الذكية
+// ذاكرة دائمة عبر Supabase · Claude Haiku
 // =============================================================
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth }  from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
-// ── Markdown-lite renderer (bold + newlines) ──────────────────
+const MAX_HISTORY = 40; // max messages to keep in DB
+const LOZY_AVATAR = '🌸';
+
+// ── Markdown-lite renderer ────────────────────────────────────
 function RenderText({ text }) {
   if (!text) return null;
-  // Convert **bold**, *italic*, and newlines
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\n)/g);
   return (
     <>
@@ -24,29 +27,30 @@ function RenderText({ text }) {
   );
 }
 
-// ── Suggested prompts ─────────────────────────────────────────
-const SUGGESTIONS = [
+// ── Suggestions ───────────────────────────────────────────────
+const SUGGESTIONS_EMPLOYEE = [
   'شو مهامي اليوم؟',
   'كيف أستخدم سيروم الريتينول؟',
   'كم ضل لي من إجازة؟',
-  'اشرح لي نظام العمولات',
   'ما مكونات واقي الشمس الزهري؟',
+];
+const SUGGESTIONS_MANAGER = [
   'من غاب اليوم من الفريق؟',
+  'اشرح لي نظام العمولات',
+  'شو أفضل منتجات لبشرة دهنية؟',
+  'كيف أحفز فريقي هالأسبوع؟',
 ];
 
-// ── Chat message component ────────────────────────────────────
+// ── Chat Bubble ───────────────────────────────────────────────
 function Message({ msg }) {
   const isUser = msg.role === 'user';
   return (
     <div className={`flex gap-2.5 mb-3 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
       <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-sm font-bold ${
         isUser ? 'bg-teal text-white' : 'bg-gradient-to-br from-navy to-teal text-white'
       }`}>
-        {isUser ? '👤' : '🤖'}
+        {isUser ? '👤' : LOZY_AVATAR}
       </div>
-
-      {/* Bubble */}
       <div className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
         isUser
           ? 'bg-teal text-white rounded-tr-sm'
@@ -54,6 +58,7 @@ function Message({ msg }) {
       }`}>
         {msg.loading ? (
           <div className="flex items-center gap-1.5 py-0.5">
+            <span className="text-xs text-muted">لوزي تفكّر</span>
             {[0,1,2].map(i => (
               <div key={i} className="w-1.5 h-1.5 rounded-full bg-teal/60 animate-bounce"
                 style={{ animationDelay: `${i * 0.15}s` }} />
@@ -67,39 +72,77 @@ function Message({ msg }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────
 export function AIAssistantWidget() {
   const { id: userId, name: userName, role } = useAuth();
   const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
+  const firstName = userName?.split(' ')[0] ?? '';
+
+  const WELCOME = {
+    role: 'assistant',
+    content: `أهلاً ${firstName}! 🌸\nأنا لوزي، مساعدتك في لويز Professional.\nاسأليني عن أي شيء — المنتجات، مهامك، إجازاتك، العمولات، أو أي معلومة تحتاجينها! 💫`,
+  };
 
   const [open,     setOpen]     = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      role:    'assistant',
-      content: `أهلاً ${userName?.split(' ')[0] ?? ''} 👋\nأنا مساعدك الذكي في لويز Professional. اسألني عن أي شيء — المنتجات، مهامك، إجازاتك، العمولات، أو أي معلومة تحتاجها!`,
-    },
-  ]);
+  const [messages, setMessages] = useState([WELCOME]);
   const [input,    setInput]    = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState(null);
   const [unread,   setUnread]   = useState(0);
+  const [memLoaded,setMemLoaded] = useState(false);
 
-  const bottomRef  = useRef(null);
-  const inputRef   = useRef(null);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+  const saveTimer = useRef(null);
 
-  // Auto-scroll to bottom
+  // ── Load memory from DB ──────────────────────────────────────
+  useEffect(() => {
+    if (!userId || memLoaded) return;
+    setMemLoaded(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('lozy_chats')
+          .select('messages')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (data?.messages?.length > 1) {
+          setMessages(data.messages);
+        }
+      } catch { /* silent */ }
+    })();
+  }, [userId, memLoaded]);
+
+  // ── Save memory to DB (debounced 2s) ─────────────────────────
+  const saveMemory = useCallback((msgs) => {
+    if (!userId) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const toSave = msgs.slice(-MAX_HISTORY);
+        await supabase.from('lozy_chats').upsert(
+          { user_id: userId, messages: toSave, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        );
+      } catch { /* silent */ }
+    }, 2000);
+  }, [userId]);
+
+  // ── Auto-scroll ───────────────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Focus input when opened
+  // ── Focus on open ─────────────────────────────────────────────
   useEffect(() => {
     if (open) {
       setUnread(0);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [open]);
 
+  // ── Send message ──────────────────────────────────────────────
   const send = useCallback(async (text) => {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
@@ -107,17 +150,17 @@ export function AIAssistantWidget() {
     setInput('');
     setError(null);
 
-    const userMsg   = { role: 'user',      content: msg };
+    const userMsg    = { role: 'user',      content: msg };
     const loadingMsg = { role: 'assistant', content: '', loading: true };
+    const withUser   = [...messages, userMsg];
 
-    setMessages(prev => [...prev, userMsg, loadingMsg]);
+    setMessages([...withUser, loadingMsg]);
     setLoading(true);
 
-    // Build conversation history (exclude the loading placeholder)
-    const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+    // History = all real messages (no loading placeholders)
+    const history = withUser.map(m => ({ role: m.role, content: m.content }));
 
     try {
-      // Fetch today's visits count for richer context
       let todayVisits = 0;
       try {
         const today = new Date().toISOString().slice(0,10);
@@ -127,79 +170,76 @@ export function AIAssistantWidget() {
         todayVisits = count ?? 0;
       } catch {}
 
-      // Use direct fetch — supabase.functions.invoke needs Supabase Auth
-      // but this app uses PIN auth, so we call the Edge Function directly
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ANON_KEY}`,
-          'Content-Type':  'application/json',
-        },
-        body: JSON.stringify({
-          messages:    history,
-          userId,
-          userName,
-          userRole:    role,
-          isManager,
-          todayVisits,
-        }),
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, userId, userName, userRole: role, isManager, todayVisits }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data  = await res.json();
+      const reply = data?.reply ?? 'عذراً، ما قدرت أفهم. حاولي مجدداً 😊';
 
-      const reply = data?.reply ?? 'عذراً، لم أستطع المعالجة. حاول مجدداً.';
-
-      setMessages(prev => [
-        ...prev.slice(0, -1), // remove loading
-        { role: 'assistant', content: reply },
-      ]);
+      const finalMsgs = [...withUser, { role: 'assistant', content: reply }];
+      setMessages(finalMsgs);
+      saveMemory(finalMsgs);
 
       if (!open) setUnread(u => u + 1);
-    } catch (err) {
-      setMessages(prev => prev.slice(0, -1));
-      setError('فشل الاتصال بالمساعد. تأكد من الاتصال بالإنترنت.');
+    } catch {
+      setMessages(withUser);
+      setError('فشل الاتصال. تأكد من الإنترنت وحاولي مجدداً 🌐');
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, userId, userName, role, isManager, open]);
+  }, [input, loading, messages, userId, userName, role, isManager, open, saveMemory]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const clearChat = () => {
-    setMessages([{
-      role: 'assistant',
-      content: `أهلاً من جديد ${userName?.split(' ')[0] ?? ''} 😊 كيف أقدر أساعدك؟`,
-    }]);
+  const clearChat = async () => {
+    const fresh = [WELCOME];
+    setMessages(fresh);
     setError(null);
+    // Clear DB memory too
+    if (userId) {
+      await supabase.from('lozy_chats')
+        .upsert({ user_id: userId, messages: fresh, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' });
+    }
   };
+
+  const suggestions = isManager ? SUGGESTIONS_MANAGER : SUGGESTIONS_EMPLOYEE;
+  const showSuggestions = messages.length <= 2;
 
   return (
     <>
       {/* ── Chat Panel ──────────────────────────────────────────── */}
       {open && (
         <div
-          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-[100] w-[calc(100vw-2rem)] sm:w-96 max-h-[75vh] flex flex-col bg-surface border border-border rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200"
+          className="fixed bottom-20 sm:bottom-6 end-4 sm:end-6 z-[100] w-[calc(100vw-2rem)] sm:w-96 max-h-[78vh] flex flex-col bg-surface border border-border rounded-3xl shadow-2xl overflow-hidden"
           dir="rtl"
+          style={{ animation: 'fadeSlideUp 0.2s ease-out' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-navy to-teal border-b border-border/20">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-navy to-teal border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-base shrink-0">🤖</div>
+              <div className="w-9 h-9 rounded-full bg-white/15 border-2 border-white/30 flex items-center justify-center text-xl shrink-0">
+                {LOZY_AVATAR}
+              </div>
               <div>
-                <p className="text-sm font-bold text-white leading-none">مساعد لويز الذكي</p>
-                <p className="text-[10px] text-white/60 mt-0.5">مدعوم بـ Claude AI</p>
+                <p className="text-sm font-extrabold text-white leading-tight">لوزي</p>
+                <p className="text-[10px] text-white/60">مساعدة لويز الذكية · تذكر كل شيء 💭</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={clearChat} title="محادثة جديدة"
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition text-xs">
-                🔄
+              <button onClick={clearChat} title="مسح المحادثة"
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition text-xs"
+                aria-label="مسح">
+                🗑
               </button>
               <button onClick={() => setOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition text-sm">
@@ -208,21 +248,28 @@ export function AIAssistantWidget() {
             </div>
           </div>
 
+          {/* Memory indicator */}
+          {messages.length > 3 && (
+            <div className="px-4 py-1.5 bg-teal/5 border-b border-border/30 flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] text-teal font-medium">💭 لوزي تذكر {messages.length - 1} رسالة من محادثاتكم</span>
+            </div>
+          )}
+
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-1 min-h-0 scrollbar-hide">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
             {error && (
-              <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-xl px-3 py-2 text-center">
+              <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-xl px-3 py-2 text-center my-2">
                 ⚠️ {error}
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Suggestions (only when few messages) */}
-          {messages.length <= 2 && (
-            <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-              {SUGGESTIONS.slice(0, isManager ? 6 : 4).map(s => (
+          {/* Suggestions */}
+          {showSuggestions && (
+            <div className="px-3 pb-2 flex flex-wrap gap-1.5 shrink-0">
+              {suggestions.map(s => (
                 <button key={s} onClick={() => send(s)} disabled={loading}
                   className="text-[11px] px-2.5 py-1.5 rounded-xl bg-surface-alt border border-border text-muted hover:border-teal/50 hover:text-teal hover:bg-teal/5 transition disabled:opacity-50">
                   {s}
@@ -232,14 +279,14 @@ export function AIAssistantWidget() {
           )}
 
           {/* Input */}
-          <div className="flex items-end gap-2 px-3 pb-3 pt-2 border-t border-border/40">
-            <div className="flex-1 flex items-end gap-2 bg-surface-alt border border-border rounded-2xl px-3 py-2 focus-within:border-teal/50 transition">
+          <div className="flex items-end gap-2 px-3 pb-3 pt-2 border-t border-border/40 shrink-0">
+            <div className="flex-1 flex items-end bg-surface-alt border border-border rounded-2xl px-3 py-2 focus-within:border-teal/50 transition">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="اكتب سؤالك…"
+                placeholder="اكتبي سؤالك للوزي…"
                 rows={1}
                 disabled={loading}
                 style={{ resize: 'none', maxHeight: 80 }}
@@ -263,26 +310,30 @@ export function AIAssistantWidget() {
       {/* ── Floating Button ──────────────────────────────────────── */}
       <button
         onClick={() => setOpen(o => !o)}
-        className={`fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-[99] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all duration-300 active:scale-95 ${
+        className={`fixed bottom-20 sm:bottom-6 end-4 sm:end-6 z-[99] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all duration-300 active:scale-95 ${
           open
-            ? 'bg-red-500 hover:bg-red-600 rotate-0'
+            ? 'bg-navy hover:bg-navy/90'
             : 'bg-gradient-to-br from-navy to-teal hover:shadow-teal/30 hover:shadow-2xl hover:scale-110'
         }`}
-        title={open ? 'إغلاق المساعد' : 'المساعد الذكي'}
-        style={{ transform: open ? 'rotate(45deg)' : 'rotate(0deg)' }}
+        title={open ? 'إغلاق لوزي' : 'لوزي — مساعدتك الذكية'}
       >
-        {open ? '✕' : '🤖'}
-        {/* Unread badge */}
+        {open ? '✕' : LOZY_AVATAR}
         {!open && unread > 0 && (
           <span className="absolute -top-1 -end-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center shadow-md">
             {unread}
           </span>
         )}
-        {/* Pulse ring */}
         {!open && (
           <span className="absolute inset-0 rounded-full animate-ping bg-teal/20 pointer-events-none" />
         )}
       </button>
+
+      <style>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </>
   );
 }
