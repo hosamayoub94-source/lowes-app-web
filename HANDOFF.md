@@ -3,6 +3,32 @@
 
 ---
 
+## 🆕 أحدث جلسة (يونيو 2026 — الحضور + الإشعارات + بوت لوزي + المهام v2)
+
+### الحضور — قفل الخروج أول ساعة
+- لا يمكن تسجيل الانصراف قبل مرور **ساعة** من الحضور (منع in→out بالخطأ). الزر يظهر معطّلاً مع عدّاد حيّ.
+- `src/screens/AttendanceScreen.jsx` — `MIN_MINUTES_BEFORE_CHECKOUT=60`.
+
+### الإشعارات — إصلاح عدم الوصول (سبب جذري) ✅
+- كانت RLS على `notifications` تستخدم `auth.uid()` لكن الموظفين على manual session (PIN) → `auth.uid()=null` → لا إشعارات.
+- الحل: فتح RLS (`supabase/notifications_rls_fix.sql` — **مطبّق على prod**) + فلترة `user_id` بالكود في `notificationService.js`.
+
+### بوت لوزي 🌸 — يعرف التطبيق ويتعلّم ✅
+- Edge Function `ai-assistant` (نُشرت عبر Dashboard): دليل استخدام كامل للتطبيق في الـ prompt + لم يعد يقول "ما بعرف".
+- تعلّم من الفريق: وسم `[[LEARN: ...]]` يُخزَّن في جدول `lozy_knowledge` ويُحقن بكل المحادثات. جداول: `lozy_knowledge` + `lozy_chats` (`supabase/lozy_knowledge.sql` — مطبّق).
+
+### المهام v2
+- إنشاء مهمة: اختيار تيم → فلترة موظفين + رابط + رفع مرفقات. أعمدة `link`/`team` بجدول tasks.
+- صلاحيات `EDIT_TASK`/`DELETE_TASK` (مدراء + media_buyer) + أزرار تعديل/حذف بالـ drawer.
+
+### ⚠️ المراسلة
+- المالك قال "مش عاجبني" بلا تفاصيل — RLS الشات سليمة وتعمل، تحتاج توضيح الاتجاه قبل أي تعديل.
+
+### 🔑 نشر Edge Functions (لا CLI)
+Dashboard → Edge Functions → `<name>` → Code → الصق (Set-Clipboard ثم Ctrl+V في Monaco) → Deploy updates.
+
+---
+
 ## 🆕 آخر تحديثات كبيرة (يونيو 2026 — جلسة الصلاحيات والرواتب والسيلفي)
 
 ### نظام الطلبات `/orders`
