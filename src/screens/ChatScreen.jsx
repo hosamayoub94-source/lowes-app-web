@@ -105,16 +105,33 @@ async function buildBotResponse(cmdText,roomId,userId,userName){
     // ── Music bot: play in this channel (Discord-style) ──
     if(MUSIC_CMDS.includes(firstWord)){
       const arg=cmd.replace(/^\S+\s*/,'').trim();
-      const vid=extractVideoId(arg);
-      if(!vid){response='🎵 اكتب رابط يوتيوب بعد الأمر:\n/اغنية https://youtu.be/...';}
+      if(!arg){response='🎵 اكتب اسم الأغنية أو رابط يوتيوب:\n/اغنية عمرو دياب تملي معاك';}
       else{
-        const now=new Date().toISOString();
-        const title=arg.startsWith('http')?`🎵 أغنية ${userName}`:arg;
-        await supabase.from('channel_music').upsert(
-          {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
-          {onConflict:'room_id'}
-        );
-        response=`🎵 يُشغّل الآن في القناة!\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /وقف لإيقاف الموسيقى)`;
+        let vid=extractVideoId(arg);
+        let title=arg;
+        // Not a URL → search YouTube by name (no link needed)
+        if(!vid){
+          try{
+            const SUPABASE_URL=import.meta.env.VITE_SUPABASE_URL;
+            const ANON_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const r=await fetch(`${SUPABASE_URL}/functions/v1/yt-search`,{
+              method:'POST',
+              headers:{'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json'},
+              body:JSON.stringify({q:arg}),
+            });
+            const d=await r.json();
+            if(d?.videoId){vid=d.videoId;title=d.title||arg;}
+          }catch{}
+        }
+        if(!vid){response=`😅 ما لقيت "${arg}". جرّب اسم أوضح أو الصق رابط يوتيوب.`;}
+        else{
+          const now=new Date().toISOString();
+          await supabase.from('channel_music').upsert(
+            {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
+            {onConflict:'room_id'}
+          );
+          response=`🎵 يُشغّل الآن: ${title}\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /وقف لإيقاف الموسيقى)`;
+        }
       }
       return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
     }
@@ -126,7 +143,7 @@ async function buildBotResponse(cmdText,roomId,userId,userName){
       response='⏹ تم إيقاف الموسيقى في القناة.';
       return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
     }
-    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <رابط> — شغّل أغنية بالقناة','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
+    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <اسم أو رابط> — شغّل أغنية بالقناة','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
       const taskFilter=userId?`assignee_id.eq.${userId},assigned_to.eq.${userId}`:`assigned_to.eq.${userId}`;
       const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","cancelled")').order('created_at',{ascending:false}).limit(8);
@@ -694,7 +711,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
                   }
                   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}
                 }}
-                placeholder="اكتب رسالة… /اغنية لتشغيل موسيقى · /مساعدة"
+                placeholder="اكتب رسالة… /اغنية <اسم الأغنية> · /مساعدة"
                 rows={1}
                 disabled={disabled||uploading}
                 className="flex-1 px-4 py-2.5 text-sm bg-transparent text-text focus:outline-none resize-none disabled:opacity-60 max-h-32 leading-relaxed"
