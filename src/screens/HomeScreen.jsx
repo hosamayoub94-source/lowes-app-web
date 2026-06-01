@@ -560,10 +560,11 @@ function TodayTeamStatus() {
   useEffect(() => {
     const dateSlash = todaySlash();
     Promise.allSettled([
-      supabase.from('profiles').select('id,employee_name,role,team').order('employee_name'),
+      // NOTE: column is role_type (not role) + only active employees
+      supabase.from('profiles').select('id,employee_name,role_type,team,is_active').eq('is_active', true).order('employee_name'),
       supabase.from('attendance').select('employee_name,time_in').eq('type','in').eq('date',dateSlash),
     ]).then(([pRes, aRes]) => {
-      const profiles = pRes.value?.data ?? [];
+      const profiles = (pRes.value?.data ?? []).map(p => ({ ...p, role: p.role_type }));
       const checkedIn = new Map((aRes.value?.data ?? []).map(r => [r.employee_name, r.time_in]));
       const present = [], absent = [];
       profiles.forEach(p => {

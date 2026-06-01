@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, pin')
+      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, extra_permissions, denied_permissions, pin')
       .eq('employee_name', employeeName)
       .limit(1)
       .maybeSingle();

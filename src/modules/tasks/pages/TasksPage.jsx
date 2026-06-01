@@ -11,6 +11,8 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { Spinner } from '@components/ui/Loading';
 import { useTasks } from '../hooks/useTasks';
 import { useAuthStore } from '@stores/authStore';
+import { usePermissions } from '@hooks/usePermissions';
+import { PERMISSIONS } from '@data/permissions';
 import { TaskCard } from '../components/TaskCard';
 import { TaskStatsBar } from '../components/TaskStatsBar';
 import { TaskFilters } from '../components/TaskFilters';
@@ -450,7 +452,7 @@ function UnseenIndicator({ count }) {
   );
 }
 
-function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewChange }) {
+function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewChange, canAssign }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -485,10 +487,12 @@ function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewCh
             <path d="M21.5 2v6h-6M2.5 22v-6h6" /><path d="M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
           </svg>
         </button>
-        <Button variant="teal" size="md" className="gap-2" onClick={onAdd}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          <span className="hidden sm:inline">مهمة جديدة</span>
-        </Button>
+        {canAssign && (
+          <Button variant="teal" size="md" className="gap-2" onClick={onAdd}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            <span className="hidden sm:inline">مهمة جديدة</span>
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -502,6 +506,9 @@ function TasksPage() {
     resetFilters, changeStatus, changeProgress, postComment, addTask, clearError,
     uploadAttachment, removeAttachment,
   } = useTasks();
+
+  const { can } = usePermissions();
+  const canAssign = can(PERMISSIONS.ASSIGN_TASKS);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -549,6 +556,7 @@ function TasksPage() {
         onAdd={() => setCreateOpen(true)}
         viewMode={viewMode}
         onViewChange={setViewMode}
+        canAssign={canAssign}
       />
 
       {/* ── Error banner ── */}

@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth }   from '@hooks/useAuth';
 import { supabase }  from '@services/supabase';
+import { SelfieCapture } from '@components/attendance/SelfieCapture';
 
 // ── Date helpers ───────────────────────────────────────────────
 /** Returns "YYYY/MM/DD" — matches DB text format */
@@ -223,6 +224,8 @@ export default function AttendanceScreen() {
   const [note, setNote]         = useState('');
   const [showNote, setShowNote] = useState(false);
   const [duration, setDuration] = useState('');
+  // Selfie verification: 'in' | 'out' | null
+  const [cameraMode, setCameraMode] = useState(null);
 
   // ── Checkout quiz state ────────────────────────────────────
   const [checkoutQuizChecked,  setCheckoutQuizChecked]  = useState(false);
@@ -303,8 +306,15 @@ export default function AttendanceScreen() {
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3500); };
 
   // ── Check-in ─────────────────────────────────────────────────
-  const handleCheckIn = async () => {
+  // Tap → open selfie camera → doCheckIn(url)
+  const handleCheckIn = () => {
     if (saving || today?.checkIn) return;
+    setError(null);
+    setCameraMode('in');
+  };
+
+  const doCheckIn = async (selfieUrl) => {
+    setCameraMode(null);
     setSaving(true); setError(null);
     const now      = nowHHMM();
     const dateVal  = todaySlash();
@@ -322,6 +332,7 @@ export default function AttendanceScreen() {
         delay_minutes: 0,
         was_late:      false,
         status:        '✅ حاضر',
+        selfie_url:    selfieUrl ?? null,
       });
       if (insErr) throw new Error(insErr.message);
       flash('✅ تم تسجيل الحضور بنجاح!');
@@ -330,8 +341,9 @@ export default function AttendanceScreen() {
     finally { setSaving(false); }
   };
 
-  // ── Actual check-out (shared by quiz flow + direct) ───────────
-  const doActualCheckOut = async () => {
+  // ── Actual check-out (called after quiz + selfie) ─────────────
+  const doActualCheckOut = async (selfieUrl) => {
+    setCameraMode(null);
     setSaving(true); setError(null);
     const now     = nowHHMM();
     const dateVal = todaySlash();
@@ -344,6 +356,8 @@ export default function AttendanceScreen() {
         method:        'app',
         recorded_at:   now,
         note:          note.trim() || null,
+        status:        '🚪 خروج',
+        selfie_url:    selfieUrl ?? null,
       });
       if (insErr) throw new Error(insErr.message);
       flash('🏠 تم تسجيل الانصراف بنجاح!');
@@ -355,15 +369,14 @@ export default function AttendanceScreen() {
   };
 
   // ── Check-out ─────────────────────────────────────────────────
+  // One tap → (optional daily quiz) → selfie camera → record out.
+  // No more confusing two-step "tap to reveal note" that left
+  // employees thinking they'd checked out when they hadn't.
   const handleCheckOut = async () => {
     if (saving || !today?.checkIn || today?.checkOut) return;
-    if (!showNote) { setShowNote(true); setTimeout(() => noteRef.current?.focus(), 100); return; }
 
-    // If quiz already handled, proceed directly
-    if (checkoutQuizChecked) {
-      await doActualCheckOut();
-      return;
-    }
+    // If quiz already handled this session, go straight to the camera
+    if (checkoutQuizChecked) { setCameraMode('out'); return; }
 
     // Check for today's checkout quiz question
     setCheckoutQuizLoading(true);
@@ -380,12 +393,12 @@ export default function AttendanceScreen() {
       if (q) {
         setCheckoutQuiz({ question: q, step: 'question' });
         setCheckoutQuizLoading(false);
-        return; // show quiz modal first
+        return; // quiz modal first, then it opens the camera
       }
-    } catch {} // table doesn't exist yet or network error → proceed normally
+    } catch {} // no quiz table / network error → proceed to camera
     setCheckoutQuizLoading(false);
     setCheckoutQuizChecked(true);
-    await doActualCheckOut();
+    setCameraMode('out');
   };
 
   // ── Quiz handlers ──────────────────────────────────────────────
@@ -403,8 +416,9 @@ export default function AttendanceScreen() {
       });
     } catch {}
   };
-  const handleQuizContinue = async () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); await doActualCheckOut(); };
-  const handleQuizSkip     = async () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); await doActualCheckOut(); };
+  // After the quiz, open the selfie camera (then doActualCheckOut runs)
+  const handleQuizContinue = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
+  const handleQuizSkip     = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
 
   const isCheckedIn  = !!today?.checkIn;
   const isCheckedOut = !!today?.checkOut;
@@ -413,7 +427,7 @@ export default function AttendanceScreen() {
   const btnState = isComplete ? 'done' : isCheckedIn ? 'checkout' : 'checkin';
   const BIG_BTN = {
     checkin:  { label: 'تسجيل الحضور',                                        icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
-    checkout: { label: showNote ? 'تأكيد الانصراف' : 'تسجيل الانصراف',        icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
+    checkout: { label: 'تسجيل الانصراف',                                      icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
     done:     { label: 'اليوم مكتمل 🎉',                                       icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
   }[btnState];
 
@@ -462,9 +476,9 @@ export default function AttendanceScreen() {
       {/* ── Main action card ─────────────────────────────────── */}
       <div className="bg-surface rounded-3xl p-5 shadow-sm border border-border space-y-4">
 
-        {/* Note textarea (check-out) */}
-        {showNote && btnState === 'checkout' && (
-          <div className="space-y-2 animate-fadeIn">
+        {/* Optional check-out note — always available (no longer a blocking step) */}
+        {btnState === 'checkout' && (
+          <div className="space-y-2">
             <label className="text-xs font-bold text-muted block">ملاحظة الانصراف (اختياري)</label>
             <textarea
               ref={noteRef}
@@ -505,6 +519,17 @@ export default function AttendanceScreen() {
           ))}
         </div>
       </div>
+
+      {/* ── Selfie verification camera ───────────────────────── */}
+      {cameraMode && (
+        <SelfieCapture
+          label={cameraMode === 'in' ? 'تأكيد الحضور بصورة' : 'تأكيد الانصراف بصورة'}
+          employeeName={userName}
+          kind={cameraMode}
+          onCapture={(url) => (cameraMode === 'in' ? doCheckIn(url) : doActualCheckOut(url))}
+          onClose={() => setCameraMode(null)}
+        />
+      )}
 
       {/* ── Checkout Quiz Loading ────────────────────────────── */}
       {checkoutQuizLoading && (

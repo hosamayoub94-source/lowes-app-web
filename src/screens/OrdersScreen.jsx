@@ -188,23 +188,55 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
 }
 
 // ── Item Row in form ──────────────────────────────────────────
-function ItemRow({ item, index, onChange, onRemove }) {
+function ItemRow({ item, index, onChange, onRemove, products = [] }) {
+  const [open, setOpen] = useState(false);
+
+  // Suggest catalog products matching what the user typed (free text still allowed)
+  const matches = useMemo(() => {
+    const q = (item.name || '').trim().toLowerCase();
+    if (!q) return products.slice(0, 8);
+    return products
+      .filter(p => p.name?.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [item.name, products]);
+
+  const pick = (p) => {
+    onChange(index, 'name', p.name);
+    setOpen(false);
+  };
+
   return (
-    <div className="flex gap-2 items-center">
-      <input
-        value={item.name} onChange={e => onChange(index, 'name', e.target.value)}
-        placeholder="اسم المنتج"
-        className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
-      />
-      <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0">
-        <button onClick={() => onChange(index, 'qty', Math.max(1, item.qty - 1))}
+    <div className="flex gap-2 items-start">
+      <div className="flex-1 relative">
+        <input
+          value={item.name}
+          onChange={e => { onChange(index, 'name', e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="اسم المنتج (اكتب أو اختر من القائمة)"
+          className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+        />
+        {open && matches.length > 0 && (
+          <div className="absolute z-20 top-full mt-1 inset-x-0 bg-surface border border-border rounded-xl shadow-xl max-h-52 overflow-y-auto">
+            {matches.map(p => (
+              <button key={p.id} type="button" onMouseDown={() => pick(p)}
+                className="w-full text-right px-3 py-2 text-sm text-text hover:bg-teal/10 transition flex items-center justify-between gap-2 border-b border-border/40 last:border-0">
+                <span className="truncate">{p.name}</span>
+                {p.category && <span className="text-[10px] text-muted shrink-0">{p.category}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0 mt-0.5">
+        <button type="button" onClick={() => onChange(index, 'qty', Math.max(1, item.qty - 1))}
           className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">−</button>
         <span className="px-2 text-sm font-bold text-text tabular-nums min-w-[1.5rem] text-center">{item.qty}</span>
-        <button onClick={() => onChange(index, 'qty', item.qty + 1)}
+        <button type="button" onClick={() => onChange(index, 'qty', item.qty + 1)}
           className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">+</button>
       </div>
-      <button onClick={() => onRemove(index)}
-        className="w-8 h-8 rounded-xl bg-red-bg text-red-fg flex items-center justify-center text-xs hover:opacity-80 transition shrink-0">
+      <button type="button" onClick={() => onRemove(index)}
+        className="w-8 h-8 mt-0.5 rounded-xl bg-red-bg text-red-fg flex items-center justify-center text-xs hover:opacity-80 transition shrink-0">
         🗑
       </button>
     </div>
@@ -241,6 +273,17 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
 
   const [items,  setItems]  = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
   const [saving, setSaving] = useState(false);
+  const [products, setProducts] = useState([]);
+
+  // Load catalog products for the autocomplete picker (once)
+  useEffect(() => {
+    supabase.from('products')
+      .select('id, name, category, price_usd, price_try')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => setProducts(data ?? []))
+      .catch(() => {});
+  }, []);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -364,7 +407,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
           <div className="space-y-3">
             <p className="text-xs font-extrabold text-muted uppercase tracking-wider">📦 المنتجات</p>
             {items.map((item, i) => (
-              <ItemRow key={i} item={item} index={i} onChange={changeItem} onRemove={removeItem} />
+              <ItemRow key={i} item={item} index={i} onChange={changeItem} onRemove={removeItem} products={products} />
             ))}
             <button onClick={addItem}
               className="w-full py-2 rounded-xl border-2 border-dashed border-teal/30 text-teal text-sm font-semibold hover:border-teal/60 hover:bg-teal/5 transition">

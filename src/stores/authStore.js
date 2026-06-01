@@ -69,5 +69,7 @@ function mapProfileToSession(profile) {
     avatar_url: profile.avatar_url,
     order_role:   profile.order_role   ?? null,
     order_market: profile.order_market ?? null,
+    extra_permissions:  profile.extra_permissions  ?? [],
+    denied_permissions: profile.denied_permissions ?? [],
   };
 }
