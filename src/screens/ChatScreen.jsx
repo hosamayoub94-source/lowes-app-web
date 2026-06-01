@@ -83,12 +83,50 @@ function avatarColor(name) {
   return colors[h];
 }
 
+// ── YouTube helpers (channel music bot) ─────────────────────────
+function extractVideoId(input){
+  if(!input)return null;
+  const t=input.trim();
+  if(/^[a-zA-Z0-9_-]{11}$/.test(t))return t;
+  const short=t.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);if(short)return short[1];
+  const long=t.match(/[?&]v=([a-zA-Z0-9_-]{11})/);if(long)return long[1];
+  const embed=t.match(/\/embed\/([a-zA-Z0-9_-]{11})/);if(embed)return embed[1];
+  return null;
+}
+
 // ── AI Bot ──────────────────────────────────────────────────────
 const BOT_NAME='🤖 مساعد لويز', BOT_ID='bot';
+const MUSIC_CMDS=['/اغنية','/أغنية','/موسيقى','/music','/play','/شغل','/شغّل'];
+const MUSIC_STOP_CMDS=['/وقف','/ايقاف','/إيقاف','/stop'];
 async function buildBotResponse(cmdText,roomId,userId,userName){
-  const cmd=cmdText.trim(),cmdL=cmd.toLowerCase();let response='';
+  const cmd=cmdText.trim();const cmdL=cmd.toLowerCase();let response='';
+  const firstWord=cmdL.split(/\s+/)[0];
   try{
-    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','❓ /مساعدة  — هذه القائمة'].join('\n');}
+    // ── Music bot: play in this channel (Discord-style) ──
+    if(MUSIC_CMDS.includes(firstWord)){
+      const arg=cmd.replace(/^\S+\s*/,'').trim();
+      const vid=extractVideoId(arg);
+      if(!vid){response='🎵 اكتب رابط يوتيوب بعد الأمر:\n/اغنية https://youtu.be/...';}
+      else{
+        const now=new Date().toISOString();
+        const title=arg.startsWith('http')?`🎵 أغنية ${userName}`:arg;
+        await supabase.from('channel_music').upsert(
+          {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
+          {onConflict:'room_id'}
+        );
+        response=`🎵 يُشغّل الآن في القناة!\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /وقف لإيقاف الموسيقى)`;
+      }
+      return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
+    }
+    if(MUSIC_STOP_CMDS.includes(firstWord)){
+      await supabase.from('channel_music').upsert(
+        {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
+        {onConflict:'room_id'}
+      );
+      response='⏹ تم إيقاف الموسيقى في القناة.';
+      return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
+    }
+    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <رابط> — شغّل أغنية بالقناة','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
       const taskFilter=userId?`assignee_id.eq.${userId},assigned_to.eq.${userId}`:`assigned_to.eq.${userId}`;
       const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","cancelled")').order('created_at',{ascending:false}).limit(8);
@@ -192,7 +230,7 @@ function FileMessage({msg,isMine}){
 function MsgText({text}){
   if(!text)return null;
   const parts=text.split(/(@[\w؀-ۿ][\w؀-ۿ\s.-]{0,30}?(?=\s|@|$))/g);
-  return<>{parts.map((p,i)=>p.startsWith('@')?<span key={i} className="font-semibold text-teal">{p}</span>:<span key={i}>{p}</span>)}</>;
+  return<>{parts.map((p,i)=>p.startsWith('@')?<span key={i} className="font-medium text-teal">{p}</span>:<span key={i}>{p}</span>)}</>;
 }
 
 // ── ForwardPanel ─────────────────────────────────────────────────
@@ -314,7 +352,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
       )}
 
       <div className={`flex flex-col ${isMine?'items-end':'items-start'} max-w-[78%] sm:max-w-[65%]`}>
-        {!isMine&&<span className="text-[10px] text-teal font-semibold mb-0.5 ms-1">{msg.sender_name}</span>}
+        {!isMine&&<span className="text-[11px] text-teal/80 font-medium mb-0.5 ms-1">{msg.sender_name}</span>}
 
         {/* Reply preview */}
         {msg.reply_preview&&(
@@ -401,12 +439,12 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
                   <path d="M7 0C7 0 8 9 8 13C5.5 10 1.5 6.5 0 5L7 0Z"/>
                 </svg>
               )}
-              <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
+              <div className={`relative px-3.5 py-2 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
                 isMine
-                  ? 'bg-gradient-to-br from-teal to-teal/90 text-white rounded-br-sm'
-                  : 'bg-surface border border-border/80 text-text rounded-bl-sm'
+                  ? 'bg-teal text-white rounded-br-sm'
+                  : 'bg-surface border border-border/70 text-text rounded-bl-sm'
               }`}>
-                {msg.message_type==='text'&&<p className="text-sm leading-relaxed whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
+                {msg.message_type==='text'&&<p className="text-[15px] font-normal leading-[1.5] whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
                 {msg.message_type==='image'&&msg.file_url&&<img src={msg.file_url} alt="صورة" onClick={()=>onImageClick?.(msg.file_url)} className="max-w-[220px] rounded-xl max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />}
                 {msg.message_type==='voice'&&msg.file_url&&<VoiceMessage url={msg.file_url} isMine={isMine} />}
                 {msg.message_type==='file'&&<FileMessage msg={msg} isMine={isMine} />}
@@ -656,7 +694,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
                   }
                   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}
                 }}
-                placeholder="اكتب رسالة… أو /مساعدة للبوت"
+                placeholder="اكتب رسالة… /اغنية لتشغيل موسيقى · /مساعدة"
                 rows={1}
                 disabled={disabled||uploading}
                 className="flex-1 px-4 py-2.5 text-sm bg-transparent text-text focus:outline-none resize-none disabled:opacity-60 max-h-32 leading-relaxed"
@@ -951,6 +989,66 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── ChannelMusicPlayer — Discord-style per-channel music ─────────
+function ChannelMusicPlayer({roomId,userId,isApprover}){
+  const[state,setState]=useState(null);
+  const[collapsed,setCollapsed]=useState(false);
+  const[iframeKey,setIframeKey]=useState(0);
+  const subRef=useRef(null);
+
+  useEffect(()=>{
+    if(!roomId)return;
+    let alive=true;
+    setState(null);setCollapsed(false);
+    supabase.from('channel_music').select('*').eq('room_id',roomId).maybeSingle()
+      .then(({data})=>{if(alive)setState(data??null);}).catch(()=>{});
+    subRef.current=supabase.channel(`music:${roomId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'channel_music',filter:`room_id=eq.${roomId}`},payload=>{
+        setState(payload.new?.video_id?payload.new:null);
+        setIframeKey(k=>k+1);
+      }).subscribe();
+    return()=>{alive=false;subRef.current?.unsubscribe();};
+  },[roomId]);
+
+  if(!state?.is_playing||!state?.video_id)return null;
+
+  const elapsed=state.started_at?Math.max(0,Math.floor((Date.now()-new Date(state.started_at).getTime())/1000)):0;
+  const embedUrl=`https://www.youtube.com/embed/${state.video_id}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`;
+  const canStop=state.dj_id===userId||isApprover;
+
+  const stop=async()=>{
+    await supabase.from('channel_music').upsert(
+      {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
+      {onConflict:'room_id'}
+    ).catch(()=>{});
+  };
+
+  return(
+    <div className="shrink-0 border-b border-border bg-gradient-to-l from-teal/5 to-transparent">
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <span className="w-2 h-2 rounded-full bg-teal animate-pulse shrink-0"/>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-text truncate">🎵 {state.video_title||'يُشغّل الآن'}</p>
+          {state.dj_name&&<p className="text-[10px] text-muted">شغّلها {state.dj_name}</p>}
+        </div>
+        <button onClick={()=>setCollapsed(c=>!c)} className="text-xs text-muted hover:text-teal transition px-1.5" title={collapsed?'إظهار':'إخفاء'}>
+          {collapsed?'▸':'▾'}
+        </button>
+        {canStop&&(
+          <button onClick={stop} className="text-xs text-muted hover:text-red-500 transition px-1.5" title="إيقاف">⏹</button>
+        )}
+      </div>
+      {!collapsed&&(
+        <div className="px-3 pb-3">
+          <div className="rounded-xl overflow-hidden border border-border bg-black" style={{aspectRatio:'16/9'}}>
+            <iframe key={iframeKey} src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media; fullscreen" allowFullScreen title="موسيقى القناة"/>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1510,6 +1608,11 @@ export default function ChatScreen(){
         {/* Pinned */}
         {!showMusicRoom&&pinnedMsg&&(
           <PinnedBanner pinned={pinnedMsg} onUnpin={handleUnpin} isApprover={isApprover} />
+        )}
+
+        {/* Channel music (Discord-style — /اغنية) */}
+        {!showMusicRoom&&activeRoom&&(
+          <ChannelMusicPlayer roomId={activeRoom.id} userId={userId} isApprover={isApprover} />
         )}
 
         {/* Music Room */}
