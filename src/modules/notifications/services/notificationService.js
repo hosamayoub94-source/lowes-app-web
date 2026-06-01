@@ -12,7 +12,15 @@
 //   • cleanOldNotifications() — TTL cleanup (> 30 days)
 // =============================================================
 import { supabase } from '@services/supabase';
+import { useAuthStore } from '@stores/authStore';
 import { resolveNotifSeverity } from '../types/notification.types';
+
+// Resolve the current user's profile id. RLS is open (USING true) to support
+// the PIN/manual-session model, so EVERY read must filter by user_id at the
+// app level — otherwise a user would see everyone's notifications.
+function _currentUserId() {
+  try { return useAuthStore.getState().session?.id ?? null; } catch { return null; }
+}
 
 // ── Web Push helper ───────────────────────────────────────────
 /**
@@ -206,9 +214,13 @@ export async function fetchNotifications({
   const from = page * pageSize;
   const to   = from + pageSize - 1;
 
+  const uid = _currentUserId();
+  if (!uid) return { data: [], total: 0 };
+
   let q = supabase
     .from(TABLE)
     .select('*', { count: 'exact' })
+    .eq('user_id', uid)
     .order('created_at', { ascending: false })
     .range(from, to);
 
@@ -231,9 +243,13 @@ export async function fetchUnreadCount() {
   }
 
   try {
+    const uid = _currentUserId();
+    if (!uid) return 0;
+
     const { count, error } = await supabase
       .from(TABLE)
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', uid)
       .eq('is_read', false);
 
     if (error) return 0;
@@ -273,9 +289,13 @@ export async function markAllAsRead() {
     return;
   }
 
+  const uid = _currentUserId();
+  if (!uid) return;
+
   const { error } = await supabase
     .from(TABLE)
     .update({ is_read: true })
+    .eq('user_id', uid)
     .eq('is_read', false);
 
   if (error) throw error;

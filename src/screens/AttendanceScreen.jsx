@@ -74,6 +74,20 @@ function calcDuration(timeIn, timeOut) {
   return h > 0 ? `${h}س ${m}د` : `${m}د`;
 }
 
+// ── Min minutes that must pass after check-in before check-out is allowed ──
+// Prevents accidental check-in → immediate check-out mistakes.
+const MIN_MINUTES_BEFORE_CHECKOUT = 60;
+
+/** Whole minutes elapsed since a "HH:MM" check-in time until now. */
+function minutesSinceCheckIn(timeIn) {
+  if (!timeIn) return Infinity;
+  const [h, m] = timeIn.slice(0, 5).split(':').map(Number);
+  const now    = new Date();
+  let mins = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m);
+  if (mins < 0) mins += 1440; // crossed midnight
+  return mins;
+}
+
 // ── Absence reason options ────────────────────────────────────
 const ABSENCE_REASONS = [
   { key: 'sick',       label: 'مرض',          icon: '🤒' },
@@ -224,6 +238,8 @@ export default function AttendanceScreen() {
   const [note, setNote]         = useState('');
   const [showNote, setShowNote] = useState(false);
   const [duration, setDuration] = useState('');
+  // Minutes still remaining before check-out is allowed (0 = unlocked)
+  const [checkoutLockLeft, setCheckoutLockLeft] = useState(0);
   // Selfie verification: 'in' | 'out' | null
   const [cameraMode, setCameraMode] = useState(null);
 
@@ -236,14 +252,20 @@ export default function AttendanceScreen() {
   const noteRef = useRef(null);
   const today   = week[todaySlash()] ?? null;
 
-  // Live clock
+  // Live clock + check-out lock countdown
   useEffect(() => {
-    const t = setInterval(() => {
+    const tick = () => {
       setClock(nowHHMMSS());
       if (today?.checkIn && !today?.checkOut) {
         setDuration(calcDuration(today.checkIn, null) ?? '');
+        const left = MIN_MINUTES_BEFORE_CHECKOUT - minutesSinceCheckIn(today.checkIn);
+        setCheckoutLockLeft(left > 0 ? left : 0);
+      } else {
+        setCheckoutLockLeft(0);
       }
-    }, 1000);
+    };
+    tick(); // run immediately so the lock state is correct on mount
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [today]);
 
@@ -375,6 +397,15 @@ export default function AttendanceScreen() {
   const handleCheckOut = async () => {
     if (saving || !today?.checkIn || today?.checkOut) return;
 
+    // Block check-out within the first hour to prevent accidental
+    // check-in → instant check-out mistakes.
+    const minsSince = minutesSinceCheckIn(today.checkIn);
+    if (minsSince < MIN_MINUTES_BEFORE_CHECKOUT) {
+      const left = MIN_MINUTES_BEFORE_CHECKOUT - minsSince;
+      setError(`لا يمكن تسجيل الانصراف قبل مرور ساعة على الأقل من الحضور. تبقّى ${left} دقيقة.`);
+      return;
+    }
+
     // If quiz already handled this session, go straight to the camera
     if (checkoutQuizChecked) { setCameraMode('out'); return; }
 
@@ -425,11 +456,15 @@ export default function AttendanceScreen() {
   const isComplete   = isCheckedIn && isCheckedOut;
 
   const btnState = isComplete ? 'done' : isCheckedIn ? 'checkout' : 'checkin';
-  const BIG_BTN = {
-    checkin:  { label: 'تسجيل الحضور',                                        icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
-    checkout: { label: 'تسجيل الانصراف',                                      icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
-    done:     { label: 'اليوم مكتمل 🎉',                                       icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
-  }[btnState];
+  // Check-out is locked during the first hour after check-in
+  const checkoutLocked = btnState === 'checkout' && checkoutLockLeft > 0;
+  const BIG_BTN = checkoutLocked
+    ? { label: `الانصراف متاح بعد ${checkoutLockLeft} د`, icon: '⏳', cls: 'bg-surface-alt text-muted cursor-not-allowed shadow-none border border-border' }
+    : {
+        checkin:  { label: 'تسجيل الحضور',    icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
+        checkout: { label: 'تسجيل الانصراف',  icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
+        done:     { label: 'اليوم مكتمل 🎉',   icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
+      }[btnState];
 
   // Stats
   const completedDays = days.filter(d => d <= todaySlash() && week[d]?.checkIn && week[d]?.checkOut).length;
@@ -493,9 +528,9 @@ export default function AttendanceScreen() {
 
         {/* Big action button */}
         <button
-          onClick={btnState === 'checkin' ? handleCheckIn : btnState === 'checkout' ? handleCheckOut : undefined}
-          disabled={saving || btnState === 'done'}
-          className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl text-lg font-extrabold shadow-xl transition-all active:scale-[0.97] disabled:opacity-70 ${BIG_BTN.cls}`}
+          onClick={checkoutLocked ? undefined : btnState === 'checkin' ? handleCheckIn : btnState === 'checkout' ? handleCheckOut : undefined}
+          disabled={saving || btnState === 'done' || checkoutLocked}
+          className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl text-lg font-extrabold shadow-xl transition-all active:scale-[0.97] disabled:active:scale-100 ${BIG_BTN.cls}`}
         >
           {saving ? (
             <span className="w-6 h-6 border-3 border-white/40 border-t-white rounded-full animate-spin" />
@@ -504,6 +539,13 @@ export default function AttendanceScreen() {
           )}
           {BIG_BTN.label}
         </button>
+
+        {/* Check-out lock hint */}
+        {checkoutLocked && (
+          <p className="text-center text-xs text-muted -mt-1">
+            لتفادي التسجيل بالخطأ، يمكنك تسجيل الانصراف بعد مرور ساعة على الحضور.
+          </p>
+        )}
 
         {/* Today stats row */}
         <div className="grid grid-cols-3 gap-3 pt-1">
