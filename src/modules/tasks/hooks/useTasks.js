@@ -43,6 +43,8 @@ export function useTasks({ realtime = true } = {}) {
   const changeProgress   = useTaskStore((s) => s.changeProgress);
   const postComment      = useTaskStore((s) => s.postComment);
   const addTask          = useTaskStore((s) => s.addTask);
+  const editTask         = useTaskStore((s) => s.editTask);
+  const deleteTaskFn     = useTaskStore((s) => s.deleteTask);
   const clearError       = useTaskStore((s) => s.clearError);
   const uploadAttachment = useTaskStore((s) => s.uploadAttachment);
   const removeAttachment = useTaskStore((s) => s.removeAttachment);
@@ -74,6 +76,16 @@ export function useTasks({ realtime = true } = {}) {
   const handleAddTask = useCallback(
     (payload, actorId) => addTask(payload, actorId),
     [addTask],
+  );
+
+  const handleEditTask = useCallback(
+    (taskId, patch, actorId) => editTask(taskId, patch, actorId),
+    [editTask],
+  );
+
+  const handleDeleteTask = useCallback(
+    (taskId) => deleteTaskFn(taskId),
+    [deleteTaskFn],
   );
 
   const handleUploadAttachment = useCallback(
@@ -111,6 +123,8 @@ export function useTasks({ realtime = true } = {}) {
     changeProgress: handleProgressChange,
     postComment: handlePostComment,
     addTask: handleAddTask,
+    editTask: handleEditTask,
+    deleteTask: handleDeleteTask,
     clearError,
     uploadAttachment: handleUploadAttachment,
     removeAttachment: handleRemoveAttachment,

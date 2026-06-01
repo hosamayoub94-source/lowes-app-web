@@ -10,12 +10,15 @@ import {
   fetchTasks,
   fetchTask,
   createTask,
+  updateTask,
   updateTaskStatus,
   updateTaskProgress,
   addTaskComment,
   markTaskSeen,
   uploadTaskAttachment,
   removeTaskAttachment,
+  deleteTask,
+  listAssignableProfiles,
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
 
@@ -35,6 +38,7 @@ export const useTaskStore = create()(
 
     // ── State ──────────────────────────────────────────────────
     tasks:          [],
+    profiles:       [], // all assignable profiles from DB
     loading:        false,
     error:          null,
     selectedTaskId: null,
@@ -48,12 +52,15 @@ export const useTaskStore = create()(
 
     // ── Data actions ──────────────────────────────────────────
 
-    /** Load / reload the task list */
+    /** Load / reload the task list + profiles in parallel */
     loadTasks: async (params = {}) => {
       set({ loading: true, error: null });
       try {
-        const tasks = await fetchTasks(params);
-        set({ tasks, loading: false });
+        const [tasks, profiles] = await Promise.all([
+          fetchTasks(params),
+          listAssignableProfiles().catch(() => []),
+        ]);
+        set({ tasks, profiles, loading: false });
       } catch (err) {
         set({ error: err?.message || 'حدث خطأ أثناء تحميل المهام', loading: false });
       }
@@ -163,6 +170,46 @@ export const useTaskStore = create()(
         return comment;
       } catch (err) {
         set({ actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
+    /** Edit an existing task's fields */
+    editTask: async (taskId, patch, actorId) => {
+      const prev = get().tasks;
+      set((s) => ({
+        tasks: s.tasks.map((t) =>
+          t.id === taskId ? { ...t, ...patch, updated_at: new Date().toISOString() } : t,
+        ),
+        actionLoading: true,
+      }));
+      try {
+        const updated = await updateTask(taskId, patch, { actorId });
+        set((s) => ({
+          tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
+          actionLoading: false,
+        }));
+        return updated;
+      } catch (err) {
+        set({ tasks: prev, actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
+    /** Delete a task permanently */
+    deleteTask: async (taskId) => {
+      const prev = get().tasks;
+      set((s) => ({
+        tasks: s.tasks.filter((t) => t.id !== taskId),
+        selectedTaskId: s.selectedTaskId === taskId ? null : s.selectedTaskId,
+        drawerOpen: s.selectedTaskId === taskId ? false : s.drawerOpen,
+        actionLoading: true,
+      }));
+      try {
+        await deleteTask(taskId);
+        set({ actionLoading: false });
+      } catch (err) {
+        set({ tasks: prev, actionLoading: false, error: err?.message });
         throw err;
       }
     },
@@ -298,8 +345,9 @@ export const selectStats = (state) => computeStats(state.tasks);
 export const selectSelectedTask = (state) =>
   state.tasks.find((t) => t.id === state.selectedTaskId) ?? null;
 
-/** Unique employee list extracted from tasks */
-export const selectEmployees = (state) => extractEmployees(state.tasks);
+/** Employee list: prefer loaded profiles, fallback to task-derived */
+export const selectEmployees = (state) =>
+  state.profiles.length > 0 ? state.profiles : extractEmployees(state.tasks);
 
 /** Number of unseen tasks */
 export const selectUnseenCount = (state) =>

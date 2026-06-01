@@ -20,6 +20,7 @@ import { TaskDetailsDrawer } from '../components/TaskDetailsDrawer';
 import { countActiveFilters } from '../utils/taskUtils';
 
 // ── Create task modal ─────────────────────────────────────────────
+
 const PRIORITIES = [
   { value: 'urgent', label: '⚡ عاجلة' },
   { value: 'high',   label: '▲ مرتفعة' },
@@ -50,24 +51,65 @@ const TASK_TYPES = [
   { value: 'other',              label: '📌 أخرى' },
 ];
 
+const TEAM_OPTIONS = [
+  { value: '',       label: '— كل التيمات —' },
+  { value: 'social', label: '📱 تيم السوشال ميديا' },
+  { value: 'sales',  label: '💼 تيم المبيعات' },
+  { value: 'ops',    label: '⚙️ تيم العمليات' },
+];
+
 const EMPTY_FORM = {
   title: '', description: '', priority: 'medium',
   due_date: '', due_time: '', assigned_to: '',
-  platform: '', task_type: '', attachments_note: '',
+  platform: '', task_type: '', link: '', team: '',
 };
+
+const INPUT_CLS = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 
 function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
   const formRef = useRef(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const fileRef = useRef(null);
+  const [form, setFormState] = useState(EMPTY_FORM);
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const set = (k, v) => setFormState((p) => ({ ...p, [k]: v }));
+
+  // When team changes, clear assignee if they don't belong to new team
+  const handleTeamChange = (teamVal) => {
+    set('team', teamVal);
+    if (teamVal && form.assigned_to) {
+      const emp = employees?.find((e) => e.id === form.assigned_to);
+      if (emp && emp.team !== teamVal) set('assigned_to', '');
+    }
+  };
+
+  const filteredEmployees = (employees || []).filter((e) =>
+    !form.team || e.team === form.team,
+  );
+
+  const selectedEmp = form.assigned_to
+    ? employees?.find((e) => e.id === form.assigned_to)
+    : null;
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setPendingFiles((prev) => [...prev, ...files]);
+    e.target.value = '';
+  };
+
+  const removeFile = (idx) =>
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    onSubmit(form);
+    onSubmit(form, pendingFiles);
   };
 
-  const handleClose = () => { setForm(EMPTY_FORM); onClose(); };
+  const handleClose = () => {
+    setFormState(EMPTY_FORM);
+    setPendingFiles([]);
+    onClose();
+  };
 
   if (!open) return null;
   return (
@@ -81,16 +123,17 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-lg bg-surface rounded-2xl shadow-modal flex flex-col max-h-[90vh] animate-pop-in"
+        className="relative z-10 w-full max-w-lg bg-surface rounded-2xl shadow-modal flex flex-col max-h-[92vh] animate-pop-in"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
           <h2 className="text-base font-bold text-text">مهمة جديدة</h2>
           <button type="button" onClick={handleClose} className="text-muted hover:text-text text-xl leading-none">×</button>
         </div>
 
         {/* Scrollable body */}
         <div className="overflow-y-auto px-6 pb-2 space-y-4 flex-1">
+
           {/* Title */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted">عنوان المهمة *</label>
@@ -100,7 +143,7 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
               value={form.title}
               onChange={(e) => set('title', e.target.value)}
               placeholder="أدخل عنوان المهمة..."
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40"
+              className={INPUT_CLS}
             />
           </div>
 
@@ -108,22 +151,14 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">المنصة</label>
-              <select
-                value={form.platform}
-                onChange={(e) => set('platform', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
+              <select value={form.platform} onChange={(e) => set('platform', e.target.value)} className={INPUT_CLS}>
                 <option value="">— المنصة —</option>
                 {PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">نوع المهمة</label>
-              <select
-                value={form.task_type}
-                onChange={(e) => set('task_type', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
+              <select value={form.task_type} onChange={(e) => set('task_type', e.target.value)} className={INPUT_CLS}>
                 <option value="">— النوع —</option>
                 {TASK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
@@ -134,11 +169,7 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">الأولوية</label>
-              <select
-                value={form.priority}
-                onChange={(e) => set('priority', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
+              <select value={form.priority} onChange={(e) => set('priority', e.target.value)} className={INPUT_CLS}>
                 {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
@@ -148,41 +179,61 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
                 type="date"
                 value={form.due_date}
                 onChange={(e) => set('due_date', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
+                className={INPUT_CLS}
               />
             </div>
           </div>
 
           {/* Due time */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">وقت الاستحقاق <span className="text-muted font-normal">(اختياري)</span></label>
-            <input
-              type="time"
-              value={form.due_time}
-              onChange={(e) => set('due_time', e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-            />
+            <label className="text-xs font-semibold text-muted">وقت الاستحقاق <span className="font-normal text-muted/70">(اختياري)</span></label>
+            <input type="time" value={form.due_time} onChange={(e) => set('due_time', e.target.value)} className={INPUT_CLS} />
           </div>
 
-          {/* Assigned to */}
-          {employees && employees.length > 0 && (
+          {/* Team + Assigned to */}
+          <div className="rounded-xl border border-border bg-surface-alt/40 p-3 space-y-3">
+            <p className="text-xs font-bold text-text">التعيين</p>
+
+            {/* Team selector */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted">تعيين إلى</label>
-              <select
-                value={form.assigned_to}
-                onChange={(e) => set('assigned_to', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
-                <option value="">— غير معيّن —</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.employee_name || emp.name || emp.id}
-                    {emp.team ? ' · ' + emp.team : ''}
-                  </option>
-                ))}
+              <label className="text-xs font-semibold text-muted">التيم</label>
+              <select value={form.team} onChange={(e) => handleTeamChange(e.target.value)} className={INPUT_CLS}>
+                {TEAM_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
-          )}
+
+            {/* Employee list filtered by team */}
+            {employees && employees.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted">
+                  تعيين إلى
+                  {form.team && (
+                    <span className="ms-1.5 font-normal text-teal">
+                      ({filteredEmployees.length} موظف)
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={form.assigned_to}
+                  onChange={(e) => set('assigned_to', e.target.value)}
+                  className={INPUT_CLS}
+                >
+                  <option value="">— غير معيّن —</option>
+                  {filteredEmployees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.employee_name || emp.name || emp.id}
+                    </option>
+                  ))}
+                </select>
+                {/* Show selected employee's team badge */}
+                {selectedEmp?.team && (
+                  <p className="text-[11px] text-teal font-medium">
+                    {TEAM_OPTIONS.find((t) => t.value === selectedEmp.team)?.label?.replace(/^[^ ]+ /, '') || selectedEmp.team}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Description */}
           <div className="space-y-1">
@@ -192,28 +243,90 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
               placeholder="تفاصيل اختيارية..."
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
+              className={cn(INPUT_CLS, 'resize-none')}
             />
           </div>
 
-          {/* Attachments note */}
+          {/* Link */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">ملاحظات المرفقات <span className="text-muted font-normal">(اختياري)</span></label>
-            <textarea
-              rows={2}
-              value={form.attachments_note}
-              onChange={(e) => set('attachments_note', e.target.value)}
-              placeholder="رابط Drive، Dropbox، أو وصف المرفقات..."
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40 resize-none"
+            <label className="text-xs font-semibold text-muted">رابط <span className="font-normal text-muted/70">(اختياري)</span></label>
+            <div className="relative">
+              <span className="absolute inset-y-0 end-3 flex items-center pointer-events-none text-muted">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              </span>
+              <input
+                type="url"
+                value={form.link}
+                onChange={(e) => set('link', e.target.value)}
+                placeholder="https://drive.google.com/..."
+                className={cn(INPUT_CLS, 'pe-9')}
+              />
+            </div>
+          </div>
+
+          {/* File attachments */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted">مرفقات <span className="font-normal text-muted/70">(اختياري)</span></label>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar"
+              onChange={handleFileChange}
+              className="hidden"
             />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-2 w-full rounded-xl border-2 border-dashed border-border hover:border-teal/50 bg-surface-alt/40 hover:bg-teal/5 px-4 py-3 text-sm text-muted hover:text-teal transition-all"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              اضغط لإرفاق صورة أو ملف
+            </button>
+
+            {pendingFiles.length > 0 && (
+              <div className="space-y-1.5">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg bg-surface-alt px-3 py-2 text-xs">
+                    <span className="text-base">
+                      {f.type.startsWith('image/') ? '🖼️' : f.type.startsWith('video/') ? '🎬' : f.name.endsWith('.pdf') ? '📄' : '📎'}
+                    </span>
+                    <span className="flex-1 truncate text-text font-medium">{f.name}</span>
+                    <span className="text-muted shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="text-muted hover:text-red-500 transition-colors shrink-0"
+                      aria-label="حذف"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
           <Button type="button" variant="outline" size="sm" onClick={handleClose}>إلغاء</Button>
-          <Button type="submit" variant="teal" size="sm" disabled={saving || !form.title.trim()} className="gap-2 min-w-[90px]">
-            {saving ? <Spinner size="sm" /> : 'إضافة المهمة'}
+          <Button
+            type="submit"
+            variant="teal"
+            size="sm"
+            disabled={saving || !form.title.trim()}
+            className="gap-2 min-w-[110px]"
+          >
+            {saving
+              ? <><Spinner size="sm" />{pendingFiles.length > 0 ? 'جارٍ الرفع...' : 'جارٍ الحفظ...'}</>
+              : <>إضافة المهمة{pendingFiles.length > 0 && <span className="ms-1 text-xs bg-white/20 rounded-full px-1.5">{pendingFiles.length}</span>}</>
+            }
           </Button>
         </div>
       </form>
@@ -271,14 +384,30 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
       </div>
       <div className="flex items-center gap-2 flex-wrap mt-2">
         {task.assigned_to && (
-          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full truncate max-w-[100px]">
+          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full truncate max-w-[110px]">
             👤 {task.assigned_to?.name || task.assigned_to}
+          </span>
+        )}
+        {task.team && (
+          <span className="text-[10px] bg-teal/10 text-teal px-2 py-0.5 rounded-full">
+            {task.team === 'social' ? '📱' : task.team === 'sales' ? '💼' : '⚙️'} {task.team === 'social' ? 'سوشال' : task.team === 'sales' ? 'مبيعات' : 'عمليات'}
           </span>
         )}
         {task.due_date && (
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
             {isOverdue ? '⚠️' : '📅'} {fmtDueDateShort(task.due_date)}
           </span>
+        )}
+        {task.link && (
+          <a
+            href={task.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 px-2 py-0.5 rounded-full hover:underline"
+          >
+            🔗 رابط
+          </a>
         )}
         {(task.comments_count > 0 || task.comments?.length > 0) && (
           <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full">
@@ -503,7 +632,7 @@ function TasksPage() {
     filteredTasks, loading, error, actionLoading, filters, stats,
     selectedTask, employees, unseenCount, drawerOpen,
     loadTasks, openTask, closeDrawer, setFilter, toggleFilter,
-    resetFilters, changeStatus, changeProgress, postComment, addTask, clearError,
+    resetFilters, changeStatus, changeProgress, postComment, addTask, editTask, deleteTask, clearError,
     uploadAttachment, removeAttachment,
   } = useTasks();
 
@@ -517,25 +646,34 @@ function TasksPage() {
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
 
-  const handleCreateSubmit = useCallback(async (form) => {
+  const handleCreateSubmit = useCallback(async (form, pendingFiles = []) => {
     setCreating(true);
     try {
-      await addTask({
-        title:            form.title.trim(),
-        description:      form.description.trim() || null,
-        priority:         form.priority,
-        due_date:         form.due_date || null,
-        due_time:         form.due_time || null,
-        status:           'pending',
-        created_by:       userId || null,
-        assigned_to:      form.assigned_to || null,
-        platform:         form.platform || null,
-        task_type:        form.task_type || null,
-        attachments_note: form.attachments_note.trim() || null,
+      const task = await addTask({
+        title:       form.title.trim(),
+        description: form.description.trim() || null,
+        priority:    form.priority,
+        due_date:    form.due_date || null,
+        due_time:    form.due_time || null,
+        status:      'pending',
+        created_by:  userId || null,
+        assigned_to: form.assigned_to || null,
+        platform:    form.platform || null,
+        task_type:   form.task_type || null,
+        link:        form.link.trim() || null,
+        team:        form.team || null,
       }, userId);
+
+      // Upload any staged files after task is created
+      if (pendingFiles.length > 0 && task?.id) {
+        await Promise.allSettled(
+          pendingFiles.map((f) => uploadAttachment(task.id, f)),
+        );
+      }
+
       setCreateOpen(false);
     } catch { /* error shown via store */ } finally { setCreating(false); }
-  }, [addTask, userId]);
+  }, [addTask, uploadAttachment, userId]);
 
   return (
     <div className="space-y-5 pb-24 sm:pb-8">
@@ -585,6 +723,8 @@ function TasksPage() {
         onAddComment={postComment}
         onUploadAttachment={uploadAttachment}
         onRemoveAttachment={removeAttachment}
+        onEditTask={editTask}
+        onDeleteTask={deleteTask}
         actionLoading={actionLoading}
         employees={employees}
       />

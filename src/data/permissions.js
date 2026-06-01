@@ -14,6 +14,8 @@ import { ROLES } from './teams';
 // ── Permission keys ───────────────────────────────────────────
 export const PERMISSIONS = {
   ASSIGN_TASKS:        'assign_tasks',         // create / assign tasks to others
+  EDIT_TASK:           'edit_task',            // edit task title/description/priority/date
+  DELETE_TASK:         'delete_task',          // delete tasks permanently
   MANAGE_ORDERS:       'manage_orders',        // advance status, edit orders
   VIEW_ALL_ATTENDANCE: 'view_all_attendance',  // see everyone's attendance + reports
   MANAGE_ATTENDANCE:   'manage_attendance',    // edit attendance records
@@ -30,6 +32,8 @@ export const PERMISSIONS = {
 // Human labels (for the admin UI)
 export const PERMISSION_LABELS = {
   [PERMISSIONS.ASSIGN_TASKS]:        'إسناد المهام للموظفين',
+  [PERMISSIONS.EDIT_TASK]:           'تعديل تفاصيل المهام',
+  [PERMISSIONS.DELETE_TASK]:         'حذف المهام',
   [PERMISSIONS.MANAGE_ORDERS]:       'إدارة الطلبات (تغيير الحالة/التعديل)',
   [PERMISSIONS.VIEW_ALL_ATTENDANCE]: 'عرض حضور كل الفريق',
   [PERMISSIONS.MANAGE_ATTENDANCE]:   'تعديل سجلات الحضور',
@@ -51,6 +55,8 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.EDIT_TASK,
+    PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
     PERMISSIONS.MANAGE_ATTENDANCE,
@@ -64,6 +70,8 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.SALES_MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.EDIT_TASK,
+    PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
     PERMISSIONS.MANAGE_KPI,
@@ -73,11 +81,16 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.SOCIAL_MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.EDIT_TASK,
+    PERMISSIONS.DELETE_TASK,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
     PERMISSIONS.VIEW_ANALYTICS,
   ],
 
   [ROLES.MEDIA_BUYER]: [
+    PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.EDIT_TASK,
+    PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
     PERMISSIONS.VIEW_ANALYTICS,
   ],
