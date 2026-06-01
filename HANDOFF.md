@@ -21,8 +21,9 @@
 - إنشاء مهمة: اختيار تيم → فلترة موظفين + رابط + رفع مرفقات. أعمدة `link`/`team` بجدول tasks.
 - صلاحيات `EDIT_TASK`/`DELETE_TASK` (مدراء + media_buyer) + أزرار تعديل/حذف بالـ drawer.
 
-### ⚠️ المراسلة
-- المالك قال "مش عاجبني" بلا تفاصيل — RLS الشات سليمة وتعمل، تحتاج توضيح الاتجاه قبل أي تعديل.
+### المراسلة — إعادة تصميم ✅
+- **خط أخف مثل واتساب:** رسائل 15px وزن عادي، فقاعة teal صلبة، أوزان أخف.
+- **بوت أغاني per-channel (ديسكورد):** `/اغنية <رابط يوتيوب>` بأي قناة يشغّل للكل، `/وقف` يوقف. جدول `channel_music` (realtime، `supabase/channel_music.sql` مطبّق) + `ChannelMusicPlayer` أعلى الرسائل.
 
 ### 🔑 نشر Edge Functions (لا CLI)
 Dashboard → Edge Functions → `<name>` → Code → الصق (Set-Clipboard ثم Ctrl+V في Monaco) → Deploy updates.
