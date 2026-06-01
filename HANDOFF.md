@@ -3,6 +3,39 @@
 
 ---
 
+## 🆕 آخر تحديثات كبيرة (يونيو 2026 — جلسة الصلاحيات والرواتب والسيلفي)
+
+### نظام الطلبات `/orders`
+- إدارة طلبات تركيا 🇹🇷 + سوريا 🇸🇾. مراحل: وارد → تجهيز → جاهز → شحن → توصيل
+- **صلاحيات الفريق:** الموظف يشوف طلبات تيمه فقط · مسؤول التجهيز (`order_role='fulfillment'`) يشوف سوقه ويحرّك الحالة
+- جدول `orders` (راجع `supabase/orders_migration.sql`) — items كـ JSONB
+- منتقي المنتجات: autocomplete من جدول `products` (32 منتج) + نص حر مسموح
+- Fatima Ayoub (PIN 2626, تركيا, fulfillment) · Yousef Alkshki (سوريا, fulfillment)
+
+### نظام الصلاحيات `src/data/permissions.js`
+- `PERMISSIONS` keys + `ROLE_PERMISSIONS` افتراضي لكل دور
+- per-user: `profiles.extra_permissions` + `denied_permissions` (JSONB)
+- hook: `usePermissions()` → `can(PERMISSIONS.X)`
+- الأدمن يمنح مدراء جدد صلاحيات من شاشة «المستخدمون» (checkboxes)
+- مثال مطبّق: إنشاء المهام محجوب خلف `ASSIGN_TASKS` (الموظف ما يشوف الزر)
+
+### الحضور بالسيلفي `src/components/attendance/SelfieCapture.jsx`
+- **إصلاح bug الخروج:** كان فيه خطوتين (ضغطة تُظهر ملاحظة + ضغطة تسجّل) → الموظفون يمشون بعد الأولى ظناً أنهم سجّلوا. الآن **ضغطة واحدة**.
+- سيلفي عند الدخول والخروج → bucket `attendance-selfies` → `attendance.selfie_url`
+- الكاميرا المعطّلة لا تمنع التسجيل (زر «متابعة بدون صورة»)
+- **مين حاضر اليوم:** `TodayTeamStatus` في HomeScreen (كان يستعلم عن عمود `role` غير موجود → أُصلح لـ `role_type`)
+
+### الرواتب `/payroll`
+- **سبب الصعوبة سابقاً:** لا راتب أساسي مخزّن → إدخال يدوي كل شهر
+- الحل: `profiles.base_salary_usd` + `housing_allowance_usd` + `transport_allowance_usd` (تُعيَّن من «المستخدمون»)
+- زر **«ملء الموظفين تلقائياً»** في دورة الرواتب يضيف كل النشطين برواتبهم الأساسية + البدلات
+
+### 🔐 أمان (من جلسة سابقة)
+- verify-pin Edge Function: التحقق من PIN server-side · أعمدة `pin`/`password` ممنوعة على anon
+- ⚠️ **متابعة مطلوبة:** تدوير service_role key من Supabase Settings → API (كان في git history)
+
+---
+
 ## 1. معلومات المشروع الأساسية
 
 | البند | التفاصيل |
