@@ -3,7 +3,7 @@
 // مساعدة لويز Professional الذكية
 // ذاكرة دائمة عبر Supabase · Claude Haiku
 // =============================================================
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth }  from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
@@ -91,6 +91,96 @@ export function AIAssistantWidget() {
   const [error,    setError]    = useState(null);
   const [unread,   setUnread]   = useState(0);
   const [memLoaded,setMemLoaded] = useState(false);
+
+  // ── Draggable position ────────────────────────────────────────
+  const STORAGE_KEY = 'lozy_pos';
+  const defaultPos = () => {
+    try {
+      const s = localStorage.getItem(STORAGE_KEY);
+      if (s) return JSON.parse(s);
+    } catch {}
+    return { x: null, y: null }; // null = use CSS default (bottom-right)
+  };
+  const [pos, setPos] = useState(defaultPos);
+  const dragging = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, bx: 0, by: 0 });
+  const btnRef = useRef(null);
+
+  const savePos = useCallback((p) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch {}
+  }, []);
+
+  const handleDragStart = (e) => {
+    if (e.button !== 0 && e.type === 'mousedown') return;
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const rect = btnRef.current?.getBoundingClientRect();
+    dragging.current = true;
+    dragStart.current = {
+      mx: clientX, my: clientY,
+      bx: rect ? rect.left + rect.width / 2 : clientX,
+      by: rect ? rect.top + rect.height / 2 : clientY,
+    };
+  };
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragging.current) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const dx = clientX - dragStart.current.mx;
+      const dy = clientY - dragStart.current.my;
+      const W = window.innerWidth, H = window.innerHeight;
+      const R = 28; // half of button size
+      const nx = Math.min(Math.max(dragStart.current.bx + dx, R), W - R);
+      const ny = Math.min(Math.max(dragStart.current.by + dy, R), H - R);
+      setPos({ x: nx, y: ny });
+    };
+    const onUp = (e) => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      // If barely moved → treat as click (toggle open)
+      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+      const moved = Math.abs(clientX - dragStart.current.mx) + Math.abs(clientY - dragStart.current.my);
+      if (moved < 6) { setOpen(o => !o); return; }
+      setPos(p => { savePos(p); return p; });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [savePos]);
+
+  // Compute button style (fixed position or CSS default)
+  const btnStyle = useMemo(() => {
+    if (pos.x === null) return {};
+    return { left: pos.x - 28, top: pos.y - 28, right: 'auto', bottom: 'auto' };
+  }, [pos]);
+
+  // Panel appears above/below the button depending on position
+  const panelStyle = useMemo(() => {
+    if (pos.x === null) return {};
+    const W = window.innerWidth, H = window.innerHeight;
+    const pW = Math.min(384, W - 32); // panel width (max w-96)
+    const pAbove = pos.y > H * 0.6; // button in bottom half → panel above
+    const pLeft = Math.min(Math.max(pos.x - pW / 2, 16), W - pW - 16);
+    return {
+      position: 'fixed',
+      left: pLeft,
+      ...(pAbove ? { bottom: H - pos.y + 64 } : { top: pos.y + 64 }),
+      right: 'auto', bottom: pAbove ? H - pos.y + 64 : 'auto',
+      top: pAbove ? 'auto' : pos.y + 64,
+      width: pW,
+    };
+  }, [pos]);
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -220,9 +310,12 @@ export function AIAssistantWidget() {
       {/* ── Chat Panel ──────────────────────────────────────────── */}
       {open && (
         <div
-          className="fixed bottom-20 sm:bottom-6 end-4 sm:end-6 z-[100] w-[calc(100vw-2rem)] sm:w-96 max-h-[78vh] flex flex-col bg-surface border border-border rounded-3xl shadow-2xl overflow-hidden"
+          className="fixed z-[100] w-[calc(100vw-2rem)] sm:w-96 max-h-[78vh] flex flex-col bg-surface border border-border rounded-3xl shadow-2xl overflow-hidden"
           dir="rtl"
-          style={{ animation: 'fadeSlideUp 0.2s ease-out' }}
+          style={{
+            animation: 'fadeSlideUp 0.2s ease-out',
+            ...(pos.x !== null ? panelStyle : { bottom: '5rem', right: '1rem', left: 'auto', top: 'auto' }),
+          }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-navy to-teal border-b border-white/10 shrink-0">
@@ -307,19 +400,20 @@ export function AIAssistantWidget() {
         </div>
       )}
 
-      {/* ── Floating Button ──────────────────────────────────────── */}
+      {/* ── Floating Button (draggable) ───────────────────────────── */}
       <button
-        onClick={() => setOpen(o => !o)}
-        className={`fixed bottom-20 sm:bottom-6 end-4 sm:end-6 z-[99] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all duration-300 active:scale-95 ${
-          open
-            ? 'bg-navy hover:bg-navy/90'
-            : 'bg-gradient-to-br from-navy to-teal hover:shadow-teal/30 hover:shadow-2xl hover:scale-110'
-        }`}
-        title={open ? 'إغلاق لوزي' : 'لوزي — مساعدتك الذكية'}
+        ref={btnRef}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
+        className={`fixed z-[99] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl select-none touch-none cursor-grab active:cursor-grabbing ${
+          pos.x === null ? 'bottom-20 sm:bottom-6 end-4 sm:end-6' : ''
+        } ${open ? 'bg-navy' : 'bg-gradient-to-br from-navy to-teal hover:shadow-teal/30 hover:shadow-2xl'}`}
+        style={btnStyle}
+        title="لوزي — اسحبني لتحريكي 🌸"
       >
         {open ? '✕' : LOZY_AVATAR}
         {!open && unread > 0 && (
-          <span className="absolute -top-1 -end-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center shadow-md">
+          <span className="absolute -top-1 -end-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center shadow-md pointer-events-none">
             {unread}
           </span>
         )}

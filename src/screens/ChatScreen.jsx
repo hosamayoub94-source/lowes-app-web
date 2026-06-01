@@ -1014,27 +1014,44 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
 function ChannelMusicPlayer({roomId,userId,isApprover}){
   const[state,setState]=useState(null);
   const[collapsed,setCollapsed]=useState(false);
-  const[iframeKey,setIframeKey]=useState(0);
+  // Only reload iframe when the actual video_id changes, not on every realtime tick
+  const[embedUrl,setEmbedUrl]=useState('');
+  const prevVideoId=useRef(null);
   const subRef=useRef(null);
 
   useEffect(()=>{
     if(!roomId)return;
     let alive=true;
     setState(null);setCollapsed(false);
+    prevVideoId.current=null;
     supabase.from('channel_music').select('*').eq('room_id',roomId).maybeSingle()
-      .then(({data})=>{if(alive)setState(data??null);}).catch(()=>{});
+      .then(({data})=>{
+        if(!alive)return;
+        const d=data??null;
+        setState(d);
+        if(d?.video_id&&d.is_playing){
+          const elapsed=d.started_at?Math.max(0,Math.floor((Date.now()-new Date(d.started_at).getTime())/1000)):0;
+          setEmbedUrl(`https://www.youtube.com/embed/${d.video_id}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`);
+          prevVideoId.current=d.video_id;
+        }
+      }).catch(()=>{});
     subRef.current=supabase.channel(`music:${roomId}`)
       .on('postgres_changes',{event:'*',schema:'public',table:'channel_music',filter:`room_id=eq.${roomId}`},payload=>{
-        setState(payload.new?.video_id?payload.new:null);
-        setIframeKey(k=>k+1);
+        const d=payload.new;
+        const newVid=d?.video_id||null;
+        setState(newVid&&d?.is_playing?d:null);
+        // Only rebuild the embed URL when the video actually changes
+        if(newVid&&d?.is_playing&&newVid!==prevVideoId.current){
+          const elapsed=d.started_at?Math.max(0,Math.floor((Date.now()-new Date(d.started_at).getTime())/1000)):0;
+          setEmbedUrl(`https://www.youtube.com/embed/${newVid}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`);
+          prevVideoId.current=newVid;
+        }
+        if(!newVid||!d?.is_playing) prevVideoId.current=null;
       }).subscribe();
     return()=>{alive=false;subRef.current?.unsubscribe();};
   },[roomId]);
 
   if(!state?.is_playing||!state?.video_id)return null;
-
-  const elapsed=state.started_at?Math.max(0,Math.floor((Date.now()-new Date(state.started_at).getTime())/1000)):0;
-  const embedUrl=`https://www.youtube.com/embed/${state.video_id}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`;
   const canStop=state.dj_id===userId||isApprover;
 
   const stop=async()=>{
@@ -1062,7 +1079,7 @@ function ChannelMusicPlayer({roomId,userId,isApprover}){
       {!collapsed&&(
         <div className="px-3 pb-3">
           <div className="rounded-xl overflow-hidden border border-border bg-black" style={{aspectRatio:'16/9'}}>
-            <iframe key={iframeKey} src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media; fullscreen" allowFullScreen title="موسيقى القناة"/>
+            <iframe src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media; fullscreen" allowFullScreen title="موسيقى القناة"/>
           </div>
         </div>
       )}
