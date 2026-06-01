@@ -3,6 +3,7 @@
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { PERMISSION_LABELS } from '@data/permissions';
 
 const ROLE_LABELS = {
   employee:       'موظف',
@@ -85,7 +86,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,extra_permissions';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -136,6 +137,8 @@ const EMPTY_FORM = {
   employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
+  base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
+  extra_permissions: [],
 };
 
 // ── Input helpers ─────────────────────────────────────────────
@@ -309,6 +312,10 @@ export default function AdminUsersScreen() {
       admin_notes:   p.admin_notes ?? '',
       birthday:      p.birthday ?? '',
       join_date:     p.join_date ?? '',
+      base_salary_usd:         p.base_salary_usd         ?? '',
+      housing_allowance_usd:   p.housing_allowance_usd   ?? '',
+      transport_allowance_usd: p.transport_allowance_usd ?? '',
+      extra_permissions:       Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
     });
     setSaveError(null);
   };
@@ -334,6 +341,11 @@ export default function AdminUsersScreen() {
         patch.birthday    = form.birthday  || null;
         patch.join_date   = form.join_date || null;
       }
+      // Salary + permissions (safe to send even if columns just added)
+      patch.base_salary_usd         = form.base_salary_usd         === '' ? 0 : Number(form.base_salary_usd);
+      patch.housing_allowance_usd   = form.housing_allowance_usd   === '' ? 0 : Number(form.housing_allowance_usd);
+      patch.transport_allowance_usd = form.transport_allowance_usd === '' ? 0 : Number(form.transport_allowance_usd);
+      patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       await updateProfile(editUser.id, patch);
 
       // ── Auto-sync chat channel membership when team changes ──
@@ -662,6 +674,53 @@ export default function AdminUsersScreen() {
                     </div>
                     <p className="text-xs text-muted mt-1.5">يُنشر إعلان تلقائي يوم الميلاد وذكرى التعيين 📢</p>
                   </div>
+
+                  {/* Salary */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-3">💵 الراتب (يُستخدم في الملء التلقائي للرواتب)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Field label="الأساسي ($)">
+                        <input type="number" value={form.base_salary_usd}
+                          onChange={e => setForm(f => ({ ...f, base_salary_usd: e.target.value }))}
+                          placeholder="0" className={inputCls} />
+                      </Field>
+                      <Field label="بدل سكن ($)">
+                        <input type="number" value={form.housing_allowance_usd}
+                          onChange={e => setForm(f => ({ ...f, housing_allowance_usd: e.target.value }))}
+                          placeholder="0" className={inputCls} />
+                      </Field>
+                      <Field label="بدل نقل ($)">
+                        <input type="number" value={form.transport_allowance_usd}
+                          onChange={e => setForm(f => ({ ...f, transport_allowance_usd: e.target.value }))}
+                          placeholder="0" className={inputCls} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  {/* Extra permissions — for granting future managers specific powers */}
+                  {form.role_type !== 'admin' && (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-xs font-semibold text-muted mb-1">🔑 صلاحيات إضافية</p>
+                      <p className="text-[11px] text-muted mb-3">امنح هذا الموظف صلاحيات إدارية إضافية فوق دوره الأساسي (للمدراء الجدد).</p>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {Object.entries(PERMISSION_LABELS).map(([key, label]) => {
+                          const checked = (form.extra_permissions || []).includes(key);
+                          return (
+                            <label key={key} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-alt cursor-pointer hover:bg-teal/5 transition">
+                              <input type="checkbox" checked={checked}
+                                onChange={e => setForm(f => {
+                                  const set = new Set(f.extra_permissions || []);
+                                  if (e.target.checked) set.add(key); else set.delete(key);
+                                  return { ...f, extra_permissions: [...set] };
+                                })}
+                                className="w-4 h-4 accent-teal" />
+                              <span className="text-xs text-text">{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Admin notes */}
                   <div className="border-t border-border pt-3">

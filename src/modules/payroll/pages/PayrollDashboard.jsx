@@ -238,6 +238,47 @@ export function PayrollDashboard() {
     setEntryForm({});
   };
 
+  // ── Auto-fill all active employees with their stored base salaries ──
+  // Removes the "re-enter everyone every month" pain.
+  const [fillLoading, setFillLoading] = useState(false);
+  const handleAutoFillEmployees = useCallback(async () => {
+    if (!run) return;
+    setFillLoading(true); setCommMsg(null);
+    try {
+      const { data: emps } = await supabase.from('profiles')
+        .select('id, employee_name, role_type, base_salary_usd, housing_allowance_usd, transport_allowance_usd')
+        .eq('is_active', true)
+        .order('employee_name');
+      const already = new Set(entries.map(e => e.employee_id));
+      let added = 0;
+      for (const emp of (emps ?? [])) {
+        if (already.has(emp.id)) continue; // skip employees already in this run
+        const base  = Number(emp.base_salary_usd) || 0;
+        const allow = (Number(emp.housing_allowance_usd) || 0) + (Number(emp.transport_allowance_usd) || 0);
+        await upsertEntry({
+          run_id:                run.id,
+          employee_id:           emp.id,
+          employee_name:         emp.employee_name,
+          role_type:             emp.role_type,
+          base_salary_usd:       base,
+          bonus_usd:             allow,
+          deductions_usd:        0,
+          advance_deduction_usd: 0,
+          working_days:          30,
+          absent_days:           0,
+          net_salary_usd:        base + allow,
+          notes:                 null,
+        });
+        added++;
+      }
+      setCommMsg(added > 0
+        ? `✅ تمت إضافة ${added} موظف برواتبهم الأساسية. عدّل الحوافز/الخصومات عند الحاجة.`
+        : 'ℹ️ كل الموظفين مضافون مسبقاً لهذه الدورة.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + e.message);
+    } finally { setFillLoading(false); }
+  }, [run, entries, upsertEntry]);
+
   const runTotal = calcRunTotal(entries);
 
   return (
@@ -326,6 +367,11 @@ export function PayrollDashboard() {
                   {commMsg && <p className={`text-xs mt-1 font-semibold ${commMsg.startsWith('✅') ? 'text-green-fg' : 'text-amber-fg'}`}>{commMsg}</p>}
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                    <ActionBtn onClick={handleAutoFillEmployees} disabled={fillLoading} variant="teal">
+                      {fillLoading ? '⏳…' : '👥 ملء الموظفين تلقائياً'}
+                    </ActionBtn>
+                  )}
                   {entries.length > 0 && (
                     <ActionBtn onClick={() => printRunReport(entries, run)} variant="blue">
                       🖨️ طباعة التقرير
@@ -360,7 +406,13 @@ export function PayrollDashboard() {
                   <div className="text-3xl">👤</div>
                   <p>لا توجد إدخالات في هذه الدورة</p>
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                    <p className="text-xs">أضف موظفين لهذه الدورة من لوحة الإدارة</p>
+                    <button onClick={handleAutoFillEmployees} disabled={fillLoading}
+                      className="mt-2 px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+                      {fillLoading ? '⏳ جارٍ الملء…' : '👥 ملء كل الموظفين برواتبهم'}
+                    </button>
+                  )}
+                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                    <p className="text-[11px] text-muted mt-1">يحضر رواتبهم الأساسية من ملفاتهم — عيّنها من «المستخدمون»</p>
                   )}
                 </div>
               ) : (
