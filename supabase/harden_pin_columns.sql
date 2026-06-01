@@ -34,3 +34,15 @@ REVOKE SELECT ON public.employees FROM anon, authenticated;
 GRANT SELECT (
   id, name, team, is_active, created_at
 ) ON public.employees TO anon, authenticated;
+
+-- ⚠️⚠️ IMPORTANT — because profiles now uses COLUMN-level grants,
+-- ANY new column you ADD to profiles is NOT readable by anon until you
+-- GRANT it explicitly. Forgetting this breaks the login name-picker and
+-- anything that selects the new column. Template:
+--   GRANT SELECT (my_new_col) ON public.profiles TO anon, authenticated;
+--
+-- Columns granted after the initial hardening:
+GRANT SELECT (
+  extra_permissions, denied_permissions,
+  base_salary_usd, housing_allowance_usd, transport_allowance_usd
+) ON public.profiles TO anon, authenticated;
