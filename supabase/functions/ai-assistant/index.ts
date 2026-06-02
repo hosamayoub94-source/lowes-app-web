@@ -292,23 +292,33 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
         return JSON.stringify({ total:(data??[]).length, byStatus });
       }
       case 'get_tasks': {
-        let q = supabase.from('tasks').select('title,status,priority,due_date,assignee_name').order('created_at',{ascending:false}).limit(30);
+        let q = supabase.from('tasks').select('id,title,status,priority,due_date,assigned_to').order('created_at',{ascending:false}).limit(30);
         if (input.status) q = q.eq('status', input.status);
-        if (input.assignee) q = q.ilike('assignee_name', `%${input.assignee}%`);
         const { data } = await q;
-        return JSON.stringify(data ?? []);
+        let rows = data ?? [];
+        // Resolve assignee names + optional filter by assignee
+        const ids = [...new Set(rows.map((r:any)=>r.assigned_to).filter(Boolean))];
+        let nameById:Record<string,string> = {};
+        if (ids.length) {
+          const { data: ps } = await supabase.from('profiles').select('id,employee_name').in('id', ids);
+          (ps??[]).forEach((p:any)=>nameById[p.id]=p.employee_name);
+        }
+        rows = rows.map((r:any)=>({ ...r, assignee: nameById[r.assigned_to] ?? null }));
+        if (input.assignee) rows = rows.filter((r:any)=>(r.assignee||'').includes(input.assignee));
+        return JSON.stringify(rows);
       }
       case 'create_task': {
-        const row:any = { title: input.title, status:'todo', priority: input.priority||'medium', created_by: ctx.userId };
+        const row:any = { title: input.title, priority: input.priority||'medium', created_by: ctx.userId };
         if (input.description) row.description = input.description;
         if (input.due_date) row.due_date = input.due_date;
+        let assignedName = null;
         if (input.assignee_name) {
           const { data: p } = await supabase.from('profiles').select('id,employee_name').ilike('employee_name', `%${input.assignee_name}%`).limit(1).maybeSingle();
-          if (p) { row.assigned_to = p.id; row.assignee_name = p.employee_name; }
+          if (p) { row.assigned_to = p.id; row.assignee_id = p.id; assignedName = p.employee_name; }
         }
-        const { data, error } = await supabase.from('tasks').insert(row).select('id,title,assignee_name').single();
+        const { data, error } = await supabase.from('tasks').insert(row).select('id,title').single();
         if (error) return 'فشل إنشاء المهمة: '+error.message;
-        return '✅ أُنشئت المهمة: '+JSON.stringify(data);
+        return '✅ أُنشئت المهمة "'+data.title+'"'+(assignedName?(' وأُسندت إلى '+assignedName):'')+'.';
       }
       case 'update_task_status': {
         const { data: t } = await supabase.from('tasks').select('id,title').ilike('title', `%${input.title}%`).limit(1).maybeSingle();
