@@ -74,7 +74,7 @@ function Message({ msg }) {
 
 // ─────────────────────────────────────────────────────────────
 export function AIAssistantWidget() {
-  const { id: userId, name: userName, role } = useAuth();
+  const { id: userId, name: userName, role, session } = useAuth();
   const isManager = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER].includes(role);
   const firstName = userName?.split(' ')[0] ?? '';
 
@@ -266,7 +266,9 @@ export function AIAssistantWidget() {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
         method:  'POST',
         headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, userId, userName, userRole: role, isManager, todayVisits }),
+        body: JSON.stringify({ messages: history, userId, userName, userRole: role, isManager, todayVisits,
+          extraPermissions:  session?.extra_permissions  ?? [],
+          deniedPermissions: session?.denied_permissions ?? [] }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -284,7 +286,7 @@ export function AIAssistantWidget() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, userId, userName, role, isManager, open, saveMemory]);
+  }, [input, loading, messages, userId, userName, role, isManager, open, saveMemory, session]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }

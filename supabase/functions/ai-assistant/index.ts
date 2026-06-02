@@ -181,11 +181,154 @@ ${ctx.learnedFacts.map(f => `- ${f.fact}${f.taught_by ? ` (علّمني إياه
 `;
 }
 
+// =============================================================
+// Permissions (mirror of src/data/permissions.js) + Agent tools
+// =============================================================
+const PERMS = {
+  ASSIGN_TASKS:'assign_tasks', EDIT_TASK:'edit_task', DELETE_TASK:'delete_task',
+  MANAGE_ORDERS:'manage_orders', VIEW_ALL_ATTENDANCE:'view_all_attendance',
+  MANAGE_ATTENDANCE:'manage_attendance', APPROVE_LEAVES:'approve_leaves',
+  MANAGE_PAYROLL:'manage_payroll', MANAGE_KPI:'manage_kpi', MANAGE_PRODUCTS:'manage_products',
+  VIEW_FINANCE:'view_finance', VIEW_ANALYTICS:'view_analytics',
+  MANAGE_USERS:'manage_users', MANAGE_SETTINGS:'manage_settings',
+};
+const ALL_PERMS = Object.values(PERMS);
+const ROLE_PERMS: Record<string, string[]> = {
+  admin: ALL_PERMS,
+  manager: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.MANAGE_ORDERS,PERMS.VIEW_ALL_ATTENDANCE,PERMS.MANAGE_ATTENDANCE,PERMS.APPROVE_LEAVES,PERMS.MANAGE_PAYROLL,PERMS.MANAGE_KPI,PERMS.MANAGE_PRODUCTS,PERMS.VIEW_FINANCE,PERMS.VIEW_ANALYTICS],
+  sales_manager: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.MANAGE_ORDERS,PERMS.VIEW_ALL_ATTENDANCE,PERMS.MANAGE_KPI,PERMS.MANAGE_PRODUCTS,PERMS.VIEW_ANALYTICS],
+  social_manager: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.VIEW_ALL_ATTENDANCE,PERMS.VIEW_ANALYTICS],
+  media_buyer: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.MANAGE_ORDERS,PERMS.VIEW_ANALYTICS],
+  employee: [],
+};
+function resolvePerms(role: string, extra: string[] = [], denied: string[] = []): Set<string> {
+  if (role === 'admin') return new Set(ALL_PERMS);
+  const s = new Set([...(ROLE_PERMS[role] ?? []), ...(extra || [])]);
+  (denied || []).forEach(p => s.delete(p));
+  return s;
+}
+
+// Tool definitions (Claude tool-use schema). Each carries a `perm`:
+//   null = everyone, or a PERMS key required. Special 'own' handled inline.
+const TOOLS = [
+  { perm: null, name:'get_my_summary', description:'ملخّص الموظف نفسه: حضوره اليوم، مهامه المفتوحة، رصيد إجازته، نتيجة KPI. للمستخدم عن نفسه.',
+    input_schema:{ type:'object', properties:{}, required:[] } },
+  { perm: null, name:'list_team', description:'قائمة الفريق/الموظفين النشطين مع المسمى الوظيفي والدور والفريق. فلتر اختياري حسب الفريق.',
+    input_schema:{ type:'object', properties:{ team:{type:'string', description:'سوريا/تركيا/ميديا/إدارة (اختياري)'} }, required:[] } },
+  { perm: PERMS.VIEW_ALL_ATTENDANCE, name:'get_attendance_report', description:'كشف حضور الفريق ليوم محدّد: من حضر/غاب/تأخّر مع الأوقات. للمدراء فقط.',
+    input_schema:{ type:'object', properties:{ date:{type:'string', description:'YYYY-MM-DD (افتراضي اليوم)'}, team:{type:'string'} }, required:[] } },
+  { perm: PERMS.VIEW_ANALYTICS, name:'get_sales_report', description:'تقرير المبيعات: مجاميع TRY/SYP/USD والتأكيدات لليوم أو الشهر من التقارير اليومية.',
+    input_schema:{ type:'object', properties:{ period:{type:'string', enum:['today','month'], description:'افتراضي month'}, team:{type:'string'} }, required:[] } },
+  { perm: PERMS.MANAGE_ORDERS, name:'get_orders', description:'كشف الطلبات: فلترة حسب السوق والحالة. عدد وقيمة وأعلى منتجات.',
+    input_schema:{ type:'object', properties:{ market:{type:'string', enum:['syria','turkey']}, status:{type:'string'} }, required:[] } },
+  { perm: PERMS.ASSIGN_TASKS, name:'get_tasks', description:'قائمة مهام الفريق (لغير صاحبها) مع الحالة والمسؤول والموعد.',
+    input_schema:{ type:'object', properties:{ status:{type:'string'}, assignee:{type:'string', description:'اسم الموظف'} }, required:[] } },
+  { perm: PERMS.ASSIGN_TASKS, name:'create_task', description:'إنشاء مهمة جديدة وإسنادها لموظف.',
+    input_schema:{ type:'object', properties:{ title:{type:'string'}, assignee_name:{type:'string'}, due_date:{type:'string', description:'YYYY-MM-DD'}, priority:{type:'string', enum:['low','medium','high']}, description:{type:'string'} }, required:['title'] } },
+  { perm: PERMS.EDIT_TASK, name:'update_task_status', description:'تحديث حالة مهمة (مثلاً done / in_progress).',
+    input_schema:{ type:'object', properties:{ title:{type:'string', description:'عنوان المهمة'}, status:{type:'string', enum:['todo','in_progress','review','done']} }, required:['title','status'] } },
+  { perm: PERMS.MANAGE_SETTINGS, name:'create_announcement', description:'نشر إعلان/تعميم للفريق.',
+    input_schema:{ type:'object', properties:{ title:{type:'string'}, body:{type:'string'} }, required:['title','body'] } },
+];
+
+function toolsForUser(perms: Set<string>) {
+  return TOOLS.map(t => ({ name:t.name, description:t.description, input_schema:t.input_schema }));
+}
+
+// Execute one tool with permission enforcement. Returns a string result.
+async function runTool(supabase: any, name: string, input: any, ctx: { userId:string; userName:string; role:string; perms:Set<string> }): Promise<string> {
+  const tool = TOOLS.find(t => t.name === name);
+  if (!tool) return 'أداة غير معروفة.';
+  // Permission gate
+  if (tool.perm && !ctx.perms.has(tool.perm)) {
+    return `🚫 لا تملك صلاحية تنفيذ هذا الإجراء (${name}). هذا الأمر متاح لمن لديه صلاحية أعلى فقط.`;
+  }
+  const todayISO = new Date().toISOString().slice(0,10);
+  const slash = (d: Date) => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+
+  try {
+    switch (name) {
+      case 'get_my_summary': {
+        const ds = slash(new Date());
+        const [att, tk] = await Promise.all([
+          supabase.from('attendance').select('type,time_in').eq('employee_name', ctx.userName).eq('date', ds),
+          supabase.from('tasks').select('title,status,due_date').or(`assignee_id.eq.${ctx.userId},assigned_to.eq.${ctx.userId}`).not('status','in','("done","completed","cancelled")').limit(15),
+        ]);
+        return JSON.stringify({ attendance: att.data ?? [], openTasks: tk.data ?? [] });
+      }
+      case 'list_team': {
+        let q = supabase.from('profiles').select('employee_name,job_title,role_type,team').eq('is_active', true).order('team');
+        if (input.team) q = q.eq('team', input.team);
+        const { data } = await q;
+        return JSON.stringify(data ?? []);
+      }
+      case 'get_attendance_report': {
+        const ds = input.date ? input.date.replace(/-/g,'/') : slash(new Date());
+        let q = supabase.from('attendance').select('employee_name,type,time_in,status,was_late,team').eq('date', ds);
+        if (input.team) q = q.eq('team', input.team);
+        const { data } = await q;
+        const ins = (data ?? []).filter((r:any)=>r.type==='in');
+        return JSON.stringify({ date: ds, present: ins.length, late: ins.filter((r:any)=>r.was_late).length, records: ins });
+      }
+      case 'get_sales_report': {
+        const period = input.period || 'month';
+        const since = period==='today' ? todayISO : todayISO.slice(0,8)+'01';
+        let q = supabase.from('daily_reports').select('total_sales_try,total_sales_syp,total_sales_usd,total_confirmations,team,report_date').gte('report_date', since);
+        if (input.team) q = q.eq('team', input.team);
+        const { data } = await q;
+        const sum = (data??[]).reduce((a:any,r:any)=>({try:a.try+ +r.total_sales_try||0, syp:a.syp+ +r.total_sales_syp||0, usd:a.usd+ +r.total_sales_usd||0, conf:a.conf+ +r.total_confirmations||0}),{try:0,syp:0,usd:0,conf:0});
+        return JSON.stringify({ period, ...sum, reports: (data??[]).length });
+      }
+      case 'get_orders': {
+        const since = todayISO.slice(0,8)+'01';
+        let q = supabase.from('orders').select('status,amount,currency,market,items').gte('order_date', since+'T00:00:00');
+        if (input.market) q = q.eq('market', input.market);
+        if (input.status) q = q.eq('status', input.status);
+        const { data } = await q;
+        const byStatus:any = {}; (data??[]).forEach((o:any)=>byStatus[o.status]=(byStatus[o.status]||0)+1);
+        return JSON.stringify({ total:(data??[]).length, byStatus });
+      }
+      case 'get_tasks': {
+        let q = supabase.from('tasks').select('title,status,priority,due_date,assignee_name').order('created_at',{ascending:false}).limit(30);
+        if (input.status) q = q.eq('status', input.status);
+        if (input.assignee) q = q.ilike('assignee_name', `%${input.assignee}%`);
+        const { data } = await q;
+        return JSON.stringify(data ?? []);
+      }
+      case 'create_task': {
+        const row:any = { title: input.title, status:'todo', priority: input.priority||'medium', created_by: ctx.userId };
+        if (input.description) row.description = input.description;
+        if (input.due_date) row.due_date = input.due_date;
+        if (input.assignee_name) {
+          const { data: p } = await supabase.from('profiles').select('id,employee_name').ilike('employee_name', `%${input.assignee_name}%`).limit(1).maybeSingle();
+          if (p) { row.assigned_to = p.id; row.assignee_name = p.employee_name; }
+        }
+        const { data, error } = await supabase.from('tasks').insert(row).select('id,title,assignee_name').single();
+        if (error) return 'فشل إنشاء المهمة: '+error.message;
+        return '✅ أُنشئت المهمة: '+JSON.stringify(data);
+      }
+      case 'update_task_status': {
+        const { data: t } = await supabase.from('tasks').select('id,title').ilike('title', `%${input.title}%`).limit(1).maybeSingle();
+        if (!t) return 'لم أجد مهمة بهذا العنوان.';
+        const { error } = await supabase.from('tasks').update({ status: input.status, updated_at: new Date().toISOString() }).eq('id', t.id);
+        if (error) return 'فشل التحديث: '+error.message;
+        return `✅ حُدّثت حالة "${t.title}" إلى ${input.status}`;
+      }
+      case 'create_announcement': {
+        const { error } = await supabase.from('announcements').insert({ title: input.title, body: input.body, created_by: ctx.userId, is_pinned:false });
+        if (error) return 'فشل النشر: '+error.message;
+        return '✅ نُشر الإعلان: '+input.title;
+      }
+      default: return 'غير منفّذ.';
+    }
+  } catch (e) { return 'خطأ بالتنفيذ: '+String(e); }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { messages, userId, userName, userRole, isManager } = await req.json();
+    const { messages, userId, userName, userRole, isManager, extraPermissions, deniedPermissions } = await req.json();
 
     if (!messages?.length || !userId) {
       return new Response(JSON.stringify({ error: 'messages and userId required' }),
@@ -247,31 +390,61 @@ Deno.serve(async (req: Request) => {
       remaining: Math.max(0, ANNUAL - usedDays),
     };
 
-    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts });
+    // Resolve the user's effective permissions for tool gating
+    const perms = resolvePerms(userRole, extraPermissions ?? [], deniedPermissions ?? []);
+    const ctx = { userId, userName, role: userRole, perms };
 
-    // ── Call Claude API ────────────────────────────────────────────
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key':         Deno.env.get('ANTHROPIC_API_KEY')!,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5',
-        max_tokens: 1024,
-        system:     systemPrompt,
-        messages:   messages.map((m: any) => ({ role: m.role, content: m.content })),
-      }),
-    });
+    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts })
+      + `\n\n## 🛠️ تنفيذ الأوامر (مهم)
+أنتِ الآن قادرة على تنفيذ أوامر فعلية عبر أدوات النظام (كشوفات، تقارير، إنشاء مهام، إعلانات...).
+- عندما يطلب المستخدم بياناً أو إجراءً، استخدمي الأداة المناسبة مباشرةً ثم لخّصي النتيجة بالعربي بشكل واضح ومرتّب.
+- كل أداة محكومة بصلاحية المستخدم. إذا رجعت الأداة "لا تملك صلاحية"، اعتذري بلطف ووضّحي أن الإجراء يحتاج صلاحية أعلى — لا تتحايلي.
+- لا تختلقي أرقاماً؛ اعرضي فقط ما ترجعه الأدوات. صلاحية المستخدم الحالي: ${userRole}.`;
 
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      throw new Error(`Claude API error: ${err}`);
+    // ── Agent loop: Claude tool-use with permission-gated execution ──
+    const convo: any[] = messages.map((m: any) => ({ role: m.role, content: m.content }));
+    const toolDefs = toolsForUser(perms);
+    let reply = 'عذراً، لم أستطع المعالجة.';
+
+    for (let iter = 0; iter < 5; iter++) {
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key':         Deno.env.get('ANTHROPIC_API_KEY')!,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: JSON.stringify({
+          model:      'claude-sonnet-4-6',
+          max_tokens: 1500,
+          system:     systemPrompt,
+          tools:      toolDefs,
+          messages:   convo,
+        }),
+      });
+      if (!claudeRes.ok) throw new Error(`Claude API error: ${await claudeRes.text()}`);
+      const data = await claudeRes.json();
+
+      const textBlocks = (data.content ?? []).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n').trim();
+
+      if (data.stop_reason === 'tool_use') {
+        // Execute each requested tool, gather results, continue the loop
+        convo.push({ role: 'assistant', content: data.content });
+        const toolResults: any[] = [];
+        for (const block of (data.content ?? [])) {
+          if (block.type !== 'tool_use') continue;
+          const result = await runTool(supabase, block.name, block.input ?? {}, ctx);
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result });
+        }
+        convo.push({ role: 'user', content: toolResults });
+        if (textBlocks) reply = textBlocks; // keep latest narration as fallback
+        continue;
+      }
+
+      // end_turn
+      reply = textBlocks || reply;
+      break;
     }
-
-    const claudeData = await claudeRes.json();
-    let reply = claudeData.content?.[0]?.text ?? 'عذراً، لم أستطع المعالجة.';
 
     // ── Capture [[LEARN: ...]] tags → persist as shared knowledge ──
     const learnMatches = [...reply.matchAll(/\[\[LEARN:\s*([^\]]+?)\s*\]\]/gi)];
