@@ -46,8 +46,8 @@ Deno.serve(async (req: Request) => {
     // Translate Arabic product names → English (the sheet's Item columns use English)
     let toEn: Record<string,string> = {};
     try {
-      const { data: prods } = await supabase.from('products').select('name,name_en').not('name_en','is',null);
-      (prods ?? []).forEach((p: any) => { if (p.name && p.name_en) toEn[String(p.name).trim()] = p.name_en; });
+      const { data: prods } = await supabase.from('products').select('name,name_en');
+      (prods ?? []).forEach((p: any) => { if (p.name && p.name_en) toEn[String(p.name).trim()] = String(p.name_en).trim(); });
     } catch { /* fall back to Arabic names */ }
     const enName = (n: string) => toEn[String(n || '').trim()] || n;
 
