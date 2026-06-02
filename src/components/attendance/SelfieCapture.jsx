@@ -69,6 +69,22 @@ export function SelfieCapture({
     return () => stopCamera();
   }, [startCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety net: if the camera never resolves (permission prompt hangs, slow
+  // device, or some browsers never reject getUserMedia), fall back to the
+  // error state after 12s so the user always gets a "متابعة بدون صورة" escape
+  // and attendance is never permanently blocked.
+  useEffect(() => {
+    if (phase !== 'loading') return;
+    const t = setTimeout(() => {
+      setPhase((p) => {
+        if (p !== 'loading') return p;
+        setError('تأخّر فتح الكاميرا. يمكنك المتابعة بدون صورة.');
+        return 'error';
+      });
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [phase]);
+
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;

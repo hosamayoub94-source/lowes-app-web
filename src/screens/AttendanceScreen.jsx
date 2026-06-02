@@ -515,7 +515,11 @@ export default function AttendanceScreen() {
   // No more confusing two-step "tap to reveal note" that left
   // employees thinking they'd checked out when they hadn't.
   const handleCheckOut = async () => {
-    if (saving || !today?.checkIn || today?.checkOut) return;
+    // "Already out" only counts when the latest out is at/after the latest in
+    // (matches the isCheckedOut display logic). A stale/old out row — e.g. an
+    // earlier 00:08 record or a previous shift — must NOT block a real checkout.
+    const alreadyOut = !!today?.checkOut && (!today?.checkIn || today.checkOut >= today.checkIn);
+    if (saving || !today?.checkIn || alreadyOut) return;
 
     // Block check-out within the first hour to prevent accidental
     // check-in → instant check-out mistakes.

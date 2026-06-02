@@ -57,7 +57,7 @@ async function fetchSalarySettings() {
   const sb = await getSupabase();
   const { data, error } = await sb
     .from('employee_salary_settings')
-    .select('*, profiles(employee_name, role_type)')
+    .select('*, profiles!employee_salary_settings_employee_id_fkey(employee_name, role_type)')
     .order('employee_id');
   if (error) throw new Error(error.message);
   return (data ?? []).map(r => ({
