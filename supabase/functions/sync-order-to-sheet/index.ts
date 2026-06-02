@@ -87,7 +87,6 @@ Deno.serve(async (req: Request) => {
       redirect: 'follow',
     });
     const out = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
-    out._debug = { mapSize: Object.keys(toEn).length, sample: enName('سيروم فيتامين سي'), firstItem: Array.isArray(o.items) ? enName(o.items[0]?.name) : null };
 
     // علّم الطلب كمتزامن (أو لا) للتتبّع وإعادة المحاولة
     await supabase.from('orders')
