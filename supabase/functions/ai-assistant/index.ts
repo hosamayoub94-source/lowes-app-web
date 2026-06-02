@@ -229,6 +229,12 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{ title:{type:'string', description:'عنوان المهمة'}, status:{type:'string', enum:['todo','in_progress','review','done']} }, required:['title','status'] } },
   { perm: PERMS.MANAGE_SETTINGS, name:'create_announcement', description:'نشر إعلان/تعميم للفريق.',
     input_schema:{ type:'object', properties:{ title:{type:'string'}, body:{type:'string'} }, required:['title','body'] } },
+  { perm: PERMS.APPROVE_LEAVES, name:'get_pending_requests', description:'الطلبات المعلّقة (إجازات/سلف/أذونات) بانتظار الموافقة. الكلمات المفتاحية: طلبات، إجازات معلّقة، سلف، موافقات.',
+    input_schema:{ type:'object', properties:{ type:{type:'string', enum:['leave','advance','permission','other']} }, required:[] } },
+  { perm: PERMS.APPROVE_LEAVES, name:'approve_request', description:'الموافقة على طلب إجازة/سلفة لموظف.',
+    input_schema:{ type:'object', properties:{ employee_name:{type:'string'}, note:{type:'string'} }, required:['employee_name'] } },
+  { perm: PERMS.MANAGE_ORDERS, name:'update_order_status', description:'تحديث حالة طلب (وارد→تجهيز→شحن→توصيل...). الكلمات المفتاحية: حالة الطلب، شحن، توصيل.',
+    input_schema:{ type:'object', properties:{ order_id:{type:'string', description:'رقم الطلب'}, status:{type:'string', enum:['pending','preparing','shipped','delivered','cancelled']} }, required:['order_id','status'] } },
 ];
 
 // Least-privilege: a user only SEES the tools their permissions allow.
@@ -331,6 +337,26 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
         const { error } = await supabase.from('announcements').insert({ title: input.title, body: input.body, created_by: ctx.userId, is_pinned:false });
         if (error) return 'فشل النشر: '+error.message;
         return '✅ نُشر الإعلان: '+input.title;
+      }
+      case 'get_pending_requests': {
+        let q = supabase.from('requests').select('employee_name,request_type,start_date,end_date,amount,currency,reason,team').eq('status','pending').order('created_at',{ascending:false}).limit(40);
+        if (input.type) q = q.eq('request_type', input.type);
+        const { data } = await q;
+        return JSON.stringify({ count:(data??[]).length, requests: data ?? [] });
+      }
+      case 'approve_request': {
+        const { data: r } = await supabase.from('requests').select('id,employee_name,request_type').eq('status','pending').ilike('employee_name', `%${input.employee_name}%`).order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if (!r) return 'لا يوجد طلب معلّق بهذا الاسم.';
+        const { error } = await supabase.from('requests').update({ status:'approved', reviewed_by: ctx.userName, reviewed_at: new Date().toISOString(), admin_note: input.note ?? null }).eq('id', r.id);
+        if (error) return 'فشل الموافقة: '+error.message;
+        return `✅ تمت الموافقة على طلب ${r.request_type} لـ ${r.employee_name}.`;
+      }
+      case 'update_order_status': {
+        const { data: o } = await supabase.from('orders').select('id,order_id,customer_name').eq('order_id', input.order_id).limit(1).maybeSingle();
+        if (!o) return 'لم أجد طلباً بهذا الرقم.';
+        const { error } = await supabase.from('orders').update({ status: input.status, updated_at: new Date().toISOString() }).eq('id', o.id);
+        if (error) return 'فشل التحديث: '+error.message;
+        return `✅ حُدّثت حالة الطلب ${o.order_id} (${o.customer_name}) إلى ${input.status}.`;
       }
       default: return 'غير منفّذ.';
     }

@@ -94,8 +94,9 @@ export default function ManagerBoardScreen() {
   const { sales, orders, attendance, tasks, target } = data;
 
   // Sales display — primary in USD, with TRY/SYP secondary
-  const salesMonthUsd = sales.month.usd;
-  const targetAmount  = target?.target_amount || 0;
+  // Prefer the dashboard's achieved_usd if present, else our daily_reports sum
+  const salesMonthUsd = Math.max(sales.month.usd, target?.achieved_usd || 0);
+  const targetAmount  = target?.target_usd || 0;
   const targetPct     = targetAmount ? Math.min(100, Math.round((salesMonthUsd / targetAmount) * 100)) : null;
 
   return (
@@ -144,7 +145,7 @@ export default function ManagerBoardScreen() {
             </div>
           ) : (
             <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2.5">
-              💡 لم يُحدَّد هدف مبيعات لهذا الشهر بعد — حدّد الهدف من جدول <code className="text-teal">sales_targets</code> لرؤية نسبة التقدّم.
+              💡 لم يُحدَّد هدف مبيعات لهذا الشهر بعد — حدّده من شاشة <span className="text-teal font-semibold">المبيعات</span> (بطاقة «هدف الشهر») لرؤية نسبة التقدّم هنا تلقائياً.
             </div>
           )}
         </div>

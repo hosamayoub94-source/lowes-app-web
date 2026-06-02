@@ -177,9 +177,10 @@ async function fetchTasks() {
 async function fetchTarget() {
   const d = new Date();
   try {
+    // Same row the Sales dashboard writes (target_usd / achieved_usd)
     const { data } = await supabase
       .from('sales_targets')
-      .select('target_amount, currency, month, year')
+      .select('target_usd, achieved_usd, month, year')
       .eq('year', d.getFullYear())
       .eq('month', d.getMonth() + 1)
       .maybeSingle();
