@@ -43,6 +43,14 @@ Deno.serve(async (req: Request) => {
     // سوريا فقط تتزامن مع جدول سوريا (عزل الفِرق)
     if (o.market !== 'syria') return json({ ok: true, skipped: 'not_syria' }, 200);
 
+    // Translate Arabic product names → English (the sheet's Item columns use English)
+    let toEn: Record<string,string> = {};
+    try {
+      const { data: prods } = await supabase.from('products').select('name,name_en').not('name_en','is',null);
+      (prods ?? []).forEach((p: any) => { if (p.name && p.name_en) toEn[String(p.name).trim()] = p.name_en; });
+    } catch { /* fall back to Arabic names */ }
+    const enName = (n: string) => toEn[String(n || '').trim()] || n;
+
     // Format timestamp as a Sheets-friendly string (ISO+microseconds won't display)
     const fmtTs = (iso: string) => {
       if (!iso) return '';
@@ -68,7 +76,7 @@ Deno.serve(async (req: Request) => {
         note:           o.notes,
         shippingMethod: o.shipping_company,
         payment:        o.payment_method,
-        items:          Array.isArray(o.items) ? o.items.map((it: any) => ({ name: it.name, qty: it.qty })) : [],
+        items:          Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
       },
     };
 
