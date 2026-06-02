@@ -63,6 +63,7 @@ const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews
 const FieldCRMScreen           = lazy(() => import(/* webpackChunkName: "field-crm"        */ '@modules/field-crm/pages/FieldCRMScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
+const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
 const OrdersScreen             = lazy(() => import(/* webpackChunkName: "orders"           */ '@screens/OrdersScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
@@ -224,6 +225,7 @@ export function AppRoutes() {
             <Route path="operations"  element={<OperationalInsights />}  />
             <Route path="quiz"        element={<AdminQuizScreen />}       />
             <Route path="products"    element={<AdminProductsScreen />}   />
+            <Route path="lozy"        element={<AdminLozyScreen />}        />
           </Route>
         </Route>
 

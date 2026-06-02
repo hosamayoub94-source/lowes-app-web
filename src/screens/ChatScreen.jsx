@@ -98,52 +98,88 @@ function extractVideoId(input){
 const BOT_NAME='🤖 مساعد لويز', BOT_ID='bot';
 const MUSIC_CMDS=['/اغنية','/أغنية','/موسيقى','/music','/play','/شغل','/شغّل'];
 const MUSIC_STOP_CMDS=['/وقف','/ايقاف','/إيقاف','/stop'];
+const MUSIC_SKIP_CMDS=['/تخطي','/تخطى','/التالي','/skip','/next'];
+
+/** Resolve a name-or-URL into {videoId,title} (searches YouTube if not a URL). */
+async function resolveSong(arg){
+  let vid=extractVideoId(arg);
+  let title=arg;
+  if(!vid){
+    try{
+      const SUPABASE_URL=import.meta.env.VITE_SUPABASE_URL;
+      const ANON_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const r=await fetch(`${SUPABASE_URL}/functions/v1/yt-search`,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json'},
+        body:JSON.stringify({q:arg}),
+      });
+      const d=await r.json();
+      if(d?.videoId){vid=d.videoId;title=d.title||arg;}
+    }catch{}
+  }
+  return {videoId:vid,title};
+}
+
+/** Play the next queued song for a room (or stop if queue empty). Returns title or null. */
+export async function playNextInQueue(roomId,djId,djName){
+  const {data:next}=await supabase.from('channel_music_queue')
+    .select('*').eq('room_id',roomId).order('created_at').limit(1).maybeSingle();
+  const now=new Date().toISOString();
+  if(next){
+    await supabase.from('channel_music').upsert(
+      {room_id:roomId,video_id:next.video_id,video_title:next.title,started_at:now,is_playing:true,dj_id:next.added_by||djId,dj_name:next.added_by||djName,updated_at:now},
+      {onConflict:'room_id'}
+    );
+    await supabase.from('channel_music_queue').delete().eq('id',next.id);
+    return next.title;
+  }
+  // Queue empty → stop
+  await supabase.from('channel_music').upsert(
+    {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:now},
+    {onConflict:'room_id'}
+  );
+  return null;
+}
+
 async function buildBotResponse(cmdText,roomId,userId,userName){
   const cmd=cmdText.trim();const cmdL=cmd.toLowerCase();let response='';
   const firstWord=cmdL.split(/\s+/)[0];
+  const botMsg=(text)=>({id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:text,created_at:new Date().toISOString()});
   try{
-    // ── Music bot: play in this channel (Discord-style) ──
+    // ── Music bot: play / queue in this channel (Discord-style) ──
     if(MUSIC_CMDS.includes(firstWord)){
       const arg=cmd.replace(/^\S+\s*/,'').trim();
-      if(!arg){response='🎵 اكتب اسم الأغنية أو رابط يوتيوب:\n/اغنية عمرو دياب تملي معاك';}
-      else{
-        let vid=extractVideoId(arg);
-        let title=arg;
-        // Not a URL → search YouTube by name (no link needed)
-        if(!vid){
-          try{
-            const SUPABASE_URL=import.meta.env.VITE_SUPABASE_URL;
-            const ANON_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const r=await fetch(`${SUPABASE_URL}/functions/v1/yt-search`,{
-              method:'POST',
-              headers:{'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json'},
-              body:JSON.stringify({q:arg}),
-            });
-            const d=await r.json();
-            if(d?.videoId){vid=d.videoId;title=d.title||arg;}
-          }catch{}
-        }
-        if(!vid){response=`😅 ما لقيت "${arg}". جرّب اسم أوضح أو الصق رابط يوتيوب.`;}
-        else{
-          const now=new Date().toISOString();
-          await supabase.from('channel_music').upsert(
-            {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
-            {onConflict:'room_id'}
-          );
-          response=`🎵 يُشغّل الآن: ${title}\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /وقف لإيقاف الموسيقى)`;
-        }
+      if(!arg){return botMsg('🎵 اكتب اسم الأغنية أو رابط يوتيوب:\n/اغنية عمرو دياب تملي معاك');}
+      const {videoId:vid,title}=await resolveSong(arg);
+      if(!vid){return botMsg(`😅 ما لقيت "${arg}". جرّب اسم أوضح أو الصق رابط يوتيوب.`);}
+      // Is something already playing in this room?
+      const {data:cur}=await supabase.from('channel_music').select('is_playing').eq('room_id',roomId).maybeSingle();
+      if(cur?.is_playing){
+        await supabase.from('channel_music_queue').insert({room_id:roomId,video_id:vid,title,added_by:userName});
+        const {count}=await supabase.from('channel_music_queue').select('id',{count:'exact',head:true}).eq('room_id',roomId);
+        return botMsg(`➕ أُضيفت للقائمة: ${title}\nالمركز في الانتظار: ${count ?? '?'} · (اكتب /تخطي للتالي)`);
       }
-      return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
+      const now=new Date().toISOString();
+      await supabase.from('channel_music').upsert(
+        {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
+        {onConflict:'room_id'}
+      );
+      return botMsg(`🎵 يُشغّل الآن: ${title}\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /اغنية لإضافة المزيد · /تخطي للتالي · /وقف للإيقاف)`);
+    }
+    // ── Skip to next queued song ──
+    if(MUSIC_SKIP_CMDS.includes(firstWord)){
+      const nextTitle=await playNextInQueue(roomId,userId,userName);
+      return botMsg(nextTitle?`⏭ التالي: ${nextTitle} 🎧`:'⏹ انتهت القائمة — لا مزيد من الأغاني.');
     }
     if(MUSIC_STOP_CMDS.includes(firstWord)){
       await supabase.from('channel_music').upsert(
         {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
         {onConflict:'room_id'}
       );
-      response='⏹ تم إيقاف الموسيقى في القناة.';
-      return{id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:response,created_at:new Date().toISOString()};
+      await supabase.from('channel_music_queue').delete().eq('room_id',roomId);
+      return botMsg('⏹ تم إيقاف الموسيقى ومسح قائمة الانتظار.');
     }
-    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <اسم أو رابط> — شغّل أغنية بالقناة','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
+    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <اسم أو رابط> — شغّل أو أضف للقائمة','⏭ /تخطي    — الأغنية التالية','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
       const taskFilter=userId?`assignee_id.eq.${userId},assigned_to.eq.${userId}`:`assigned_to.eq.${userId}`;
       const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","cancelled")').order('created_at',{ascending:false}).limit(8);
@@ -1011,13 +1047,21 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
 }
 
 // ── ChannelMusicPlayer — Discord-style per-channel music ─────────
-function ChannelMusicPlayer({roomId,userId,isApprover}){
+function ChannelMusicPlayer({roomId,userId,userName,isApprover}){
   const[state,setState]=useState(null);
   const[collapsed,setCollapsed]=useState(false);
+  const[queue,setQueue]=useState([]);
+  const[skipping,setSkipping]=useState(false);
   // Only reload iframe when the actual video_id changes, not on every realtime tick
   const[embedUrl,setEmbedUrl]=useState('');
   const prevVideoId=useRef(null);
   const subRef=useRef(null);
+  const queueSubRef=useRef(null);
+
+  const loadQueue=useCallback(()=>{
+    supabase.from('channel_music_queue').select('*').eq('room_id',roomId).order('created_at')
+      .then(({data})=>setQueue(data??[])).catch(()=>{});
+  },[roomId]);
 
   useEffect(()=>{
     if(!roomId)return;
@@ -1048,17 +1092,29 @@ function ChannelMusicPlayer({roomId,userId,isApprover}){
         }
         if(!newVid||!d?.is_playing) prevVideoId.current=null;
       }).subscribe();
-    return()=>{alive=false;subRef.current?.unsubscribe();};
-  },[roomId]);
+    // Queue load + realtime
+    loadQueue();
+    queueSubRef.current=supabase.channel(`mqueue:${roomId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'channel_music_queue',filter:`room_id=eq.${roomId}`},()=>loadQueue())
+      .subscribe();
+    return()=>{alive=false;subRef.current?.unsubscribe();queueSubRef.current?.unsubscribe();};
+  },[roomId,loadQueue]);
 
   if(!state?.is_playing||!state?.video_id)return null;
-  const canStop=state.dj_id===userId||isApprover;
+  const canControl=state.dj_id===userId||isApprover;
 
   const stop=async()=>{
     await supabase.from('channel_music').upsert(
       {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
       {onConflict:'room_id'}
     ).catch(()=>{});
+    await supabase.from('channel_music_queue').delete().eq('room_id',roomId).catch(()=>{});
+  };
+
+  const skip=async()=>{
+    setSkipping(true);
+    try{ await playNextInQueue(roomId,userId,userName); }
+    finally{ setSkipping(false); }
   };
 
   return(
@@ -1067,20 +1123,35 @@ function ChannelMusicPlayer({roomId,userId,isApprover}){
         <span className="w-2 h-2 rounded-full bg-teal animate-pulse shrink-0"/>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-text truncate">🎵 {state.video_title||'يُشغّل الآن'}</p>
-          {state.dj_name&&<p className="text-[10px] text-muted">شغّلها {state.dj_name}</p>}
+          {state.dj_name&&<p className="text-[10px] text-muted">شغّلها {state.dj_name}{queue.length>0?` · ${queue.length} بالانتظار`:''}</p>}
         </div>
+        {canControl&&queue.length>0&&(
+          <button onClick={skip} disabled={skipping} className="text-xs text-muted hover:text-teal transition px-1.5 disabled:opacity-40" title="التالي">⏭</button>
+        )}
         <button onClick={()=>setCollapsed(c=>!c)} className="text-xs text-muted hover:text-teal transition px-1.5" title={collapsed?'إظهار':'إخفاء'}>
           {collapsed?'▸':'▾'}
         </button>
-        {canStop&&(
+        {canControl&&(
           <button onClick={stop} className="text-xs text-muted hover:text-red-500 transition px-1.5" title="إيقاف">⏹</button>
         )}
       </div>
       {!collapsed&&(
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3 space-y-2">
           <div className="rounded-xl overflow-hidden border border-border bg-black" style={{aspectRatio:'16/9'}}>
             <iframe src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media; fullscreen" allowFullScreen title="موسيقى القناة"/>
           </div>
+          {queue.length>0&&(
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-1">⏭ التالي ({queue.length})</p>
+              {queue.slice(0,5).map((q,i)=>(
+                <div key={q.id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-surface-alt/60">
+                  <span className="text-[10px] text-muted font-bold w-4 shrink-0">{i+1}</span>
+                  <span className="flex-1 text-[11px] text-text truncate">{q.title}</span>
+                  {q.added_by&&<span className="text-[9px] text-muted shrink-0">{q.added_by}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1646,7 +1717,7 @@ export default function ChatScreen(){
 
         {/* Channel music (Discord-style — /اغنية) */}
         {!showMusicRoom&&activeRoom&&(
-          <ChannelMusicPlayer roomId={activeRoom.id} userId={userId} isApprover={isApprover} />
+          <ChannelMusicPlayer roomId={activeRoom.id} userId={userId} userName={userName} isApprover={isApprover} />
         )}
 
         {/* Music Room */}

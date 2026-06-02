@@ -61,6 +61,9 @@ export const ROUTES = {
   // Product Catalog
   ADMIN_PRODUCTS: '/admin/products',
 
+  // Lozy AI knowledge
+  ADMIN_LOZY: '/admin/lozy',
+
   // Orders
   ORDERS: '/orders',
 };
