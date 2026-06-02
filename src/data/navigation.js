@@ -83,6 +83,20 @@ export const NAV_ITEMS = [
     roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
   },
   {
+    id: 'manager-board',
+    label: 'لوحة المدير',
+    icon: '📈',
+    path: '/manager-board',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'social-studio',
+    label: 'استوديو السوشال',
+    icon: '🌸',
+    path: '/social-studio',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER],
+  },
+  {
     id: 'crm',
     label: 'CRM',
     icon: '🤝',

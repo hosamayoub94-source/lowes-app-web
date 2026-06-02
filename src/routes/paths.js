@@ -67,6 +67,10 @@ export const ROUTES = {
   // Face verification enrollment
   ADMIN_FACE_ENROLL: '/admin/face-enroll',
 
+  // Manager executive board + Social content studio
+  MANAGER_BOARD: '/manager-board',
+  SOCIAL_STUDIO: '/social-studio',
+
   // Orders
   ORDERS: '/orders',
 };

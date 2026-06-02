@@ -66,6 +66,8 @@ const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
 const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
 const OrdersScreen             = lazy(() => import(/* webpackChunkName: "orders"           */ '@screens/OrdersScreen'));
+const ManagerBoardScreen       = lazy(() => import(/* webpackChunkName: "manager-board"    */ '@screens/ManagerBoardScreen'));
+const SocialStudioScreen       = lazy(() => import(/* webpackChunkName: "social-studio"    */ '@screens/SocialStudioScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -137,6 +139,22 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={SALES_ROLES}>
                 <SalesDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.MANAGER_BOARD}
+            element={
+              <ProtectedRoute roles={MANAGEMENT}>
+                <ManagerBoardScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.SOCIAL_STUDIO}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]}>
+                <SocialStudioScreen />
               </ProtectedRoute>
             }
           />
