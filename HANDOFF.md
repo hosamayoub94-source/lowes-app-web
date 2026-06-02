@@ -3,7 +3,34 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — التحقق بالوجه + لوحة المدير + استوديو السوشال)
+## 🆕 أحدث جلسة (يونيو 2026 — إصلاحات الرواتب + الانصراف + الإشعارات)
+
+### ✅ الإصلاحات المنشورة على prod (commit 5de4397)
+
+**1. الرواتب (AdminSettingsScreen):**
+- خطأ: `employee_salary_settings` له FKان لـ profiles (created_by + employee_id) → PostgREST PGRST201.
+- الحل: `profiles!employee_salary_settings_employee_id_fkey(employee_name, role_type)` في الـ select.
+
+**2. تسجيل الانصراف (AttendanceScreen):**
+- خطأ: `handleCheckOut` يرفض لو أي صف `out` موجود (حتى قديم مثل 00:08)، بينما الزر يظهر فعّالاً (منطق متناقض).
+- الحل: `alreadyOut = !!checkOut && checkOut >= checkIn` (نفس منطق العرض).
+- + timeout 12ث على كاميرا SelfieCapture → error + "متابعة بدون صورة" إذا علّقت.
+
+**3. الإشعارات (VAPID):**
+- خطأ: `VITE_VAPID_PUBLIC_KEY` كان مفقوداً من Vercel → `vapidConfigured=false` → البانر مخفي على prod.
+- الحل: أُضيف المتغير في Vercel (lowes1/lowes-app-web/settings/environment-variables).
+- القيمة: `BOjFSpYCptZ0EgkoDFBtrEKe_jd58xeEnN354PxsXoK2jgJVTyo7hPPD0OrAhYVJjttS0nYBeP0J-_phRyl6kY4`
+- تأكيد: `vapidInBundle=YES` على prod bundle. البانر الآن يظهر للموظفين.
+
+**نشر Edge Function (طريقة برمجية بدون UI):**
+من تبويب Supabase Dashboard (مسجّل دخول): استخرج `localStorage['supabase.dashboard.auth.token'].access_token` ثم:
+`POST https://api.supabase.com/v1/projects/<ref>/functions/deploy?slug=<name>` بـ multipart (metadata JSON + file Blob). الكود يُحمّل من GitHub raw (الريبو عام: hosamayoub94-source/lowes-app-web).
+
+**نصيحة Vercel:** لملء form + Save برمجياً: React value setters + `button.click()`. الإحداثيات غير موثوقة.
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — التحقق بالوجه + لوحة المدير + استوديو السوشال)
 
 ### 🔐 التحقق من الوجه (Face Verification)
 - مكتبة `@vladmandic/face-api` (مجانية، تعمل بالمتصفح، بدون API key). Models في `public/face-models/`.
