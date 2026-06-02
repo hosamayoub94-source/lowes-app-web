@@ -327,6 +327,8 @@ export default function AttendanceScreen() {
   const [note, setNote]         = useState('');
   const [showNote, setShowNote] = useState(false);
   const [duration, setDuration] = useState('');
+  // Face verification descriptor loaded from profile
+  const [faceDescriptor, setFaceDescriptor] = useState(null);
   // Minutes still remaining before check-out is allowed (0 = unlocked)
   const [checkoutLockLeft, setCheckoutLockLeft] = useState(0);
   // Selfie verification: 'in' | 'out' | null
@@ -418,6 +420,19 @@ export default function AttendanceScreen() {
   }, [userName]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Load face descriptor for verification
+  useEffect(() => {
+    if (!userName) return;
+    supabase.from('profiles')
+      .select('face_descriptor')
+      .eq('employee_name', userName)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.face_descriptor) setFaceDescriptor(data.face_descriptor);
+      })
+      .catch(() => {});
+  }, [userName]);
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3500); };
 
@@ -688,7 +703,20 @@ export default function AttendanceScreen() {
           label={cameraMode === 'in' ? 'تأكيد الحضور بصورة' : 'تأكيد الانصراف بصورة'}
           employeeName={userName}
           kind={cameraMode}
-          onCapture={(url) => (cameraMode === 'in' ? doCheckIn(url) : doActualCheckOut(url))}
+          storedDescriptor={faceDescriptor}
+          onCapture={(url, verifyResult) => {
+            // If forced (face mismatch), log it — manager will see it
+            if (verifyResult?.forced) {
+              supabase.from('notifications').insert({
+                user_id:  null, // broadcast — will be filtered by manager role
+                type:     'system_alert',
+                title:    `⚠️ تحذير: وجه غير متطابق — ${userName}`,
+                message:  `الموظف ${userName} سجّل ${cameraMode === 'in' ? 'حضور' : 'انصراف'} بتطابق ${verifyResult.confidence}% فقط`,
+                severity: 'high',
+              }).catch(() => {});
+            }
+            cameraMode === 'in' ? doCheckIn(url) : doActualCheckOut(url);
+          }}
           onClose={() => setCameraMode(null)}
         />
       )}

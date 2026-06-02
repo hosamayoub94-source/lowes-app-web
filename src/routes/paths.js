@@ -64,6 +64,9 @@ export const ROUTES = {
   // Lozy AI knowledge
   ADMIN_LOZY: '/admin/lozy',
 
+  // Face verification enrollment
+  ADMIN_FACE_ENROLL: '/admin/face-enroll',
+
   // Orders
   ORDERS: '/orders',
 };

@@ -18,6 +18,7 @@ const SUB_TABS = [
   { id: 'quiz',        label: '🧠 اختبارات التدريب', path: ROUTES.ADMIN_QUIZ        },
   { id: 'products',    label: '🏷️ كتالوج المنتجات',  path: ROUTES.ADMIN_PRODUCTS    },
   { id: 'lozy',        label: '🌸 معرفة لوزي',        path: ROUTES.ADMIN_LOZY        },
+  { id: 'face-enroll', label: '🔐 تسجيل الوجوه',      path: ROUTES.ADMIN_FACE_ENROLL },
 ];
 
 export default function AdminScreen() {

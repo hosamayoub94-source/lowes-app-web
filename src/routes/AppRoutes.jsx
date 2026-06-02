@@ -57,6 +57,7 @@ const LeaveRequestsScreen      = lazy(() => import(/* webpackChunkName: "leave" 
 const HRDashboard              = lazy(() => import(/* webpackChunkName: "hr"               */ '@screens/HRDashboard'));
 const TrainingScreen           = lazy(() => import(/* webpackChunkName: "training"         */ '@screens/TrainingScreen'));
 const AdminQuizScreen          = lazy(() => import(/* webpackChunkName: "admin-quiz"       */ '@screens/admin/AdminQuizScreen'));
+const AdminFaceEnrollScreen    = lazy(() => import(/* webpackChunkName: "admin-face"       */ '@screens/admin/AdminFaceEnrollScreen'));
 const ShiftScheduleScreen      = lazy(() => import(/* webpackChunkName: "schedule"         */ '@screens/ShiftScheduleScreen'));
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
@@ -226,6 +227,7 @@ export function AppRoutes() {
             <Route path="quiz"        element={<AdminQuizScreen />}       />
             <Route path="products"    element={<AdminProductsScreen />}   />
             <Route path="lozy"        element={<AdminLozyScreen />}        />
+            <Route path="face-enroll" element={<AdminFaceEnrollScreen />}  />
           </Route>
         </Route>
 
