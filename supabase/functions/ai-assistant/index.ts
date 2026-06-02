@@ -215,9 +215,9 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{}, required:[] } },
   { perm: null, name:'list_team', description:'قائمة الفريق/الموظفين النشطين مع المسمى الوظيفي والدور والفريق. فلتر اختياري حسب الفريق.',
     input_schema:{ type:'object', properties:{ team:{type:'string', description:'سوريا/تركيا/ميديا/إدارة (اختياري)'} }, required:[] } },
-  { perm: PERMS.VIEW_ALL_ATTENDANCE, name:'get_attendance_report', description:'كشف حضور الفريق ليوم محدّد: من حضر/غاب/تأخّر مع الأوقات. للمدراء فقط.',
+  { perm: PERMS.VIEW_ALL_ATTENDANCE, name:'get_attendance_report', description:'الحضور والغياب — كشف الدوام: كم موظف حضر ومن غاب ومن تأخّر في يوم. الكلمات المفتاحية: حضور، غياب، تأخّر، دوام، مين حضر، كم حضر.',
     input_schema:{ type:'object', properties:{ date:{type:'string', description:'YYYY-MM-DD (افتراضي اليوم)'}, team:{type:'string'} }, required:[] } },
-  { perm: PERMS.VIEW_ANALYTICS, name:'get_sales_report', description:'تقرير المبيعات: مجاميع TRY/SYP/USD والتأكيدات لليوم أو الشهر من التقارير اليومية.',
+  { perm: PERMS.VIEW_ANALYTICS, name:'get_sales_report', description:'المبيعات والأرقام المالية — مجاميع المبيعات (TRY/SYP/USD) والتأكيدات. الكلمات المفتاحية: مبيعات، مبلغ، إيراد، تأكيدات، كم بعنا.',
     input_schema:{ type:'object', properties:{ period:{type:'string', enum:['today','month'], description:'افتراضي month'}, team:{type:'string'} }, required:[] } },
   { perm: PERMS.MANAGE_ORDERS, name:'get_orders', description:'كشف الطلبات: فلترة حسب السوق والحالة. عدد وقيمة وأعلى منتجات.',
     input_schema:{ type:'object', properties:{ market:{type:'string', enum:['syria','turkey']}, status:{type:'string'} }, required:[] } },
@@ -231,8 +231,11 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{ title:{type:'string'}, body:{type:'string'} }, required:['title','body'] } },
 ];
 
+// Least-privilege: a user only SEES the tools their permissions allow.
+// (runTool still re-checks as defense-in-depth.)
 function toolsForUser(perms: Set<string>) {
-  return TOOLS.map(t => ({ name:t.name, description:t.description, input_schema:t.input_schema }));
+  return TOOLS.filter(t => !t.perm || perms.has(t.perm))
+    .map(t => ({ name:t.name, description:t.description, input_schema:t.input_schema }));
 }
 
 // Execute one tool with permission enforcement. Returns a string result.
@@ -399,7 +402,7 @@ Deno.serve(async (req: Request) => {
 أنتِ الآن **منفِّذة فعلية** (agent) ولستِ مجرد محادِثة. عندك أدوات تنفّذ كشوفات وتقارير وإنشاء مهام وإعلانات.
 - إذا طلب المستخدم أي بيان أو إجراء تغطيه أداة → **استدعي الأداة فوراً** ثم اعرضي النتيجة مرتّبة بالعربي.
 - **لا تسألي أسئلة توضيحية** إلا للضرورة القصوى. استخدمي القيم الافتراضية المعقولة: التاريخ = اليوم، الفريق = الكل، الفترة = الشهر. مثال: "كم حضر اليوم؟" → نفّذي get_attendance_report مباشرةً (اليوم، كل الفِرق).
-- كل أداة محكومة بصلاحية المستخدم تلقائياً. إذا رجعت "لا تملك صلاحية" → اعتذري بلطف ووضّحي أنه يحتاج صلاحية أعلى. لا تتحايلي ولا تستبدلي بأداة ثانية للالتفاف.
+- أدواتك المتاحة محدودة بصلاحية المستخدم. إذا طلب إجراءً **لا تملكين أداةً له**، فهذا يعني أنه خارج صلاحيته → وضّحي له بلطف أن هذا الإجراء يحتاج صلاحية أعلى (مدير/أدمن) ولا تحاولي الالتفاف بأداة ثانية.
 - لا تختلقي أرقاماً — فقط ما ترجعه الأدوات. صلاحية المستخدم الحالي: ${userRole}.
 - بعد التنفيذ، تكلّمي بطبيعتك الودّية لكن اعرضي الأرقام بدقة.`;
 
