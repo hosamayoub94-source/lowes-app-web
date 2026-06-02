@@ -319,7 +319,7 @@ export function subscribeToNotifications(userId, onInsert, onStatus = null) {
   }
 
   const channel = supabase
-    .channel(`notif_user_${userId}`)
+    .channel(`notif_user_${userId}_${Date.now()}`)
     .on(
       'postgres_changes',
       {
