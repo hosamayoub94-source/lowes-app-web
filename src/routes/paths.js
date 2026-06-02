@@ -70,6 +70,8 @@ export const ROUTES = {
   // Manager executive board + Social content studio
   MANAGER_BOARD: '/manager-board',
   SOCIAL_STUDIO: '/social-studio',
+  SOCIAL_TEAM:   '/social-team',
+  PROFITABILITY: '/profitability',
 
   // Orders
   ORDERS: '/orders',

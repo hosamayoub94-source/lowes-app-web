@@ -90,6 +90,20 @@ export const NAV_ITEMS = [
     roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
   },
   {
+    id: 'profitability',
+    label: 'ربحية المنتج',
+    icon: '💎',
+    path: '/profitability',
+    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
+  },
+  {
+    id: 'social-team',
+    label: 'فريق السوشال',
+    icon: '🌐',
+    path: '/social-team',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER],
+  },
+  {
     id: 'social-studio',
     label: 'استوديو السوشال',
     icon: '🌸',

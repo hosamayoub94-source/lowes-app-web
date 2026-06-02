@@ -68,6 +68,8 @@ const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-l
 const OrdersScreen             = lazy(() => import(/* webpackChunkName: "orders"           */ '@screens/OrdersScreen'));
 const ManagerBoardScreen       = lazy(() => import(/* webpackChunkName: "manager-board"    */ '@screens/ManagerBoardScreen'));
 const SocialStudioScreen       = lazy(() => import(/* webpackChunkName: "social-studio"    */ '@screens/SocialStudioScreen'));
+const SocialTeamScreen         = lazy(() => import(/* webpackChunkName: "social-team"      */ '@screens/SocialTeamScreen'));
+const ProfitabilityScreen      = lazy(() => import(/* webpackChunkName: "profitability"    */ '@screens/ProfitabilityScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -155,6 +157,22 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]}>
                 <SocialStudioScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.SOCIAL_TEAM}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER]}>
+                <SocialTeamScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.PROFITABILITY}
+            element={
+              <ProtectedRoute roles={MANAGEMENT}>
+                <ProfitabilityScreen />
               </ProtectedRoute>
             }
           />
