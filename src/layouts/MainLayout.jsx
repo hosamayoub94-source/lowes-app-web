@@ -21,6 +21,7 @@ import { useTaskDueSoonAlerts }      from '@hooks/useTaskDueSoonAlerts';
 import { useKpiMonthReminder }           from '@hooks/useKpiMonthReminder';
 import { useAutoAttendanceReminder }     from '@hooks/useAutoAttendanceReminder';
 import { InstallPrompt }             from '@components/ui/InstallPrompt';
+import { PushPermissionPrompt }      from '@components/ui/PushPermissionPrompt';
 import { AIAssistantWidget }         from '@components/ai/AIAssistantWidget';
 
 export function MainLayout() {
@@ -50,6 +51,7 @@ export function MainLayout() {
       <ToastContainer />
       <NotifToastContainer />
       <InstallPrompt />
+      <PushPermissionPrompt />
       <AIAssistantWidget />
     </div>
   );

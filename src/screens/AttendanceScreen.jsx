@@ -224,6 +224,95 @@ function DayBadge({ dayRec, slash, userName, onReasonSaved }) {
   );
 }
 
+// ── Who is in today — live presence board (name + team) ────────
+function WhoIsInToday() {
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const dateVal = todaySlash();
+
+  const load = useCallback(async () => {
+    try {
+      const [{ data: att }, { data: profs }] = await Promise.all([
+        supabase.from('attendance').select('employee_name,type,time_in').eq('date', dateVal).in('type', ['in', 'out']),
+        supabase.from('profiles').select('employee_name,team').eq('is_active', true),
+      ]);
+      const teamMap = {};
+      (profs ?? []).forEach(p => { teamMap[p.employee_name] = p.team; });
+      const map = {};
+      (att ?? []).forEach(r => {
+        if (!map[r.employee_name]) map[r.employee_name] = { name: r.employee_name, in: null, out: null, team: teamMap[r.employee_name] || null };
+        if (r.type === 'in' && !map[r.employee_name].in) map[r.employee_name].in = r.time_in;
+        if (r.type === 'out') map[r.employee_name].out = r.time_in;
+      });
+      setRows(Object.values(map).filter(r => r.in).sort((a, b) => (a.in || '').localeCompare(b.in || '')));
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, [dateVal]);
+
+  useEffect(() => {
+    load();
+    const ch = supabase.channel('whois_' + dateVal)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => load())
+      .subscribe();
+    return () => { ch.unsubscribe(); };
+  }, [load, dateVal]);
+
+  const present = rows.filter(r => !r.out);
+  const left    = rows.filter(r => r.out);
+
+  const initial = (n) => (n || '؟').trim().charAt(0);
+  const teamColor = (t) =>
+    t === 'social' || t === 'ميديا' ? 'bg-purple-500/15 text-purple-600'
+    : t === 'sales' || t === 'مبيعات' ? 'bg-amber-500/15 text-amber-600'
+    : t === 'ops' || t === 'إدارة' ? 'bg-blue-500/15 text-blue-600'
+    : 'bg-teal/15 text-teal';
+
+  return (
+    <div className="bg-surface rounded-3xl p-4 shadow-sm border border-border space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-text flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          الموجودون الآن
+          <span className="text-xs font-extrabold text-emerald-600">{present.length}</span>
+        </p>
+        {loading && <span className="text-[10px] text-muted animate-pulse">…</span>}
+      </div>
+
+      {present.length === 0 && !loading && (
+        <p className="text-xs text-muted text-center py-3">لا أحد سجّل حضوره بعد اليوم</p>
+      )}
+
+      <div className="space-y-1.5">
+        {present.map(r => (
+          <div key={r.name} className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-surface-alt transition">
+            <div className="relative shrink-0">
+              <div className={`w-8 h-8 rounded-full grid place-items-center font-bold text-xs ${teamColor(r.team)}`}>{initial(r.name)}</div>
+              <span className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-surface" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-text font-medium truncate">{r.name}</p>
+              {r.team && <p className="text-[10px] text-muted">{r.team}</p>}
+            </div>
+            <span className="text-[11px] text-emerald-600 font-semibold tabular-nums shrink-0">{r.in?.slice(0,5)}</span>
+          </div>
+        ))}
+      </div>
+
+      {left.length > 0 && (
+        <div className="pt-2 border-t border-border space-y-1.5">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">غادروا ({left.length})</p>
+          {left.map(r => (
+            <div key={r.name} className="flex items-center gap-2.5 px-2 py-1 opacity-60">
+              <div className="w-7 h-7 rounded-full bg-surface-alt grid place-items-center font-bold text-xs text-muted shrink-0">{initial(r.name)}</div>
+              <span className="flex-1 text-sm text-muted truncate">{r.name}</span>
+              <span className="text-[10px] text-muted shrink-0">🏠 {r.out?.slice(0,5)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ───────────────────────────────────────────────────────
 export default function AttendanceScreen() {
   const { name: userName, team } = useAuth();
@@ -369,10 +458,12 @@ export default function AttendanceScreen() {
     setSaving(true); setError(null);
     const now     = nowHHMM();
     const dateVal = todaySlash();
+    const dayName = arabicDaySlash(dateVal);
     try {
       const { error: insErr } = await supabase.from('attendance').insert({
         employee_name: userName,
         date:          dateVal,
+        day:           dayName,   // REQUIRED (NOT NULL) — was missing → checkout failed
         type:          'out',
         time_in:       now,   // DB uses time_in for out-rows too
         method:        'app',
@@ -694,6 +785,9 @@ export default function AttendanceScreen() {
           ))}
         </div>
       </div>
+
+      {/* ── Who is in today (live) ───────────────────────────── */}
+      <WhoIsInToday />
     </div>
   );
 }
