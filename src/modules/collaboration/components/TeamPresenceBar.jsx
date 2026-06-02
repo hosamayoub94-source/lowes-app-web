@@ -71,9 +71,9 @@ export function TeamPresenceBar({ maxVisible = 6 }) {
 
       {/* Avatars */}
       <div className="flex items-center -space-x-1.5 space-x-reverse">
-        {visibleOnline.map((user) => (
+        {visibleOnline.map((user, idx) => (
           <PresenceAvatar
-            key={user.userId}
+            key={user.userId ?? user.userName ?? idx}
             user={user}
             getStatusColor={getStatusColor}
             getLastSeenLabel={getLastSeenLabel}

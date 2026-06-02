@@ -96,7 +96,7 @@ function greeting() {
   if (h < 5)  return { text: 'طاب مساؤك',    icon: '🌙' };
   if (h < 12) return { text: 'صباح الخير',    icon: '🌅' };
   if (h < 17) return { text: 'مساء الخير',    icon: '☀️' };
-  if (h < 21) return { text: 'أمسك سعيد',    icon: '🌇' };
+  if (h < 21) return { text: 'مساؤك سعيد',    icon: '🌇' };
   return      { text: 'طاب مساؤك',            icon: '🌙' };
 }
 function todayISO()  { return new Date().toISOString().slice(0, 10); }
