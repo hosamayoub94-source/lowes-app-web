@@ -3,7 +3,39 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — الحضور + الإشعارات + بوت لوزي + المهام v2)
+## 🆕 أحدث جلسة (يونيو 2026 — التحقق بالوجه + لوحة المدير + استوديو السوشال)
+
+### 🔐 التحقق من الوجه (Face Verification)
+- مكتبة `@vladmandic/face-api` (مجانية، تعمل بالمتصفح، بدون API key). Models في `public/face-models/`.
+- `src/services/faceVerificationService.js` — loadModels / extractDescriptor / compareFaces. عتبة التطابق 0.5.
+- `profiles.face_descriptor` (jsonb) — مطبّق على prod + GRANT SELECT/UPDATE لـ anon/authenticated.
+- شاشة الأدمن: `/admin/face-enroll` (AdminFaceEnrollScreen) — يختار موظف ويرفع صورة مرجعية → يُستخرج descriptor.
+- `SelfieCapture` يقارن الوجه الحي بالمحفوظ قبل تسجيل الحضور. عدم تطابق → خيار "تسجيل مع تنبيه" + إشعار للأدمن.
+- `AttendanceScreen` يحمّل `face_descriptor` للموظف ويمرّره.
+
+### 📈 لوحة المدير التنفيذية — `/manager-board` (للمدراء/الأدمن)
+- `ManagerBoardScreen` + `src/services/managerBoardService.js` — يسحب KPIs حية من Supabase.
+- المبيعات (daily_reports: TRY/SYP/USD + تأكيدات) · الطلبات (orders: حالات + أعلى منتجات) · الحضور (حاضر/غائب/متأخر + قائمة الغائبين) · المهام (متأخرة/قيد التنفيذ/أولوية عالية).
+- الهدف من `sales_targets` (فارغ حالياً → يعرض رسالة). nav: «لوحة المدير» 📈.
+
+### 🌸 استوديو السوشال — `/social-studio` (أدمن/مدير/سوشال/ميديا)
+- `SocialStudioScreen` — 4 أوضاع: كابشن · أفكار ريلز · رد على عميل · تقويم أسبوعي.
+- Edge Function `social-content` (Claude **Sonnet 4.6**، verify_jwt=false، **منشورة على prod**) — نبرة البراند + كتالوج المنتجات.
+- منتقي المنتج من جدول products. زر نسخ + سجل آخر التوليدات. nav: «استوديو السوشال» 🌸.
+
+### 🔑 نشر Edge Functions برمجياً (أسرع من UI)
+من تبويب Supabase Dashboard (مسجّل دخول): استخرج `localStorage['supabase.dashboard.auth.token'].access_token` ثم:
+`POST https://api.supabase.com/v1/projects/<ref>/functions/deploy?slug=<name>` بـ multipart (metadata JSON {name, entrypoint_path:'index.ts', verify_jwt:false} + file). الكود يُحمّل من GitHub raw (الريبو عام).
+
+### 🔴 إصلاح: notifications realtime crash
+- `subscribeToNotifications` كان يعيد استخدام اسم channel ثابت → "cannot add postgres_changes after subscribe()". الحل: `notif_user_${id}_${Date.now()}`.
+
+### 🔑 PIN الأدمن
+- أُعيد ضبطه إلى **6311** (كان مجهولاً). الموظف «أدمن» id=65d6efb5-13b3-471f-835a-e2baf2d9631d.
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — الحضور + الإشعارات + بوت لوزي + المهام v2)
 
 ### أدوات الأدمن + الموسيقى (يونيو 2026)
 - **كتالوج المنتجات:** أُضيفت أعمدة products (`products_columns_fix.sql` مطبّق) → AdminProductsScreen يعمل كاملاً.
