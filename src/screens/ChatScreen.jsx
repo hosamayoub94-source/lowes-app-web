@@ -1173,6 +1173,10 @@ export default function ChatScreen(){
   const[allChannels,setAllChannels]=useState([]);
   const[memberRoomIds,setMemberRoomIds]=useState([]);
   const[activeRoom,setActiveRoom]=useState(null);
+  // Mobile WhatsApp-style nav: 'list' shows channels/DMs, 'chat' shows the
+  // open conversation full-screen. On desktop (sm+) both panes show together.
+  const[mobileView,setMobileView]=useState('list');
+  const openRoom=(r)=>{setActiveRoom(r);setShowMusicRoom(false);setMobileView('chat');};
   const[messages,setMessages]=useState([]);
   const[reactions,setReactions]=useState({});
   const[lastMsgs,setLastMsgs]=useState({});
@@ -1372,7 +1376,7 @@ export default function ChatScreen(){
     if(!dmTarget||!userId||!rooms.length)return;
     // Check if DM already exists
     const existing=rooms.find(r=>r.type==='dm'&&r.display_name===dmTarget);
-    if(existing){setActiveRoom(existing);setSidebarOpen(false);return;}
+    if(existing){setActiveRoom(existing);setSidebarOpen(false);setMobileView('chat');return;}
     // Create new DM room
     const createDm=async()=>{
       try{
@@ -1388,7 +1392,7 @@ export default function ChatScreen(){
         const roomWithDisplay={...room,display_name:dmTarget};
         setRooms(r=>[...r,roomWithDisplay]);
         setActiveRoom(roomWithDisplay);
-        setSidebarOpen(false);
+        setSidebarOpen(false);setMobileView('chat');
       }catch{}
     };
     createDm();
@@ -1521,7 +1525,7 @@ export default function ChatScreen(){
     const myIds=myRooms?.map(r=>r.room_id)??[];
     if(myIds.length){
       const{data:shared}=await supabase.from('chat_room_members').select('room_id').eq('user_id',profile.id).in('room_id',myIds);
-      if(shared?.length){const ex=rooms.find(r=>r.id===shared[0].room_id&&r.type==='dm');if(ex){setActiveRoom(ex);setShowNewDm(false);return;}}
+      if(shared?.length){const ex=rooms.find(r=>r.id===shared[0].room_id&&r.type==='dm');if(ex){setActiveRoom(ex);setShowNewDm(false);setMobileView('chat');return;}}
     }
     const{data:room,error}=await supabase.from('chat_rooms').insert({type:'dm',name:profile.employee_name,created_by:userId}).select().single();
     if(error){alert('خطأ: '+error.message);return;}
@@ -1530,7 +1534,7 @@ export default function ChatScreen(){
       {room_id:room.id,user_id:profile.id,display_name:profile.employee_name,user_name:profile.employee_name,role:'member',joined_at:new Date().toISOString()},
     ]);
     const enriched={...room,display_name:profile.employee_name};
-    setRooms(p=>[...p,enriched]);setActiveRoom(enriched);setShowNewDm(false);setDmSearch('');
+    setRooms(p=>[...p,enriched]);setActiveRoom(enriched);setShowNewDm(false);setDmSearch('');setMobileView('chat');
   };
   const loadProfiles=async()=>{const{data}=await supabase.from('profiles').select('id,employee_name,role_type,team').eq('is_active',true).neq('id',userId).order('employee_name');setAllProfiles(data??[]);};
 
@@ -1555,8 +1559,8 @@ export default function ChatScreen(){
   return(
     <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-sm" dir="rtl">
 
-      {/* ══ Sidebar ══════════════════════════════════════════════ */}
-      <div className={`transition-all duration-200 ${sidebarOpen?'w-64 sm:w-72':'w-0'} shrink-0 overflow-hidden flex flex-col border-e border-border bg-surface`}>
+      {/* ══ Sidebar (list) — full width on mobile, fixed on desktop ══ */}
+      <div className={`${mobileView==='chat'?'hidden':'flex'} sm:flex w-full ${sidebarOpen?'sm:w-72':'sm:w-0'} shrink-0 overflow-hidden flex-col border-e border-border bg-surface`}>
         {/* Header */}
         <div className="px-3 py-3 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
@@ -1572,7 +1576,7 @@ export default function ChatScreen(){
         {/* Body */}
         <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
           {/* Music room */}
-          <button onClick={()=>setShowMusicRoom(v=>!v)}
+          <button onClick={()=>{setShowMusicRoom(true);setMobileView('chat');}}
             className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${showMusicRoom?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
             <span className="w-5 text-center shrink-0">🎵</span>
             <span className={`flex-1 text-sm ${showMusicRoom?'font-bold':'font-medium'}`}>غرفة الموسيقى</span>
@@ -1595,7 +1599,7 @@ export default function ChatScreen(){
               {loading?[1,2,3,4,5].map(i=><div key={i} className="h-9 rounded-xl bg-surface-alt animate-pulse mb-1"/>)
               :publicRooms.map(r=>(
                 <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id&&!showMusicRoom} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
-                  onClick={()=>{setActiveRoom(r);setShowMusicRoom(false);}} />
+                  onClick={()=>openRoom(r)} />
               ))}
             </div>
           )}
@@ -1606,7 +1610,7 @@ export default function ChatScreen(){
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 mb-1">مجموعات خاصة</p>
               {privateRooms.map(r=>(
                 <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id&&!showMusicRoom} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
-                  onClick={()=>{setActiveRoom(r);setShowMusicRoom(false);}} />
+                  onClick={()=>openRoom(r)} />
               ))}
             </div>
           )}
@@ -1619,7 +1623,7 @@ export default function ChatScreen(){
                 const dmName=r.display_name??r.name;
                 const isOnline=globalOnline.has(dmName);
                 return(
-                <button key={r.id} onClick={()=>{setActiveRoom(r);setShowMusicRoom(false);}}
+                <button key={r.id} onClick={()=>openRoom(r)}
                   className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${activeRoom?.id===r.id&&!showMusicRoom?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
                   <div className="relative shrink-0">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${avatarColor(dmName)}`}>
@@ -1652,12 +1656,16 @@ export default function ChatScreen(){
         </div>
       </div>
 
-      {/* ══ Chat Area ════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* ══ Chat Area — full screen on mobile when a room is open ══ */}
+      <div className={`${mobileView==='list'?'hidden':'flex'} sm:flex flex-1 flex-col min-w-0 overflow-hidden`}>
 
         {/* Header */}
         <div className="px-3 py-2.5 border-b border-border flex items-center gap-3 shrink-0 bg-surface">
-          <button onClick={()=>setSidebarOpen(o=>!o)} className="w-8 h-8 rounded-xl bg-surface-alt border border-border flex items-center justify-center text-muted hover:text-text transition shrink-0 hover:scale-105">☰</button>
+          {/* Mobile: back to list · Desktop: toggle sidebar */}
+          <button onClick={()=>setMobileView('list')} className="sm:hidden w-9 h-9 rounded-xl bg-surface-alt border border-border flex items-center justify-center text-text transition shrink-0 active:scale-95" aria-label="رجوع">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button onClick={()=>setSidebarOpen(o=>!o)} className="hidden sm:flex w-8 h-8 rounded-xl bg-surface-alt border border-border items-center justify-center text-muted hover:text-text transition shrink-0 hover:scale-105">☰</button>
           {showMusicRoom?(
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-text">🎵 غرفة الموسيقى</p>

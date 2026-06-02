@@ -9,7 +9,40 @@ import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 
 const MAX_HISTORY = 40; // max messages to keep in DB
-const LOZY_AVATAR = '🌸';
+
+// ── Lozy's face — a cute AI cat (girly + a tech sparkle) ──────
+function LozyFace({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      {/* ears */}
+      <path d="M7 10 L9.5 3.5 L13.5 11 Z" fill="#fdf3ea" />
+      <path d="M25 10 L22.5 3.5 L18.5 11 Z" fill="#fdf3ea" />
+      <path d="M9 9.5 L9.6 6 L11.4 10 Z" fill="#ff9ec4" />
+      <path d="M23 9.5 L22.4 6 L20.6 10 Z" fill="#ff9ec4" />
+      {/* head */}
+      <circle cx="16" cy="17.5" r="9.3" fill="#fdf3ea" />
+      {/* eyes */}
+      <ellipse cx="12.4" cy="16.8" rx="2" ry="2.6" fill="#1a2747" />
+      <ellipse cx="19.6" cy="16.8" rx="2" ry="2.6" fill="#1a2747" />
+      <circle cx="11.9" cy="15.9" r="0.55" fill="#fff" />
+      <circle cx="19.1" cy="15.9" r="0.55" fill="#fff" />
+      <circle cx="13" cy="17.6" r="0.32" fill="#5eead4" />
+      <circle cx="20.2" cy="17.6" r="0.32" fill="#5eead4" />
+      {/* blush */}
+      <ellipse cx="9.6" cy="20" rx="1.5" ry="0.95" fill="#ff8fb8" opacity="0.55" />
+      <ellipse cx="22.4" cy="20" rx="1.5" ry="0.95" fill="#ff8fb8" opacity="0.55" />
+      {/* nose + mouth */}
+      <path d="M15.1 19.4 Q16 20.4 16.9 19.4" stroke="#ff7fb0" strokeWidth="0.9" fill="none" strokeLinecap="round" />
+      <circle cx="16" cy="19" r="0.5" fill="#ff7fb0" />
+      {/* whiskers */}
+      <path d="M5.5 17.5 L8.5 17.8 M5.8 19.5 L8.6 19.2" stroke="#e7d4c4" strokeWidth="0.6" strokeLinecap="round" />
+      <path d="M26.5 17.5 L23.5 17.8 M26.2 19.5 L23.4 19.2" stroke="#e7d4c4" strokeWidth="0.6" strokeLinecap="round" />
+      {/* AI sparkle */}
+      <path d="M25.5 6 l0.7 1.8 1.8 0.7 -1.8 0.7 -0.7 1.8 -0.7 -1.8 -1.8 -0.7 1.8 -0.7 Z" fill="#5eead4" />
+    </svg>
+  );
+}
+const LOZY_AVATAR = <LozyFace size={20} />;
 
 // ── Markdown-lite renderer ────────────────────────────────────
 function RenderText({ text }) {
@@ -103,6 +136,7 @@ export function AIAssistantWidget() {
   };
   const [pos, setPos] = useState(defaultPos);
   const dragging = useRef(false);
+  const moved = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, bx: 0, by: 0 });
   const btnRef = useRef(null);
 
@@ -110,54 +144,59 @@ export function AIAssistantWidget() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch {}
   }, []);
 
+  // Drag listeners are attached ONLY while dragging, so the rest of the
+  // time there is no global non-passive touchmove handler degrading page
+  // scroll (fixes "التمرير صار صعب").
+  const dragHandlers = useRef(null);
+
   const handleDragStart = (e) => {
     if (e.button !== 0 && e.type === 'mousedown') return;
-    e.preventDefault();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const rect = btnRef.current?.getBoundingClientRect();
     dragging.current = true;
+    moved.current = false;
     dragStart.current = {
       mx: clientX, my: clientY,
       bx: rect ? rect.left + rect.width / 2 : clientX,
       by: rect ? rect.top + rect.height / 2 : clientY,
     };
-  };
 
-  useEffect(() => {
-    const onMove = (e) => {
+    const onMove = (ev) => {
       if (!dragging.current) return;
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const dx = clientX - dragStart.current.mx;
-      const dy = clientY - dragStart.current.my;
-      const W = window.innerWidth, H = window.innerHeight;
-      const R = 28; // half of button size
-      const nx = Math.min(Math.max(dragStart.current.bx + dx, R), W - R);
-      const ny = Math.min(Math.max(dragStart.current.by + dy, R), H - R);
-      setPos({ x: nx, y: ny });
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      const dist = Math.abs(cx - dragStart.current.mx) + Math.abs(cy - dragStart.current.my);
+      if (dist > 6) {
+        moved.current = true;
+        if (ev.cancelable) ev.preventDefault(); // stop page scroll only during a real drag
+        const W = window.innerWidth, H = window.innerHeight, R = 28;
+        setPos({
+          x: Math.min(Math.max(dragStart.current.bx + (cx - dragStart.current.mx), R), W - R),
+          y: Math.min(Math.max(dragStart.current.by + (cy - dragStart.current.my), R), H - R),
+        });
+      }
     };
-    const onUp = (e) => {
-      if (!dragging.current) return;
+    const onUp = () => {
       dragging.current = false;
-      // If barely moved → treat as click (toggle open)
-      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-      const moved = Math.abs(clientX - dragStart.current.mx) + Math.abs(clientY - dragStart.current.my);
-      if (moved < 6) { setOpen(o => !o); return; }
+      detach();
+      if (!moved.current) { setOpen(o => !o); return; } // a tap → toggle
       setPos(p => { savePos(p); return p; });
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
-    return () => {
+    const detach = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('touchmove', onMove);
       window.removeEventListener('touchend', onUp);
     };
-  }, [savePos]);
+    dragHandlers.current = detach;
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  };
+
+  useEffect(() => () => dragHandlers.current?.(), []);
 
   // Compute button style (fixed position or CSS default)
   const btnStyle = useMemo(() => {
@@ -351,7 +390,7 @@ export function AIAssistantWidget() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
             {error && (
               <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-xl px-3 py-2 text-center my-2">
@@ -411,9 +450,9 @@ export function AIAssistantWidget() {
           pos.x === null ? 'bottom-20 sm:bottom-6 end-4 sm:end-6' : ''
         } ${open ? 'bg-navy' : 'bg-gradient-to-br from-navy to-teal hover:shadow-teal/30 hover:shadow-2xl'}`}
         style={btnStyle}
-        title="لوزي — اسحبني لتحريكي 🌸"
+        title="لوزي 🐱 — انقر للدردشة، أو اسحبني لتحريكي"
       >
-        {open ? '✕' : LOZY_AVATAR}
+        {open ? '✕' : <LozyFace size={32} />}
         {!open && unread > 0 && (
           <span className="absolute -top-1 -end-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center shadow-md pointer-events-none">
             {unread}
