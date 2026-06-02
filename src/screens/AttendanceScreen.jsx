@@ -394,11 +394,16 @@ export default function AttendanceScreen() {
         const key = r.date; // already "YYYY/MM/DD"
         if (!map[key]) map[key] = { checkIn: null, checkOut: null, inId: null, outId: null, absReason: null };
         if (r.type === 'in') {
-          map[key].checkIn = r.time_in ?? null;
-          map[key].inId    = r.id;
+          // keep the LATEST check-in of the day (supports multiple shifts)
+          if (!map[key].checkIn || (r.time_in ?? '') >= map[key].checkIn) {
+            map[key].checkIn = r.time_in ?? null;
+            map[key].inId    = r.id;
+          }
         } else if (r.type === 'out') {
-          map[key].checkOut = r.time_in ?? null;
-          map[key].outId    = r.id;
+          if (!map[key].checkOut || (r.time_in ?? '') >= map[key].checkOut) {
+            map[key].checkOut = r.time_in ?? null;
+            map[key].outId    = r.id;
+          }
         } else if (r.type === 'absent') {
           map[key].absReason = r.note ?? 'مسجّل';
         }
@@ -421,6 +426,15 @@ export default function AttendanceScreen() {
   const handleCheckIn = () => {
     if (saving || today?.checkIn) return;
     setError(null);
+    setCameraMode('in');
+  };
+
+  // Start a NEW check-in even if the day already shows complete
+  // (second shift, or fixing a wrong/old record — e.g. admin).
+  const handleNewCheckIn = () => {
+    if (saving) return;
+    setError(null);
+    setCheckoutQuizChecked(false);
     setCameraMode('in');
   };
 
@@ -543,7 +557,9 @@ export default function AttendanceScreen() {
   const handleQuizSkip     = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
 
   const isCheckedIn  = !!today?.checkIn;
-  const isCheckedOut = !!today?.checkOut;
+  // Counts as "checked out" only when the latest out is at/after the latest in.
+  // A new check-in after an earlier out re-opens the day (multiple shifts).
+  const isCheckedOut = !!today?.checkOut && (!today?.checkIn || today.checkOut >= today.checkIn);
   const isComplete   = isCheckedIn && isCheckedOut;
 
   const btnState = isComplete ? 'done' : isCheckedIn ? 'checkout' : 'checkin';
@@ -636,6 +652,19 @@ export default function AttendanceScreen() {
           <p className="text-center text-xs text-muted -mt-1">
             لتفادي التسجيل بالخطأ، يمكنك تسجيل الانصراف بعد مرور ساعة على الحضور.
           </p>
+        )}
+
+        {/* New check-in — allowed even when the day shows complete
+            (second shift, or fixing a wrong/old record). */}
+        {btnState === 'done' && (
+          <button
+            onClick={handleNewCheckIn}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border border-teal/40 text-teal bg-teal/5 hover:bg-teal/10 transition-all active:scale-[0.98] disabled:opacity-60"
+          >
+            <span className="text-lg">➕</span>
+            تسجيل حضور جديد
+          </button>
         )}
 
         {/* Today stats row */}
