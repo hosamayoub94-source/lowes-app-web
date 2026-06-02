@@ -1,0 +1,90 @@
+// =============================================================
+// Supabase Edge Function — sync-order-to-sheet
+// يمرّر طلب سوريا إلى Google Apps Script (ورقة LOWES Sales).
+// يحفظ رابط السكربت السري بعيداً عن المتصفح.
+//
+// Secrets المطلوبة:
+//   SHEET_SYNC_URL    = رابط الـ Web App من Apps Script
+//   SHEET_SYNC_TOKEN  = نفس SECRET_TOKEN في السكربت (LOWES-SYRIA-2026)
+//
+// Deploy: supabase functions deploy sync-order-to-sheet --no-verify-jwt
+// =============================================================
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  try {
+    const { orderId } = await req.json();
+    if (!orderId) return json({ ok: false, error: 'orderId required' }, 400);
+
+    const SHEET_URL   = Deno.env.get('SHEET_SYNC_URL');
+    const SHEET_TOKEN = Deno.env.get('SHEET_SYNC_TOKEN') ?? 'LOWES-SYRIA-2026';
+    if (!SHEET_URL) return json({ ok: false, error: 'sheet_not_configured', message: 'لم يُضبط رابط الجدول بعد' }, 200);
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    // اقرأ الطلب من قاعدة البيانات (مصدر الحقيقة) — لا نثق بجسم الطلب
+    const { data: o, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (error || !o) return json({ ok: false, error: 'order_not_found' }, 200);
+
+    // سوريا فقط تتزامن مع جدول سوريا (عزل الفِرق)
+    if (o.market !== 'syria') return json({ ok: true, skipped: 'not_syria' }, 200);
+
+    const payload = {
+      token: SHEET_TOKEN,
+      order: {
+        orderId:        o.order_id,
+        timestamp:      o.order_date,
+        customerName:   o.customer_name,
+        phone:          o.phone_1,
+        wa:             o.wa_number || o.phone_1,
+        city:           o.city,
+        address:        o.address,
+        amount:         o.amount,
+        currency:       o.currency,            // SYP / USD / TRY
+        status:         o.status,
+        salesperson:    o.handler_name,
+        note:           o.notes,
+        shippingMethod: o.shipping_company,
+        payment:        o.payment_method,
+        items:          Array.isArray(o.items) ? o.items.map((it: any) => ({ name: it.name, qty: it.qty })) : [],
+      },
+    };
+
+    const res = await fetch(SHEET_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+      redirect: 'follow',
+    });
+    const out = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
+
+    // علّم الطلب كمتزامن (أو لا) للتتبّع وإعادة المحاولة
+    await supabase.from('orders')
+      .update({ sheet_synced: !!out.ok, sheet_synced_at: out.ok ? new Date().toISOString() : null })
+      .eq('id', orderId);
+
+    return json(out, 200);
+
+  } catch (err) {
+    console.error('[sync-order-to-sheet]', err);
+    return json({ ok: false, error: String(err) }, 500);
+  }
+
+  function json(b: unknown, status: number) {
+    return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+});

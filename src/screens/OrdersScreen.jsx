@@ -7,6 +7,19 @@ import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';
 
+// ── Google Sheet dual-write (Syria) ──────────────────────────
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
+async function syncOrderToSheet(orderId) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch { /* best-effort; sheet_synced stays false for retry */ }
+}
+
 // ── Constants ────────────────────────────────────────────────
 const STATUSES = {
   pending:   { label: 'وارد جديد',    icon: '📥', bg: 'bg-surface-alt',  text: 'text-muted',    border: 'border-border'   },
@@ -539,19 +552,31 @@ export default function OrdersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-retry: re-sync any Syria order that never reached the sheet (once per load).
+  useEffect(() => {
+    const pending = orders.filter(o => o.market === 'syria' && o.sheet_synced !== true);
+    if (pending.length === 0) return;
+    pending.slice(0, 20).forEach(o => syncOrderToSheet(o.id));
+  }, [orders]);
+
   const handleStatusChange = async (id, newStatus) => {
     await supabase.from('orders').update({ status: newStatus }).eq('id', id);
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
   };
 
   const handleSave = async (form, existingId) => {
+    let savedId = existingId;
     if (existingId) {
       await supabase.from('orders').update(form).eq('id', existingId);
     } else {
-      await supabase.from('orders').insert(form);
+      const { data } = await supabase.from('orders').insert(form).select('id').single();
+      savedId = data?.id;
     }
     setModal(null);
     load();
+    // Dual-write: Syria orders also append to the Google Sheet (best-effort,
+    // never blocks the save; failures leave sheet_synced=false for retry).
+    if (savedId && form.market === 'syria') syncOrderToSheet(savedId);
   };
 
   const handleDelete = async (id) => {
