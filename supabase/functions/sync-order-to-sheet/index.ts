@@ -43,11 +43,19 @@ Deno.serve(async (req: Request) => {
     // سوريا فقط تتزامن مع جدول سوريا (عزل الفِرق)
     if (o.market !== 'syria') return json({ ok: true, skipped: 'not_syria' }, 200);
 
+    // Format timestamp as a Sheets-friendly string (ISO+microseconds won't display)
+    const fmtTs = (iso: string) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const p = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    };
+
     const payload = {
       token: SHEET_TOKEN,
       order: {
         orderId:        o.order_id,
-        timestamp:      o.order_date,
+        timestamp:      fmtTs(o.order_date),
         customerName:   o.customer_name,
         phone:          o.phone_1,
         wa:             o.wa_number || o.phone_1,

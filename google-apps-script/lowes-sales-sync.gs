@@ -18,6 +18,7 @@
  */
 
 // ⚙️ إعدادات — عدّلها مرة واحدة إن لزم
+var SHEET_ID     = '1YIEv5EwLq3wz1KlObquLVtd0ep9sk4ZHq9dueEO-vcw'; // جدول LOWES SY
 var SHEET_NAME   = 'LOWES Sales';
 var SECRET_TOKEN = 'LOWES-SYRIA-2026';  // كلمة سر مشتركة مع الـ Edge Function
 // مواقع احتياطية لأعمدة العملات إذا فشل الاكتشاف التلقائي (£ سوري · $ دولار · ₺ تركي)
@@ -29,7 +30,7 @@ function doPost(e) {
     if (body.token !== SECRET_TOKEN) return _json({ ok: false, error: 'unauthorized' });
     var o = body.order || {};
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = SpreadsheetApp.openById(SHEET_ID);
     var sh = ss.getSheetByName(SHEET_NAME);
     if (!sh) return _json({ ok: false, error: 'sheet_not_found' });
 
@@ -46,34 +47,18 @@ function doPost(e) {
     if (!HEADER_ROW) HEADER_ROW = 4; // احتياطي
     var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0];
 
-    // 🔎 اكتشاف أعمدة العملات تلقائياً من بيانات الطلبات (£/$/₺)
+    // currency columns (verified from the sheet): SYP / USD / TRY
     var COL_SYP = FALLBACK_SYP, COL_USD = FALLBACK_USD, COL_TRY = FALLBACK_TRY;
-    var nData = Math.max(0, sh.getLastRow() - HEADER_ROW);
-    if (nData > 0) {
-      var sample = sh.getRange(HEADER_ROW + 1, 1, Math.min(30, nData), lastCol).getValues();
-      var found = {};
-      for (var dc = 0; dc < lastCol; dc++) {
-        for (var dr = 0; dr < sample.length; dr++) {
-          var v = String(sample[dr][dc]);
-          if (!found.syp && v.indexOf('£') >= 0) { found.syp = _numToCol(dc + 1); }
-          if (!found.usd && v.indexOf('$') >= 0) { found.usd = _numToCol(dc + 1); }
-          if (!found.try && v.indexOf('₺') >= 0) { found.try = _numToCol(dc + 1); }
-        }
-      }
-      if (found.syp) COL_SYP = found.syp;
-      if (found.usd) COL_USD = found.usd;
-      if (found.try) COL_TRY = found.try;
-    }
 
     // خريطة العناوين → فهرس العمود (1-based)
     var idx = {};
     for (var c = 0; c < headers.length; c++) {
-      var h = String(headers[c]).replace(/[^؀-ۿa-zA-Z]/g, '').trim().toLowerCase();
+      var h = String(headers[c]).replace(/[^a-zA-Z]/g, '').trim().toLowerCase();
       if (h) idx[h] = c + 1;
     }
     function col(/*...names*/) {
       for (var i = 0; i < arguments.length; i++) {
-        var key = String(arguments[i]).replace(/[^؀-ۿa-zA-Z]/g, '').trim().toLowerCase();
+        var key = String(arguments[i]).replace(/[^a-zA-Z]/g, '').trim().toLowerCase();
         if (idx[key]) return idx[key];
       }
       return 0;
