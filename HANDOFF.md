@@ -3,7 +3,34 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — إصلاحات الرواتب + الانصراف + الإشعارات)
+## 🆕 أحدث جلسة (يونيو 2026 — لوزي Agent + أسئلة ذكية + الهيكل التنظيمي)
+
+### 🤖 لوزي صارت Agent تنفّذ أوامر (Claude Tool Use + بوابة صلاحيات)
+- `ai-assistant` edge function (v12، منشورة) — Claude Sonnet مع **tool use** + agent loop (5 iters).
+- **أدوات قراءة:** get_my_summary · list_team · get_attendance_report · get_sales_report · get_orders · get_tasks
+- **أدوات كتابة:** create_task · update_task_status · create_announcement
+- **بوابة صلاحيات:** كل أداة لها `perm` من `src/data/permissions.js` (منسوخة TS بالـ function). **least-privilege**: `toolsForUser` يفلتر الأدوات حسب صلاحية المستخدم (الموظف ما يشوف أداة ما يملكها) + runTool يعيد الفحص (defense-in-depth). الأدمن = كل الأدوات.
+- الـ widget (`AIAssistantWidget`) يمرّر `extraPermissions`/`deniedPermissions` من الجلسة.
+- ✅ مُختبر: أدمن "كم حضر اليوم؟" → نفّذ get_attendance_report (39 حاضر). أدمن "أنشئ مهمة لناتاليا" → أنشأها فعلياً بالـ DB. موظف يطلب إنشاء مهمة → ما عنده الأداة → يُرفض.
+- ⚠️ ملاحظة: عمود `tasks` هو `assigned_to`/`assignee_id` (**لا يوجد `assignee_name`**).
+
+### 🧠 أسئلة تدريب ذكية بالـ AI (تحل محل الـ104 الغبية)
+- `generate-quiz` edge function (منشورة) — Claude Sonnet + **web search** (للمكوّنات/أسئلة العملاء). يولّد سؤالاً يومياً لكل فئة (منتجات/مكوّنات/مبيعات/عملاء) ويخزّنه في `quiz_questions` (عمود `source='ai'`، `question_date=today`). idempotent (مرة/يوم).
+- `TrainingScreen`: يفضّل أسئلة `source='ai'` لليوم؛ وإن غابت يطلق التوليد بالخلفية (auto على أول فتح). أسئلة سيناريو ذكية واقعية.
+
+### 🏢 الهيكل التنظيمي + مستخدمون
+- ملف الهيكل الكامل: `C:\Users\acer\Documents\Cowork\operations\team\org_structure.md`.
+- **توحيد الفِرق:** "تيم سوريا" → "سوريا" (لا تكرار). الفِرق: سوريا/تركيا/ميديا/إدارة.
+- **أدمن جدد (PIN 1234):** hosam ayoub · Amany alkshki (شريكة، سوريا) · Reem alkshki (شريكة، COO).
+- **PIN موحّد للجدد = 1234** (ناتاليا، أولغا، والقادمون). ناتاليا (مندوبة سوريا) · Olka Zghaib (ميديا باير).
+- المسميات الوظيفية مسجّلة بـ `profiles.job_title` لكل المسؤولين.
+
+### 🔴 إصلاح: activity_logs RLS (سجل نشاط الموظفين كان معطّل)
+- موظف PIN → auth.uid()=null → INSERT مرفوض. الحل: سياسة INSERT متساهلة + GRANT (`supabase/activity_logs_rls_fix.sql` مطبّق). **قاعدة: أي جدول يكتب له موظف PIN يحتاج RLS متساهل + GRANT.**
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — إصلاحات الرواتب + الانصراف + الإشعارات)
 
 ### ✅ الإصلاحات المنشورة على prod (commit 5de4397)
 
