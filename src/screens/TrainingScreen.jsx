@@ -25,6 +25,22 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Fire-and-forget: ask the edge function to generate today's smart AI
+// questions. Idempotent server-side (skips if already generated today),
+// so it's safe for every first-opener to call. We don't await the result.
+let _quizGenFired = false;
+function triggerQuizGeneration() {
+  if (_quizGenFired) return;
+  _quizGenFired = true;
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  fetch(`${url}/functions/v1/generate-quiz`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  }).catch(() => {});
+}
+
 function formatDate(iso) {
   try {
     return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -171,6 +187,16 @@ export default function TrainingScreen() {
       if (e1) throw e1;
 
       let data = todayQ ?? [];
+
+      // 1b. Prefer SMART AI-generated questions for today when present —
+      // they replace the older static ones. Otherwise trigger generation
+      // in the background so the next visit (today/tomorrow) is smart.
+      const aiToday = data.filter(q => q.source === 'ai');
+      if (aiToday.length > 0) {
+        data = aiToday;
+      } else {
+        triggerQuizGeneration(); // fire-and-forget; idempotent server-side
+      }
 
       // 2. Fallback: general pool (no date) — 10 questions per day, rotated by date
       if (data.length === 0) {
