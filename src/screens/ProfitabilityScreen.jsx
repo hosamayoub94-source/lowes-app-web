@@ -82,18 +82,32 @@ function EconEditor({ p, onSave, onClose }) {
   );
 }
 
+const PERIODS = [
+  { key: '90d',   label: 'آخر 3 شهور' },
+  { key: 'month', label: 'هذا الشهر' },
+  { key: 'all',   label: 'الكل' },
+];
+function sinceFor(period) {
+  const d = new Date();
+  if (period === 'month') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+  if (period === 'all')   return '2020-01-01';
+  d.setDate(d.getDate() - 90);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function ProfitabilityScreen() {
   const toast = useToast();
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [period, setPeriod]   = useState('90d');
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await loadProfitability()); }
+    try { setData(await loadProfitability({ since: sinceFor(period) })); }
     catch (e) { toast.error(e.message || 'تعذّر التحميل'); }
     finally { setLoading(false); }
-  }, [toast]);
+  }, [toast, period]);
   useEffect(() => { load(); }, [load]);
 
   if (loading && !data) return (
@@ -109,7 +123,17 @@ export default function ProfitabilityScreen() {
     <div className="max-w-3xl mx-auto pb-24 space-y-4" dir="rtl">
       <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-5 text-white">
         <h1 className="text-xl font-extrabold flex items-center gap-2">💎 ربحية المنتج</h1>
-        <p className="text-white/70 text-xs mt-1">الربح الصافي الحقيقي لكل صنف هذا الشهر — حدّد التكلفة لكشف الرابح من الخاسر</p>
+        <p className="text-white/70 text-xs mt-1">الربح الصافي الحقيقي لكل صنف — حدّد التكلفة لكشف الرابح من الخاسر</p>
+      </div>
+
+      {/* Period toggle */}
+      <div className="flex gap-1.5">
+        {PERIODS.map(p => (
+          <button key={p.key} onClick={()=>setPeriod(p.key)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${period===p.key?'bg-teal text-white border-teal':'bg-surface text-muted border-border hover:border-teal/40'}`}>
+            {p.label}
+          </button>
+        ))}
       </div>
 
       {/* Totals */}
