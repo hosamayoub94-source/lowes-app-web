@@ -284,19 +284,29 @@ export default function CustomersScreen() {
   const [vipOnly, setVipOnly]   = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
   const [segment, setSegment]   = useState('all');
+  const [sort, setSort]         = useState('orders');
   const [selected, setSelected] = useState(null);
   const [totalCount, setTotalCount] = useState(null); // true section total
 
   const sec = SECTIONS.find(s => s.key === section) || SECTIONS[0];
+  const myNames = useMemo(() => {
+    if (!userName) return null;
+    const first = String(userName).trim().split(/\s+/)[0];
+    return [...new Set([userName, first])];
+  }, [userName]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const data = await listCustomers({ search, vipOnly, market: sec.market, brand: sec.brand, limit: 400 });
+      const data = await listCustomers({
+        search, vipOnly, sort, market: sec.market, brand: sec.brand,
+        sellerNames: mineOnly ? myNames : null,
+        limit: mineOnly ? 600 : 400,
+      });
       setRows(data);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [search, vipOnly, sec.market, sec.brand]);
+  }, [search, vipOnly, sort, mineOnly, myNames, sec.market, sec.brand]);
 
   // True total for the section (independent of the 400-row display cap).
   useEffect(() => {
@@ -305,11 +315,8 @@ export default function CustomersScreen() {
 
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  const displayed = useMemo(() => rows.filter(c => {
-    if (mineOnly && !sellerMatches(c.sellers, userName)) return false;
-    if (!inSegment(c, segment)) return false;
-    return true;
-  }), [rows, mineOnly, segment, userName]);
+  // mineOnly is applied server-side; segment is a client-side refinement.
+  const displayed = useMemo(() => rows.filter(c => inSegment(c, segment)), [rows, segment]);
 
   const stats = useMemo(() => ({
     total: displayed.length,
@@ -347,6 +354,13 @@ export default function CustomersScreen() {
         <select value={segment} onChange={e => setSegment(e.target.value)}
           className="border border-border rounded-xl px-2 py-2.5 text-xs font-bold bg-surface text-text focus:outline-none shrink-0">
           {SEGMENTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <select value={sort} onChange={e => setSort(e.target.value)}
+          className="border border-border rounded-xl px-2 py-2.5 text-xs font-bold bg-surface text-text focus:outline-none shrink-0">
+          <option value="orders">↕ الأكثر طلباً</option>
+          <option value="recent">🕒 الأحدث</option>
+          <option value="oldest">📅 الأقدم</option>
+          <option value="name">🔤 الاسم</option>
         </select>
         <button onClick={() => setMineOnly(v => !v)}
           className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${mineOnly ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>

@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { loadManagerBoard } from '@services/managerBoardService';
 import { useAuth } from '@hooks/useAuth';
 import { targetForCurrency } from '@data/targets';
+import { supabase } from '@services/supabase';
+import { ROLES } from '@data/teams';
 
 // ── Formatters ────────────────────────────────────────────────
 const fmt = (n) => new Intl.NumberFormat('en-US').format(Math.round(n || 0));
@@ -55,10 +57,25 @@ function Section({ title, icon, children, action }) {
 }
 
 export default function ManagerBoardScreen() {
-  const { name } = useAuth();
+  const { name, role } = useAuth();
+  const isAdmin = role === ROLES.ADMIN;
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
+  const [salesValue, setSalesValue] = useState(null); // admin-only revenue
+
+  // Total sales value (archive + active) — fetched ONLY for admins, so the
+  // figure never reaches non-admin clients.
+  useEffect(() => {
+    if (!isAdmin) return;
+    supabase.from('sales_value_summary').select('*')
+      .then(({ data }) => {
+        const rows = data || [];
+        const sum = (k) => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
+        setSalesValue({ rows, syp: sum('syp'), usd: sum('usd'), try: sum('try_'), orders: sum('orders') });
+      })
+      .catch(() => {});
+  }, [isAdmin]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -109,6 +126,39 @@ export default function ManagerBoardScreen() {
         <h1 className="text-xl font-extrabold mt-1">لوحة القيادة التنفيذية</h1>
         <p className="text-white/70 text-xs mt-1">{todayLabel()}</p>
       </div>
+
+      {/* ── إجمالي قيمة المبيعات (سري — للأدمن فقط) ── */}
+      {isAdmin && salesValue && (
+        <div className="bg-gradient-to-br from-navy to-navy/80 rounded-2xl p-5 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold flex items-center gap-2">💰 إجمالي قيمة المبيعات</h2>
+            <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full">🔒 للإدارة فقط · {fmt(salesValue.orders)} طلب</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {salesValue.try > 0 && (
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">{fmt(salesValue.try)}</p><p className="text-xs text-white/70">TRY 🇹🇷</p></div>
+            )}
+            {salesValue.syp > 0 && (
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">{fmt(salesValue.syp)}</p><p className="text-xs text-white/70">SYP 🇸🇾</p></div>
+            )}
+            {salesValue.usd > 0 && (
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">${fmt(salesValue.usd)}</p><p className="text-xs text-white/70">USD</p></div>
+            )}
+          </div>
+          <div className="mt-3 space-y-1">
+            {salesValue.rows.map((r, i) => {
+              const v = Number(r.try_ || r.try || 0) || Number(r.syp || 0) || Number(r.usd || 0);
+              const cur = Number(r.try_ || r.try) > 0 ? 'TRY' : Number(r.syp) > 0 ? 'SYP' : 'USD';
+              return (
+                <div key={i} className="flex justify-between text-[11px] text-white/80">
+                  <span>{r.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {r.brand === 'strong' ? 'Strong' : "Lowe's"} · {fmt(r.orders)} طلب</span>
+                  <span className="font-bold">{fmt(v)} {cur}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Refresh */}
       <div className="flex justify-end">

@@ -25,15 +25,28 @@ export async function lookupCustomer(phone) {
 
 // List customers for the /customers screen. Optional search (name/phone)
 // and vipOnly filter. Sorted by orders_count desc.
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, market = null, brand = null, limit = 100 } = {}) {
+const SORTS = {
+  orders: { col: 'orders_count', asc: false },
+  recent: { col: 'last_order',   asc: false },
+  oldest: { col: 'first_order',  asc: true  },
+  name:   { col: 'name',         asc: true  },
+};
+
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100 } = {}) {
+  const s = SORTS[sort] || SORTS.orders;
   let q = supabase
     .from('customer_stats')
     .select('*')
-    .order('orders_count', { ascending: false })
+    .order(s.col, { ascending: s.asc, nullsFirst: false })
     .limit(limit);
   if (vipOnly) q = q.gte('stars', 1);
-  // Sellers see only customers they served (sellers[] contains their name).
-  if (sellerName) q = q.contains('sellers', [sellerName]);
+  // «my customers» — match any of the name variants server-side (archive uses
+  // short names, profiles use full names), so ALL their customers are returned.
+  if (sellerNames && sellerNames.length) {
+    q = q.or(sellerNames.map((n) => `sellers.cs.{"${String(n).replace(/"/g, '')}"}`).join(','));
+  } else if (sellerName) {
+    q = q.contains('sellers', [sellerName]);
+  }
   // Archive sections: filter by market and/or brand (arrays on the view).
   if (market) q = q.contains('markets', [market]);
   if (brand)  q = q.contains('brands', [brand]);
