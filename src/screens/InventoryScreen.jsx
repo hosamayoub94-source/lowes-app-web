@@ -81,19 +81,19 @@ function ProductModal({ open, initial, onClose, onSaved }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) { setErr('اسم المنتج مطلوب'); return; }
+    if (!(form.name || '').trim()) { setErr('اسم المنتج مطلوب'); return; }
     setSaving(true);
     setErr(null);
     try {
       const payload = {
-        name:        form.name.trim(),
-        sku:         form.sku.trim() || null,
+        name:        (form.name || '').trim(),
+        sku:         (form.sku || '').trim() || null,
         category:    form.category,
         quantity:    Number(form.quantity) || 0,
         price_usd:   Number(form.price_usd) || 0,
         price_try:   Number(form.price_try) || 0,
         min_stock:   Number(form.min_stock) || 0,
-        description: form.description.trim() || null,
+        description: (form.description || '').trim() || null,
         is_active:   form.is_active,
       };
       if (initial?.id) {

@@ -10,6 +10,7 @@ import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
+import { citiesForMarket } from '@data/cities';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -648,7 +649,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
               placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
             <div className={`grid gap-3 ${form.market === 'turkey' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              <input value={form.city} onChange={e => set('city', e.target.value)} className={INP} placeholder="المدينة" />
+              <input value={form.city} onChange={e => set('city', e.target.value)} className={INP}
+                placeholder="المدينة (اختر أو اكتب)" list="city-suggestions" autoComplete="off" />
+              <datalist id="city-suggestions">
+                {citiesForMarket(form.market).map(c => <option key={c} value={c} />)}
+              </datalist>
               {form.market === 'turkey' && (
                 <input value={form.district} onChange={e => set('district', e.target.value)} className={INP} placeholder="المنطقة / الحي" />
               )}
