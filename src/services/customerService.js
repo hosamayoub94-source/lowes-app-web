@@ -112,7 +112,7 @@ export async function getCustomerOrders(rawPhone) {
   if (!rawPhone) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('order_date, items, amount, currency, status')
+    .select('order_date, items, amount, currency, status, city, address, wa_number, market, brand, customer_name')
     .eq('phone_1', rawPhone)
     .order('order_date', { ascending: false })
     .limit(50);

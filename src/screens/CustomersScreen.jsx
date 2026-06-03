@@ -12,6 +12,7 @@ import {
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { useAuth } from '@hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -59,6 +60,7 @@ function WaIcon({ size = 15 }) {
 }
 
 function CustomerModal({ c, sellerName, onClose }) {
+  const navigate = useNavigate();
   const mkt = custMarket(c);
   const idle = daysSince(c.last_order);
   const tier = loyaltyTier(c.stars);
@@ -68,6 +70,7 @@ function CustomerModal({ c, sellerName, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const [bought, setBought] = useState([]);
+  const [lastOrder, setLastOrder] = useState(null);
   const [lastOrderDays, setLastOrderDays] = useState(idle);
   const [msg, setMsg]       = useState(followupMessage(c.name, sellerName));
   const [aiLoading, setAiLoading] = useState(false);
@@ -76,9 +79,26 @@ function CustomerModal({ c, sellerName, onClose }) {
   useEffect(() => {
     getCustomerOrders(c.phone).then((orders) => {
       setBought(boughtProductNames(orders));
+      setLastOrder(orders[0] || null);
       if (orders[0]?.order_date) setLastOrderDays(daysSince(orders[0].order_date));
     });
   }, [c.phone]);
+
+  // One-tap reorder: open a NEW order pre-filled with this customer's
+  // details + their last order's products.
+  const reorder = () => {
+    const lo = lastOrder || {};
+    navigate('/orders', { state: { reorder: {
+      market: lo.market || mkt,
+      brand:  lo.brand || 'lowes',
+      customer_name: c.name || lo.customer_name || '',
+      phone_1: c.phone || '',
+      wa_number: lo.wa_number || '',
+      city: c.city || lo.city || '',
+      address: lo.address || '',
+      items: Array.isArray(lo.items) && lo.items.length ? lo.items : [{ name: '', qty: 1 }],
+    } } });
+  };
 
   const suggestions = useMemo(() => suggestComplements(bought), [bought]);
   const reorderDue  = lastOrderDays >= REORDER_DAYS && bought.length > 0;
@@ -138,6 +158,12 @@ function CustomerModal({ c, sellerName, onClose }) {
               🔁 مضى {lastOrderDays} يوم على آخر طلب — غالباً منتجه قارب يخلص. ذكّره بإعادة الطلب.
             </div>
           )}
+
+          {/* One-tap reorder */}
+          <button onClick={reorder}
+            className="w-full py-2.5 rounded-xl bg-navy text-white text-sm font-bold hover:bg-navy/90 transition flex items-center justify-center gap-2">
+            🛒 إعادة الطلب (طلب جديد بنفس بياناته)
+          </button>
 
           {/* Cross-sell suggestions */}
           {suggestions.length > 0 && (

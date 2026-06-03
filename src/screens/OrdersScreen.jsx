@@ -4,6 +4,7 @@
 // منظومة البائع: طلباتي + دفع جزئي + فاتورة + عمولة
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';
@@ -512,6 +513,7 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
 function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const { name: userName } = useAuth();
   const isEdit = !!order?.id;
+  const prefill = order?.__prefill || null; // reorder from a customer
 
   const [form, setForm] = useState(isEdit ? {
     market:           order.market,
@@ -536,9 +538,25 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     shipping_company: order.shipping_company ?? 'yurtiçi',
     pickup_type:      order.pickup_type      ?? 'عنوان منزل',
     tracking_number:  order.tracking_number  ?? '',
+  } : prefill ? {
+    ...EMPTY_FORM,
+    handler_name: userName ?? '',
+    market:        prefill.market || 'turkey',
+    brand:         prefill.brand || 'lowes',
+    currency:      prefill.market === 'syria' ? 'SYP' : 'TRY',
+    customer_name: prefill.customer_name || '',
+    phone_1:       prefill.phone_1 || '',
+    wa_number:     prefill.wa_number || '',
+    city:          prefill.city || '',
+    address:       prefill.address || '',
+    shipping_company: prefill.market === 'syria' ? 'شركة الكرم' : 'yurtiçi',
+    payment_method:   prefill.market === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب',
   } : { ...EMPTY_FORM, handler_name: userName ?? '' });
 
-  const [items,    setItems]    = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
+  const [items,    setItems]    = useState(
+    isEdit ? (order.items ?? [])
+    : (prefill?.items?.length ? prefill.items.map(it => ({ name: it.name || '', qty: it.qty || 1 })) : [{ name: '', qty: 1 }]),
+  );
   const [saving,   setSaving]   = useState(false);
   const [products, setProducts] = useState([]);
   const [cust,     setCust]     = useState(null);   // matched customer (repeat detection)
@@ -924,6 +942,16 @@ export default function OrdersScreen() {
   const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
   const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
   const [commissionPct, setCommissionPct] = useState(0);
+
+  // Reorder: open a prefilled new-order form when arriving from «إعادة الطلب».
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (location.state?.reorder) {
+      setModal({ __prefill: location.state.reorder });
+      navigate('.', { replace: true, state: null }); // clear so refresh doesn't re-open
+    }
+  }, [location.state, navigate]);
 
   // Load commission_pct for current seller
   useEffect(() => {
