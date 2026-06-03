@@ -1,8 +1,9 @@
 // =============================================================
 // OrdersScreen — نظام إدارة الطلبات
 // تركيا 🇹🇷 + سوريا 🇸🇾
+// منظومة البائع: طلباتي + دفع جزئي + فاتورة + عمولة
 // =============================================================
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';
@@ -22,76 +23,67 @@ async function syncOrderToSheet(orderId) {
 
 // ── Constants ────────────────────────────────────────────────
 const STATUSES = {
-  pending:   { label: 'وارد جديد',    icon: '📥', bg: 'bg-surface-alt',  text: 'text-muted',    border: 'border-border'   },
-  preparing: { label: 'قيد التجهيز',  icon: '📦', bg: 'bg-amber-bg',     text: 'text-amber-fg', border: 'border-amber/30' },
-  ready:     { label: 'جاهز للشحن',   icon: '🚀', bg: 'bg-violet-100',   text: 'text-violet-700', border: 'border-violet-200' },
-  shipped:   { label: 'في الشحن',     icon: '🚚', bg: 'bg-blue-100',     text: 'text-blue-700', border: 'border-blue-200' },
-  delivered: { label: 'تم التوصيل',  icon: '✅', bg: 'bg-green-bg',     text: 'text-green-fg', border: 'border-green/30' },
-  cancelled: { label: 'ملغي',         icon: '❌', bg: 'bg-red-bg',       text: 'text-red-fg',   border: 'border-red/30'   },
+  pending:   { label: 'وارد جديد',   icon: '📥', bg: 'bg-surface-alt', text: 'text-muted',      border: 'border-border'      },
+  preparing: { label: 'قيد التجهيز', icon: '📦', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
+  ready:     { label: 'جاهز للشحن',  icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
+  shipped:   { label: 'في الشحن',    icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  delivered: { label: 'تم التوصيل', icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
+  cancelled: { label: 'ملغي',        icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
 };
 
-// Team → market mapping
+const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
+
 const TEAM_MARKET = {
-  'تركيا': 'turkey',
-  'تيم تركيا': 'turkey',
-  'سوريا': 'syria',
-  'تيم سوريا': 'syria',
+  'تركيا': 'turkey', 'تيم تركيا': 'turkey',
+  'سوريا': 'syria',  'تيم سوريا': 'syria',
 };
-
 function teamToMarket(team) {
   if (!team) return null;
-  for (const [k,v] of Object.entries(TEAM_MARKET)) {
-    if (team.includes(k.replace('تيم ',''))) return v;
+  for (const [k, v] of Object.entries(TEAM_MARKET)) {
+    if (team.includes(k.replace('تيم ', ''))) return v;
   }
   return null;
 }
 
-const SYRIA_COMPANIES  = ['شركة الكرم','سامتاك','ضد الدفع','واصل','أخرى'];
-const TURKEY_COMPANIES = ['yurtiçi','Aras','ptt','توصيل الموتور','أخرى'];
-const CURRENCIES       = ['TRY','SYP','USD'];
-const PICKUP_TYPES     = ['عنوان منزل','استلام من المركز'];
+const SYRIA_COMPANIES  = ['شركة الكرم', 'سامتاك', 'ضد الدفع', 'واصل', 'أخرى'];
+const TURKEY_COMPANIES = ['yurtiçi', 'Aras', 'ptt', 'توصيل الموتور', 'أخرى'];
+const CURRENCIES       = ['TRY', 'SYP', 'USD'];
+const PICKUP_TYPES     = ['عنوان منزل', 'استلام من المركز'];
 
 const TRACKING_URLS = {
   'yurtiçi': (n) => `https://yurticikargo.com/tr/online-islemler/gonderi-sorgula?code=${n}`,
-  'Aras':     (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
-  'ptt':      (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
+  'Aras':    (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
+  'ptt':     (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
 };
 
 function waLink(phone, market) {
   if (!phone) return null;
-  const digits = phone.replace(/\D/g,'');
-  if (market === 'turkey') return `https://wa.me/90${digits.replace(/^0/,'')}`;
-  return `https://wa.me/963${digits.replace(/^0/,'')}`;
+  const digits = phone.replace(/\D/g, '');
+  if (market === 'turkey') return `https://wa.me/90${digits.replace(/^0/, '')}`;
+  return `https://wa.me/963${digits.replace(/^0/, '')}`;
 }
-
 function trackingLink(company, number) {
   if (!number || !company) return null;
   const fn = TRACKING_URLS[company];
   return fn ? fn(number) : null;
 }
-
 function nextOrderId(market, orders) {
   const prefix = market === 'syria' ? 'SA-' : 'S';
   const existing = orders
     .filter(o => o.market === market && o.order_id)
-    .map(o => {
-      const m = o.order_id.match(/\d+$/);
-      return m ? parseInt(m[0], 10) : 0;
-    });
+    .map(o => { const m = o.order_id.match(/\d+$/); return m ? parseInt(m[0], 10) : 0; });
   const max = existing.length ? Math.max(...existing) : 0;
-  const next = String(max + 1);
-  const now  = new Date();
-  const month = now.getMonth() + 1;
-  if (market === 'syria') return `${month}${prefix}${next}`;
-  return `${month}${prefix}${next}`;
+  const now = new Date();
+  return `${now.getMonth() + 1}${prefix}${max + 1}`;
 }
 
 const EMPTY_FORM = {
-  market: 'turkey', order_id: '', order_date: new Date().toISOString().slice(0,16),
+  market: 'turkey', order_id: '', order_date: new Date().toISOString().slice(0, 16),
   handler_name: '', status: 'pending', notes: '',
   customer_name: '', phone_1: '', phone_2: '', wa_number: '',
   city: '', district: '', address: '',
-  amount: '', currency: 'TRY', payment_method: 'دفع عند الباب', payment_status: 'unpaid',
+  amount: '', currency: 'TRY',
+  payment_method: 'دفع عند الباب', payment_status: 'unpaid', paid_amount: '',
   shipping_company: 'yurtiçi', pickup_type: 'عنوان منزل', tracking_number: '',
 };
 
@@ -110,15 +102,226 @@ function StatusBadge({ status, size = 'sm' }) {
   );
 }
 
+// ── Progress Strip ─────────────────────────────────────────────
+function ProgressStrip({ status }) {
+  if (status === 'cancelled') return null;
+  const current = STAGES_ORDER.indexOf(status);
+  return (
+    <div className="flex items-center gap-0.5">
+      {STAGES_ORDER.map((_, i) => (
+        <div key={i} className="flex-1 h-1.5 rounded-full transition-all"
+          style={{
+            background: i < current ? '#0d7377' : i === current ? '#0d7377' : 'var(--color-border, #e5e7eb)',
+            opacity: i < current ? 0.4 : i === current ? 1 : 1,
+          }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Payment Badge ─────────────────────────────────────────────
+function PaymentBadge({ status, amount, paidAmount, currency }) {
+  if (status === 'paid')
+    return <span className="text-[10px] font-semibold text-green-fg">💰 مدفوع</span>;
+  if (status === 'partial')
+    return <span className="text-[10px] font-semibold text-amber-fg">💳 {paidAmount || 0}/{amount} {currency}</span>;
+  return <span className="text-[10px] font-semibold text-red-fg">⏳ غير مدفوع</span>;
+}
+
+// ── Invoice Modal ─────────────────────────────────────────────
+function InvoiceModal({ order, onClose }) {
+  const ref = useRef(null);
+  const [generating, setGenerating] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const paymentText =
+    order.payment_status === 'paid'    ? 'مدفوع بالكامل ✓' :
+    order.payment_status === 'partial' ? `مدفوع جزئياً — ${order.paid_amount} ${order.currency} · المتبقّي: ${Math.max(0, Number(order.amount) - Number(order.paid_amount || 0)).toFixed(0)} ${order.currency}` :
+    'غير مدفوع — الدفع عند الاستلام';
+
+  const capture = async () => {
+    if (!ref.current) return null;
+    const { toPng } = await import('html-to-image');
+    return await toPng(ref.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
+  };
+
+  const handleDownload = async () => {
+    setGenerating(true);
+    try {
+      const dataUrl = await capture();
+      const link = document.createElement('a');
+      link.download = `invoice-${order.order_id}.png`;
+      link.href = dataUrl;
+      link.click();
+      setMsg('تم تحميل الفاتورة ✓');
+    } catch { setMsg('حدث خطأ أثناء التحميل'); }
+    finally { setGenerating(false); }
+  };
+
+  const handleWhatsApp = async () => {
+    setGenerating(true);
+    setMsg('');
+    try {
+      const dataUrl = await capture();
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `invoice-${order.order_id}.png`, { type: 'image/png' });
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: `فاتورة ${order.order_id}` });
+      } else {
+        // Fallback: download
+        const link = document.createElement('a');
+        link.download = `invoice-${order.order_id}.png`;
+        link.href = dataUrl;
+        link.click();
+        setMsg('تم تحميل الفاتورة (افتح واتساب وأرسلها يدوياً)');
+      }
+    } catch { setMsg('حدث خطأ'); }
+    finally { setGenerating(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-surface rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden my-auto"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/40" dir="rtl">
+          <h3 className="font-bold text-sm text-text">🧾 فاتورة الطلب</h3>
+          <button onClick={onClose} className="text-muted hover:text-text w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-alt transition text-sm">✕</button>
+        </div>
+
+        {/* Invoice (captured as image) */}
+        <div ref={ref} dir="rtl" style={{
+          background: '#ffffff', padding: '24px',
+          fontFamily: '"Tajawal", "Segoe UI", Arial, sans-serif', color: '#111827',
+        }}>
+          {/* Brand header */}
+          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f1f3d22', paddingBottom: '14px', marginBottom: '14px' }}>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: '#0f1f3d', letterSpacing: '-0.3px' }}>
+              Lowe&apos;s Professional
+            </div>
+            <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>منتجات عناية البشرة الاحترافية</div>
+          </div>
+
+          {/* Order meta */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', fontSize: '12px' }}>
+            <div>
+              <div style={{ color: '#9ca3af', fontSize: '9px', marginBottom: '2px' }}>رقم الطلب</div>
+              <div style={{ fontWeight: '800', color: '#0d7377', fontSize: '14px' }}>{order.order_id}</div>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ color: '#9ca3af', fontSize: '9px', marginBottom: '2px' }}>التاريخ</div>
+              <div style={{ fontWeight: '700' }}>
+                {order.order_date
+                  ? new Date(order.order_date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* Customer */}
+          <div style={{ background: '#f8f7f4', borderRadius: '10px', padding: '10px', marginBottom: '14px' }}>
+            <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: '700', marginBottom: '5px' }}>بيانات العميل</div>
+            <div style={{ fontSize: '14px', fontWeight: '800', marginBottom: '3px' }}>{order.customer_name}</div>
+            {order.phone_1 && <div style={{ fontSize: '11px', color: '#374151', direction: 'ltr' }}>{order.phone_1}</div>}
+            {order.city && (
+              <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                {order.city}{order.district ? ` · ${order.district}` : ''}{order.address ? ` — ${order.address}` : ''}
+              </div>
+            )}
+          </div>
+
+          {/* Items */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: '700', marginBottom: '7px' }}>المنتجات</div>
+            {(order.items ?? []).map((item, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '5px 0', borderBottom: '1px solid #f3f4f6', fontSize: '12px',
+              }}>
+                <span>{item.name}</span>
+                <span style={{ fontWeight: '700', color: '#0d7377' }}>×{item.qty}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Total */}
+          {order.amount > 0 && (
+            <div style={{
+              background: '#0f1f3d0d', borderRadius: '10px', padding: '10px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px',
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: '700' }}>الإجمالي</span>
+              <span style={{ fontSize: '18px', fontWeight: '900', color: '#0f1f3d' }}>
+                {order.amount} <span style={{ fontSize: '12px' }}>{order.currency}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Payment */}
+          <div style={{
+            fontSize: '10px', color: '#6b7280', marginBottom: '10px',
+            padding: '7px', background: '#f9fafb', borderRadius: '8px', textAlign: 'center',
+          }}>
+            {paymentText}
+          </div>
+
+          {/* Shipping */}
+          {order.shipping_company && (
+            <div style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '3px' }}>
+              الشحن: {order.shipping_company}
+              {order.tracking_number ? ` · رقم التتبع: ${order.tracking_number}` : ''}
+            </div>
+          )}
+
+          {/* Seller footer */}
+          {order.handler_name && (
+            <div style={{
+              textAlign: 'center', fontSize: '9px', color: '#d1d5db',
+              borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '10px',
+            }}>
+              البائع: {order.handler_name}
+            </div>
+          )}
+        </div>
+
+        {/* Message feedback */}
+        {msg && (
+          <p className="text-center text-xs text-teal px-4 py-1" dir="rtl">{msg}</p>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2 p-4 border-t border-border/40">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-xs text-muted hover:text-text transition">
+            إغلاق
+          </button>
+          <button onClick={handleDownload} disabled={generating}
+            className="flex-1 py-2.5 rounded-xl bg-navy/10 text-navy text-xs font-bold disabled:opacity-40 hover:bg-navy/15 transition">
+            {generating ? '…' : '⬇ تحميل'}
+          </button>
+          <button onClick={handleWhatsApp} disabled={generating}
+            className="flex-1 py-2.5 rounded-xl text-white text-xs font-bold disabled:opacity-40 hover:opacity-90 transition"
+            style={{ background: '#25D366' }}>
+            {generating ? '…' : '📤 واتساب'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Order Card ─────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
+function OrderCard({ order, onStatusChange, onEdit, onInvoice, canAdvance }) {
   const [changing, setChanging] = useState(false);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
-  const itemsSummary = (order.items ?? []).slice(0,3).map(i => `${i.name} ×${i.qty}`).join(' · ');
+  const itemsSummary = (order.items ?? []).slice(0, 3).map(i => `${i.name} ×${i.qty}`).join(' · ');
   const moreItems = (order.items ?? []).length - 3;
 
-  const NEXT = { pending:'preparing', preparing:'ready', ready:'shipped', shipped:'delivered', delivered:null, cancelled:null };
+  const NEXT = { pending: 'preparing', preparing: 'ready', ready: 'shipped', shipped: 'delivered', delivered: null, cancelled: null };
   const nextStatus = canAdvance ? NEXT[order.status] : null;
 
   const handleAdvance = async () => {
@@ -130,6 +333,9 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 space-y-3 active:scale-[0.99] transition-transform">
+      {/* Progress strip */}
+      <ProgressStrip status={order.status} />
+
       {/* Top row */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -156,6 +362,11 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
               تتبع
             </a>
           )}
+          <button onClick={() => onInvoice(order)}
+            className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition text-sm"
+            title="فاتورة">
+            🧾
+          </button>
           <button onClick={() => onEdit(order)}
             className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition text-sm">
             ✏️
@@ -163,7 +374,7 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
         </div>
       </div>
 
-      {/* Items */}
+      {/* Items summary */}
       <p className="text-[11px] text-muted leading-relaxed">
         📦 {itemsSummary || 'لا توجد منتجات'}
         {moreItems > 0 && <span className="text-teal font-semibold"> +{moreItems} أخرى</span>}
@@ -173,13 +384,14 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {order.amount > 0 && (
-            <span className="text-xs font-bold text-text">
-              {order.amount} {order.currency}
-            </span>
+            <span className="text-xs font-bold text-text">{order.amount} {order.currency}</span>
           )}
-          <span className={`text-[10px] font-semibold ${order.payment_status === 'paid' ? 'text-green-fg' : 'text-amber-fg'}`}>
-            {order.payment_status === 'paid' ? '💰 مدفوع' : '⏳ غير مدفوع'}
-          </span>
+          <PaymentBadge
+            status={order.payment_status}
+            amount={order.amount}
+            paidAmount={order.paid_amount}
+            currency={order.currency}
+          />
         </div>
         {nextStatus && (
           <button onClick={handleAdvance} disabled={changing}
@@ -193,7 +405,7 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
       <div className="flex items-center justify-between pt-1 border-t border-border/40">
         <span className="text-[10px] text-muted">{order.handler_name || '—'}</span>
         <span className="text-[10px] text-muted">
-          {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day:'numeric', month:'short' }) : '—'}
+          {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '—'}
         </span>
       </div>
     </div>
@@ -203,26 +415,17 @@ function OrderCard({ order, onStatusChange, onEdit, canAdvance }) {
 // ── Item Row in form ──────────────────────────────────────────
 function ItemRow({ item, index, onChange, onRemove, products = [] }) {
   const [open, setOpen] = useState(false);
-
-  // Suggest catalog products matching what the user typed (free text still allowed)
   const matches = useMemo(() => {
     const q = (item.name || '').trim().toLowerCase();
     if (!q) return products.slice(0, 8);
-    return products
-      .filter(p => p.name?.toLowerCase().includes(q))
-      .slice(0, 8);
+    return products.filter(p => p.name?.toLowerCase().includes(q)).slice(0, 8);
   }, [item.name, products]);
-
-  const pick = (p) => {
-    onChange(index, 'name', p.name);
-    setOpen(false);
-  };
+  const pick = (p) => { onChange(index, 'name', p.name); setOpen(false); };
 
   return (
     <div className="flex gap-2 items-start">
       <div className="flex-1 relative">
-        <input
-          value={item.name}
+        <input value={item.name}
           onChange={e => { onChange(index, 'name', e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -264,7 +467,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [form, setForm] = useState(isEdit ? {
     market:           order.market,
     order_id:         order.order_id         ?? '',
-    order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
     handler_name:     order.handler_name     ?? userName ?? '',
     status:           order.status           ?? 'pending',
     notes:            order.notes            ?? '',
@@ -279,57 +482,53 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     currency:         order.currency         ?? 'TRY',
     payment_method:   order.payment_method   ?? 'دفع عند الباب',
     payment_status:   order.payment_status   ?? 'unpaid',
+    paid_amount:      order.paid_amount      ?? '',
     shipping_company: order.shipping_company ?? 'yurtiçi',
     pickup_type:      order.pickup_type      ?? 'عنوان منزل',
     tracking_number:  order.tracking_number  ?? '',
   } : { ...EMPTY_FORM, handler_name: userName ?? '' });
 
-  const [items,  setItems]  = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
-  const [saving, setSaving] = useState(false);
+  const [items,    setItems]    = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
+  const [saving,   setSaving]   = useState(false);
   const [products, setProducts] = useState([]);
 
-  // Load catalog products for the autocomplete picker (once)
   useEffect(() => {
-    supabase.from('products')
-      .select('id, name, category, price_usd, price_try')
-      .eq('is_active', true)
-      .order('name')
-      .then(({ data }) => setProducts(data ?? []))
-      .catch(() => {});
+    supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
+      .then(({ data }) => setProducts(data ?? [])).catch(() => {});
   }, []);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // When market changes, reset shipping company and currency
   const handleMarketChange = (market) => {
     set('market', market);
     set('currency', market === 'turkey' ? 'TRY' : 'SYP');
     set('shipping_company', market === 'turkey' ? 'yurtiçi' : 'شركة الكرم');
     set('payment_method', market === 'turkey' ? 'دفع عند الباب' : 'دفع عند الاستلام');
-    if (!isEdit) {
-      set('order_id', nextOrderId(market, allOrders));
-    }
+    if (!isEdit) set('order_id', nextOrderId(market, allOrders));
   };
 
-  // Auto-suggest order ID on mount for new orders
   useEffect(() => {
-    if (!isEdit && !form.order_id) {
-      set('order_id', nextOrderId(form.market, allOrders));
-    }
+    if (!isEdit && !form.order_id) set('order_id', nextOrderId(form.market, allOrders));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addItem    = () => setItems(p => [...p, { name: '', qty: 1 }]);
   const removeItem = (i) => setItems(p => p.filter((_, idx) => idx !== i));
   const changeItem = (i, k, v) => setItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
 
+  // Auto-computed remaining for partial payment
+  const remaining = form.payment_status === 'partial' && form.amount && form.paid_amount
+    ? Math.max(0, Number(form.amount) - Number(form.paid_amount)).toFixed(0)
+    : null;
+
   const handleSave = async () => {
     if (!form.customer_name.trim()) return;
     setSaving(true);
     const payload = {
       ...form,
-      amount:     form.amount ? Number(form.amount) : null,
-      order_date: new Date(form.order_date).toISOString(),
-      items:      items.filter(i => i.name.trim()),
+      amount:      form.amount      ? Number(form.amount)      : null,
+      paid_amount: form.paid_amount ? Number(form.paid_amount) : null,
+      order_date:  new Date(form.order_date).toISOString(),
+      items:       items.filter(i => i.name.trim()),
     };
     try { await onSave(payload, order?.id); }
     finally { setSaving(false); }
@@ -356,10 +555,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
 
           {/* Market */}
           <div className="flex gap-2">
-            {[
-              { key: 'turkey', label: 'تركيا', flag: '🇹🇷' },
-              { key: 'syria',  label: 'سوريا', flag: '🇸🇾' },
-            ].map(m => (
+            {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: '🇸🇾' }].map(m => (
               <button key={m.key} onClick={() => handleMarketChange(m.key)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
                   ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
@@ -377,7 +573,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 <input value={form.order_id} onChange={e => set('order_id', e.target.value)} className={INP} placeholder="5S100" />
               </div>
               <div>
-                <label className={LBL}>البائع / Handler</label>
+                <label className={LBL}>البائع</label>
                 <input value={form.handler_name} onChange={e => set('handler_name', e.target.value)} className={INP} placeholder="الاسم" />
               </div>
             </div>
@@ -433,8 +629,10 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <p className="text-xs font-extrabold text-muted uppercase tracking-wider">💰 المالية</p>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
-                <label className={LBL}>المبلغ</label>
-                <input type="number" inputMode="decimal" value={form.amount} onChange={e => set('amount', e.target.value)} className={INP} placeholder="0" style={{direction:'ltr', textAlign:'right'}} />
+                <label className={LBL}>المبلغ الإجمالي</label>
+                <input type="number" inputMode="decimal" value={form.amount}
+                  onChange={e => set('amount', e.target.value)}
+                  className={INP} placeholder="0" style={{ direction: 'ltr', textAlign: 'right' }} />
               </div>
               <div>
                 <label className={LBL}>العملة</label>
@@ -456,10 +654,28 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 <label className={LBL}>حالة الدفع</label>
                 <select value={form.payment_status} onChange={e => set('payment_status', e.target.value)} className={INP}>
                   <option value="unpaid">⏳ غير مدفوع</option>
-                  <option value="paid">💰 مدفوع</option>
+                  <option value="partial">💳 مدفوع جزئياً</option>
+                  <option value="paid">💰 مدفوع كامل</option>
                 </select>
               </div>
             </div>
+            {/* Partial payment detail */}
+            {form.payment_status === 'partial' && (
+              <div className="bg-amber-bg border border-amber/30 rounded-xl p-3 space-y-2">
+                <div>
+                  <label className={LBL}>المبلغ المدفوع الآن</label>
+                  <input type="number" inputMode="decimal" value={form.paid_amount}
+                    onChange={e => set('paid_amount', e.target.value)}
+                    className={INP} placeholder="0" style={{ direction: 'ltr', textAlign: 'right' }} />
+                </div>
+                {remaining !== null && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted">المتبقّي للتحصيل:</span>
+                    <span className="font-bold text-amber-fg">{remaining} {form.currency}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Shipping */}
@@ -486,8 +702,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                   <input value={form.tracking_number} onChange={e => set('tracking_number', e.target.value)}
                     className={`${INP} flex-1`} placeholder="مثال: 6422898622431" />
                   {form.tracking_number && trackingLink(form.shipping_company, form.tracking_number) && (
-                    <a href={trackingLink(form.shipping_company, form.tracking_number)}
-                      target="_blank" rel="noreferrer"
+                    <a href={trackingLink(form.shipping_company, form.tracking_number)} target="_blank" rel="noreferrer"
                       className="px-3 py-2 rounded-xl bg-blue-100 text-blue-700 text-xs font-bold hover:opacity-80 transition shrink-0">
                       🔍 تتبع
                     </a>
@@ -518,31 +733,93 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   );
 }
 
+// ── Seller Stats Card ─────────────────────────────────────────
+function SellerStatsCard({ orders, userName, commissionPct }) {
+  const delivered = useMemo(() =>
+    orders.filter(o => o.status === 'delivered' && o.handler_name === userName),
+  [orders, userName]);
+
+  const totals = useMemo(() => delivered.reduce((acc, o) => {
+    if (!o.amount) return acc;
+    const c = o.currency || 'USD';
+    acc[c] = (acc[c] || 0) + Number(o.amount);
+    return acc;
+  }, {}), [delivered]);
+
+  const hasData = Object.keys(totals).length > 0;
+
+  return (
+    <div className="bg-gradient-to-br from-teal/10 to-navy/5 border border-teal/20 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-text">📊 مبيعاتي المسلّمة</h3>
+        {commissionPct > 0 && (
+          <span className="text-[10px] font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-full">
+            عمولة {commissionPct}%
+          </span>
+        )}
+      </div>
+
+      {!hasData ? (
+        <p className="text-xs text-muted text-center py-2">لا توجد طلبات مسلّمة بعد</p>
+      ) : (
+        <div className="space-y-2">
+          {Object.entries(totals).map(([currency, total]) => {
+            const commission = commissionPct > 0 ? (total * commissionPct / 100).toFixed(0) : null;
+            return (
+              <div key={currency} className="flex justify-between items-center bg-surface rounded-xl px-3 py-2">
+                <span className="text-xs font-bold text-muted">{currency}</span>
+                <div className="text-right">
+                  <div className="text-sm font-black text-text">{total.toFixed(0)} {currency}</div>
+                  {commission && (
+                    <div className="text-[10px] text-teal font-semibold">عمولتي: {commission} {currency}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[10px] text-muted text-center">{delivered.length} طلب مسلّم</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // Main Screen
 // ══════════════════════════════════════════════════════════════
 export default function OrdersScreen() {
-  const { role, team, order_role, order_market } = useAuth();
+  const { role, team, name: userName, order_role, order_market } = useAuth();
 
-  const isManager     = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
-  const isFulfillment = order_role === 'fulfillment';
-  // Market this user can see
-  const userMarket    = order_market ?? teamToMarket(team) ?? null;
-  // Fulfillment workers can advance status; managers can advance; sales cannot
+  const isManager        = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
+  const isFulfillment    = order_role === 'fulfillment';
+  const userMarket       = order_market ?? teamToMarket(team) ?? null;
   const canAdvanceOrders = isFulfillment || isManager;
 
-  const [orders,  setOrders]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [market,  setMarket]  = useState(userMarket ?? 'all');
-  const [status,  setStatus]  = useState(isFulfillment ? 'pending' : 'all');
-  const [search,  setSearch]  = useState('');
-  const [modal,   setModal]   = useState(null);
+  const [orders,        setOrders]        = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [market,        setMarket]        = useState(userMarket ?? 'all');
+  const [status,        setStatus]        = useState(isFulfillment ? 'pending' : 'all');
+  const [search,        setSearch]        = useState('');
+  const [modal,         setModal]         = useState(null);    // null | 'new' | order
+  const [invoice,       setInvoice]       = useState(null);    // order | null
+  const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
+  const [commissionPct, setCommissionPct] = useState(0);
+
+  // Load commission_pct for current seller
+  useEffect(() => {
+    if (!userName) return;
+    supabase.from('profiles')
+      .select('commission_pct')
+      .eq('employee_name', userName)
+      .maybeSingle()
+      .then(({ data }) => { if (data?.commission_pct != null) setCommissionPct(Number(data.commission_pct)); })
+      .catch(() => {});
+  }, [userName]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
-      // Non-managers only see their market
       if (!isManager && userMarket) q = q.eq('market', userMarket);
       const { data } = await q;
       setOrders(data ?? []);
@@ -552,7 +829,7 @@ export default function OrdersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-retry: re-sync any Syria order that never reached the sheet (once per load).
+  // Auto-retry: re-sync Syria orders that never reached the sheet
   useEffect(() => {
     const pending = orders.filter(o => o.market === 'syria' && o.sheet_synced !== true);
     if (pending.length === 0) return;
@@ -574,18 +851,11 @@ export default function OrdersScreen() {
     }
     setModal(null);
     load();
-    // Dual-write: Syria orders also append to the Google Sheet (best-effort,
-    // never blocks the save; failures leave sheet_synced=false for retry).
     if (savedId && form.market === 'syria') syncOrderToSheet(savedId);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('حذف هذا الطلب؟')) return;
-    await supabase.from('orders').delete().eq('id', id);
-    setOrders(p => p.filter(o => o.id !== id));
-  };
-
   const filtered = useMemo(() => orders.filter(o => {
+    if (myOrders && o.handler_name !== userName) return false;
     if (market !== 'all' && o.market !== market) return false;
     if (status !== 'all' && o.status !== status) return false;
     if (search) {
@@ -595,18 +865,18 @@ export default function OrdersScreen() {
              o.phone_1?.includes(q);
     }
     return true;
-  }), [orders, market, status, search]);
+  }), [orders, market, status, search, myOrders, userName]);
 
-  // Stats
   const stats = useMemo(() => ({
-    total:     orders.length,
-    pending:   orders.filter(o => o.status === 'pending').length,
-    preparing: orders.filter(o => o.status === 'preparing').length,
-    ready:     orders.filter(o => o.status === 'ready').length,
-    shipped:   orders.filter(o => o.status === 'shipped').length,
-    delivered: orders.filter(o => o.status === 'delivered').length,
-    actionable: orders.filter(o => ['pending','preparing','ready'].includes(o.status)).length,
-  }), [orders]);
+    total:      orders.length,
+    pending:    orders.filter(o => o.status === 'pending').length,
+    preparing:  orders.filter(o => o.status === 'preparing').length,
+    ready:      orders.filter(o => o.status === 'ready').length,
+    shipped:    orders.filter(o => o.status === 'shipped').length,
+    delivered:  orders.filter(o => o.status === 'delivered').length,
+    actionable: orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
+    myDelivered: orders.filter(o => o.status === 'delivered' && o.handler_name === userName).length,
+  }), [orders, userName]);
 
   return (
     <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
@@ -631,6 +901,27 @@ export default function OrdersScreen() {
         )}
       </div>
 
+      {/* «طلباتي» / «كل الطلبات» toggle */}
+      {!isFulfillment && (
+        <div className="flex gap-2">
+          <button onClick={() => setMyOrders(false)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+              ${!myOrders ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
+            🌍 كل الطلبات
+          </button>
+          <button onClick={() => setMyOrders(true)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+              ${myOrders ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+            👤 طلباتي{stats.myDelivered > 0 ? ` · ${stats.myDelivered} ✅` : ''}
+          </button>
+        </div>
+      )}
+
+      {/* Seller stats — visible when in «طلباتي» mode */}
+      {myOrders && !isFulfillment && (
+        <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} />
+      )}
+
       {/* Fulfillment banner */}
       {isFulfillment && stats.pending > 0 && (
         <div className="bg-amber-bg border border-amber/30 rounded-2xl px-4 py-3 flex items-center gap-3">
@@ -645,15 +936,10 @@ export default function OrdersScreen() {
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: 'وارد',     value: stats.pending,   color: 'text-muted',      bg: 'bg-surface-alt',
-            onClick: () => setStatus('pending')  },
-          { label: 'تجهيز',   value: stats.preparing + stats.ready,
-            color: 'text-amber-fg', bg: 'bg-amber-bg',
-            onClick: () => setStatus('preparing') },
-          { label: 'شحن',      value: stats.shipped,   color: 'text-blue-700',   bg: 'bg-blue-50',
-            onClick: () => setStatus('shipped')  },
-          { label: 'وصل',      value: stats.delivered, color: 'text-green-fg',   bg: 'bg-green-bg',
-            onClick: () => setStatus('delivered') },
+          { label: 'وارد',  value: stats.pending,                  color: 'text-muted',    bg: 'bg-surface-alt', onClick: () => setStatus('pending')   },
+          { label: 'تجهيز', value: stats.preparing + stats.ready,  color: 'text-amber-fg', bg: 'bg-amber-bg',    onClick: () => setStatus('preparing') },
+          { label: 'شحن',   value: stats.shipped,                   color: 'text-blue-700', bg: 'bg-blue-50',     onClick: () => setStatus('shipped')   },
+          { label: 'وصل',   value: stats.delivered,                 color: 'text-green-fg', bg: 'bg-green-bg',    onClick: () => setStatus('delivered') },
         ].map(s => (
           <button key={s.label} onClick={s.onClick}
             className={`${s.bg} rounded-2xl p-3 text-center hover:opacity-80 transition cursor-pointer`}>
@@ -663,14 +949,10 @@ export default function OrdersScreen() {
         ))}
       </div>
 
-      {/* Market tabs — managers only */}
-      {isManager && (
+      {/* Market tabs — managers only, when not in «طلباتي» */}
+      {isManager && !myOrders && (
         <div className="flex gap-2">
-          {[
-            { key: 'all',    label: 'الكل',   icon: '🌍' },
-            { key: 'turkey', label: 'تركيا',  icon: '🇹🇷' },
-            { key: 'syria',  label: 'سوريا',  icon: '🇸🇾' },
-          ].map(m => (
+          {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
               className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
                 ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
@@ -703,17 +985,17 @@ export default function OrdersScreen() {
 
       {/* List */}
       {loading ? (
-        <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}
-        </div>
+        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">📋</p>
-          <p className="text-sm font-bold">لا توجد طلبات</p>
-          <button onClick={() => setModal('new')}
-            className="mt-4 px-4 py-2 rounded-xl bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition">
-            + أضف أول طلب
-          </button>
+          <p className="text-sm font-bold">{myOrders ? 'لا توجد طلبات باسمك بعد' : 'لا توجد طلبات'}</p>
+          {!myOrders && (
+            <button onClick={() => setModal('new')}
+              className="mt-4 px-4 py-2 rounded-xl bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition">
+              + أضف أول طلب
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -721,7 +1003,8 @@ export default function OrdersScreen() {
             <OrderCard key={o.id} order={o}
               canAdvance={canAdvanceOrders}
               onStatusChange={handleStatusChange}
-              onEdit={(o) => setModal(o)} />
+              onEdit={(o) => setModal(o)}
+              onInvoice={(o) => setInvoice(o)} />
           ))}
         </div>
       )}
@@ -733,7 +1016,7 @@ export default function OrdersScreen() {
         +
       </button>
 
-      {/* Modal */}
+      {/* Order Form Modal */}
       {modal && (
         <OrderFormModal
           order={modal === 'new' ? null : modal}
@@ -741,6 +1024,11 @@ export default function OrdersScreen() {
           onClose={() => setModal(null)}
           onSave={handleSave}
         />
+      )}
+
+      {/* Invoice Modal */}
+      {invoice && (
+        <InvoiceModal order={invoice} onClose={() => setInvoice(null)} />
       )}
     </div>
   );
