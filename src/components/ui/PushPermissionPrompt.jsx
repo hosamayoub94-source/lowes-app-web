@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { usePushNotifications } from '@hooks/usePushNotifications';
 
 const DISMISS_KEY = 'lozy_push_prompt_dismissed';
-const SNOOZE_MS   = 3 * 24 * 60 * 60 * 1000; // re-ask after 3 days
+const SNOOZE_MS   = 30 * 24 * 60 * 60 * 1000; // re-ask after 30 days (less naggy)
 
 function recentlyDismissed() {
   try {

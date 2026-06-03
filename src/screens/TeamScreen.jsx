@@ -11,6 +11,7 @@ import { Spinner } from '@components/ui/Loading';
 import { supabase } from '@services/supabase';
 import { ROLE_LABELS } from '@data/teams';
 import EmployeeProfileModal from '@components/ui/EmployeeProfileModal';
+import ShiftScheduleScreen from '@screens/ShiftScheduleScreen';
 
 // ── Data fetching ─────────────────────────────────────────────
 
@@ -168,6 +169,7 @@ export default function TeamScreen() {
   const [search, setSearch]         = useState('');
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [view, setView]             = useState('team'); // 'team' | 'schedule'
 
   useEffect(() => {
     fetchAllProfiles()
@@ -226,6 +228,18 @@ export default function TeamScreen() {
         subtitle={`${profiles.length} موظف نشط في ${teamOptions.length} فريق`}
       />
 
+      {/* Tabs: team directory / shift schedule (merged) */}
+      <div className="flex gap-2">
+        {[['team', '👥 الفريق'], ['schedule', '🗓️ الورديات']].map(([k, l]) => (
+          <button key={k} onClick={() => setView(k)}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition ${view === k ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {view === 'schedule' ? <ShiftScheduleScreen /> : (<>
+
       {/* Filters */}
       {profiles.length > 0 && (
         <FilterBar
@@ -275,6 +289,8 @@ export default function TeamScreen() {
           onClose={() => setSelectedProfile(null)}
         />
       )}
+
+      </>)}
     </div>
   );
 }

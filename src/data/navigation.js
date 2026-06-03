@@ -43,8 +43,7 @@ export const NAV_ITEMS = [
   { id: 'field-crm',    label: 'الزيارات',   icon: '🚶', path: '/field-crm',   roles: [E, M, A, SM, SOC, MB], group: 'sales' },
   { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
   { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
-  { id: 'schedule',     label: 'الورديات',   icon: '🗓️', path: '/schedule',    roles: ALL,                 group: 'hr' },
-  { id: 'team',         label: 'الفريق',     icon: '👥', path: '/team',        roles: ALL,                 group: 'hr' },
+  { id: 'team',         label: 'الفريق والورديات', icon: '👥', path: '/team',     roles: ALL,                 group: 'hr' },
 
   // ── Sales / management
   { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },

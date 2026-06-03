@@ -25,8 +25,8 @@ export function InstallPrompt() {
     // Already installed — don't show
     if (isInStandaloneMode()) return;
 
-    // Already dismissed this session
-    if (sessionStorage.getItem('pwa-prompt-dismissed')) {
+    // Already dismissed before (remembered across sessions — less naggy)
+    if (localStorage.getItem('pwa-prompt-dismissed')) {
       setDismissed(true);
       return;
     }
@@ -57,7 +57,7 @@ export function InstallPrompt() {
   };
 
   const dismiss = () => {
-    sessionStorage.setItem('pwa-prompt-dismissed', '1');
+    localStorage.setItem('pwa-prompt-dismissed', '1');
     setDeferredPrompt(null);
     setShowIOSHint(false);
     setDismissed(true);
