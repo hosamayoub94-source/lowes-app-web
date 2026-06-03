@@ -89,7 +89,7 @@ function ProductModal({ open, initial, onClose, onSaved }) {
         name:        (form.name || '').trim(),
         sku:         (form.sku || '').trim() || null,
         category:    form.category,
-        quantity:    Number(form.quantity) || 0,
+        // quantity is derived from warehouse stock (wh_stock) — not edited here
         price_usd:   Number(form.price_usd) || 0,
         price_try:   Number(form.price_try) || 0,
         min_stock:   Number(form.min_stock) || 0,
@@ -143,10 +143,10 @@ function ProductModal({ open, initial, onClose, onSaved }) {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted">الكمية الحالية</label>
-              <input type="number" min="0" value={form.quantity} onChange={e => set('quantity', e.target.value)}
-                placeholder="0"
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40" />
+              <label className="text-xs font-semibold text-muted">الكمية (من المخازن)</label>
+              <div className="w-full rounded-xl border border-border bg-surface-alt/50 px-3 py-2.5 text-sm text-muted">
+                {Number(form.quantity) || 0} — تُدار من شاشة «المخازن»
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">الحد الأدنى للتنبيه</label>
@@ -191,77 +191,8 @@ function ProductModal({ open, initial, onClose, onSaved }) {
   );
 }
 
-// ── Stock adjust modal ─────────────────────────────────────────
-function AdjustModal({ product, onClose, onSaved }) {
-  const [delta, setDelta] = useState('');
-  const [note,  setNote]  = useState('');
-  const [type,  setType]  = useState('add'); // 'add' | 'subtract'
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    const amount = Number(delta);
-    if (!amount || amount <= 0) { setErr('أدخل كمية صحيحة'); return; }
-    const newQty = type === 'add'
-      ? product.quantity + amount
-      : Math.max(0, product.quantity - amount);
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({ quantity: newQty })
-        .eq('id', product.id);
-      if (error) throw new Error(error.message);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!product) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-         onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-xl border border-border p-5" dir="rtl">
-        <h2 className="text-base font-bold text-text mb-1">تعديل المخزون</h2>
-        <p className="text-xs text-muted mb-4">{product.name} — الكمية الحالية: <b className="text-text">{product.quantity}</b></p>
-        <form onSubmit={handleSave} className="space-y-3">
-          <div className="flex gap-2">
-            {[['add','إضافة ➕'],['subtract','خصم ➖']].map(([v, lbl]) => (
-              <button
-                key={v} type="button"
-                onClick={() => setType(v)}
-                className={`flex-1 py-2 rounded-xl text-sm font-semibold transition ${type === v ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text border border-border'}`}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
-          <input
-            type="number" min="1" value={delta} onChange={e => setDelta(e.target.value)}
-            placeholder="الكمية"
-            className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-            autoFocus
-          />
-          {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2">⚠️ {err}</p>}
-          <div className="flex gap-2 pt-1">
-            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
-            <Button type="submit" variant="teal" className="flex-1" disabled={saving}>
-              {saving ? '⏳…' : 'حفظ'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ── Product card ───────────────────────────────────────────────
-function ProductCard({ p, onEdit, onAdjust }) {
+function ProductCard({ p, onEdit }) {
   const st = stockColor(p.quantity, p.min_stock);
   return (
     <div className={`bg-surface border rounded-2xl p-4 transition-colors ${p.quantity <= p.min_stock ? 'border-amber/50' : 'border-border'}`}>
@@ -291,12 +222,12 @@ function ProductCard({ p, onEdit, onAdjust }) {
       </div>
 
       <div className="flex gap-2">
-        <button
-          onClick={() => onAdjust(p)}
-          className="flex-1 py-1.5 rounded-xl bg-teal/10 text-teal text-xs font-semibold hover:bg-teal/20 transition"
+        <a
+          href="/warehouses"
+          className="flex-1 py-1.5 rounded-xl bg-teal/10 text-teal text-xs font-semibold hover:bg-teal/20 transition text-center"
         >
-          ± تعديل الكمية
-        </button>
+          🏬 إدارة المخزون
+        </a>
         <button
           onClick={() => onEdit(p)}
           className="px-3 py-1.5 rounded-xl bg-surface-alt text-muted text-xs font-semibold hover:text-text transition border border-border"
@@ -317,7 +248,6 @@ export default function InventoryScreen() {
   const [catFilter, setCat]     = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editProd, setEditProd] = useState(null);
-  const [adjustProd, setAdjust] = useState(null);
   const [dbMissing, setDbMissing] = useState(false);
   const [seeding,   setSeeding]   = useState(false);
 
@@ -513,7 +443,7 @@ ON CONFLICT (sku) DO NOTHING;`}
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map(p => (
-                <ProductCard key={p.id} p={p} onEdit={openEdit} onAdjust={setAdjust} />
+                <ProductCard key={p.id} p={p} onEdit={openEdit} />
               ))}
             </div>
           )}
@@ -525,11 +455,6 @@ ON CONFLICT (sku) DO NOTHING;`}
         open={showForm}
         initial={editProd}
         onClose={() => { setShowForm(false); setEditProd(null); }}
-        onSaved={load}
-      />
-      <AdjustModal
-        product={adjustProd}
-        onClose={() => setAdjust(null)}
         onSaved={load}
       />
     </div>
