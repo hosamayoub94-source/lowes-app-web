@@ -1,18 +1,19 @@
 // =============================================================
-// CustomersScreen — «العملاء والأرشيف» + retention tools (everyone).
-// Sections (Syria/Turkey/Strong/All) · search · VIP · «my customers»
-// · «follow-up due» · per-customer notes · one-tap WhatsApp with an
-// editable follow-up message. Built for repeat-sale (retention).
+// CustomersScreen — «العملاء والأرشيف» + retention engine (everyone).
+// Sections (Syria/Turkey/Strong/All) · segments (follow-up/at-risk/
+// win-back) · notes · cross-sell suggestions · reorder cycle ·
+// loyalty tier · WhatsApp with editable / AI-written message.
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   listCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
+  getCustomerOrders, boughtProductNames, aiFollowupMessage,
 } from '@services/customerService';
+import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { useAuth } from '@hooks/useAuth';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
-const FOLLOWUP_DAYS = 30; // re-engage customers idle this long
 
 const SECTIONS = [
   { key: 'syria',  label: '🇸🇾 لويز سوريا', market: 'syria',  brand: 'lowes'  },
@@ -20,6 +21,28 @@ const SECTIONS = [
   { key: 'strong', label: '💪 سترونغ',       market: null,     brand: 'strong' },
   { key: 'all',    label: '🌍 الكل',          market: null,     brand: null     },
 ];
+
+const SEGMENTS = [
+  { key: 'all',      label: 'كل العملاء' },
+  { key: 'followup', label: '⏰ للمتابعة (30+ يوم)' },
+  { key: 'atrisk',   label: '⚠️ معرّضون للفقدان' },
+  { key: 'winback',  label: '💔 استرجاع (90+ يوم)' },
+];
+
+function inSegment(c, seg) {
+  const idle = daysSince(c.last_order);
+  if (seg === 'followup') return idle >= 30;
+  if (seg === 'atrisk')   return c.orders_count >= 2 && idle >= 45 && idle < 90;
+  if (seg === 'winback')  return idle >= 90;
+  return true;
+}
+
+function loyaltyTier(stars) {
+  if (stars >= 3) return { label: '💎 بلاتيني', color: 'text-violet-700' };
+  if (stars === 2) return { label: '🥇 ذهبي', color: 'text-amber-fg' };
+  if (stars === 1) return { label: '🥈 فضي', color: 'text-muted' };
+  return { label: '🌱 جديد', color: 'text-muted' };
+}
 
 function custMarket(c) {
   return (c.markets || []).includes('syria') ? 'syria'
@@ -35,33 +58,53 @@ function WaIcon({ size = 15 }) {
   );
 }
 
-// ── Customer detail + notes modal ─────────────────────────────
 function CustomerModal({ c, sellerName, onClose }) {
   const mkt = custMarket(c);
-  const [notes, setNotes] = useState([]);
-  const [text, setText]   = useState('');
+  const idle = daysSince(c.last_order);
+  const tier = loyaltyTier(c.stars);
+
+  const [notes, setNotes]   = useState([]);
+  const [text, setText]     = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [bought, setBought] = useState([]);
+  const [lastOrderDays, setLastOrderDays] = useState(idle);
+  const [msg, setMsg]       = useState(followupMessage(c.name, sellerName));
+  const [aiLoading, setAiLoading] = useState(false);
+
   useEffect(() => { getNotes(c.phone_key).then(setNotes); }, [c.phone_key]);
+  useEffect(() => {
+    getCustomerOrders(c.phone).then((orders) => {
+      setBought(boughtProductNames(orders));
+      if (orders[0]?.order_date) setLastOrderDays(daysSince(orders[0].order_date));
+    });
+  }, [c.phone]);
+
+  const suggestions = useMemo(() => suggestComplements(bought), [bought]);
+  const reorderDue  = lastOrderDays >= REORDER_DAYS && bought.length > 0;
 
   const save = async () => {
     if (!text.trim()) return;
     setSaving(true);
-    try {
-      const n = await addNote(c.phone_key, text, sellerName);
-      setNotes(p => [n, ...p]);
-      setText('');
-    } catch {} finally { setSaving(false); }
+    try { const n = await addNote(c.phone_key, text, sellerName); setNotes(p => [n, ...p]); setText(''); }
+    catch {} finally { setSaving(false); }
   };
 
-  const waPlain  = customerWaLink(c.phone, mkt);
-  const waFollow = customerWaLink(c.phone, mkt, followupMessage(c.name, sellerName));
-  const idle = daysSince(c.last_order);
+  const writeWithAi = async () => {
+    setAiLoading(true);
+    try {
+      const out = await aiFollowupMessage({ customerName: c.name, products: bought, idleDays: idle, sellerName });
+      if (out) setMsg(out);
+    } finally { setAiLoading(false); }
+  };
+
+  const waSend  = customerWaLink(c.phone, mkt, msg);
+  const waPlain = customerWaLink(c.phone, mkt);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-2 sm:p-4" dir="rtl" onClick={onClose}>
-      <div className="bg-surface rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-border/40 flex items-start justify-between gap-2 sticky top-0 bg-surface">
+      <div className="bg-surface rounded-2xl w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-border/40 flex items-start justify-between gap-2 sticky top-0 bg-surface z-10">
           <div className="min-w-0">
             <h3 className="font-bold text-base text-text truncate">
               {c.stars > 0 && <span className="me-1">{starLabel(c.stars)}</span>}{c.name || 'عميل'}
@@ -72,52 +115,82 @@ function CustomerModal({ c, sellerName, onClose }) {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Quick stats */}
+          {/* Stats + loyalty */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-surface-alt rounded-xl p-2"><p className="text-lg font-extrabold text-teal">{c.orders_count}</p><p className="text-[10px] text-muted">طلب</p></div>
-            <div className="bg-surface-alt rounded-xl p-2"><p className="text-sm font-bold text-text">{idle === Infinity ? '—' : idle}</p><p className="text-[10px] text-muted">يوم من آخر طلب</p></div>
-            <div className="bg-surface-alt rounded-xl p-2"><p className="text-sm font-bold text-text">{(c.sellers||[]).length}</p><p className="text-[10px] text-muted">بائع</p></div>
+            <div className="bg-surface-alt rounded-xl p-2"><p className="text-sm font-bold text-text">{idle === Infinity ? '—' : idle}</p><p className="text-[10px] text-muted">يوم خمول</p></div>
+            <div className="bg-surface-alt rounded-xl p-2"><p className={`text-xs font-bold ${tier.color}`}>{tier.label}</p><p className="text-[10px] text-muted">الولاء</p></div>
           </div>
 
-          {idle >= FOLLOWUP_DAYS && (
+          {/* Reorder + win-back nudges */}
+          {idle >= 90 && (
+            <div className="bg-red-bg border border-red/20 rounded-xl px-3 py-2 text-xs text-red-fg">
+              💔 خامل {idle} يوم — أرسل عرض «اشتقنالك» (خصم/هدية استرجاع).
+            </div>
+          )}
+          {idle >= 45 && idle < 90 && c.orders_count >= 2 && (
             <div className="bg-amber-bg border border-amber/30 rounded-xl px-3 py-2 text-xs text-amber-fg">
-              ⏰ مضى {idle} يوماً على آخر طلب — وقت ممتاز للمتابعة وإعادة البيع.
+              ⚠️ عميل وفيّ بدأ يبتعد ({idle} يوم) — تواصل الآن قبل ما نخسره.
+            </div>
+          )}
+          {reorderDue && (
+            <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal">
+              🔁 مضى {lastOrderDays} يوم على آخر طلب — غالباً منتجه قارب يخلص. ذكّره بإعادة الطلب.
             </div>
           )}
 
-          {/* WhatsApp actions */}
-          <div className="flex gap-2">
-            {waFollow && (
-              <a href={waFollow} target="_blank" rel="noreferrer"
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition"
-                style={{ background: '#25D366' }}>
-                <WaIcon /> رسالة متابعة
-              </a>
-            )}
-            {waPlain && (
-              <a href={waPlain} target="_blank" rel="noreferrer"
-                className="px-4 py-2.5 rounded-xl bg-green-bg text-green-fg text-sm font-bold flex items-center justify-center hover:opacity-80 transition">
-                محادثة
-              </a>
-            )}
-          </div>
-
-          {(c.sellers||[]).length > 0 && (
-            <p className="text-[11px] text-muted">👤 البائعون: <span className="text-text">{(c.sellers||[]).join('، ')}</span></p>
+          {/* Cross-sell suggestions */}
+          {suggestions.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-extrabold text-muted">💡 اقترح عليه (بيع مكمّل)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map(s => (
+                  <span key={s} className="text-[11px] bg-teal/10 text-teal font-semibold px-2 py-1 rounded-lg">{s}</span>
+                ))}
+              </div>
+            </div>
           )}
+
+          {/* WhatsApp message (editable + AI) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-extrabold text-muted">💬 رسالة المتابعة</p>
+              <button onClick={writeWithAi} disabled={aiLoading}
+                className="text-[11px] font-bold text-navy bg-navy/10 px-2 py-1 rounded-lg hover:bg-navy/15 transition disabled:opacity-50">
+                {aiLoading ? '… لوزي تكتب' : '✨ لوزي تكتب الرسالة'}
+              </button>
+            </div>
+            <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={4}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none" />
+            <div className="flex gap-2">
+              {waSend && (
+                <a href={waSend} target="_blank" rel="noreferrer"
+                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition"
+                  style={{ background: '#25D366' }}>
+                  <WaIcon /> إرسال واتساب
+                </a>
+              )}
+              {waPlain && (
+                <a href={waPlain} target="_blank" rel="noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-green-bg text-green-fg text-sm font-bold flex items-center justify-center hover:opacity-80 transition">
+                  محادثة فارغة
+                </a>
+              )}
+            </div>
+          </div>
 
           {/* Notes */}
           <div className="space-y-2">
             <p className="text-xs font-extrabold text-muted">📝 ملاحظات تذكّرنا بالعميل</p>
             <div className="flex gap-2">
               <input value={text} onChange={e => setText(e.target.value)}
-                placeholder="مثال: بشرة جافة · تحب الترطيب · اشترت لابنتها..."
+                placeholder="بشرة جافة · تحب الترطيب · اشترت لابنتها..."
                 className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
               <button onClick={save} disabled={saving || !text.trim()}
                 className="px-3 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">+</button>
             </div>
             {notes.length === 0 ? (
-              <p className="text-[11px] text-muted text-center py-2">لا ملاحظات بعد — أضف ما يساعدك تتذكّره.</p>
+              <p className="text-[11px] text-muted text-center py-1">لا ملاحظات بعد.</p>
             ) : notes.map(n => (
               <div key={n.id} className="bg-surface-alt rounded-xl px-3 py-2">
                 <p className="text-sm text-text">{n.note}</p>
@@ -166,8 +239,8 @@ function CustomerCard({ c, onOpen }) {
       {totals.length > 0 && <p className="text-xs font-bold text-text">{totals.join(' · ')}</p>}
       <div className="flex items-center justify-between text-[10px] text-muted pt-1 border-t border-border/40">
         <span>{(c.sellers||[]).length > 1 ? `🔀 ${(c.sellers||[]).length} بائع` : `👤 ${(c.sellers||[])[0] || '—'}`}</span>
-        {idle >= FOLLOWUP_DAYS
-          ? <span className="text-amber-fg font-bold">⏰ متابعة ({idle}ي)</span>
+        {idle >= 90 ? <span className="text-red-fg font-bold">💔 استرجاع ({idle}ي)</span>
+          : idle >= 30 ? <span className="text-amber-fg font-bold">⏰ متابعة ({idle}ي)</span>
           : <span>آخر طلب: {c.last_order ? new Date(c.last_order).toLocaleDateString('ar', {month:'short', year:'2-digit'}) : '—'}</span>}
       </div>
     </div>
@@ -184,7 +257,7 @@ export default function CustomersScreen() {
   const [search, setSearch]     = useState('');
   const [vipOnly, setVipOnly]   = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
-  const [dueOnly, setDueOnly]   = useState(false);
+  const [segment, setSegment]   = useState('all');
   const [selected, setSelected] = useState(null);
 
   const sec = SECTIONS.find(s => s.key === section) || SECTIONS[0];
@@ -200,16 +273,15 @@ export default function CustomersScreen() {
 
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  // «my customers» (fuzzy) + «follow-up due» filtered client-side
   const displayed = useMemo(() => rows.filter(c => {
     if (mineOnly && !sellerMatches(c.sellers, userName)) return false;
-    if (dueOnly && daysSince(c.last_order) < FOLLOWUP_DAYS) return false;
+    if (!inSegment(c, segment)) return false;
     return true;
-  }), [rows, mineOnly, dueOnly, userName]);
+  }), [rows, mineOnly, segment, userName]);
 
   const stats = useMemo(() => ({
     total: displayed.length,
-    due: displayed.filter(r => daysSince(r.last_order) >= FOLLOWUP_DAYS).length,
+    due: displayed.filter(r => daysSince(r.last_order) >= 30).length,
     vip: displayed.filter(r => r.stars >= 2).length,
   }), [displayed]);
 
@@ -232,17 +304,17 @@ export default function CustomersScreen() {
       </div>
 
       {/* Search + filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="🔍 بحث بالاسم أو الهاتف..."
           className="flex-1 min-w-[150px] border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        <select value={segment} onChange={e => setSegment(e.target.value)}
+          className="border border-border rounded-xl px-2 py-2.5 text-xs font-bold bg-surface text-text focus:outline-none shrink-0">
+          {SEGMENTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
         <button onClick={() => setMineOnly(v => !v)}
           className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${mineOnly ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
           👤 عملائي
-        </button>
-        <button onClick={() => setDueOnly(v => !v)}
-          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${dueOnly ? 'border-amber bg-amber-bg text-amber-fg' : 'border-border text-muted hover:border-amber/40'}`}>
-          ⏰ للمتابعة
         </button>
         <button onClick={() => setVipOnly(v => !v)}
           className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${vipOnly ? 'border-amber bg-amber-bg text-amber-fg' : 'border-border text-muted hover:border-amber/40'}`}>

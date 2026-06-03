@@ -107,6 +107,53 @@ export function daysSince(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
+// Fetch a customer's orders by phone (for purchase-aware suggestions).
+export async function getCustomerOrders(rawPhone) {
+  if (!rawPhone) return [];
+  const { data, error } = await supabase
+    .from('orders')
+    .select('order_date, items, amount, currency, status')
+    .eq('phone_1', rawPhone)
+    .order('order_date', { ascending: false })
+    .limit(50);
+  if (error) return [];
+  return data ?? [];
+}
+
+// Distinct product names this customer has bought (from order items).
+export function boughtProductNames(orders) {
+  const set = new Set();
+  for (const o of orders || []) {
+    for (const it of (o.items || [])) {
+      if (it?.name) set.add(String(it.name).trim());
+    }
+  }
+  return [...set];
+}
+
+// AI follow-up message via the deployed social-content edge function
+// (reuses the brand-tone "reply" mode). Returns text or null.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export async function aiFollowupMessage({ customerName, products, idleDays, sellerName }) {
+  try {
+    const ctx = `اكتب رسالة واتساب قصيرة ودّية بالعربي لمتابعة عميلة من Lowe's Professional للعناية بالبشرة.`
+      + ` اسم العميلة: ${customerName || 'العميلة'}.`
+      + (products?.length ? ` اشترت سابقاً: ${products.slice(0, 4).join('، ')}.` : '')
+      + (idleDays && idleDays !== Infinity ? ` مضى ${idleDays} يوماً على آخر طلب.` : '')
+      + ` اطمئني على تجربتها، أظهري الاهتمام، واقترحي منتجاً مكمّلاً بلطف بدون إلحاح.`
+      + (sellerName ? ` وقّعي باسم ${sellerName}.` : '');
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'reply', product: '', extra: ctx }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.content || null;
+  } catch { return null; }
+}
+
 // Star label helper.
 export function starLabel(stars) {
   if (stars >= 3) return '⭐⭐⭐';
