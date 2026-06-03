@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { loadManagerBoard } from '@services/managerBoardService';
 import { useAuth } from '@hooks/useAuth';
+import { targetForCurrency } from '@data/targets';
 
 // ── Formatters ────────────────────────────────────────────────
 const fmt = (n) => new Intl.NumberFormat('en-US').format(Math.round(n || 0));
@@ -214,16 +215,25 @@ export default function ManagerBoardScreen() {
                   </p>
                 </div>
                 <div className="text-left shrink-0 space-y-0.5">
-                  {Object.entries(s.totals).map(([cur, total]) => (
-                    <div key={cur} className="flex items-center justify-end gap-2">
-                      <span className="text-xs font-bold text-text tabular-nums">{fmt(total)} {cur}</span>
-                      {s.pct > 0 && (
-                        <span className="text-[10px] text-teal font-semibold tabular-nums">
-                          (+{fmt(s.commissions[cur])})
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {Object.entries(s.totals).map(([cur, total]) => {
+                    const target = targetForCurrency(cur);
+                    const pct = target ? Math.round((total / target) * 100) : null;
+                    return (
+                      <div key={cur} className="flex items-center justify-end gap-2">
+                        <span className="text-xs font-bold text-text tabular-nums">{fmt(total)} {cur}</span>
+                        {pct !== null && (
+                          <span className={`text-[10px] font-semibold tabular-nums ${pct >= 100 ? 'text-green-fg' : 'text-muted'}`}>
+                            {pct}% من الهدف
+                          </span>
+                        )}
+                        {s.pct > 0 && (
+                          <span className="text-[10px] text-teal font-semibold tabular-nums">
+                            (+{fmt(s.commissions[cur])})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
