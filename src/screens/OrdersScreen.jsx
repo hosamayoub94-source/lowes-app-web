@@ -962,6 +962,25 @@ export default function OrdersScreen() {
     }
   };
 
+  // Monthly archive: flag delivered orders older than 30 days as archived.
+  const [archiving, setArchiving] = useState(false);
+  const archiveOldDelivered = async () => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const eligible = orders.filter(o =>
+      o.status === 'delivered' && o.archived !== true &&
+      o.order_date && new Date(o.order_date) < cutoff
+    );
+    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة أقدم من شهر لأرشفتها.'); return; }
+    if (!window.confirm(`أرشفة ${eligible.length} طلب مسلّم (أقدم من شهر)؟ تختفي من القائمة وتبقى في سجل العملاء.`)) return;
+    setArchiving(true);
+    try {
+      const ids = eligible.map(o => o.id);
+      await supabase.from('orders').update({ archived: true }).in('id', ids);
+      await load();
+    } catch (e) { window.alert('تعذّر: ' + e.message); }
+    finally { setArchiving(false); }
+  };
+
   const filtered = useMemo(() => orders.filter(o => {
     if (myOrders && o.handler_name !== userName) return false;
     if (market !== 'all' && o.market !== market) return false;
@@ -1001,12 +1020,21 @@ export default function OrdersScreen() {
               : `${stats.total} طلب · ${stats.pending} وارد · ${stats.shipped} في الشحن`}
           </p>
         </div>
-        {!isFulfillment && (
-          <button onClick={() => setModal('new')}
-            className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
-            + طلب جديد
-          </button>
-        )}
+        <div className="flex gap-2 shrink-0">
+          {isManager && (
+            <button onClick={archiveOldDelivered} disabled={archiving}
+              className="px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition disabled:opacity-40"
+              title="أرشفة الطلبات المسلّمة الأقدم من شهر">
+              {archiving ? '…' : '🗄️ أرشفة'}
+            </button>
+          )}
+          {!isFulfillment && (
+            <button onClick={() => setModal('new')}
+              className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
+              + طلب جديد
+            </button>
+          )}
+        </div>
       </div>
 
       {/* «طلباتي» / «كل الطلبات» toggle */}
