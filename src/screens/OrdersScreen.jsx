@@ -9,6 +9,7 @@ import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
+import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -106,7 +107,7 @@ function nextOrderId(market, orders) {
 }
 
 const EMPTY_FORM = {
-  market: 'turkey', order_id: '', order_date: new Date().toISOString().slice(0, 16),
+  market: 'turkey', brand: 'lowes', order_id: '', order_date: new Date().toISOString().slice(0, 16),
   handler_name: '', status: 'pending', notes: '',
   customer_name: '', phone_1: '', phone_2: '', wa_number: '',
   city: '', district: '', address: '',
@@ -494,6 +495,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
 
   const [form, setForm] = useState(isEdit ? {
     market:           order.market,
+    brand:            order.brand            ?? 'lowes',
     order_id:         order.order_id         ?? '',
     order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
     handler_name:     order.handler_name     ?? userName ?? '',
@@ -588,6 +590,20 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
                   ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
                 {m.flag} {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Brand — la ronven glow orders are isolated from Lowe's stock */}
+          <div className="flex gap-2">
+            {[
+              { key: 'lowes', label: "Lowe's", emoji: '🌿' },
+              { key: 'la_ronven_glow', label: 'la ronven glow', emoji: '💪' },
+            ].map(b => (
+              <button key={b.key} onClick={() => set('brand', b.key)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+                  ${form.brand === b.key ? 'border-navy bg-navy/10 text-navy' : 'border-border text-muted hover:border-navy/40'}`}>
+                {b.emoji} {b.label}
               </button>
             ))}
           </div>
@@ -870,6 +886,8 @@ export default function OrdersScreen() {
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
+    // Cancelling releases reserved stock back to the source warehouse
+    if (order && newStatus === 'cancelled') releaseForOrder({ ...order, status: newStatus }, userName);
   };
 
   const handleSave = async (form, existingId) => {
@@ -883,6 +901,11 @@ export default function OrdersScreen() {
     setModal(null);
     load();
     if (savedId && form.market === 'syria') syncOrderToSheet(savedId);
+    // Phase 2: reserve stock for NEW lowes-brand orders (best-effort).
+    // Deducts catalog items from the seller's source warehouse.
+    if (savedId && !existingId) {
+      reserveForOrder({ id: savedId, ...form }, userName);
+    }
   };
 
   const filtered = useMemo(() => orders.filter(o => {
