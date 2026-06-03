@@ -32,22 +32,39 @@ async function syncOrderToSheet(orderId) {
 async function notifySellerStatusChange(order, newStatus, actorName) {
   try {
     if (!order?.handler_name) return;
-    if (order.handler_name === actorName) return; // don't notify yourself
+    // For 'delivered' we always nudge the seller (retention); for other
+    // stages, skip notifying themselves.
+    if (newStatus !== 'delivered' && order.handler_name === actorName) return;
     const { data: prof } = await supabase
       .from('profiles')
       .select('id')
       .eq('employee_name', order.handler_name)
       .maybeSingle();
     if (!prof?.id) return;
+    const cust = order.customer_name || 'العميل';
     const meta = STATUSES[newStatus];
+
+    if (newStatus === 'delivered') {
+      // Lozy retention reminder after each delivery.
+      await sendNotification({
+        userId:     prof.id,
+        type:       NOTIFICATION_TYPE.SYSTEM_ALERT,
+        title:      `💚 تم تسليم طلب ${cust}`,
+        message:    `تواصل مع ${cust} بعد يوم-يومين: اطمئن على المنتج، أظهر اهتمامك، واقترح منتجاً مكمّلاً. عميل سعيد = بيع متكرر! تجده في «العملاء والأرشيف».`,
+        entityType: 'order',
+        entityId:   order.id,
+        metadata:   { order_id: order.order_id, status: newStatus, kind: 'followup' },
+      });
+      return;
+    }
+
     await sendNotification({
       userId:     prof.id,
       type:       NOTIFICATION_TYPE.SYSTEM_ALERT,
       title:      `${meta?.icon ?? '📦'} طلبك ${order.order_id}: ${meta?.label ?? newStatus}`,
-      message:    `${order.customer_name || 'العميل'} — انتقل الطلب إلى مرحلة «${meta?.label ?? newStatus}».`,
+      message:    `${cust} — انتقل الطلب إلى مرحلة «${meta?.label ?? newStatus}».`,
       entityType: 'order',
       entityId:   order.id,
-      severity:   newStatus === 'delivered' ? 'info' : 'info',
       metadata:   { order_id: order.order_id, status: newStatus },
     });
   } catch { /* notifications are best-effort */ }
