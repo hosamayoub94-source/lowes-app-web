@@ -11,6 +11,7 @@ import { sendNotification } from '@modules/notifications/services/notificationSe
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket } from '@data/cities';
+import { targetForCurrency } from '@data/targets';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -814,15 +815,31 @@ function SellerStatsCard({ orders, userName, commissionPct }) {
         <div className="space-y-2">
           {Object.entries(totals).map(([currency, total]) => {
             const commission = commissionPct > 0 ? (total * commissionPct / 100).toFixed(0) : null;
+            const target = targetForCurrency(currency);
+            const pct = target ? Math.min(100, Math.round((total / target) * 100)) : null;
             return (
-              <div key={currency} className="flex justify-between items-center bg-surface rounded-xl px-3 py-2">
-                <span className="text-xs font-bold text-muted">{currency}</span>
-                <div className="text-right">
-                  <div className="text-sm font-black text-text">{total.toFixed(0)} {currency}</div>
-                  {commission && (
-                    <div className="text-[10px] text-teal font-semibold">عمولتي: {commission} {currency}</div>
-                  )}
+              <div key={currency} className="bg-surface rounded-xl px-3 py-2 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-muted">{currency}</span>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-text">{total.toFixed(0)} {currency}</div>
+                    {commission && (
+                      <div className="text-[10px] text-teal font-semibold">عمولتي: {commission} {currency}</div>
+                    )}
+                  </div>
                 </div>
+                {pct !== null && (
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-muted">الهدف {target} {currency}</span>
+                      <span className={`font-bold ${pct >= 100 ? 'text-green-fg' : 'text-muted'}`}>{pct}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-fg' : pct >= 60 ? 'bg-teal' : 'bg-amber-fg'}`}
+                        style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
