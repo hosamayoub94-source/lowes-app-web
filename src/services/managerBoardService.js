@@ -173,6 +173,52 @@ async function fetchTasks() {
   return { overdue, inProgress, doneThisWeek, highPriority, total: data.length };
 }
 
+// ── Seller commissions (delivered orders this month) ──────────
+// For each seller: total delivered value per currency + commission
+// (value × profiles.commission_pct). Sorted by total value.
+async function fetchCommissions() {
+  const monthStart = monthStartISO();
+
+  const [ordRes, profRes] = await Promise.all([
+    supabase.from('orders')
+      .select('handler_name, amount, currency, order_date')
+      .eq('status', 'delivered')
+      .gte('order_date', monthStart + 'T00:00:00'),
+    supabase.from('profiles')
+      .select('employee_name, commission_pct'),
+  ]);
+
+  const orders = ordRes.data || [];
+  const pctByName = {};
+  for (const p of (profRes.data || [])) {
+    if (p.employee_name) pctByName[p.employee_name] = Number(p.commission_pct ?? 0);
+  }
+
+  // Group by seller → { totals: {cur: sum}, count }
+  const bySeller = {};
+  for (const o of orders) {
+    const name = o.handler_name;
+    if (!name || !o.amount) continue;
+    const cur = o.currency || 'USD';
+    if (!bySeller[name]) bySeller[name] = { name, totals: {}, count: 0, pct: pctByName[name] ?? 0 };
+    bySeller[name].totals[cur] = (bySeller[name].totals[cur] || 0) + Number(o.amount);
+    bySeller[name].count += 1;
+  }
+
+  // Compute commission per currency + a sort key (sum of all currency totals)
+  const sellers = Object.values(bySeller).map(s => {
+    const commissions = {};
+    let sortVal = 0;
+    for (const [cur, total] of Object.entries(s.totals)) {
+      commissions[cur] = s.pct > 0 ? Math.round(total * s.pct / 100) : 0;
+      sortVal += total;
+    }
+    return { ...s, commissions, sortVal };
+  }).sort((a, b) => b.sortVal - a.sortVal);
+
+  return { sellers, totalSellers: sellers.length };
+}
+
 // ── Sales target (if defined) ─────────────────────────────────
 async function fetchTarget() {
   const d = new Date();
@@ -192,13 +238,14 @@ async function fetchTarget() {
 
 // ── Master loader ─────────────────────────────────────────────
 export async function loadManagerBoard() {
-  const [sales, orders, attendance, tasks, target] = await Promise.all([
+  const [sales, orders, attendance, tasks, target, commissions] = await Promise.all([
     fetchSales(),
     fetchOrders(),
     fetchAttendance(),
     fetchTasks(),
     fetchTarget(),
+    fetchCommissions(),
   ]);
 
-  return { sales, orders, attendance, tasks, target, loadedAt: new Date().toISOString() };
+  return { sales, orders, attendance, tasks, target, commissions, loadedAt: new Date().toISOString() };
 }

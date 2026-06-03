@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { ROLES }    from '@data/teams';
+import { sendNotification } from '@modules/notifications/services/notificationService';
+import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -19,6 +21,32 @@ async function syncOrderToSheet(orderId) {
       body: JSON.stringify({ orderId }),
     });
   } catch { /* best-effort; sheet_synced stays false for retry */ }
+}
+
+// Notify the seller (order.handler_name) that their order moved to a new stage.
+// Best-effort: looks up the seller's profile id by name, never blocks the UI.
+async function notifySellerStatusChange(order, newStatus, actorName) {
+  try {
+    if (!order?.handler_name) return;
+    if (order.handler_name === actorName) return; // don't notify yourself
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('employee_name', order.handler_name)
+      .maybeSingle();
+    if (!prof?.id) return;
+    const meta = STATUSES[newStatus];
+    await sendNotification({
+      userId:     prof.id,
+      type:       NOTIFICATION_TYPE.SYSTEM_ALERT,
+      title:      `${meta?.icon ?? '📦'} طلبك ${order.order_id}: ${meta?.label ?? newStatus}`,
+      message:    `${order.customer_name || 'العميل'} — انتقل الطلب إلى مرحلة «${meta?.label ?? newStatus}».`,
+      entityType: 'order',
+      entityId:   order.id,
+      severity:   newStatus === 'delivered' ? 'info' : 'info',
+      metadata:   { order_id: order.order_id, status: newStatus },
+    });
+  } catch { /* notifications are best-effort */ }
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -838,7 +866,10 @@ export default function OrdersScreen() {
 
   const handleStatusChange = async (id, newStatus) => {
     await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    const order = orders.find(o => o.id === id);
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    // Notify the seller their order advanced (best-effort, fire-and-forget)
+    if (order) notifySellerStatusChange(order, newStatus, userName);
   };
 
   const handleSave = async (form, existingId) => {

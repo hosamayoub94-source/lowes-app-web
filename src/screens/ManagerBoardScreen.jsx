@@ -91,7 +91,7 @@ export default function ManagerBoardScreen() {
     </div>
   );
 
-  const { sales, orders, attendance, tasks, target } = data;
+  const { sales, orders, attendance, tasks, target, commissions } = data;
 
   // Sales display — primary in USD, with TRY/SYP secondary
   // Prefer the dashboard's achieved_usd if present, else our daily_reports sum
@@ -198,6 +198,41 @@ export default function ManagerBoardScreen() {
           </div>
         )}
       </Section>
+
+      {/* ── عمولات البائعين (المسلّم هذا الشهر) ───── */}
+      {commissions?.sellers?.length > 0 && (
+        <Section title="عمولات البائعين (المسلّم هذا الشهر)" icon="📊">
+          <div className="space-y-2">
+            {commissions.sellers.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 bg-surface-alt rounded-xl px-3 py-2.5">
+                <span className="text-xs font-bold text-teal w-5 shrink-0">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-text truncate">{s.name}</p>
+                  <p className="text-[11px] text-muted">
+                    {s.count} طلب مسلّم
+                    {s.pct > 0 && <span className="text-teal font-semibold"> · عمولة {s.pct}%</span>}
+                  </p>
+                </div>
+                <div className="text-left shrink-0 space-y-0.5">
+                  {Object.entries(s.totals).map(([cur, total]) => (
+                    <div key={cur} className="flex items-center justify-end gap-2">
+                      <span className="text-xs font-bold text-text tabular-nums">{fmt(total)} {cur}</span>
+                      {s.pct > 0 && (
+                        <span className="text-[10px] text-teal font-semibold tabular-nums">
+                          (+{fmt(s.commissions[cur])})
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted mt-3 text-center">
+            العمولة بين قوسين = قيمة المبيعات × نسبة عمولة البائع · تُضبط من «المستخدمون»
+          </p>
+        </Section>
+      )}
 
       {/* ── المهام والأداء ───────────────────────── */}
       <Section title="المهام والأداء" icon="📋">

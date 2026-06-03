@@ -86,7 +86,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,extra_permissions';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -138,6 +138,7 @@ const EMPTY_FORM = {
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
+  commission_pct: '',
   extra_permissions: [],
 };
 
@@ -315,6 +316,7 @@ export default function AdminUsersScreen() {
       base_salary_usd:         p.base_salary_usd         ?? '',
       housing_allowance_usd:   p.housing_allowance_usd   ?? '',
       transport_allowance_usd: p.transport_allowance_usd ?? '',
+      commission_pct:          p.commission_pct          ?? '',
       extra_permissions:       Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
     });
     setSaveError(null);
@@ -345,6 +347,7 @@ export default function AdminUsersScreen() {
       patch.base_salary_usd         = form.base_salary_usd         === '' ? 0 : Number(form.base_salary_usd);
       patch.housing_allowance_usd   = form.housing_allowance_usd   === '' ? 0 : Number(form.housing_allowance_usd);
       patch.transport_allowance_usd = form.transport_allowance_usd === '' ? 0 : Number(form.transport_allowance_usd);
+      patch.commission_pct          = form.commission_pct          === '' ? 0 : Number(form.commission_pct);
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       await updateProfile(editUser.id, patch);
 
@@ -695,6 +698,17 @@ export default function AdminUsersScreen() {
                           placeholder="0" className={inputCls} />
                       </Field>
                     </div>
+                  </div>
+
+                  {/* Commission — for sellers */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-1">📊 عمولة المبيعات</p>
+                    <p className="text-[11px] text-muted mb-3">نسبة العمولة على الطلبات المسلّمة — تظهر للبائع في «طلباتي» وتُحتسب تلقائياً.</p>
+                    <Field label="نسبة العمولة (%)">
+                      <input type="number" min="0" max="100" step="0.5" value={form.commission_pct}
+                        onChange={e => setForm(f => ({ ...f, commission_pct: e.target.value }))}
+                        placeholder="10" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+                    </Field>
                   </div>
 
                   {/* Extra permissions — for granting future managers specific powers */}
