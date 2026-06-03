@@ -5,11 +5,13 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@utils/classNames';
 import { useAuth } from '@hooks/useAuth';
+import { usePermissions } from '@hooks/usePermissions';
 import { navItemsForRole } from '@data/navigation';
 
 export function BottomNav() {
   const { role } = useAuth();
-  const items = navItemsForRole(role).slice(0, 5);
+  const { permissions } = usePermissions();
+  const items = navItemsForRole(role, permissions).slice(0, 5);
   if (!items.length) return null;
 
   return (

@@ -7,6 +7,7 @@
 // full toolset organized into collapsible sections.
 // =============================================================
 import { ROLES } from './teams';
+import { PERMISSIONS as P } from './permissions';
 
 const E   = ROLES.EMPLOYEE;
 const M   = ROLES.MANAGER;
@@ -46,25 +47,25 @@ export const NAV_ITEMS = [
   { id: 'team',         label: 'الفريق',     icon: '👥', path: '/team',        roles: ALL,                 group: 'hr' },
 
   // ── Sales / management
-  { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales' },
+  { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },
   { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB], group: 'sales' },
   { id: 'crm',           label: 'CRM',              icon: '🤝', path: '/crm',          roles: [M, A, SM],     group: 'sales' },
-  { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales' },
+  { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales', perm: P.VIEW_ANALYTICS },
 
-  // ── Inventory (NOT regular employees)
-  { id: 'inventory',  label: 'المنتجات', icon: '📦', path: '/inventory',  roles: [A, M, SM], group: 'inventory' },
-  { id: 'warehouses', label: 'المخازن',  icon: '🏬', path: '/warehouses', roles: [A, M, SM], group: 'inventory' },
+  // ── Inventory (NOT regular employees — revealed by stock permissions)
+  { id: 'inventory',  label: 'المنتجات', icon: '📦', path: '/inventory',  roles: [A, M, SM], group: 'inventory', perm: P.VIEW_INVENTORY },
+  { id: 'warehouses', label: 'المخازن',  icon: '🏬', path: '/warehouses', roles: [A, M, SM], group: 'inventory', perm: P.VIEW_INVENTORY },
 
   // ── HR / managers
-  { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M], group: 'hr' },
-  { id: 'hr',                label: 'الموارد البشرية', icon: '🧑‍💼', path: '/hr',              roles: [A, M], group: 'hr' },
-  { id: 'attendance-report', label: 'تقرير الحضور',  icon: '📅', path: '/attendance-report', roles: [A, M], group: 'hr' },
+  { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M], group: 'hr', perm: P.MANAGE_PAYROLL },
+  { id: 'hr',                label: 'الموارد البشرية', icon: '🧑‍💼', path: '/hr',              roles: [A, M], group: 'hr', perm: P.APPROVE_LEAVES },
+  { id: 'attendance-report', label: 'تقرير الحضور',  icon: '📅', path: '/attendance-report', roles: [A, M], group: 'hr', perm: P.VIEW_ALL_ATTENDANCE },
   { id: 'holidays',          label: 'العطل الرسمية', icon: '🏖️', path: '/holidays',          roles: [A, M], group: 'hr' },
   { id: 'reviews',           label: 'تقييم الأداء',  icon: '📊', path: '/reviews',           roles: [A, M], group: 'hr' },
 
   // ── Analytics & reports
-  { id: 'manager-board',   label: 'لوحة المدير',     icon: '📈', path: '/manager-board',   roles: [M, A, SM], group: 'reports' },
-  { id: 'analytics',       label: 'التحليلات',       icon: '📊', path: '/analytics',       roles: [M, A, SM], group: 'reports' },
+  { id: 'manager-board',   label: 'لوحة المدير',     icon: '📈', path: '/manager-board',   roles: [M, A, SM], group: 'reports', perm: P.VIEW_ANALYTICS },
+  { id: 'analytics',       label: 'التحليلات',       icon: '📊', path: '/analytics',       roles: [M, A, SM], group: 'reports', perm: P.VIEW_ANALYTICS },
   { id: 'tasks-report',    label: 'تقرير المهام',    icon: '📉', path: '/tasks-report',    roles: [A, M, SM], group: 'reports' },
   { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
 
@@ -73,22 +74,31 @@ export const NAV_ITEMS = [
   { id: 'social-studio', label: 'استوديو السوشال', icon: '🌸', path: '/social-studio', roles: [A, M, SOC, MB], group: 'social' },
 
   // ── Admin / finance
-  { id: 'accounting',     label: 'الحسابات',     icon: '💰', path: '/accounting', roles: [M, A, SM], group: 'admin' },
-  { id: 'ledger',         label: 'الحسابات+',    icon: '📒', path: '/ledger',     roles: [A, M],     group: 'admin' },
+  { id: 'accounting',     label: 'الحسابات',     icon: '💰', path: '/accounting', roles: [M, A, SM], group: 'admin', perm: P.VIEW_FINANCE },
+  { id: 'ledger',         label: 'الحسابات+',    icon: '📒', path: '/ledger',     roles: [A, M],     group: 'admin', perm: P.VIEW_FINANCE },
   { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
   { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
 ];
 
-export function navItemsForRole(role) {
+// An item is visible if the role sees it by default, OR the user has been
+// granted the item's permission (so admins can reveal tools per-user without
+// changing roles). permSet is an optional Set of permission keys.
+function _visible(item, role, permSet) {
+  if (item.roles.includes(role)) return true;
+  if (item.perm && permSet && permSet.has(item.perm)) return true;
+  return false;
+}
+
+export function navItemsForRole(role, permSet = null) {
   if (!role) return [];
-  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+  return NAV_ITEMS.filter((item) => _visible(item, role, permSet));
 }
 
 // Grouped view for the sidebar: [{ key, label, items }] in GROUP_ORDER,
-// skipping empty groups for this role.
-export function groupedNavForRole(role) {
-  const items = navItemsForRole(role);
+// skipping empty groups. Pass the user's permission set to reveal granted tools.
+export function groupedNavForRole(role, permSet = null) {
+  const items = navItemsForRole(role, permSet);
   return GROUP_ORDER
     .map((key) => ({ key, label: NAV_GROUPS[key], items: items.filter((i) => i.group === key) }))
     .filter((g) => g.items.length > 0);

@@ -6,6 +6,7 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@utils/classNames';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
+import { usePermissions } from '@hooks/usePermissions';
 import { groupedNavForRole } from '@data/navigation';
 import { Avatar } from '@components/ui/Avatar';
 import { Button } from '@components/ui/Button';
@@ -15,7 +16,8 @@ export function Sidebar() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const closeSidebar = useUiStore((s) => s.closeSidebar);
   const { role, name, avatar_url, logout } = useAuth();
-  const groups = groupedNavForRole(role);
+  const { permissions } = usePermissions();
+  const groups = groupedNavForRole(role, permissions);
 
   return (
     <>
