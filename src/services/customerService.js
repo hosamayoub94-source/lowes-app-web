@@ -48,6 +48,15 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
   return data ?? [];
 }
 
+// True total count for a section (server-side, no row fetch).
+export async function countCustomers({ market = null, brand = null } = {}) {
+  let q = supabase.from('customer_stats').select('phone_key', { count: 'exact', head: true });
+  if (market) q = q.contains('markets', [market]);
+  if (brand)  q = q.contains('brands', [brand]);
+  const { count } = await q;
+  return count ?? 0;
+}
+
 // WhatsApp deep link for a customer phone, country code by market.
 // Optional prefilled text (the seller can still edit before sending).
 export function customerWaLink(phone, market, text) {

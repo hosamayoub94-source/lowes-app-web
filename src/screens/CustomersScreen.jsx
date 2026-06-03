@@ -6,7 +6,7 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  listCustomers, starLabel, customerWaLink, followupMessage,
+  listCustomers, countCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
 } from '@services/customerService';
@@ -285,6 +285,7 @@ export default function CustomersScreen() {
   const [mineOnly, setMineOnly] = useState(false);
   const [segment, setSegment]   = useState('all');
   const [selected, setSelected] = useState(null);
+  const [totalCount, setTotalCount] = useState(null); // true section total
 
   const sec = SECTIONS.find(s => s.key === section) || SECTIONS[0];
 
@@ -296,6 +297,11 @@ export default function CustomersScreen() {
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [search, vipOnly, sec.market, sec.brand]);
+
+  // True total for the section (independent of the 400-row display cap).
+  useEffect(() => {
+    countCustomers({ market: sec.market, brand: sec.brand }).then(setTotalCount).catch(() => setTotalCount(null));
+  }, [sec.market, sec.brand]);
 
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
@@ -315,7 +321,11 @@ export default function CustomersScreen() {
     <div className="space-y-4 pb-24" dir="rtl">
       <div>
         <h1 className="text-xl font-extrabold text-text">⭐ العملاء والأرشيف</h1>
-        <p className="text-xs text-muted mt-0.5">{stats.total} عميل · {stats.due} للمتابعة · {stats.vip} VIP</p>
+        <p className="text-xs text-muted mt-0.5">
+          {totalCount != null ? `${totalCount.toLocaleString('en-US')} عميل في القسم` : `${stats.total} عميل`}
+          {totalCount != null && totalCount > rows.length && ` · معروض ${stats.total} (ابحث للوصول للبقية)`}
+          {' · '}{stats.due} للمتابعة · {stats.vip} VIP
+        </p>
       </div>
 
       {/* Section tabs */}
