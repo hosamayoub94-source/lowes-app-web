@@ -923,17 +923,24 @@ export default function OrdersScreen() {
     setLoading(true);
     try {
       let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
-      // Archive view (managers) shows archived; default hides them.
-      if (viewArchive) q = q.eq('archived', true).limit(500);
-      else q = q.or('archived.is.null,archived.eq.false');
+      if (viewArchive) {
+        // Archive view: search the whole archive server-side (not just a page).
+        q = q.eq('archived', true);
+        const s = search.trim();
+        if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
+        q = q.limit(500);
+      } else {
+        q = q.or('archived.is.null,archived.eq.false');
+      }
       if (!isManager && userMarket) q = q.eq('market', userMarket);
       const { data } = await q;
       setOrders(data ?? []);
     } catch {}
     finally { setLoading(false); }
-  }, [isManager, userMarket, viewArchive]);
+  }, [isManager, userMarket, viewArchive, search]);
 
-  useEffect(() => { load(); }, [load]);
+  // Debounced so archive search hits the server without a request per keystroke.
+  useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
   // Auto-retry: re-sync Syria orders that never reached the sheet
   useEffect(() => {
@@ -1023,7 +1030,9 @@ export default function OrdersScreen() {
             {isFulfillment ? '📦 طلبات التجهيز' : 'إدارة الطلبات'}
           </h1>
           <p className="text-xs text-muted mt-0.5">
-            {isFulfillment
+            {viewArchive
+              ? `🗄️ الأرشيف · ${search.trim() ? `نتائج البحث: ${orders.length}` : `أحدث ${orders.length} — اكتب للبحث في كل الأرشيف`}`
+              : isFulfillment
               ? `${stats.actionable} طلب يحتاج عملك · ${stats.delivered} تم توصيله`
               : `${stats.total} طلب · ${stats.pending} وارد · ${stats.shipped} في الشحن`}
           </p>
