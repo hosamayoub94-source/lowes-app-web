@@ -33,7 +33,10 @@ function CustomerCard({ c, cc }) {
   if (Number(c.total_usd) > 0) totals.push(`${fmt(c.total_usd)} USD`);
   if (Number(c.total_try) > 0) totals.push(`${fmt(c.total_try)} TRY`);
   const multiSeller = (c.sellers || []).length > 1;
-  const wa = customerWaLink(c.phone, cc);
+  // Country code follows the customer's own market (Syria number ≠ Turkey).
+  const mkt = (c.markets || []).includes('syria') ? 'syria'
+            : (c.markets || []).includes('turkey') ? 'turkey' : cc;
+  const wa = customerWaLink(c.phone, mkt);
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 space-y-2">
