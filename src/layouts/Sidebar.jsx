@@ -6,7 +6,7 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@utils/classNames';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
-import { navItemsForRole } from '@data/navigation';
+import { groupedNavForRole } from '@data/navigation';
 import { Avatar } from '@components/ui/Avatar';
 import { Button } from '@components/ui/Button';
 import { ROLE_LABELS } from '@data/teams';
@@ -15,7 +15,7 @@ export function Sidebar() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const closeSidebar = useUiStore((s) => s.closeSidebar);
   const { role, name, avatar_url, logout } = useAuth();
-  const items = navItemsForRole(role);
+  const groups = groupedNavForRole(role);
 
   return (
     <>
@@ -54,24 +54,31 @@ export function Sidebar() {
         </div>
 
         {/* nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-          {items.map((item) => (
-            <NavLink
-              key={item.id}
-              to={item.path}
-              onClick={closeSidebar}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 h-11 px-3 rounded-xl text-sm font-semibold transition-colors',
-                  isActive
-                    ? 'bg-teal text-white shadow-soft'
-                    : 'text-text hover:bg-surface-alt',
-                )
-              }
-            >
-              <span aria-hidden className="text-base">{item.icon}</span>
-              <span className="flex-1 truncate">{item.label}</span>
-            </NavLink>
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          {groups.map((group) => (
+            <div key={group.key} className="space-y-1">
+              {group.label && (
+                <p className="px-3 pt-1 text-[10px] font-bold text-muted/70 uppercase tracking-wider">{group.label}</p>
+              )}
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.id}
+                  to={item.path}
+                  onClick={closeSidebar}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 h-11 px-3 rounded-xl text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'bg-teal text-white shadow-soft'
+                        : 'text-text hover:bg-surface-alt',
+                    )
+                  }
+                >
+                  <span aria-hidden className="text-base">{item.icon}</span>
+                  <span className="flex-1 truncate">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 

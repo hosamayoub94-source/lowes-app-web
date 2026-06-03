@@ -1,283 +1,95 @@
 // =============================================================
-// Navigation items used by the Sidebar (desktop) and BottomNav
-// (mobile). Keys map to React Router routes in routes/AppRoutes.
+// Navigation — role-based, grouped, decluttered.
+//   • Each item lists the roles that SEE it (least-privilege).
+//   • `group` powers the Sidebar section headers.
+//   • Array order = priority (BottomNav shows the first 5 per role).
+// Employees get a short, focused menu; managers/admins get the
+// full toolset organized into collapsible sections.
 // =============================================================
 import { ROLES } from './teams';
 
+const E   = ROLES.EMPLOYEE;
+const M   = ROLES.MANAGER;
+const A   = ROLES.ADMIN;
+const SM  = ROLES.SALES_MANAGER;
+const MB  = ROLES.MEDIA_BUYER;
+const SOC = ROLES.SOCIAL_MANAGER;
+const ALL = [E, M, A, SM, MB, SOC];
+
+// Group keys → Arabic section headers (shown in the sidebar).
+export const NAV_GROUPS = {
+  core:      '',                     // no header — daily basics
+  sales:     'المبيعات',
+  inventory: 'المخزون',
+  self:      'التطوير',
+  hr:        'الفريق والموارد',
+  reports:   'التحليلات والتقارير',
+  social:    'السوشال',
+  admin:     'الإدارة',
+};
+export const GROUP_ORDER = ['core', 'sales', 'inventory', 'self', 'hr', 'reports', 'social', 'admin'];
+
 export const NAV_ITEMS = [
-  {
-    id: 'workspace',
-    label: 'الرئيسية',
-    icon: '🏠',
-    path: '/',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'attendance',
-    label: 'الحضور',
-    icon: '🕒',
-    path: '/attendance',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'tasks',
-    label: 'المهام',
-    icon: '📋',
-    path: '/tasks',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'team',
-    label: 'الفريق',
-    icon: '👥',
-    path: '/team',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'holidays',
-    label: 'الإجازات',
-    icon: '🏖️',
-    path: '/holidays',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'announcements',
-    label: 'الإعلانات',
-    icon: '📢',
-    path: '/announcements',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'chat',
-    label: 'المحادثات',
-    icon: '💬',
-    path: '/chat',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'achievements',
-    label: 'الإنجازات',
-    icon: '🏆',
-    path: '/achievements',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'training',
-    label: 'التدريب',
-    icon: '🧠',
-    path: '/training',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'files',
-    label: 'الملفات',
-    icon: '📁',
-    path: '/files',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'daily-workspace',
-    label: 'مساحة العمل',
-    icon: '🗂️',
-    path: '/workspace',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'manager-board',
-    label: 'لوحة المدير',
-    icon: '📈',
-    path: '/manager-board',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'profitability',
-    label: 'ربحية المنتج',
-    icon: '💎',
-    path: '/profitability',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'social-team',
-    label: 'فريق السوشال',
-    icon: '🌐',
-    path: '/social-team',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'social-studio',
-    label: 'استوديو السوشال',
-    icon: '🌸',
-    path: '/social-studio',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER],
-  },
-  {
-    id: 'crm',
-    label: 'CRM',
-    icon: '🤝',
-    path: '/crm',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'orders',
-    label: 'الطلبات',
-    icon: '🛒',
-    path: '/orders',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
-  },
-  {
-    id: 'field-crm',
-    label: 'الزيارات',
-    icon: '🚶',
-    path: '/field-crm',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER],
-  },
-  {
-    id: 'analytics',
-    label: 'التحليلات',
-    icon: '📊',
-    path: '/analytics',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'accounting',
-    label: 'الحسابات',
-    icon: '💰',
-    path: '/accounting',
-    roles: [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'admin',
-    label: 'الإدارة',
-    icon: '⚙️',
-    path: '/admin',
-    roles: [ROLES.ADMIN],
-  },
+  // ── Daily basics (everyone) — first items feed the mobile bottom bar
+  { id: 'workspace',    label: 'الرئيسية',   icon: '🏠', path: '/',            roles: ALL,                 group: 'core' },
+  { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
+  { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
+  { id: 'orders',       label: 'الطلبات',    icon: '🛒', path: '/orders',      roles: [E, M, A, SM, MB],   group: 'sales' },
+  { id: 'customers',    label: 'العملاء',    icon: '⭐', path: '/customers',   roles: ALL,                 group: 'sales' },
+  { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
+  { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
+  { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
+  { id: 'field-crm',    label: 'الزيارات',   icon: '🚶', path: '/field-crm',   roles: [E, M, A, SM, SOC, MB], group: 'sales' },
+  { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
+  { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
+  { id: 'schedule',     label: 'الورديات',   icon: '🗓️', path: '/schedule',    roles: ALL,                 group: 'hr' },
+  { id: 'team',         label: 'الفريق',     icon: '👥', path: '/team',        roles: ALL,                 group: 'hr' },
 
-  // Priority 1 modules
-  {
-    id: 'payroll',
-    label: 'الرواتب',
-    icon: '💵',
-    path: '/payroll',
-    roles: [ROLES.ADMIN, ROLES.MANAGER],
-  },
-  {
-    id: 'requests',
-    label: 'الطلبات',
-    icon: '📝',
-    path: '/requests',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'ledger',
-    label: 'الحسابات+',
-    icon: '📒',
-    path: '/ledger',
-    roles: [ROLES.ADMIN, ROLES.MANAGER],
-  },
-  {
-    id: 'sales',
-    label: 'المبيعات',
-    icon: '📈',
-    path: '/sales',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
-  },
-  {
-    id: 'campaigns',
-    label: 'الحملات',
-    icon: '📣',
-    path: '/campaigns',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER],
-  },
-  {
-    id: 'tasks-report',
-    label: 'تقرير المهام',
-    icon: '📉',
-    path: '/tasks-report',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'mystery-shopper',
-    label: 'Mystery Shopper',
-    icon: '🕵️',
-    path: '/mystery-shopper',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'performance',
-    label: 'KPI والعمولات',
-    icon: '🎯',
-    path: '/performance',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'inventory',
-    label: 'المخزون',
-    icon: '📦',
-    path: '/inventory',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
-  },
-  {
-    id: 'warehouses',
-    label: 'المخازن',
-    icon: '🏬',
-    path: '/warehouses',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE],
-  },
-  {
-    id: 'customers',
-    label: 'العملاء',
-    icon: '⭐',
-    path: '/customers',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'attendance-report',
-    label: 'تقرير الحضور',
-    icon: '📅',
-    path: '/attendance-report',
-    roles: [ROLES.ADMIN, ROLES.MANAGER],
-  },
-  {
-    id: 'leave',
-    label: 'طلبات الإجازة',
-    icon: '🏖️',
-    path: '/leave',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'hr',
-    label: 'الموارد البشرية',
-    icon: '👥',
-    path: '/hr',
-    roles: [ROLES.ADMIN, ROLES.MANAGER],
-  },
+  // ── Sales / management
+  { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales' },
+  { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB], group: 'sales' },
+  { id: 'crm',           label: 'CRM',              icon: '🤝', path: '/crm',          roles: [M, A, SM],     group: 'sales' },
+  { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales' },
 
-  // New HR features
-  {
-    id: 'schedule',
-    label: 'جدول الورديات',
-    icon: '📅',
-    path: '/schedule',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'advances',
-    label: 'السلف والخصومات',
-    icon: '💵',
-    path: '/advances',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
-  {
-    id: 'reviews',
-    label: 'تقييم الأداء',
-    icon: '⭐',
-    path: '/reviews',
-    roles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.MEDIA_BUYER, ROLES.SALES_MANAGER, ROLES.SOCIAL_MANAGER],
-  },
+  // ── Inventory (NOT regular employees)
+  { id: 'inventory',  label: 'المنتجات', icon: '📦', path: '/inventory',  roles: [A, M, SM], group: 'inventory' },
+  { id: 'warehouses', label: 'المخازن',  icon: '🏬', path: '/warehouses', roles: [A, M, SM], group: 'inventory' },
+
+  // ── HR / managers
+  { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M], group: 'hr' },
+  { id: 'hr',                label: 'الموارد البشرية', icon: '🧑‍💼', path: '/hr',              roles: [A, M], group: 'hr' },
+  { id: 'attendance-report', label: 'تقرير الحضور',  icon: '📅', path: '/attendance-report', roles: [A, M], group: 'hr' },
+  { id: 'holidays',          label: 'العطل الرسمية', icon: '🏖️', path: '/holidays',          roles: [A, M], group: 'hr' },
+  { id: 'reviews',           label: 'تقييم الأداء',  icon: '📊', path: '/reviews',           roles: [A, M], group: 'hr' },
+
+  // ── Analytics & reports
+  { id: 'manager-board',   label: 'لوحة المدير',     icon: '📈', path: '/manager-board',   roles: [M, A, SM], group: 'reports' },
+  { id: 'analytics',       label: 'التحليلات',       icon: '📊', path: '/analytics',       roles: [M, A, SM], group: 'reports' },
+  { id: 'tasks-report',    label: 'تقرير المهام',    icon: '📉', path: '/tasks-report',    roles: [A, M, SM], group: 'reports' },
+  { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
+
+  // ── Social
+  { id: 'social-team',   label: 'فريق السوشال',    icon: '🌐', path: '/social-team',   roles: [A, M, SOC],     group: 'social' },
+  { id: 'social-studio', label: 'استوديو السوشال', icon: '🌸', path: '/social-studio', roles: [A, M, SOC, MB], group: 'social' },
+
+  // ── Admin / finance
+  { id: 'accounting',     label: 'الحسابات',     icon: '💰', path: '/accounting', roles: [M, A, SM], group: 'admin' },
+  { id: 'ledger',         label: 'الحسابات+',    icon: '📒', path: '/ledger',     roles: [A, M],     group: 'admin' },
+  { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
+  { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
+  { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
 ];
 
 export function navItemsForRole(role) {
   if (!role) return [];
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
+}
+
+// Grouped view for the sidebar: [{ key, label, items }] in GROUP_ORDER,
+// skipping empty groups for this role.
+export function groupedNavForRole(role) {
+  const items = navItemsForRole(role);
+  return GROUP_ORDER
+    .map((key) => ({ key, label: NAV_GROUPS[key], items: items.filter((i) => i.group === key) }))
+    .filter((g) => g.items.length > 0);
 }

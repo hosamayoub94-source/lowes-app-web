@@ -12,6 +12,7 @@ import { changeMyPin }          from '@services/authService';
 import { ROLE_LABELS }          from '@data/teams';
 import { usePushNotifications } from '@hooks/usePushNotifications';
 import { useOnboardingStore }  from '@/core/rollout/onboarding/useOnboardingStore';
+import PerformanceReviewScreen from '@screens/PerformanceReviewScreen';
 
 // ── Level system ───────────────────────────────────────────────
 const LEVELS = [
@@ -451,6 +452,7 @@ export default function ProfileScreen() {
         {[
           { key: 'info',         icon: '👤', label: 'معلوماتي' },
           { key: 'achievements', icon: '🏆', label: 'إنجازاتي' },
+          { key: 'reviews',      icon: '📊', label: 'تقييمي' },
           { key: 'settings',     icon: '⚙️', label: 'الإعدادات' },
         ].map(tab => (
           <button
@@ -873,6 +875,11 @@ export default function ProfileScreen() {
       </div>
 
       </>)} {/* end tab: إنجازاتي */}
+
+      {/* ══ TAB: تقييمي ═══════════════════════════════════════════ */}
+      {activeTab === 'reviews' && (
+        <div className="-mx-1"><PerformanceReviewScreen /></div>
+      )}
 
       {/* ══ TAB: الإعدادات ════════════════════════════════════════ */}
       {activeTab === 'settings' && (<>
