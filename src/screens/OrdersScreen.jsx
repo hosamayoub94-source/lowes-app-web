@@ -600,7 +600,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
           <div className="flex gap-2">
             {[
               { key: 'lowes', label: "Lowe's", emoji: '🌿' },
-              { key: 'la_ronven_glow', label: 'la ronven glow', emoji: '💪' },
+              { key: 'strong', label: 'Strong', emoji: '💪' },
             ].map(b => (
               <button key={b.key} onClick={() => set('brand', b.key)}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition

@@ -16,6 +16,6 @@ GRANT SELECT (warehouse_id) ON profiles TO anon, authenticated;
 GRANT UPDATE (warehouse_id) ON profiles TO authenticated;
 
 -- Tag the separate-brand sellers' existing orders.
-UPDATE orders SET brand = 'la_ronven_glow'
+UPDATE orders SET brand = 'strong'
 WHERE handler_name ILIKE '%zina%' OR handler_name ILIKE '%zena%'
    OR handler_name ILIKE '%khedr%' OR handler_name ILIKE '%khidr%';
