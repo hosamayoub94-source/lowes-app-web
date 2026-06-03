@@ -62,20 +62,26 @@ export default function ManagerBoardScreen() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
-  const [salesValue, setSalesValue] = useState(null); // admin-only revenue
+  const [salesValue, setSalesValue]   = useState(null); // admin-only revenue
+  const [salesPeriod, setSalesPeriod] = useState('month');
 
-  // Total sales value (archive + active) — fetched ONLY for admins, so the
-  // figure never reaches non-admin clients.
+  // Total sales value by period — fetched ONLY for admins (figure never
+  // reaches non-admin clients). Uses the sales_totals(from,to) RPC.
   useEffect(() => {
     if (!isAdmin) return;
-    supabase.from('sales_value_summary').select('*')
+    const now = new Date();
+    let from = null;
+    if (salesPeriod === 'today') from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    else if (salesPeriod === 'week')  { const d = new Date(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); d.setHours(0,0,0,0); from = d; }
+    else if (salesPeriod === 'month') from = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (salesPeriod === 'year')  from = new Date(now.getFullYear(), 0, 1);
+    supabase.rpc('sales_totals', { p_from: from ? from.toISOString() : null, p_to: null })
       .then(({ data }) => {
-        const rows = data || [];
-        const sum = (k) => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
-        setSalesValue({ rows, syp: sum('syp'), usd: sum('usd'), try: sum('try_'), orders: sum('orders') });
+        const r = (data && data[0]) || {};
+        setSalesValue({ syp: Number(r.syp || 0), usd: Number(r.usd || 0), try: Number(r.try_ || 0), orders: Number(r.orders || 0) });
       })
-      .catch(() => {});
-  }, [isAdmin]);
+      .catch(() => setSalesValue(null));
+  }, [isAdmin, salesPeriod]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -128,35 +134,30 @@ export default function ManagerBoardScreen() {
       </div>
 
       {/* ── إجمالي قيمة المبيعات (سري — للأدمن فقط) ── */}
-      {isAdmin && salesValue && (
+      {isAdmin && (
         <div className="bg-gradient-to-br from-navy to-navy/80 rounded-2xl p-5 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold flex items-center gap-2">💰 إجمالي قيمة المبيعات</h2>
-            <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full">🔒 للإدارة فقط · {fmt(salesValue.orders)} طلب</span>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h2 className="text-sm font-bold flex items-center gap-2">💰 قيمة المبيعات</h2>
+            <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full">🔒 للإدارة فقط{salesValue ? ` · ${fmt(salesValue.orders)} طلب` : ''}</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {salesValue.try > 0 && (
-              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">{fmt(salesValue.try)}</p><p className="text-xs text-white/70">TRY 🇹🇷</p></div>
-            )}
-            {salesValue.syp > 0 && (
-              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">{fmt(salesValue.syp)}</p><p className="text-xs text-white/70">SYP 🇸🇾</p></div>
-            )}
-            {salesValue.usd > 0 && (
-              <div className="bg-white/10 rounded-xl p-3"><p className="text-2xl font-black">${fmt(salesValue.usd)}</p><p className="text-xs text-white/70">USD</p></div>
-            )}
+          {/* Period selector */}
+          <div className="flex gap-1 mb-3 bg-white/10 rounded-xl p-1">
+            {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الإجمالي']].map(([k,l]) => (
+              <button key={k} onClick={() => setSalesPeriod(k)}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${salesPeriod===k ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}>
+                {l}
+              </button>
+            ))}
           </div>
-          <div className="mt-3 space-y-1">
-            {salesValue.rows.map((r, i) => {
-              const v = Number(r.try_ || r.try || 0) || Number(r.syp || 0) || Number(r.usd || 0);
-              const cur = Number(r.try_ || r.try) > 0 ? 'TRY' : Number(r.syp) > 0 ? 'SYP' : 'USD';
-              return (
-                <div key={i} className="flex justify-between text-[11px] text-white/80">
-                  <span>{r.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {r.brand === 'strong' ? 'Strong' : "Lowe's"} · {fmt(r.orders)} طلب</span>
-                  <span className="font-bold">{fmt(v)} {cur}</span>
-                </div>
-              );
-            })}
-          </div>
+          {!salesValue ? (
+            <div className="h-16 bg-white/10 rounded-xl animate-pulse" />
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">{fmt(salesValue.try)}</p><p className="text-[11px] text-white/70">TRY 🇹🇷</p></div>
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">{fmt(salesValue.syp)}</p><p className="text-[11px] text-white/70">SYP 🇸🇾</p></div>
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">${fmt(salesValue.usd)}</p><p className="text-[11px] text-white/70">USD</p></div>
+            </div>
+          )}
         </div>
       )}
 
