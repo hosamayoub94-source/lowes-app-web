@@ -3,7 +3,22 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — لوزي Agent + أسئلة ذكية + الهيكل التنظيمي)
+## 🆕 أحدث جلسة (يونيو 2026 — مزامنة طلبات سوريا مع Google Sheet + منظومة البائع)
+
+### 🔗 Dual-write: طلبات سوريا → التطبيق + Google Sheet (LOWES Sales)
+- موظف سوريا يسجّل طلب بالتطبيق `/orders` → يُحفظ بـ `orders` + يُرسل تلقائياً لورقة Google "LOWES Sales" (صف جديد بنفس الأعمدة).
+- **Apps Script Web App** (مشروع "LOWES Sales Sync" بحساب المالك، openById): `google-apps-script/lowes-sales-sync.gs`. يكتشف صف العناوين بـ "Order ID"، يطابق الأعمدة بأسمائها، العملات بأعمدة ثابتة G(£سوري)/H($دولار)/I(₺تركي)، يدعدع بـ Order ID. التوكن `LOWES-SYRIA-2026`.
+- **Edge fn `sync-order-to-sheet`** (v7، منشورة): يقرأ الطلب من DB، يترجم أسماء المنتجات عربي→إنجليزي عبر `products.name_en`، يرسل لـ Apps Script. secrets: `SHEET_SYNC_URL` + `SHEET_SYNC_TOKEN`.
+- `OrdersScreen`: بعد الحفظ يستدعي sync لطلبات سوريا + إعادة محاولة تلقائية للفاشل. أعمدة `orders.sheet_synced`/`sheet_synced_at`. **عزل:** سوريا فقط لجدول سوريا.
+- ✅ مُختبر: USD→$ · SYP→£ · الوقت + كل الحقول + المنتجات بالإنجليزية تنزل صح.
+- ⚠️ **درس:** bash يشوّه العربي في curl → اختبر طلبات بأسماء عربية عبر **browser fetch** فقط.
+
+### 🗺️ منظومة مبيعات البائع — الباقي (راجع memory: orders_sheet_sync)
+أ.1 اسم المنتج إنجليزي ✅ · أ.2 شركة شحن قائمة+يدوي + دفع كامل/جزئي ⏳ · ب مساحة «طلباتي» (عزل البائع) ⏳ · ج محاسبة البائع + عمولة تلقائية (SYP/USD/TRY، عند delivered) ⏳ · د فاتورة صورة واتساب ⏳.
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — لوزي Agent + أسئلة ذكية + الهيكل التنظيمي)
 
 ### 🤖 لوزي صارت Agent تنفّذ أوامر (Claude Tool Use + بوابة صلاحيات)
 - `ai-assistant` edge function (v12، منشورة) — Claude Sonnet مع **tool use** + agent loop (5 iters).
