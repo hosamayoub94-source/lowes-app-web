@@ -12,6 +12,7 @@ import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.typ
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket } from '@data/cities';
 import { targetForCurrency } from '@data/targets';
+import { lookupCustomer, starLabel } from '@services/customerService';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -523,6 +524,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [items,    setItems]    = useState(isEdit ? (order.items ?? []) : [{ name: '', qty: 1 }]);
   const [saving,   setSaving]   = useState(false);
   const [products, setProducts] = useState([]);
+  const [cust,     setCust]     = useState(null);   // matched customer (repeat detection)
 
   useEffect(() => {
     supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
@@ -530,6 +532,17 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   }, []);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Repeat-customer lookup: when phone settles, check if we know this customer.
+  useEffect(() => {
+    const phone = form.phone_1;
+    const t = setTimeout(async () => {
+      const c = await lookupCustomer(phone);
+      // Only surface as "repeat" if they have prior orders
+      setCust(c && c.orders_count > 0 ? c : null);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [form.phone_1]);
 
   const handleMarketChange = (market) => {
     set('market', market);
@@ -647,6 +660,23 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
               <input value={form.phone_1} onChange={e => set('phone_1', e.target.value)} className={INP} placeholder="الهاتف 1" />
               <input value={form.phone_2} onChange={e => set('phone_2', e.target.value)} className={INP} placeholder="الهاتف 2" />
             </div>
+
+            {/* Repeat-customer banner */}
+            {cust && (
+              <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2.5 text-xs space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-teal">{starLabel(cust.stars) || '🔁'} عميل لنا</span>
+                  <span className="text-text font-semibold">{cust.name}</span>
+                  <span className="text-muted">· {cust.orders_count} طلب سابق</span>
+                </div>
+                {cust.sellers?.length > 0 && (
+                  <p className="text-muted">
+                    {cust.sellers.length > 1 ? 'باعه قبلك: ' : 'آخر بائع: '}
+                    <span className="font-semibold text-text">{(cust.sellers || []).join('، ')}</span>
+                  </p>
+                )}
+              </div>
+            )}
             <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
               placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
             <div className={`grid gap-3 ${form.market === 'turkey' ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -886,6 +916,8 @@ export default function OrdersScreen() {
     setLoading(true);
     try {
       let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
+      // Hide archived (historical) orders from the active list
+      q = q.or('archived.is.null,archived.eq.false');
       if (!isManager && userMarket) q = q.eq('market', userMarket);
       const { data } = await q;
       setOrders(data ?? []);

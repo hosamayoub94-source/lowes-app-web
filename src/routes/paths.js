@@ -78,6 +78,9 @@ export const ROUTES = {
 
   // Warehouses
   WAREHOUSES: '/warehouses',
+
+  // Customers
+  CUSTOMERS: '/customers',
 };
 
 export default ROUTES;
