@@ -3,7 +3,27 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — نظام المخازن متعدّد الطبقات: المرحلة 1)
+## 🆕 أحدث جلسة (يونيو 2026 — توحيد المخزون + التارجت + إصلاحات)
+
+### 🔗 توحيد /inventory مع المخازن
+- `products.quantity` صار **مرآة محسوبة** لمجموع `wh_stock` عبر trigger `sync_product_quantity` (مصدر حقيقة واحد). seed: نُقل products.quantity القديم للمخزن المركزي (لا فقدان بيانات). ملف `supabase/warehouse_unify_inventory.sql`.
+- `InventoryScreen`: الكمية صارت **للعرض فقط** (مشتقّة) · أُزيل التعديل اليدوي → رابط لـ`/warehouses` · النموذج ما يكتب quantity.
+
+### 🎯 التارجت ($1000 سوريا / 65,000 TL تركيا لكل بائع)
+- `src/data/targets.js` (TARGETS_BY_CURRENCY: USD 1000 · TRY 65000). شريط تقدّم بـ«طلباتي» (SellerStatsCard) + نسبة «% من الهدف» بتقرير عمولة لوحة المدير.
+
+### 🐞 إصلاحات
+- خطأ تعديل المنتج (`null.trim()`) → حماية `(form.x||'').trim()`.
+- المدينة صارت قائمة منسدلة (datalist) لكل بلد مع كتابة حرّة — `src/data/cities.js`.
+
+### ⚠️ متابعات للمالك
+- **Wasim مكرّر:** «Wasim Alkshki» (employee، 50 حضور) + «wasim alkshki» (manager، 8 حضور) كلاهما نشط — قرار دور/وصول (لم أحسمه). Fadi محلول (نسخة معطّلة أصلاً).
+- **اسم براند زينة/خضر** — بانتظار الاسم النهائي (المفتاح `la_ronven_glow` ثابت).
+- service_role rotation · مزامنة تركيا (OAuth) · حذف صفوف Google التجريبية.
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — نظام المخازن متعدّد الطبقات: المرحلة 1)
 
 ### 🏬 نظام المخازن — المرحلة 1 (منشورة)
 - **الجداول (wh_ prefix، PIN-auth، RLS مفتوح + GRANT):** `wh_warehouses` (مركزي/مبيعات/مناديب/مرتجعات) · `wh_stock` (كمية لكل مخزن×منتج، unique) · `wh_movements` (سجل: receive/allocate/reserve/release/adjust/return). ملف: `supabase/warehouse_phase1.sql`.
