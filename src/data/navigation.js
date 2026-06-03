@@ -218,6 +218,13 @@ export const NAV_ITEMS = [
     roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
   },
   {
+    id: 'warehouses',
+    label: 'المخازن',
+    icon: '🏬',
+    path: '/warehouses',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE],
+  },
+  {
     id: 'attendance-report',
     label: 'تقرير الحضور',
     icon: '📅',

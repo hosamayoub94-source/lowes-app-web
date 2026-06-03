@@ -49,6 +49,7 @@ const CampaignsScreen     = lazy(() => import(/* webpackChunkName: "campaigns"  
 const TaskReportScreen    = lazy(() => import(/* webpackChunkName: "tasks-report"  */ '@screens/TaskReportScreen'));
 const PerformanceScreen        = lazy(() => import(/* webpackChunkName: "performance"   */ '@screens/PerformanceScreen'));
 const InventoryScreen          = lazy(() => import(/* webpackChunkName: "inventory"     */ '@screens/InventoryScreen'));
+const WarehouseScreen          = lazy(() => import(/* webpackChunkName: "warehouses"     */ '@screens/WarehouseScreen'));
 const AttendanceReportScreen   = lazy(() => import(/* webpackChunkName: "att-report"    */ '@screens/AttendanceReportScreen'));
 const ChatScreen               = lazy(() => import(/* webpackChunkName: "chat"           */ '@screens/ChatScreen'));
 const AchievementsScreen       = lazy(() => import(/* webpackChunkName: "achievements"      */ '@modules/gamification/pages/AchievementsScreen'));
@@ -149,6 +150,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={MANAGEMENT}>
                 <ManagerBoardScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.WAREHOUSES}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE]}>
+                <WarehouseScreen />
               </ProtectedRoute>
             }
           />

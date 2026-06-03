@@ -27,6 +27,9 @@ export const PERMISSIONS = {
   VIEW_ANALYTICS:      'view_analytics',        // executive dashboards
   MANAGE_USERS:        'manage_users',          // add/edit employees + PINs
   MANAGE_SETTINGS:     'manage_settings',       // system settings
+  MANAGE_CENTRAL_STOCK: 'manage_central_stock', // receive/allocate from central warehouse
+  MANAGE_SALES_STOCK:   'manage_sales_stock',   // adjust sales/distributor warehouse stock
+  VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
 };
 
 // Human labels (for the admin UI)
@@ -45,6 +48,9 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_ANALYTICS]:      'عرض التحليلات التنفيذية',
   [PERMISSIONS.MANAGE_USERS]:        'إدارة المستخدمين والأرقام السرية',
   [PERMISSIONS.MANAGE_SETTINGS]:     'إعدادات النظام',
+  [PERMISSIONS.MANAGE_CENTRAL_STOCK]: 'إدارة المخزن المركزي (استلام/تخصيص)',
+  [PERMISSIONS.MANAGE_SALES_STOCK]:   'إدارة مخازن المبيعات',
+  [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
 };
 
 const ALL = Object.values(PERMISSIONS);
@@ -66,6 +72,9 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_PRODUCTS,
     PERMISSIONS.VIEW_FINANCE,
     PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.MANAGE_CENTRAL_STOCK,
+    PERMISSIONS.MANAGE_SALES_STOCK,
+    PERMISSIONS.VIEW_INVENTORY,
   ],
 
   [ROLES.SALES_MANAGER]: [
@@ -77,6 +86,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_KPI,
     PERMISSIONS.MANAGE_PRODUCTS,
     PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.VIEW_INVENTORY,
   ],
 
   [ROLES.SOCIAL_MANAGER]: [

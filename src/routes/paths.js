@@ -75,6 +75,9 @@ export const ROUTES = {
 
   // Orders
   ORDERS: '/orders',
+
+  // Warehouses
+  WAREHOUSES: '/warehouses',
 };
 
 export default ROUTES;
