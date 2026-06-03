@@ -13,7 +13,7 @@
 - **الصلاحيات (permissions.js):** `MANAGE_CENTRAL_STOCK` (manager + الأدمن + **سيم/فادي** عبر extra_permissions) · `MANAGE_SALES_STOCK` (manager + **يوسف/فاطمة**) · `VIEW_INVENTORY`.
 - ✅ مُختبر (DB): استلام 100→المركزي، تخصيص 30→مبيعات سوريا → المركزي 70 / سوريا 30. build نجح.
 - **المواصفة الكاملة + الخطة:** `docs/superpowers/specs/2026-06-03-warehouse-system-design.md` + `docs/superpowers/plans/2026-06-03-warehouse-phase1.md`.
-- ⏳ **المرحلة 2:** حجز تلقائي عند إنشاء الطلب (`reserve`) + إرجاع عند الإلغاء (`release`) + `orders.brand` (عزل la ronven glow لزينة/خضر) + `profiles.warehouse_id` للمناديب + تنبيهات نقص.
+- ✅ **المرحلة 2 (منشورة):** حجز تلقائي عند إنشاء الطلب (`reserveForOrder`: يخصم منتجات الكتالوج من مخزن المصدر = `profiles.warehouse_id` للبائع أو مخزن المبيعات حسب السوق؛ idempotent؛ يتخطى brand≠lowes) + إرجاع عند الإلغاء (`releaseForOrder`). `orders.brand` (lowes|la_ronven_glow) + منتقي براند بالنموذج + طلبات زينة/خضر وُسمت la_ronven_glow. `profiles.warehouse_id` (GRANT مضبوط). ملف: `supabase/warehouse_phase2.sql`. ⚠️ المنتجات تُطابَق بالاسم (name/name_en) — النص الحر غير المطابق لا يُخصم.
 - ⏳ **المرحلة 3:** مخازن المناديب + المرتجعات + دورات تخصيص شهرية + تقارير.
 - ⚠️ **تنظيف:** profiles مكرّرة (Wasim Alkshki/wasim alkshki · Fadi Jarrouge/Fadi jarrouge بحالات أحرف مختلفة) — تحتاج دمج/حذف يدوي.
 
