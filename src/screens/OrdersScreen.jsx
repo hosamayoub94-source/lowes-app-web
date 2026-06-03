@@ -899,6 +899,7 @@ export default function OrdersScreen() {
   const [modal,         setModal]         = useState(null);    // null | 'new' | order
   const [invoice,       setInvoice]       = useState(null);    // order | null
   const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
+  const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
   const [commissionPct, setCommissionPct] = useState(0);
 
   // Load commission_pct for current seller
@@ -916,14 +917,15 @@ export default function OrdersScreen() {
     setLoading(true);
     try {
       let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
-      // Hide archived (historical) orders from the active list
-      q = q.or('archived.is.null,archived.eq.false');
+      // Archive view (managers) shows archived; default hides them.
+      if (viewArchive) q = q.eq('archived', true).limit(500);
+      else q = q.or('archived.is.null,archived.eq.false');
       if (!isManager && userMarket) q = q.eq('market', userMarket);
       const { data } = await q;
       setOrders(data ?? []);
     } catch {}
     finally { setLoading(false); }
-  }, [isManager, userMarket]);
+  }, [isManager, userMarket, viewArchive]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1022,13 +1024,20 @@ export default function OrdersScreen() {
         </div>
         <div className="flex gap-2 shrink-0">
           {isManager && (
+            <button onClick={() => setViewArchive(v => !v)}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewArchive ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="عرض الطلبات المؤرشفة">
+              {viewArchive ? '← الطلبات النشطة' : '🗄️ الأرشيف'}
+            </button>
+          )}
+          {isManager && !viewArchive && (
             <button onClick={archiveOldDelivered} disabled={archiving}
               className="px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition disabled:opacity-40"
               title="أرشفة الطلبات المسلّمة الأقدم من شهر">
               {archiving ? '…' : '🗄️ أرشفة'}
             </button>
           )}
-          {!isFulfillment && (
+          {!isFulfillment && !viewArchive && (
             <button onClick={() => setModal('new')}
               className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
               + طلب جديد
