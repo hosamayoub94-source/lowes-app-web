@@ -3,7 +3,23 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — مزامنة طلبات سوريا مع Google Sheet + منظومة البائع)
+## 🆕 أحدث جلسة (يونيو 2026 — نظام المخازن متعدّد الطبقات: المرحلة 1)
+
+### 🏬 نظام المخازن — المرحلة 1 (منشورة)
+- **الجداول (wh_ prefix، PIN-auth، RLS مفتوح + GRANT):** `wh_warehouses` (مركزي/مبيعات/مناديب/مرتجعات) · `wh_stock` (كمية لكل مخزن×منتج، unique) · `wh_movements` (سجل: receive/allocate/reserve/release/adjust/return). ملف: `supabase/warehouse_phase1.sql`.
+- **مبذور:** 3 مخازن — المخزن المركزي · مبيعات سوريا (يوسف) · مبيعات تركيا (فاطمة).
+- **الخدمة:** `src/services/warehouseService.js` — getStockMatrix · receiveStock · allocateStock · adjustStock · listMovements (منطق read-compute-write client-side).
+- **الشاشة:** `/warehouses` (`WarehouseScreen.jsx`) — مصفوفة منتج×مخزن + الإجماليات + تمييز المخزون المنخفض + modals استلام/تخصيص/جرد (مبوّبة بالصلاحيات). nav «المخازن» 🏬.
+- **الصلاحيات (permissions.js):** `MANAGE_CENTRAL_STOCK` (manager + الأدمن + **سيم/فادي** عبر extra_permissions) · `MANAGE_SALES_STOCK` (manager + **يوسف/فاطمة**) · `VIEW_INVENTORY`.
+- ✅ مُختبر (DB): استلام 100→المركزي، تخصيص 30→مبيعات سوريا → المركزي 70 / سوريا 30. build نجح.
+- **المواصفة الكاملة + الخطة:** `docs/superpowers/specs/2026-06-03-warehouse-system-design.md` + `docs/superpowers/plans/2026-06-03-warehouse-phase1.md`.
+- ⏳ **المرحلة 2:** حجز تلقائي عند إنشاء الطلب (`reserve`) + إرجاع عند الإلغاء (`release`) + `orders.brand` (عزل la ronven glow لزينة/خضر) + `profiles.warehouse_id` للمناديب + تنبيهات نقص.
+- ⏳ **المرحلة 3:** مخازن المناديب + المرتجعات + دورات تخصيص شهرية + تقارير.
+- ⚠️ **تنظيف:** profiles مكرّرة (Wasim Alkshki/wasim alkshki · Fadi Jarrouge/Fadi jarrouge بحالات أحرف مختلفة) — تحتاج دمج/حذف يدوي.
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — مزامنة طلبات سوريا مع Google Sheet + منظومة البائع)
 
 ### 🔗 Dual-write: طلبات سوريا → التطبيق + Google Sheet (LOWES Sales)
 - موظف سوريا يسجّل طلب بالتطبيق `/orders` → يُحفظ بـ `orders` + يُرسل تلقائياً لورقة Google "LOWES Sales" (صف جديد بنفس الأعمدة).
