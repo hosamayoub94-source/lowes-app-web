@@ -36,7 +36,7 @@ export const NAV_ITEMS = [
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
   { id: 'orders',       label: 'الطلبات',    icon: '🛒', path: '/orders',      roles: [E, M, A, SM, MB],   group: 'sales' },
-  { id: 'customers',    label: 'العملاء',    icon: '⭐', path: '/customers',   roles: ALL,                 group: 'sales' },
+  { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },

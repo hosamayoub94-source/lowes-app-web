@@ -3,6 +3,7 @@
 //   • mobile: hamburger + brand + theme toggle
 //   • desktop: page title + theme + avatar
 // =============================================================
+import { Link } from 'react-router-dom';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
 import { Avatar } from '@components/ui/Avatar';
@@ -60,13 +61,13 @@ export function Header({ title }) {
           )}
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 ps-2">
+        <Link to="/profile" className="hidden sm:flex items-center gap-2 ps-2 hover:opacity-80 transition" title="ملفي الشخصي">
           <div className="text-end">
             <div className="text-xs font-bold leading-tight">{name || ''}</div>
             <div className="text-[10px] text-muted leading-tight">{ROLE_LABELS[role] || ''}</div>
           </div>
           <Avatar name={name || ''} src={avatar_url} size="sm" />
-        </div>
+        </Link>
       </div>
     </header>
   );

@@ -25,7 +25,7 @@ export async function lookupCustomer(phone) {
 
 // List customers for the /customers screen. Optional search (name/phone)
 // and vipOnly filter. Sorted by orders_count desc.
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, limit = 100 } = {}) {
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, market = null, brand = null, limit = 100 } = {}) {
   let q = supabase
     .from('customer_stats')
     .select('*')
@@ -34,6 +34,9 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
   if (vipOnly) q = q.gte('stars', 1);
   // Sellers see only customers they served (sellers[] contains their name).
   if (sellerName) q = q.contains('sellers', [sellerName]);
+  // Archive sections: filter by market and/or brand (arrays on the view).
+  if (market) q = q.contains('markets', [market]);
+  if (brand)  q = q.contains('brands', [brand]);
   if (search) {
     const s = search.trim();
     const digits = phoneKey(s);
@@ -43,6 +46,17 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
   const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
+}
+
+// WhatsApp deep link for a customer phone, country code by market.
+export function customerWaLink(phone, market) {
+  const digits = phoneKey(phone);
+  if (!digits) return null;
+  const local = digits.replace(/^0+/, '');
+  const cc = market === 'turkey' ? '90' : '963'; // strong is Turkey-based → 90 default elsewhere
+  // If already has country code length, use as-is
+  const full = local.startsWith(cc) ? local : cc + local;
+  return `https://wa.me/${full}`;
 }
 
 // Star label helper.

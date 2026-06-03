@@ -86,13 +86,14 @@ export function Sidebar() {
 
         {/* footer / user */}
         <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-surface-alt mb-2">
+          <NavLink to="/profile" onClick={closeSidebar}
+            className="flex items-center gap-2.5 p-2 rounded-xl bg-surface-alt mb-2 hover:bg-surface-alt/70 transition">
             <Avatar name={name || ''} src={avatar_url} size="sm" />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold truncate">{name || '—'}</div>
-              <div className="text-[11px] text-muted truncate">{ROLE_LABELS[role] || ''}</div>
+              <div className="text-[11px] text-muted truncate">👤 ملفي الشخصي</div>
             </div>
-          </div>
+          </NavLink>
           <Button variant="outline" size="sm" fullWidth onClick={logout}>
             تسجيل الخروج
           </Button>
