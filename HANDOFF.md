@@ -3,7 +3,26 @@
 
 ---
 
-## 🆕 أحدث جلسة (يونيو 2026 — توحيد المخزون + التارجت + إصلاحات)
+## 🆕 أحدث جلسة (يونيو 2026 — الأرشيف + ذكاء العملاء)
+
+### 📦 استيراد الأرشيف (2889 طلب سوريا تاريخي)
+- مصدر: ملف Excel «Archive» رفعه المالك. السكربت `scripts/import-archive.mjs` (يقرأ xlsx → POST دفعات لـ PostgREST بالـ anon key). شغّله: `VITE_SUPABASE_ANON_KEY=... node scripts/import-archive.mjs [dry|test|go]`.
+- خريطة الأعمدة (مفكوكة): 0=تاريخ · 1=عميل · 2/3=هاتف · 4=مدينة · 5=عنوان · 6=مبلغ(SYP) · 11=حالة(DONE→delivered) · 12=رقم أصلي · **13=البائع** · 16=شحن · 17=دفع · 19+=منتجات.
+- `orders.archived=true` · `market=syria` · `sheet_synced=true` · order_id=`ARC-N` (لأن order_id عليه UNIQUE؛ الأصلي في notes) · بائعو Zina/Khder → `brand=strong`.
+- `OrdersScreen.load()` يخفي `archived` (`.or('archived.is.null,archived.eq.false')`).
+
+### ⭐ ذكاء العملاء
+- **`customer_stats` (view، مفتاح = الهاتف digits-only):** orders_count · sellers[] · totals SYP/USD/TRY · أول/آخر طلب · stars (⭐2+/⭐⭐5+/⭐⭐⭐10+). GRANT SELECT لـ anon/authenticated.
+- **بانر بنموذج الطلب:** كتابة الهاتف → `lookupCustomer` → «⭐ عميل لنا · N طلب سابق · باعه: ...». (debounce 500ms).
+- **شاشة `/customers`** (`CustomersScreen`، مدراء): بحث + فلتر VIP + بطاقات (نجوم/طلبات/بائعون/مجاميع). nav «العملاء» ⭐. خدمة `customerService.js`.
+- **183 عميل متكرر** · 2573 عميل إجمالاً.
+
+### 🗄️ أرشفة شهرية
+- زر «🗄️ أرشفة» بشاشة الطلبات (مدراء): يوسم `delivered` الأقدم من 30 يوماً كـ archived (يختفي من القائمة، يبقى بسجل العملاء).
+
+---
+
+## 🆕 جلسة سابقة (يونيو 2026 — توحيد المخزون + التارجت + إصلاحات)
 
 ### 🔗 توحيد /inventory مع المخازن
 - `products.quantity` صار **مرآة محسوبة** لمجموع `wh_stock` عبر trigger `sync_product_quantity` (مصدر حقيقة واحد). seed: نُقل products.quantity القديم للمخزن المركزي (لا فقدان بيانات). ملف `supabase/warehouse_unify_inventory.sql`.
