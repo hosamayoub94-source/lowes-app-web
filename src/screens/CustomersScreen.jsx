@@ -5,6 +5,8 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { listCustomers, starLabel } from '@services/customerService';
+import { useAuth } from '@hooks/useAuth';
+import { ROLES } from '@data/teams';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -48,6 +50,11 @@ function CustomerCard({ c }) {
 }
 
 export default function CustomersScreen() {
+  const { role, name: userName } = useAuth();
+  // Managers see all customers; sellers see only the ones they served.
+  const isManager = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
+  const sellerName = isManager ? null : userName;
+
   const [rows, setRows]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState(null);
@@ -57,11 +64,11 @@ export default function CustomersScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const data = await listCustomers({ search, vipOnly, limit: 200 });
+      const data = await listCustomers({ search, vipOnly, sellerName, limit: 200 });
       setRows(data);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [search, vipOnly]);
+  }, [search, vipOnly, sellerName]);
 
   useEffect(() => {
     const t = setTimeout(load, 300);
@@ -77,9 +84,9 @@ export default function CustomersScreen() {
   return (
     <div className="space-y-4 pb-24" dir="rtl">
       <div>
-        <h1 className="text-xl font-extrabold text-text">👥 العملاء</h1>
+        <h1 className="text-xl font-extrabold text-text">{isManager ? '👥 العملاء' : '⭐ عملائي'}</h1>
         <p className="text-xs text-muted mt-0.5">
-          عملاؤنا · {stats.repeat} متكرر · {stats.vip} VIP ⭐
+          {isManager ? 'كل العملاء' : 'العملاء الذين بعت لهم'} · {stats.repeat} متكرر · {stats.vip} VIP ⭐
         </p>
       </div>
 

@@ -25,13 +25,15 @@ export async function lookupCustomer(phone) {
 
 // List customers for the /customers screen. Optional search (name/phone)
 // and vipOnly filter. Sorted by orders_count desc.
-export async function listCustomers({ search = '', vipOnly = false, limit = 100 } = {}) {
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, limit = 100 } = {}) {
   let q = supabase
     .from('customer_stats')
     .select('*')
     .order('orders_count', { ascending: false })
     .limit(limit);
   if (vipOnly) q = q.gte('stars', 1);
+  // Sellers see only customers they served (sellers[] contains their name).
+  if (sellerName) q = q.contains('sellers', [sellerName]);
   if (search) {
     const s = search.trim();
     const digits = phoneKey(s);

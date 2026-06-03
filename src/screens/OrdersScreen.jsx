@@ -10,7 +10,7 @@ import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
-import { citiesForMarket } from '@data/cities';
+import { citiesForMarket, shippingForMarket, paymentForMarket } from '@data/cities';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
 
@@ -579,7 +579,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     finally { setSaving(false); }
   };
 
-  const companies = form.market === 'turkey' ? TURKEY_COMPANIES : SYRIA_COMPANIES;
+  const companies = shippingForMarket(form.market);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
@@ -728,7 +728,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>طريقة الدفع</label>
-                <input value={form.payment_method} onChange={e => set('payment_method', e.target.value)} className={INP} />
+                <input value={form.payment_method} onChange={e => set('payment_method', e.target.value)}
+                  className={INP} list="payment-suggestions" autoComplete="off" placeholder="اختر أو اكتب" />
+                <datalist id="payment-suggestions">
+                  {paymentForMarket(form.market).map(p => <option key={p} value={p} />)}
+                </datalist>
               </div>
               <div>
                 <label className={LBL}>حالة الدفع</label>
@@ -764,9 +768,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>شركة الشحن</label>
-                <select value={form.shipping_company} onChange={e => set('shipping_company', e.target.value)} className={INP}>
-                  {companies.map(c => <option key={c}>{c}</option>)}
-                </select>
+                <input value={form.shipping_company} onChange={e => set('shipping_company', e.target.value)}
+                  className={INP} list="shipping-suggestions" autoComplete="off" placeholder="اختر أو اكتب" />
+                <datalist id="shipping-suggestions">
+                  {companies.map(c => <option key={c} value={c} />)}
+                </datalist>
               </div>
               <div>
                 <label className={LBL}>نوع الاستلام</label>

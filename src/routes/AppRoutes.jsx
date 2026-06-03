@@ -165,7 +165,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={MANAGEMENT}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER]}>
                 <CustomersScreen />
               </ProtectedRoute>
             }

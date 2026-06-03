@@ -229,7 +229,7 @@ export const NAV_ITEMS = [
     label: 'العملاء',
     icon: '⭐',
     path: '/customers',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER],
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER],
   },
   {
     id: 'attendance-report',
