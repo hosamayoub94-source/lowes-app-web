@@ -22,6 +22,13 @@
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
 
+### ✅ حالات الطلب الكاملة (يونيو 2026 — workflow المالك الحقيقي)
+الحالات الـ14 الآن: pending(وارد جديد) · preparing(في التجهيز) · ready(جاهز) · **motor(قيد توصيل الموتور)** · **at_center(في المركز)** · shipped(في النقل) · **on_way(في الطريق للعميل)** · delivered(تم التسليم) · waiting(بالانتظار) · **not_received(لم يتم الاستلام)** · **returning(راجع للمركز)** · returned(راجع) · **settled(تمت التسوية)** · cancelled(ملغي).
+- **«تمت التسوية» (settled)** = العميل ما استلم لكن دفع أجور الشحن → **0 مرتجع برصيد البائع** (يُعرض منفصلاً بتقرير المدير، لا يدخل نسبة الرجوع).
+- ثوابت في OrdersScreen: `RETURN_STATUSES`=[not_received,returning,returned] (تُحتسب راجع) · `FOLLOWUP_STATUSES`=[waiting,not_received,returning] (تذكير/بانر) · `RELEASE_STATUSES`=[returning,returned,cancelled] (تُرجِع المخزون).
+- **DB constraint** `orders_status_check` وُسّع لكل الـ14 (SQL مطبّق). **Apps Script الإصدار 34** منشور (STATUS_AR + reverse). مُختبر: settled→«تمت التسوية 🤝» بالجدول من الطرفين.
+- ⏳ **سؤال معلّق للمالك:** هل يريد بنية أعمدة الأوراق النظيفة تطابق الشيت القديم (مصفوفة منتجات + عمود تتبع يدوي P)؟ + استثمار Claude API للوزي.
+
 ### 🔴🔴 بَغ حرج مُصلَح: الطلبات الجديدة لا تُحفظ (created_by/updated_by uuid)
 **العَرَض:** المالك ينشئ طلباً → لا يظهر بالتطبيق ولا الجدول (المودال يُغلق كأنه نجح). **السبب:** عمودا `orders.created_by` و`updated_by` كانا نوع **UUID**، لكن الكود يكتب الاسم النصّي (`created_by: userName`) ويعرضه نصّاً بالكرت → INSERT يفشل بـ `22P02 invalid input syntax for type uuid` (والتعديل أيضاً عبر updated_by). الفشل صامت (handleSave ما يعرض الخطأ). **الإصلاح (SQL، مطبّق):** تحويل العمودين إلى `text` (مع إسقاط أي FK):
 ```sql
