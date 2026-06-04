@@ -22,6 +22,12 @@
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
 
+### ✅ منتجات سترونغ + العمود A = توقيت الإنشاء (يونيو 2026)
+- **16 منتج سترونغ** أُضيفت لجدول `products` (cialis 100mg/20mg، Cialis 5، titan gold، super viga blue/black/red، spray super viga، viagra 100، Female.Viagra 100، MR.HORNEY، CLS، xxl، Mandil viga، maxman jel، Lovegra drop) — category=`Strong`. الفورم الآن يعرض كل المنتجات (32 لويز + 16 سترونغ). **لا يوجد عمود brand بالمنتجات؛ sku مطلوب (NOT NULL).**
+- **العمود A بالجدول = توقيت إنشاء الطلب** (`created_at`): edge fn `sync-order-to-sheet` v11 يرسل `order_date: o.created_at || o.order_date`. مُختبر: A يعرض created_at بتوقيت تركيا.
+- STRONG_TR و LOWES_TR **نفس البنية** (صف العناوين القديم متطابق بينهما عدا فروق تافهة typo/#REF). الفرق الحقيقي = المنتجات فقط (حُلّ بإضافتها).
+- ⚠️ **درس:** تعديل خلية بمربع الاسم في Google Sheets هشّ — إن أخطأ يكتب بالخلية النشطة (أفسد A1 الرأس مرة). إن انفسد الرأس → شغّل `rebuildSheets` ثم أعد المزامنة. الأفضل: انقر الخلية مباشرة لا عبر مربع الاسم.
+
 ### ✅ Sokak (الشارع) autocomplete حقيقي — بيانات UAVT الرسمية (مجاني، كل تركيا)
 - المصدر: قاعدة العناوين الوطنية UAVT (GormYa/UAVT على GitHub) — 1.22M شارع، قسّمتها بـNode إلى **973 ملف per-بلدية** (`public/tr-streets/{districtId}.json` = {mahalle:[streets]}) + `index.json` (city|district→districtId). الحجم 16MB فقط.
 - **مجاني تماماً:** ملفات ثابتة same-origin يقدّمها Vercel، تُحمّل **عند الطلب** فقط (ملف البلدية ≤108KB). **صفر تخزين بقاعدة Supabase، صفر API key، صفر اعتماد خارجي.** غير محمّلة في PWA precache (json خارج globPatterns).
