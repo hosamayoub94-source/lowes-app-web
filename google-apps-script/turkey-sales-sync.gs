@@ -20,13 +20,18 @@ var ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 var SHEET_FOR = { strong: 'STRONG_TR', lowes: 'LOWES_TR' };
 
-// Standard clean header (both tabs identical).
+// Header — mirrors the team's OLD sheet column range (row 5) so it feels familiar.
+// Manual/formula columns (تقييد, واتساب, W.App, الموقع, رقم التتبع, YURTİÇİ, تتبع,
+// فاطمة, زيزو) are kept as placeholders and NEVER overwritten by the app — the
+// team fills them by hand (esp. رقم التتبع in column P).
 var HEADER = [
-  'التاريخ', 'كود الطلب', 'الاسم', 'الهاتف', 'رقم الواتساب', 'المدينة', 'البلدية',
-  'العنوان', 'السعر', 'الحالة', 'صاحب الطلب', 'شركة الشحن', 'رقم التتبع',
-  'نوع الدفع', 'مكان الاستلام', 'ملاحظة',
+  'التاريخ', 'الإسم', 'الهاتف', 'رقم الواتساب', 'المدينة', 'البلدية', 'العنوان',
+  'السعر', 'الحالة', 'صاحب الطلب', 'كود الطلب', 'تقييد', 'واتساب', 'W.App',
+  '📍الموقع', 'رقم التتبع', 'YURTİÇİ', 'تتبع', 'نوع الدفع', 'مكان الاستلام',
+  'ارسال مع', 'ملاحظة', 'فاطمة', 'زيزو',
   'الصنف الأول', 'العدد', 'الصنف الثاني', 'العدد', 'الصنف الثالث', 'العدد',
   'الصنف الرابع', 'العدد', 'الصنف الخامس', 'العدد', 'الصنف السادس', 'العدد',
+  'الصنف السابع', 'العدد', 'الصنف الثامن', 'العدد',
 ];
 
 var FIELD_MAP = {
@@ -34,9 +39,18 @@ var FIELD_MAP = {
   'الهاتف': 'phone_1', 'رقم الواتساب': 'wa_number', 'واتساب': 'wa_number',
   'المدينة': 'city', 'البلدية': 'district', 'العنوان': 'address',
   'السعر': 'amount', 'الحالة': 'status_ar', 'صاحب الطلب': 'handler_name',
-  'شركة الشحن': 'shipping_company', 'كود الطلب': 'order_id', 'Order ID': 'order_id',
+  'شركة الشحن': 'shipping_company', 'ارسال مع': 'shipping_company',
+  'كود الطلب': 'order_id', 'Order ID': 'order_id',
   'رقم التتبع': 'tracking_number', 'نوع الدفع': 'payment_method',
   'مكان الاستلام': 'pickup_type', 'ملاحظة': 'notes',
+};
+
+// Header labels the APP writes (forward sync). Anything else (tracking, تقييد,
+// W.App, الموقع, YURTİÇİ, تتبع, فاطمة, زيزو, totals) is preserved on upsert.
+var APP_OWNED = {
+  'التاريخ': 1, 'الإسم': 1, 'الاسم': 1, 'الهاتف': 1, 'رقم الواتساب': 1, 'المدينة': 1,
+  'البلدية': 1, 'العنوان': 1, 'السعر': 1, 'الحالة': 1, 'صاحب الطلب': 1, 'كود الطلب': 1,
+  'نوع الدفع': 1, 'مكان الاستلام': 1, 'ارسال مع': 1, 'شركة الشحن': 1, 'ملاحظة': 1,
 };
 
 var STATUS_AR = {
@@ -79,20 +93,27 @@ function doPost(e) {
     }
 
     var order = body.order || body;
-    var rowValues = _buildRow(headers.length, colOf, itemCols, order);
+    var owned = _buildOwned(headers.length, colOf, itemCols, order); // {colIndex: value}
     var idCol = colOf['order_id'];
 
-    // Upsert by order code (so status/tracking edits update the same row)
+    // Upsert by order code: overwrite ONLY app-owned cells, keep manual columns
+    // (tracking, تقييد, W.App, الموقع, YURTİÇİ, فاطمة, زيزو, totals) intact.
     if (idCol != null && order.order_id) {
       var data = sh.getDataRange().getValues();
       for (var r = 1; r < data.length; r++) {
         if (String(data[r][idCol]).trim() === String(order.order_id).trim()) {
-          sh.getRange(r + 1, 1, 1, rowValues.length).setValues([rowValues]);
+          var rowVals = data[r].slice(0, headers.length);
+          while (rowVals.length < headers.length) rowVals.push('');
+          for (var k in owned) rowVals[k] = owned[k];
+          sh.getRange(r + 1, 1, 1, headers.length).setValues([rowVals]);
           return _json({ ok: true, action: 'updated', row: r + 1 });
         }
       }
     }
-    sh.appendRow(rowValues); // clean tab → always lands at the bottom
+    // Append a fresh row (manual columns start blank for the team to fill)
+    var blank = new Array(headers.length).fill('');
+    for (var k2 in owned) blank[k2] = owned[k2];
+    sh.appendRow(blank);
     return _json({ ok: true, action: 'appended', row: sh.getLastRow() });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -149,23 +170,40 @@ function _statusKey(ar) {
   return null;
 }
 
-function _buildRow(width, colOf, itemCols, order) {
-  var row = new Array(width).fill('');
-  function put(key, val) { if (colOf[key] != null && val != null) row[colOf[key]] = val; }
-  if (colOf['order_date'] != null && order.order_date) row[colOf['order_date']] = new Date(order.order_date);
+// Build a sparse map {colIndex: value} for the columns the APP owns. Note:
+// tracking_number is intentionally NOT written — column P (رقم التتبع) is filled
+// manually by the team, and the reverse trigger reads their value back.
+function _buildOwned(width, colOf, itemCols, order) {
+  var owned = {};
+  function put(key, val) { if (colOf[key] != null && val != null && key !== 'tracking_number') owned[colOf[key]] = val; }
+  if (colOf['order_date'] != null && order.order_date) owned[colOf['order_date']] = new Date(order.order_date);
   put('order_id', order.order_id); put('customer_name', order.customer_name);
   put('phone_1', order.phone_1); put('wa_number', order.wa_number);
   put('city', order.city); put('district', order.district); put('address', order.address);
-  put('amount', order.amount); put('status_ar', STATUS_AR[order.status] || order.status || '');
+  put('amount', order.amount);
+  if (colOf['status_ar'] != null) owned[colOf['status_ar']] = STATUS_AR[order.status] || order.status || '';
   put('handler_name', order.handler_name); put('shipping_company', order.shipping_company);
-  put('tracking_number', order.tracking_number); put('payment_method', order.payment_method);
-  put('pickup_type', order.pickup_type); put('notes', order.notes);
+  put('payment_method', order.payment_method); put('pickup_type', order.pickup_type);
+  put('notes', order.notes);
   var items = order.items || [];
   for (var i = 0; i < items.length && i < itemCols.length; i++) {
-    row[itemCols[i]] = items[i].name || '';
-    if (itemCols[i] + 1 < width) row[itemCols[i] + 1] = items[i].qty || 1;
+    owned[itemCols[i]] = items[i].name || '';
+    if (itemCols[i] + 1 < width) owned[itemCols[i] + 1] = items[i].qty || 1;
   }
-  return row;
+  return owned;
+}
+
+// Reset both clean tabs to the new header (run once after changing HEADER).
+// Clears existing rows — the app re-syncs active orders automatically.
+function rebuildSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ['STRONG_TR', 'LOWES_TR'].forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    sh.clear();
+    sh.getRange(1, 1, 1, HEADER.length).setValues([HEADER]).setFontWeight('bold').setBackground('#0f1f3d').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+  });
 }
 
 function _json(obj) {
