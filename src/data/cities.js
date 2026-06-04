@@ -26,9 +26,10 @@ export const ISTANBUL_MOTOR_DISTRICTS = [
 // Shipping carriers per market.
 export const SYRIA_SHIPPING  = ['شركة الكرم', 'قدموس', 'مسارات', 'إيزلا', 'توصيل جرمانا', 'توصيل ميتور', 'أخرى'];
 export const TURKEY_SHIPPING = [
-  'Yurtiçi Kargo', 'Aras Kargo', 'PTT Kargo', 'MNG Kargo', 'Sürat Kargo',
+  'Yurtiçi Kargo', 'Aras Kargo', 'Sürat Kargo', 'PTT Kargo', 'MNG Kargo',
+  'توصيل خاص 🚗', 'توصيل الموتور 🏍️',
   'Trendyol Express', 'HepsiJET', 'Sendeo', 'Kolay Gelsin', 'UPS Kargo',
-  'Horoz Lojistik', 'FedEx', 'DHL', 'توصيل الموتور 🏍️', 'أخرى',
+  'Horoz Lojistik', 'FedEx', 'DHL', 'أخرى',
 ];
 
 export const SYRIA_PAYMENT  = ['Cash on Delivery 📦', 'دفع عند الاستلام', 'Sham Cash', 'تحويل', 'أخرى'];

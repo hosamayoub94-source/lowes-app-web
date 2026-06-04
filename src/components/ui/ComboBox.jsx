@@ -7,6 +7,11 @@ import { useState, useRef, useEffect } from 'react';
 
 export function ComboBox({ value, onChange, options = [], placeholder, className, dir = 'rtl' }) {
   const [open, setOpen] = useState(false);
+  // showAll = true → show the full list ignoring the current value (used when the
+  // user clicks the ▾ caret). It resets to false the moment they start typing, so
+  // typing still filters. This fixes "only the default value shows" (e.g. shipping
+  // stuck on yurtiçi) because a pre-filled field no longer hides the other options.
+  const [showAll, setShowAll] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -15,21 +20,21 @@ export function ComboBox({ value, onChange, options = [], placeholder, className
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const q = String(value || '').toLowerCase().trim();
+  const q = showAll ? '' : String(value || '').toLowerCase().trim();
   const list = (q ? options.filter((o) => String(o).toLowerCase().includes(q)) : options).slice(0, 60);
 
   return (
     <div ref={ref} className="relative" dir={dir}>
       <input
         value={value || ''}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onChange={(e) => { onChange(e.target.value); setShowAll(false); setOpen(true); }}
+        onFocus={() => { setShowAll(true); setOpen(true); }}
         placeholder={placeholder}
         autoComplete="off"
         className={className}
         style={{ paddingInlineEnd: '2rem' }}
       />
-      <button type="button" tabIndex={-1} onClick={() => setOpen((o) => !o)}
+      <button type="button" tabIndex={-1} onClick={() => { setShowAll(true); setOpen((o) => !o); }}
         className="absolute inset-y-0 end-2 flex items-center text-muted hover:text-text text-xs">▾</button>
       {open && list.length > 0 && (
         <div className="absolute z-40 top-full mt-1 inset-x-0 bg-surface border border-border rounded-xl shadow-xl max-h-56 overflow-y-auto">

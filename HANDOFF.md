@@ -8,8 +8,16 @@
 ### ⚡ سلوك المالك (إلزامي — صرّح به مراراً)
 المالك يعطي أمراً ويريد **تنفيذه فوراً بدون طلب إذن**. **لا تسأل، نفّذ** (تعديل ملفات، SQL، نشر، git push، نشر Edge Functions/Apps Script عبر Chrome). استثناء وحيد: عمليات خطرة غير قابلة للتراجع (حذف بيانات إنتاج، تدوير مفاتيح). **دائماً استخدم أفضل المهارات** (brainstorming/debugging/verification...). راجع memory: `deploy_autonomy`.
 
-### 🔴 المهام المعلّقة (بالأولوية)
-1. **ربط جدول تركيا بالتطبيق — لم يكتمل (المالك «ديّقت خلقي، نشرت وما صار»).** آخر نهج: **ورقتان نظيفتان جديدتان** `LOWES_TR` + `STRONG_TR` بنفس الـspreadsheet التركي (id `1OP_q1GJeE7CFvhF7quQO1CjiWXnh8rzeqrcDcq_1OM8`). الكود `google-apps-script/turkey-sales-sync.gs` (clean append + upsert بكود الطلب + onSheetEdit عكسي). secrets مضبوطة: `TURKEY_SHEET_SYNC_URL` (رابط /exec من المالك) + `TURKEY_SHEET_SYNC_TOKEN=LOWES-TURKEY-2026`. edge fn `sync-order-to-sheet` v9 منشورة (فرع turkey). **المطلوب تشخيصه:** المالك نشر السكربت وما اشتغل — تأكد: (أ) شغّل `setupSheets` لإنشاء الورقتين، (ب) Web App منشور بنسخة جديدة، (ج) onSheetEdit trigger، (د) اختبر عبر edge fn (انظر أدناه طريقة الاختبار). **الجداول القديمة فوضوية** (أعمدة كود بصيغ fill-down + صفوف بقايا) — لهذا انتقلنا لورقتين نظيفتين.
+### ✅ ربط جدول تركيا — اكتمل ومُختبر (يونيو 2026)
+**حُلّ بالكامل عبر Chrome MCP.** السبب الجذري كان ثلاثياً: (أ) `setupSheets` لم يُشغَّل (الأوراق النظيفة غير موجودة)، (ب) الـ Web App منشور بنسخة قديمة، (ج) الأهم: الـ secret `TURKEY_SHEET_SYNC_URL` كان يشير لـ deployment قديم (يكتب على أوراق `Strong`/`LOWE'S` الفوضوية، يرجع `sheet:"Strong"`).
+**ما تم:**
+1. شُغّل `setupSheets` → أُنشئت `STRONG_TR` (gid 119831634) + `LOWES_TR` بالـspreadsheet التركي (id `1OP_q1GJeE7CFvhF7quQO1CjiWXnh8rzeqrcDcq_1OM8`).
+2. نُشرت نسخة جديدة من الـ Web App (الإصدار 32) — deployment id `AKfycbwtLOeqJQqkLF-3S9IKgC4yVDRpR0iyiyvVx2EMNxGGw36XOYDQ804GrwJkIs6ctTO76Q`.
+3. حُدّث الـ secret `TURKEY_SHEET_SYNC_URL` = `https://script.google.com/macros/s/AKfycbwtLOeqJQqkLF-3S9IKgC4yVDRpR0iyiyvVx2EMNxGGw36XOYDQ804GrwJkIs6ctTO76Q/exec`.
+4. أُضيف installable trigger: `onSheetEdit` · من جدول البيانات · عند التعديل (للاتجاه العكسي — UrlFetchApp يحتاج installable لا simple).
+**مُختبر فعلياً:** التطبيق→الجدول (طلب strong+lowes نزلا STRONG_TR/LOWES_TR بكل الأعمدة + upsert يحدّث بلا تكرار = رد `action:"updated"`). الجدول→التطبيق (عدّلت رقم التتبع M2 يدوياً → DB تحدّثت فوراً، ثم مسحتها → رجعت فارغة).
+- **الكود المرجعي:** `google-apps-script/turkey-sales-sync.gs` (نفس المحتوى موجود بملف `بلا عنوان.gs` داخل مشروع Apps Script المرتبط بالجدول — project id `1ub2zm_Ne4NzbJmylw_IgB7Mu8ac_EIUBnVGHbCV-n2jhxbymcEmrkX1O`). ملاحظة: المشروع فيه أيضاً Dashboard.gs/تحديث التاريخ lowes.gs (onEdit للأوراق القديمة) + بولصة الموتور.gs (طباعة بوالص) — لا تلمسها.
+- ⚠️ **متابعة:** الطلبات التركية القديمة عليها `sheet_synced=true` فلن تُعاد مزامنتها تلقائياً للأوراق النظيفة (فقط الطلبات الجديدة أو `sheet_synced=false` تنزل). لو أراد المالك ملء الأوراق النظيفة بالطلبات الحالية → backfill (صفّر sheet_synced للطلبات التركية النشطة، أو استدعِ syncOrderToSheet لكل id).
 2. **مزامنة جدول سوريا** — تعمل أصلاً (LOWES Sales، edge fn، توكن LOWES-SYRIA-2026) لكن المالك يريد التأكد من صحتها بنفس منطق الاتجاهين. راجع memory `orders_sheet_sync`.
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.

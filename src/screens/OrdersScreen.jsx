@@ -100,7 +100,7 @@ function teamToMarket(team) {
 const SYRIA_COMPANIES  = ['شركة الكرم', 'سامتاك', 'ضد الدفع', 'واصل', 'أخرى'];
 const TURKEY_COMPANIES = ['yurtiçi', 'Aras', 'ptt', 'توصيل الموتور', 'أخرى'];
 const CURRENCIES       = ['TRY', 'SYP', 'USD'];
-const PICKUP_TYPES     = ['عنوان منزل', 'استلام من المركز'];
+const PICKUP_TYPES     = ['استلام من المركز', 'عنوان المنزل', 'عنوان العمل'];
 
 const TRACKING_URLS = {
   'yurtiçi': (n) => `https://yurticikargo.com/tr/online-islemler/gonderi-sorgula?code=${n}`,
@@ -136,8 +136,8 @@ const EMPTY_FORM = {
   city: '', district: '', address: '',
   mahalle: '', sokak: '', bno: '', daire: '',
   amount: '', currency: 'TRY',
-  payment_method: 'دفع عند الباب', payment_status: 'unpaid', paid_amount: '',
-  shipping_company: 'yurtiçi', pickup_type: 'عنوان منزل', tracking_number: '',
+  payment_method: 'دفع عند الباب 💵', payment_status: 'unpaid', paid_amount: '',
+  shipping_company: 'Yurtiçi Kargo', pickup_type: 'استلام من المركز', tracking_number: '',
 };
 
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 placeholder:text-muted/50';
@@ -551,11 +551,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     address:          order.address          ?? '',
     amount:           order.amount           ?? '',
     currency:         order.currency         ?? 'TRY',
-    payment_method:   order.payment_method   ?? 'دفع عند الباب',
+    payment_method:   order.payment_method   ?? 'دفع عند الباب 💵',
     payment_status:   order.payment_status   ?? 'unpaid',
     paid_amount:      order.paid_amount      ?? '',
-    shipping_company: order.shipping_company ?? 'yurtiçi',
-    pickup_type:      order.pickup_type      ?? 'عنوان منزل',
+    shipping_company: order.shipping_company ?? 'Yurtiçi Kargo',
+    pickup_type:      order.pickup_type      ?? 'استلام من المركز',
     tracking_number:  order.tracking_number  ?? '',
     mahalle: '', sokak: '', bno: '', daire: '',
   } : prefill ? {
@@ -603,8 +603,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const handleMarketChange = (market) => {
     set('market', market);
     set('currency', market === 'turkey' ? 'TRY' : 'SYP');
-    set('shipping_company', market === 'turkey' ? 'yurtiçi' : 'شركة الكرم');
-    set('payment_method', market === 'turkey' ? 'دفع عند الباب' : 'دفع عند الاستلام');
+    set('shipping_company', market === 'turkey' ? 'Yurtiçi Kargo' : 'شركة الكرم');
+    set('payment_method', market === 'turkey' ? 'دفع عند الباب 💵' : 'دفع عند الاستلام');
     if (!isEdit) set('order_id', nextOrderId(market, allOrders));
   };
 
