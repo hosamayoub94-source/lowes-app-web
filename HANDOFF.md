@@ -22,6 +22,13 @@
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
 
+### ✅ Sokak (الشارع) autocomplete حقيقي — بيانات UAVT الرسمية (مجاني، كل تركيا)
+- المصدر: قاعدة العناوين الوطنية UAVT (GormYa/UAVT على GitHub) — 1.22M شارع، قسّمتها بـNode إلى **973 ملف per-بلدية** (`public/tr-streets/{districtId}.json` = {mahalle:[streets]}) + `index.json` (city|district→districtId). الحجم 16MB فقط.
+- **مجاني تماماً:** ملفات ثابتة same-origin يقدّمها Vercel، تُحمّل **عند الطلب** فقط (ملف البلدية ≤108KB). **صفر تخزين بقاعدة Supabase، صفر API key، صفر اعتماد خارجي.** غير محمّلة في PWA precache (json خارج globPatterns).
+- `fetchStreets(province,district,mahalle)` في `turkeyApi.js`. Sokak ComboBox يقترح شوارع الحي المختار (يطابق أسماء turkiyeapi — مؤكّد: Sultanbeyli→district 2014، 15 حي، شوارع صحيحة). fallback: الشوارع المتذكّرة محلياً.
+- **No/Daire يبقيان يدويين** (رقم فريد لكل مبنى — حتى Türk Telekom يطلب كتابتهما).
+- سكربت المعالجة: `/tmp/uavt/process.mjs` (لإعادة التوليد عند تحديث UAVT).
+
 ### ✅ أوراق تركيا تطابق نطاق الشيت القديم + حفظ الأعمدة اليدوية (يونيو 2026)
 - HEADER في `turkey-sales-sync.gs` صار يطابق صف 5 بالشيت القديم: التاريخ، الإسم، الهاتف، رقم الواتساب، المدينة، البلدية، العنوان، السعر، الحالة، صاحب الطلب، كود الطلب(K)، **تقييد، واتساب، W.App، 📍الموقع، رقم التتبع(P)، YURTİÇİ، تتبع**، نوع الدفع، مكان الاستلام، **ارسال مع**، ملاحظة، **فاطمة، زيزو**، الصنف الأول..الثامن.
 - **التطبيق يكتب فقط الأعمدة التي يملكها** (`APP_OWNED`)؛ الأعمدة اليدوية/الصيغ (رقم التتبع P، تقييد، W.App، الموقع، YURTİÇİ، تتبع، فاطمة، زيزو، المجموع) **تُحفظ عند upsert ولا يكتب التطبيق فوقها** — التتبع P يدوي بالكامل. مُختبر: كتبت P2 يدوياً ثم upsert → بقي محفوظاً ✅.
