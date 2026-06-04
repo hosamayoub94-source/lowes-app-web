@@ -5,6 +5,25 @@
 // =============================================================
 import { supabase } from './supabase';
 
+// Turkey archive used short / differently-spelled seller names before the app
+// introduced full profile names. Map full profile name (lowercase) → archive variants.
+const SELLER_ALIASES = {
+  'khedr alnisafe':  ['khder', 'Khder', 'khedr'],
+  'zina sulyman':    ['Zina', 'zina', 'ZINA'],
+  'arwa mohammed':   ['ARWA', 'Arwa', 'arwa'],
+  'sarah alasaad':   ['sara h', 'Sara h', 'Sara H', 'SARA H'],
+  'sarah ibrahim':   ['sara', 'Sara', 'SARA'],
+  'hla al namra':    ['HLA NM', 'Hla NM', 'hla nm', 'Hla', 'hla'],
+  // 'hassna ???':   ['hassna', 'Hassna'],  ← add full profile name when known
+};
+
+/** Returns all archive alias names for a given profile full name. */
+export function getSellerAliases(userName) {
+  if (!userName) return [];
+  const key = String(userName).trim().toLowerCase();
+  return SELLER_ALIASES[key] || [];
+}
+
 // Normalize a phone to digits-only (must match the view's phone_key).
 export function phoneKey(phone) {
   return String(phone || '').replace(/\D/g, '');
@@ -89,16 +108,18 @@ export function followupMessage(customerName, sellerName) {
 }
 
 // Fuzzy seller-name match: archive uses short names ("Haneen"), profiles
-// use full names ("Haneen Mohamad"). Match on full equality or first token.
+// use full names ("Haneen Mohamad"). Match on full equality, first token,
+// or known Turkey-archive aliases (SELLER_ALIASES above).
 export function sellerMatches(sellers, userName) {
   if (!userName || !Array.isArray(sellers)) return false;
   const norm = (s) => String(s || '').trim().toLowerCase();
   const u = norm(userName);
   const uFirst = u.split(/\s+/)[0];
+  const aliases = getSellerAliases(userName).map(norm);
   return sellers.some((s) => {
     const a = norm(s);
     if (!a) return false;
-    return a === u || a.includes(u) || u.includes(a) || a.split(/\s+/)[0] === uFirst;
+    return a === u || a.includes(u) || u.includes(a) || a.split(/\s+/)[0] === uFirst || aliases.includes(a);
   });
 }
 

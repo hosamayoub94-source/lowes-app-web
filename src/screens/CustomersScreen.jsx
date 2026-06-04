@@ -9,6 +9,7 @@ import {
   listCustomers, countCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
+  getSellerAliases,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { useAuth } from '@hooks/useAuth';
@@ -292,7 +293,8 @@ export default function CustomersScreen() {
   const myNames = useMemo(() => {
     if (!userName) return null;
     const first = String(userName).trim().split(/\s+/)[0];
-    return [...new Set([userName, first])];
+    const aliases = getSellerAliases(userName);
+    return [...new Set([userName, first, ...aliases])];
   }, [userName]);
 
   const load = useCallback(async () => {
