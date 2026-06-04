@@ -60,32 +60,35 @@ function doPost(e) {
     }
 
     var order = body.order || body;
-    var rowValues = _buildRow(headers.length, colOf, itemCols, order);
     var idCol = colOf['order_id'];
     var nameCol = colOf['customer_name'];
 
-    // Upsert by order_id
+    // 1) The sheet pre-creates a row per order code (كود الطلب is a fill-down
+    //    formula). Find the row whose code matches this order and FILL it.
+    var targetRow = -1;
     if (idCol != null && order.order_id) {
       for (var r = headerRow + 1; r < data.length; r++) {
-        if (String(data[r][idCol]).trim() === String(order.order_id).trim()) {
-          sh.getRange(r + 1, 1, 1, rowValues.length).setValues([rowValues]);
-          return _json({ ok: true, action: 'updated', row: r + 1 });
-        }
+        if (String(data[r][idCol]).trim() === String(order.order_id).trim()) { targetRow = r; break; }
       }
     }
 
-    // Append right AFTER the last real order. A real order is a row that has a
-    // CUSTOMER NAME (the "كود الطلب" column is a fill-down formula, so it's
-    // filled on every row and can't be used as the anchor).
-    var anchorCol = (nameCol != null) ? nameCol : colOf['handler_name'];
-    var lastOrderIdx = headerRow;
-    for (var r2 = headerRow + 1; r2 < data.length; r2++) {
-      if (anchorCol != null && String(data[r2][anchorCol] || '').trim() !== '') lastOrderIdx = r2;
+    // 2) Fallback: fill the first empty-name row right after the last real
+    //    order (a free template slot).
+    if (targetRow < 0) {
+      var lastName = headerRow;
+      for (var r2 = headerRow + 1; r2 < data.length; r2++)
+        if (nameCol != null && String(data[r2][nameCol] || '').trim() !== '') lastName = r2;
+      targetRow = lastName + 1;
+      if (targetRow >= data.length) {
+        sh.appendRow(_buildRow(headers.length, colOf, itemCols, order));
+        return _json({ ok: true, action: 'appended', row: sh.getLastRow() });
+      }
     }
-    var insertAfter = lastOrderIdx + 1; // 1-indexed row to insert after
-    sh.insertRowAfter(insertAfter);
-    sh.getRange(insertAfter + 1, 1, 1, rowValues.length).setValues([rowValues]);
-    return _json({ ok: true, action: 'inserted', row: insertAfter + 1 });
+
+    // Write each field into its column — but DON'T touch the order_id column
+    // (formula) or product-matrix columns we don't map, so formulas survive.
+    _writeRow(sh, targetRow + 1, colOf, itemCols, order);
+    return _json({ ok: true, action: 'filled', row: targetRow + 1 });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
   }
@@ -132,6 +135,31 @@ function _statusKey(ar) {
   if (/ملغ|cancel/i.test(ar)) return 'cancelled';
   if (/وارد|جديد|new/i.test(ar)) return 'pending';
   return null;
+}
+
+// Fill an existing row cell-by-cell, preserving formula/untouched columns
+// (never writes the order_id column).
+function _writeRow(sh, row1, colOf, itemCols, order) {
+  function setCell(key, val) {
+    if (key === 'order_id') return;            // keep the code formula
+    if (colOf[key] == null || val == null) return;
+    sh.getRange(row1, colOf[key] + 1).setValue(val);
+  }
+  setCell('customer_name', order.customer_name); setCell('phone_1', order.phone_1);
+  setCell('wa_number', order.wa_number); setCell('city', order.city);
+  setCell('district', order.district); setCell('address', order.address);
+  setCell('amount', order.amount);
+  setCell('status_ar', STATUS_AR[order.status] || order.status || '');
+  setCell('handler_name', order.handler_name);
+  setCell('tracking_number', order.tracking_number); setCell('payment_method', order.payment_method);
+  setCell('pickup_type', order.pickup_type); setCell('shipping_company', order.shipping_company);
+  setCell('notes', order.notes);
+  if (colOf['order_date'] != null && order.order_date) sh.getRange(row1, colOf['order_date'] + 1).setValue(new Date(order.order_date));
+  var items = order.items || [];
+  for (var i = 0; i < items.length && i < itemCols.length; i++) {
+    sh.getRange(row1, itemCols[i] + 1).setValue(items[i].name || '');
+    if (itemCols[i] + 1 < sh.getLastColumn()) sh.getRange(row1, itemCols[i] + 2).setValue(items[i].qty || 1);
+  }
 }
 
 function _buildRow(width, colOf, itemCols, order) {

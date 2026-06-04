@@ -366,7 +366,7 @@ function InvoiceModal({ order, onClose }) {
 }
 
 // ── Order Card ─────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, onEdit, onInvoice, canAdvance }) {
+function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance }) {
   const [changing, setChanging] = useState(false);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
@@ -423,6 +423,12 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, canAdvance }) {
             className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition text-sm">
             ✏️
           </button>
+          {canDelete && onDelete && (
+            <button onClick={() => onDelete(order)} title="حذف الطلب"
+              className="w-8 h-8 rounded-xl bg-red-bg flex items-center justify-center text-red-fg hover:opacity-80 transition text-sm">
+              🗑
+            </button>
+          )}
         </div>
       </div>
 
@@ -460,6 +466,16 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, canAdvance }) {
           {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '—'}
         </span>
       </div>
+
+      {/* Audit: created / last edited */}
+      {(order.created_at || order.updated_by) && (
+        <div className="flex items-center justify-between text-[9px] text-muted/70">
+          <span>🆕 {order.created_at ? new Date(order.created_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}{order.created_by ? ` · ${order.created_by}` : ''}</span>
+          {order.updated_by && (
+            <span>✏️ {order.updated_at ? new Date(order.updated_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : ''} · {order.updated_by}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1037,9 +1053,13 @@ export default function OrdersScreen() {
   const handleSave = async (form, existingId) => {
     let savedId = existingId;
     if (existingId) {
-      await supabase.from('orders').update(form).eq('id', existingId);
+      await supabase.from('orders')
+        .update({ ...form, updated_at: new Date().toISOString(), updated_by: userName })
+        .eq('id', existingId);
     } else {
-      const { data } = await supabase.from('orders').insert(form).select('id').single();
+      const { data } = await supabase.from('orders')
+        .insert({ ...form, created_by: userName })
+        .select('id').single();
       savedId = data?.id;
     }
     setModal(null);
@@ -1050,6 +1070,24 @@ export default function OrdersScreen() {
     if (savedId && !existingId) {
       reserveForOrder({ id: savedId, ...form }, userName);
     }
+  };
+
+  // Delete permission: managers/admins/fulfillment anytime; a regular
+  // employee may delete only their own order, and only the same day.
+  const canDeleteOrder = (o) => {
+    if (isManager || isFulfillment) return true;
+    if (o.handler_name !== userName) return false;
+    const created = o.created_at ? new Date(o.created_at) : (o.order_date ? new Date(o.order_date) : null);
+    return created && created.toDateString() === new Date().toDateString();
+  };
+  const handleDelete = async (o) => {
+    if (!canDeleteOrder(o)) { window.alert('لا تملك صلاحية حذف هذا الطلب. (الموظف يحذف طلبه بنفس يوم الإنشاء فقط.)'); return; }
+    if (!window.confirm(`حذف طلب «${o.customer_name || o.order_id}»؟ لا يمكن التراجع.`)) return;
+    try {
+      if ((o.market === 'syria' || o.market === 'turkey') && o.archived !== true) releaseForOrder(o, userName);
+      await supabase.from('orders').delete().eq('id', o.id);
+      setOrders(p => p.filter(x => x.id !== o.id));
+    } catch (e) { window.alert('تعذّر الحذف: ' + e.message); }
   };
 
   // Monthly archive: flag delivered orders older than 30 days as archived.
@@ -1239,7 +1277,9 @@ export default function OrdersScreen() {
               canAdvance={canAdvanceOrders}
               onStatusChange={handleStatusChange}
               onEdit={(o) => setModal(o)}
-              onInvoice={(o) => setInvoice(o)} />
+              onInvoice={(o) => setInvoice(o)}
+              onDelete={handleDelete}
+              canDelete={canDeleteOrder(o)} />
           ))}
         </div>
       )}
