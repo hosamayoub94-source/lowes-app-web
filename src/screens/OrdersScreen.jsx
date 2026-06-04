@@ -13,7 +13,7 @@ import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.typ
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
 import { ComboBox } from '@components/ui/ComboBox';
-import { fetchNeighborhoods } from '@services/turkeyApi';
+import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
 
@@ -624,6 +624,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [cust,     setCust]     = useState(null);   // matched customer (repeat detection)
   const [mahalleOpts, setMahalleOpts] = useState([]); // live Mahalle suggestions
   const [sokakOpts]   = useState(loadSokakHistory());  // remembered Sokak suggestions
+  const [streetOpts,  setStreetOpts]  = useState([]);  // official UAVT streets for the chosen mahalle
 
   useEffect(() => {
     supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
@@ -662,6 +663,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     fetchNeighborhoods(form.city, form.district).then(n => { if (alive) setMahalleOpts(n); });
     return () => { alive = false; };
   }, [form.market, form.city, form.district]);
+
+  // Official Sokak (street) suggestions for the chosen district + mahalle (UAVT).
+  useEffect(() => {
+    if (form.market !== 'turkey' || !form.city || !form.district) { setStreetOpts([]); return; }
+    let alive = true;
+    fetchStreets(form.city, form.district, form.mahalle).then(s => { if (alive) setStreetOpts(s); });
+    return () => { alive = false; };
+  }, [form.market, form.city, form.district, form.mahalle]);
 
   // Build the detailed Turkish address from its parts (only when a part is set,
   // so a pasted invoice address isn't wiped).
@@ -812,8 +821,9 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 <div className="grid grid-cols-2 gap-3">
                   <ComboBox value={form.mahalle} onChange={v => set('mahalle', v)} options={mahalleOpts}
                     className={INP} placeholder={mahalleOpts.length ? 'Mahalle (المحلة)' : 'Mahalle (اكتب)'} />
-                  <ComboBox value={form.sokak} onChange={v => set('sokak', v)} options={sokakOpts}
-                    className={INP} placeholder="Sokak (الشارع)" />
+                  <ComboBox value={form.sokak} onChange={v => set('sokak', v)}
+                    options={streetOpts.length ? streetOpts : sokakOpts}
+                    className={INP} placeholder={streetOpts.length ? 'Sokak (اختر الشارع)' : 'Sokak (الشارع)'} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <input value={form.bno} onChange={e => set('bno', e.target.value)} className={INP} placeholder="No (رقم المبنى)" />
