@@ -63,7 +63,9 @@ Deno.serve(async (req: Request) => {
         brand: o.brand || 'lowes',
         order: {
           order_id:         o.order_id,
-          order_date:       o.order_date,
+          // Column A = order creation timestamp (created_at) — the moment the
+          // order was actually created, not the editable order_date field.
+          order_date:       o.created_at || o.order_date,
           customer_name:    o.customer_name,
           phone_1:          o.phone_1,
           wa_number:        o.wa_number || o.phone_1,
