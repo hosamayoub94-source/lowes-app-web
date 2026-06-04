@@ -13,6 +13,7 @@ import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.typ
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
 import { ComboBox } from '@components/ui/ComboBox';
+import { fetchNeighborhoods } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
 
@@ -579,6 +580,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [saving,   setSaving]   = useState(false);
   const [products, setProducts] = useState([]);
   const [cust,     setCust]     = useState(null);   // matched customer (repeat detection)
+  const [mahalleOpts, setMahalleOpts] = useState([]); // live Mahalle suggestions
 
   useEffect(() => {
     supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
@@ -609,6 +611,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   useEffect(() => {
     if (!isEdit && !form.order_id) set('order_id', nextOrderId(form.market, allOrders));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live Mahalle suggestions once a Turkish province + district are chosen.
+  useEffect(() => {
+    if (form.market !== 'turkey' || !form.city || !form.district) { setMahalleOpts([]); return; }
+    let alive = true;
+    fetchNeighborhoods(form.city, form.district).then(n => { if (alive) setMahalleOpts(n); });
+    return () => { alive = false; };
+  }, [form.market, form.city, form.district]);
 
   // Build the detailed Turkish address from its parts (only when a part is set,
   // so a pasted invoice address isn't wiped).
@@ -755,7 +765,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
               <>
                 {/* Structured Turkish address — builds the detailed address line */}
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={form.mahalle} onChange={e => set('mahalle', e.target.value)} className={INP} placeholder="Mahalle (الحي)" />
+                  <ComboBox value={form.mahalle} onChange={v => set('mahalle', v)} options={mahalleOpts}
+                    className={INP} placeholder={mahalleOpts.length ? 'Mahalle (المحلة)' : 'Mahalle (اكتب)'} />
                   <input value={form.sokak} onChange={e => set('sokak', e.target.value)} className={INP} placeholder="Sokak (الشارع)" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
