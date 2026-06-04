@@ -11,7 +11,7 @@ import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
-import { citiesForMarket, shippingForMarket, paymentForMarket } from '@data/cities';
+import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
 
@@ -132,6 +132,7 @@ const EMPTY_FORM = {
   handler_name: '', status: 'pending', notes: '',
   customer_name: '', phone_1: '', phone_2: '', wa_number: '',
   city: '', district: '', address: '',
+  mahalle: '', sokak: '', bno: '', daire: '',
   amount: '', currency: 'TRY',
   payment_method: 'دفع عند الباب', payment_status: 'unpaid', paid_amount: '',
   shipping_company: 'yurtiçi', pickup_type: 'عنوان منزل', tracking_number: '',
@@ -538,6 +539,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     shipping_company: order.shipping_company ?? 'yurtiçi',
     pickup_type:      order.pickup_type      ?? 'عنوان منزل',
     tracking_number:  order.tracking_number  ?? '',
+    mahalle: '', sokak: '', bno: '', daire: '',
   } : prefill ? {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
@@ -591,6 +593,13 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     if (!isEdit && !form.order_id) set('order_id', nextOrderId(form.market, allOrders));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Build the detailed Turkish address from its parts (only when a part is set,
+  // so a pasted invoice address isn't wiped).
+  useEffect(() => {
+    const built = buildTurkishAddress({ mahalle: form.mahalle, sokak: form.sokak, bno: form.bno, daire: form.daire });
+    if (built) set('address', built);
+  }, [form.mahalle, form.sokak, form.bno, form.daire]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addItem    = () => setItems(p => [...p, { name: '', qty: 1 }]);
   const removeItem = (i) => setItems(p => p.filter((_, idx) => idx !== i));
   const changeItem = (i, k, v) => setItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -610,6 +619,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
       order_date:  new Date(form.order_date).toISOString(),
       items:       items.filter(i => i.name.trim()),
     };
+    // Address parts are UI-only helpers (not DB columns) — strip before save.
+    delete payload.mahalle; delete payload.sokak; delete payload.bno; delete payload.daire;
     try { await onSave(payload, order?.id); }
     finally { setSaving(false); }
   };
@@ -721,10 +732,40 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 {citiesForMarket(form.market).map(c => <option key={c} value={c} />)}
               </datalist>
               {form.market === 'turkey' && (
-                <input value={form.district} onChange={e => set('district', e.target.value)} className={INP} placeholder="المنطقة / الحي" />
+                <>
+                  <input value={form.district} onChange={e => set('district', e.target.value)} className={INP}
+                    placeholder="البلدية (اختر أو اكتب)" list="district-suggestions" autoComplete="off" />
+                  <datalist id="district-suggestions">
+                    {districtsForCity(form.market, form.city).map(d => <option key={d} value={d} />)}
+                  </datalist>
+                </>
               )}
             </div>
-            <input value={form.address} onChange={e => set('address', e.target.value)} className={INP} placeholder="العنوان التفصيلي" />
+
+            {form.market === 'turkey' ? (
+              <>
+                {/* Structured Turkish address — builds the detailed address line */}
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={form.mahalle} onChange={e => set('mahalle', e.target.value)} className={INP} placeholder="Mahalle (الحي)" />
+                  <input value={form.sokak} onChange={e => set('sokak', e.target.value)} className={INP} placeholder="Sokak (الشارع)" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={form.bno} onChange={e => set('bno', e.target.value)} className={INP} placeholder="No (رقم المبنى)" />
+                  <input value={form.daire} onChange={e => set('daire', e.target.value)} className={INP} placeholder="Daire (الشقة)" />
+                </div>
+                <input value={form.address} onChange={e => set('address', e.target.value)} className={INP}
+                  placeholder="العنوان كامل (يُبنى تلقائياً — أو الصق من فاتورة العميل)" />
+                {isMotorZone(form.city, form.district) && (
+                  <div className="bg-amber-bg border border-amber/30 rounded-xl px-3 py-2 text-xs text-amber-fg flex items-center justify-between gap-2">
+                    <span>🏍️ منطقة توصيل موتور (إسطنبول الأوروبية)</span>
+                    <button type="button" onClick={() => set('shipping_company', 'توصيل الموتور')}
+                      className="font-bold underline shrink-0">اعتمد موتور</button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <input value={form.address} onChange={e => set('address', e.target.value)} className={INP} placeholder="العنوان التفصيلي" />
+            )}
           </div>
 
           {/* Products */}
