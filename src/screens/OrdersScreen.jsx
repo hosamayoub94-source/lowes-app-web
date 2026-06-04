@@ -12,6 +12,7 @@ import { sendNotification } from '@modules/notifications/services/notificationSe
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
+import { ComboBox } from '@components/ui/ComboBox';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
 
@@ -726,19 +727,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
               placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
             <div className={`grid gap-3 ${form.market === 'turkey' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              <input value={form.city} onChange={e => set('city', e.target.value)} className={INP}
-                placeholder="المدينة (اختر أو اكتب)" list="city-suggestions" autoComplete="off" />
-              <datalist id="city-suggestions">
-                {citiesForMarket(form.market).map(c => <option key={c} value={c} />)}
-              </datalist>
+              <ComboBox value={form.city} onChange={v => set('city', v)} options={citiesForMarket(form.market)}
+                className={INP} placeholder="المدينة (اختر أو اكتب)" />
               {form.market === 'turkey' && (
-                <>
-                  <input value={form.district} onChange={e => set('district', e.target.value)} className={INP}
-                    placeholder="البلدية (اختر أو اكتب)" list="district-suggestions" autoComplete="off" />
-                  <datalist id="district-suggestions">
-                    {districtsForCity(form.market, form.city).map(d => <option key={d} value={d} />)}
-                  </datalist>
-                </>
+                <ComboBox value={form.district} onChange={v => set('district', v)} options={districtsForCity(form.market, form.city)}
+                  className={INP} placeholder="البلدية (اختر أو اكتب)" />
               )}
             </div>
 
@@ -804,11 +797,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>طريقة الدفع</label>
-                <input value={form.payment_method} onChange={e => set('payment_method', e.target.value)}
-                  className={INP} list="payment-suggestions" autoComplete="off" placeholder="اختر أو اكتب" />
-                <datalist id="payment-suggestions">
-                  {paymentForMarket(form.market).map(p => <option key={p} value={p} />)}
-                </datalist>
+                <ComboBox value={form.payment_method} onChange={v => set('payment_method', v)}
+                  options={paymentForMarket(form.market)} className={INP} placeholder="اختر أو اكتب" />
               </div>
               <div>
                 <label className={LBL}>حالة الدفع</label>
@@ -844,11 +834,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>شركة الشحن</label>
-                <input value={form.shipping_company} onChange={e => set('shipping_company', e.target.value)}
-                  className={INP} list="shipping-suggestions" autoComplete="off" placeholder="اختر أو اكتب" />
-                <datalist id="shipping-suggestions">
-                  {companies.map(c => <option key={c} value={c} />)}
-                </datalist>
+                <ComboBox value={form.shipping_company} onChange={v => set('shipping_company', v)}
+                  options={companies} className={INP} placeholder="اختر أو اكتب" />
               </div>
               <div>
                 <label className={LBL}>نوع الاستلام</label>

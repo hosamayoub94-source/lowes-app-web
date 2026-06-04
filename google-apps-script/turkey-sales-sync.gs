@@ -74,13 +74,25 @@ function doPost(e) {
       }
     }
 
-    // Append immediately AFTER the last real order (not getLastRow, which
-    // counts trailing formatted/empty rows).
+    // Append after the last REAL order. The "كود الطلب" column is often a
+    // fill-down formula (every row looks filled), so we anchor on the PHONE
+    // column instead (the reliable sign of an actual order). Detect the phone
+    // column as the early column with the most 9–12 digit values.
+    var phoneCol = -1, best = 0;
+    for (var pc = 0; pc < Math.min(headers.length, 6); pc++) {
+      var cnt = 0;
+      for (var rr = headerRow + 1; rr < data.length; rr++) {
+        var v = String(data[rr][pc] || '').replace(/\D/g, '');
+        if (v.length >= 9 && v.length <= 12) cnt++;
+      }
+      if (cnt > best) { best = cnt; phoneCol = pc; }
+    }
     var lastOrderIdx = headerRow;
     for (var r2 = headerRow + 1; r2 < data.length; r2++) {
-      var hasId   = idCol   != null && String(data[r2][idCol]   || '').trim() !== '';
-      var hasName = nameCol != null && String(data[r2][nameCol] || '').trim() !== '';
-      if (hasId || hasName) lastOrderIdx = r2;
+      var ok = false;
+      if (phoneCol >= 0) { var pv = String(data[r2][phoneCol] || '').replace(/\D/g, ''); ok = pv.length >= 9; }
+      else { ok = nameCol != null && String(data[r2][nameCol] || '').trim() !== ''; }
+      if (ok) lastOrderIdx = r2;
     }
     var insertAfter = lastOrderIdx + 1; // 1-indexed row to insert after
     sh.insertRowAfter(insertAfter);
