@@ -3,6 +3,38 @@
 
 ---
 
+## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
+
+### ⚡ سلوك المالك (إلزامي — صرّح به مراراً)
+المالك يعطي أمراً ويريد **تنفيذه فوراً بدون طلب إذن**. **لا تسأل، نفّذ** (تعديل ملفات، SQL، نشر، git push، نشر Edge Functions/Apps Script عبر Chrome). استثناء وحيد: عمليات خطرة غير قابلة للتراجع (حذف بيانات إنتاج، تدوير مفاتيح). **دائماً استخدم أفضل المهارات** (brainstorming/debugging/verification...). راجع memory: `deploy_autonomy`.
+
+### 🔴 المهام المعلّقة (بالأولوية)
+1. **ربط جدول تركيا بالتطبيق — لم يكتمل (المالك «ديّقت خلقي، نشرت وما صار»).** آخر نهج: **ورقتان نظيفتان جديدتان** `LOWES_TR` + `STRONG_TR` بنفس الـspreadsheet التركي (id `1OP_q1GJeE7CFvhF7quQO1CjiWXnh8rzeqrcDcq_1OM8`). الكود `google-apps-script/turkey-sales-sync.gs` (clean append + upsert بكود الطلب + onSheetEdit عكسي). secrets مضبوطة: `TURKEY_SHEET_SYNC_URL` (رابط /exec من المالك) + `TURKEY_SHEET_SYNC_TOKEN=LOWES-TURKEY-2026`. edge fn `sync-order-to-sheet` v9 منشورة (فرع turkey). **المطلوب تشخيصه:** المالك نشر السكربت وما اشتغل — تأكد: (أ) شغّل `setupSheets` لإنشاء الورقتين، (ب) Web App منشور بنسخة جديدة، (ج) onSheetEdit trigger، (د) اختبر عبر edge fn (انظر أدناه طريقة الاختبار). **الجداول القديمة فوضوية** (أعمدة كود بصيغ fill-down + صفوف بقايا) — لهذا انتقلنا لورقتين نظيفتين.
+2. **مزامنة جدول سوريا** — تعمل أصلاً (LOWES Sales، edge fn، توكن LOWES-SYRIA-2026) لكن المالك يريد التأكد من صحتها بنفس منطق الاتجاهين. راجع memory `orders_sheet_sync`.
+3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
+4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
+
+### 🧪 اختبار مزامنة طلب تركي (عبر edge fn، anon key):
+```js
+// أنشئ طلب turkey في orders ثم:
+fetch('https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sync-order-to-sheet',{method:'POST',
+ headers:{apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'},
+ body:JSON.stringify({orderId})}).then(r=>r.json()) // {ok:true, action:'appended'|'updated'}
+```
+الرد ok:true يعني وصل Apps Script. لو `run setupSheets first` → الورقتان غير منشأتين.
+
+### ✅ أُنجز هذه الجلسة (يونيو 2026):
+- **داشبورد قيمة المبيعات للأدمن فقط** (ManagerBoardScreen، role===admin): RPC `sales_totals(from,to)` + فلتر اليوم/أسبوع/شهر/سنة/إجمالي. view `sales_value_summary`. (~33M TRY · ~88M SYP).
+- **حذف الطلب بالصلاحيات:** مدراء/أدمن/fulfillment دائماً · الموظف طلبه بنفس اليوم فقط. + أعمدة audit `created_at/by, updated_at/by` تظهر بالكرت (من أنشأ/عدّل ومتى).
+- **نموذج الطلب لا يُغلق عند نقر الخلفية** (كان يضيّع البيانات).
+- **شركات الشحن التركية المعتمدة** + ComboBox.
+
+### ⏳ لم يبدأ بعد:
+- **نظام الشراكة بالورديات:** بتركيا 3 أشخاص على نفس الرقم/الصفحة بحملة؛ زبون أحدهم يخدمه شريكه. المطلوب: الشركاء (shift partners، موجود بـ ProfileScreen) يرون/يعدّلون **طلبات وعملاء بعضهم** («عملائي» يشمل عملاء الشريك + صلاحية تعديل). 
+- Lookalike Audiences (تصدير أرقام للإعلانات) + تحليل السلة (basket analysis) — أفكار تسويقية مؤجّلة.
+
+---
+
 ## 🆕 أحدث جلسة (يونيو 2026 — الأرشيف + ذكاء العملاء)
 
 ### 📦 استيراد الأرشيف (2889 طلب سوريا تاريخي)
