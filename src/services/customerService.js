@@ -7,14 +7,25 @@ import { supabase } from './supabase';
 
 // Turkey archive used short / differently-spelled seller names before the app
 // introduced full profile names. Map full profile name (lowercase) → archive variants.
+// All comparisons in getSellerAliases/sellerMatches are case-insensitive (norm()),
+// but the server-side cs filter is exact — so we list exact archive spellings here.
 const SELLER_ALIASES = {
-  'khedr alnisafe':  ['khder', 'Khder', 'khedr'],
-  'zina sulyman':    ['Zina', 'zina', 'ZINA'],
-  'arwa mohammed':   ['ARWA', 'Arwa', 'arwa'],
-  'sarah alasaad':   ['sara h', 'Sara h', 'Sara H', 'SARA H'],
-  'sarah ibrahim':   ['sara', 'Sara', 'SARA'],
-  'hla al namra':    ['HLA NM', 'Hla NM', 'hla nm', 'Hla', 'hla'],
-  // 'hassna ???':   ['hassna', 'Hassna'],  ← add full profile name when known
+  'khedr alnisafe':   ['khder', 'Khder', 'khedr'],
+  'zina sulyman':     ['Zina', 'zina', 'ZINA'],
+  'arwa mohammed':    ['ARWA', 'Arwa', 'arwa', 'ِARWA'],  // archive had kasra diacritic prefix
+  'sarah alasaad':    ['sara h', 'Sara h', 'Sara H', 'SARA H', 'Sara As3ad', 'sara as3ad'],
+  'sarah ibrahim':    ['sara', 'Sara', 'SARA'],
+  'hla al namra':     ['HLA NM', 'Hla NM', 'hla nm', 'Hla', 'hla'],
+  'hassna deeb':      ['hassna', 'Hassna', 'HASSNA'],
+  'leen alasaad':     ['leen', 'LEEN'],
+  'ziena hamodi':     ['Ziena M', 'ziena m', 'ZIENA M', 'Ziena'],
+  'taj mahmoud':      ['TAJ', 'taj', 'Taj'],
+  'wasim alkshki':    ['wasim', 'WASIM'],
+  'sally teba':       ['saly', 'Saly', 'SALY'],
+  'diana hasan':      ['DIANA', 'diana'],
+  'yasmeen alahmad':  ['YASMEIN', 'yasmein', 'Yasmein', 'YASMEEN'],
+  'rouida alibrahim': ['RODE', 'rode', 'Rode'],  // uncertain — archive «RODE» likely Rouida
+  // 'layla ???':     ['Layla', 'layla'],  // 84 Turkey archive orders — no active profile found
 };
 
 /** Returns all archive alias names for a given profile full name. */
