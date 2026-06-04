@@ -110,11 +110,19 @@ function doPost(e) {
         }
       }
     }
-    // Append a fresh row (manual columns start blank for the team to fill)
+    // Insert right after the last row that has an order_id (not at sheet bottom)
+    var idColNum = (idCol != null ? idCol : 0) + 1; // 1-indexed
+    var totalRows = sh.getLastRow();
+    var idValues = sh.getRange(1, idColNum, totalRows, 1).getValues();
+    var lastDataRow = 1;
+    for (var ri = idValues.length - 1; ri >= 1; ri--) {
+      if (String(idValues[ri][0]).trim() !== '') { lastDataRow = ri + 1; break; }
+    }
+    var insertAt = lastDataRow + 1;
     var blank = new Array(headers.length).fill('');
     for (var k2 in owned) blank[k2] = owned[k2];
-    sh.appendRow(blank);
-    return _json({ ok: true, action: 'appended', row: sh.getLastRow() });
+    sh.getRange(insertAt, 1, 1, headers.length).setValues([blank]);
+    return _json({ ok: true, action: 'appended', row: insertAt });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
   }

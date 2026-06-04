@@ -12,6 +12,7 @@ import { sendNotification } from '@modules/notifications/services/notificationSe
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
+import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
@@ -165,7 +166,7 @@ const EMPTY_FORM = {
   market: 'turkey', brand: 'lowes', order_id: '', order_date: new Date().toISOString().slice(0, 16),
   handler_name: '', status: 'pending', notes: '',
   customer_name: '', phone_1: '', phone_2: '', wa_number: '',
-  city: '', district: '', address: '',
+  city: '', district: '', sy_neighborhood: '', address: '',
   mahalle: '', sokak: '', bno: '', daire: '',
   amount: '', currency: 'TRY',
   payment_method: 'دفع عند الباب 💵', payment_status: 'unpaid', paid_amount: '',
@@ -626,10 +627,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [sokakOpts]   = useState(loadSokakHistory());  // remembered Sokak suggestions
   const [streetOpts,  setStreetOpts]  = useState([]);  // official UAVT streets for the chosen mahalle
 
+  // Reload products whenever brand changes — Strong brand shows only Strong products,
+  // Lowe's brand hides Strong (adult/pharma) products.
   useEffect(() => {
-    supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
-      .then(({ data }) => setProducts(data ?? [])).catch(() => {});
-  }, []);
+    let q = supabase.from('products').select('id, name, category').eq('is_active', true).order('name');
+    if (form.brand === 'strong') q = q.eq('category', 'Strong');
+    else                          q = q.neq('category', 'Strong');
+    q.then(({ data }) => setProducts(data ?? [])).catch(() => {});
+  }, [form.brand]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -806,17 +811,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
             )}
             <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
               placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
-            <div className={`grid gap-3 ${form.market === 'turkey' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              <ComboBox value={form.city} onChange={v => set('city', v)} options={citiesForMarket(form.market)}
-                className={INP} placeholder="المدينة (اختر أو اكتب)" />
-              {form.market === 'turkey' && (
-                <ComboBox value={form.district} onChange={v => set('district', v)} options={districtsForCity(form.market, form.city)}
-                  className={INP} placeholder="البلدية (اختر أو اكتب)" />
-              )}
-            </div>
-
             {form.market === 'turkey' ? (
               <>
+                <div className="grid grid-cols-2 gap-3">
+                  <ComboBox value={form.city} onChange={v => { set('city', v); set('district', ''); }}
+                    options={citiesForMarket('turkey')} className={INP} placeholder="المحافظة (اختر أو اكتب)" />
+                  <ComboBox value={form.district} onChange={v => set('district', v)}
+                    options={districtsForCity('turkey', form.city)} className={INP} placeholder="البلدية (اختر أو اكتب)" />
+                </div>
                 {/* Structured Turkish address — builds the detailed address line */}
                 <div className="grid grid-cols-2 gap-3">
                   <ComboBox value={form.mahalle} onChange={v => set('mahalle', v)} options={mahalleOpts}
@@ -840,7 +842,19 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 )}
               </>
             ) : (
-              <input value={form.address} onChange={e => set('address', e.target.value)} className={INP} placeholder="العنوان التفصيلي" />
+              <>
+                {/* Syria: محافظة → منطقة/مدينة → حي/قرية (all alphabetical) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <ComboBox value={form.city} onChange={v => { set('city', v); set('district', ''); set('sy_neighborhood', ''); }}
+                    options={SYRIA_PROVINCES.map(p => p.value)} className={INP} placeholder="المحافظة (اختر أو اكتب)" />
+                  <ComboBox value={form.district} onChange={v => { set('district', v); set('sy_neighborhood', ''); }}
+                    options={getSyriaDistricts(form.city)} className={INP} placeholder="المنطقة / المدينة" />
+                </div>
+                <ComboBox value={form.sy_neighborhood} onChange={v => set('sy_neighborhood', v)}
+                  options={getSyriaNeighborhoods(form.district)} className={INP} placeholder="الحي / القرية (اختر أو اكتب)" />
+                <input value={form.address} onChange={e => set('address', e.target.value)} className={INP}
+                  placeholder="العنوان التفصيلي (شارع، رقم، ملاحظة)" />
+              </>
             )}
           </div>
 
