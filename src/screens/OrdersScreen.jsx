@@ -133,6 +133,23 @@ function nextOrderId(market, orders) {
   return `${now.getMonth() + 1}${prefix}${max + 1}`;
 }
 
+// Remembered Sokak (street) suggestions. There is no public street dataset for
+// Turkey (the address API only covers Mahalle/neighborhoods), so we learn from
+// what the team actually types and persist it locally — autocomplete that grows.
+const SOKAK_KEY = 'lowes_sokak_history';
+function loadSokakHistory() {
+  try { return JSON.parse(localStorage.getItem(SOKAK_KEY) || '[]'); } catch { return []; }
+}
+function rememberSokak(v) {
+  const s = String(v || '').trim();
+  if (!s) return;
+  try {
+    const list = loadSokakHistory().filter(x => x.toLowerCase() !== s.toLowerCase());
+    list.unshift(s);
+    localStorage.setItem(SOKAK_KEY, JSON.stringify(list.slice(0, 300)));
+  } catch { /* ignore */ }
+}
+
 const EMPTY_FORM = {
   market: 'turkey', brand: 'lowes', order_id: '', order_date: new Date().toISOString().slice(0, 16),
   handler_name: '', status: 'pending', notes: '',
@@ -595,6 +612,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [products, setProducts] = useState([]);
   const [cust,     setCust]     = useState(null);   // matched customer (repeat detection)
   const [mahalleOpts, setMahalleOpts] = useState([]); // live Mahalle suggestions
+  const [sokakOpts]   = useState(loadSokakHistory());  // remembered Sokak suggestions
 
   useEffect(() => {
     supabase.from('products').select('id, name, category').eq('is_active', true).order('name')
@@ -660,6 +678,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
       order_date:  new Date(form.order_date).toISOString(),
       items:       items.filter(i => i.name.trim()),
     };
+    // Remember the typed street so it autocompletes next time (no public dataset).
+    rememberSokak(form.sokak);
     // Address parts are UI-only helpers (not DB columns) — strip before save.
     delete payload.mahalle; delete payload.sokak; delete payload.bno; delete payload.daire;
     try { await onSave(payload, order?.id); }
@@ -781,7 +801,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                 <div className="grid grid-cols-2 gap-3">
                   <ComboBox value={form.mahalle} onChange={v => set('mahalle', v)} options={mahalleOpts}
                     className={INP} placeholder={mahalleOpts.length ? 'Mahalle (المحلة)' : 'Mahalle (اكتب)'} />
-                  <input value={form.sokak} onChange={e => set('sokak', e.target.value)} className={INP} placeholder="Sokak (الشارع)" />
+                  <ComboBox value={form.sokak} onChange={v => set('sokak', v)} options={sokakOpts}
+                    className={INP} placeholder="Sokak (الشارع)" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <input value={form.bno} onChange={e => set('bno', e.target.value)} className={INP} placeholder="No (رقم المبنى)" />

@@ -22,6 +22,16 @@
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
 
+### 🔴🔴 بَغ حرج مُصلَح: الطلبات الجديدة لا تُحفظ (created_by/updated_by uuid)
+**العَرَض:** المالك ينشئ طلباً → لا يظهر بالتطبيق ولا الجدول (المودال يُغلق كأنه نجح). **السبب:** عمودا `orders.created_by` و`updated_by` كانا نوع **UUID**، لكن الكود يكتب الاسم النصّي (`created_by: userName`) ويعرضه نصّاً بالكرت → INSERT يفشل بـ `22P02 invalid input syntax for type uuid` (والتعديل أيضاً عبر updated_by). الفشل صامت (handleSave ما يعرض الخطأ). **الإصلاح (SQL، مطبّق):** تحويل العمودين إلى `text` (مع إسقاط أي FK):
+```sql
+-- drop FKs on those cols then:
+ALTER TABLE public.orders ALTER COLUMN created_by TYPE text USING created_by::text;
+ALTER TABLE public.orders ALTER COLUMN updated_by TYPE text USING updated_by::text;
+```
+مُختبر: INSERT صار 201. **درس: أي عمود audit يكتب له الكود اسماً لازم يكون text لا uuid؛ والـ handleSave يحتاج عرض أخطاء الإدخال لا يبتلعها.**
+- **Sokak autocomplete:** لا يوجد API لبيانات الشوارع التركية (فقط Mahalle). جعلنا Sokak ComboBox **يتذكّر ما يكتبه الفريق** (localStorage `lowes_sokak_history`). **No/Daire يبقيان نصّاً حرّاً** (فريدان لكل عنوان — لا قائمة ممكنة).
+
 ### ✅ تحسينات الطلبات (يونيو 2026 — جلسة الحالات والرواجع)
 - **ComboBox**: زر ▾ يعرض **كل** الخيارات (كان يُفلتر بالقيمة الافتراضية فيخفي الباقي — سبب «الشحن yurtiçi فقط» و«الدفع طريقة واحدة»). `src/components/ui/ComboBox.jsx` (showAll).
 - **أنواع الاستلام**: استلام من المركز / عنوان المنزل / عنوان العمل + شحن «توصيل خاص 🚗».
