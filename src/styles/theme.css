@@ -7,19 +7,20 @@
    ============================================================= */
 
 :root {
-  /* Brand */
-  --color-navy: 15 31 61;          /* #0f1f3d */
-  --color-teal: 13 115 119;        /* #0d7377 */
+  /* Brand — deep plum primary (premium, warm) + teal accent */
+  --color-navy: 45 27 78;           /* #2d1b4e  deep plum */
+  --color-teal: 13 115 119;         /* #0d7377  teal (unchanged) */
+  --color-gold: 180 140 60;         /* #b48c3c  gold accent */
 
-  /* Surfaces */
-  --color-cream: 248 247 244;       /* #f8f7f4 */
+  /* Surfaces — warm, spacious */
+  --color-cream: 250 248 246;       /* #faf8f6  warm cream */
   --color-surface: 255 255 255;     /* #ffffff */
-  --color-surface-alt: 240 239 235; /* #f0efeb */
-  --color-border: 15 31 61;         /* same hue as navy, alpha applied via Tailwind utility default */
+  --color-surface-alt: 246 243 240; /* #f6f3f0  warm off-white */
+  --color-border: 45 27 78;         /* plum hue, alpha applied */
 
   /* Text */
-  --color-text: 30 36 51;           /* #1e2433 */
-  --color-muted: 107 114 128;       /* #6b7280 */
+  --color-text: 28 22 40;           /* #1c1628  deep plum-black */
+  --color-muted: 114 104 128;       /* #726880  warm muted */
 
   /* Status — green */
   --color-green: 16 185 129;        /* #10b981 */

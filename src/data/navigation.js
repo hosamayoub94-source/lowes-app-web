@@ -102,3 +102,22 @@ export function groupedNavForRole(role, permSet = null) {
     .map((key) => ({ key, label: NAV_GROUPS[key], items: items.filter((i) => i.group === key) }))
     .filter((g) => g.items.length > 0);
 }
+
+// Explicit 5-tab bottom bar per role (curated, not just first-5).
+// Each entry is a NAV_ITEM id. Keep exactly 5 per role.
+const ROLE_BOTTOM_TABS = {
+  [ROLES.EMPLOYEE]:       ['workspace', 'orders', 'customers', 'tasks', 'attendance'],
+  [ROLES.MANAGER]:        ['workspace', 'orders', 'manager-board', 'team', 'payroll'],
+  [ROLES.ADMIN]:          ['workspace', 'orders', 'customers', 'manager-board', 'admin'],
+  [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
+  [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'performance', 'analytics', 'customers'],
+  [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
+};
+
+export function bottomTabsForRole(role, permSet = null) {
+  if (!role) return [];
+  const ids = ROLE_BOTTOM_TABS[role] || [];
+  const all = navItemsForRole(role, permSet);
+  const byId = Object.fromEntries(all.map(i => [i.id, i]));
+  return ids.map(id => byId[id]).filter(Boolean);
+}

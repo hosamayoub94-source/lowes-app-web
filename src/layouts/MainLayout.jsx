@@ -43,7 +43,7 @@ export function MainLayout() {
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col">
         <Header />
-        <main className="flex-1 px-3 sm:px-5 py-4 pb-24 md:pb-8 max-w-screen-xl w-full mx-auto">
+        <main className="flex-1 px-3 sm:px-5 py-4 pb-28 md:pb-8 max-w-screen-xl w-full mx-auto">
           <Outlet />
         </main>
       </div>
