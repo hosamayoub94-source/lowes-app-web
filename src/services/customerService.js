@@ -134,6 +134,49 @@ export function sellerMatches(sellers, userName) {
   });
 }
 
+// ── Meta Custom Audience export ───────────────────────────────
+function normalizeTurkishPhone(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length < 7) return null;
+  if (d.startsWith('90') && d.length >= 11) return `+${d}`;
+  if (d.startsWith('0') && d.length === 11) return `+90${d.slice(1)}`;
+  if (d.length === 10 && d.startsWith('5')) return `+90${d}`;
+  return `+90${d}`;
+}
+
+function triggerCSVDownload(phones, filename) {
+  const csv = 'phone\n' + phones.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+export async function exportMetaCSV({ vipOnly = false } = {}) {
+  const all = [];
+  let offset = 0;
+  while (true) {
+    let q = supabase.from('customer_stats')
+      .select('phone_key')
+      .contains('markets', ['turkey'])
+      .range(offset, offset + 999);
+    if (vipOnly) q = q.gte('orders_count', 2);
+    const { data } = await q;
+    if (!data?.length) break;
+    all.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  const phones = all
+    .map(r => normalizeTurkishPhone(r.phone_key))
+    .filter(p => p && p.length >= 13);
+  const label = vipOnly ? 'VIP' : 'full';
+  const date = new Date().toISOString().slice(0, 10);
+  triggerCSVDownload(phones, `lowes_meta_turkey_${label}_${date}.csv`);
+  return phones.length;
+}
+
 // ── Customer notes (remember the customer) ────────────────────
 export async function getNotes(phoneKeyValue) {
   const { data, error } = await supabase

@@ -9,7 +9,7 @@ import {
   listCustomers, countCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
-  getSellerAliases,
+  getSellerAliases, exportMetaCSV,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { useAuth } from '@hooks/useAuth';
@@ -275,7 +275,8 @@ function CustomerCard({ c, onOpen }) {
 }
 
 export default function CustomersScreen() {
-  const { name: userName } = useAuth();
+  const { name: userName, role } = useAuth();
+  const isAdmin = role === 'admin';
 
   const [section, setSection]   = useState('syria');
   const [rows, setRows]         = useState([]);
@@ -288,6 +289,7 @@ export default function CustomersScreen() {
   const [sort, setSort]         = useState('orders');
   const [selected, setSelected] = useState(null);
   const [totalCount, setTotalCount] = useState(null); // true section total
+  const [exporting, setExporting] = useState(false);
 
   const sec = SECTIONS.find(s => s.key === section) || SECTIONS[0];
   const myNames = useMemo(() => {
@@ -347,6 +349,35 @@ export default function CustomersScreen() {
           </button>
         ))}
       </div>
+
+      {/* Meta export — admin + turkey section only */}
+      {isAdmin && section === 'turkey' && (
+        <div className="flex gap-2 items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2">
+          <span className="text-xs font-bold text-blue-700 dark:text-blue-300 flex-1">📊 تصدير Meta Ads</span>
+          <button
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try { const n = await exportMetaCSV({ vipOnly: false }); alert(`✅ تم تصدير ${n.toLocaleString()} رقم (الكامل)`); }
+              catch { alert('خطأ في التصدير'); }
+              finally { setExporting(false); }
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition">
+            {exporting ? '...' : '🌍 كامل'}
+          </button>
+          <button
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try { const n = await exportMetaCSV({ vipOnly: true }); alert(`✅ تم تصدير ${n.toLocaleString()} رقم (VIP)`); }
+              catch { alert('خطأ في التصدير'); }
+              finally { setExporting(false); }
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition">
+            {exporting ? '...' : '💎 VIP فقط'}
+          </button>
+        </div>
+      )}
 
       {/* Search + filters */}
       <div className="flex gap-2 flex-wrap items-center">
