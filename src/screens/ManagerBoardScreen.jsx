@@ -115,7 +115,7 @@ export default function ManagerBoardScreen() {
     </div>
   );
 
-  const { sales, orders, attendance, tasks, target, commissions } = data;
+  const { sales, orders, attendance, tasks, target, commissions, returns } = data;
 
   // Sales display — primary in USD, with TRY/SYP secondary
   // Prefer the dashboard's achieved_usd if present, else our daily_reports sum
@@ -291,6 +291,55 @@ export default function ManagerBoardScreen() {
           </div>
           <p className="text-[10px] text-muted mt-3 text-center">
             العمولة بين قوسين = قيمة المبيعات × نسبة عمولة البائع · تُضبط من «المستخدمون»
+          </p>
+        </Section>
+      )}
+
+      {/* ── الرواجع: المسلّم مقابل الراجع لكل بائع (هذا الشهر) ───── */}
+      {returns?.sellers?.length > 0 && (
+        <Section title="المسلّم مقابل الراجع (هذا الشهر)" icon="🔁">
+          <div className="flex gap-3 mb-3">
+            <div className="flex-1 bg-green-bg rounded-xl px-3 py-2 text-center">
+              <p className="text-xl font-extrabold text-green-fg tabular-nums">{returns.totals.deliveredCount}</p>
+              <p className="text-[10px] text-muted">مسلّم</p>
+            </div>
+            <div className="flex-1 bg-red-bg rounded-xl px-3 py-2 text-center">
+              <p className="text-xl font-extrabold text-red-fg tabular-nums">{returns.totals.returnedCount}</p>
+              <p className="text-[10px] text-muted">راجع</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {returns.sellers.map((s, i) => (
+              <div key={i} className="bg-surface-alt rounded-xl px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-text truncate">{s.name}</p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0 ${s.returnRate >= 20 ? 'bg-red-fg/10 text-red-fg' : 'bg-green-fg/10 text-green-fg'}`}>
+                    نسبة الرجوع {s.returnRate}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 mt-1 text-[11px]">
+                  <span className="text-green-fg font-semibold">
+                    ✅ {s.deliveredCount} مسلّم
+                    {Object.keys(s.deliveredValue).length > 0 && (
+                      <span className="text-muted font-normal"> · {Object.entries(s.deliveredValue).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ')}</span>
+                    )}
+                  </span>
+                </div>
+                {s.returnedCount > 0 && (
+                  <div className="flex items-center gap-4 mt-0.5 text-[11px]">
+                    <span className="text-red-fg font-semibold">
+                      🔁 {s.returnedCount} راجع
+                      {Object.keys(s.returnedValue).length > 0 && (
+                        <span className="text-muted font-normal"> · {Object.entries(s.returnedValue).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ')}</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted mt-3 text-center">
+            نسبة الرجوع = الراجع ÷ (المسلّم + الراجع) · كلما قلّت كان أفضل
           </p>
         </Section>
       )}

@@ -41,7 +41,8 @@ var FIELD_MAP = {
 
 var STATUS_AR = {
   pending: 'وارد جديد 🆕', preparing: 'قيد التجهيز 📦', ready: 'جاهز 🚀',
-  shipped: 'في الشحن 🚚', delivered: 'تم التسليم ✅', cancelled: 'ملغي ❌',
+  shipped: 'في الشحن 🚚', delivered: 'تم التسليم ✅',
+  waiting: 'انتظار/متابعة ⏳', returned: 'راجع 🔁', cancelled: 'ملغي ❌',
 };
 
 // Run once to create the two clean tabs.
@@ -129,6 +130,8 @@ function onSheetEdit(e) {
 function _statusKey(ar) {
   ar = String(ar);
   if (/تم التسليم|delivered/i.test(ar)) return 'delivered';
+  if (/راجع|return/i.test(ar)) return 'returned';
+  if (/انتظار|متابعة|wait/i.test(ar)) return 'waiting';
   if (/تجهيز/i.test(ar)) return 'preparing';
   if (/جاهز/i.test(ar)) return 'ready';
   if (/شحن|ship/i.test(ar)) return 'shipped';

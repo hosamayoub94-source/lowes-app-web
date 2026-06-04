@@ -219,6 +219,47 @@ async function fetchCommissions() {
   return { sellers, totalSellers: sellers.length };
 }
 
+// ── Returns report: per-seller delivered vs returned (count + value) ──
+// «آخر الشهر: لكل موظف شو مسلّم وشو عندو راجع بالعدد والقيمة»
+async function fetchReturnsReport() {
+  const monthStart = monthStartISO();
+  const { data } = await supabase.from('orders')
+    .select('handler_name, amount, currency, status, order_date')
+    .in('status', ['delivered', 'returned'])
+    .gte('order_date', monthStart + 'T00:00:00');
+
+  const rows = data || [];
+  const bySeller = {};
+  for (const o of rows) {
+    const name = o.handler_name;
+    if (!name) continue;
+    const cur = o.currency || 'USD';
+    const amt = Number(o.amount) || 0;
+    if (!bySeller[name]) bySeller[name] = { name, deliveredCount: 0, returnedCount: 0, deliveredValue: {}, returnedValue: {} };
+    const s = bySeller[name];
+    if (o.status === 'delivered') {
+      s.deliveredCount += 1;
+      s.deliveredValue[cur] = (s.deliveredValue[cur] || 0) + amt;
+    } else if (o.status === 'returned') {
+      s.returnedCount += 1;
+      s.returnedValue[cur] = (s.returnedValue[cur] || 0) + amt;
+    }
+  }
+
+  const sellers = Object.values(bySeller).map(s => {
+    const totalOrders = s.deliveredCount + s.returnedCount;
+    // Return rate by count (key quality metric)
+    s.returnRate = totalOrders > 0 ? Math.round((s.returnedCount / totalOrders) * 100) : 0;
+    return s;
+  }).sort((a, b) => (b.deliveredCount + b.returnedCount) - (a.deliveredCount + a.returnedCount));
+
+  const totals = {
+    deliveredCount: sellers.reduce((n, s) => n + s.deliveredCount, 0),
+    returnedCount:  sellers.reduce((n, s) => n + s.returnedCount, 0),
+  };
+  return { sellers, totals };
+}
+
 // ── Sales target (if defined) ─────────────────────────────────
 async function fetchTarget() {
   const d = new Date();
@@ -238,14 +279,15 @@ async function fetchTarget() {
 
 // ── Master loader ─────────────────────────────────────────────
 export async function loadManagerBoard() {
-  const [sales, orders, attendance, tasks, target, commissions] = await Promise.all([
+  const [sales, orders, attendance, tasks, target, commissions, returns] = await Promise.all([
     fetchSales(),
     fetchOrders(),
     fetchAttendance(),
     fetchTasks(),
     fetchTarget(),
     fetchCommissions(),
+    fetchReturnsReport(),
   ]);
 
-  return { sales, orders, attendance, tasks, target, commissions, loadedAt: new Date().toISOString() };
+  return { sales, orders, attendance, tasks, target, commissions, returns, loadedAt: new Date().toISOString() };
 }

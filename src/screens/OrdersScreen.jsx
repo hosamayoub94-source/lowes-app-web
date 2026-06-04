@@ -80,10 +80,14 @@ const STATUSES = {
   ready:     { label: 'جاهز للشحن',  icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
   shipped:   { label: 'في الشحن',    icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
   delivered: { label: 'تم التوصيل', icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
+  waiting:   { label: 'انتظار/متابعة', icon: '⏳', bg: 'bg-amber-bg', text: 'text-amber-fg',   border: 'border-amber/30'    },
+  returned:  { label: 'راجع',        icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
   cancelled: { label: 'ملغي',        icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
 };
 
+// Linear pipeline (for the progress strip). waiting/returned/cancelled are off-pipeline.
 const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
+const OFF_PIPELINE = ['waiting', 'returned', 'cancelled'];
 
 const TEAM_MARKET = {
   'تركيا': 'turkey', 'تيم تركيا': 'turkey',
@@ -157,7 +161,7 @@ function StatusBadge({ status, size = 'sm' }) {
 
 // ── Progress Strip ─────────────────────────────────────────────
 function ProgressStrip({ status }) {
-  if (status === 'cancelled') return null;
+  if (OFF_PIPELINE.includes(status)) return null;
   const current = STAGES_ORDER.indexOf(status);
   return (
     <div className="flex items-center gap-0.5">
@@ -374,15 +378,16 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
   const itemsSummary = (order.items ?? []).slice(0, 3).map(i => `${i.name} ×${i.qty}`).join(' · ');
   const moreItems = (order.items ?? []).length - 3;
 
-  const NEXT = { pending: 'preparing', preparing: 'ready', ready: 'shipped', shipped: 'delivered', delivered: null, cancelled: null };
-  const nextStatus = canAdvance ? NEXT[order.status] : null;
-
-  const handleAdvance = async () => {
-    if (!nextStatus || changing) return;
+  // Reversible status: pick ANY status from a dropdown (no more one-way flip).
+  const handleSetStatus = async (newStatus) => {
+    if (newStatus === order.status || changing) return;
     setChanging(true);
-    await onStatusChange(order.id, nextStatus);
+    await onStatusChange(order.id, newStatus);
     setChanging(false);
   };
+  const telHref = (order.phone_1 || order.wa_number)
+    ? `tel:${String(order.phone_1 || order.wa_number).replace(/[^\d+]/g, '')}`
+    : null;
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 space-y-3 active:scale-[0.99] transition-transform">
@@ -407,6 +412,12 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.138.561 4.14 1.541 5.876L.057 23.886a.5.5 0 00.606.617l6.218-1.632A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.901 0-3.68-.498-5.22-1.371l-.374-.22-3.878 1.018 1.034-3.776-.241-.389A9.96 9.96 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
               </svg>
+            </a>
+          )}
+          {telHref && (
+            <a href={telHref}
+              className="w-8 h-8 rounded-xl bg-teal/10 flex items-center justify-center text-teal hover:opacity-80 transition" title="اتصال">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
             </a>
           )}
           {tUrl && (
@@ -452,11 +463,14 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
             currency={order.currency}
           />
         </div>
-        {nextStatus && (
-          <button onClick={handleAdvance} disabled={changing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition disabled:opacity-40">
-            {changing ? '…' : `${STATUSES[nextStatus].icon} ${STATUSES[nextStatus].label}`}
-          </button>
+        {canAdvance && (
+          <select value={order.status} onChange={e => handleSetStatus(e.target.value)} disabled={changing}
+            title="غيّر حالة الطلب (قابل للتراجع)"
+            className="text-xs font-bold rounded-xl bg-teal/10 text-teal px-2 py-1.5 border border-teal/20 hover:bg-teal/20 transition disabled:opacity-40 cursor-pointer focus:outline-none">
+            {Object.entries(STATUSES).map(([k, v]) => (
+              <option key={k} value={k}>{v.icon} {v.label}</option>
+            ))}
+          </select>
         )}
       </div>
 
@@ -980,7 +994,7 @@ function SellerStatsCard({ orders, userName, commissionPct }) {
 // Main Screen
 // ══════════════════════════════════════════════════════════════
 export default function OrdersScreen() {
-  const { role, team, name: userName, order_role, order_market } = useAuth();
+  const { role, team, name: userName, id: userId, order_role, order_market } = useAuth();
 
   const isManager        = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
   const isFulfillment    = order_role === 'fulfillment';
@@ -1057,8 +1071,8 @@ export default function OrdersScreen() {
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
-    // Cancelling releases reserved stock back to the source warehouse
-    if (order && newStatus === 'cancelled') releaseForOrder({ ...order, status: newStatus }, userName);
+    // Cancelling or returning releases reserved stock back to the source warehouse
+    if (order && (newStatus === 'cancelled' || newStatus === 'returned')) releaseForOrder({ ...order, status: newStatus }, userName);
   };
 
   const handleSave = async (form, existingId) => {
@@ -1141,8 +1155,27 @@ export default function OrdersScreen() {
     shipped:    orders.filter(o => o.status === 'shipped').length,
     delivered:  orders.filter(o => o.status === 'delivered').length,
     actionable: orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
+    waiting:    orders.filter(o => o.status === 'waiting').length,
+    returned:   orders.filter(o => o.status === 'returned').length,
     myDelivered: orders.filter(o => o.status === 'delivered' && o.handler_name === userName).length,
+    myWaiting:  orders.filter(o => o.handler_name === userName && (o.status === 'waiting' || o.status === 'returned')).length,
   }), [orders, userName]);
+
+  // Daily reminder: notify the seller (once per day) of orders that need follow-up
+  // (waiting / returned). Mirrors the «Lozy reminds you» idea. Client-side, on open.
+  useEffect(() => {
+    if (!userId || stats.myWaiting === 0) return;
+    const key = `orders_followup_reminded_${userId}_${new Date().toDateString()}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    sendNotification({
+      userId,
+      type:    NOTIFICATION_TYPE.SYSTEM_ALERT,
+      title:   '⏳ طلبات بانتظار متابعتك',
+      message: `عندك ${stats.myWaiting} طلب في الانتظار/راجع — صار وقت تتابعها وتضغط على العميل ليستلم.`,
+      metadata: { kind: 'followup_reminder', count: stats.myWaiting },
+    }).catch(() => {});
+  }, [userId, stats.myWaiting]);
 
   return (
     <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
@@ -1213,6 +1246,29 @@ export default function OrdersScreen() {
           <div>
             <p className="text-sm font-bold text-amber-fg">{stats.pending} طلب وارد ينتظر التجهيز</p>
             <p className="text-xs text-muted">اضغط على الطلب للبدء بالفرز والتغليف</p>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up / returns banner — orders that need chasing the customer */}
+      {!viewArchive && (stats.waiting + stats.returned) > 0 && (
+        <div className="bg-red-bg border border-red/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <span className="text-2xl">🔁</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-fg">
+              {stats.returned > 0 && `${stats.returned} راجع`}{stats.returned > 0 && stats.waiting > 0 && ' · '}{stats.waiting > 0 && `${stats.waiting} بالانتظار`}
+            </p>
+            <p className="text-xs text-muted">عملاء لم يستلموا — تابعهم واضغط عليهم ليستلموا (واتساب/اتصال على الكرت).</p>
+          </div>
+          <div className="flex gap-1.5 shrink-0">
+            {stats.returned > 0 && (
+              <button onClick={() => setStatus('returned')}
+                className="px-2.5 py-1.5 rounded-xl bg-red-fg/10 text-red-fg text-xs font-bold hover:opacity-80 transition">الرواجع</button>
+            )}
+            {stats.waiting > 0 && (
+              <button onClick={() => setStatus('waiting')}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-fg/10 text-amber-fg text-xs font-bold hover:opacity-80 transition">الانتظار</button>
+            )}
           </div>
         </div>
       )}
