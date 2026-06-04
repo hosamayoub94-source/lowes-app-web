@@ -75,19 +75,30 @@ async function notifySellerStatusChange(order, newStatus, actorName) {
 
 // ── Constants ────────────────────────────────────────────────
 const STATUSES = {
-  pending:   { label: 'وارد جديد',   icon: '📥', bg: 'bg-surface-alt', text: 'text-muted',      border: 'border-border'      },
-  preparing: { label: 'قيد التجهيز', icon: '📦', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
-  ready:     { label: 'جاهز للشحن',  icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
-  shipped:   { label: 'في الشحن',    icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
-  delivered: { label: 'تم التوصيل', icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
-  waiting:   { label: 'انتظار/متابعة', icon: '⏳', bg: 'bg-amber-bg', text: 'text-amber-fg',   border: 'border-amber/30'    },
-  returned:  { label: 'راجع',        icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  cancelled: { label: 'ملغي',        icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  pending:      { label: 'وارد جديد',         icon: '📥', bg: 'bg-surface-alt', text: 'text-muted',      border: 'border-border'      },
+  preparing:    { label: 'في التجهيز',        icon: '📦', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
+  ready:        { label: 'جاهز للشحن',        icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
+  motor:        { label: 'قيد توصيل الموتور', icon: '🏍️', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  at_center:    { label: 'في المركز',         icon: '🏢', bg: 'bg-blue-50',     text: 'text-blue-700',   border: 'border-blue-200'    },
+  shipped:      { label: 'في النقل',          icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  on_way:       { label: 'في الطريق للعميل',  icon: '🛵', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  delivered:    { label: 'تم التسليم',        icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
+  waiting:      { label: 'بالانتظار/متابعة',  icon: '⏳', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
+  not_received: { label: 'لم يتم الاستلام',   icon: '📭', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  returning:    { label: 'راجع للمركز',       icon: '↩️', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  returned:     { label: 'راجع',              icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  settled:      { label: 'تمت التسوية',       icon: '🤝', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
+  cancelled:    { label: 'ملغي',              icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
 };
 
-// Linear pipeline (for the progress strip). waiting/returned/cancelled are off-pipeline.
+// Linear pipeline for the progress strip; any status outside it hides the strip.
 const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
-const OFF_PIPELINE = ['waiting', 'returned', 'cancelled'];
+// Statuses that count as a return AGAINST the seller (settled is resolved → not counted).
+const RETURN_STATUSES   = ['not_received', 'returning', 'returned'];
+// Statuses that need the seller to chase the customer.
+const FOLLOWUP_STATUSES = ['waiting', 'not_received', 'returning'];
+// Returning/cancelling puts reserved stock back to the source warehouse.
+const RELEASE_STATUSES  = ['returning', 'returned', 'cancelled'];
 
 const TEAM_MARKET = {
   'تركيا': 'turkey', 'تيم تركيا': 'turkey',
@@ -178,7 +189,7 @@ function StatusBadge({ status, size = 'sm' }) {
 
 // ── Progress Strip ─────────────────────────────────────────────
 function ProgressStrip({ status }) {
-  if (OFF_PIPELINE.includes(status)) return null;
+  if (!STAGES_ORDER.includes(status)) return null;
   const current = STAGES_ORDER.indexOf(status);
   return (
     <div className="flex items-center gap-0.5">
@@ -1092,8 +1103,8 @@ export default function OrdersScreen() {
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
-    // Cancelling or returning releases reserved stock back to the source warehouse
-    if (order && (newStatus === 'cancelled' || newStatus === 'returned')) releaseForOrder({ ...order, status: newStatus }, userName);
+    // Cancelling / returning releases reserved stock back to the source warehouse
+    if (order && RELEASE_STATUSES.includes(newStatus)) releaseForOrder({ ...order, status: newStatus }, userName);
   };
 
   const handleSave = async (form, existingId) => {
@@ -1176,10 +1187,10 @@ export default function OrdersScreen() {
     shipped:    orders.filter(o => o.status === 'shipped').length,
     delivered:  orders.filter(o => o.status === 'delivered').length,
     actionable: orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
-    waiting:    orders.filter(o => o.status === 'waiting').length,
-    returned:   orders.filter(o => o.status === 'returned').length,
+    waiting:    orders.filter(o => FOLLOWUP_STATUSES.includes(o.status)).length,
+    returned:   orders.filter(o => RETURN_STATUSES.includes(o.status)).length,
     myDelivered: orders.filter(o => o.status === 'delivered' && o.handler_name === userName).length,
-    myWaiting:  orders.filter(o => o.handler_name === userName && (o.status === 'waiting' || o.status === 'returned')).length,
+    myWaiting:  orders.filter(o => o.handler_name === userName && FOLLOWUP_STATUSES.includes(o.status)).length,
   }), [orders, userName]);
 
   // Daily reminder: notify the seller (once per day) of orders that need follow-up

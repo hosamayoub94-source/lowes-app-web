@@ -221,11 +221,14 @@ async function fetchCommissions() {
 
 // ── Returns report: per-seller delivered vs returned (count + value) ──
 // «آخر الشهر: لكل موظف شو مسلّم وشو عندو راجع بالعدد والقيمة»
+// Returns that count against the seller; «تمت التسوية» (settled) does NOT —
+// the customer paid the shipping, so it's a 0-return for the seller's balance.
+const RETURN_STATUSES = ['not_received', 'returning', 'returned'];
 async function fetchReturnsReport() {
   const monthStart = monthStartISO();
   const { data } = await supabase.from('orders')
     .select('handler_name, amount, currency, status, order_date')
-    .in('status', ['delivered', 'returned'])
+    .in('status', ['delivered', 'settled', ...RETURN_STATUSES])
     .gte('order_date', monthStart + 'T00:00:00');
 
   const rows = data || [];
@@ -235,12 +238,14 @@ async function fetchReturnsReport() {
     if (!name) continue;
     const cur = o.currency || 'USD';
     const amt = Number(o.amount) || 0;
-    if (!bySeller[name]) bySeller[name] = { name, deliveredCount: 0, returnedCount: 0, deliveredValue: {}, returnedValue: {} };
+    if (!bySeller[name]) bySeller[name] = { name, deliveredCount: 0, returnedCount: 0, settledCount: 0, deliveredValue: {}, returnedValue: {} };
     const s = bySeller[name];
     if (o.status === 'delivered') {
       s.deliveredCount += 1;
       s.deliveredValue[cur] = (s.deliveredValue[cur] || 0) + amt;
-    } else if (o.status === 'returned') {
+    } else if (o.status === 'settled') {
+      s.settledCount += 1; // resolved — not held against the seller
+    } else if (RETURN_STATUSES.includes(o.status)) {
       s.returnedCount += 1;
       s.returnedValue[cur] = (s.returnedValue[cur] || 0) + amt;
     }
@@ -248,7 +253,7 @@ async function fetchReturnsReport() {
 
   const sellers = Object.values(bySeller).map(s => {
     const totalOrders = s.deliveredCount + s.returnedCount;
-    // Return rate by count (key quality metric)
+    // Return rate by count — settled excluded (counts as 0 return for the seller)
     s.returnRate = totalOrders > 0 ? Math.round((s.returnedCount / totalOrders) * 100) : 0;
     return s;
   }).sort((a, b) => (b.deliveredCount + b.returnedCount) - (a.deliveredCount + a.returnedCount));
@@ -256,6 +261,7 @@ async function fetchReturnsReport() {
   const totals = {
     deliveredCount: sellers.reduce((n, s) => n + s.deliveredCount, 0),
     returnedCount:  sellers.reduce((n, s) => n + s.returnedCount, 0),
+    settledCount:   sellers.reduce((n, s) => n + s.settledCount, 0),
   };
   return { sellers, totals };
 }

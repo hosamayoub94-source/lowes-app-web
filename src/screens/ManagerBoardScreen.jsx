@@ -307,6 +307,10 @@ export default function ManagerBoardScreen() {
               <p className="text-xl font-extrabold text-red-fg tabular-nums">{returns.totals.returnedCount}</p>
               <p className="text-[10px] text-muted">راجع</p>
             </div>
+            <div className="flex-1 bg-surface-alt rounded-xl px-3 py-2 text-center">
+              <p className="text-xl font-extrabold text-text tabular-nums">{returns.totals.settledCount || 0}</p>
+              <p className="text-[10px] text-muted">🤝 تمت التسوية</p>
+            </div>
           </div>
           <div className="space-y-2">
             {returns.sellers.map((s, i) => (
@@ -334,6 +338,9 @@ export default function ManagerBoardScreen() {
                       )}
                     </span>
                   </div>
+                )}
+                {s.settledCount > 0 && (
+                  <div className="mt-0.5 text-[11px] text-muted">🤝 {s.settledCount} تمت تسويتها (لا تُحتسب راجع)</div>
                 )}
               </div>
             ))}

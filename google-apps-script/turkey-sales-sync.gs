@@ -40,9 +40,12 @@ var FIELD_MAP = {
 };
 
 var STATUS_AR = {
-  pending: 'وارد جديد 🆕', preparing: 'قيد التجهيز 📦', ready: 'جاهز 🚀',
-  shipped: 'في الشحن 🚚', delivered: 'تم التسليم ✅',
-  waiting: 'انتظار/متابعة ⏳', returned: 'راجع 🔁', cancelled: 'ملغي ❌',
+  pending: 'وارد جديد 🆕', preparing: 'في التجهيز 📦', ready: 'جاهز 🚀',
+  motor: 'قيد توصيل الموتور 🏍️', at_center: 'في المركز 🏢',
+  shipped: 'في النقل 🚚', on_way: 'في الطريق للعميل 🛵', delivered: 'تم التسليم ✅',
+  waiting: 'بالانتظار ⏳', not_received: 'لم يتم الاستلام 📭',
+  returning: 'راجع للمركز ↩️', returned: 'راجع 🔁', settled: 'تمت التسوية 🤝',
+  cancelled: 'ملغي ❌',
 };
 
 // Run once to create the two clean tabs.
@@ -130,12 +133,18 @@ function onSheetEdit(e) {
 function _statusKey(ar) {
   ar = String(ar);
   if (/تم التسليم|delivered/i.test(ar)) return 'delivered';
+  if (/تسوية|settled/i.test(ar)) return 'settled';
+  if (/لم يتم الاستلام|not.?received/i.test(ar)) return 'not_received';
+  if (/راجع للمركز|return.?center/i.test(ar)) return 'returning';
   if (/راجع|return/i.test(ar)) return 'returned';
   if (/انتظار|متابعة|wait/i.test(ar)) return 'waiting';
+  if (/الطريق|on.?way/i.test(ar)) return 'on_way';
+  if (/موتور|motor/i.test(ar)) return 'motor';
+  if (/في المركز|center/i.test(ar)) return 'at_center';
   if (/تجهيز/i.test(ar)) return 'preparing';
   if (/جاهز/i.test(ar)) return 'ready';
-  if (/شحن|ship/i.test(ar)) return 'shipped';
-  if (/ملغ|cancel/i.test(ar)) return 'cancelled';
+  if (/شحن|نقل|ship|transit/i.test(ar)) return 'shipped';
+  if (/ملغ|cancel|الغاء/i.test(ar)) return 'cancelled';
   if (/وارد|جديد|new/i.test(ar)) return 'pending';
   return null;
 }
