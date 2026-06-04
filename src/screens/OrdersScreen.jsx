@@ -629,8 +629,8 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const companies = shippingForMarket(form.market);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
-      onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      {/* No close-on-backdrop — prevents losing entered data by accident */}
       <div className="bg-surface rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto"
         dir="rtl" onClick={e => e.stopPropagation()}>
 
