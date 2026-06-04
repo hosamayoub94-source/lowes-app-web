@@ -22,6 +22,16 @@
 3. **العناوين التركية — إكمال:** تم: 81 ولاية + بلدياتها (`src/data/turkeyAddress.js`)، تتالي ولاية→بلدية، **Mahalle autocomplete حيّ** عبر API `turkiyeapi.dev` (`src/services/turkeyApi.js`)، حقول Sokak/No/Daire تبني العنوان، ComboBox واضح. **تأكد أنها تعمل حياً** (PWA cache — hard refresh).
 4. **الأرشيف — «شو اشترى عميلي سابقاً لأعرف شو أعرض عليه»:** مبني جزئياً في CustomerModal بـ`/customers` (getCustomerOrders → boughtProductNames → suggestComplements + reorder). تأكد أنه يظهر بوضوح ويفيد البائع.
 
+### ✅ تحسينات الطلبات (يونيو 2026 — جلسة الحالات والرواجع)
+- **ComboBox**: زر ▾ يعرض **كل** الخيارات (كان يُفلتر بالقيمة الافتراضية فيخفي الباقي — سبب «الشحن yurtiçi فقط» و«الدفع طريقة واحدة»). `src/components/ui/ComboBox.jsx` (showAll).
+- **أنواع الاستلام**: استلام من المركز / عنوان المنزل / عنوان العمل + شحن «توصيل خاص 🚗».
+- **حالة الطلب = قائمة منسدلة قابلة للتراجع** (بدل القفشة أحادية الاتجاه) على كل كرت. حالات جديدة: `waiting` (⏳) + `returned` (🔁). الرواجع تُرجِع المخزون مثل الإلغاء.
+- **⚠️ DB constraint**: `orders_status_check` كان يرفض waiting/returned → حُدّث عبر SQL Editor ليقبل `('pending','preparing','ready','shipped','delivered','waiting','returned','cancelled')`. **أي حالة جديدة لازم تُضاف للـ constraint وإلا الحفظ يفشل (23514).**
+- **الرواجع/المتابعة**: بانر + شرائح فلترة (راجع/انتظار) + زر اتصال tel: على الكرت + تذكير يومي للبائع (إشعار مرة/يوم) بطلبات الانتظار/الراجع.
+- **تقرير آخر الشهر** (ManagerBoardScreen): لكل بائع المسلّم مقابل الراجع (عدد+قيمة+نسبة رجوع). `fetchReturnsReport`.
+- **Apps Script تركيا**: STATUS_AR + reverse `_statusKey` يدعمان waiting/returned. **الإصدار 33** منشور (deployment AKfycbwtLOeq). مُختبر: returned→«راجع 🔁» بالجدول. **درس: setValue على Monaco يُحفظ لكن انتظر تأكيد الحفظ قبل إعادة النشر وإلا تنشر نسخة قديمة.**
+- ميزات مؤجّلة من نقاش المالك: إكمال Mahalle التلقائي (API خارجي turkiyeapi.dev غير موثوق — يحتاج بديل) · صلاحية البائع لتغيير حالة طلبه (حالياً مدراء/fulfillment فقط).
+
 ### 🧪 اختبار مزامنة طلب تركي (عبر edge fn، anon key):
 ```js
 // أنشئ طلب turkey في orders ثم:
