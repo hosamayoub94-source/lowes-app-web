@@ -1028,9 +1028,9 @@ export default function OrdersScreen() {
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  // Auto-retry: re-sync Syria orders that never reached the sheet
+  // Auto-retry: re-sync Syria/Turkey orders that never reached the sheet
   useEffect(() => {
-    const pending = orders.filter(o => o.market === 'syria' && o.sheet_synced !== true);
+    const pending = orders.filter(o => (o.market === 'syria' || o.market === 'turkey') && o.archived !== true && o.sheet_synced !== true);
     if (pending.length === 0) return;
     pending.slice(0, 20).forEach(o => syncOrderToSheet(o.id));
   }, [orders]);
@@ -1039,6 +1039,8 @@ export default function OrdersScreen() {
     await supabase.from('orders').update({ status: newStatus }).eq('id', id);
     const order = orders.find(o => o.id === id);
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    // Re-sync to the sheet so status/tracking changes update the existing row
+    if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
     // Cancelling releases reserved stock back to the source warehouse
@@ -1055,7 +1057,7 @@ export default function OrdersScreen() {
     }
     setModal(null);
     load();
-    if (savedId && form.market === 'syria') syncOrderToSheet(savedId);
+    if (savedId && (form.market === 'syria' || form.market === 'turkey')) syncOrderToSheet(savedId);
     // Phase 2: reserve stock for NEW lowes-brand orders (best-effort).
     // Deducts catalog items from the seller's source warehouse.
     if (savedId && !existingId) {
