@@ -5,6 +5,8 @@
 import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
+import TreasuryPanel from '../components/TreasuryPanel';
+import { printPaymentVoucher } from '../utils/paymentVoucher';
 import {
   useAccountingBootstrap,
   useAccountingDashboard,
@@ -18,6 +20,7 @@ import {
   ENTRY_TYPE_ICONS,
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
+  WALLETS,
   entryColorClass,
 } from '../types/accounting.types.js';
 import { ROLES } from '@data/teams';
@@ -464,6 +467,9 @@ export function AccountingDashboard() {
           </div>
         </div>
 
+        {/* ── Treasury Panel ── */}
+        <TreasuryPanel entries={entries} className="mb-0" />
+
         {/* ── Monthly Summary ── */}
         <div className="bg-surface border border-border/60 rounded-2xl mb-4 overflow-hidden">
           <button
@@ -650,21 +656,32 @@ export function AccountingDashboard() {
                     )}
                   </div>
 
-                  {/* Admin actions */}
-                  {isAdmin && (
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
-                      <button onClick={() => { setEditEntry(e); setShowForm(true); }}
-                        className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/10 transition"
-                        title="تعديل">
-                        ✏️
-                      </button>
-                      <button onClick={() => setConfirmDel(e)}
-                        className="p-1.5 rounded-lg text-red-400/60 hover:text-red-600 hover:bg-red-50 transition"
-                        title="حذف">
-                        🗑️
-                      </button>
-                    </div>
-                  )}
+                  {/* Actions */}
+                  <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                    {/* وصل دفع — available for all */}
+                    <button
+                      onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
+                      className="p-1.5 rounded-lg text-teal/60 hover:text-teal hover:bg-teal/10 transition"
+                      title="وصل دفع رسمي"
+                    >
+                      🧾
+                    </button>
+                    {/* Admin: edit + delete */}
+                    {isAdmin && (
+                      <>
+                        <button onClick={() => { setEditEntry(e); setShowForm(true); }}
+                          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/10 transition"
+                          title="تعديل">
+                          ✏️
+                        </button>
+                        <button onClick={() => setConfirmDel(e)}
+                          className="p-1.5 rounded-lg text-red-400/60 hover:text-red-600 hover:bg-red-50 transition"
+                          title="حذف">
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))
             )}

@@ -18,6 +18,8 @@ import {
   PAYMENT_METHOD_LABELS,
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
+import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
+import { printPaymentVoucher } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
   { key: 'all',     label: 'الكل' },
@@ -219,6 +221,9 @@ export default function AccountingScreen() {
         </div>
       </div>
 
+      {/* Treasury Panel */}
+      <TreasuryPanel entries={entries} />
+
       {/* Per-currency KPI blocks */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <CurrencyBlock currency="USD" symbol="$"  {...currencyKpis.USD} />
@@ -266,6 +271,7 @@ export default function AccountingScreen() {
                   <th className="py-2 px-3 text-center">SYP</th>
                   <th className="py-2 px-3 text-center">التاريخ</th>
                   <th className="py-2 px-3 text-center">الدفع</th>
+                  <th className="py-2 px-3 text-center">وصل</th>
                   {isAdmin && <th className="py-2 px-3 text-center">حذف</th>}
                 </tr>
               </thead>
@@ -298,6 +304,13 @@ export default function AccountingScreen() {
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-muted">
                       {PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method ?? '—'}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
+                        className="text-teal hover:opacity-70 text-base transition"
+                        title="طباعة وصل دفع رسمي"
+                      >🧾</button>
                     </td>
                     {isAdmin && (
                       <td className="py-3 px-3 text-center">
