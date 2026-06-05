@@ -229,12 +229,12 @@ export const CRM_REALTIME_INTERVAL_MS   = 60_000;      // 1 minute poll
 export const FOLLOWUP_OVERDUE_CHECK_MS  = 5 * 60_000;  // 5 min overdue check
 export const MAX_ACTIVITIES_PER_LOAD    = 50;
 export const MAX_DEALS_PER_STAGE        = 100;
-export const PIPELINE_VALUE_CURRENCY    = 'SAR';
+export const PIPELINE_VALUE_CURRENCY    = 'USD';
 
 // ── Formatting helpers ────────────────────────────────────────
 
-/** Format SAR currency */
-export function formatCurrency(value, currency = 'SAR') {
+/** Format currency */
+export function formatCurrency(value, currency = 'USD') {
   if (value === null || value === undefined) return '—';
   const n = Number(value);
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M ${currency}`;
@@ -320,11 +320,11 @@ export const MOCK_LEADS = [
 ];
 
 export const MOCK_DEALS = [
-  { id: 'deal_01', title: 'حل سحابي متكامل', pipeline_id: 'pipeline_01', stage_id: 'stage_03', customer_id: 'cust_01', value: 220000, currency: 'SAR', status: DEAL_STATUS.OPEN, probability: 60, expected_close_date: new Date(NOW + 10 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 7 * 86400000).toISOString(), updated_at: new Date(NOW - 2 * 86400000).toISOString() },
-  { id: 'deal_02', title: 'دعم تقني سنوي',   pipeline_id: 'pipeline_01', stage_id: 'stage_04', customer_id: 'cust_01', value: 150000, currency: 'SAR', status: DEAL_STATUS.OPEN, probability: 85, expected_close_date: new Date(NOW + 5 * 86400000).toISOString().slice(0,10),  created_at: new Date(NOW - 14 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
-  { id: 'deal_03', title: 'نظام ERP',         pipeline_id: 'pipeline_01', stage_id: 'stage_02', customer_id: 'cust_02', value: 95000,  currency: 'SAR', status: DEAL_STATUS.OPEN, probability: 25, expected_close_date: new Date(NOW + 20 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 3 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
-  { id: 'deal_04', title: 'تطوير موقع',       pipeline_id: 'pipeline_01', stage_id: 'stage_05', customer_id: 'cust_03', value: 45000,  currency: 'SAR', status: DEAL_STATUS.WON,  probability: 100, closed_at: new Date(NOW - 2 * 86400000).toISOString(), created_at: new Date(NOW - 20 * 86400000).toISOString(), updated_at: new Date(NOW - 2 * 86400000).toISOString() },
-  { id: 'deal_05', title: 'استشارات أمن المعلومات', pipeline_id: 'pipeline_01', stage_id: 'stage_01', customer_id: null, value: 60000, currency: 'SAR', status: DEAL_STATUS.OPEN, probability: 10, expected_close_date: new Date(NOW + 30 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 1 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
+  { id: 'deal_01', title: 'حل سحابي متكامل', pipeline_id: 'pipeline_01', stage_id: 'stage_03', customer_id: 'cust_01', value: 220000, currency: 'USD', status: DEAL_STATUS.OPEN, probability: 60, expected_close_date: new Date(NOW + 10 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 7 * 86400000).toISOString(), updated_at: new Date(NOW - 2 * 86400000).toISOString() },
+  { id: 'deal_02', title: 'دعم تقني سنوي',   pipeline_id: 'pipeline_01', stage_id: 'stage_04', customer_id: 'cust_01', value: 150000, currency: 'USD', status: DEAL_STATUS.OPEN, probability: 85, expected_close_date: new Date(NOW + 5 * 86400000).toISOString().slice(0,10),  created_at: new Date(NOW - 14 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
+  { id: 'deal_03', title: 'نظام ERP',         pipeline_id: 'pipeline_01', stage_id: 'stage_02', customer_id: 'cust_02', value: 95000,  currency: 'USD', status: DEAL_STATUS.OPEN, probability: 25, expected_close_date: new Date(NOW + 20 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 3 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
+  { id: 'deal_04', title: 'تطوير موقع',       pipeline_id: 'pipeline_01', stage_id: 'stage_05', customer_id: 'cust_03', value: 45000,  currency: 'USD', status: DEAL_STATUS.WON,  probability: 100, closed_at: new Date(NOW - 2 * 86400000).toISOString(), created_at: new Date(NOW - 20 * 86400000).toISOString(), updated_at: new Date(NOW - 2 * 86400000).toISOString() },
+  { id: 'deal_05', title: 'استشارات أمن المعلومات', pipeline_id: 'pipeline_01', stage_id: 'stage_01', customer_id: null, value: 60000, currency: 'USD', status: DEAL_STATUS.OPEN, probability: 10, expected_close_date: new Date(NOW + 30 * 86400000).toISOString().slice(0,10), created_at: new Date(NOW - 1 * 86400000).toISOString(), updated_at: new Date(NOW - 1 * 86400000).toISOString() },
 ];
 
 export const MOCK_FOLLOWUPS = [

@@ -55,6 +55,89 @@ const MOTIVATIONS = [
   { text: 'الطاقة الإيجابية التي تحضرها معك تنعكس على نتائجك.', icon: '🌞' },
 ];
 
+// ── Currency Rates Widget ───────────────────────────────────────
+const SYP_RATE_KEY = 'lp_syp_rate';
+const DEFAULT_SYP  = 14000; // 1 USD ≈ 14,000 SYP (يمكن للأدمن تعديله)
+
+function CurrencyWidget() {
+  const [tryRate,  setTryRate]  = useState(null);
+  const [sypRate,  setSypRate]  = useState(() => {
+    const stored = localStorage.getItem(SYP_RATE_KEY);
+    return stored ? Number(stored) : DEFAULT_SYP;
+  });
+  const [editSyp,  setEditSyp]  = useState(false);
+  const [newSyp,   setNewSyp]   = useState('');
+  const [updated,  setUpdated]  = useState(null);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    fetch('https://api.frankfurter.app/latest?from=USD&to=TRY')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.rates?.TRY) {
+          setTryRate(d.rates.TRY.toFixed(2));
+          setUpdated(d.date);
+        }
+      })
+      .catch(() => {}) // silent fallback
+      .finally(() => setLoading(false));
+  }, []);
+
+  const saveSyp = () => {
+    const v = Number(newSyp);
+    if (v > 0) { setSypRate(v); localStorage.setItem(SYP_RATE_KEY, v); }
+    setEditSyp(false);
+    setNewSyp('');
+  };
+
+  return (
+    <div className="bg-surface border border-border/60 rounded-2xl px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-muted uppercase tracking-wider">💱 أسعار الصرف — USD</p>
+        {updated && <span className="text-[10px] text-muted">{updated}</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {/* TRY */}
+        <div className="text-center bg-surface-alt rounded-xl py-2.5">
+          <div className="text-xs text-muted mb-0.5">🇹🇷 الليرة التركية</div>
+          <div className="text-lg font-bold text-text">
+            {loading ? '…' : (tryRate ? `${tryRate} ₺` : '—')}
+          </div>
+          <div className="text-[10px] text-muted">1 دولار</div>
+        </div>
+        {/* SYP */}
+        <div className="text-center bg-surface-alt rounded-xl py-2.5 relative">
+          <div className="text-xs text-muted mb-0.5">🇸🇾 الليرة السورية</div>
+          {editSyp ? (
+            <div className="flex gap-1 px-2">
+              <input
+                type="number"
+                value={newSyp}
+                onChange={e => setNewSyp(e.target.value)}
+                onKeyDown={e => { if (e.key==='Enter') saveSyp(); if (e.key==='Escape') setEditSyp(false); }}
+                className="flex-1 w-full border border-teal rounded-lg px-2 py-1 text-xs text-center bg-surface"
+                placeholder={String(sypRate)}
+                autoFocus
+              />
+              <button onClick={saveSyp} className="text-xs bg-teal text-white rounded-lg px-2">✓</button>
+            </div>
+          ) : (
+            <>
+              <div className="text-lg font-bold text-text">{sypRate.toLocaleString()} ل.س</div>
+              <div className="text-[10px] text-muted">1 دولار</div>
+              <button
+                onClick={() => { setEditSyp(true); setNewSyp(String(sypRate)); }}
+                className="absolute top-1 left-1 text-[10px] text-muted hover:text-teal transition"
+                title="تحديث السعر"
+              >✏️</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DailyMotivation() {
   const dayIndex = Math.floor(Date.now() / 86400000);
   const q = MOTIVATIONS[dayIndex % MOTIVATIONS.length];
@@ -798,6 +881,9 @@ export default function HomeScreen() {
         <KpiItem label="إشعارات جديدة" icon="🔔" value={kpi.notifs} tone="amber"  loading={!kpiLoaded} />
         <KpiItem label="رصيد الإجازة" icon="🏖️" value={kpi.leave}  tone="purple" loading={!kpiLoaded} />
       </div>
+
+      {/* ── Currency Rates ──────────────────────────────────────── */}
+      <CurrencyWidget />
 
       {/* ── Charts ──────────────────────────────────────────────── */}
       {chartsLoaded && (

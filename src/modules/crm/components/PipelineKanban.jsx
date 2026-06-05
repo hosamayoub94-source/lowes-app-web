@@ -46,7 +46,7 @@ function ColumnHeader({ stage, dealsCount, colValue }) {
       </div>
       {colValue > 0 && (
         <span className="text-[11px] text-muted font-semibold shrink-0 hidden sm:block">
-          {formatCurrency(colValue, 'SAR')}
+          {formatCurrency(colValue, 'USD')}
         </span>
       )}
     </div>
@@ -92,7 +92,7 @@ function DragGhost({ deal, x, y }) {
       <div className="bg-surface border-2 border-teal rounded-xl shadow-2xl px-3 py-2 rotate-2 opacity-90">
         <span className="text-sm font-semibold text-text truncate block">{deal.title}</span>
         {Number(deal.value) > 0 && (
-          <span className="text-xs text-teal">{formatCurrency(deal.value, 'SAR')}</span>
+          <span className="text-xs text-teal">{formatCurrency(deal.value, 'USD')}</span>
         )}
       </div>
     </div>

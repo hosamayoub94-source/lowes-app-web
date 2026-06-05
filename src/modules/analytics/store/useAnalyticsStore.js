@@ -26,6 +26,7 @@ import {
   DASHBOARD_ID,
   DATE_RANGE_PRESET,
   KPI_REFRESH_INTERVAL_MS,
+  DEFAULT_WIDGETS,
   resolveDateRange,
 } from '../types/analytics.types';
 
@@ -37,7 +38,7 @@ function _initState() {
     alerts:      [],
     series:      {},
     activity:    [],
-    widgets:     [],
+    widgets:     DEFAULT_WIDGETS[DASHBOARD_ID.EXECUTIVE] ?? [],
     savedReports:[],
 
     // Filters

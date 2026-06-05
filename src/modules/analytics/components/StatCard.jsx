@@ -20,7 +20,7 @@ function StatCard({ metric, title, icon, style = {} }) {
 
   return (
     <div style={{
-      background: 'var(--surface, #1e293b)',
+      background: 'rgb(var(--color-surface, 255 255 255))',
       border: `1px solid ${borderColor}33`,
       borderTop: `3px solid ${borderColor}`,
       borderRadius: 12,
@@ -33,7 +33,7 @@ function StatCard({ metric, title, icon, style = {} }) {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>
+        <span style={{ fontSize: 13, color: 'rgb(var(--color-text-muted, 107 114 128))', fontWeight: 500 }}>
           {title ?? KPI_LABELS[metric] ?? metric}
         </span>
         {icon && <span style={{ fontSize: 18 }}>{icon}</span>}

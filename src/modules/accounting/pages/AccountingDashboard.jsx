@@ -4,6 +4,7 @@
 // =============================================================
 import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { useToast } from '@hooks/useToast';
 import {
   useAccountingBootstrap,
   useAccountingDashboard,
@@ -103,10 +104,33 @@ function printInvoice(entries, kpis, dateRange) {
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="val green">$${Number(kpis.income).toFixed(0)}</div><div class="lbl">إجمالي الدخل</div></div>
-    <div class="kpi"><div class="val red">$${Number(kpis.expense).toFixed(0)}</div><div class="lbl">إجمالي المصاريف</div></div>
-    <div class="kpi"><div class="val orange">$${Number(kpis.advance).toFixed(0)}</div><div class="lbl">إجمالي السلف</div></div>
-    <div class="kpi"><div class="val navy">$${Number(kpis.balance).toFixed(0)}</div><div class="lbl">الرصيد الصافي</div></div>
+    <div class="kpi">
+      ${kpis.income    ? `<div class="val green">$${Number(kpis.income).toFixed(0)}</div>` : ''}
+      ${kpis.income_syp? `<div class="val green">${Number(kpis.income_syp).toLocaleString()} ل.س</div>` : ''}
+      ${kpis.income_try? `<div class="val green">${Number(kpis.income_try).toFixed(0)} ₺</div>` : ''}
+      ${!kpis.income && !kpis.income_syp && !kpis.income_try ? '<div class="val navy">—</div>' : ''}
+      <div class="lbl">إجمالي الدخل</div>
+    </div>
+    <div class="kpi">
+      ${kpis.expense    ? `<div class="val red">$${Number(kpis.expense).toFixed(0)}</div>` : ''}
+      ${kpis.expense_syp? `<div class="val red">${Number(kpis.expense_syp).toLocaleString()} ل.س</div>` : ''}
+      ${kpis.expense_try? `<div class="val red">${Number(kpis.expense_try).toFixed(0)} ₺</div>` : ''}
+      ${!kpis.expense && !kpis.expense_syp && !kpis.expense_try ? '<div class="val navy">—</div>' : ''}
+      <div class="lbl">إجمالي المصاريف</div>
+    </div>
+    <div class="kpi">
+      ${kpis.advance    ? `<div class="val orange">$${Number(kpis.advance).toFixed(0)}</div>` : ''}
+      ${kpis.advance_syp? `<div class="val orange">${Number(kpis.advance_syp).toLocaleString()} ل.س</div>` : ''}
+      ${!kpis.advance && !kpis.advance_syp ? '<div class="val navy">—</div>' : ''}
+      <div class="lbl">إجمالي السلف</div>
+    </div>
+    <div class="kpi">
+      ${kpis.balance    ? `<div class="val navy">$${Number(kpis.balance).toFixed(0)}</div>` : ''}
+      ${kpis.balance_syp? `<div class="val ${kpis.balance_syp>=0?'green':'red'}">${Number(kpis.balance_syp).toLocaleString()} ل.س</div>` : ''}
+      ${kpis.balance_try? `<div class="val ${kpis.balance_try>=0?'green':'red'}">${Number(kpis.balance_try).toFixed(0)} ₺</div>` : ''}
+      ${!kpis.balance && !kpis.balance_syp && !kpis.balance_try ? '<div class="val navy">—</div>' : ''}
+      <div class="lbl">الرصيد الصافي</div>
+    </div>
   </div>
 
   <table>
@@ -127,10 +151,10 @@ function printInvoice(entries, kpis, dateRange) {
 </html>`;
 
   const w = window.open('', '_blank');
-  if (!w) return;
+  if (!w) { alert('يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة'); return; }
   w.document.write(html);
   w.document.close();
-  w.onload = () => w.print();
+  // لا نستدعي w.print() تلقائياً — يفتح المستخدم الطباعة بـ Ctrl+P
 }
 
 // ── Entry Form (create / edit) ────────────────────────────────────────────────
@@ -270,16 +294,18 @@ export function AccountingDashboard() {
   const categories = useCategories();
   const { createEntry, updateEntry, deleteEntry, setFilters, resetFilters } = useAccountingActions();
   const loading = useAccountingLoading();
+  const toast = useToast();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
 
-  const [activeTab,  setActiveTab]  = useState('all');
-  const [showForm,   setShowForm]   = useState(false);
-  const [editEntry,  setEditEntry]  = useState(null);
-  const [dateFrom,   setDateFrom]   = useState('');
-  const [dateTo,     setDateTo]     = useState('');
-  const [search,     setSearch]     = useState('');
-  const [confirmDel, setConfirmDel] = useState(null);
+  const [activeTab,    setActiveTab]    = useState('all');
+  const [showForm,     setShowForm]     = useState(false);
+  const [editEntry,    setEditEntry]    = useState(null);
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
+  const [search,       setSearch]       = useState('');
+  const [confirmDel,   setConfirmDel]   = useState(null);
+  const [showMonthly,  setShowMonthly]  = useState(true);
 
   // Client-side filter (tab + search + date)
   const filtered = useMemo(() => {
@@ -297,15 +323,73 @@ export function AccountingDashboard() {
     return list;
   }, [entries, activeTab, search, dateFrom, dateTo]);
 
-  // KPIs for filtered view
+  // KPIs for filtered view — multi-currency (USD + TRY + SYP)
   const filteredKpis = useMemo(() => {
-    const income  = filtered.filter(e => e.entry_type==='income').reduce((s,e) => s+Number(e.amount_usd),0);
-    const expense = filtered.filter(e => e.entry_type==='expense').reduce((s,e) => s+Number(e.amount_usd),0);
-    const advance = filtered.filter(e => e.entry_type==='advance').reduce((s,e) => s+Number(e.amount_usd),0);
-    const salary  = filtered.filter(e => e.entry_type==='salary').reduce((s,e) => s+Number(e.amount_usd),0);
-    const balance = income - expense - salary;
-    return { income, expense, advance, salary, balance };
+    const sum = (type, field) =>
+      filtered.filter(e => e.entry_type === type).reduce((s, e) => s + Number(e[field] || 0), 0);
+
+    const income_usd  = sum('income',  'amount_usd');
+    const expense_usd = sum('expense', 'amount_usd');
+    const advance_usd = sum('advance', 'amount_usd');
+    const salary_usd  = sum('salary',  'amount_usd');
+
+    const income_try  = sum('income',  'amount_try');
+    const expense_try = sum('expense', 'amount_try');
+    const advance_try = sum('advance', 'amount_try');
+    const salary_try  = sum('salary',  'amount_try');
+
+    const income_syp  = sum('income',  'amount_syp');
+    const expense_syp = sum('expense', 'amount_syp');
+    const advance_syp = sum('advance', 'amount_syp');
+    const salary_syp  = sum('salary',  'amount_syp');
+
+    return {
+      income: income_usd, income_try, income_syp,
+      expense: expense_usd, expense_try, expense_syp,
+      advance: advance_usd, advance_try, advance_syp,
+      salary: salary_usd, salary_try, salary_syp,
+      balance: income_usd - expense_usd - salary_usd,
+      balance_try: income_try - expense_try - salary_try,
+      balance_syp: income_syp - expense_syp - salary_syp,
+    };
   }, [filtered]);
+
+  // Monthly summary — current month vs previous month
+  const monthlyKpis = useMemo(() => {
+    const now = new Date();
+    const thisY = now.getFullYear(), thisM = now.getMonth() + 1;
+    const prevY = thisM === 1 ? thisY - 1 : thisY;
+    const prevM = thisM === 1 ? 12 : thisM - 1;
+
+    const inMonth = (e, y, m) => {
+      const d = e.entry_date || '';
+      return d.startsWith(`${y}-${String(m).padStart(2,'0')}`);
+    };
+
+    const sumMonth = (type, field, y, m) =>
+      entries.filter(e => e.entry_type === type && inMonth(e, y, m))
+             .reduce((s, e) => s + Number(e[field] || 0), 0);
+
+    const cur  = { inc: sumMonth('income','amount_syp',thisY,thisM), exp: sumMonth('expense','amount_syp',thisY,thisM) };
+    const prev = { inc: sumMonth('income','amount_syp',prevY,prevM), exp: sumMonth('expense','amount_syp',prevY,prevM) };
+    cur.bal  = cur.inc  - cur.exp;
+    prev.bal = prev.inc - prev.exp;
+
+    // Top category this month
+    const catTotals = {};
+    entries.filter(e => e.entry_type === 'expense' && inMonth(e, thisY, thisM)).forEach(e => {
+      const cat = e.category || 'أخرى';
+      catTotals[cat] = (catTotals[cat] || 0) + Number(e.amount_syp || 0);
+    });
+    const topCat = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];
+
+    return { cur, prev, topCat, monthLabel: `${thisY}/${String(thisM).padStart(2,'0')}` };
+  }, [entries]);
+
+  // Large expense thresholds
+  const LARGE_EXPENSE_SYP = 500_000;
+  const LARGE_EXPENSE_USD = 100;
+  const LARGE_EXPENSE_TRY = 3000;
 
   const handleSave = async (form) => {
     const data = {
@@ -316,8 +400,22 @@ export function AccountingDashboard() {
     };
     if (form.id) {
       await updateEntry(form.id, data);
+      toast.success('تم تحديث القيد ✅');
     } else {
       await createEntry(data);
+      // Check large expense alert
+      const isExpense = ['expense', 'salary', 'advance'].includes(data.entry_type);
+      const isLarge   = data.amount_syp > LARGE_EXPENSE_SYP ||
+                        data.amount_usd > LARGE_EXPENSE_USD ||
+                        data.amount_try > LARGE_EXPENSE_TRY;
+      if (isExpense && isLarge) {
+        const amt = data.amount_syp > 0
+          ? `${Number(data.amount_syp).toLocaleString()} ل.س`
+          : data.amount_usd > 0 ? `$${data.amount_usd}` : `${data.amount_try} ₺`;
+        toast.warning(`⚠️ مصروف كبير مسجّل: ${data.description} — ${amt}`);
+      } else {
+        toast.success('تم إضافة القيد ✅');
+      }
     }
     setShowForm(false);
     setEditEntry(null);
@@ -366,19 +464,91 @@ export function AccountingDashboard() {
           </div>
         </div>
 
+        {/* ── Monthly Summary ── */}
+        <div className="bg-surface border border-border/60 rounded-2xl mb-4 overflow-hidden">
+          <button
+            onClick={() => setShowMonthly(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-text hover:bg-surface-alt transition"
+          >
+            <span>📅 ملخص شهر {monthlyKpis.monthLabel}</span>
+            <span className="text-muted text-xs">{showMonthly ? '▲' : '▼'}</span>
+          </button>
+          {showMonthly && (
+            <div className="px-4 pb-4 grid grid-cols-3 gap-3 border-t border-border/40 pt-3">
+              {[
+                {
+                  label: 'دخل الشهر', icon: '💚',
+                  cur: monthlyKpis.cur.inc, prev: monthlyKpis.prev.inc,
+                  color: 'text-green-600',
+                },
+                {
+                  label: 'مصاريف الشهر', icon: '🔴',
+                  cur: monthlyKpis.cur.exp, prev: monthlyKpis.prev.exp,
+                  color: 'text-red-500',
+                  invertTrend: true,
+                },
+                {
+                  label: 'الرصيد الشهري', icon: '⚖️',
+                  cur: monthlyKpis.cur.bal, prev: monthlyKpis.prev.bal,
+                  color: monthlyKpis.cur.bal >= 0 ? 'text-green-600' : 'text-red-500',
+                },
+              ].map(k => {
+                const diff = k.cur - k.prev;
+                const better = k.invertTrend ? diff <= 0 : diff >= 0;
+                return (
+                  <div key={k.label} className="text-center">
+                    <div className="text-lg mb-0.5">{k.icon}</div>
+                    <div className={`text-sm font-bold ${k.color}`}>
+                      {Number(k.cur).toLocaleString()} ل.س
+                    </div>
+                    {k.prev > 0 && (
+                      <div className={`text-[10px] mt-0.5 ${better ? 'text-green-600' : 'text-red-500'}`}>
+                        {better ? '▲' : '▼'} {Math.abs(diff).toLocaleString()} عن الشهر الماضي
+                      </div>
+                    )}
+                    <div className="text-[10px] text-muted mt-0.5">{k.label}</div>
+                  </div>
+                );
+              })}
+              {monthlyKpis.topCat && (
+                <div className="col-span-3 text-center text-xs text-muted border-t border-border/40 pt-2 mt-1">
+                  🏆 أعلى تصنيف مصاريف: <span className="font-semibold text-text">{monthlyKpis.topCat[0]}</span>
+                  {' '}({Number(monthlyKpis.topCat[1]).toLocaleString()} ل.س)
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: 'الدخل',      value: `$${Number(filteredKpis.income).toFixed(0)}`,   icon: '💚', color: 'text-green-600' },
-            { label: 'المصاريف',   value: `$${Number(filteredKpis.expense).toFixed(0)}`,  icon: '🔴', color: 'text-red-500' },
-            { label: 'السلف',      value: `$${Number(filteredKpis.advance).toFixed(0)}`,  icon: '💵', color: 'text-orange-500' },
-            { label: 'الرواتب',    value: `$${Number(filteredKpis.salary).toFixed(0)}`,   icon: '💰', color: 'text-blue-600' },
-            { label: 'الرصيد الصافي', value: `$${Number(filteredKpis.balance).toFixed(0)}`, icon: '⚖️',
-              color: filteredKpis.balance >= 0 ? 'text-green-600' : 'text-red-500' },
+            { label: 'الدخل',      icon: '💚', color: 'text-green-600',
+              usd: filteredKpis.income, try_: filteredKpis.income_try, syp: filteredKpis.income_syp },
+            { label: 'المصاريف',   icon: '🔴', color: 'text-red-500',
+              usd: filteredKpis.expense, try_: filteredKpis.expense_try, syp: filteredKpis.expense_syp },
+            { label: 'السلف',      icon: '💵', color: 'text-orange-500',
+              usd: filteredKpis.advance, try_: filteredKpis.advance_try, syp: filteredKpis.advance_syp },
+            { label: 'الرواتب',    icon: '💰', color: 'text-blue-600',
+              usd: filteredKpis.salary, try_: filteredKpis.salary_try, syp: filteredKpis.salary_syp },
+            { label: 'الرصيد الصافي', icon: '⚖️',
+              color: filteredKpis.balance >= 0 ? 'text-green-600' : 'text-red-500',
+              usd: filteredKpis.balance, try_: filteredKpis.balance_try, syp: filteredKpis.balance_syp },
           ].map(k => (
             <div key={k.label} className="bg-surface border border-border/60 rounded-2xl p-4">
               <div className="text-xl mb-1">{k.icon}</div>
-              <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+              {k.usd !== 0 && (
+                <div className={`text-sm font-bold ${k.color}`}>${Number(k.usd).toFixed(0)}</div>
+              )}
+              {k.try_ !== 0 && (
+                <div className={`text-sm font-bold ${k.color}`}>{Number(k.try_).toFixed(0)} ₺</div>
+              )}
+              {k.syp !== 0 && (
+                <div className={`text-sm font-bold ${k.color}`}>{Number(k.syp).toLocaleString()} ل.س</div>
+              )}
+              {k.usd === 0 && k.try_ === 0 && k.syp === 0 && (
+                <div className="text-sm font-bold text-muted">—</div>
+              )}
               <div className="text-xs text-muted mt-0.5">{k.label}</div>
             </div>
           ))}

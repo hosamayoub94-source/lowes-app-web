@@ -92,7 +92,7 @@ export default function CustomerProfile({ customerId, onClose }) {
         <div className="flex items-center gap-4 shrink-0">
           <div className="text-right hidden sm:block">
             <div className="text-white font-bold text-base">
-              {formatCurrency(customer.total_revenue || 0, 'SAR')}
+              {formatCurrency(customer.total_revenue || 0, 'USD')}
             </div>
             <div className="text-[10px] text-white/50">إجمالي الإيرادات</div>
           </div>

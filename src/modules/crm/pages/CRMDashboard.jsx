@@ -147,14 +147,14 @@ export default function CRMDashboard({ userId }) {
           tone="blue"
           label="الصفقات المفتوحة"
           value={kpis.totalOpenDeals}
-          sub={`قيمة: ${formatCurrency(kpis.pipelineValue, 'SAR')}`}
+          sub={`قيمة: ${formatCurrency(kpis.pipelineValue, 'USD')}`}
         />
         <KPICard
           icon="✅"
           tone="green"
           label="الصفقات المكتملة"
           value={kpis.totalWonDeals}
-          sub={`إجمالي: ${formatCurrency(kpis.wonValue, 'SAR')}`}
+          sub={`إجمالي: ${formatCurrency(kpis.wonValue, 'USD')}`}
         />
         <KPICard
           icon="🎯"
@@ -182,7 +182,7 @@ export default function CRMDashboard({ userId }) {
           icon="💰"
           tone="teal"
           label="متوسط قيمة الصفقة"
-          value={formatCurrency(kpis.avgDealValue, 'SAR')}
+          value={formatCurrency(kpis.avgDealValue, 'USD')}
           sub="للصفقات المكتملة"
         />
       </div>

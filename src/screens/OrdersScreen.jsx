@@ -1129,6 +1129,29 @@ export default function OrdersScreen() {
     if (order) notifySellerStatusChange(order, newStatus, userName);
     // Cancelling / returning releases reserved stock back to the source warehouse
     if (order && RELEASE_STATUSES.includes(newStatus)) releaseForOrder({ ...order, status: newStatus }, userName);
+
+    // ── Auto accounting entry when delivered ──────────────────────
+    if (newStatus === 'delivered' && order && Number(order.amount) > 0) {
+      try {
+        const cur  = (order.currency || 'SYP').toUpperCase();
+        const amt  = Number(order.amount);
+        const orderNum = order.order_number || order.id?.slice(0, 8) || '—';
+        await supabase.from('accounting_entries').insert({
+          entry_type:     'income',
+          category:       'مبيعات أونلاين',
+          description:    `مبيعات — طلب #${orderNum} (${order.customer_name || order.client_name || '—'})`,
+          amount_usd:     cur === 'USD' ? amt : 0,
+          amount_try:     cur === 'TRY' ? amt : 0,
+          amount_syp:     cur === 'SYP' ? amt : 0,
+          payment_method: order.payment_method === 'bank' ? 'bank' : 'cash',
+          entry_date:     new Date().toISOString().slice(0, 10),
+          notes:          `تسجيل تلقائي عند التسليم — البائع: ${userName}`,
+          created_by:     userName,
+        });
+      } catch (e) {
+        console.warn('⚠️ لم يتم تسجيل القيد المحاسبي تلقائياً:', e.message);
+      }
+    }
   };
 
   const handleSave = async (form, existingId) => {

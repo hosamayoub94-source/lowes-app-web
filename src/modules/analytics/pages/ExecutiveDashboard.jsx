@@ -31,11 +31,11 @@ function ExecutiveDashboard({ userId }) {
   const loadDashboard = useAnalyticsStore((s) => s.loadDashboard);
 
   return (
-    <div style={{ padding: '20px 24px', minHeight: '100vh', background: 'var(--bg, #0f172a)', direction: 'rtl' }}>
+    <div style={{ padding: '20px 24px', minHeight: '100vh', direction: 'rtl' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>لوحة القيادة التنفيذية</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'rgb(var(--color-navy))', margin: 0 }}>📊 لوحة القيادة التنفيذية</h1>
           {lastUpdated && (
             <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>
               آخر تحديث: {new Date(lastUpdated).toLocaleTimeString('ar-SA')}
