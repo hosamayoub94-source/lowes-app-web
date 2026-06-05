@@ -13,6 +13,7 @@ import {
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { useAuth } from '@hooks/useAuth';
+import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
@@ -290,14 +291,34 @@ export default function CustomersScreen() {
   const [selected, setSelected] = useState(null);
   const [totalCount, setTotalCount] = useState(null); // true section total
   const [exporting, setExporting] = useState(false);
+  const [partnerNames, setPartnerNames] = useState([]);
+
+  // Load accepted shift partners
+  useEffect(() => {
+    if (!userName) return;
+    supabase.from('shift_partners')
+      .select('requester, partner')
+      .eq('status', 'accepted')
+      .or(`requester.eq.${userName},partner.eq.${userName}`)
+      .then(({ data }) => {
+        const names = (data ?? []).map(r => r.requester === userName ? r.partner : r.requester);
+        setPartnerNames(names);
+      })
+      .catch(() => {});
+  }, [userName]);
 
   const sec = SECTIONS.find(s => s.key === section) || SECTIONS[0];
   const myNames = useMemo(() => {
     if (!userName) return null;
     const first = String(userName).trim().split(/\s+/)[0];
     const aliases = getSellerAliases(userName);
-    return [...new Set([userName, first, ...aliases])];
-  }, [userName]);
+    // Include shift partners so their customers appear in «عملائي»
+    const partnerAliases = partnerNames.flatMap(p => {
+      const pFirst = String(p).trim().split(/\s+/)[0];
+      return [p, pFirst, ...getSellerAliases(p)];
+    });
+    return [...new Set([userName, first, ...aliases, ...partnerAliases])];
+  }, [userName, partnerNames]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);

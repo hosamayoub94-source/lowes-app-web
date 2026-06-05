@@ -993,10 +993,11 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
 }
 
 // ── Seller Stats Card ─────────────────────────────────────────
-function SellerStatsCard({ orders, userName, commissionPct }) {
+function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
+  const nameSet = useMemo(() => myNames || new Set([userName]), [myNames, userName]);
   const delivered = useMemo(() =>
-    orders.filter(o => o.status === 'delivered' && o.handler_name === userName),
-  [orders, userName]);
+    orders.filter(o => o.status === 'delivered' && nameSet.has(o.handler_name)),
+  [orders, nameSet]);
 
   const totals = useMemo(() => delivered.reduce((acc, o) => {
     if (!o.amount) return acc;
@@ -1080,6 +1081,7 @@ export default function OrdersScreen() {
   const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
   const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
   const [commissionPct, setCommissionPct] = useState(0);
+  const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
 
   // Reorder: open a prefilled new-order form when arriving from «إعادة الطلب».
   const location = useLocation();
@@ -1099,6 +1101,20 @@ export default function OrdersScreen() {
       .eq('employee_name', userName)
       .maybeSingle()
       .then(({ data }) => { if (data?.commission_pct != null) setCommissionPct(Number(data.commission_pct)); })
+      .catch(() => {});
+  }, [userName]);
+
+  // Load accepted shift partners so their orders appear in «طلباتي»
+  useEffect(() => {
+    if (!userName) return;
+    supabase.from('shift_partners')
+      .select('requester, partner')
+      .eq('status', 'accepted')
+      .or(`requester.eq.${userName},partner.eq.${userName}`)
+      .then(({ data }) => {
+        const names = (data ?? []).map(r => r.requester === userName ? r.partner : r.requester);
+        setPartnerNames(names);
+      })
       .catch(() => {});
   }, [userName]);
 
@@ -1195,7 +1211,7 @@ export default function OrdersScreen() {
   // employee may delete only their own order, and only the same day.
   const canDeleteOrder = (o) => {
     if (isManager || isFulfillment) return true;
-    if (o.handler_name !== userName) return false;
+    if (!myNames.has(o.handler_name)) return false;
     const created = o.created_at ? new Date(o.created_at) : (o.order_date ? new Date(o.order_date) : null);
     return created && created.toDateString() === new Date().toDateString();
   };
@@ -1228,8 +1244,10 @@ export default function OrdersScreen() {
     finally { setArchiving(false); }
   };
 
+  const myNames = useMemo(() => new Set([userName, ...partnerNames]), [userName, partnerNames]);
+
   const filtered = useMemo(() => orders.filter(o => {
-    if (myOrders && o.handler_name !== userName) return false;
+    if (myOrders && !myNames.has(o.handler_name)) return false;
     if (market !== 'all' && o.market !== market) return false;
     if (status !== 'all' && o.status !== status) return false;
     if (search) {
@@ -1239,7 +1257,7 @@ export default function OrdersScreen() {
              o.phone_1?.includes(q);
     }
     return true;
-  }), [orders, market, status, search, myOrders, userName]);
+  }), [orders, market, status, search, myOrders, myNames]);
 
   const stats = useMemo(() => ({
     total:      orders.length,
@@ -1251,9 +1269,9 @@ export default function OrdersScreen() {
     actionable: orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
     waiting:    orders.filter(o => FOLLOWUP_STATUSES.includes(o.status)).length,
     returned:   orders.filter(o => RETURN_STATUSES.includes(o.status)).length,
-    myDelivered: orders.filter(o => o.status === 'delivered' && o.handler_name === userName).length,
-    myWaiting:  orders.filter(o => o.handler_name === userName && FOLLOWUP_STATUSES.includes(o.status)).length,
-  }), [orders, userName]);
+    myDelivered: orders.filter(o => o.status === 'delivered' && myNames.has(o.handler_name)).length,
+    myWaiting:  orders.filter(o => myNames.has(o.handler_name) && FOLLOWUP_STATUSES.includes(o.status)).length,
+  }), [orders, userName, myNames]);
 
   // Daily reminder: notify the seller (once per day) of orders that need follow-up
   // (waiting / returned). Mirrors the «Lozy reminds you» idea. Client-side, on open.
@@ -1323,14 +1341,14 @@ export default function OrdersScreen() {
           <button onClick={() => setMyOrders(true)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
               ${myOrders ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
-            👤 طلباتي{stats.myDelivered > 0 ? ` · ${stats.myDelivered} ✅` : ''}
+            👤 طلباتي{partnerNames.length > 0 ? ` +${partnerNames.length}` : ''}{stats.myDelivered > 0 ? ` · ${stats.myDelivered} ✅` : ''}
           </button>
         </div>
       )}
 
       {/* Seller stats — visible when in «طلباتي» mode */}
       {myOrders && !isFulfillment && (
-        <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} />
+        <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
       )}
 
       {/* Fulfillment banner */}
