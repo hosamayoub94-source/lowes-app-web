@@ -94,6 +94,124 @@ const STATUSES = {
 
 // Linear pipeline for the progress strip; any status outside it hides the strip.
 const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
+
+// Shipping tracking pipeline (what the cargo company reports)
+const TRACKING_STAGES = [
+  { key: 'shipped',     label: 'استُلم',     icon: '📦' },
+  { key: 'at_center',  label: 'في المركز',  icon: '🏢' },
+  { key: 'on_way',     label: 'في الطريق',  icon: '🛵' },
+  { key: 'delivered',  label: 'تم التسليم', icon: '✅' },
+];
+const TRACKING_STAGE_KEYS = TRACKING_STAGES.map(s => s.key);
+
+// ── Tracking Tab ──────────────────────────────────────────────
+function TrackingTab({ orders, onManualRefresh, refreshing }) {
+  const trackable = useMemo(() =>
+    orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' && o.market === 'turkey')
+          .sort((a, b) => {
+            // Sort by stage index ascending (earlier stages first)
+            const ai = TRACKING_STAGE_KEYS.indexOf(a.status);
+            const bi = TRACKING_STAGE_KEYS.indexOf(b.status);
+            return (bi === -1 ? -1 : bi) - (ai === -1 ? -1 : ai);
+          }),
+  [orders]);
+
+  const stageCount = useMemo(() => {
+    const c = {};
+    TRACKING_STAGE_KEYS.forEach(k => { c[k] = trackable.filter(o => o.status === k).length; });
+    return c;
+  }, [trackable]);
+
+  if (trackable.length === 0) {
+    return (
+      <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
+        <p className="text-4xl mb-3">📡</p>
+        <p className="text-sm font-bold">لا توجد طلبات برقم تتبع</p>
+        <p className="text-xs mt-1">أضف رقم التتبع عند تحديث الطلب</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stage summary bar */}
+      <div className="grid grid-cols-4 gap-2">
+        {TRACKING_STAGES.map(s => (
+          <div key={s.key} className={`rounded-2xl p-3 text-center ${STATUSES[s.key]?.bg || 'bg-surface-alt'}`}>
+            <p className="text-lg">{s.icon}</p>
+            <p className={`text-xl font-extrabold tabular-nums ${STATUSES[s.key]?.text || 'text-muted'}`}>{stageCount[s.key] || 0}</p>
+            <p className="text-[10px] text-muted font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Manual refresh */}
+      <button onClick={onManualRefresh} disabled={refreshing}
+        className="w-full py-2.5 rounded-xl border border-border text-sm font-bold text-muted hover:text-text hover:border-teal/50 transition disabled:opacity-40 flex items-center justify-center gap-2">
+        {refreshing ? <span className="animate-spin">⟳</span> : '🔄'} تحديث حالات يورتيتشي الآن
+      </button>
+
+      {/* Tracking cards */}
+      <div className="space-y-3">
+        {trackable.map(o => {
+          const stageIdx = TRACKING_STAGE_KEYS.indexOf(o.status);
+          const tUrl = trackingLink(o.shipping_company, o.tracking_number);
+          const st = STATUSES[o.status];
+          return (
+            <div key={o.id} className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-text text-sm truncate">{o.customer_name || '—'}</p>
+                  <p className="text-xs text-muted">{o.order_id} · {o.shipping_company || 'شركة شحن'}</p>
+                </div>
+                <span className={`shrink-0 px-2.5 py-1 rounded-xl text-xs font-bold ${st?.bg || 'bg-surface-alt'} ${st?.text || 'text-muted'}`}>
+                  {st?.icon} {st?.label || o.status}
+                </span>
+              </div>
+
+              {/* Progress pipeline */}
+              <div className="flex items-center gap-1">
+                {TRACKING_STAGES.map((s, i) => {
+                  const done    = stageIdx >= i && stageIdx !== -1;
+                  const current = stageIdx === i;
+                  return (
+                    <div key={s.key} className="flex items-center flex-1">
+                      <div className={`flex flex-col items-center flex-1`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition
+                          ${current ? 'bg-teal text-white shadow-lg scale-110' : done ? 'bg-teal/20 text-teal' : 'bg-surface-alt text-muted/40'}`}>
+                          {s.icon}
+                        </div>
+                        <p className={`text-[9px] mt-0.5 font-medium ${done ? 'text-teal' : 'text-muted/40'}`}>{s.label}</p>
+                      </div>
+                      {i < TRACKING_STAGES.length - 1 && (
+                        <div className={`h-0.5 flex-1 mx-0.5 rounded-full ${stageIdx > i && stageIdx !== -1 ? 'bg-teal' : 'bg-border'}`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Tracking number + link */}
+              <div className="flex items-center justify-between gap-2 bg-surface-alt rounded-xl px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] text-muted">رقم التتبع</p>
+                  <p className="text-sm font-bold text-text font-mono">{o.tracking_number}</p>
+                </div>
+                {tUrl && (
+                  <a href={tUrl} target="_blank" rel="noreferrer"
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
+                    🚚 تتبع
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // Statuses that count as a return AGAINST the seller (settled is resolved → not counted).
 const RETURN_STATUSES   = ['not_received', 'returning', 'returned'];
 // Statuses that need the seller to chase the customer.
@@ -1080,6 +1198,8 @@ export default function OrdersScreen() {
   const [invoice,       setInvoice]       = useState(null);    // order | null
   const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
   const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
+  const [viewTracking,  setViewTracking]  = useState(false);   // «تتبع الشحنات» toggle
+  const [refreshing,    setRefreshing]    = useState(false);   // manual tracking refresh
   const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
 
@@ -1117,6 +1237,35 @@ export default function OrdersScreen() {
       })
       .catch(() => {});
   }, [userName]);
+
+  // Realtime: auto-update order status when cron/function changes it in DB
+  useEffect(() => {
+    const channel = supabase
+      .channel('orders-status-changes')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload) => {
+          setOrders(prev => prev.map(o =>
+            o.id === payload.new.id ? { ...o, ...payload.new } : o
+          ));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Manual trigger: call track-yurtici function immediately
+  const handleManualTrackingRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/track-yurtici`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      });
+      await load();
+    } catch { /* best-effort */ }
+    finally { setRefreshing(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1322,6 +1471,13 @@ export default function OrdersScreen() {
             </button>
           )}
           {!isFulfillment && !viewArchive && (
+            <button onClick={() => setViewTracking(v => !v)}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-white border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="تتبع الشحنات">
+              📡
+            </button>
+          )}
+          {!isFulfillment && !viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
               className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
               + طلب جديد
@@ -1331,7 +1487,7 @@ export default function OrdersScreen() {
       </div>
 
       {/* «طلباتي» / «كل الطلبات» toggle */}
-      {!isFulfillment && (
+      {!isFulfillment && !viewTracking && (
         <div className="flex gap-2">
           <button onClick={() => setMyOrders(false)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
@@ -1347,7 +1503,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Seller stats — visible when in «طلباتي» mode */}
-      {myOrders && !isFulfillment && (
+      {myOrders && !isFulfillment && !viewTracking && (
         <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
       )}
 
@@ -1386,7 +1542,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-2">
+      {!viewTracking && <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'وارد',  value: stats.pending,                  color: 'text-muted',    bg: 'bg-surface-alt', onClick: () => setStatus('pending')   },
           { label: 'تجهيز', value: stats.preparing + stats.ready,  color: 'text-amber-fg', bg: 'bg-amber-bg',    onClick: () => setStatus('preparing') },
@@ -1399,10 +1555,10 @@ export default function OrdersScreen() {
             <p className="text-[10px] text-muted mt-0.5 font-medium">{s.label}</p>
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Market tabs — managers only, when not in «طلباتي» */}
-      {isManager && !myOrders && (
+      {isManager && !myOrders && !viewTracking && (
         <div className="flex gap-2">
           {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
@@ -1415,7 +1571,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Status filter */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      {!viewTracking && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         <button onClick={() => setStatus('all')}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition
             ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
@@ -1428,17 +1584,26 @@ export default function OrdersScreen() {
             {v.icon} {v.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Search */}
-      <input value={search} onChange={e => setSearch(e.target.value)}
+      {!viewTracking && <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
-        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />}
+
+      {/* Tracking Tab */}
+      {viewTracking && (
+        <TrackingTab
+          orders={orders}
+          onManualRefresh={handleManualTrackingRefresh}
+          refreshing={refreshing}
+        />
+      )}
 
       {/* List */}
-      {loading ? (
+      {!viewTracking && loading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}</div>
-      ) : filtered.length === 0 ? (
+      ) : !viewTracking && filtered.length === 0 ? (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">📋</p>
           <p className="text-sm font-bold">{myOrders ? 'لا توجد طلبات باسمك بعد' : 'لا توجد طلبات'}</p>
@@ -1449,7 +1614,7 @@ export default function OrdersScreen() {
             </button>
           )}
         </div>
-      ) : (
+      ) : !viewTracking ? (
         <div className="space-y-3">
           {filtered.map(o => (
             <OrderCard key={o.id} order={o}
@@ -1461,7 +1626,7 @@ export default function OrdersScreen() {
               canDelete={canDeleteOrder(o)} />
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* FAB */}
       <button onClick={() => setModal('new')}
