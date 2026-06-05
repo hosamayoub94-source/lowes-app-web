@@ -5,10 +5,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const API_USER      = Deno.env.get('YURTICI_API_USER')!;
-const API_PASS      = Deno.env.get('YURTICI_API_PASS')!;
+const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')  ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
+const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
+// YKSS portal credentials — replace with actual API credentials once created in API Bilgileri
+const API_USER      = Deno.env.get('YURTICI_API_USER') ?? 'YOUSEF034';
+const API_PASS      = Deno.env.get('YURTICI_API_PASS') ?? '9i4hfKi4KJ';
 
 const YURTICI_BASE  = 'https://api.yurticikargo.com';
 
