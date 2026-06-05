@@ -634,12 +634,12 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   const [sokakOpts]   = useState(loadSokakHistory());  // remembered Sokak suggestions
   const [streetOpts,  setStreetOpts]  = useState([]);  // official UAVT streets for the chosen mahalle
 
-  // Reload products whenever brand changes — Strong brand shows only Strong products,
-  // Lowe's brand hides Strong (adult/pharma) products.
+  // Reload products whenever brand changes.
+  // Strong brand: shows ALL products (Strong + Lowe's) — sellers handle both.
+  // Lowe's brand: hides Strong (adult/pharma) products.
   useEffect(() => {
     let q = supabase.from('products').select('id, name, category').eq('is_active', true).order('name');
-    if (form.brand === 'strong') q = q.eq('category', 'Strong');
-    else                          q = q.neq('category', 'Strong');
+    if (form.brand !== 'strong') q = q.neq('category', 'Strong');
     q.then(({ data }) => setProducts(data ?? [])).catch(() => {});
   }, [form.brand]);
 
