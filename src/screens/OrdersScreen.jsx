@@ -119,9 +119,11 @@ const CURRENCIES       = ['TRY', 'SYP', 'USD'];
 const PICKUP_TYPES     = ['استلام من المركز', 'عنوان المنزل', 'عنوان العمل'];
 
 const TRACKING_URLS = {
-  'yurtiçi': (n) => `https://yurticikargo.com/tr/online-islemler/gonderi-sorgula?code=${n}`,
-  'Aras':    (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
-  'ptt':     (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
+  'Yurtiçi Kargo': (n) => `https://www.yurticikargo.com/tr/online-servisler/gonderi-sorgula?code=${n}`,
+  'Aras Kargo':    (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
+  'PTT Kargo':     (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
+  'Sürat Kargo':   (n) => `https://www.suratkargo.com.tr/KargoTakip/?takipNo=${n}`,
+  'MNG Kargo':     (n) => `https://www.mngkargo.com.tr/tr/musteri-hizmetleri/kargo-sorgula?trackingNumber=${n}`,
 };
 
 function waLink(phone, market) {
@@ -131,9 +133,12 @@ function waLink(phone, market) {
   return `https://wa.me/963${digits.replace(/^0/, '')}`;
 }
 function trackingLink(company, number) {
-  if (!number || !company) return null;
-  const fn = TRACKING_URLS[company];
-  return fn ? fn(number) : null;
+  if (!number) return null;
+  const fn = company ? TRACKING_URLS[company] : null;
+  if (fn) return fn(number);
+  // Universal fallback for any company with a tracking number
+  if (number) return `https://kargomnerede.com.tr/tracking?t=${encodeURIComponent(number)}`;
+  return null;
 }
 function nextOrderId(market, orders) {
   const prefix = market === 'syria' ? 'SA-' : 'S';
@@ -449,10 +454,12 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
             </a>
           )}
-          {tUrl && (
-            <a href={tUrl} target="_blank" rel="noreferrer"
-              className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 text-xs hover:opacity-80 transition font-bold">
-              تتبع
+          {order.tracking_number && (
+            <a href={tUrl || `https://kargomnerede.com.tr/tracking?t=${encodeURIComponent(order.tracking_number)}`}
+              target="_blank" rel="noreferrer"
+              title={`تتبع الشحنة · ${order.shipping_company || ''} · ${order.tracking_number}`}
+              className="h-8 px-2 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 text-[11px] hover:bg-blue-200 transition font-bold gap-1 shrink-0">
+              🚚 تتبع
             </a>
           )}
           <button onClick={() => onInvoice(order)}
@@ -529,8 +536,8 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
   const [open, setOpen] = useState(false);
   const matches = useMemo(() => {
     const q = (item.name || '').trim().toLowerCase();
-    if (!q) return products.slice(0, 8);
-    return products.filter(p => p.name?.toLowerCase().includes(q)).slice(0, 8);
+    if (!q) return products.slice(0, 30);
+    return products.filter(p => p.name?.toLowerCase().includes(q)).slice(0, 30);
   }, [item.name, products]);
   const pick = (p) => { onChange(index, 'name', p.name); setOpen(false); };
 
@@ -707,8 +714,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     rememberSokak(form.sokak);
     // Address parts are UI-only helpers (not DB columns) — strip before save.
     delete payload.mahalle; delete payload.sokak; delete payload.bno; delete payload.daire;
-    try { await onSave(payload, order?.id); }
-    finally { setSaving(false); }
+    delete payload.sy_neighborhood; // UI-only for Syria address
+    try {
+      await onSave(payload, order?.id);
+    } catch (err) {
+      window.alert('❌ خطأ في الحفظ:\n' + (err?.message || String(err)));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const companies = shippingForMarket(form.market);
@@ -1157,13 +1170,15 @@ export default function OrdersScreen() {
   const handleSave = async (form, existingId) => {
     let savedId = existingId;
     if (existingId) {
-      await supabase.from('orders')
+      const { error } = await supabase.from('orders')
         .update({ ...form, updated_at: new Date().toISOString(), updated_by: userName })
         .eq('id', existingId);
+      if (error) throw new Error(error.message);
     } else {
-      const { data } = await supabase.from('orders')
+      const { data, error } = await supabase.from('orders')
         .insert({ ...form, created_by: userName })
         .select('id').single();
+      if (error) throw new Error(error.message);
       savedId = data?.id;
     }
     setModal(null);
