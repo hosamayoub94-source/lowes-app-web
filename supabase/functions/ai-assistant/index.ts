@@ -121,6 +121,15 @@ ${ctx.kpi ? `${ctx.kpi.total_score}/100 — ${ctx.kpi.level}` : 'غير محدد
 - سعر واحد للسوق — لا خصومات شخصية أبداً
 - العميل ملك الشبكة، التسجيل في CRM إلزامي
 
+## 📒 دفتر الحسابات (مساعدة محاسبية)
+أنتِ تعرفين دفتر حسابات الشركة وتقدرين تجيبي منه البيانات وتسجّلي قيود جديدة.
+- **الأنواع:** income (دخل)، expense (مصروف)، advance (سلفة)، salary (راتب)، transfer (تحويل)
+- **طرق الدفع:** cash (نقداً)، bank (تحويل بنكي)، sham_cash (شام كاش)، transfer (حوالة)، card (بطاقة)
+- **العملات:** USD ($)، TRY (₺)، SYP (ل.س)
+- عند السؤال عن الرصيد أو المصاريف → استخدمي get_accounting_summary
+- عند السؤال عن قيود محددة → استخدمي get_accounting_entries
+- عند طلب تسجيل قيد جديد → استخدمي create_accounting_entry بعد تأكيد التفاصيل
+
 ---
 
 ## 📱 دليل استخدام التطبيق الكامل (اشرحي منه خطوة بخطوة عند أي سؤال "كيف بدي…")
@@ -235,6 +244,14 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{ employee_name:{type:'string'}, note:{type:'string'} }, required:['employee_name'] } },
   { perm: PERMS.MANAGE_ORDERS, name:'update_order_status', description:'تحديث حالة طلب (وارد→تجهيز→شحن→توصيل...). الكلمات المفتاحية: حالة الطلب، شحن، توصيل.',
     input_schema:{ type:'object', properties:{ order_id:{type:'string', description:'رقم الطلب'}, status:{type:'string', enum:['pending','preparing','shipped','delivered','cancelled']} }, required:['order_id','status'] } },
+
+  // ── Accounting tools (VIEW_FINANCE permission) ──────────────────────────────
+  { perm: PERMS.VIEW_FINANCE, name:'get_accounting_summary', description:'ملخص دفتر الحسابات: الدخل والمصاريف والسلف والرصيد الصافي. الكلمات: رصيد، دخل، مصاريف، ميزانية، حسابات، ربح، خسارة.',
+    input_schema:{ type:'object', properties:{ from:{type:'string', description:'YYYY-MM-DD (اختياري)'}, to:{type:'string', description:'YYYY-MM-DD (اختياري)'} }, required:[] } },
+  { perm: PERMS.VIEW_FINANCE, name:'get_accounting_entries', description:'قائمة قيود المحاسبة مع فلترة حسب النوع والتاريخ والتصنيف. الكلمات: مصاريف، دخل، سلف، رواتب، تحويلات.',
+    input_schema:{ type:'object', properties:{ type:{type:'string', enum:['income','expense','advance','salary','transfer']}, from:{type:'string'}, to:{type:'string'}, category:{type:'string'}, limit:{type:'number'} }, required:[] } },
+  { perm: PERMS.VIEW_FINANCE, name:'create_accounting_entry', description:'إضافة قيد جديد في دفتر الحسابات. الكلمات: اضف مصروف، سجّل دخل، قيد جديد.',
+    input_schema:{ type:'object', properties:{ entry_type:{type:'string', enum:['income','expense','advance','salary','transfer']}, description:{type:'string'}, amount_usd:{type:'number'}, amount_try:{type:'number'}, amount_syp:{type:'number'}, category:{type:'string'}, payment_method:{type:'string', enum:['cash','bank','sham_cash','transfer','card']}, entry_date:{type:'string'}, notes:{type:'string'} }, required:['entry_type','description'] } },
 ];
 
 // Least-privilege: a user only SEES the tools their permissions allow.
@@ -358,6 +375,56 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
         if (error) return 'فشل التحديث: '+error.message;
         return `✅ حُدّثت حالة الطلب ${o.order_id} (${o.customer_name}) إلى ${input.status}.`;
       }
+
+      // ── Accounting ────────────────────────────────────────────────────────────
+      case 'get_accounting_summary': {
+        let q = supabase.from('accounting_entries').select('entry_type,amount_usd,amount_try,amount_syp,entry_date');
+        if (input.from) q = q.gte('entry_date', input.from);
+        if (input.to)   q = q.lte('entry_date', input.to);
+        const { data, error } = await q;
+        if (error) return 'خطأ في جلب الحسابات: '+error.message;
+        const rows = data ?? [];
+        const sum = (type: string) => rows.filter((r:any)=>r.entry_type===type).reduce((s:number,r:any)=>s+Number(r.amount_usd||0),0);
+        const income  = sum('income');
+        const expense = sum('expense');
+        const salary  = sum('salary');
+        const advance = sum('advance');
+        const balance = income - expense - salary;
+        const sumTRY  = rows.reduce((s:number,r:any)=>s+Number(r.amount_try||0),0);
+        const sumSYP  = rows.reduce((s:number,r:any)=>s+Number(r.amount_syp||0),0);
+        return JSON.stringify({ income, expense, advance, salary, balance, totalEntries: rows.length,
+          totalTRY: sumTRY, totalSYP: sumSYP,
+          period: input.from ? `${input.from} → ${input.to||todayISO}` : 'كل الوقت' });
+      }
+      case 'get_accounting_entries': {
+        let q = supabase.from('accounting_entries').select('entry_type,description,amount_usd,amount_try,amount_syp,category,payment_method,entry_date,notes').order('entry_date', {ascending:false}).limit(input.limit||20);
+        if (input.type)     q = q.eq('entry_type', input.type);
+        if (input.from)     q = q.gte('entry_date', input.from);
+        if (input.to)       q = q.lte('entry_date', input.to);
+        if (input.category) q = q.ilike('category', `%${input.category}%`);
+        const { data, error } = await q;
+        if (error) return 'خطأ: '+error.message;
+        return JSON.stringify({ count: (data??[]).length, entries: data ?? [] });
+      }
+      case 'create_accounting_entry': {
+        const today2 = new Date().toISOString().slice(0,10);
+        const row = {
+          entry_type:     input.entry_type,
+          description:    input.description,
+          amount_usd:     Number(input.amount_usd||0),
+          amount_try:     Number(input.amount_try||0),
+          amount_syp:     Number(input.amount_syp||0),
+          category:       input.category || null,
+          payment_method: input.payment_method || 'cash',
+          entry_date:     input.entry_date || today2,
+          notes:          input.notes || null,
+          created_by:     ctx.userId,
+        };
+        const { data, error } = await supabase.from('accounting_entries').insert(row).select('id,description,amount_usd').single();
+        if (error) return 'فشل إنشاء القيد: '+error.message;
+        return `✅ تم إضافة القيد "${data.description}" بمبلغ $${data.amount_usd} في دفتر الحسابات.`;
+      }
+
       default: return 'غير منفّذ.';
     }
   } catch (e) { return 'خطأ بالتنفيذ: '+String(e); }
