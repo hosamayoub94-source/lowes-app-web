@@ -1,7 +1,5 @@
 // =============================================================
-// BottomNav — floating pill-style tab bar, mobile only.
-// Role-curated 5 tabs (explicit per role, not just first-5).
-// Design: frosted glass, plum active pill, gold dot indicator.
+// BottomNav — floating pill tab bar, mobile only. Dark-mode aware.
 // =============================================================
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
@@ -20,16 +18,10 @@ export function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Primary navigation"
     >
-      {/* Frosted glass bar */}
-      <div className="mx-3 mb-3 rounded-2xl overflow-hidden"
-        style={{
-          background: 'rgba(255,255,255,0.88)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 8px 32px rgba(45,27,78,0.18), 0 2px 8px rgba(45,27,78,0.10)',
-          border: '1px solid rgba(45,27,78,0.08)',
-        }}>
-        <ul className="grid h-[60px]"
+      {/* Floating glass bar — adapts to dark via CSS vars */}
+      <div className="mx-3 mb-3 rounded-2xl overflow-hidden bg-surface/90 dark:bg-surface/95 backdrop-blur-xl border border-border/10"
+        style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08)' }}>
+        <ul className="grid h-[62px]"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map((tab) => (
             <li key={tab.id}>
@@ -37,19 +29,18 @@ export function BottomNav() {
                 to={tab.path}
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center h-full gap-0.5 relative transition-all duration-200 ${
-                    isActive ? 'text-white' : 'text-muted hover:text-text'
+                    isActive ? 'text-white' : 'text-muted'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    {/* Active pill background */}
                     {isActive && (
                       <span
                         className="absolute inset-x-2 inset-y-1.5 rounded-xl"
                         style={{
-                          background: 'linear-gradient(135deg, rgb(45,27,78) 0%, rgb(13,115,119) 100%)',
-                          boxShadow: '0 4px 12px rgba(45,27,78,0.35)',
+                          background: 'linear-gradient(135deg, rgb(var(--color-navy)) 0%, rgb(var(--color-teal)) 100%)',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
                         }}
                         aria-hidden
                       />
