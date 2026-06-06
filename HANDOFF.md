@@ -8,6 +8,22 @@
 ### ⚡ سلوك المالك (إلزامي — صرّح به مراراً)
 المالك يعطي أمراً ويريد **تنفيذه فوراً بدون طلب إذن**. **لا تسأل، نفّذ** (تعديل ملفات، SQL، نشر، git push، نشر Edge Functions/Apps Script عبر Chrome). استثناء وحيد: عمليات خطرة غير قابلة للتراجع (حذف بيانات إنتاج، تدوير مفاتيح). **دائماً استخدم أفضل المهارات** (brainstorming/debugging/verification...). راجع memory: `deploy_autonomy`.
 
+### 🆕 جلسة يونيو 2026 — منظومة الطلبات الكاملة (التفاصيل: memory `orders_sync_commission_june2026`)
+أُنجز ونُشر على main:
+1. **شركاء الوردية:** «طلباتي»/«عملائي» تشمل طلبات/عملاء الشركاء المقبولين (تعديل/حذف بنفس اليوم).
+2. **تتبع يورتيتشي التلقائي:** Edge Function `track-yurtici` + pg_cron كل 30د (jobid=1). تاب 📡 تتبع بالتطبيق + Realtime يحدّث الحالة فوراً. ⚠️ يحتاج API credentials حقيقية من YKSS.
+3. **مزامنة ثنائية جدول↔تطبيق:** Edge Function `sheet-to-app` (`--no-verify-jwt`): رقم التتبع(عمود P)+الحالة من الجدول→DB، و`bulk_import` (تقبل market/currency). تقبل توكني تركيا+سوريا. `onSheetEdit` trigger مضبوط.
+4. **استيراد الطلبات (طريقة gviz):** تركيا 74 (LOWES_TR+STRONG_TR) + سوريا 118 (LOWES Sales) + 57 مسلّم (Delivered tab، «غير منسوب» $0 لأن المصدر بلا مبلغ/بائع). **الإجمالي: تركيا 83 / سوريا 179 نشط.**
+5. **توحيد أسماء البائعين** في DB لتطابق البروفايل (المرجع `SELLER_ALIASES` في customerService.js).
+6. **رؤية التيمين (يشوف ويعدّل):** أُزيل حصر السوق في `load()` — كل موظف يشوف+يعدّل طلبات سوريا+تركيا، تبويبات السوق للجميع، نموذج الطلب يفتح على سوق الموظف.
+7. **العمولة/التارجت بالـ USD:** جدولا `commission_rules`(turkey/syria) + `monthly_commission_adjustments`. القياس USD لكل العملات (try_per_usd=33, syp_per_usd=14000، قابلة للتعديل). تارجت سوريا $1000، مبيعات السوري في تركيا تُحوّل USD وتُضاف لتارجته. تاب 📦 تسليمات الشهر (leaderboard+تفصيل عمولة+أرشفة شهرية، إعدادات ⚙️ للأدمن).
+8. **عدّاد المخزن:** كان موجوداً (reserveForOrder/releaseForOrder).
+
+**نشر Edge Functions:** لا يوجد supabase login محفوظ — استخدم:
+`$env:SUPABASE_ACCESS_TOKEN="sbp_..."; npx supabase functions deploy <fn> --project-ref fghdumrgimoeqsafdhhh --use-api [--no-verify-jwt]` (التوكن يُنشأ من Dashboard→Account→Access Tokens). تشغيل SQL عبر Management API بنفس التوكن.
+
+**⏳ متابعة:** تبويب «Delivered Orders» السوري ملخّص بلا مبلغ/بائع → المسلّمات منه غير منسوبة. للإصلاح: خلّي التسليمات تبقى بـ LOWES Sales أو أضف عمودي مبلغ+بائع لتبويب Delivered.
+
 ### ✅ ربط جدول تركيا — اكتمل ومُختبر (يونيو 2026)
 **حُلّ بالكامل عبر Chrome MCP.** السبب الجذري كان ثلاثياً: (أ) `setupSheets` لم يُشغَّل (الأوراق النظيفة غير موجودة)، (ب) الـ Web App منشور بنسخة قديمة، (ج) الأهم: الـ secret `TURKEY_SHEET_SYNC_URL` كان يشير لـ deployment قديم (يكتب على أوراق `Strong`/`LOWE'S` الفوضوية، يرجع `sheet:"Strong"`).
 **ما تم:**
