@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "brand-story",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "C:\\Users\\acer\\Desktop", "-p", "3099", "--no-clipboard"],
-      "port": 3099
+      "name": "lowes-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5179", "--strictPort"],
+      "port": 5179
     }
   ]
 }
