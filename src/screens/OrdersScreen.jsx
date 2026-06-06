@@ -845,31 +845,73 @@ function InvoiceModal({ order, onClose }) {
 
         {/* Invoice (captured as image) */}
         <div ref={ref} dir="rtl" style={{
-          background: '#ffffff', padding: '24px',
+          background: '#ffffff', padding: '0',
           fontFamily: '"Tajawal", "Segoe UI", Arial, sans-serif', color: '#111827',
+          minWidth: '320px',
         }}>
-          {/* Brand header */}
-          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f1f3d22', paddingBottom: '14px', marginBottom: '14px' }}>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#0f1f3d', letterSpacing: '-0.3px' }}>
-              Lowe&apos;s Professional
+          {/* Brand header — navy gradient */}
+          <div style={{
+            background: 'linear-gradient(135deg, #0f1f3d 0%, #0d7377 100%)',
+            padding: '20px 24px 18px',
+            color: '#fff',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {/* Decorative circles */}
+            <div style={{ position:'absolute', top:'-20px', left:'-20px', width:'80px', height:'80px', borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+            <div style={{ position:'absolute', bottom:'-15px', right:'-10px', width:'60px', height:'60px', borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
+              <div>
+                <div style={{ fontSize:'18px', fontWeight:'900', letterSpacing:'-0.3px', lineHeight:1.1 }}>
+                  Lowe&apos;s
+                </div>
+                <div style={{ fontSize:'11px', fontWeight:'700', opacity:0.9, letterSpacing:'1px', textTransform:'uppercase' }}>
+                  Professional
+                </div>
+                <div style={{ fontSize:'9px', opacity:0.65, marginTop:'3px' }}>
+                  منتجات عناية البشرة الاحترافية
+                </div>
+              </div>
+              {/* Logo circle */}
+              <div style={{
+                width:'44px', height:'44px', borderRadius:'50%',
+                background:'rgba(255,255,255,0.15)',
+                border:'2px solid rgba(255,255,255,0.3)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:'20px',
+              }}>🌿</div>
             </div>
-            <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>منتجات عناية البشرة الاحترافية</div>
+            {/* Invoice title strip */}
+            <div style={{
+              marginTop:'12px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.15)',
+              display:'flex', justifyContent:'space-between', alignItems:'center',
+              fontSize:'11px', opacity:0.9,
+            }}>
+              <span style={{ fontWeight:'800', fontSize:'13px' }}>فاتورة طلب</span>
+              <span style={{ fontWeight:'700', color:'#a7f3d0' }}>{order.order_id}</span>
+            </div>
           </div>
+          {/* Body */}
+          <div style={{ padding: '20px 24px 24px' }}>
 
           {/* Order meta */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', fontSize: '12px', color: '#6b7280' }}>
             <div>
-              <div style={{ color: '#9ca3af', fontSize: '9px', marginBottom: '2px' }}>رقم الطلب</div>
-              <div style={{ fontWeight: '800', color: '#0d7377', fontSize: '14px' }}>{order.order_id}</div>
-            </div>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ color: '#9ca3af', fontSize: '9px', marginBottom: '2px' }}>التاريخ</div>
-              <div style={{ fontWeight: '700' }}>
+              <div style={{ fontSize: '9px', marginBottom: '1px' }}>📅 التاريخ</div>
+              <div style={{ fontWeight: '700', color: '#111827' }}>
                 {order.order_date
                   ? new Date(order.order_date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
               </div>
             </div>
+            {order.market && (
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '9px', marginBottom: '1px' }}>السوق</div>
+                <div style={{ fontWeight: '700', color: '#111827' }}>
+                  {order.market === 'turkey' ? '🇹🇷 تركيا' : '🇸🇾 سوريا'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Customer */}
@@ -927,15 +969,19 @@ function InvoiceModal({ order, onClose }) {
             </div>
           )}
 
-          {/* Seller footer */}
-          {order.handler_name && (
-            <div style={{
-              textAlign: 'center', fontSize: '9px', color: '#d1d5db',
-              borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '10px',
-            }}>
-              البائع: {order.handler_name}
-            </div>
-          )}
+          {/* Seller + brand footer */}
+          <div style={{
+            borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '12px',
+            display:'flex', justifyContent:'space-between', alignItems:'center',
+            fontSize: '9px', color: '#9ca3af',
+          }}>
+            {order.handler_name
+              ? <span>البائع: <strong style={{color:'#374151'}}>{order.handler_name}</strong></span>
+              : <span />
+            }
+            <span style={{ color:'#0d7377', fontWeight:'700', fontSize:'8px' }}>Lowe's Professional ✦</span>
+          </div>
+          </div>{/* end body */}
         </div>
 
         {/* Message feedback */}
@@ -1433,10 +1479,16 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
                   <ComboBox value={form.district} onChange={v => { set('district', v); set('sy_neighborhood', ''); }}
                     options={getSyriaDistricts(form.city)} className={INP} placeholder="المنطقة / المدينة" />
                 </div>
-                <ComboBox value={form.sy_neighborhood} onChange={v => set('sy_neighborhood', v)}
+                <ComboBox value={form.sy_neighborhood}
+                  onChange={v => {
+                    set('sy_neighborhood', v);
+                    // بنِ العنوان التفصيلي تلقائياً من المحافظة+المنطقة+الحي
+                    const parts = [form.city, form.district, v].filter(Boolean);
+                    if (parts.length > 0) set('address', parts.join(' - '));
+                  }}
                   options={getSyriaNeighborhoods(form.district)} className={INP} placeholder="الحي / القرية (اختر أو اكتب)" />
                 <input value={form.address} onChange={e => set('address', e.target.value)} className={INP}
-                  placeholder="العنوان التفصيلي (شارع، رقم، ملاحظة)" />
+                  placeholder="العنوان التفصيلي (شارع، رقم، ملاحظة) — يُبنى تلقائياً" />
               </>
             )}
           </div>
@@ -1630,6 +1682,148 @@ function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
   );
 }
 
+// ── Seller Wallet — محفظة المبيعات ─────────────────────────────
+function SellerWallet({ orders, userName, myNames, commissionPct }) {
+  const nameSet = useMemo(() => myNames || new Set([userName]), [myNames, userName]);
+
+  const myOrders = useMemo(() =>
+    orders.filter(o => nameSet.has(o.handler_name) && !o.archived),
+  [orders, nameSet]);
+
+  const delivered = myOrders.filter(o => o.status === 'delivered');
+  const pending   = myOrders.filter(o => ['pending','preparing','ready'].includes(o.status));
+  const returned  = myOrders.filter(o => RETURN_STATUSES.includes(o.status));
+
+  // مجاميع حسب العملة
+  const deliveredTotals = useMemo(() => delivered.reduce((acc, o) => {
+    if (!o.amount) return acc;
+    const c = o.currency || 'SYP';
+    acc[c] = (acc[c] || 0) + Number(o.amount);
+    return acc;
+  }, {}), [delivered]);
+
+  const pendingTotals = useMemo(() => pending.reduce((acc, o) => {
+    if (!o.amount) return acc;
+    const c = o.currency || 'SYP';
+    acc[c] = (acc[c] || 0) + Number(o.amount);
+    return acc;
+  }, {}), [pending]);
+
+  const months = useMemo(() => {
+    const map = {};
+    delivered.forEach(o => {
+      const m = (o.order_date || o.created_at || '').slice(0, 7);
+      if (!m) return;
+      if (!map[m]) map[m] = { count: 0, totals: {} };
+      map[m].count++;
+      const c = o.currency || 'SYP';
+      map[m].totals[c] = (map[m].totals[c] || 0) + Number(o.amount || 0);
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
+  }, [delivered]);
+
+  return (
+    <div className="space-y-4">
+      {/* بطاقة الملخص */}
+      <div className="bg-gradient-to-br from-navy to-teal rounded-2xl p-5 text-white space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs opacity-80">محفظة مبيعاتي</p>
+            <p className="text-lg font-extrabold">{userName}</p>
+          </div>
+          <span className="text-4xl">💼</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white/10 rounded-xl p-3 text-center">
+            <p className="text-xl font-black">{delivered.length}</p>
+            <p className="text-[10px] opacity-80 mt-0.5">✅ مسلّم</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3 text-center">
+            <p className="text-xl font-black">{pending.length}</p>
+            <p className="text-[10px] opacity-80 mt-0.5">⏳ قيد التنفيذ</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3 text-center">
+            <p className="text-xl font-black">{returned.length}</p>
+            <p className="text-[10px] opacity-80 mt-0.5">🔁 راجع</p>
+          </div>
+        </div>
+        {commissionPct > 0 && (
+          <p className="text-[11px] opacity-70 text-center">نسبة عمولتي: {commissionPct}%</p>
+        )}
+      </div>
+
+      {/* المبالغ المسلّمة */}
+      <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+        <h3 className="text-sm font-bold text-text">💰 إجمالي المبيعات المسلّمة</h3>
+        {Object.keys(deliveredTotals).length === 0
+          ? <p className="text-xs text-muted text-center py-2">لا توجد مبيعات مسلّمة بعد</p>
+          : Object.entries(deliveredTotals).map(([c, total]) => {
+            const commission = commissionPct > 0 ? (total * commissionPct / 100) : null;
+            const target = targetForCurrency(c);
+            const pct = target ? Math.min(100, Math.round((total / target) * 100)) : null;
+            return (
+              <div key={c} className="space-y-1.5">
+                <div className="flex justify-between items-end">
+                  <span className="text-xs text-muted">{c}</span>
+                  <div className="text-right">
+                    <span className="text-base font-black text-text">{total.toLocaleString()} {c}</span>
+                    {commission && <p className="text-[10px] text-teal font-semibold">عمولة: {commission.toFixed(0)} {c}</p>}
+                  </div>
+                </div>
+                {pct !== null && (
+                  <>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-muted">الهدف: {target?.toLocaleString()} {c}</span>
+                      <span className={`font-bold ${pct >= 100 ? 'text-green-fg' : 'text-muted'}`}>{pct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-alt overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-fg' : pct >= 60 ? 'bg-teal' : 'bg-amber-fg'}`}
+                        style={{ width: `${pct}%` }} />
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })
+        }
+      </div>
+
+      {/* المبالغ المعلّقة (قيد التنفيذ) */}
+      {Object.keys(pendingTotals).length > 0 && (
+        <div className="bg-amber-bg border border-amber/20 rounded-2xl p-4 space-y-2">
+          <h3 className="text-sm font-bold text-amber-fg">⏳ طلبات قيد التنفيذ</h3>
+          {Object.entries(pendingTotals).map(([c, total]) => (
+            <div key={c} className="flex justify-between">
+              <span className="text-xs text-muted">{c}</span>
+              <span className="text-sm font-bold text-text">{total.toLocaleString()} {c}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* مبيعات الأشهر السابقة */}
+      {months.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+          <h3 className="text-sm font-bold text-text">📅 مبيعات شهرية</h3>
+          {months.map(([month, data]) => (
+            <div key={month} className="flex justify-between items-center py-1.5 border-b border-border/40 last:border-0">
+              <div>
+                <p className="text-xs font-semibold text-text">{month}</p>
+                <p className="text-[10px] text-muted">{data.count} طلب</p>
+              </div>
+              <div className="text-right">
+                {Object.entries(data.totals).map(([c, t]) => (
+                  <p key={c} className="text-xs font-bold text-text">{t.toLocaleString()} {c}</p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // Main Screen
 // ══════════════════════════════════════════════════════════════
@@ -1638,6 +1832,7 @@ export default function OrdersScreen() {
 
   const isManager        = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
   const isFulfillment    = order_role === 'fulfillment';
+  const isStorage        = order_role === 'storage';   // تخزين/تغليف — يشوف الكل، لا يعدّل
   const userMarket       = order_market ?? teamToMarket(team) ?? null;
   const canAdvanceOrders = isFulfillment || isManager;
   // البائع يقدر يغيّر حالة طلبه هو فقط
@@ -1654,9 +1849,13 @@ export default function OrdersScreen() {
   const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
   const [viewTracking,   setViewTracking]  = useState(false);   // «تتبع الشحنات» toggle
   const [viewMonthly,    setViewMonthly]   = useState(false);   // «تسليمات الشهر» toggle
+  const [viewWallet,     setViewWallet]    = useState(false);   // «محفظتي» toggle
   const [refreshing,     setRefreshing]    = useState(false);   // manual tracking refresh
   const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
+  const [sellerFilter,  setSellerFilter]  = useState('');      // فلتر اسم البائع
+  const [dateFrom,      setDateFrom]      = useState('');      // فلتر من تاريخ
+  const [dateTo,        setDateTo]        = useState('');      // فلتر إلى تاريخ
 
   // Reorder: open a prefilled new-order form when arriving from «إعادة الطلب».
   const location = useLocation();
@@ -1818,7 +2017,9 @@ export default function OrdersScreen() {
     }
     setModal(null);
     load();
-    if (savedId && (form.market === 'syria' || form.market === 'turkey')) syncOrderToSheet(savedId);
+    // مزامنة الجدول عند الإنشاء أو التعديل
+    const syncId = savedId || existingId;
+    if (syncId && (form.market === 'syria' || form.market === 'turkey')) syncOrderToSheet(syncId);
     // Phase 2: reserve stock for NEW lowes-brand orders (best-effort).
     // Deducts catalog items from the seller's source warehouse.
     if (savedId && !existingId) {
@@ -1869,6 +2070,15 @@ export default function OrdersScreen() {
     if (myOrders && !myNames.has(o.handler_name)) return false;
     if (market !== 'all' && o.market !== market) return false;
     if (status !== 'all' && o.status !== status) return false;
+    if (sellerFilter && o.handler_name !== sellerFilter) return false;
+    if (dateFrom) {
+      const oDate = (o.order_date || o.created_at || '').slice(0, 10);
+      if (oDate < dateFrom) return false;
+    }
+    if (dateTo) {
+      const oDate = (o.order_date || o.created_at || '').slice(0, 10);
+      if (oDate > dateTo) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return o.customer_name?.toLowerCase().includes(q) ||
@@ -1876,7 +2086,12 @@ export default function OrdersScreen() {
              o.phone_1?.includes(q);
     }
     return true;
-  }), [orders, market, status, search, myOrders, myNames]);
+  }), [orders, market, status, search, myOrders, myNames, sellerFilter, dateFrom, dateTo]);
+
+  // قائمة البائعين الفريدة من الطلبات الحالية
+  const sellerOptions = useMemo(() =>
+    [...new Set(orders.map(o => o.handler_name).filter(Boolean))].sort()
+  , [orders]);
 
   const stats = useMemo(() => ({
     total:      orders.length,
@@ -1940,15 +2155,22 @@ export default function OrdersScreen() {
               {archiving ? '…' : '🗄️ أرشفة'}
             </button>
           )}
-          {!isFulfillment && !viewArchive && (
-            <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); }}
+          {!isFulfillment && !isStorage && !viewArchive && (
+            <button onClick={() => { setViewWallet(v => !v); setViewTracking(false); setViewMonthly(false); }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewWallet ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="محفظتي">
+              💼
+            </button>
+          )}
+          {!isFulfillment && !isStorage && !viewArchive && (
+            <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-white border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تتبع الشحنات">
               📡
             </button>
           )}
-          {!isFulfillment && !viewArchive && (
-            <button onClick={() => { setViewMonthly(v => !v); setViewTracking(false); }}
+          {!isFulfillment && !isStorage && !viewArchive && (
+            <button onClick={() => { setViewMonthly(v => !v); setViewTracking(false); setViewWallet(false); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewMonthly ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تسليمات الشهر">
               📦
@@ -1963,8 +2185,13 @@ export default function OrdersScreen() {
         </div>
       </div>
 
+      {/* محفظة المبيعات */}
+      {viewWallet && !isFulfillment && !isStorage && (
+        <SellerWallet orders={orders} userName={userName} myNames={myNames} commissionPct={commissionPct} />
+      )}
+
       {/* «طلباتي» / «كل الطلبات» toggle */}
-      {!isFulfillment && !viewTracking && !viewMonthly && (
+      {!isFulfillment && !viewTracking && !viewMonthly && !viewWallet && (
         <div className="flex gap-2">
           <button onClick={() => setMyOrders(false)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
@@ -1980,7 +2207,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Seller stats — visible when in «طلباتي» mode */}
-      {myOrders && !isFulfillment && !viewTracking && !viewMonthly && (
+      {myOrders && !isFulfillment && !viewTracking && !viewMonthly && !viewWallet && (
         <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
       )}
 
@@ -1996,7 +2223,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Follow-up / returns banner — orders that need chasing the customer */}
-      {!viewArchive && !viewMonthly && (stats.waiting + stats.returned) > 0 && (
+      {!viewArchive && !viewMonthly && !viewWallet && (stats.waiting + stats.returned) > 0 && (
         <div className="bg-red-bg border border-red/30 rounded-2xl px-4 py-3 flex items-center gap-3">
           <span className="text-2xl">🔁</span>
           <div className="flex-1 min-w-0">
@@ -2019,7 +2246,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Stats row */}
-      {!viewTracking && !viewMonthly && <div className="grid grid-cols-4 gap-2">
+      {!viewTracking && !viewMonthly && !viewWallet && <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'وارد',  value: stats.pending,                  color: 'text-muted',    bg: 'bg-surface-alt', onClick: () => setStatus('pending')   },
           { label: 'تجهيز', value: stats.preparing + stats.ready,  color: 'text-amber-fg', bg: 'bg-amber-bg',    onClick: () => setStatus('preparing') },
@@ -2035,7 +2262,7 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Market tabs — everyone can browse both teams, when not in «طلباتي» */}
-      {!myOrders && !viewTracking && !viewMonthly && (
+      {!myOrders && !viewTracking && !viewMonthly && !viewWallet && (
         <div className="flex gap-2">
           {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
@@ -2048,7 +2275,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Status filter */}
-      {!viewTracking && !viewMonthly && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      {!viewTracking && !viewMonthly && !viewWallet && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         <button onClick={() => setStatus('all')}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition
             ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
@@ -2064,9 +2291,32 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Search */}
-      {!viewTracking && !viewMonthly && <input value={search} onChange={e => setSearch(e.target.value)}
+      {!viewTracking && !viewMonthly && !viewWallet && <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />}
+
+      {/* فلتر البائع + المدة */}
+      {!viewTracking && !viewMonthly && !viewWallet && isManager && (
+        <div className="flex gap-2 flex-wrap">
+          <select value={sellerFilter} onChange={e => setSellerFilter(e.target.value)}
+            className="flex-1 min-w-[120px] border border-border rounded-xl px-3 py-2 text-xs bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30">
+            <option value="">👤 كل البائعين</option>
+            {sellerOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            title="من تاريخ"
+            className="flex-1 min-w-[120px] border border-border rounded-xl px-3 py-2 text-xs bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            title="إلى تاريخ"
+            className="flex-1 min-w-[120px] border border-border rounded-xl px-3 py-2 text-xs bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          {(sellerFilter || dateFrom || dateTo) && (
+            <button onClick={() => { setSellerFilter(''); setDateFrom(''); setDateTo(''); }}
+              className="px-3 py-2 rounded-xl bg-red-bg text-red-fg text-xs font-bold hover:opacity-80 transition">
+              ✕ مسح
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Monthly Deliveries Tab */}
       {viewMonthly && (
