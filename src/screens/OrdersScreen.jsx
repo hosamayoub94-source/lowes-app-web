@@ -99,26 +99,53 @@ const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
 const CURRENCY_SYMBOLS = { TRY: '₺', SYP: '£', USD: '$' };
 const THIS_MONTH = new Date().toISOString().slice(0, 7); // '2026-06'
 
+// Convert any order amount to USD using admin-set rates (units per 1 USD).
+function toUSD(amount, currency, rates) {
+  const a = Number(amount || 0);
+  if (!a) return 0;
+  const cur = String(currency || 'SYP').toUpperCase();
+  if (cur === 'USD') return a;
+  if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
+  if (cur === 'SYP') return a / (Number(rates?.syp_per_usd) || 14000);
+  return 0;
+}
+
 function useCommission(isManager) {
-  const [rules, setRules] = useState(null);
+  const [rulesById, setRulesById] = useState(null); // { turkey:{...}, syria:{...} }
   const [adjustments, setAdj] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.from('commission_rules').select('*').eq('id', 'turkey').maybeSingle()
-      .then(({ data }) => setRules(data || {
-        id: 'turkey', monthly_target_try: 65000,
-        prepaid_bonus_try: 0, prepaid_bonus_pct: 0,
-        repeat_customer_bonus_try: 0, base_commission_pct: 0,
-      }));
+    supabase.from('commission_rules').select('*')
+      .then(({ data }) => {
+        const map = {};
+        (data || []).forEach(r => { map[r.id] = r; });
+        if (!map.turkey) map.turkey = { id: 'turkey', monthly_target_try: 65000, monthly_target_usd: 0, try_per_usd: 33, syp_per_usd: 14000, base_commission_pct: 0, prepaid_bonus_try: 0, prepaid_bonus_pct: 0, repeat_customer_bonus_try: 0 };
+        if (!map.syria)  map.syria  = { id: 'syria',  monthly_target_try: 0, monthly_target_usd: 1000, try_per_usd: 33, syp_per_usd: 14000, base_commission_pct: 0, prepaid_bonus_try: 0, prepaid_bonus_pct: 0, repeat_customer_bonus_try: 0 };
+        setRulesById(map);
+      });
     supabase.from('monthly_commission_adjustments').select('*').eq('month', THIS_MONTH)
       .then(({ data }) => setAdj(data || []));
   }, []);
 
+  // Shared conversion rates live on the turkey row.
+  const rates = rulesById ? { try_per_usd: rulesById.turkey?.try_per_usd ?? 33, syp_per_usd: rulesById.turkey?.syp_per_usd ?? 14000 } : { try_per_usd: 33, syp_per_usd: 14000 };
+  const rules = rulesById?.turkey || null; // backward-compat for the settings panel
+
   const saveRules = async (updated, actor) => {
     setSaving(true);
-    await supabase.from('commission_rules').upsert({ ...updated, updated_at: new Date().toISOString(), updated_by: actor });
-    setRules(updated);
+    // Persist conversion rates to BOTH rows so they stay in sync.
+    const ratePatch = { try_per_usd: Number(updated.try_per_usd) || 33, syp_per_usd: Number(updated.syp_per_usd) || 14000 };
+    await supabase.from('commission_rules').upsert({ ...updated, ...ratePatch, updated_at: new Date().toISOString(), updated_by: actor });
+    await supabase.from('commission_rules').update(ratePatch).eq('id', 'syria');
+    if (updated.syria_target_usd != null) {
+      await supabase.from('commission_rules').update({ monthly_target_usd: Number(updated.syria_target_usd) }).eq('id', 'syria');
+    }
+    setRulesById(prev => ({
+      ...prev,
+      turkey: { ...prev.turkey, ...updated, ...ratePatch },
+      syria:  { ...prev.syria, ...ratePatch, monthly_target_usd: updated.syria_target_usd != null ? Number(updated.syria_target_usd) : prev.syria?.monthly_target_usd },
+    }));
     setSaving(false);
   };
 
@@ -133,21 +160,52 @@ function useCommission(isManager) {
     setSaving(false);
   };
 
-  return { rules, setRules, adjustments, saveRules, saveAdj, saving };
+  return { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving };
 }
 
 // ── Commission Panel (admin settings) ────────────────────────
-function CommissionSettings({ rules, onSave, saving, actor }) {
+function CommissionSettings({ rules, syriaTargetUsd, onSave, saving, actor }) {
   const [draft, setDraft] = useState(null);
-  useEffect(() => { if (rules) setDraft({ ...rules }); }, [rules]);
+  useEffect(() => {
+    if (rules) setDraft({ ...rules, syria_target_usd: syriaTargetUsd ?? 1000 });
+  }, [rules, syriaTargetUsd]);
   if (!draft) return null;
   const f = (k) => (e) => setDraft(p => ({ ...p, [k]: Number(e.target.value) }));
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
-      <h3 className="text-sm font-extrabold text-text">⚙️ إعدادات العمولة — تركيا</h3>
+      <h3 className="text-sm font-extrabold text-text">⚙️ إعدادات العمولة والتارجت</h3>
+
+      <p className="text-[11px] font-bold text-muted">🎯 التارجت</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted font-bold">🇹🇷 تارجت تركيا (TRY)</label>
+          <input type="number" value={draft.monthly_target_try || 0} onChange={f('monthly_target_try')} min="0"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted font-bold">🇸🇾 تارجت سوريا ($)</label>
+          <input type="number" value={draft.syria_target_usd || 0} onChange={f('syria_target_usd')} min="0"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        </div>
+      </div>
+
+      <p className="text-[11px] font-bold text-muted pt-1">💱 أسعار التحويل لـ USD (كم وحدة = 1$)</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted font-bold">₺ ليرة تركية / دولار</label>
+          <input type="number" value={draft.try_per_usd || 0} onChange={f('try_per_usd')} min="0"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted font-bold">£ ليرة سورية / دولار</label>
+          <input type="number" value={draft.syp_per_usd || 0} onChange={f('syp_per_usd')} min="0"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        </div>
+      </div>
+
+      <p className="text-[11px] font-bold text-muted pt-1">💰 العمولة (تركيا)</p>
       <div className="grid grid-cols-2 gap-3">
         {[
-          { k: 'monthly_target_try', label: 'التارجت الشهري (TRY)', icon: '🎯' },
           { k: 'base_commission_pct', label: 'نسبة عمولة الأساس %', icon: '💰' },
           { k: 'prepaid_bonus_try', label: 'بونص الدفع المسبق (₺/طلب)', icon: '⚡' },
           { k: 'prepaid_bonus_pct', label: 'أو نسبة الدفع المسبق %', icon: '⚡' },
@@ -169,15 +227,19 @@ function CommissionSettings({ rules, onSave, saving, actor }) {
 }
 
 // ── Per-employee commission card ──────────────────────────────
-function EmployeeCommissionCard({ emp, rank, rules, adj, onSaveAdj, saving, isManager, isMe }) {
+function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSaveAdj, saving, isManager, isMe }) {
   const [showAdj, setShowAdj] = useState(false);
   const [adjVal, setAdjVal] = useState('');
   const [adjNote, setAdjNote] = useState('');
 
   if (!rules) return null;
   const tryTotal = emp.totals['TRY'] || 0;
-  const target = rules.monthly_target_try || 65000;
-  const pct = target > 0 ? Math.min(100, Math.round((tryTotal / target) * 100)) : 0;
+
+  // USD-equivalent total across ALL currencies — the unified metric. A Syria
+  // seller's Turkey (TRY) sales convert and count toward their $ target too.
+  const usdTotal = emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+  const targetU  = Number(targetUsd) || 0;
+  const pct = targetU > 0 ? Math.min(100, Math.round((usdTotal / targetU) * 100)) : 0;
 
   // Count prepaid orders
   const prepaidCount = emp.orders.filter(o =>
@@ -216,21 +278,22 @@ function EmployeeCommissionCard({ emp, rank, rules, adj, onSaveAdj, saving, isMa
           <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم · {prepaidCount} مسبق</p>
         </div>
         <div className="text-right shrink-0">
+          <p className="text-base font-black text-text">${usdTotal.toFixed(0)}</p>
           {Object.entries(emp.totals).map(([cur, val]) => (
-            <p key={cur} className="text-sm font-extrabold text-text">
-              {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} <span className="text-[10px] text-muted">{cur}</span>
+            <p key={cur} className="text-[11px] text-muted">
+              {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} {cur}
             </p>
           ))}
         </div>
       </div>
 
-      {/* Target progress (TRY only) */}
-      {tryTotal > 0 && (
+      {/* Target progress (USD-equivalent — unified across currencies) */}
+      {targetU > 0 && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted font-bold">🎯 التارجت</span>
             <span className={`font-extrabold ${pct >= 100 ? 'text-green-fg' : 'text-text'}`}>
-              ₺{tryTotal.toLocaleString('en-US')} / ₺{target.toLocaleString('en-US')} ({pct}%)
+              ${usdTotal.toFixed(0)} / ${targetU.toLocaleString('en-US')} ({pct}%)
             </span>
           </div>
           <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
@@ -319,7 +382,7 @@ function EmployeeCommissionCard({ emp, rank, rules, adj, onSaveAdj, saving, isMa
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
   const [brand, setBrand] = useState('all');
   const [showSettings, setShowSettings] = useState(false);
-  const { rules, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
+  const { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
 
   const now = new Date();
   const monthLabel = now.toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
@@ -333,30 +396,40 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     (brand === 'all' || (o.brand || 'lowes').toLowerCase() === brand)
   ), [orders, brand, monthStart]);
 
-  // Group by employee
+  // Group by employee, with USD-equivalent total + dominant market
   const byEmployee = useMemo(() => {
     const map = {};
     for (const o of delivered) {
       const name = o.handler_name || 'غير محدد';
-      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {} };
+      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {} };
       map[name].orders.push(o);
       const cur = (o.currency || 'SYP').toUpperCase();
       map[name].totals[cur] = (map[name].totals[cur] || 0) + Number(o.amount || 0);
-      // Count products
+      const mk = o.market || 'turkey';
+      map[name].marketCount[mk] = (map[name].marketCount[mk] || 0) + 1;
       (o.items || []).forEach(it => {
         const k = it.name || '—';
         map[name].products[k] = (map[name].products[k] || 0) + Number(it.qty || 1);
       });
     }
-    // Sort by TRY desc, then SYP, then count
-    return Object.values(map).sort((a, b) => {
-      const aTRY = a.totals['TRY'] || 0, bTRY = b.totals['TRY'] || 0;
-      if (bTRY !== aTRY) return bTRY - aTRY;
-      const aSYP = a.totals['SYP'] || 0, bSYP = b.totals['SYP'] || 0;
-      if (bSYP !== aSYP) return bSYP - aSYP;
-      return b.orders.length - a.orders.length;
+    const list = Object.values(map).map(emp => {
+      emp.usdTotal = emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+      // dominant market = the one with the most delivered orders
+      emp.market = Object.entries(emp.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'turkey';
+      return emp;
     });
-  }, [delivered]);
+    // Sort by USD total (the unified metric) descending
+    return list.sort((a, b) => b.usdTotal - a.usdTotal);
+  }, [delivered, rates]);
+
+  // Target (USD) for a given market.
+  const targetUsdFor = (market) => {
+    if (market === 'syria') return Number(rulesById?.syria?.monthly_target_usd) || 1000;
+    // Turkey team's TRY target expressed in USD (so everyone compares in $)
+    const tTry = Number(rulesById?.turkey?.monthly_target_try) || 0;
+    const tUsd = Number(rulesById?.turkey?.monthly_target_usd) || 0;
+    return tUsd > 0 ? tUsd : (tTry > 0 ? tTry / (Number(rates?.try_per_usd) || 33) : 0);
+  };
 
   // Grand totals
   const grandTotals = useMemo(() => {
@@ -393,7 +466,11 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
 
         {/* Grand totals */}
         {Object.keys(grandTotals).length > 0 && (
-          <div className="flex gap-3 mt-3 flex-wrap">
+          <div className="flex gap-3 mt-3 flex-wrap items-stretch">
+            <div className="bg-teal text-white rounded-xl px-3 py-1.5 text-center">
+              <p className="text-[10px] opacity-80">الإجمالي ≈ USD</p>
+              <p className="text-sm font-black">${delivered.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0).toFixed(0)}</p>
+            </div>
             {Object.entries(grandTotals).map(([cur, total]) => (
               <div key={cur} className="bg-surface rounded-xl px-3 py-1.5 text-center">
                 <p className="text-xs text-muted">{cur}</p>
@@ -436,7 +513,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         </button>
       )}
       {isManager && showSettings && (
-        <CommissionSettings rules={rules} onSave={saveRules} saving={saving} actor={userName} />
+        <CommissionSettings rules={rules} syriaTargetUsd={rulesById?.syria?.monthly_target_usd}
+          onSave={saveRules} saving={saving} actor={userName} />
       )}
 
       {/* Leaderboard */}
@@ -446,6 +524,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           emp={emp}
           rank={i}
           rules={rules}
+          rates={rates}
+          targetUsd={targetUsdFor(emp.market)}
           adj={adjustments.find(a => a.employee_name === emp.name)}
           onSaveAdj={(name, val, note) => saveAdj(name, val, note, userName)}
           saving={saving}
@@ -1666,20 +1746,14 @@ export default function OrdersScreen() {
       } else {
         q = q.or('archived.is.null,archived.eq.false');
       }
-      // Non-managers are scoped to their market, BUT always see orders they
-      // personally handle even if the order's market differs (e.g. a seller on
-      // the Syria team who also handles Turkey orders). Otherwise their own
-      // orders — including ones they just created — would silently disappear.
-      if (!isManager && userMarket) {
-        // Quote the name so spaces/punctuation don't break the PostgREST filter.
-        if (userName) q = q.or(`market.eq.${userMarket},handler_name.eq."${userName}"`);
-        else q = q.eq('market', userMarket);
-      }
+      // Everyone (employees included) sees BOTH teams' orders so cross-team
+      // selling works; the market tabs below let them narrow to تركيا/سوريا.
+      // Edits/permissions are handled per-card, not by hiding rows here.
       const { data } = await q;
       setOrders(data ?? []);
     } catch {}
     finally { setLoading(false); }
-  }, [isManager, userMarket, userName, viewArchive, search]);
+  }, [viewArchive, search]);
 
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
@@ -1958,8 +2032,8 @@ export default function OrdersScreen() {
         ))}
       </div>}
 
-      {/* Market tabs — managers only, when not in «طلباتي» */}
-      {isManager && !myOrders && !viewTracking && !viewMonthly && (
+      {/* Market tabs — everyone can browse both teams, when not in «طلباتي» */}
+      {!myOrders && !viewTracking && !viewMonthly && (
         <div className="flex gap-2">
           {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
