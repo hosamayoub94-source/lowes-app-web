@@ -2402,7 +2402,7 @@ export default function OrdersScreen() {
               📡
             </button>
           )}
-          {!isFulfillment && !isStorage && !viewArchive && (
+          {isManager && !viewArchive && (
             <button onClick={() => { setViewMonthly(v => !v); setViewTracking(false); setViewWallet(false); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewMonthly ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تسليمات الشهر">
@@ -2494,10 +2494,16 @@ export default function OrdersScreen() {
         ))}
       </div>}
 
-      {/* Market tabs — everyone can browse both teams, when not in «طلباتي» */}
+      {/* Market tabs — employee's own market first; everyone can browse both */}
       {!myOrders && !viewTracking && !viewMonthly && !viewWallet && (
         <div className="flex gap-2">
-          {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
+          {(() => {
+            const mk = [
+              { key: 'turkey', label: 'طلبات تركيا', icon: '🇹🇷' },
+              { key: 'syria',  label: 'طلبات سوريا', icon: '🇸🇾' },
+            ].sort((a, b) => (a.key === userMarket ? -1 : b.key === userMarket ? 1 : 0));
+            return [...mk, { key: 'all', label: 'الكل', icon: '🌍' }];
+          })().map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
               className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
                 ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
@@ -2551,8 +2557,8 @@ export default function OrdersScreen() {
         </div>
       )}
 
-      {/* Monthly Deliveries Tab */}
-      {viewMonthly && (
+      {/* Monthly Deliveries Tab — managers/admins only (company-wide totals) */}
+      {viewMonthly && isManager && (
         <MonthlyDeliveriesTab
           orders={orders}
           isManager={isManager}
