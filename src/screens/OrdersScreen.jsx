@@ -17,6 +17,7 @@ import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel } from '@services/customerService';
+import { saveEconomics } from '@services/profitabilityService';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -377,6 +378,113 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
   );
 }
 
+// ── Product values (sold products + editable catalog price) ───
+// المنتجات المباعة من الطلبات المسلّمة + قيمتها (USD) من أسعار الكتالوج.
+// السعر قابل للتحرير ويُحفظ في product_economics (نفس مصدر صفحة الربحية).
+function ProductValuesSection({ delivered, canEdit }) {
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const [open, setOpen]         = useState(true);
+  const [prices, setPrices]     = useState({});   // norm(name) -> sale_price_usd
+  const [savingKey, setSaving]  = useState(null);
+  const [savedKey, setSaved]    = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    supabase.from('product_economics').select('item_name, sale_price_usd').then(({ data }) => {
+      if (!alive || !data) return;
+      const m = {};
+      data.forEach(r => { m[norm(r.item_name)] = Number(r.sale_price_usd) || 0; });
+      setPrices(m);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const rows = useMemo(() => {
+    const agg = {};
+    for (const o of delivered) {
+      (o.items || []).forEach(it => {
+        const name = (it.name || '').trim();
+        if (!name) return;
+        const k = norm(name);
+        if (!agg[k]) agg[k] = { key: k, name, qty: 0 };
+        agg[k].qty += Number(it.qty || 1);
+      });
+    }
+    return Object.values(agg)
+      .map(r => { const price = prices[r.key]; const has = price != null && price > 0;
+        return { ...r, price: has ? price : null, value: has ? price * r.qty : null }; })
+      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.qty - a.qty);
+  }, [delivered, prices]);
+
+  const totalValue = rows.reduce((s, r) => s + (r.value || 0), 0);
+  const totalQty   = rows.reduce((s, r) => s + r.qty, 0);
+
+  const savePrice = async (row, raw) => {
+    const v = raw === '' ? 0 : Number(raw);
+    if (Number.isNaN(v) || v === (row.price ?? 0)) return;
+    setPrices(p => ({ ...p, [row.key]: v }));        // optimistic
+    setSaving(row.key);
+    try {
+      await saveEconomics(row.name, { sale_price_usd: v });
+      setSaved(row.key); setTimeout(() => setSaved(k => (k === row.key ? null : k)), 1500);
+    } catch (e) { window.alert('تعذّر حفظ السعر: ' + e.message); }
+    finally { setSaving(k => (k === row.key ? null : k)); }
+  };
+
+  if (rows.length === 0) return null;
+  const GRID = 'grid grid-cols-[1fr_3rem_4rem_5rem] gap-2 items-center';
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-alt transition">
+        <span className="font-extrabold text-text text-sm">
+          🧾 المنتجات المباعة <span className="text-muted font-normal">({rows.length})</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-black text-teal">≈ ${totalValue.toLocaleString('en-US')}</span>
+          <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          <div className={`${GRID} px-2 py-1 text-[10px] text-muted font-bold`}>
+            <span>المنتج</span><span className="text-center">الكمية</span>
+            <span className="text-center">السعر $</span><span className="text-left">القيمة $</span>
+          </div>
+          {rows.map(r => (
+            <div key={r.key} className={`${GRID} px-2 py-1.5 border-t border-border text-xs`}>
+              <span className="text-text truncate" title={r.name}>{r.name}</span>
+              <span className="font-bold text-text tabular-nums text-center">×{r.qty}</span>
+              {canEdit ? (
+                <input type="number" min="0" defaultValue={r.price ?? ''} onBlur={e => savePrice(r, e.target.value)}
+                  placeholder="—"
+                  className="w-full border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30" />
+              ) : (
+                <span className="text-muted tabular-nums text-center">{r.price != null ? '$' + r.price : '—'}</span>
+              )}
+              <span className="font-extrabold text-text tabular-nums text-left">
+                {r.value != null ? '$' + r.value.toLocaleString('en-US') : '—'}
+                {savingKey === r.key && <span className="text-muted"> …</span>}
+                {savedKey === r.key && <span className="text-green-fg"> ✓</span>}
+              </span>
+            </div>
+          ))}
+          <div className={`${GRID} px-2 py-2 border-t-2 border-border text-xs font-extrabold`}>
+            <span className="text-text">الإجمالي</span>
+            <span className="text-text tabular-nums text-center">×{totalQty}</span>
+            <span></span>
+            <span className="text-teal tabular-nums text-left">${totalValue.toLocaleString('en-US')}</span>
+          </div>
+          <p className="text-[10px] text-muted mt-2 px-2 leading-relaxed">
+            القيمة تقديرية حسب أسعار الكتالوج (USD). المنتجات بـ «—» تحتاج إدخال سعرها — اكتبه بالخانة ويُحفظ تلقائياً.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Monthly Deliveries Tab ────────────────────────────────────
 
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
@@ -503,6 +611,9 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           <p className="text-sm font-bold">لا توجد تسليمات هذا الشهر</p>
         </div>
       )}
+
+      {/* Sold products + values (accountant) */}
+      <ProductValuesSection delivered={delivered} canEdit={isManager} />
 
       {/* Commission settings toggle (admin only) */}
       {isManager && (
