@@ -95,11 +95,231 @@ const STATUSES = {
 // Linear pipeline for the progress strip; any status outside it hides the strip.
 const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
 
-// ── Monthly Deliveries Tab ────────────────────────────────────
+// ── Commission helpers ────────────────────────────────────────
 const CURRENCY_SYMBOLS = { TRY: '₺', SYP: '£', USD: '$' };
+const THIS_MONTH = new Date().toISOString().slice(0, 7); // '2026-06'
+
+function useCommission(isManager) {
+  const [rules, setRules] = useState(null);
+  const [adjustments, setAdj] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from('commission_rules').select('*').eq('id', 'turkey').maybeSingle()
+      .then(({ data }) => setRules(data || {
+        id: 'turkey', monthly_target_try: 65000,
+        prepaid_bonus_try: 0, prepaid_bonus_pct: 0,
+        repeat_customer_bonus_try: 0, base_commission_pct: 0,
+      }));
+    supabase.from('monthly_commission_adjustments').select('*').eq('month', THIS_MONTH)
+      .then(({ data }) => setAdj(data || []));
+  }, []);
+
+  const saveRules = async (updated, actor) => {
+    setSaving(true);
+    await supabase.from('commission_rules').upsert({ ...updated, updated_at: new Date().toISOString(), updated_by: actor });
+    setRules(updated);
+    setSaving(false);
+  };
+
+  const saveAdj = async (employeeName, adjustmentTry, note, actor) => {
+    setSaving(true);
+    const row = { employee_name: employeeName, month: THIS_MONTH, adjustment_try: Number(adjustmentTry), note, created_by: actor };
+    await supabase.from('monthly_commission_adjustments').upsert(row, { onConflict: 'employee_name,month' });
+    setAdj(prev => {
+      const filtered = prev.filter(a => a.employee_name !== employeeName);
+      return [...filtered, { ...row }];
+    });
+    setSaving(false);
+  };
+
+  return { rules, setRules, adjustments, saveRules, saveAdj, saving };
+}
+
+// ── Commission Panel (admin settings) ────────────────────────
+function CommissionSettings({ rules, onSave, saving, actor }) {
+  const [draft, setDraft] = useState(null);
+  useEffect(() => { if (rules) setDraft({ ...rules }); }, [rules]);
+  if (!draft) return null;
+  const f = (k) => (e) => setDraft(p => ({ ...p, [k]: Number(e.target.value) }));
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+      <h3 className="text-sm font-extrabold text-text">⚙️ إعدادات العمولة — تركيا</h3>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { k: 'monthly_target_try', label: 'التارجت الشهري (TRY)', icon: '🎯' },
+          { k: 'base_commission_pct', label: 'نسبة عمولة الأساس %', icon: '💰' },
+          { k: 'prepaid_bonus_try', label: 'بونص الدفع المسبق (₺/طلب)', icon: '⚡' },
+          { k: 'prepaid_bonus_pct', label: 'أو نسبة الدفع المسبق %', icon: '⚡' },
+          { k: 'repeat_customer_bonus_try', label: 'بونص العميل المكرر (₺/عميل)', icon: '🔄' },
+        ].map(({ k, label, icon }) => (
+          <div key={k} className="space-y-1">
+            <label className="text-[10px] text-muted font-bold">{icon} {label}</label>
+            <input type="number" value={draft[k] || 0} onChange={f(k)} min="0"
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          </div>
+        ))}
+      </div>
+      <button onClick={() => onSave(draft, actor)} disabled={saving}
+        className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
+        {saving ? 'جاري الحفظ…' : '💾 حفظ الإعدادات'}
+      </button>
+    </div>
+  );
+}
+
+// ── Per-employee commission card ──────────────────────────────
+function EmployeeCommissionCard({ emp, rank, rules, adj, onSaveAdj, saving, isManager, isMe }) {
+  const [showAdj, setShowAdj] = useState(false);
+  const [adjVal, setAdjVal] = useState('');
+  const [adjNote, setAdjNote] = useState('');
+
+  if (!rules) return null;
+  const tryTotal = emp.totals['TRY'] || 0;
+  const target = rules.monthly_target_try || 65000;
+  const pct = target > 0 ? Math.min(100, Math.round((tryTotal / target) * 100)) : 0;
+
+  // Count prepaid orders
+  const prepaidCount = emp.orders.filter(o =>
+    (o.payment_method || '').includes('مسبق') || (o.payment_method || '').includes('bank') || (o.payment_method || '').includes('بنك')
+  ).length;
+
+  // Base commission
+  const baseCommission = rules.base_commission_pct > 0 ? (tryTotal * rules.base_commission_pct / 100) : 0;
+
+  // Prepaid bonus
+  const prepaidBonus = rules.prepaid_bonus_pct > 0
+    ? emp.orders.filter(o => (o.payment_method || '').includes('مسبق')).reduce((s, o) => s + Number(o.amount || 0), 0) * rules.prepaid_bonus_pct / 100
+    : prepaidCount * (rules.prepaid_bonus_try || 0);
+
+  // Repeat customer bonus (orders where customer has previous order)
+  const repeatBonus = (emp.repeatCount || 0) * (rules.repeat_customer_bonus_try || 0);
+
+  // Manual adjustment
+  const manualAdj = adj?.adjustment_try || 0;
+  const adjNote_saved = adj?.note || '';
+
+  const netCommission = baseCommission + prepaidBonus + repeatBonus + manualAdj;
+
+  const RANK_ICONS = ['🥇', '🥈', '🥉'];
+
+  return (
+    <div className={`bg-surface border-2 rounded-2xl p-4 space-y-3 ${isMe ? 'border-teal/60' : 'border-border'}`}>
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="text-2xl shrink-0">{RANK_ICONS[rank] || `#${rank + 1}`}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-extrabold text-text">{emp.name}</p>
+            {isMe && <span className="text-[10px] bg-teal/20 text-teal px-2 py-0.5 rounded-full font-bold">أنت</span>}
+          </div>
+          <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم · {prepaidCount} مسبق</p>
+        </div>
+        <div className="text-right shrink-0">
+          {Object.entries(emp.totals).map(([cur, val]) => (
+            <p key={cur} className="text-sm font-extrabold text-text">
+              {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} <span className="text-[10px] text-muted">{cur}</span>
+            </p>
+          ))}
+        </div>
+      </div>
+
+      {/* Target progress (TRY only) */}
+      {tryTotal > 0 && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted font-bold">🎯 التارجت</span>
+            <span className={`font-extrabold ${pct >= 100 ? 'text-green-fg' : 'text-text'}`}>
+              ₺{tryTotal.toLocaleString('en-US')} / ₺{target.toLocaleString('en-US')} ({pct}%)
+            </span>
+          </div>
+          <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-fg' : pct >= 70 ? 'bg-teal' : 'bg-amber-fg'}`}
+              style={{ width: pct + '%' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Commission breakdown */}
+      {(baseCommission > 0 || prepaidBonus > 0 || repeatBonus > 0 || manualAdj !== 0) && (
+        <div className="bg-surface-alt rounded-xl p-3 space-y-1.5 text-xs">
+          <p className="font-extrabold text-text text-[11px] mb-2">💰 تفصيل العمولة</p>
+          {baseCommission > 0 && (
+            <div className="flex justify-between"><span className="text-muted">عمولة أساس ({rules.base_commission_pct}%)</span><span className="font-bold text-green-fg">+₺{baseCommission.toFixed(0)}</span></div>
+          )}
+          {prepaidBonus > 0 && (
+            <div className="flex justify-between"><span className="text-muted">⚡ دفع مسبق ({prepaidCount} طلب)</span><span className="font-bold text-teal">+₺{prepaidBonus.toFixed(0)}</span></div>
+          )}
+          {repeatBonus > 0 && (
+            <div className="flex justify-between"><span className="text-muted">🔄 عميل مكرر</span><span className="font-bold text-teal">+₺{repeatBonus.toFixed(0)}</span></div>
+          )}
+          {manualAdj !== 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted">{adjNote_saved || 'تعديل يدوي'}</span>
+              <span className={`font-bold ${manualAdj > 0 ? 'text-green-fg' : 'text-red-fg'}`}>{manualAdj > 0 ? '+' : ''}₺{manualAdj.toFixed(0)}</span>
+            </div>
+          )}
+          <div className="border-t border-border pt-1.5 flex justify-between">
+            <span className="font-extrabold text-text">الصافي</span>
+            <span className={`font-extrabold text-base ${netCommission > 0 ? 'text-green-fg' : 'text-red-fg'}`}>₺{netCommission.toFixed(0)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* No commission configured yet */}
+      {baseCommission === 0 && prepaidBonus === 0 && repeatBonus === 0 && manualAdj === 0 && tryTotal > 0 && (
+        <div className="text-xs text-muted text-center py-1">
+          {pct >= 100 ? '✅ وصل التارجت' : `${100 - pct}% للتارجت`}
+        </div>
+      )}
+
+      {/* Products */}
+      {Object.keys(emp.products).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(emp.products).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name, qty]) => (
+            <span key={name} className="text-[10px] bg-surface border border-border rounded-xl px-2 py-1 text-muted">
+              {name} <span className="font-extrabold text-text">×{qty}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Admin: manual adjustment */}
+      {isManager && (
+        <div>
+          <button onClick={() => setShowAdj(v => !v)}
+            className="text-xs text-muted hover:text-text transition font-bold">
+            ✏️ {showAdj ? 'إخفاء' : 'تعديل يدوي'}
+            {manualAdj !== 0 && <span className={`ml-1 ${manualAdj > 0 ? 'text-green-fg' : 'text-red-fg'}`}>({manualAdj > 0 ? '+' : ''}₺{manualAdj})</span>}
+          </button>
+          {showAdj && (
+            <div className="mt-2 space-y-2">
+              <div className="flex gap-2">
+                <input type="number" value={adjVal} onChange={e => setAdjVal(e.target.value)}
+                  placeholder="₺ قيمة (سالب=خصم)"
+                  className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                <input value={adjNote} onChange={e => setAdjNote(e.target.value)}
+                  placeholder="السبب"
+                  className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+              </div>
+              <button onClick={() => { onSaveAdj(emp.name, adjVal, adjNote); setShowAdj(false); }} disabled={saving}
+                className="w-full py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40">
+                {saving ? '…' : '💾 حفظ التعديل'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Monthly Deliveries Tab ────────────────────────────────────
 
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
   const [brand, setBrand] = useState('all');
+  const [showSettings, setShowSettings] = useState(false);
+  const { rules, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
 
   const now = new Date();
   const monthLabel = now.toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
@@ -207,65 +427,32 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         </div>
       )}
 
+      {/* Commission settings toggle (admin only) */}
+      {isManager && (
+        <button onClick={() => setShowSettings(v => !v)}
+          className={`w-full py-2.5 rounded-xl border text-sm font-bold transition
+            ${showSettings ? 'bg-navy/10 border-navy/30 text-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}>
+          ⚙️ {showSettings ? 'إخفاء إعدادات العمولة' : 'إعدادات العمولة والتارجت'}
+        </button>
+      )}
+      {isManager && showSettings && (
+        <CommissionSettings rules={rules} onSave={saveRules} saving={saving} actor={userName} />
+      )}
+
       {/* Leaderboard */}
-      {byEmployee.map((emp, i) => {
-        const topProducts = Object.entries(emp.products)
-          .sort((a, b) => b[1] - a[1]).slice(0, 4);
-        const isMe = emp.name === userName;
-        return (
-          <div key={emp.name}
-            className={`bg-surface border-2 rounded-2xl p-4 space-y-3 transition
-              ${isMe ? 'border-teal/60 bg-teal/5' : 'border-border'}`}>
-            {/* Employee header */}
-            <div className="flex items-center gap-3">
-              <div className="text-2xl shrink-0">{RANK_ICONS[i] || `#${i + 1}`}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-extrabold text-text">{emp.name}</p>
-                  {isMe && <span className="text-[10px] bg-teal/20 text-teal px-2 py-0.5 rounded-full font-bold">أنت</span>}
-                </div>
-                <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم</p>
-              </div>
-              {/* Totals */}
-              <div className="text-right shrink-0">
-                {Object.entries(emp.totals).map(([cur, val]) => (
-                  <p key={cur} className="text-sm font-extrabold text-text">
-                    {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} <span className="text-xs font-normal text-muted">{cur}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            {/* Products */}
-            {topProducts.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {topProducts.map(([name, qty]) => (
-                  <span key={name} className="text-[10px] bg-surface-alt border border-border rounded-xl px-2 py-1 font-medium text-muted">
-                    {name} <span className="font-extrabold text-text">×{qty}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Mini progress bar (relative to #1) */}
-            {i > 0 && byEmployee[0] && (() => {
-              const top = byEmployee[0].totals['TRY'] || byEmployee[0].totals['SYP'] || byEmployee[0].orders.length;
-              const mine = emp.totals['TRY'] || emp.totals['SYP'] || emp.orders.length;
-              const pct = top > 0 ? Math.round((mine / top) * 100) : 0;
-              return (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-muted">
-                    <span>مقارنةً بالأول</span><span>{pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
-                    <div className="h-full bg-teal/50 rounded-full transition-all" style={{ width: pct + '%' }} />
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        );
-      })}
+      {byEmployee.map((emp, i) => (
+        <EmployeeCommissionCard
+          key={emp.name}
+          emp={emp}
+          rank={i}
+          rules={rules}
+          adj={adjustments.find(a => a.employee_name === emp.name)}
+          onSaveAdj={(name, val, note) => saveAdj(name, val, note, userName)}
+          saving={saving}
+          isManager={isManager}
+          isMe={emp.name === userName}
+        />
+      ))}
     </div>
   );
 }
