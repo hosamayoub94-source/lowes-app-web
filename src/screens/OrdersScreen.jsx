@@ -492,17 +492,48 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [showSettings, setShowSettings] = useState(false);
   const { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
 
-  const now = new Date();
-  const monthLabel = now.toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // ── Period selector: a month from a list, or a custom from–to range ──
+  const [periodMode, setPeriodMode] = useState('month'); // 'month' | 'custom'
+  const [selMonth, setSelMonth] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [cFrom, setCFrom] = useState('');
+  const [cTo, setCTo]     = useState('');
 
-  // Filter: delivered this month
-  const delivered = useMemo(() => orders.filter(o =>
-    o.status === 'delivered' &&
-    o.archived !== true &&
-    o.order_date && o.order_date >= monthStart &&
-    (brand === 'all' || (o.brand || 'lowes').toLowerCase() === brand)
-  ), [orders, brand, monthStart]);
+  // last 12 months for the dropdown
+  const monthOptions = useMemo(() => {
+    const arr = []; const d = new Date();
+    for (let i = 0; i < 12; i++) {
+      const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      arr.push({
+        value: `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`,
+        label: m.toLocaleString('ar-SA', { month: 'long', year: 'numeric' }),
+      });
+    }
+    return arr;
+  }, []);
+
+  // resolve the active period into [start, end] date strings (YYYY-MM-DD) + label
+  const { periodStart, periodEnd, periodLabel } = useMemo(() => {
+    if (periodMode === 'custom' && cFrom && cTo) {
+      const lo = cFrom <= cTo ? cFrom : cTo, hi = cFrom <= cTo ? cTo : cFrom;
+      return { periodStart: lo, periodEnd: hi, periodLabel: `من ${lo} إلى ${hi}` };
+    }
+    const [y, m] = selMonth.split('-').map(Number);
+    const start = `${selMonth}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = `${selMonth}-${String(lastDay).padStart(2, '0')}`;
+    const label = new Date(y, m - 1, 1).toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
+    return { periodStart: start, periodEnd: end, periodLabel: label };
+  }, [periodMode, selMonth, cFrom, cTo]);
+
+  // Filter: delivered within the selected period (compare on the date part)
+  const delivered = useMemo(() => orders.filter(o => {
+    if (o.status !== 'delivered' || o.archived === true) return false;
+    if (brand !== 'all' && (o.brand || 'lowes').toLowerCase() !== brand) return false;
+    const od = (o.order_date || '').slice(0, 10);
+    return od && od >= periodStart && od <= periodEnd;
+  }), [orders, brand, periodStart, periodEnd]);
 
   // Group by employee, with USD-equivalent total + dominant market
   const byEmployee = useMemo(() => {
@@ -561,7 +592,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       <div className="bg-gradient-to-br from-navy/10 to-teal/5 border border-navy/20 rounded-2xl p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-extrabold text-text text-base">📦 تسليمات {monthLabel}</h2>
+            <h2 className="font-extrabold text-text text-base">📦 تسليمات {periodLabel}</h2>
             <p className="text-xs text-muted mt-0.5">{delivered.length} طلب مسلّم · {byEmployee.length} موظف</p>
           </div>
           {isManager && archiveEligible.length > 0 && (
@@ -589,6 +620,32 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         )}
       </div>
 
+      {/* Period selector */}
+      <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-muted shrink-0">📅 الفترة</span>
+          <select
+            value={periodMode === 'custom' ? 'custom' : selMonth}
+            onChange={e => {
+              if (e.target.value === 'custom') setPeriodMode('custom');
+              else { setPeriodMode('month'); setSelMonth(e.target.value); }
+            }}
+            className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30">
+            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            <option value="custom">📆 مدى مخصص…</option>
+          </select>
+        </div>
+        {periodMode === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={cFrom} onChange={e => setCFrom(e.target.value)}
+              className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+            <span className="text-xs text-muted">إلى</span>
+            <input type="date" value={cTo} onChange={e => setCTo(e.target.value)}
+              className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          </div>
+        )}
+      </div>
+
       {/* Brand filter */}
       <div className="flex gap-2">
         {[
@@ -608,7 +665,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       {delivered.length === 0 && (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">📭</p>
-          <p className="text-sm font-bold">لا توجد تسليمات هذا الشهر</p>
+          <p className="text-sm font-bold">لا توجد تسليمات في هذه الفترة</p>
         </div>
       )}
 
