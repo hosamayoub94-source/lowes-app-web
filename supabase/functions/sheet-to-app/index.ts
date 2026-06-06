@@ -112,16 +112,19 @@ Deno.serve(async (req) => {
       if (!rows.length) return json({ ok: true, inserted: 0, updated: 0 });
 
       let inserted = 0, updated = 0, skipped = 0;
+      const batchMarket = body.market || 'turkey';
 
       for (const row of rows) {
         if (!row.order_id || !row.customer_name) { skipped++; continue; }
 
         // Map status_ar to status key
         const status = resolveStatus(row.status_ar || row.status || '') ?? 'pending';
+        const market = row.market || batchMarket;
+        const currency = row.currency || (market === 'syria' ? 'SYP' : 'TRY');
 
         const record = {
           order_id:         String(row.order_id).trim(),
-          market:           'turkey',
+          market,
           brand:            row.brand || 'lowes',
           customer_name:    row.customer_name || '',
           phone_1:          row.phone_1 || row.phone || '',
@@ -130,7 +133,7 @@ Deno.serve(async (req) => {
           district:         row.district || '',
           address:          row.address || '',
           amount:           Number(row.amount) || 0,
-          currency:         'TRY',
+          currency,
           status,
           handler_name:     row.handler_name || '',
           shipping_company: row.shipping_company || '',
