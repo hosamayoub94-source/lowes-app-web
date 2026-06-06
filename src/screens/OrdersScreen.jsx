@@ -1060,7 +1060,10 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
 
 // ── Order Form Modal ──────────────────────────────────────────
 function OrderFormModal({ order, onClose, onSave, allOrders }) {
-  const { name: userName } = useAuth();
+  const { name: userName, team, order_market } = useAuth();
+  // Default a brand-new order to the seller's own market so it doesn't land in
+  // a market they can't see. Falls back to Turkey when unknown.
+  const myMarket = order_market ?? teamToMarket(team) ?? 'turkey';
   const isEdit = !!order?.id;
   const prefill = order?.__prefill || null; // reorder from a customer
 
@@ -1101,7 +1104,14 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
     address:       prefill.address || '',
     shipping_company: prefill.market === 'syria' ? 'شركة الكرم' : 'yurtiçi',
     payment_method:   prefill.market === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب',
-  } : { ...EMPTY_FORM, handler_name: userName ?? '' });
+  } : {
+    ...EMPTY_FORM,
+    handler_name: userName ?? '',
+    market:   myMarket,
+    currency: myMarket === 'syria' ? 'SYP' : 'TRY',
+    shipping_company: myMarket === 'syria' ? 'شركة الكرم' : 'Yurtiçi Kargo',
+    payment_method:   myMarket === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
+  });
 
   const [items,    setItems]    = useState(
     isEdit ? (order.items ?? [])
@@ -1656,12 +1666,20 @@ export default function OrdersScreen() {
       } else {
         q = q.or('archived.is.null,archived.eq.false');
       }
-      if (!isManager && userMarket) q = q.eq('market', userMarket);
+      // Non-managers are scoped to their market, BUT always see orders they
+      // personally handle even if the order's market differs (e.g. a seller on
+      // the Syria team who also handles Turkey orders). Otherwise their own
+      // orders — including ones they just created — would silently disappear.
+      if (!isManager && userMarket) {
+        // Quote the name so spaces/punctuation don't break the PostgREST filter.
+        if (userName) q = q.or(`market.eq.${userMarket},handler_name.eq."${userName}"`);
+        else q = q.eq('market', userMarket);
+      }
       const { data } = await q;
       setOrders(data ?? []);
     } catch {}
     finally { setLoading(false); }
-  }, [isManager, userMarket, viewArchive, search]);
+  }, [isManager, userMarket, userName, viewArchive, search]);
 
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
