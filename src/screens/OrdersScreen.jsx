@@ -242,27 +242,10 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
   const targetU  = Number(targetUsd) || 0;
   const pct = targetU > 0 ? Math.min(100, Math.round((usdTotal / targetU) * 100)) : 0;
 
-  // Count prepaid orders
-  const prepaidCount = emp.orders.filter(o =>
-    (o.payment_method || '').includes('مسبق') || (o.payment_method || '').includes('bank') || (o.payment_method || '').includes('بنك')
-  ).length;
-
-  // Base commission
-  const baseCommission = rules.base_commission_pct > 0 ? (tryTotal * rules.base_commission_pct / 100) : 0;
-
-  // Prepaid bonus
-  const prepaidBonus = rules.prepaid_bonus_pct > 0
-    ? emp.orders.filter(o => (o.payment_method || '').includes('مسبق')).reduce((s, o) => s + Number(o.amount || 0), 0) * rules.prepaid_bonus_pct / 100
-    : prepaidCount * (rules.prepaid_bonus_try || 0);
-
-  // Repeat customer bonus (orders where customer has previous order)
-  const repeatBonus = (emp.repeatCount || 0) * (rules.repeat_customer_bonus_try || 0);
-
-  // Manual adjustment
-  const manualAdj = adj?.adjustment_try || 0;
+  // Commission breakdown (shared with the Excel export — see commissionBreakdown)
+  const { base: baseCommission, prepaidBonus, repeatBonus, manualAdj, net: netCommission, prepaidCount } =
+    commissionBreakdown(emp, rules, adj);
   const adjNote_saved = adj?.note || '';
-
-  const netCommission = baseCommission + prepaidBonus + repeatBonus + manualAdj;
 
   const RANK_ICONS = ['🥇', '🥈', '🥉'];
 
@@ -378,13 +361,47 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
   );
 }
 
+// ── Shared helpers (sold-products aggregation + commission breakdown) ──
+// تُستخدم في العرض (الكروت + جدول المنتجات) وفي تصدير Excel معاً (DRY).
+const normName = (s) => String(s || '').trim().toLowerCase();
+
+function soldProducts(delivered) {
+  const agg = {};
+  for (const o of delivered) {
+    (o.items || []).forEach(it => {
+      const name = (it.name || '').trim();
+      if (!name) return;
+      const k = normName(name);
+      if (!agg[k]) agg[k] = { key: k, name, qty: 0 };
+      agg[k].qty += Number(it.qty || 1);
+    });
+  }
+  return Object.values(agg).sort((a, b) => b.qty - a.qty);
+}
+
+// Commission breakdown for one employee (TRY). Mirrors EmployeeCommissionCard.
+function commissionBreakdown(emp, rules, adj) {
+  if (!rules) return { base: 0, prepaidBonus: 0, repeatBonus: 0, manualAdj: 0, net: 0, prepaidCount: 0 };
+  const tryTotal = emp.totals['TRY'] || 0;
+  const prepaidCount = emp.orders.filter(o => {
+    const p = o.payment_method || '';
+    return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
+  }).length;
+  const base = rules.base_commission_pct > 0 ? (tryTotal * rules.base_commission_pct / 100) : 0;
+  const prepaidBonus = rules.prepaid_bonus_pct > 0
+    ? emp.orders.filter(o => (o.payment_method || '').includes('مسبق')).reduce((s, o) => s + Number(o.amount || 0), 0) * rules.prepaid_bonus_pct / 100
+    : prepaidCount * (rules.prepaid_bonus_try || 0);
+  const repeatBonus = (emp.repeatCount || 0) * (rules.repeat_customer_bonus_try || 0);
+  const manualAdj = adj?.adjustment_try || 0;
+  return { base, prepaidBonus, repeatBonus, manualAdj, net: base + prepaidBonus + repeatBonus + manualAdj, prepaidCount };
+}
+
 // ── Product values (sold products + editable catalog price) ───
 // المنتجات المباعة من الطلبات المسلّمة + قيمتها (USD) من أسعار الكتالوج.
 // السعر قابل للتحرير ويُحفظ في product_economics (نفس مصدر صفحة الربحية).
 function ProductValuesSection({ delivered, canEdit }) {
-  const norm = (s) => String(s || '').trim().toLowerCase();
   const [open, setOpen]         = useState(true);
-  const [prices, setPrices]     = useState({});   // norm(name) -> sale_price_usd
+  const [prices, setPrices]     = useState({});   // normName -> sale_price_usd
   const [savingKey, setSaving]  = useState(null);
   const [savedKey, setSaved]    = useState(null);
 
@@ -393,28 +410,18 @@ function ProductValuesSection({ delivered, canEdit }) {
     supabase.from('product_economics').select('item_name, sale_price_usd').then(({ data }) => {
       if (!alive || !data) return;
       const m = {};
-      data.forEach(r => { m[norm(r.item_name)] = Number(r.sale_price_usd) || 0; });
+      data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
       setPrices(m);
     });
     return () => { alive = false; };
   }, []);
 
-  const rows = useMemo(() => {
-    const agg = {};
-    for (const o of delivered) {
-      (o.items || []).forEach(it => {
-        const name = (it.name || '').trim();
-        if (!name) return;
-        const k = norm(name);
-        if (!agg[k]) agg[k] = { key: k, name, qty: 0 };
-        agg[k].qty += Number(it.qty || 1);
-      });
-    }
-    return Object.values(agg)
+  const rows = useMemo(() =>
+    soldProducts(delivered)
       .map(r => { const price = prices[r.key]; const has = price != null && price > 0;
         return { ...r, price: has ? price : null, value: has ? price * r.qty : null }; })
-      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.qty - a.qty);
-  }, [delivered, prices]);
+      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.qty - a.qty)
+  , [delivered, prices]);
 
   const totalValue = rows.reduce((s, r) => s + (r.value || 0), 0);
   const totalQty   = rows.reduce((s, r) => s + r.qty, 0);
@@ -586,6 +593,56 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   // Archive eligible: delivered this month by managers
   const archiveEligible = useMemo(() => delivered.filter(o => !o.archived), [delivered]);
 
+  // ── Excel export for the accountant: summary + products + employees ──
+  const [exporting, setExporting] = useState(false);
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const usdTotal = delivered.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+
+      // 1) Summary
+      const summary = [
+        ['الفترة', periodLabel],
+        ['عدد الطلبات المسلّمة', delivered.length],
+        ['عدد الموظفين', byEmployee.length],
+        ['الإجمالي بالدولار (USD)', Math.round(usdTotal)],
+        ...Object.entries(grandTotals).map(([cur, t]) => [`الإجمالي ${cur}`, t]),
+      ];
+
+      // 2) Products (qty + catalog value in USD)
+      const { data: econ } = await supabase.from('product_economics').select('item_name, sale_price_usd');
+      const priceMap = {};
+      (econ || []).forEach(r => { priceMap[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
+      const products = soldProducts(delivered).map(p => {
+        const price = priceMap[p.key] || 0;
+        return {
+          'المنتج': p.name, 'الكمية': p.qty,
+          'السعر (USD)': price || '', 'القيمة (USD)': price ? Math.round(price * p.qty) : '',
+        };
+      });
+
+      // 3) Employees (deliveries + sales + commission)
+      const employees = byEmployee.map(e => {
+        const c = commissionBreakdown(e, rules, adjustments.find(a => a.employee_name === e.name));
+        const row = {
+          'الموظف': e.name, 'عدد التسليمات': e.orders.length,
+          'المبيعات (USD)': Math.round(e.usdTotal),
+        };
+        Object.entries(e.totals).forEach(([cur, v]) => { row[`مبيعات ${cur}`] = v; });
+        row['العمولة (₺)'] = Math.round(c.net);
+        return row;
+      });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'ملخّص');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(products), 'المنتجات');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(employees), 'الموظفون');
+      XLSX.writeFile(wb, `تسليمات-${periodLabel}.xlsx`);
+    } catch (e) { window.alert('تعذّر التصدير: ' + e.message); }
+    finally { setExporting(false); }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -595,12 +652,20 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             <h2 className="font-extrabold text-text text-base">📦 تسليمات {periodLabel}</h2>
             <p className="text-xs text-muted mt-0.5">{delivered.length} طلب مسلّم · {byEmployee.length} موظف</p>
           </div>
-          {isManager && archiveEligible.length > 0 && (
-            <button onClick={() => onArchive(archiveEligible.map(o => o.id))} disabled={archiving}
-              className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40 shrink-0">
-              {archiving ? '…' : `🗄️ أرشفة (${archiveEligible.length})`}
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {delivered.length > 0 && (
+              <button onClick={exportExcel} disabled={exporting}
+                className="px-3 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition disabled:opacity-40">
+                {exporting ? '…' : '⬇️ تصدير Excel'}
+              </button>
+            )}
+            {isManager && archiveEligible.length > 0 && (
+              <button onClick={() => onArchive(archiveEligible.map(o => o.id))} disabled={archiving}
+                className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40">
+                {archiving ? '…' : `🗄️ أرشفة (${archiveEligible.length})`}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Grand totals */}
