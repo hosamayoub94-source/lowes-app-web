@@ -95,6 +95,181 @@ const STATUSES = {
 // Linear pipeline for the progress strip; any status outside it hides the strip.
 const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
 
+// ── Monthly Deliveries Tab ────────────────────────────────────
+const CURRENCY_SYMBOLS = { TRY: '₺', SYP: '£', USD: '$' };
+
+function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
+  const [brand, setBrand] = useState('all');
+
+  const now = new Date();
+  const monthLabel = now.toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  // Filter: delivered this month
+  const delivered = useMemo(() => orders.filter(o =>
+    o.status === 'delivered' &&
+    o.archived !== true &&
+    o.order_date && o.order_date >= monthStart &&
+    (brand === 'all' || (o.brand || 'lowes').toLowerCase() === brand)
+  ), [orders, brand, monthStart]);
+
+  // Group by employee
+  const byEmployee = useMemo(() => {
+    const map = {};
+    for (const o of delivered) {
+      const name = o.handler_name || 'غير محدد';
+      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {} };
+      map[name].orders.push(o);
+      const cur = (o.currency || 'SYP').toUpperCase();
+      map[name].totals[cur] = (map[name].totals[cur] || 0) + Number(o.amount || 0);
+      // Count products
+      (o.items || []).forEach(it => {
+        const k = it.name || '—';
+        map[name].products[k] = (map[name].products[k] || 0) + Number(it.qty || 1);
+      });
+    }
+    // Sort by TRY desc, then SYP, then count
+    return Object.values(map).sort((a, b) => {
+      const aTRY = a.totals['TRY'] || 0, bTRY = b.totals['TRY'] || 0;
+      if (bTRY !== aTRY) return bTRY - aTRY;
+      const aSYP = a.totals['SYP'] || 0, bSYP = b.totals['SYP'] || 0;
+      if (bSYP !== aSYP) return bSYP - aSYP;
+      return b.orders.length - a.orders.length;
+    });
+  }, [delivered]);
+
+  // Grand totals
+  const grandTotals = useMemo(() => {
+    const t = {};
+    delivered.forEach(o => {
+      const c = (o.currency || 'SYP').toUpperCase();
+      t[c] = (t[c] || 0) + Number(o.amount || 0);
+    });
+    return t;
+  }, [delivered]);
+
+  const RANK_ICONS = ['🥇', '🥈', '🥉'];
+  const BRAND_COLORS = { lowes: 'border-teal/40 bg-teal/5', strong: 'border-amber/40 bg-amber/5' };
+
+  // Archive eligible: delivered this month by managers
+  const archiveEligible = useMemo(() => delivered.filter(o => !o.archived), [delivered]);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-navy/10 to-teal/5 border border-navy/20 rounded-2xl p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-extrabold text-text text-base">📦 تسليمات {monthLabel}</h2>
+            <p className="text-xs text-muted mt-0.5">{delivered.length} طلب مسلّم · {byEmployee.length} موظف</p>
+          </div>
+          {isManager && archiveEligible.length > 0 && (
+            <button onClick={() => onArchive(archiveEligible.map(o => o.id))} disabled={archiving}
+              className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40 shrink-0">
+              {archiving ? '…' : `🗄️ أرشفة (${archiveEligible.length})`}
+            </button>
+          )}
+        </div>
+
+        {/* Grand totals */}
+        {Object.keys(grandTotals).length > 0 && (
+          <div className="flex gap-3 mt-3 flex-wrap">
+            {Object.entries(grandTotals).map(([cur, total]) => (
+              <div key={cur} className="bg-surface rounded-xl px-3 py-1.5 text-center">
+                <p className="text-xs text-muted">{cur}</p>
+                <p className="text-sm font-extrabold text-text">{CURRENCY_SYMBOLS[cur]}{total.toLocaleString('en-US')}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Brand filter */}
+      <div className="flex gap-2">
+        {[
+          { key: 'all', label: '🌍 الكل' },
+          { key: 'lowes', label: "🟦 LOWE'S" },
+          { key: 'strong', label: '🟡 STRONG' },
+        ].map(b => (
+          <button key={b.key} onClick={() => setBrand(b.key)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+              ${brand === b.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
+            {b.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Empty state */}
+      {delivered.length === 0 && (
+        <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
+          <p className="text-4xl mb-3">📭</p>
+          <p className="text-sm font-bold">لا توجد تسليمات هذا الشهر</p>
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      {byEmployee.map((emp, i) => {
+        const topProducts = Object.entries(emp.products)
+          .sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const isMe = emp.name === userName;
+        return (
+          <div key={emp.name}
+            className={`bg-surface border-2 rounded-2xl p-4 space-y-3 transition
+              ${isMe ? 'border-teal/60 bg-teal/5' : 'border-border'}`}>
+            {/* Employee header */}
+            <div className="flex items-center gap-3">
+              <div className="text-2xl shrink-0">{RANK_ICONS[i] || `#${i + 1}`}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-extrabold text-text">{emp.name}</p>
+                  {isMe && <span className="text-[10px] bg-teal/20 text-teal px-2 py-0.5 rounded-full font-bold">أنت</span>}
+                </div>
+                <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم</p>
+              </div>
+              {/* Totals */}
+              <div className="text-right shrink-0">
+                {Object.entries(emp.totals).map(([cur, val]) => (
+                  <p key={cur} className="text-sm font-extrabold text-text">
+                    {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} <span className="text-xs font-normal text-muted">{cur}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            {/* Products */}
+            {topProducts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {topProducts.map(([name, qty]) => (
+                  <span key={name} className="text-[10px] bg-surface-alt border border-border rounded-xl px-2 py-1 font-medium text-muted">
+                    {name} <span className="font-extrabold text-text">×{qty}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Mini progress bar (relative to #1) */}
+            {i > 0 && byEmployee[0] && (() => {
+              const top = byEmployee[0].totals['TRY'] || byEmployee[0].totals['SYP'] || byEmployee[0].orders.length;
+              const mine = emp.totals['TRY'] || emp.totals['SYP'] || emp.orders.length;
+              const pct = top > 0 ? Math.round((mine / top) * 100) : 0;
+              return (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted">
+                    <span>مقارنةً بالأول</span><span>{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+                    <div className="h-full bg-teal/50 rounded-full transition-all" style={{ width: pct + '%' }} />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Shipping tracking pipeline (what the cargo company reports)
 const TRACKING_STAGES = [
   { key: 'shipped',     label: 'استُلم',     icon: '📦' },
@@ -1198,8 +1373,9 @@ export default function OrdersScreen() {
   const [invoice,       setInvoice]       = useState(null);    // order | null
   const [myOrders,      setMyOrders]      = useState(false);   // «طلباتي» toggle
   const [viewArchive,   setViewArchive]   = useState(false);   // «الأرشيف» toggle (managers)
-  const [viewTracking,  setViewTracking]  = useState(false);   // «تتبع الشحنات» toggle
-  const [refreshing,    setRefreshing]    = useState(false);   // manual tracking refresh
+  const [viewTracking,   setViewTracking]  = useState(false);   // «تتبع الشحنات» toggle
+  const [viewMonthly,    setViewMonthly]   = useState(false);   // «تسليمات الشهر» toggle
+  const [refreshing,     setRefreshing]    = useState(false);   // manual tracking refresh
   const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
 
@@ -1265,6 +1441,19 @@ export default function OrdersScreen() {
       await load();
     } catch { /* best-effort */ }
     finally { setRefreshing(false); }
+  };
+
+  // Archive a batch of order IDs (month-end)
+  const handleMonthArchive = async (ids) => {
+    if (!ids.length) return;
+    if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم لهذا الشهر؟ ستختفي من القائمة وتبقى في الأرشيف.`)) return;
+    setArchiving(true);
+    try {
+      await supabase.from('orders').update({ archived: true }).in('id', ids);
+      await load();
+      setViewMonthly(false);
+    } catch (e) { window.alert('تعذّر: ' + e.message); }
+    finally { setArchiving(false); }
   };
 
   const load = useCallback(async () => {
@@ -1471,10 +1660,17 @@ export default function OrdersScreen() {
             </button>
           )}
           {!isFulfillment && !viewArchive && (
-            <button onClick={() => setViewTracking(v => !v)}
+            <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-white border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تتبع الشحنات">
               📡
+            </button>
+          )}
+          {!isFulfillment && !viewArchive && (
+            <button onClick={() => { setViewMonthly(v => !v); setViewTracking(false); }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewMonthly ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="تسليمات الشهر">
+              📦
             </button>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
@@ -1487,7 +1683,7 @@ export default function OrdersScreen() {
       </div>
 
       {/* «طلباتي» / «كل الطلبات» toggle */}
-      {!isFulfillment && !viewTracking && (
+      {!isFulfillment && !viewTracking && !viewMonthly && (
         <div className="flex gap-2">
           <button onClick={() => setMyOrders(false)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
@@ -1503,7 +1699,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Seller stats — visible when in «طلباتي» mode */}
-      {myOrders && !isFulfillment && !viewTracking && (
+      {myOrders && !isFulfillment && !viewTracking && !viewMonthly && (
         <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
       )}
 
@@ -1519,7 +1715,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Follow-up / returns banner — orders that need chasing the customer */}
-      {!viewArchive && (stats.waiting + stats.returned) > 0 && (
+      {!viewArchive && !viewMonthly && (stats.waiting + stats.returned) > 0 && (
         <div className="bg-red-bg border border-red/30 rounded-2xl px-4 py-3 flex items-center gap-3">
           <span className="text-2xl">🔁</span>
           <div className="flex-1 min-w-0">
@@ -1542,7 +1738,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Stats row */}
-      {!viewTracking && <div className="grid grid-cols-4 gap-2">
+      {!viewTracking && !viewMonthly && <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'وارد',  value: stats.pending,                  color: 'text-muted',    bg: 'bg-surface-alt', onClick: () => setStatus('pending')   },
           { label: 'تجهيز', value: stats.preparing + stats.ready,  color: 'text-amber-fg', bg: 'bg-amber-bg',    onClick: () => setStatus('preparing') },
@@ -1558,7 +1754,7 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Market tabs — managers only, when not in «طلباتي» */}
-      {isManager && !myOrders && !viewTracking && (
+      {isManager && !myOrders && !viewTracking && !viewMonthly && (
         <div className="flex gap-2">
           {[{ key: 'all', label: 'الكل', icon: '🌍' }, { key: 'turkey', label: 'تركيا', icon: '🇹🇷' }, { key: 'syria', label: 'سوريا', icon: '🇸🇾' }].map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
@@ -1571,7 +1767,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Status filter */}
-      {!viewTracking && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      {!viewTracking && !viewMonthly && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         <button onClick={() => setStatus('all')}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition
             ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
@@ -1587,9 +1783,20 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Search */}
-      {!viewTracking && <input value={search} onChange={e => setSearch(e.target.value)}
+      {!viewTracking && !viewMonthly && <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />}
+
+      {/* Monthly Deliveries Tab */}
+      {viewMonthly && (
+        <MonthlyDeliveriesTab
+          orders={orders}
+          isManager={isManager}
+          userName={userName}
+          onArchive={handleMonthArchive}
+          archiving={archiving}
+        />
+      )}
 
       {/* Tracking Tab */}
       {viewTracking && (
@@ -1601,7 +1808,7 @@ export default function OrdersScreen() {
       )}
 
       {/* List */}
-      {!viewTracking && loading ? (
+      {!viewTracking && !viewMonthly && loading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}</div>
       ) : !viewTracking && filtered.length === 0 ? (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
@@ -1614,7 +1821,7 @@ export default function OrdersScreen() {
             </button>
           )}
         </div>
-      ) : !viewTracking ? (
+      ) : !viewTracking && !viewMonthly ? (
         <div className="space-y-3">
           {filtered.map(o => (
             <OrderCard key={o.id} order={o}
