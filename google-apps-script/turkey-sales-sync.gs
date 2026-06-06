@@ -14,9 +14,11 @@
  *     source "From spreadsheet", type "On edit" → Save.
  */
 
-var TOKEN    = 'LOWES-TURKEY-2026';
-var SUPA_URL = 'https://fghdumrgimoeqsafdhhh.supabase.co';
-var ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM';
+var TOKEN          = 'LOWES-TURKEY-2026';
+var SUPA_URL       = 'https://fghdumrgimoeqsafdhhh.supabase.co';
+var ANON           = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM';
+// Edge Function URL — يستخدم service_role داخلياً فيتجاوز RLS
+var SHEET_TO_APP_URL = SUPA_URL + '/functions/v1/sheet-to-app';
 
 var SHEET_FOR = { strong: 'STRONG_TR', lowes: 'LOWES_TR' };
 
@@ -129,6 +131,8 @@ function doPost(e) {
 }
 
 // ── Sheet → App (edit status / tracking) ──
+// يُراقب تعديلات عمود "رقم التتبع" (P) وعمود "الحالة"
+// ويرسلها لـ Edge Function بدلاً من REST مباشر (يتجاوز RLS)
 function onSheetEdit(e) {
   try {
     var sh = e.range.getSheet();
@@ -139,24 +143,111 @@ function onSheetEdit(e) {
     for (var c = 0; c < headers.length; c++) {
       var l = String(headers[c]).trim();
       if (l === 'كود الطلب') idCol = c;
-      if (l === 'الحالة') stCol = c;
+      if (l === 'الحالة')    stCol = c;
       if (l === 'رقم التتبع') trCol = c;
     }
     var row = e.range.getRow(), col = e.range.getColumn() - 1;
     if (row <= 1 || idCol < 0) return;
     if (col !== stCol && col !== trCol) return;
+
     var orderId = String(sh.getRange(row, idCol + 1).getValue() || '').trim();
     if (!orderId) return;
-    var patch = {};
-    if (col === stCol) { var st = _statusKey(String(sh.getRange(row, stCol + 1).getValue())); if (st) patch.status = st; }
-    if (col === trCol) patch.tracking_number = String(sh.getRange(row, trCol + 1).getValue() || '');
-    if (!Object.keys(patch).length) return;
-    UrlFetchApp.fetch(SUPA_URL + '/rest/v1/orders?order_id=eq.' + encodeURIComponent(orderId), {
-      method: 'patch', contentType: 'application/json',
-      headers: { apikey: ANON, Authorization: 'Bearer ' + ANON, Prefer: 'return=minimal' },
-      payload: JSON.stringify(patch), muteHttpExceptions: true,
+
+    var payload = { token: TOKEN, action: 'update', order_id: orderId };
+    if (col === stCol) payload.status = String(sh.getRange(row, stCol + 1).getValue() || '');
+    if (col === trCol) payload.tracking_number = String(sh.getRange(row, trCol + 1).getValue() || '');
+
+    UrlFetchApp.fetch(SHEET_TO_APP_URL, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify(payload), muteHttpExceptions: true,
     });
   } catch (err) { }
+}
+
+// ── Bulk Import: جلب كل طلبات الجدول وإدراجها في التطبيق ──
+// شغّلها مرة وحدة من محرر Apps Script: Run → bulkImportFromSheet
+function bulkImportFromSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var allRows = [];
+
+  ['LOWES_TR', 'STRONG_TR'].forEach(function (sheetName) {
+    var sh = ss.getSheetByName(sheetName);
+    if (!sh) return;
+    var brand = sheetName === 'STRONG_TR' ? 'strong' : 'lowes';
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
+    var lastCol = sh.getLastColumn();
+    var data = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = data[0];
+
+    // بناء خريطة عمود → حقل
+    var colMap = {};
+    for (var c = 0; c < headers.length; c++) {
+      var label = String(headers[c]).trim();
+      if (FIELD_MAP[label]) colMap[c] = FIELD_MAP[label];
+    }
+    // أعمدة الأصناف
+    var itemCols = [];
+    for (var c = 0; c < headers.length; c++) {
+      if (/الصنف/.test(String(headers[c]))) itemCols.push(c);
+    }
+
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      var order_id = '';
+      for (var c = 0; c < headers.length; c++) {
+        if (String(headers[c]).trim() === 'كود الطلب') { order_id = String(row[c] || '').trim(); break; }
+      }
+      if (!order_id) continue; // تخطّ الصفوف بدون كود طلب
+
+      var record = { brand: brand };
+      for (var c in colMap) {
+        var val = row[c];
+        if (val !== '' && val !== null && val !== undefined) record[colMap[c]] = val;
+      }
+
+      // الأصناف
+      var items = [];
+      for (var i = 0; i < itemCols.length; i += 2) {
+        var name = String(row[itemCols[i]] || '').trim();
+        var qty  = Number(row[itemCols[i + 1]] || 1);
+        if (name) items.push({ name: name, qty: qty });
+      }
+      if (items.length) record.items = items;
+
+      allRows.push(record);
+    }
+  });
+
+  if (!allRows.length) {
+    SpreadsheetApp.getUi().alert('لا توجد صفوف لاستيرادها');
+    return;
+  }
+
+  // أرسل على دفعات (100 طلب لكل مرة)
+  var total = { inserted: 0, updated: 0, skipped: 0 };
+  var batch = 100;
+  for (var i = 0; i < allRows.length; i += batch) {
+    var chunk = allRows.slice(i, i + batch);
+    var res = UrlFetchApp.fetch(SHEET_TO_APP_URL, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ token: TOKEN, action: 'bulk_import', rows: chunk }),
+      muteHttpExceptions: true,
+    });
+    try {
+      var out = JSON.parse(res.getContentText());
+      total.inserted += out.inserted || 0;
+      total.updated  += out.updated  || 0;
+      total.skipped  += out.skipped  || 0;
+    } catch (e) { total.skipped += chunk.length; }
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'اكتمل الاستيراد ✅\n' +
+    'جديد: ' + total.inserted + '\n' +
+    'محدَّث: ' + total.updated + '\n' +
+    'تخطّى: ' + total.skipped
+  );
 }
 
 function _statusKey(ar) {
