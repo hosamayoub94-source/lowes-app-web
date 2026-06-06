@@ -1640,6 +1640,8 @@ export default function OrdersScreen() {
   const isFulfillment    = order_role === 'fulfillment';
   const userMarket       = order_market ?? teamToMarket(team) ?? null;
   const canAdvanceOrders = isFulfillment || isManager;
+  // البائع يقدر يغيّر حالة طلبه هو فقط
+  const canAdvanceOrder  = (o) => canAdvanceOrders || o.handler_name === userName;
 
   const [orders,        setOrders]        = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -2104,7 +2106,7 @@ export default function OrdersScreen() {
         <div className="space-y-3">
           {filtered.map(o => (
             <OrderCard key={o.id} order={o}
-              canAdvance={canAdvanceOrders}
+              canAdvance={canAdvanceOrder(o)}
               onStatusChange={handleStatusChange}
               onEdit={(o) => setModal(o)}
               onInvoice={(o) => setInvoice(o)}
