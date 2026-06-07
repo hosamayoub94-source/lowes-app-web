@@ -1,6 +1,7 @@
 -- =============================================================
--- شغّل هذا الملف كاملاً مرة واحدة في Supabase → SQL Editor.
--- يجمع كل تغييرات قاعدة البيانات المعلّقة. آمن (لا حذف نهائي لبيانات حقيقية).
+-- شغّل في Supabase → SQL Editor. الأفضل تشغيل كل قسم وحده (القسم 1 أولاً)
+-- لأن SQL Editor ينفّذ كل شيء كمعاملة واحدة — خطأ في أي سطر يلغي الباقي.
+-- آمن (لا حذف نهائي لبيانات حقيقية).
 -- =============================================================
 
 -- 🔴 (1) عاجل — يسمح بحفظ الطلبات «مدفوع جزئياً» (يوقف الموظفين حالياً)
@@ -10,8 +11,9 @@ ALTER TABLE orders
   CHECK (payment_status IS NULL OR payment_status IN ('unpaid', 'partial', 'paid'));
 
 -- 🧹 (2) تنظيف جدول الحملات التائه (نسخة احتياطية ثم حذف)
+-- CASCADE يلزم لأن جدول ad_results القديم الفارغ مرتبط به (يحذف الرابط فقط).
 CREATE TABLE IF NOT EXISTS ad_campaigns_backup_20260607 AS TABLE ad_campaigns;
-DROP TABLE IF EXISTS ad_campaigns;
+DROP TABLE IF EXISTS ad_campaigns CASCADE;
 
 -- 💰 (3) ترحيل رواتب مايو الـ37 المخفية إلى شاشة المحاسبة (تُبقي القديم كنسخة)
 INSERT INTO accounting_entries
