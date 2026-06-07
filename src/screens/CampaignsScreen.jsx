@@ -9,7 +9,8 @@
 //    messages received, purchases, and a note about the ad.
 //  • Cost (cost_usd) is shown ONLY to VIEW_CAMPAIGN_COST holders.
 //
-// Tables: ad_campaigns (+cost_usd, assigned_to), campaign_ads, ad_daily_logs
+// Tables: campaigns (budget_usd↔cost, members↔assigned, channel_*_custom),
+//         campaign_ads (FK→campaigns), ad_daily_logs (FK→campaigns)
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { Hero }                    from '@components/ui/Hero';
@@ -82,7 +83,7 @@ function SetupBanner() {
 // ── New / Edit Campaign Modal ──────────────────────────────────
 const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '' };
 
-function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign }) {
+function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign, userName }) {
   const [form, setForm]   = useState(EMPTY_CMP);
   const [saving, setSaving] = useState(false);
   const [err, setErr]     = useState(null);
@@ -112,17 +113,17 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
     if (!form.name.trim()) { setErr('اسم الحملة مطلوب'); return; }
     setSaving(true); setErr(null);
     try {
+      // Map the screen's fields → `campaigns` columns.
       const payload = {
-        name: form.name.trim(), team: form.team,
-        channel_type: form.channel_type, channel_name: form.channel_name.trim() || null,
-        status: form.status,
-        cost_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
-        assigned_to: form.assigned_to,
-        start_date: form.start_date || null, end_date: form.end_date || null,
+        name: form.name.trim(), team: form.team, status: form.status,
+        channel_type_custom: form.channel_type,
+        channel_name_custom: form.channel_name.trim() || null,
+        budget_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
+        members: form.assigned_to,
       };
       const q = editCampaign
-        ? supabase.from('ad_campaigns').update(payload).eq('id', editCampaign.id)
-        : supabase.from('ad_campaigns').insert(payload);
+        ? supabase.from('campaigns').update(payload).eq('id', editCampaign.id)
+        : supabase.from('campaigns').insert({ ...payload, is_active: true, created_by: userName || null });
       const { error } = await q;
       if (error) throw new Error(error.message);
       onSaved(); onClose();
@@ -703,7 +704,10 @@ export default function CampaignsScreen() {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const [cmpRes, adsRes, logRes, empRes, todayRes] = await Promise.allSettled([
-        supabase.from('ad_campaigns').select('*').order('created_at', { ascending: false }),
+        // Canonical table is `campaigns` (44+ real rows, shared with sales,
+        // FK target of campaign_ads). budget_usd↔cost, members↔assigned,
+        // channel_*_custom↔channel.
+        supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('campaign_ads').select('id,campaign_id'),
         supabase.from('ad_daily_logs').select('campaign_id,messages,purchases'),
         supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name'),
@@ -731,10 +735,15 @@ export default function CampaignsScreen() {
       todayLogs.forEach(l => { (loggedTodayByCmp[l.campaign_id] ||= new Set()).add(l.employee_name); });
 
       let enriched = cmps.map(c => {
-        const assigned = Array.isArray(c.assigned_to) ? c.assigned_to : [];
+        // Map `campaigns` columns → the screen's internal shape.
+        const assigned = Array.isArray(c.members) ? c.members : (Array.isArray(c.partners) ? c.partners : []);
         const logged = loggedTodayByCmp[c.id] || new Set();
         return {
           ...c,
+          channel_type: c.channel_type_custom ?? c.channel_type ?? 'page',
+          channel_name: c.channel_name_custom ?? c.channel_name ?? null,
+          cost_usd:     c.budget_usd ?? 0,
+          assigned_to:  assigned,
           _ads: adCount[c.id] || 0,
           _messages:  byId[c.id]?.messages  || 0,
           _purchases: byId[c.id]?.purchases || 0,
@@ -756,7 +765,7 @@ export default function CampaignsScreen() {
 
   const deleteCampaign = async (c) => {
     if (!window.confirm(`حذف حملة "${c.name}" نهائياً مع كل إعلاناتها وتسجيلاتها؟`)) return;
-    const { error } = await supabase.from('ad_campaigns').delete().eq('id', c.id);
+    const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
     if (error) { alert('فشل الحذف: ' + error.message); return; }
     load();
   };
@@ -829,7 +838,7 @@ export default function CampaignsScreen() {
       {canManage && (
         <CampaignModal
           open={showCreate} onClose={() => { setShowCreate(false); setEditCampaign(null); }}
-          onSaved={load} employees={employees} canViewCost={canViewCost} editCampaign={editCampaign}
+          onSaved={load} employees={employees} canViewCost={canViewCost} editCampaign={editCampaign} userName={userName}
         />
       )}
       {selected && (
