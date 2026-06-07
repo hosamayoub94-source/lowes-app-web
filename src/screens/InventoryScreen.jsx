@@ -289,6 +289,87 @@ function MovementModal({ product, onClose }) {
   );
 }
 
+// ── Sales by category (Syria delivered orders) ─────────────────
+function CategorySalesPanel() {
+  const [rows, setRows] = useState(null);
+  const [period, setPeriod] = useState('all'); // all | month
+  useEffect(() => {
+    (async () => {
+      setRows(null);
+      const monthStart = new Date().toISOString().slice(0, 7) + '-01';
+      let oq = supabase.from('orders')
+        .select('items, order_date, archived')
+        .eq('market', 'syria').eq('status', 'delivered');
+      if (period === 'month') oq = oq.gte('order_date', monthStart + 'T00:00:00');
+      const [oRes, pRes] = await Promise.all([
+        oq,
+        supabase.from('products').select('name, name_en, category, price_usd'),
+      ]);
+      // Orders store item names in ENGLISH (from the sheet) → match on name_en
+      // first, with the Arabic name as a fallback.
+      const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const byName = {};
+      (pRes.data || []).forEach(p => {
+        if (p.name)    byName[norm(p.name)]    = p;
+        if (p.name_en) byName[norm(p.name_en)] = p;
+      });
+      const cats = {};
+      (oRes.data || []).forEach(o => {
+        if (o.archived === true) return;
+        (Array.isArray(o.items) ? o.items : []).forEach(it => {
+          const p = byName[norm(it.name)];
+          const cat = p?.category || 'غير مصنّف';
+          const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
+          if (!qty) return;
+          cats[cat] = cats[cat] || { units: 0, revenue: 0 };
+          cats[cat].units += qty;
+          cats[cat].revenue += qty * (Number(p?.price_usd) || 0);
+        });
+      });
+      setRows(Object.entries(cats).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.units - a.units));
+    })();
+  }, [period]);
+
+  const totUnits = (rows || []).reduce((s, r) => s + r.units, 0);
+  const totRev   = (rows || []).reduce((s, r) => s + r.revenue, 0);
+  const maxUnits = Math.max(1, ...(rows || []).map(r => r.units));
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-text">📊 مبيعات الأقسام (سوريا — مسلّمة)</p>
+        <div className="flex gap-1">
+          {[['all','الكل'],['month','هذا الشهر']].map(([k,l]) => (
+            <button key={k} onClick={() => setPeriod(k)}
+              className={'px-2.5 py-1 rounded-lg text-[11px] font-bold ' + (period===k ? 'bg-teal text-white' : 'bg-surface-alt text-muted')}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {rows === null ? <p className="text-sm text-muted text-center py-4 animate-pulse">…</p>
+        : rows.length === 0 ? <p className="text-sm text-muted text-center py-4">لا مبيعات في هذه الفترة</p>
+        : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.name}>
+              <div className="flex items-center justify-between text-xs mb-0.5">
+                <span className="text-text font-semibold">{r.name}</span>
+                <span className="text-muted">{r.units} وحدة · <b className="text-teal">${r.revenue.toFixed(0)}</b></span>
+              </div>
+              <div className="h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                <div className="h-full bg-teal rounded-full" style={{ width: `${(r.units / maxUnits) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between text-xs pt-2 border-t border-border font-bold">
+            <span className="text-text">الإجمالي</span>
+            <span className="text-text">{totUnits} وحدة · <span className="text-teal">${totRev.toFixed(0)}</span></span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function InventoryScreen() {
   const [products, setProducts] = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -298,6 +379,7 @@ export default function InventoryScreen() {
   const [showForm, setShowForm] = useState(false);
   const [editProd, setEditProd] = useState(null);
   const [moveProd, setMoveProd] = useState(null);
+  const [showCatSales, setShowCatSales] = useState(false);
   const [dbMissing, setDbMissing] = useState(false);
   const [seeding,   setSeeding]   = useState(false);
 
@@ -457,6 +539,13 @@ ON CONFLICT (sku) DO NOTHING;`}
         <StatCard label="نفذ من المخزون"   value={loading ? '—' : outOfStock}               tone="red"   />
         <StatCard label="قيمة المخزون"     value={loading ? '—' : '$' + Math.round(totalValue).toLocaleString()} tone="green" />
       </div>
+
+      {/* Sales by category */}
+      <button onClick={() => setShowCatSales(v => !v)}
+        className="flex items-center gap-2 text-sm font-bold text-text hover:text-teal transition">
+        📊 مبيعات الأقسام {showCatSales ? '▲' : '▼'}
+      </button>
+      {showCatSales && <CategorySalesPanel />}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
