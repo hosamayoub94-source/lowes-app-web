@@ -7,7 +7,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation }    from 'react-router-dom';
 import { useAuth }        from '@hooks/useAuth';
 import { supabase }       from '@services/supabase';
-import { MusicRoomPanel } from '@components/chat/MusicRoomPanel';
 import { ROLES }          from '@data/teams';
 
 // ── Constants ──────────────────────────────────────────────────
@@ -83,103 +82,13 @@ function avatarColor(name) {
   return colors[h];
 }
 
-// ── YouTube helpers (channel music bot) ─────────────────────────
-function extractVideoId(input){
-  if(!input)return null;
-  const t=input.trim();
-  if(/^[a-zA-Z0-9_-]{11}$/.test(t))return t;
-  const short=t.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);if(short)return short[1];
-  const long=t.match(/[?&]v=([a-zA-Z0-9_-]{11})/);if(long)return long[1];
-  const embed=t.match(/\/embed\/([a-zA-Z0-9_-]{11})/);if(embed)return embed[1];
-  return null;
-}
-
 // ── AI Bot ──────────────────────────────────────────────────────
 const BOT_NAME='🤖 مساعد لويز', BOT_ID='bot';
-const MUSIC_CMDS=['/اغنية','/أغنية','/موسيقى','/music','/play','/شغل','/شغّل'];
-const MUSIC_STOP_CMDS=['/وقف','/ايقاف','/إيقاف','/stop'];
-const MUSIC_SKIP_CMDS=['/تخطي','/تخطى','/التالي','/skip','/next'];
-
-/** Resolve a name-or-URL into {videoId,title} (searches YouTube if not a URL). */
-async function resolveSong(arg){
-  let vid=extractVideoId(arg);
-  let title=arg;
-  if(!vid){
-    try{
-      const SUPABASE_URL=import.meta.env.VITE_SUPABASE_URL;
-      const ANON_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const r=await fetch(`${SUPABASE_URL}/functions/v1/yt-search`,{
-        method:'POST',
-        headers:{'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json'},
-        body:JSON.stringify({q:arg}),
-      });
-      const d=await r.json();
-      if(d?.videoId){vid=d.videoId;title=d.title||arg;}
-    }catch{}
-  }
-  return {videoId:vid,title};
-}
-
-/** Play the next queued song for a room (or stop if queue empty). Returns title or null. */
-export async function playNextInQueue(roomId,djId,djName){
-  const {data:next}=await supabase.from('channel_music_queue')
-    .select('*').eq('room_id',roomId).order('created_at').limit(1).maybeSingle();
-  const now=new Date().toISOString();
-  if(next){
-    await supabase.from('channel_music').upsert(
-      {room_id:roomId,video_id:next.video_id,video_title:next.title,started_at:now,is_playing:true,dj_id:next.added_by||djId,dj_name:next.added_by||djName,updated_at:now},
-      {onConflict:'room_id'}
-    );
-    await supabase.from('channel_music_queue').delete().eq('id',next.id);
-    return next.title;
-  }
-  // Queue empty → stop
-  await supabase.from('channel_music').upsert(
-    {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:now},
-    {onConflict:'room_id'}
-  );
-  return null;
-}
 
 async function buildBotResponse(cmdText,roomId,userId,userName){
   const cmd=cmdText.trim();const cmdL=cmd.toLowerCase();let response='';
-  const firstWord=cmdL.split(/\s+/)[0];
-  const botMsg=(text)=>({id:`bot-${Date.now()}`,room_id:roomId,sender_id:BOT_ID,sender_name:BOT_NAME,message_type:'text',content:text,created_at:new Date().toISOString()});
   try{
-    // ── Music bot: play / queue in this channel (Discord-style) ──
-    if(MUSIC_CMDS.includes(firstWord)){
-      const arg=cmd.replace(/^\S+\s*/,'').trim();
-      if(!arg){return botMsg('🎵 اكتب اسم الأغنية أو رابط يوتيوب:\n/اغنية عمرو دياب تملي معاك');}
-      const {videoId:vid,title}=await resolveSong(arg);
-      if(!vid){return botMsg(`😅 ما لقيت "${arg}". جرّب اسم أوضح أو الصق رابط يوتيوب.`);}
-      // Is something already playing in this room?
-      const {data:cur}=await supabase.from('channel_music').select('is_playing').eq('room_id',roomId).maybeSingle();
-      if(cur?.is_playing){
-        await supabase.from('channel_music_queue').insert({room_id:roomId,video_id:vid,title,added_by:userName});
-        const {count}=await supabase.from('channel_music_queue').select('id',{count:'exact',head:true}).eq('room_id',roomId);
-        return botMsg(`➕ أُضيفت للقائمة: ${title}\nالمركز في الانتظار: ${count ?? '?'} · (اكتب /تخطي للتالي)`);
-      }
-      const now=new Date().toISOString();
-      await supabase.from('channel_music').upsert(
-        {room_id:roomId,video_id:vid,video_title:title,started_at:now,is_playing:true,dj_id:userId,dj_name:userName,updated_at:now},
-        {onConflict:'room_id'}
-      );
-      return botMsg(`🎵 يُشغّل الآن: ${title}\nطلب التشغيل: ${userName} — استمتعوا 🎧\n(اكتب /اغنية لإضافة المزيد · /تخطي للتالي · /وقف للإيقاف)`);
-    }
-    // ── Skip to next queued song ──
-    if(MUSIC_SKIP_CMDS.includes(firstWord)){
-      const nextTitle=await playNextInQueue(roomId,userId,userName);
-      return botMsg(nextTitle?`⏭ التالي: ${nextTitle} 🎧`:'⏹ انتهت القائمة — لا مزيد من الأغاني.');
-    }
-    if(MUSIC_STOP_CMDS.includes(firstWord)){
-      await supabase.from('channel_music').upsert(
-        {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
-        {onConflict:'room_id'}
-      );
-      await supabase.from('channel_music_queue').delete().eq('room_id',roomId);
-      return botMsg('⏹ تم إيقاف الموسيقى ومسح قائمة الانتظار.');
-    }
-    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','🎵 /اغنية <اسم أو رابط> — شغّل أو أضف للقائمة','⏭ /تخطي    — الأغنية التالية','⏹ /وقف     — أوقف الموسيقى','❓ /مساعدة  — هذه القائمة'].join('\n');}
+    if(['/مساعدة','/help','/مساعده'].includes(cmdL)){response=['🤖 الأوامر المتاحة:','','📋 /مهامي   — مهامي المفتوحة','📅 /حضور   — سجل حضوري','👥 /الفريق  — قائمة الفريق','📢 /اعلانات — آخر الإعلانات','❓ /مساعدة  — هذه القائمة'].join('\n');}
     else if(['/مهامي','/tasks','/مهام'].includes(cmdL)){
       const taskFilter=userId?`assignee_id.eq.${userId},assigned_to.eq.${userId}`:`assigned_to.eq.${userId}`;
       const{data}=await supabase.from('tasks').select('title,status,due_date').or(taskFilter).not('status','in','("done","completed","cancelled")').order('created_at',{ascending:false}).limit(8);
@@ -747,7 +656,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
                   }
                   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}
                 }}
-                placeholder="اكتب رسالة… /اغنية <اسم الأغنية> · /مساعدة"
+                placeholder="اكتب رسالة… (/مساعدة للأوامر)"
                 rows={1}
                 disabled={disabled||uploading}
                 className="flex-1 px-4 py-2.5 text-sm bg-transparent text-text focus:outline-none resize-none disabled:opacity-60 max-h-32 leading-relaxed"
@@ -1046,118 +955,6 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
   );
 }
 
-// ── ChannelMusicPlayer — Discord-style per-channel music ─────────
-function ChannelMusicPlayer({roomId,userId,userName,isApprover}){
-  const[state,setState]=useState(null);
-  const[collapsed,setCollapsed]=useState(false);
-  const[queue,setQueue]=useState([]);
-  const[skipping,setSkipping]=useState(false);
-  // Only reload iframe when the actual video_id changes, not on every realtime tick
-  const[embedUrl,setEmbedUrl]=useState('');
-  const prevVideoId=useRef(null);
-  const subRef=useRef(null);
-  const queueSubRef=useRef(null);
-
-  const loadQueue=useCallback(()=>{
-    supabase.from('channel_music_queue').select('*').eq('room_id',roomId).order('created_at')
-      .then(({data})=>setQueue(data??[])).catch(()=>{});
-  },[roomId]);
-
-  useEffect(()=>{
-    if(!roomId)return;
-    let alive=true;
-    setState(null);setCollapsed(false);
-    prevVideoId.current=null;
-    supabase.from('channel_music').select('*').eq('room_id',roomId).maybeSingle()
-      .then(({data})=>{
-        if(!alive)return;
-        const d=data??null;
-        setState(d);
-        if(d?.video_id&&d.is_playing){
-          const elapsed=d.started_at?Math.max(0,Math.floor((Date.now()-new Date(d.started_at).getTime())/1000)):0;
-          setEmbedUrl(`https://www.youtube.com/embed/${d.video_id}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`);
-          prevVideoId.current=d.video_id;
-        }
-      }).catch(()=>{});
-    subRef.current=supabase.channel(`music:${roomId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'channel_music',filter:`room_id=eq.${roomId}`},payload=>{
-        const d=payload.new;
-        const newVid=d?.video_id||null;
-        setState(newVid&&d?.is_playing?d:null);
-        // Only rebuild the embed URL when the video actually changes
-        if(newVid&&d?.is_playing&&newVid!==prevVideoId.current){
-          const elapsed=d.started_at?Math.max(0,Math.floor((Date.now()-new Date(d.started_at).getTime())/1000)):0;
-          setEmbedUrl(`https://www.youtube.com/embed/${newVid}?autoplay=1&start=${elapsed}&rel=0&modestbranding=1`);
-          prevVideoId.current=newVid;
-        }
-        if(!newVid||!d?.is_playing) prevVideoId.current=null;
-      }).subscribe();
-    // Queue load + realtime
-    loadQueue();
-    queueSubRef.current=supabase.channel(`mqueue:${roomId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'channel_music_queue',filter:`room_id=eq.${roomId}`},()=>loadQueue())
-      .subscribe();
-    return()=>{alive=false;subRef.current?.unsubscribe();queueSubRef.current?.unsubscribe();};
-  },[roomId,loadQueue]);
-
-  if(!state?.is_playing||!state?.video_id)return null;
-  const canControl=state.dj_id===userId||isApprover;
-
-  const stop=async()=>{
-    await supabase.from('channel_music').upsert(
-      {room_id:roomId,video_id:null,video_title:null,started_at:null,is_playing:false,dj_id:null,dj_name:null,updated_at:new Date().toISOString()},
-      {onConflict:'room_id'}
-    ).catch(()=>{});
-    await supabase.from('channel_music_queue').delete().eq('room_id',roomId).catch(()=>{});
-  };
-
-  const skip=async()=>{
-    setSkipping(true);
-    try{ await playNextInQueue(roomId,userId,userName); }
-    finally{ setSkipping(false); }
-  };
-
-  return(
-    <div className="shrink-0 border-b border-border bg-gradient-to-l from-teal/5 to-transparent">
-      <div className="flex items-center gap-2.5 px-3 py-2">
-        <span className="w-2 h-2 rounded-full bg-teal animate-pulse shrink-0"/>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-text truncate">🎵 {state.video_title||'يُشغّل الآن'}</p>
-          {state.dj_name&&<p className="text-[10px] text-muted">شغّلها {state.dj_name}{queue.length>0?` · ${queue.length} بالانتظار`:''}</p>}
-        </div>
-        {canControl&&queue.length>0&&(
-          <button onClick={skip} disabled={skipping} className="text-xs text-muted hover:text-teal transition px-1.5 disabled:opacity-40" title="التالي">⏭</button>
-        )}
-        <button onClick={()=>setCollapsed(c=>!c)} className="text-xs text-muted hover:text-teal transition px-1.5" title={collapsed?'إظهار':'إخفاء'}>
-          {collapsed?'▸':'▾'}
-        </button>
-        {canControl&&(
-          <button onClick={stop} className="text-xs text-muted hover:text-red-500 transition px-1.5" title="إيقاف">⏹</button>
-        )}
-      </div>
-      {!collapsed&&(
-        <div className="px-3 pb-3 space-y-2">
-          <div className="rounded-xl overflow-hidden border border-border bg-black" style={{aspectRatio:'16/9'}}>
-            <iframe src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media; fullscreen" allowFullScreen title="موسيقى القناة"/>
-          </div>
-          {queue.length>0&&(
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-1">⏭ التالي ({queue.length})</p>
-              {queue.slice(0,5).map((q,i)=>(
-                <div key={q.id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-surface-alt/60">
-                  <span className="text-[10px] text-muted font-bold w-4 shrink-0">{i+1}</span>
-                  <span className="flex-1 text-[11px] text-text truncate">{q.title}</span>
-                  {q.added_by&&<span className="text-[9px] text-muted shrink-0">{q.added_by}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ══════════════════════════════════════════════════════════════════
 // Main ChatScreen
 // ══════════════════════════════════════════════════════════════════
@@ -1176,7 +973,7 @@ export default function ChatScreen(){
   // Mobile WhatsApp-style nav: 'list' shows channels/DMs, 'chat' shows the
   // open conversation full-screen. On desktop (sm+) both panes show together.
   const[mobileView,setMobileView]=useState('list');
-  const openRoom=(r)=>{setActiveRoom(r);setShowMusicRoom(false);setMobileView('chat');};
+  const openRoom=(r)=>{setActiveRoom(r);setMobileView('chat');};
   const[messages,setMessages]=useState([]);
   const[reactions,setReactions]=useState({});
   const[lastMsgs,setLastMsgs]=useState({});
@@ -1195,7 +992,6 @@ export default function ChatScreen(){
   const[forwardMsg,setForwardMsg]=useState(null);  // message to forward
 
   // Panels
-  const[showMusicRoom,setShowMusicRoom]=useState(false);
   const[showDiscover,setShowDiscover]=useState(false);
   const[showRequests,setShowRequests]=useState(false);
   const[showCreateGroup,setShowCreateGroup]=useState(false);
@@ -1420,7 +1216,7 @@ export default function ChatScreen(){
   // ── Auto-refresh sidebar when membership changes ──────────────
   useEffect(()=>{
     if(!userId)return;
-    const ch=supabase.channel(`members:${userId}`)
+    const ch=supabase.channel(`members:${userId}:${Date.now()}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_room_members',filter:`user_id=eq.${userId}`},()=>{
         loadRooms();
       })
@@ -1440,7 +1236,7 @@ export default function ChatScreen(){
 
     subRef.current?.unsubscribe();
     setOnlineUsers([]);
-    subRef.current=supabase.channel(`room4:${activeRoom.id}`)
+    subRef.current=supabase.channel(`room4:${activeRoom.id}:${Date.now()}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
         setMessages(p=>p.some(m=>m.id===payload.new.id)?p:[...p,payload.new]);
         setLastMsgs(p=>({...p,[activeRoom.id]:payload.new.message_type==='text'?payload.new.content:payload.new.message_type==='image'?'📷 صورة':'🎙️ رسالة صوتية'}));
@@ -1575,14 +1371,6 @@ export default function ChatScreen(){
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
-          {/* Music room */}
-          <button onClick={()=>{setShowMusicRoom(true);setMobileView('chat');}}
-            className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${showMusicRoom?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
-            <span className="w-5 text-center shrink-0">🎵</span>
-            <span className={`flex-1 text-sm ${showMusicRoom?'font-bold':'font-medium'}`}>غرفة الموسيقى</span>
-            {showMusicRoom&&<span className="text-[9px] text-teal font-bold bg-teal/10 px-1.5 py-0.5 rounded-full">مباشر</span>}
-          </button>
-
           {/* Pending requests badge */}
           {isApprover&&pendingCount>0&&(
             <button onClick={()=>setShowRequests(true)} className="w-full text-start px-2.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center gap-2.5 hover:bg-amber-100 transition">
@@ -1598,7 +1386,7 @@ export default function ChatScreen(){
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 mb-1">القنوات</p>
               {loading?[1,2,3,4,5].map(i=><div key={i} className="h-9 rounded-xl bg-surface-alt animate-pulse mb-1"/>)
               :publicRooms.map(r=>(
-                <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id&&!showMusicRoom} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
+                <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
                   onClick={()=>openRoom(r)} />
               ))}
             </div>
@@ -1609,7 +1397,7 @@ export default function ChatScreen(){
             <div>
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 mb-1">مجموعات خاصة</p>
               {privateRooms.map(r=>(
-                <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id&&!showMusicRoom} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
+                <ChannelItem key={r.id} room={r} active={activeRoom?.id===r.id} unread={unreadCounts[r.id]??0} lastMsg={lastMsgs[r.id]}
                   onClick={()=>openRoom(r)} />
               ))}
             </div>
@@ -1624,7 +1412,7 @@ export default function ChatScreen(){
                 const isOnline=globalOnline.has(dmName);
                 return(
                 <button key={r.id} onClick={()=>openRoom(r)}
-                  className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${activeRoom?.id===r.id&&!showMusicRoom?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
+                  className={`w-full text-start px-2.5 py-2 rounded-xl transition-all flex items-center gap-2.5 ${activeRoom?.id===r.id?'bg-teal/10 text-teal':'text-muted hover:bg-surface-alt hover:text-text'}`}>
                   <div className="relative shrink-0">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${avatarColor(dmName)}`}>
                       {dmName?.[0]?.toUpperCase()}
@@ -1666,20 +1454,15 @@ export default function ChatScreen(){
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
           <button onClick={()=>setSidebarOpen(o=>!o)} className="hidden sm:flex w-8 h-8 rounded-xl bg-surface-alt border border-border items-center justify-center text-muted hover:text-text transition shrink-0 hover:scale-105">☰</button>
-          {showMusicRoom?(
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-text">🎵 غرفة الموسيقى</p>
-              <p className="text-[11px] text-muted">استمع مع فريقك بشكل متزامن</p>
-            </div>
-          ):activeRoom?(
+          {activeRoom?(
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-text truncate">{activeRoom.display_name??activeRoom.name}</p>
-                {activeRoom.is_private&&<span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">🔒 خاص</span>}
+                {activeRoom.type!=='dm'&&activeRoom.is_private&&<span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">🔒 خاص</span>}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                {activeRoom.description&&!activeRoom.is_dm&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
-                {activeRoom.is_dm ? (
+                {activeRoom.description&&activeRoom.type!=='dm'&&<p className="text-[11px] text-muted truncate">{activeRoom.description}</p>}
+                {activeRoom.type==='dm' ? (
                   globalOnline.has(activeRoom.display_name??activeRoom.name) ? (
                     <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
@@ -1703,14 +1486,14 @@ export default function ChatScreen(){
               </div>
             </div>
           ):null}
-          {!showMusicRoom&&activeRoom&&(
+          {activeRoom&&(
             <button onClick={()=>{setShowSearch(v=>!v);setSearchQuery('');}}
               className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm transition shrink-0 hover:scale-105 ${showSearch?'bg-teal text-white':'bg-surface-alt border border-border text-muted hover:text-teal hover:border-teal/40'}`}
               title="بحث في الرسائل">🔍</button>
           )}
         </div>
         {/* Search bar */}
-        {showSearch&&!showMusicRoom&&(
+        {showSearch&&(
           <div className="px-3 py-2 border-b border-border bg-surface-alt shrink-0 animate-in slide-in-from-top-2 duration-200">
             <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="ابحث في الرسائل…" autoFocus
               className="w-full border border-border rounded-xl px-4 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
@@ -1719,20 +1502,12 @@ export default function ChatScreen(){
         )}
 
         {/* Pinned */}
-        {!showMusicRoom&&pinnedMsg&&(
+        {pinnedMsg&&(
           <PinnedBanner pinned={pinnedMsg} onUnpin={handleUnpin} isApprover={isApprover} />
         )}
 
-        {/* Channel music (Discord-style — /اغنية) */}
-        {!showMusicRoom&&activeRoom&&(
-          <ChannelMusicPlayer roomId={activeRoom.id} userId={userId} userName={userName} isApprover={isApprover} />
-        )}
-
-        {/* Music Room */}
-        {showMusicRoom&&<MusicRoomPanel userId={userId} userName={userName}/>}
-
         {/* Messages + Input */}
-        {!showMusicRoom&&(
+        {(
           <>
             <div ref={msgContainerRef} onScroll={handleMsgScroll} className="flex-1 overflow-y-auto overscroll-contain relative" style={{background:'var(--color-surface-alt,#f8f7f4)'}}>
               {showScrollBtn&&(
