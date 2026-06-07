@@ -2528,8 +2528,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
   // الطلبات الفاشلة المزامنة (للوحة المدير + زر إعادة جماعي).
   const failedSync = useMemo(
-    () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at),
-    [orders]
+    () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at && (!lockedMarket || o.market === lockedMarket)),
+    [orders, lockedMarket]
   );
   const [retryingAll, setRetryingAll] = useState(false);
   const handleRetryAll = async () => {
@@ -2572,19 +2572,26 @@ export default function OrdersScreen({ forcedMarket = null }) {
     [...new Set(orders.map(o => canonicalSeller(o.handler_name)).filter(Boolean))].sort()
   , [orders]);
 
-  const stats = useMemo(() => ({
-    total:      orders.length,
-    pending:    orders.filter(o => o.status === 'pending').length,
-    preparing:  orders.filter(o => o.status === 'preparing').length,
-    ready:      orders.filter(o => o.status === 'ready').length,
-    shipped:    orders.filter(o => o.status === 'shipped').length,
-    delivered:  orders.filter(o => o.status === 'delivered').length,
-    actionable: orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
-    waiting:    orders.filter(o => FOLLOWUP_STATUSES.includes(o.status)).length,
-    returned:   orders.filter(o => RETURN_STATUSES.includes(o.status)).length,
-    myDelivered: orders.filter(o => o.status === 'delivered' && myNames.has(o.handler_name)).length,
-    myWaiting:  orders.filter(o => myNames.has(o.handler_name) && FOLLOWUP_STATUSES.includes(o.status)).length,
-  }), [orders, userName, myNames]);
+  const stats = useMemo(() => {
+    // إحصاءات مقصورة على سوق الماكنة الحالية (وعلى البراند لتركيا).
+    const base = orders.filter(o =>
+      (!lockedMarket || o.market === lockedMarket) &&
+      (brandFilter === 'all' || (o.brand || 'lowes').toLowerCase() === brandFilter)
+    );
+    return {
+      total:      base.length,
+      pending:    base.filter(o => o.status === 'pending').length,
+      preparing:  base.filter(o => o.status === 'preparing').length,
+      ready:      base.filter(o => o.status === 'ready').length,
+      shipped:    base.filter(o => o.status === 'shipped').length,
+      delivered:  base.filter(o => o.status === 'delivered').length,
+      actionable: base.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length,
+      waiting:    base.filter(o => FOLLOWUP_STATUSES.includes(o.status)).length,
+      returned:   base.filter(o => RETURN_STATUSES.includes(o.status)).length,
+      myDelivered: base.filter(o => o.status === 'delivered' && myNames.has(o.handler_name)).length,
+      myWaiting:  base.filter(o => myNames.has(o.handler_name) && FOLLOWUP_STATUSES.includes(o.status)).length,
+    };
+  }, [orders, lockedMarket, brandFilter, userName, myNames]);
 
   // Daily reminder: notify the seller (once per day) of orders that need follow-up
   // (waiting / returned). Mirrors the «Lozy reminds you» idea. Client-side, on open.
