@@ -302,6 +302,88 @@ function MovementModal({ product, onClose }) {
   );
 }
 
+// ── Batch price editor — set USD/TRY for all products at once ──
+function BatchPriceModal({ onClose, onDone }) {
+  const [rows, setRows] = useState(null);
+  const [edited, setEdited] = useState({}); // id -> { price_usd, price_try }
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('products').select('id, name, sku, price_usd, price_try').eq('is_active', true).order('name');
+      setRows(data || []);
+    })();
+  }, []);
+
+  const setVal = (id, field, v) => setEdited(e => ({ ...e, [id]: { ...e[id], [field]: v } }));
+  const valOf = (r, field) => (edited[r.id]?.[field] ?? r[field] ?? '');
+
+  const save = async () => {
+    const ids = Object.keys(edited);
+    if (!ids.length) { onClose(); return; }
+    setBusy(true); setErr(null);
+    try {
+      for (const id of ids) {
+        const patch = {};
+        if (edited[id].price_usd !== undefined) patch.price_usd = Number(edited[id].price_usd) || 0;
+        if (edited[id].price_try !== undefined) patch.price_try = Number(edited[id].price_try) || 0;
+        const { error } = await supabase.from('products').update(patch).eq('id', id);
+        if (error) throw new Error(error.message);
+      }
+      onDone(); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const filtered = (rows || []).filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()) || (r.sku || '').toLowerCase().includes(q.toLowerCase()));
+  const changedCount = Object.keys(edited).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm" dir="rtl"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg bg-surface rounded-2xl shadow-xl border border-border max-h-[92vh] flex flex-col">
+        <div className="px-5 py-3 border-b border-border shrink-0 flex items-center justify-between">
+          <h3 className="font-bold text-text">💲 تسعير المنتجات</h3>
+          <button onClick={onClose} className="text-muted hover:text-text text-xl">✕</button>
+        </div>
+        <div className="px-4 py-2 shrink-0">
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 بحث…"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+        </div>
+        <div className="overflow-y-auto flex-1 px-3">
+          {rows === null ? <p className="text-sm text-muted text-center py-6 animate-pulse">…</p> : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface"><tr className="text-[11px] text-muted">
+                <th className="text-right py-1.5 px-1">المنتج</th><th className="px-1">USD</th><th className="px-1">TRY</th>
+              </tr></thead>
+              <tbody>
+                {filtered.map(r => (
+                  <tr key={r.id} className="border-t border-border/40">
+                    <td className="py-1.5 px-1 text-text text-xs truncate max-w-[12rem]">{r.name}</td>
+                    <td className="px-1"><input type="number" step="0.01" value={valOf(r, 'price_usd')} onChange={e => setVal(r.id, 'price_usd', e.target.value)}
+                      className="w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center" style={{ direction: 'ltr' }} /></td>
+                    <td className="px-1"><input type="number" step="0.01" value={valOf(r, 'price_try')} onChange={e => setVal(r.id, 'price_try', e.target.value)}
+                      className="w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center" style={{ direction: 'ltr' }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {err && <p className="text-xs text-red-fg bg-red-bg mx-4 my-1 rounded-xl px-3 py-2">⚠️ {err}</p>}
+        <div className="flex gap-2 p-4 border-t border-border shrink-0">
+          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-border text-sm text-muted">إلغاء</button>
+          <button onClick={save} disabled={busy} className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">
+            {busy ? '…' : changedCount ? `💾 حفظ ${changedCount} منتج` : 'إغلاق'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Quick stock action (receive / adjust) for one product ─────
 function StockActionModal({ product, performedBy, onClose, onDone }) {
   const [whs, setWhs]   = useState([]);
@@ -459,6 +541,7 @@ export default function InventoryScreen() {
   const [moveProd, setMoveProd] = useState(null);
   const [stockProd, setStockProd] = useState(null);
   const [showCatSales, setShowCatSales] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [dbMissing, setDbMissing] = useState(false);
   const { name: userName } = useAuth();
   const { can } = usePermissions();
@@ -610,7 +693,10 @@ ON CONFLICT (sku) DO NOTHING;`}
         title="إدارة المخزون — سوريا"
         subtitle="الكميات المعروضة من مخزون سوريا الفعلي (المركزي + مبيعات سوريا + الفروع). تركيا منفصلة."
         actions={
-          <Button variant="teal" size="lg" onClick={openNew}>+ منتج جديد</Button>
+          <div className="flex gap-2">
+            {canManageStock && <Button variant="secondary" size="lg" onClick={() => setShowPricing(true)}>💲 تسعير</Button>}
+            <Button variant="teal" size="lg" onClick={openNew}>+ منتج جديد</Button>
+          </div>
         }
       />
 
@@ -688,6 +774,7 @@ ON CONFLICT (sku) DO NOTHING;`}
       />
       {moveProd && <MovementModal product={moveProd} onClose={() => setMoveProd(null)} />}
       {stockProd && <StockActionModal product={stockProd} performedBy={userName} onClose={() => setStockProd(null)} onDone={load} />}
+      {showPricing && <BatchPriceModal onClose={() => setShowPricing(false)} onDone={load} />}
     </div>
   );
 }
