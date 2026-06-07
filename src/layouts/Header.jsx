@@ -3,6 +3,7 @@
 //   • mobile: hamburger + brand + theme toggle
 //   • desktop: page title + theme + avatar
 // =============================================================
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
@@ -10,8 +11,10 @@ import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
 import { ROLE_LABELS } from '@data/teams';
 import { NotificationBell } from '@modules/notifications';
+import HelpGuide from '@components/ui/HelpGuide';
 
 export function Header({ title }) {
+  const [showHelp, setShowHelp] = useState(false);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
@@ -39,6 +42,20 @@ export function Header({ title }) {
         </div>
 
         {!isOnline && <Badge tone="amber">غير متصل</Badge>}
+
+        <button
+          type="button"
+          onClick={() => setShowHelp(true)}
+          className="w-10 h-10 grid place-items-center rounded-xl hover:bg-surface-alt text-text"
+          aria-label="دليل الاستخدام"
+          title="دليل الاستخدام — شرح ما يخصّ دورك"
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
 
         <NotificationBell />
 
@@ -69,6 +86,8 @@ export function Header({ title }) {
           <Avatar name={name || ''} src={avatar_url} size="sm" />
         </Link>
       </div>
+
+      <HelpGuide open={showHelp} onClose={() => setShowHelp(false)} />
     </header>
   );
 }
