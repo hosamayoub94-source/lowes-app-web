@@ -25,8 +25,10 @@ SELECT
   payment_method, reference_no, date,
   TRIM(CONCAT(COALESCE(notes, ''),
         CASE WHEN employee_name IS NOT NULL THEN ' | الموظف: ' || employee_name ELSE '' END,
+        CASE WHEN created_by IS NOT NULL THEN ' | أنشأه: ' || created_by ELSE '' END,
         ' | (مُرحَّل من finance_ledger)')),
-  created_by, created_at
+  NULL,   -- created_by: نص في finance_ledger و UUID في accounting_entries → فارغ
+  created_at
 FROM finance_ledger
 WHERE COALESCE(is_archived, false) = false
   AND NOT EXISTS (
