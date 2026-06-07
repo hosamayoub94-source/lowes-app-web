@@ -8,6 +8,30 @@
 ### ⚡ سلوك المالك (إلزامي — صرّح به مراراً)
 المالك يعطي أمراً ويريد **تنفيذه فوراً بدون طلب إذن**. **لا تسأل، نفّذ** (تعديل ملفات، SQL، نشر، git push، نشر Edge Functions/Apps Script عبر Chrome). استثناء وحيد: عمليات خطرة غير قابلة للتراجع (حذف بيانات إنتاج، تدوير مفاتيح). **دائماً استخدم أفضل المهارات** (brainstorming/debugging/verification...). راجع memory: `deploy_autonomy`.
 
+### 🆕🆕 أحدث جلسة (يونيو 2026 — محاسبة التسليمات + توحيد البائعين + العمولة المتدرّجة + CI)
+أُنجز ونُشر على main (commits `d06ce42`→`5b60f6a`؛ تفاصيل: memory `deliveries_accountant_summary` + `orders_sync_commission_june2026`):
+
+1. **إسناد طلبات سوريا غير المنسوبة (45):** تبويب «Delivered Orders» السوري **فعلاً فيه** عمود بائع (col13) ومبلغ (col6) — الاستيراد الأصلي لم يقرأهما. backfill من الجدول عبر gviz بالـgid → أُسندت (41 لبائعين + 4 لـLOWES). (حلّ المتابعة القديمة في النقطة #4 بالأسفل / السطر «⏳ متابعة: تبويب Delivered».)
+
+2. **توحيد أسماء البائعين (~14,500 صف):** كل الطلبات (أرشيف+حديث) وُحّدت لاسم البروفايل القانوني. نسخة احتياطية: جدول `handler_name_backup_20260607`. دالة **`canonicalSeller()`** في `customerService.js` (خريطة `SELLER_CANON`) مطبّقة عند الحفظ + تجميع اللوحة + الفلتر → لا تجزئة جديدة.
+   - ⚠️ **3 «زينة» منفصلات (المالك صحّحها):** «Ziena M»→Zeina Almarouf · «ZIENA»→Zina Sulyman · «Ziena Hamodi» كما هي.
+   - المستقيلون (Layla/rody/bana/razan/Anas/Qamar) + «YUSEF» سوريا + القيم المتسرّبة (أرقام/«تم التسليم»/اسم منتج) → **LOWES (مبيعات الشركة)**. «Yousef» تركيا→Yousef Alkshki.
+
+3. **أساس المبيعات = سعر الكتالوج بالدولار (مناعة ضد العروض):** مبالغ SYP كانت مضطربة (غير ثابتة النسبة) → احتساب المبيعات/التارجت/التصدير صار **Σ(الكمية × `product_economics.sale_price_usd`)** عبر دالة `orderUsd()`. `product_economics` كان فارغاً → زُرع. السعر الأساسي بالدولار ثابت ($7/$8)؛ العروض محلية فقط. الأكواد/الأسماء مشتركة بين جدولي سوريا وتركيا.
+
+4. **محرّك العمولة المتدرّج per-market (مواصفات المالك):** أعمدة جديدة بـ`commission_rules`: `prepaid_target_try, prepaid_tier1_pct, prepaid_tier2_pct, above_target_pct`.
+   - **تركيا (TRY):** فوق 65,000₺→5% · مسبق الدفع: عند بلوغ 15,000₺ → أول 15k @5% ثم الزائد @10%.
+   - **سوريا (USD):** فوق $1000 → 10% (مبدئي).
+   - `commissionBreakdown(emp, rulesById, adj)` market-aware يرجّع بعملة السوق. شريط التقدّم per-market (تركيا ₺/₺، سوريا $/$). مختبَر: 65k/20k = 1,250₺ ✓. الإعدادات ⚙️ تعرض كل النِسب.
+
+5. **مزامنة الأسعار:** Edge fn **`sync-prices`** (منشورة، JWT) تقرأ عمود $ من جدول سوريا وتحدّث `product_economics`. زر **«🔄 مزامنة الأسعار»** للمدير بتاب التسليمات. + التعديل اليدوي inline موجود.
+
+6. **🔐 أمان + CI تلقائي:**
+   - أُزيل توكن GitHub المكشوف من `.git/config` → رابط نظيف + `credential.helper=manager`. **المالك ألغى التوكن القديم** `lowes-app-deploy`.
+   - **نشر Edge Functions تلقائياً:** `.github/workflows/deploy-functions.yml` (أُضيف عبر GitHub UI) + سرّان `SUPABASE_PROJECT_REF` + `SUPABASE_ACCESS_TOKEN`. **تشغيل تجريبي نجح ✅** — أي push لـ`supabase/functions/**` يَنشر تلقائياً. (متبقٍّ اختياري: حذف توكن Supabase القديم `lowes-deploy`.)
+
+**دروس CI:** التوكن لازم يبدأ بـ`sbp_` (anon key `eyJ` يفشل بـ«Invalid access token format»). زر «Add secret» معطّل حتى تُطلق input/change events (React) — عبر Chrome JS: native value setter + dispatch. عنوان تحديث سرّ = `/settings/secrets/actions/<NAME>` (بلا `/edit`).
+
 ### 🆕 جلسة يونيو 2026 — منظومة الطلبات الكاملة (التفاصيل: memory `orders_sync_commission_june2026`)
 أُنجز ونُشر على main:
 1. **شركاء الوردية:** «طلباتي»/«عملائي» تشمل طلبات/عملاء الشركاء المقبولين (تعديل/حذف بنفس اليوم).
@@ -22,7 +46,7 @@
 **نشر Edge Functions:** لا يوجد supabase login محفوظ — استخدم:
 `$env:SUPABASE_ACCESS_TOKEN="sbp_..."; npx supabase functions deploy <fn> --project-ref fghdumrgimoeqsafdhhh --use-api [--no-verify-jwt]` (التوكن يُنشأ من Dashboard→Account→Access Tokens). تشغيل SQL عبر Management API بنفس التوكن.
 
-**⏳ متابعة:** تبويب «Delivered Orders» السوري ملخّص بلا مبلغ/بائع → المسلّمات منه غير منسوبة. للإصلاح: خلّي التسليمات تبقى بـ LOWES Sales أو أضف عمودي مبلغ+بائع لتبويب Delivered.
+**✅ حُلّ (أحدث جلسة):** تبويب «Delivered Orders» تبيّن أنه فيه عمود بائع (col13) ومبلغ (col6) — أُسندت الـ45 طلباً منه. راجع القسم العلوي «🆕🆕 أحدث جلسة».
 
 ### ✅ ربط جدول تركيا — اكتمل ومُختبر (يونيو 2026)
 **حُلّ بالكامل عبر Chrome MCP.** السبب الجذري كان ثلاثياً: (أ) `setupSheets` لم يُشغَّل (الأوراق النظيفة غير موجودة)، (ب) الـ Web App منشور بنسخة قديمة، (ج) الأهم: الـ secret `TURKEY_SHEET_SYNC_URL` كان يشير لـ deployment قديم (يكتب على أوراق `Strong`/`LOWE'S` الفوضوية، يرجع `sheet:"Strong"`).
