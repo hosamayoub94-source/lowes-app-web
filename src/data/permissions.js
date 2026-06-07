@@ -30,6 +30,8 @@ export const PERMISSIONS = {
   MANAGE_CENTRAL_STOCK: 'manage_central_stock', // receive/allocate from central warehouse
   MANAGE_SALES_STOCK:   'manage_sales_stock',   // adjust sales/distributor warehouse stock
   VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
+  MANAGE_CAMPAIGNS:     'manage_campaigns',     // create/edit campaigns + ads + assignments
+  VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
 };
 
 // Human labels (for the admin UI)
@@ -51,6 +53,8 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.MANAGE_CENTRAL_STOCK]: 'إدارة المخزن المركزي (استلام/تخصيص)',
   [PERMISSIONS.MANAGE_SALES_STOCK]:   'إدارة مخازن المبيعات',
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
+  [PERMISSIONS.MANAGE_CAMPAIGNS]:     'إنشاء/إدارة الحملات والإعلانات والإسناد',
+  [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -73,6 +77,8 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.MANAGE_CENTRAL_STOCK]:'استلام وتخصيص البضاعة من المخزن المركزي.',
   [PERMISSIONS.MANAGE_SALES_STOCK]:  'تعديل مخزون مخازن المبيعات والمناديب.',
   [PERMISSIONS.VIEW_INVENTORY]:      'عرض لوحة المخازن والأرصدة.',
+  [PERMISSIONS.MANAGE_CAMPAIGNS]:    'إنشاء الحملات وإضافة الإعلانات وإسناد الموظفين للتسجيل.',
+  [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -85,6 +91,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.VIEW_ALL_ATTENDANCE, PERMISSIONS.MANAGE_ATTENDANCE, PERMISSIONS.APPROVE_LEAVES] },
   { key: 'finance',    icon: '💰', label: 'المالية والأداء',
     permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
+  { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
+    permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS] },
 ];
@@ -111,6 +119,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_CENTRAL_STOCK,
     PERMISSIONS.MANAGE_SALES_STOCK,
     PERMISSIONS.VIEW_INVENTORY,
+    PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.VIEW_CAMPAIGN_COST,
   ],
 
   [ROLES.SALES_MANAGER]: [
@@ -123,6 +133,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_PRODUCTS,
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.VIEW_INVENTORY,
+    PERMISSIONS.MANAGE_CAMPAIGNS,
   ],
 
   [ROLES.SOCIAL_MANAGER]: [
@@ -131,6 +142,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
     PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.MANAGE_CAMPAIGNS,
   ],
 
   [ROLES.MEDIA_BUYER]: [
@@ -139,6 +151,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
     PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.VIEW_CAMPAIGN_COST,
   ],
 
   [ROLES.EMPLOYEE]: [

@@ -1,7 +1,15 @@
-﻿// =============================================================
-// CampaignsScreen — Ad Campaign management for Media Buyer,
-// Sales Manager, and Admin.
-// Tables: ad_campaigns, campaign_ads, ad_results
+// =============================================================
+// CampaignsScreen — Ad campaign TRACKING system (Task #4)
+//
+// Roles:
+//  • Media buyer / manager (MANAGE_CAMPAIGNS): create campaigns, add ads
+//    (the "ads counter"), assign employees, and SEE per-ad performance +
+//    compliance (who actually logged today).
+//  • Employees: see campaigns assigned to them and log, per ad, per day:
+//    messages received, purchases, and a note about the ad.
+//  • Cost (cost_usd) is shown ONLY to VIEW_CAMPAIGN_COST holders.
+//
+// Tables: ad_campaigns (+cost_usd, assigned_to), campaign_ads, ad_daily_logs
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { Hero }                    from '@components/ui/Hero';
@@ -10,14 +18,17 @@ import { StatCard }                from '@components/ui/StatCard';
 import { Button }                  from '@components/ui/Button';
 import { EmptyState }              from '@components/ui/EmptyState';
 import { useAuth }                 from '@hooks/useAuth';
+import { usePermissions }          from '@hooks/usePermissions';
+import { PERMISSIONS }             from '@data/permissions';
 import { supabase }                from '@services/supabase';
 
 // ── helpers ────────────────────────────────────────────────────
+function todayISO() { return new Date().toISOString().slice(0, 10); }
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' });
 }
-function fmtNum(n) { return (n ?? 0).toLocaleString('ar-SA-u-nu-latn'); }
+function fmtNum(n) { return (Number(n) || 0).toLocaleString('ar-SA-u-nu-latn'); }
 function fmtUSD(n) { return '$' + (Number(n) || 0).toFixed(2); }
 
 const STATUS_COLOR = {
@@ -25,123 +36,183 @@ const STATUS_COLOR = {
   inactive: 'bg-surface-alt text-muted border border-border/20',
   paused:   'bg-amber-bg text-amber-fg border border-amber/20',
 };
-
-// ── Status badge ───────────────────────────────────────────────
 function StatusBadge({ status }) {
   const cls = STATUS_COLOR[status] || STATUS_COLOR.inactive;
   const label = { active: 'مفعّلة', inactive: 'معطّلة', paused: 'متوقفة' }[status] || status;
+  return <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ' + cls}>{label}</span>;
+}
+
+const inputCls = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40';
+
+// ── One-time setup banner (when ad_daily_logs missing) ─────────
+const SETUP_SQL = `-- شغّل مرة واحدة في Supabase SQL Editor
+ALTER TABLE ad_campaigns
+  ADD COLUMN IF NOT EXISTS cost_usd numeric(12,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS assigned_to text[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS start_date date,
+  ADD COLUMN IF NOT EXISTS end_date date;
+CREATE TABLE IF NOT EXISTS ad_daily_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_id uuid REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+  ad_id uuid REFERENCES campaign_ads(id) ON DELETE CASCADE,
+  employee_name text NOT NULL,
+  log_date date NOT NULL DEFAULT current_date,
+  shift text, messages integer DEFAULT 0, purchases integer DEFAULT 0,
+  note text, created_at timestamptz DEFAULT now());
+ALTER TABLE ad_daily_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ad_daily_logs_all" ON ad_daily_logs;
+CREATE POLICY "ad_daily_logs_all" ON ad_daily_logs FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON ad_daily_logs TO anon, authenticated;`;
+
+function SetupBanner() {
+  const [copied, setCopied] = useState(false);
   return (
-    <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ' + cls}>
-      {label}
-    </span>
+    <div className="bg-amber-bg border border-amber/30 rounded-xl p-4 space-y-3">
+      <p className="text-sm font-semibold text-amber-fg">⚠️ إعداد مطلوب — جدول التسجيل اليومي غير موجود</p>
+      <p className="text-xs text-muted">لتفعيل التسجيل اليومي ومتابعة الالتزام، انسخ هذا الـSQL ونفّذه مرة واحدة في Supabase:</p>
+      <pre className="text-[10px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-40">{SETUP_SQL}</pre>
+      <button onClick={() => { navigator.clipboard.writeText(SETUP_SQL).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); }}
+        className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
+        {copied ? '✓ تم النسخ' : 'نسخ SQL'}
+      </button>
+    </div>
   );
 }
 
-// ── New Campaign Modal ─────────────────────────────────────────
-const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active' };
+// ── New / Edit Campaign Modal ──────────────────────────────────
+const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '' };
 
-function NewCampaignModal({ open, onClose, onSaved }) {
+function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign }) {
   const [form, setForm]   = useState(EMPTY_CMP);
   const [saving, setSaving] = useState(false);
   const [err, setErr]     = useState(null);
 
+  useEffect(() => {
+    if (!open) return;
+    if (editCampaign) {
+      setForm({
+        name: editCampaign.name ?? '', team: editCampaign.team ?? 'تيم سوريا',
+        channel_type: editCampaign.channel_type ?? 'page', channel_name: editCampaign.channel_name ?? '',
+        status: editCampaign.status ?? 'active', cost_usd: editCampaign.cost_usd ?? '',
+        assigned_to: Array.isArray(editCampaign.assigned_to) ? editCampaign.assigned_to : [],
+        start_date: editCampaign.start_date ?? '', end_date: editCampaign.end_date ?? '',
+      });
+    } else setForm(EMPTY_CMP);
+    setErr(null);
+  }, [open, editCampaign]);
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleEmp = (name) => setForm(f => {
+    const s = new Set(f.assigned_to); s.has(name) ? s.delete(name) : s.add(name);
+    return { ...f, assigned_to: [...s] };
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setErr('اسم الحملة مطلوب'); return; }
-    setSaving(true);
-    setErr(null);
+    setSaving(true); setErr(null);
     try {
-      const { error } = await supabase.from('ad_campaigns').insert({
-        name:         form.name.trim(),
-        team:         form.team,
-        channel_type: form.channel_type,
-        channel_name: form.channel_name.trim() || null,
-        status:       form.status,
-      });
+      const payload = {
+        name: form.name.trim(), team: form.team,
+        channel_type: form.channel_type, channel_name: form.channel_name.trim() || null,
+        status: form.status,
+        cost_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
+        assigned_to: form.assigned_to,
+        start_date: form.start_date || null, end_date: form.end_date || null,
+      };
+      const q = editCampaign
+        ? supabase.from('ad_campaigns').update(payload).eq('id', editCampaign.id)
+        : supabase.from('ad_campaigns').insert(payload);
+      const { error } = await q;
       if (error) throw new Error(error.message);
-      setForm(EMPTY_CMP);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
+      onSaved(); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
   };
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
          onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border overflow-hidden" dir="rtl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-bold text-text">حملة جديدة</h2>
+      <div className="w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border overflow-hidden max-h-[92vh] flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-base font-bold text-text">{editCampaign ? 'تعديل الحملة' : 'حملة جديدة'}</h2>
           <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none">✕</button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted">اسم الحملة *</label>
-            <input
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              placeholder="حملة صيف 2026..."
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">الفريق</label>
-            <select
-              value={form.team}
-              onChange={e => set('team', e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-            >
-              <option value="تيم سوريا">🟩 تيم سوريا</option>
-              <option value="تيم Lowes تركيا">🇹🇷 تيم Lowes تركيا</option>
-              <option value="الكل">الكل</option>
-            </select>
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="حملة صيف 2026…" className={inputCls} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted">نوع القناة</label>
-              <select
-                value={form.channel_type}
-                onChange={e => set('channel_type', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
-                <option value="page">📱 صفحة</option>
-                <option value="whatsapp">💬 واتساب</option>
+              <label className="text-xs font-semibold text-muted">الفريق</label>
+              <select value={form.team} onChange={e => set('team', e.target.value)} className={inputCls}>
+                <option value="تيم سوريا">🟩 تيم سوريا</option>
+                <option value="تيم Lowes تركيا">🇹🇷 تيم تركيا</option>
+                <option value="الكل">الكل</option>
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">الحالة</label>
-              <select
-                value={form.status}
-                onChange={e => set('status', e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-              >
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
                 <option value="active">🟢 مفعّلة</option>
                 <option value="inactive">⚪ معطّلة</option>
                 <option value="paused">⏸️ متوقفة</option>
               </select>
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">اسم القناة / الصفحة</label>
-            <input
-              value={form.channel_name}
-              onChange={e => set('channel_name', e.target.value)}
-              placeholder="صفحة لويز الرسمية..."
-              className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">نوع القناة</label>
+              <select value={form.channel_type} onChange={e => set('channel_type', e.target.value)} className={inputCls}>
+                <option value="page">📱 صفحة</option>
+                <option value="whatsapp">💬 واتساب</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">اسم القناة</label>
+              <input value={form.channel_name} onChange={e => set('channel_name', e.target.value)} placeholder="صفحة لويز…" className={inputCls} />
+            </div>
+          </div>
+          {canViewCost && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">💰 تكلفة الحملة ($) <span className="text-[10px] font-normal">(مخفية عن الموظفين)</span></label>
+              <input type="number" min="0" step="0.01" value={form.cost_usd} onChange={e => set('cost_usd', e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">تاريخ البداية</label>
+              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} className={inputCls} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">تاريخ النهاية</label>
+              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted">👥 الموظفون المكلّفون بالتسجيل</label>
+            <div className="max-h-40 overflow-y-auto rounded-xl border border-border bg-surface-alt p-2 space-y-1">
+              {employees.length === 0 ? <p className="text-xs text-muted px-2 py-1">لا يوجد موظفون</p> :
+                employees.map(emp => {
+                  const checked = form.assigned_to.includes(emp.employee_name);
+                  return (
+                    <label key={emp.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-teal/5">
+                      <input type="checkbox" checked={checked} onChange={() => toggleEmp(emp.employee_name)} className="w-4 h-4 accent-teal" />
+                      <span className="text-xs text-text">{emp.employee_name}</span>
+                      {emp.team && <span className="text-[10px] text-muted">· {emp.team}</span>}
+                    </label>
+                  );
+                })}
+            </div>
+            {form.assigned_to.length > 0 && <p className="text-[11px] text-teal">{form.assigned_to.length} مكلّف</p>}
           </div>
           {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>}
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
             <Button type="submit" variant="teal" className="flex-1" disabled={saving}>
-              {saving ? '⏳ جاري الحفظ…' : '➕ إنشاء الحملة'}
+              {saving ? '⏳ جاري الحفظ…' : (editCampaign ? '💾 حفظ' : '➕ إنشاء')}
             </Button>
           </div>
         </form>
@@ -150,13 +221,306 @@ function NewCampaignModal({ open, onClose, onSaved }) {
   );
 }
 
-// ── Campaign Card ──────────────────────────────────────────────
-function CampaignCard({ c, onSelect }) {
+// ── Add Ad Modal ───────────────────────────────────────────────
+function AddAdModal({ open, campaign, onClose, onSaved }) {
+  const [name, setName]   = useState('');
+  const [img, setImg]     = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]     = useState(null);
+
+  useEffect(() => { if (open) { setName(''); setImg(''); setErr(null); } }, [open]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setErr('اسم الإعلان مطلوب'); return; }
+    setSaving(true); setErr(null);
+    try {
+      const { error } = await supabase.from('campaign_ads').insert({
+        campaign_id: campaign.id, ad_name: name.trim(), ad_image_url: img.trim() || null, status: 'active',
+      });
+      if (error) throw new Error(error.message);
+      onSaved(); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  if (!open) return null;
   return (
-    <div
-      className="bg-surface border border-border rounded-2xl p-4 cursor-pointer hover:border-teal transition-colors"
-      onClick={() => onSelect(c)}
-    >
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+         onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-xl border border-border" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text">🖼️ إعلان جديد</h2>
+          <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none">✕</button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">اسم الإعلان *</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="إعلان الفيديو الأول…" className={inputCls} required />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">رابط الصورة (اختياري)</label>
+            <input value={img} onChange={e => setImg(e.target.value)} placeholder="https://…" className={inputCls} style={{ direction: 'ltr' }} />
+          </div>
+          {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>}
+          <div className="flex gap-3">
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
+            <Button type="submit" variant="teal" className="flex-1" disabled={saving}>{saving ? '⏳…' : '➕ إضافة'}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Daily Log Modal (employee logs an ad) ──────────────────────
+const SHIFTS = [['morning','🌅 صباحي'],['evening','🌇 مسائي'],['night','🌙 ليلي'],['flexible','🕐 مرن']];
+function LogModal({ open, ad, campaign, userName, onClose, onSaved }) {
+  const [messages, setMessages]   = useState('');
+  const [purchases, setPurchases] = useState('');
+  const [note, setNote]           = useState('');
+  const [shift, setShift]         = useState('morning');
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState(null);
+
+  useEffect(() => { if (open) { setMessages(''); setPurchases(''); setNote(''); setShift('morning'); setErr(null); } }, [open]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      const { error } = await supabase.from('ad_daily_logs').insert({
+        campaign_id: campaign.id, ad_id: ad.id, employee_name: userName,
+        log_date: todayISO(), shift,
+        messages: messages === '' ? 0 : Number(messages),
+        purchases: purchases === '' ? 0 : Number(purchases),
+        note: note.trim() || null,
+      });
+      if (error) throw new Error(error.message);
+      onSaved(); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+         onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-xl border border-border" dir="rtl">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text">📝 تسجيل أداء الإعلان</h2>
+          <p className="text-xs text-muted mt-0.5">{ad.ad_name} · اليوم {fmtDate(todayISO())}</p>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">💬 كم رسالة وصلت</label>
+              <input type="number" min="0" value={messages} onChange={e => setMessages(e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">🛒 كم شخص اشترى</label>
+              <input type="number" min="0" value={purchases} onChange={e => setPurchases(e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">الوردية</label>
+            <select value={shift} onChange={e => setShift(e.target.value)} className={inputCls}>
+              {SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">ملاحظة عن الإعلان</label>
+            <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="مثال: الإعلان قوي لكن الأسعار تُسأل كثيراً…" className={inputCls + ' resize-none'} />
+          </div>
+          {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>}
+          <div className="flex gap-3">
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
+            <Button type="submit" variant="teal" className="flex-1" disabled={saving}>{saving ? '⏳…' : '✓ تسجيل'}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Campaign Detail Panel ──────────────────────────────────────
+function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, onChanged }) {
+  const [ads, setAds]         = useState([]);
+  const [logs, setLogs]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]         = useState('ads'); // ads | log | performance
+  const [showAddAd, setShowAddAd] = useState(false);
+  const [logAd, setLogAd]     = useState(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const [adsRes, logRes] = await Promise.allSettled([
+      supabase.from('campaign_ads').select('*').eq('campaign_id', campaign.id).order('created_at'),
+      supabase.from('ad_daily_logs').select('*').eq('campaign_id', campaign.id).order('log_date', { ascending: false }),
+    ]);
+    if (adsRes.status === 'fulfilled' && !adsRes.value.error) setAds(adsRes.value.data || []);
+    if (logRes.status === 'fulfilled' && !logRes.value.error) setLogs(logRes.value.data || []);
+    setLoading(false);
+  }, [campaign.id]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  // Aggregates per ad
+  const perAd = {};
+  ads.forEach(a => { perAd[a.id] = { messages: 0, purchases: 0, entries: 0 }; });
+  logs.forEach(l => {
+    if (!perAd[l.ad_id]) perAd[l.ad_id] = { messages: 0, purchases: 0, entries: 0 };
+    perAd[l.ad_id].messages  += Number(l.messages)  || 0;
+    perAd[l.ad_id].purchases += Number(l.purchases) || 0;
+    perAd[l.ad_id].entries   += 1;
+  });
+  const totMessages  = logs.reduce((s, l) => s + (Number(l.messages) || 0), 0);
+  const totPurchases = logs.reduce((s, l) => s + (Number(l.purchases) || 0), 0);
+
+  // Compliance: who (of assigned) logged TODAY
+  const assigned = Array.isArray(campaign.assigned_to) ? campaign.assigned_to : [];
+  const loggedToday = new Set(logs.filter(l => l.log_date === todayISO()).map(l => l.employee_name));
+  const missingToday = assigned.filter(n => !loggedToday.has(n));
+
+  const isAssigned = assigned.includes(userName);
+
+  const TABS = [['ads', `🖼️ الإعلانات (${ads.length})`], ['log', '📝 التسجيل اليومي']];
+  if (canManage) TABS.push(['performance', '📊 الأداء والالتزام']);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+         onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg bg-surface rounded-2xl shadow-xl border border-border overflow-hidden max-h-[92vh] flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-text truncate">{campaign.name}</h2>
+            <p className="text-xs text-muted mt-0.5">{campaign.team} · {campaign.channel_name || '—'} · <StatusBadge status={campaign.status} /></p>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none shrink-0">✕</button>
+        </div>
+
+        {/* Summary strip */}
+        <div className={`grid ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'} gap-2 px-5 py-3 border-b border-border shrink-0`}>
+          <div className="text-center"><p className="text-sm font-bold text-text">{fmtNum(totMessages)}</p><p className="text-[10px] text-muted">رسائل</p></div>
+          <div className="text-center"><p className="text-sm font-bold text-teal">{fmtNum(totPurchases)}</p><p className="text-[10px] text-muted">مشتريات</p></div>
+          {canViewCost && <div className="text-center"><p className="text-sm font-bold text-amber-fg">{fmtUSD(campaign.cost_usd)}</p><p className="text-[10px] text-muted">التكلفة</p></div>}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 px-5 pt-3 shrink-0 flex-wrap">
+          {TABS.map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={'px-3 py-2 rounded-xl text-xs font-bold transition-colors ' + (tab === k ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text')}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5">
+          {loading ? <p className="text-sm text-muted text-center py-6 animate-pulse">جاري التحميل…</p> : (
+            <>
+              {/* ── ADS TAB ── */}
+              {tab === 'ads' && (
+                <div className="space-y-2">
+                  {canManage && (
+                    <Button variant="teal" size="sm" className="w-full mb-2" onClick={() => setShowAddAd(true)}>➕ إضافة إعلان</Button>
+                  )}
+                  {ads.length === 0 ? <EmptyState description="لا توجد إعلانات بعد" /> : ads.map(ad => {
+                    const agg = perAd[ad.id] || { messages: 0, purchases: 0 };
+                    return (
+                      <div key={ad.id} className="flex items-center gap-3 p-3 rounded-xl border border-border">
+                        <div className="w-10 h-10 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                          {ad.ad_image_url ? <img src={ad.ad_image_url} alt={ad.ad_name} className="w-full h-full object-cover" /> : '🖼️'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-text truncate">{ad.ad_name}</p>
+                          <p className="text-[11px] text-muted">💬 {fmtNum(agg.messages)} · 🛒 {fmtNum(agg.purchases)}</p>
+                        </div>
+                        {(isAssigned || canManage) && (
+                          <button onClick={() => { setLogAd(ad); }} className="px-3 py-1.5 rounded-lg bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition shrink-0">📝 سجّل</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── LOG TAB (recent entries) ── */}
+              {tab === 'log' && (
+                <div className="space-y-2">
+                  {!isAssigned && !canManage && <p className="text-xs text-amber-fg bg-amber-bg border border-amber/30 rounded-xl px-3 py-2 mb-2">لست مكلّفاً بهذه الحملة.</p>}
+                  {logs.length === 0 ? <EmptyState description="لا توجد تسجيلات بعد" /> : logs.slice(0, 50).map(l => {
+                    const ad = ads.find(a => a.id === l.ad_id);
+                    return (
+                      <div key={l.id} className="p-3 rounded-xl border border-border">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-text">{ad?.ad_name || 'إعلان'}</span>
+                          <span className="text-[10px] text-muted">{fmtDate(l.log_date)}</span>
+                        </div>
+                        <div className="flex gap-3 text-[11px] text-muted">
+                          <span>💬 <b className="text-text">{fmtNum(l.messages)}</b></span>
+                          <span>🛒 <b className="text-teal">{fmtNum(l.purchases)}</b></span>
+                          {canManage && <span className="mr-auto">👤 {l.employee_name}</span>}
+                        </div>
+                        {l.note && <p className="text-[11px] text-muted mt-1 leading-relaxed">📌 {l.note}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── PERFORMANCE + COMPLIANCE (managers) ── */}
+              {tab === 'performance' && canManage && (
+                <div className="space-y-4">
+                  {/* Compliance */}
+                  <div className="rounded-xl border border-border p-3">
+                    <p className="text-xs font-bold text-text mb-2">✅ التزام التسجيل اليوم ({loggedToday.size}/{assigned.length})</p>
+                    {assigned.length === 0 ? <p className="text-[11px] text-muted">لم يُكلَّف أحد بعد — عدّل الحملة وأضف موظفين.</p> : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {assigned.map(n => (
+                          <span key={n} className={`text-[11px] px-2 py-1 rounded-full font-semibold ${loggedToday.has(n) ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg'}`}>
+                            {loggedToday.has(n) ? '✓' : '✕'} {n}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {missingToday.length > 0 && <p className="text-[10px] text-amber-fg mt-2">⚠️ لم يسجّل اليوم: {missingToday.join('، ')}</p>}
+                  </div>
+                  {/* Per-ad performance */}
+                  <div className="rounded-xl border border-border p-3">
+                    <p className="text-xs font-bold text-text mb-2">📊 أداء كل إعلان</p>
+                    {ads.length === 0 ? <p className="text-[11px] text-muted">لا إعلانات.</p> : (
+                      <div className="space-y-2">
+                        {ads.map(ad => {
+                          const a = perAd[ad.id] || { messages: 0, purchases: 0, entries: 0 };
+                          const conv = a.messages > 0 ? Math.round((a.purchases / a.messages) * 100) : 0;
+                          return (
+                            <div key={ad.id} className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-text truncate flex-1">{ad.ad_name}</span>
+                              <span className="text-muted shrink-0">💬{fmtNum(a.messages)} · 🛒{fmtNum(a.purchases)} · <b className="text-teal">{conv}%</b></span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <AddAdModal open={showAddAd} campaign={campaign} onClose={() => setShowAddAd(false)} onSaved={() => { reload(); onChanged?.(); }} />
+      {logAd && <LogModal open ad={logAd} campaign={campaign} userName={userName} onClose={() => setLogAd(null)} onSaved={() => { reload(); onChanged?.(); }} />}
+    </div>
+  );
+}
+
+// ── Campaign Card ──────────────────────────────────────────────
+function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit }) {
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 cursor-pointer hover:border-teal transition-colors" onClick={() => onSelect(c)}>
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
           <p className="font-bold text-text text-sm truncate">{c.name}</p>
@@ -168,246 +532,150 @@ function CampaignCard({ c, onSelect }) {
         <span>{c.channel_type === 'page' ? '📱' : '💬'} {c.channel_name || '—'}</span>
         <span className="mr-auto">{fmtDate(c.created_at)}</span>
       </div>
-      {(c._spend > 0 || c._orders > 0) && (
-        <div className="mt-3 pt-3 border-t border-border grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-xs font-bold text-text">{fmtUSD(c._spend)}</p>
-            <p className="text-[10px] text-muted">إنفاق</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-text">{fmtNum(c._orders)}</p>
-            <p className="text-[10px] text-muted">طلبات</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-teal">{fmtUSD(c._revenue)}</p>
-            <p className="text-[10px] text-muted">إيرادات</p>
-          </div>
+      <div className="mt-3 pt-3 border-t border-border grid grid-cols-3 gap-2 text-center">
+        <div><p className="text-xs font-bold text-text">{fmtNum(c._ads)}</p><p className="text-[10px] text-muted">إعلانات</p></div>
+        <div><p className="text-xs font-bold text-teal">{fmtNum(c._purchases)}</p><p className="text-[10px] text-muted">مشتريات</p></div>
+        {canViewCost
+          ? <div><p className="text-xs font-bold text-amber-fg">{fmtUSD(c.cost_usd)}</p><p className="text-[10px] text-muted">تكلفة</p></div>
+          : <div><p className="text-xs font-bold text-text">{fmtNum(c._messages)}</p><p className="text-[10px] text-muted">رسائل</p></div>}
+      </div>
+      {(c._assignedCount > 0 || canManage) && (
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[10px] text-muted">👥 {fmtNum(c._assignedCount)} مكلّف</span>
+          {canManage && <button onClick={e => { e.stopPropagation(); onEdit(c); }} className="text-[11px] text-teal font-semibold hover:underline">✏️ تعديل</button>}
         </div>
       )}
     </div>
   );
 }
 
-// ── Campaign Detail Panel ──────────────────────────────────────
-function CampaignDetail({ campaign, onClose, onStatusChange }) {
-  const [ads, setAds]       = useState([]);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]       = useState('ads'); // 'ads' | 'results'
-
-  useEffect(() => {
-    if (!campaign) return;
-    (async () => {
-      setLoading(true);
-      const [adsRes, resRes] = await Promise.allSettled([
-        supabase.from('campaign_ads').select('*').eq('campaign_id', campaign.id).order('created_at'),
-        supabase.from('ad_results').select('*').eq('campaign_id', campaign.id).order('result_date', { ascending: false }).limit(30),
-      ]);
-      if (adsRes.status === 'fulfilled' && !adsRes.value.error) setAds(adsRes.value.data || []);
-      if (resRes.status === 'fulfilled' && !resRes.value.error) setResults(resRes.value.data || []);
-      setLoading(false);
-    })();
-  }, [campaign]);
-
-  if (!campaign) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-         onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-lg bg-surface rounded-2xl shadow-xl border border-border overflow-hidden max-h-[90vh] flex flex-col" dir="rtl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div>
-            <h2 className="text-base font-bold text-text">{campaign.name}</h2>
-            <p className="text-xs text-muted mt-0.5">{campaign.team} · {campaign.channel_name || '—'}</p>
-          </div>
-          <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none">✕</button>
-        </div>
-        {/* Tabs */}
-        <div className="flex gap-1 px-5 pt-3 shrink-0">
-          {[['ads','🖼️ الإعلانات'], ['results','📊 النتائج']].map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' +
-                (tab === k ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="overflow-y-auto flex-1 p-5">
-          {loading ? (
-            <p className="text-sm text-muted text-center py-6 animate-pulse">جاري التحميل…</p>
-          ) : tab === 'ads' ? (
-            ads.length === 0
-              ? <EmptyState description="لا توجد إعلانات لهذه الحملة بعد" />
-              : ads.map(ad => (
-                  <div key={ad.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
-                    <div className="w-10 h-10 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0">
-                      {ad.image_url ? (
-                        <img src={ad.image_url} alt={ad.name} className="w-full h-full object-cover rounded-xl" />
-                      ) : '🖼️'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-text">{ad.name}</p>
-                      <p className="text-xs text-muted">{fmtDate(ad.created_at)}</p>
-                    </div>
-                  </div>
-                ))
-          ) : (
-            results.length === 0
-              ? <EmptyState description="لا توجد نتائج مسجّلة لهذه الحملة" />
-              : results.map(r => (
-                  <div key={r.id} className="py-3 border-b border-border last:border-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-muted">{fmtDate(r.result_date || r.created_at)}</span>
-                      <span className="text-xs font-bold text-teal">{fmtUSD(r.revenue_usd || 0)}</span>
-                    </div>
-                    <div className="flex gap-4 text-xs text-muted">
-                      <span>إنفاق: <b className="text-text">{fmtUSD(r.ad_spend_usd || 0)}</b></span>
-                      <span>طلبات: <b className="text-text">{r.orders || 0}</b></span>
-                      {r.roas > 0 && <span>ROAS: <b className="text-amber-600">{Number(r.roas).toFixed(2)}x</b></span>}
-                    </div>
-                  </div>
-                ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main screen ────────────────────────────────────────────────
 export default function CampaignsScreen() {
-  const { role } = useAuth();
+  const { name: userName } = useAuth();
+  const { can } = usePermissions();
+  const canManage   = can(PERMISSIONS.MANAGE_CAMPAIGNS);
+  const canViewCost = can(PERMISSIONS.VIEW_CAMPAIGN_COST);
 
   const [campaigns, setCampaigns] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [editCampaign, setEditCampaign] = useState(null);
   const [selected, setSelected]   = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // KPIs derived from ad_results
-  const [kpis, setKpis] = useState({ totalSpend: 0, totalRevenue: 0, totalOrders: 0 });
-
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const [cmpRes, resRes] = await Promise.allSettled([
+      const [cmpRes, adsRes, logRes, empRes] = await Promise.allSettled([
         supabase.from('ad_campaigns').select('*').order('created_at', { ascending: false }),
-        supabase.from('ad_results').select('ad_spend_usd, revenue_usd, orders, campaign_id'),
+        supabase.from('campaign_ads').select('id,campaign_id'),
+        supabase.from('ad_daily_logs').select('campaign_id,messages,purchases'),
+        supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name'),
       ]);
 
       let cmps = [];
-      let results = [];
       if (cmpRes.status === 'fulfilled' && !cmpRes.value.error) cmps = cmpRes.value.data || [];
-      if (resRes.status === 'fulfilled' && !resRes.value.error) results = resRes.value.data || [];
+      const ads  = (adsRes.status === 'fulfilled' && !adsRes.value.error) ? adsRes.value.data || [] : [];
+      const logs = (logRes.status === 'fulfilled' && !logRes.value.error) ? logRes.value.data || [] : [];
+      if (empRes.status === 'fulfilled' && !empRes.value.error) setEmployees(empRes.value.data || []);
 
-      // Aggregate results per campaign
+      // ad_daily_logs missing → prompt setup (only managers can act)
+      setNeedsSetup(logRes.status === 'fulfilled' && logRes.value.error?.code === 'PGRST205');
+
+      const adCount = {}; ads.forEach(a => { adCount[a.campaign_id] = (adCount[a.campaign_id] || 0) + 1; });
       const byId = {};
-      results.forEach(r => {
-        if (!byId[r.campaign_id]) byId[r.campaign_id] = { spend: 0, revenue: 0, orders: 0 };
-        byId[r.campaign_id].spend   += Number(r.ad_spend_usd) || 0;
-        byId[r.campaign_id].revenue += Number(r.revenue_usd)  || 0;
-        byId[r.campaign_id].orders  += Number(r.orders)       || 0;
+      logs.forEach(l => {
+        if (!byId[l.campaign_id]) byId[l.campaign_id] = { messages: 0, purchases: 0 };
+        byId[l.campaign_id].messages  += Number(l.messages)  || 0;
+        byId[l.campaign_id].purchases += Number(l.purchases) || 0;
       });
 
-      const enriched = cmps.map(c => ({
+      let enriched = cmps.map(c => ({
         ...c,
-        _spend:   byId[c.id]?.spend   || 0,
-        _revenue: byId[c.id]?.revenue || 0,
-        _orders:  byId[c.id]?.orders  || 0,
+        _ads: adCount[c.id] || 0,
+        _messages:  byId[c.id]?.messages  || 0,
+        _purchases: byId[c.id]?.purchases || 0,
+        _assignedCount: Array.isArray(c.assigned_to) ? c.assigned_to.length : 0,
       }));
 
-      setCampaigns(enriched);
+      // Employees only see campaigns they're assigned to
+      if (!canManage) enriched = enriched.filter(c => (c.assigned_to || []).includes(userName));
 
-      const totalSpend   = results.reduce((s, r) => s + (Number(r.ad_spend_usd) || 0), 0);
-      const totalRevenue = results.reduce((s, r) => s + (Number(r.revenue_usd)  || 0), 0);
-      const totalOrders  = results.reduce((s, r) => s + (Number(r.orders)       || 0), 0);
-      setKpis({ totalSpend, totalRevenue, totalOrders });
+      setCampaigns(enriched);
     } catch (e) {
       setError(e?.message || 'تعذّر تحميل البيانات');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    } finally { setLoading(false); }
+  }, [canManage, userName]);
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = filterStatus === 'all'
-    ? campaigns
-    : campaigns.filter(c => c.status === filterStatus);
-
-  const activeCnt   = campaigns.filter(c => c.status === 'active').length;
-  const inactiveCnt = campaigns.filter(c => c.status !== 'active').length;
+  const filtered = filterStatus === 'all' ? campaigns : campaigns.filter(c => c.status === filterStatus);
+  const activeCnt = campaigns.filter(c => c.status === 'active').length;
+  const totPurchases = campaigns.reduce((s, c) => s + c._purchases, 0);
+  const totCost = campaigns.reduce((s, c) => s + (Number(c.cost_usd) || 0), 0);
 
   return (
     <div className="space-y-5">
       <Hero
         eyebrow="الحملات الإعلانية"
-        title="إدارة الحملات"
-        subtitle="تتبّع حملاتك الإعلانية وأداء الإعلانات."
-        actions={
-          <Button variant="teal" size="lg" onClick={() => setShowCreate(true)}>
-            + حملة جديدة
-          </Button>
-        }
+        title={canManage ? 'إدارة ومتابعة الحملات' : 'حملاتي'}
+        subtitle={canManage ? 'أنشئ الحملات والإعلانات، أسند الموظفين، وتابع الأداء والالتزام.' : 'سجّل أداء الإعلانات المكلّف بها يومياً.'}
+        actions={canManage ? <Button variant="teal" size="lg" onClick={() => { setEditCampaign(null); setShowCreate(true); }}>+ حملة جديدة</Button> : null}
       />
+
+      {canManage && needsSetup && <SetupBanner />}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="الحملات الكل"    value={loading ? '—' : campaigns.length} tone="blue" />
-        <StatCard label="مفعّلة"          value={loading ? '—' : activeCnt}         tone="green" />
-        <StatCard label="إجمالي الإنفاق"  value={loading ? '—' : fmtUSD(kpis.totalSpend)}   tone="amber" />
-        <StatCard label="إجمالي الإيرادات" value={loading ? '—' : fmtUSD(kpis.totalRevenue)} tone="green" />
+        <StatCard label="الحملات" value={loading ? '—' : campaigns.length} tone="blue" />
+        <StatCard label="مفعّلة" value={loading ? '—' : activeCnt} tone="green" />
+        <StatCard label="إجمالي المشتريات" value={loading ? '—' : fmtNum(totPurchases)} tone="teal" />
+        {canViewCost
+          ? <StatCard label="إجمالي التكلفة" value={loading ? '—' : fmtUSD(totCost)} tone="amber" />
+          : <StatCard label="إجمالي الرسائل" value={loading ? '—' : fmtNum(campaigns.reduce((s, c) => s + c._messages, 0))} tone="amber" />}
       </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {[['all','الكل'],['active','🟢 مفعّلة'],['inactive','⚪ معطّلة'],['paused','⏸️ متوقفة']].map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setFilterStatus(k)}
-            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' +
-              (filterStatus === k ? 'bg-teal text-white' : 'bg-surface border border-border text-muted hover:text-text')}
-          >
+          <button key={k} onClick={() => setFilterStatus(k)}
+            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' + (filterStatus === k ? 'bg-teal text-white' : 'bg-surface border border-border text-muted hover:text-text')}>
             {label}
           </button>
         ))}
       </div>
 
-      {/* Campaign list */}
       <Card>
-        <CardTitle>قائمة الحملات</CardTitle>
-        <CardSubtitle>اضغط على الحملة لرؤية التفاصيل والإعلانات</CardSubtitle>
+        <CardTitle>{canManage ? 'قائمة الحملات' : 'الحملات المكلّف بها'}</CardTitle>
+        <CardSubtitle>اضغط على الحملة لرؤية الإعلانات والتسجيل اليومي</CardSubtitle>
         <div className="mt-4">
-          {loading ? (
-            <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
-          ) : error ? (
-            <p className="text-sm text-red-500 py-2">⚠️ {error}</p>
-          ) : filtered.length === 0 ? (
-            <EmptyState description="لا توجد حملات بعد — أنشئ أول حملة إعلانية" />
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {filtered.map(c => (
-                <CampaignCard key={c.id} c={c} onSelect={setSelected} />
-              ))}
-            </div>
-          )}
+          {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
+            : error ? <p className="text-sm text-red-500 py-2">⚠️ {error}</p>
+            : filtered.length === 0 ? <EmptyState description={canManage ? 'لا توجد حملات بعد — أنشئ أول حملة' : 'لا توجد حملات مكلّف بها حالياً'} />
+            : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {filtered.map(c => (
+                  <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
+                    onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }} />
+                ))}
+              </div>
+            )}
         </div>
       </Card>
 
-      {/* Modals */}
-      <NewCampaignModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSaved={load}
-      />
+      {canManage && (
+        <CampaignModal
+          open={showCreate} onClose={() => { setShowCreate(false); setEditCampaign(null); }}
+          onSaved={load} employees={employees} canViewCost={canViewCost} editCampaign={editCampaign}
+        />
+      )}
       {selected && (
         <CampaignDetail
-          campaign={selected}
-          onClose={() => setSelected(null)}
+          campaign={selected} userName={userName} canManage={canManage} canViewCost={canViewCost}
+          onClose={() => setSelected(null)} onChanged={load}
         />
       )}
     </div>
