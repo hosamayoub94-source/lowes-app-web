@@ -202,6 +202,7 @@ export default function WarehouseScreen() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null); // 'receive' | 'allocate' | 'adjust' | null
   const [showManage, setShowManage] = useState(false);
+  const [lowOnly, setLowOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -217,9 +218,13 @@ export default function WarehouseScreen() {
 
   const products = useMemo(() => rows.map(r => ({ id: r.id, name: r.name })), [rows]);
 
+  const isLow = (r) => r.min_stock != null && r.total <= r.min_stock;
+  const lowCount = useMemo(() => rows.filter(isLow).length, [rows]);
+
   const filtered = useMemo(() => rows.filter(r =>
-    !search || r.name?.toLowerCase().includes(search.toLowerCase()) || (r.sku || '').toLowerCase().includes(search.toLowerCase())
-  ), [rows, search]);
+    (!search || r.name?.toLowerCase().includes(search.toLowerCase()) || (r.sku || '').toLowerCase().includes(search.toLowerCase()))
+    && (!lowOnly || isLow(r))
+  ), [rows, search, lowOnly]);
 
   const handleReceive  = async (p) => { await receiveStock({ ...p, performedBy: userName }); await load(); };
   const handleAllocate = async (p) => { await allocateStock({ ...p, performedBy: userName }); await load(); };
@@ -260,9 +265,16 @@ export default function WarehouseScreen() {
 
       {canCentral && showManage && <ManagePanel warehouses={warehouses} onChanged={load} />}
 
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 بحث بالمنتج أو SKU..."
-        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+      <div className="flex gap-2">
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 بحث بالمنتج أو SKU..."
+          className="flex-1 border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        <button onClick={() => setLowOnly(v => !v)}
+          className={'px-3 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition border ' +
+            (lowOnly ? 'bg-red-fg text-white border-red-fg' : lowCount > 0 ? 'bg-red-bg text-red-fg border-red/30' : 'bg-surface-alt text-muted border-border')}>
+          ⚠️ نواقص {lowCount > 0 ? `(${lowCount})` : ''}
+        </button>
+      </div>
 
       {loading ? (
         <div className="h-64 bg-surface-alt animate-pulse rounded-2xl" />
