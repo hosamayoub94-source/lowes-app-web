@@ -5,6 +5,10 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🆕🆕🆕🆕🆕🆕 هوم مخصّص لكل دور + إصلاح كراش المخزون (8 يونيو 2026)
+- **هوم per-role:** `src/data/homeLayout.js` (role→archetype→بلوكات مرتّبة: seller/manager/sales_manager/media/storage). `HomeScreen` يركّب البلوكات حسب الدور. **حُذف للجميع:** شريط KPI المكرّر + الوصول السريع المكرّر. widgets جديدة: `MyTargetCard` (تارجت البائع per-market) · `LowStockCard` (نواقص المخزن) · `CampaignsLinkCard`. مُختبر حيّاً (مدير + بائع). راجع memory `ux_simplification_vision`.
+- **🔴 إصلاح كراش `/inventory`:** كويري المصفوفة اختار `(id,market,type)` بلا `name` → `w.name.replace` في تفصيل المخازن ينهار. أُضيف `name` + حماية null.
+
 ### 🆕🆕🆕🆕🆕 محادثة كالواتساب (7 يونيو 2026)
 - **حذف الموسيقى كليّاً:** `MusicRoomPanel.jsx` محذوف + `ChannelMusicPlayer`/بوت `/اغنية`/helpers يوتيوب أُزيلت من `ChatScreen.jsx`. القاعدة: `DROP TABLE channel_music, channel_music_queue, music_room_state` (مطبّق حيّاً).
 - **صورة + معلومات المجموعة:** عمود `chat_rooms.avatar_url` (DDL مطبّق) + `GroupInfoPanel` جديد (أعضاء/إضافة/إزالة/تغيير اسم+وصف/رفع صورة `group-avatars/`/مغادرة). يُفتح بالنقر على عنوان المجموعة بالهيدر.
