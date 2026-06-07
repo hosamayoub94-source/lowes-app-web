@@ -3,7 +3,7 @@
 // يحسب الرصيد الحالي لكل محفظة بناءً على القيود المسجّلة
 // =============================================================
 import { useMemo, useState } from 'react';
-import { WALLETS, WALLET_CURRENCY_SYMBOL } from '../types/accounting.types';
+import { WALLETS, WALLET_CURRENCY_SYMBOL, walletDelta } from '../types/accounting.types';
 
 function fmtAmt(n, currency) {
   const sym = WALLET_CURRENCY_SYMBOL[currency] || '';
@@ -14,18 +14,19 @@ function fmtAmt(n, currency) {
 export default function TreasuryPanel({ entries = [], className = '' }) {
   const [showDetails, setShowDetails] = useState(false);
 
-  // Calculate balance per wallet from entries
+  // Calculate balance per wallet from entries.
+  // walletDelta() centralizes direction (income/transfer_in = +, expense/
+  // advance/salary/transfer_out = −) and legacy payment_method mapping.
   const walletBalances = useMemo(() => {
     return WALLETS.map(w => {
-      const walletEntries = entries.filter(e => e.payment_method === w.id);
-      const income  = walletEntries
-        .filter(e => e.entry_type === 'income')
-        .reduce((s, e) => s + Number(e[w.amtField] || 0), 0);
-      const expense = walletEntries
-        .filter(e => e.entry_type !== 'income')
-        .reduce((s, e) => s + Number(e[w.amtField] || 0), 0);
-      const balance = income - expense;
-      return { ...w, income, expense, balance, count: walletEntries.length };
+      let income = 0, expense = 0, count = 0;
+      for (const e of entries) {
+        const d = walletDelta(e, w);
+        if (d === 0) continue;
+        count += 1;
+        if (d > 0) income += d; else expense += -d;
+      }
+      return { ...w, income, expense, balance: income - expense, count };
     });
   }, [entries]);
 
@@ -34,6 +35,9 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
     .reduce((s, w) => s + w.balance, 0);
   const totalSYP = walletBalances
     .filter(w => w.currency === 'SYP')
+    .reduce((s, w) => s + w.balance, 0);
+  const totalTRY = walletBalances
+    .filter(w => w.currency === 'TRY')
     .reduce((s, w) => s + w.balance, 0);
 
   return (
@@ -53,6 +57,9 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
               </span>
               <span className={totalSYP >= 0 ? 'text-green-600' : 'text-red-500'}>
                 {totalSYP.toLocaleString('en-US', { maximumFractionDigits: 0 })} ل.س
+              </span>
+              <span className={totalTRY >= 0 ? 'text-green-600' : 'text-red-500'}>
+                {totalTRY.toLocaleString('en-US', { maximumFractionDigits: 0 })} ₺
               </span>
             </div>
           </div>
@@ -108,7 +115,13 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
                 {totalSYP.toLocaleString('en-US', { maximumFractionDigits: 0 })} ل.س
               </span>
             </span>
-            <span className="ms-auto text-muted/60">الأرصدة تُحسب من القيود المسجّلة باستخدام محافظ محددة</span>
+            <span>
+              إجمالي TRY:{' '}
+              <span className={`font-bold ${totalTRY >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {totalTRY.toLocaleString('en-US', { maximumFractionDigits: 0 })} ₺
+              </span>
+            </span>
+            <span className="ms-auto text-muted/60">الأرصدة تُحسب من القيود (تشمل التحويلات والمحافظ القديمة)</span>
           </div>
         </div>
       )}

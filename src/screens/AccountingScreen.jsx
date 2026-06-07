@@ -16,6 +16,9 @@ import {
   ENTRY_TYPE_ICONS,
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
+  WALLETS,
+  TRANSFER_IN,
+  TRANSFER_OUT,
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
 import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
@@ -115,6 +118,50 @@ export default function AccountingScreen() {
   const [saveError, setSaveError]   = useState(null);
   const [exporting, setExporting]   = useState(false);
 
+  // ── Transfer between wallets ───────────────────────────────────────────────
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [tForm, setTForm] = useState({ from: 'cash_usd', to: 'bank_usd', amount_from: '', amount_to: '', date: new Date().toISOString().slice(0, 10), note: '' });
+  const [tError, setTError] = useState(null);
+
+  const walletAmounts = (walletId, val) => {
+    const w = WALLETS.find(x => x.id === walletId);
+    return {
+      amount_usd: w?.amtField === 'amount_usd' ? val : 0,
+      amount_try: w?.amtField === 'amount_try' ? val : 0,
+      amount_syp: w?.amtField === 'amount_syp' ? val : 0,
+    };
+  };
+
+  const handleTransfer = async () => {
+    const from = WALLETS.find(w => w.id === tForm.from);
+    const to   = WALLETS.find(w => w.id === tForm.to);
+    if (!from || !to || from.id === to.id) { setTError('اختر محفظتين مختلفتين'); return; }
+    const amtFrom = Number(tForm.amount_from) || 0;
+    const sameCur = from.currency === to.currency;
+    const amtTo   = sameCur ? amtFrom : (Number(tForm.amount_to) || 0);
+    if (amtFrom <= 0 || amtTo <= 0) { setTError('أدخل مبلغاً صحيحاً'); return; }
+    setTError(null);
+    const ref = `TRF-${Date.now()}`;
+    try {
+      // Outflow from source wallet
+      await createEntry({
+        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_OUT,
+        description: `تحويل إلى ${to.label}${tForm.note ? ' — ' + tForm.note : ''}`,
+        ...walletAmounts(from.id, amtFrom),
+        payment_method: from.id, entry_date: tForm.date, reference_no: ref,
+      });
+      // Inflow to destination wallet
+      await createEntry({
+        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_IN,
+        description: `تحويل من ${from.label}${tForm.note ? ' — ' + tForm.note : ''}`,
+        ...walletAmounts(to.id, amtTo),
+        payment_method: to.id, entry_date: tForm.date, reference_no: ref,
+      });
+      setShowTransfer(false);
+      setTForm(t => ({ ...t, amount_from: '', amount_to: '', note: '' }));
+    } catch (e) { setTError(e.message); }
+  };
+
   // ── Month filtering ────────────────────────────────────────────────────────
   const monthEntries = useMemo(() =>
     monthFilter
@@ -131,6 +178,7 @@ export default function AccountingScreen() {
     const calc = (amtKey) => {
       let income = 0, expense = 0;
       for (const e of monthEntries) {
+        if (e.entry_type === ENTRY_TYPE.TRANSFER) continue; // internal move — not income/expense
         const amt = Number(e[amtKey]) || 0;
         if (!amt) continue;
         if (e.entry_type === ENTRY_TYPE.INCOME) income += amt;
@@ -211,12 +259,20 @@ export default function AccountingScreen() {
             {exporting ? 'جار التصدير…' : '⬇️ Excel'}
           </button>
           {isAdmin && (
-            <button
-              onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setSaveError(null); }}
-              className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
-            >
-              + قيد جديد
-            </button>
+            <>
+              <button
+                onClick={() => { setShowTransfer(true); setTError(null); }}
+                className="px-4 py-2 rounded-xl border border-teal/40 text-teal text-sm font-semibold hover:bg-teal/5 transition whitespace-nowrap"
+              >
+                🔄 تحويل
+              </button>
+              <button
+                onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setSaveError(null); }}
+                className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
+              >
+                + قيد جديد
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -485,6 +541,77 @@ export default function AccountingScreen() {
           </div>
         </div>
       )}
+
+      {/* Transfer Between Wallets Modal */}
+      {showTransfer && (() => {
+        const fromW = WALLETS.find(w => w.id === tForm.from);
+        const toW   = WALLETS.find(w => w.id === tForm.to);
+        const sameCur = fromW && toW && fromW.currency === toW.currency;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTransfer(false)}>
+            <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
+              <h3 className="font-bold text-lg text-text mb-1">🔄 تحويل بين المحافظ</h3>
+              <p className="text-xs text-muted mb-4">يُسجّل قيدين مرتبطين (صرف من المصدر + قبض في الوجهة).</p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">من محفظة</label>
+                    <select value={tForm.from} onChange={e => setTForm(f => ({ ...f, from: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                      {WALLETS.map(w => <option key={w.id} value={w.id}>{w.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">إلى محفظة</label>
+                    <select value={tForm.to} onChange={e => setTForm(f => ({ ...f, to: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                      {WALLETS.map(w => <option key={w.id} value={w.id}>{w.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className={sameCur ? '' : 'grid grid-cols-2 gap-3'}>
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">المبلغ المُرسَل ({fromW?.currency})</label>
+                    <input type="number" step="any" value={tForm.amount_from}
+                      onChange={e => setTForm(f => ({ ...f, amount_from: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+                  </div>
+                  {!sameCur && (
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">المبلغ المُستلَم ({toW?.currency})</label>
+                      <input type="number" step="any" value={tForm.amount_to}
+                        onChange={e => setTForm(f => ({ ...f, amount_to: e.target.value }))}
+                        className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+                    </div>
+                  )}
+                </div>
+                {!sameCur && <p className="text-[11px] text-amber-fg">عملتان مختلفتان — أدخل المبلغ المستلَم بعد التحويل.</p>}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">التاريخ</label>
+                    <input type="date" value={tForm.date} onChange={e => setTForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">ملاحظة (اختياري)</label>
+                    <input type="text" value={tForm.note} onChange={e => setTForm(f => ({ ...f, note: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="سبب التحويل…" />
+                  </div>
+                </div>
+              </div>
+              {tError && <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{tError}</div>}
+              <div className="flex gap-2 mt-5">
+                <button onClick={handleTransfer} disabled={loading.action}
+                  className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+                  {loading.action ? 'جار التحويل…' : 'تنفيذ التحويل'}
+                </button>
+                <button onClick={() => setShowTransfer(false)}
+                  className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-cream transition">إلغاء</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
