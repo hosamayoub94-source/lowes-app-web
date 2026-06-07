@@ -232,8 +232,10 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{ market:{type:'string', enum:['syria','turkey']}, status:{type:'string'} }, required:[] } },
   { perm: PERMS.ASSIGN_TASKS, name:'get_tasks', description:'قائمة مهام الفريق (لغير صاحبها) مع الحالة والمسؤول والموعد.',
     input_schema:{ type:'object', properties:{ status:{type:'string'}, assignee:{type:'string', description:'اسم الموظف'} }, required:[] } },
-  { perm: PERMS.ASSIGN_TASKS, name:'create_task', description:'إنشاء مهمة جديدة وإسنادها لموظف.',
+  { perm: PERMS.ASSIGN_TASKS, name:'create_task', description:'إنشاء مهمة واحدة وإسنادها لموظف (مع موعد كتذكير).',
     input_schema:{ type:'object', properties:{ title:{type:'string'}, assignee_name:{type:'string'}, due_date:{type:'string', description:'YYYY-MM-DD'}, priority:{type:'string', enum:['low','medium','high']}, description:{type:'string'} }, required:['title'] } },
+  { perm: PERMS.ASSIGN_TASKS, name:'create_tasks_bulk', description:'التخطيط والجدولة: إنشاء عدة مهام دفعة واحدة (مثلاً تقسيم خطة/مشروع إلى خطوات، أو توزيع مهام على عدة موظفين). الكلمات: خطّط، جدول، قسّم، أنشئ عدة مهام، خطة عمل.',
+    input_schema:{ type:'object', properties:{ tasks:{ type:'array', description:'قائمة المهام', items:{ type:'object', properties:{ title:{type:'string'}, assignee_name:{type:'string'}, due_date:{type:'string', description:'YYYY-MM-DD'}, priority:{type:'string', enum:['low','medium','high']}, description:{type:'string'} }, required:['title'] } } }, required:['tasks'] } },
   { perm: PERMS.EDIT_TASK, name:'update_task_status', description:'تحديث حالة مهمة (مثلاً done / in_progress).',
     input_schema:{ type:'object', properties:{ title:{type:'string', description:'عنوان المهمة'}, status:{type:'string', enum:['todo','in_progress','review','done']} }, required:['title','status'] } },
   { perm: PERMS.MANAGE_SETTINGS, name:'create_announcement', description:'نشر إعلان/تعميم للفريق.',
@@ -342,6 +344,34 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
         const { data, error } = await supabase.from('tasks').insert(row).select('id,title').single();
         if (error) return 'فشل إنشاء المهمة: '+error.message;
         return '✅ أُنشئت المهمة "'+data.title+'"'+(assignedName?(' وأُسندت إلى '+assignedName):'')+'.';
+      }
+      case 'create_tasks_bulk': {
+        const items = Array.isArray(input.tasks) ? input.tasks : [];
+        if (!items.length) return 'لم تُحدّد أي مهام للإنشاء.';
+        if (items.length > 30) return 'الحد الأقصى 30 مهمة في الدفعة الواحدة.';
+        // Resolve assignee names once (avoid repeated lookups for the same person)
+        const nameCache: Record<string,{id:string;name:string}|null> = {};
+        const resolveAssignee = async (nm?: string) => {
+          if (!nm) return null;
+          if (nm in nameCache) return nameCache[nm];
+          const { data: p } = await supabase.from('profiles').select('id,employee_name').ilike('employee_name', `%${nm}%`).limit(1).maybeSingle();
+          return (nameCache[nm] = p ? { id: p.id, name: p.employee_name } : null);
+        };
+        const rows: any[] = [];
+        for (const t of items) {
+          if (!t?.title) continue;
+          const row: any = { title: t.title, priority: t.priority || 'medium', created_by: ctx.userId };
+          if (t.description) row.description = t.description;
+          if (t.due_date) row.due_date = t.due_date;
+          const a = await resolveAssignee(t.assignee_name);
+          if (a) { row.assigned_to = a.id; row.assignee_id = a.id; }
+          rows.push(row);
+        }
+        if (!rows.length) return 'لا توجد مهام صالحة (كل عنصر يحتاج عنواناً).';
+        const { data, error } = await supabase.from('tasks').insert(rows).select('id,title');
+        if (error) return 'فشل إنشاء المهام: '+error.message;
+        const assignedCount = rows.filter(r => r.assigned_to).length;
+        return `✅ أُنشئت ${data.length} مهمة دفعة واحدة${assignedCount?` (${assignedCount} منها مُسندة لموظفين)`:''}.`;
       }
       case 'update_task_status': {
         const { data: t } = await supabase.from('tasks').select('id,title').ilike('title', `%${input.title}%`).limit(1).maybeSingle();
@@ -506,6 +536,7 @@ Deno.serve(async (req: Request) => {
 - إذا طلب المستخدم أي بيان أو إجراء تغطيه أداة → **استدعي الأداة فوراً** ثم اعرضي النتيجة مرتّبة بالعربي.
 - **لا تسألي أسئلة توضيحية** إلا للضرورة القصوى. استخدمي القيم الافتراضية المعقولة: التاريخ = اليوم، الفريق = الكل، الفترة = الشهر. مثال: "كم حضر اليوم؟" → نفّذي get_attendance_report مباشرةً (اليوم، كل الفِرق).
 - أدواتك المتاحة محدودة بصلاحية المستخدم. إذا طلب إجراءً إدارياً (إنشاء/تعديل/حذف مهمة، إعلان، كشف حضور/مبيعات...) و**لا تملكين أداةً له** → قولي له بوضوح ولطف: «هذا الإجراء يحتاج صلاحية أعلى (مدير/أدمن) وما بقدر أنفّذه إلك» — **وتوقّفي**. لا تشغّلي أداة غير ذات صلة (مثل قائمة الفريق) كبديل أو تعويض.
+- **التخطيط والجدولة:** إذا طلب المستخدم خطة عمل أو تقسيم مشروع/هدف إلى خطوات، أو توزيع عدّة مهام على موظفين، أو جدولة مهام بمواعيد → خطّطي الخطوات ثم نفّذي **create_tasks_bulk** دفعة واحدة (مع due_date كموعد/تذكير وassignee_name عند توفّره). لا تنشئي المهام واحدة واحدة إن كانت خطة.
 - لا تستخدمي list_team إلا إذا طُلبت قائمة الفريق/الموظفين صراحةً.
 - لا تختلقي أرقاماً — فقط ما ترجعه الأدوات. صلاحية المستخدم الحالي: ${userRole}.
 - بعد التنفيذ، تكلّمي بطبيعتك الودّية لكن اعرضي الأرقام بدقة.`;
