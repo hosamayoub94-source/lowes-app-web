@@ -137,15 +137,18 @@ function useCommission(isManager) {
     setSaving(true);
     // Persist conversion rates to BOTH rows so they stay in sync.
     const ratePatch = { try_per_usd: Number(updated.try_per_usd) || 33, syp_per_usd: Number(updated.syp_per_usd) || 14000 };
-    await supabase.from('commission_rules').upsert({ ...updated, ...ratePatch, updated_at: new Date().toISOString(), updated_by: actor });
-    await supabase.from('commission_rules').update(ratePatch).eq('id', 'syria');
-    if (updated.syria_target_usd != null) {
-      await supabase.from('commission_rules').update({ monthly_target_usd: Number(updated.syria_target_usd) }).eq('id', 'syria');
-    }
+    // Strip virtual (non-column) keys before writing the Turkey row.
+    const { syria_target_usd, syria_above_target_pct, ...turkeyCols } = updated;
+    await supabase.from('commission_rules').upsert({ ...turkeyCols, ...ratePatch, id: 'turkey', updated_at: new Date().toISOString(), updated_by: actor });
+    // Syria row: keep rates in sync + its own target and above-target %.
+    const syriaPatch = { ...ratePatch };
+    if (updated.syria_target_usd != null) syriaPatch.monthly_target_usd = Number(updated.syria_target_usd);
+    if (updated.syria_above_target_pct != null) syriaPatch.above_target_pct = Number(updated.syria_above_target_pct);
+    await supabase.from('commission_rules').update(syriaPatch).eq('id', 'syria');
     setRulesById(prev => ({
       ...prev,
       turkey: { ...prev.turkey, ...updated, ...ratePatch },
-      syria:  { ...prev.syria, ...ratePatch, monthly_target_usd: updated.syria_target_usd != null ? Number(updated.syria_target_usd) : prev.syria?.monthly_target_usd },
+      syria:  { ...prev.syria, ...syriaPatch },
     }));
     setSaving(false);
   };
@@ -165,11 +168,11 @@ function useCommission(isManager) {
 }
 
 // ── Commission Panel (admin settings) ────────────────────────
-function CommissionSettings({ rules, syriaTargetUsd, onSave, saving, actor }) {
+function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, saving, actor }) {
   const [draft, setDraft] = useState(null);
   useEffect(() => {
-    if (rules) setDraft({ ...rules, syria_target_usd: syriaTargetUsd ?? 1000 });
-  }, [rules, syriaTargetUsd]);
+    if (rules) setDraft({ ...rules, syria_target_usd: syriaTargetUsd ?? 1000, syria_above_target_pct: syriaAbovePct ?? 10 });
+  }, [rules, syriaTargetUsd, syriaAbovePct]);
   if (!draft) return null;
   const f = (k) => (e) => setDraft(p => ({ ...p, [k]: Number(e.target.value) }));
   return (
@@ -204,13 +207,13 @@ function CommissionSettings({ rules, syriaTargetUsd, onSave, saving, actor }) {
         </div>
       </div>
 
-      <p className="text-[11px] font-bold text-muted pt-1">💰 العمولة (تركيا)</p>
+      <p className="text-[11px] font-bold text-muted pt-1">💰 العمولة (تركيا — TRY)</p>
       <div className="grid grid-cols-2 gap-3">
         {[
-          { k: 'base_commission_pct', label: 'نسبة عمولة الأساس %', icon: '💰' },
-          { k: 'prepaid_bonus_try', label: 'بونص الدفع المسبق (₺/طلب)', icon: '⚡' },
-          { k: 'prepaid_bonus_pct', label: 'أو نسبة الدفع المسبق %', icon: '⚡' },
-          { k: 'repeat_customer_bonus_try', label: 'بونص العميل المكرر (₺/عميل)', icon: '🔄' },
+          { k: 'prepaid_target_try', label: 'تارجت الدفع المسبق (₺)', icon: '⚡' },
+          { k: 'prepaid_tier1_pct', label: 'نسبة أول شريحة مسبق %', icon: '⚡' },
+          { k: 'prepaid_tier2_pct', label: 'نسبة المسبق فوق التارجت %', icon: '⚡' },
+          { k: 'above_target_pct', label: 'نسبة فوق التارجت % (تركيا)', icon: '📈' },
         ].map(({ k, label, icon }) => (
           <div key={k} className="space-y-1">
             <label className="text-[10px] text-muted font-bold">{icon} {label}</label>
@@ -218,6 +221,13 @@ function CommissionSettings({ rules, syriaTargetUsd, onSave, saving, actor }) {
               className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
           </div>
         ))}
+      </div>
+
+      <p className="text-[11px] font-bold text-muted pt-1">💰 العمولة (سوريا — USD)</p>
+      <div className="grid grid-cols-1 gap-1">
+        <label className="text-[10px] text-muted font-bold">📈 نسبة فوق التارجت % (سوريا)</label>
+        <input type="number" value={draft.syria_above_target_pct ?? 10} onChange={f('syria_above_target_pct')} min="0"
+          className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
       </div>
       <button onClick={() => onSave(draft, actor)} disabled={saving}
         className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
@@ -228,7 +238,7 @@ function CommissionSettings({ rules, syriaTargetUsd, onSave, saving, actor }) {
 }
 
 // ── Per-employee commission card ──────────────────────────────
-function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSaveAdj, saving, isManager, isMe }) {
+function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd, adj, onSaveAdj, saving, isManager, isMe }) {
   const [showAdj, setShowAdj] = useState(false);
   const [adjVal, setAdjVal] = useState('');
   const [adjNote, setAdjNote] = useState('');
@@ -244,9 +254,11 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
   const targetU  = Number(targetUsd) || 0;
   const pct = targetU > 0 ? Math.min(100, Math.round((usdTotal / targetU) * 100)) : 0;
 
-  // Commission breakdown (shared with the Excel export — see commissionBreakdown)
-  const { base: baseCommission, prepaidBonus, repeatBonus, manualAdj, net: netCommission, prepaidCount } =
-    commissionBreakdown(emp, rules, adj);
+  // Tiered, per-market commission breakdown (shared with the Excel export)
+  const { cur, aboveComm, prepaidTier1, prepaidTier2, manualAdj, net: netCommission, prepaidCount, reachedPrepaid } =
+    commissionBreakdown(emp, rulesById, adj);
+  const cSym = cur === 'USD' ? '$' : '₺';
+  const hasCommission = aboveComm > 0 || prepaidTier1 > 0 || prepaidTier2 > 0 || manualAdj !== 0;
   const adjNote_saved = adj?.note || '';
 
   const RANK_ICONS = ['🥇', '🥈', '🥉'];
@@ -289,18 +301,18 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
         </div>
       )}
 
-      {/* Commission breakdown */}
-      {(baseCommission > 0 || prepaidBonus > 0 || repeatBonus > 0 || manualAdj !== 0) && (
+      {/* Commission breakdown (tiered, per-market) */}
+      {hasCommission && (
         <div className="bg-surface-alt rounded-xl p-3 space-y-1.5 text-xs">
           <p className="font-extrabold text-text text-[11px] mb-2">💰 تفصيل العمولة</p>
-          {baseCommission > 0 && (
-            <div className="flex justify-between"><span className="text-muted">عمولة أساس ({rules.base_commission_pct}%)</span><span className="font-bold text-green-fg">+₺{baseCommission.toFixed(0)}</span></div>
+          {prepaidTier1 > 0 && (
+            <div className="flex justify-between"><span className="text-muted">⚡ مسبق الدفع — أول {(Number(rules.prepaid_target_try)||0).toLocaleString('en-US')} ({rules.prepaid_tier1_pct}%)</span><span className="font-bold text-teal">+{cSym}{prepaidTier1.toFixed(0)}</span></div>
           )}
-          {prepaidBonus > 0 && (
-            <div className="flex justify-between"><span className="text-muted">⚡ دفع مسبق ({prepaidCount} طلب)</span><span className="font-bold text-teal">+₺{prepaidBonus.toFixed(0)}</span></div>
+          {prepaidTier2 > 0 && (
+            <div className="flex justify-between"><span className="text-muted">⚡ مسبق فوق التارجت ({rules.prepaid_tier2_pct}%)</span><span className="font-bold text-teal">+{cSym}{prepaidTier2.toFixed(0)}</span></div>
           )}
-          {repeatBonus > 0 && (
-            <div className="flex justify-between"><span className="text-muted">🔄 عميل مكرر</span><span className="font-bold text-teal">+₺{repeatBonus.toFixed(0)}</span></div>
+          {aboveComm > 0 && (
+            <div className="flex justify-between"><span className="text-muted">📈 فوق التارجت ({rules.above_target_pct}%)</span><span className="font-bold text-green-fg">+{cSym}{aboveComm.toFixed(0)}</span></div>
           )}
           {manualAdj !== 0 && (
             <div className="flex justify-between">
@@ -310,13 +322,13 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
           )}
           <div className="border-t border-border pt-1.5 flex justify-between">
             <span className="font-extrabold text-text">الصافي</span>
-            <span className={`font-extrabold text-base ${netCommission > 0 ? 'text-green-fg' : 'text-red-fg'}`}>₺{netCommission.toFixed(0)}</span>
+            <span className={`font-extrabold text-base ${netCommission > 0 ? 'text-green-fg' : 'text-red-fg'}`}>{cSym}{netCommission.toFixed(0)}</span>
           </div>
         </div>
       )}
 
-      {/* No commission configured yet */}
-      {baseCommission === 0 && prepaidBonus === 0 && repeatBonus === 0 && manualAdj === 0 && tryTotal > 0 && (
+      {/* Target not yet reached → no commission */}
+      {!hasCommission && (emp.orders.length > 0) && (
         <div className="text-xs text-muted text-center py-1">
           {pct >= 100 ? '✅ وصل التارجت' : `${100 - pct}% للتارجت`}
         </div>
@@ -394,21 +406,47 @@ function orderUsd(o, prices, rates) {
   return v > 0 ? v : toUSD(o.amount, o.currency, rates);
 }
 
-// Commission breakdown for one employee (TRY). Mirrors EmployeeCommissionCard.
-function commissionBreakdown(emp, rules, adj) {
-  if (!rules) return { base: 0, prepaidBonus: 0, repeatBonus: 0, manualAdj: 0, net: 0, prepaidCount: 0 };
-  const tryTotal = emp.totals['TRY'] || 0;
-  const prepaidCount = emp.orders.filter(o => {
-    const p = o.payment_method || '';
-    return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
-  }).length;
-  const base = rules.base_commission_pct > 0 ? (tryTotal * rules.base_commission_pct / 100) : 0;
-  const prepaidBonus = rules.prepaid_bonus_pct > 0
-    ? emp.orders.filter(o => (o.payment_method || '').includes('مسبق')).reduce((s, o) => s + Number(o.amount || 0), 0) * rules.prepaid_bonus_pct / 100
-    : prepaidCount * (rules.prepaid_bonus_try || 0);
-  const repeatBonus = (emp.repeatCount || 0) * (rules.repeat_customer_bonus_try || 0);
+const isPrepaid = (o) => {
+  const p = o.payment_method || '';
+  return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
+};
+
+// Commission breakdown for one employee — tiered, per-market (owner-defined June 2026).
+//
+// Turkey (TRY): target monthly_target_try (65,000). Prepaid sub-target
+//   prepaid_target_try (15,000). Once prepaid ≥ sub-target → first 15k @
+//   prepaid_tier1_pct (5%), prepaid beyond @ prepaid_tier2_pct (10%). Total sales
+//   above the 65k target → above_target_pct (5%) on the excess.
+// Syria (USD): target monthly_target_usd ($1,000). Sales (catalog USD) above the
+//   target → above_target_pct (10%) on the excess. (Provisional.)
+//
+// Returns amounts in the market's own currency (cur). Manual adjustment kept as-is.
+function commissionBreakdown(emp, rulesById, adj) {
+  const market = emp.market || 'turkey';
+  const rules = rulesById?.[market] || null;
+  const prepaidCount = emp.orders.filter(isPrepaid).length;
   const manualAdj = adj?.adjustment_try || 0;
-  return { base, prepaidBonus, repeatBonus, manualAdj, net: base + prepaidBonus + repeatBonus + manualAdj, prepaidCount };
+  const zero = { cur: market === 'syria' ? 'USD' : 'TRY', aboveComm: 0, prepaidTier1: 0, prepaidTier2: 0, manualAdj, net: manualAdj, prepaidCount, reachedPrepaid: false };
+  if (!rules) return zero;
+
+  if (market === 'syria') {
+    const target = Number(rules.monthly_target_usd) || 0;
+    const sales  = Number(emp.usdTotal) || 0;
+    const aboveComm = Math.max(0, sales - target) * (Number(rules.above_target_pct) || 0) / 100;
+    return { cur: 'USD', aboveComm, prepaidTier1: 0, prepaidTier2: 0, manualAdj, net: aboveComm + manualAdj, prepaidCount, reachedPrepaid: false };
+  }
+
+  // Turkey (TRY)
+  const tryTotal  = emp.totals['TRY'] || 0;
+  const prepaidTry = emp.prepaidTry || 0;
+  const target   = Number(rules.monthly_target_try) || 0;
+  const ppTarget = Number(rules.prepaid_target_try) || 0;
+  const aboveComm = Math.max(0, tryTotal - target) * (Number(rules.above_target_pct) || 0) / 100;
+  const reachedPrepaid = ppTarget > 0 && prepaidTry >= ppTarget;
+  const prepaidTier1 = reachedPrepaid ? ppTarget * (Number(rules.prepaid_tier1_pct) || 0) / 100 : 0;
+  const prepaidTier2 = reachedPrepaid ? Math.max(0, prepaidTry - ppTarget) * (Number(rules.prepaid_tier2_pct) || 0) / 100 : 0;
+  return { cur: 'TRY', aboveComm, prepaidTier1, prepaidTier2, manualAdj,
+    net: aboveComm + prepaidTier1 + prepaidTier2 + manualAdj, prepaidCount, reachedPrepaid };
 }
 
 // ── Product values (sold products + editable catalog price) ───
@@ -576,10 +614,11 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     const map = {};
     for (const o of delivered) {
       const name = canonicalSeller(o.handler_name) || 'غير محدد';
-      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {} };
+      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {}, prepaidTry: 0 };
       map[name].orders.push(o);
       const cur = (o.currency || 'SYP').toUpperCase();
       map[name].totals[cur] = (map[name].totals[cur] || 0) + Number(o.amount || 0);
+      if (cur === 'TRY' && isPrepaid(o)) map[name].prepaidTry += Number(o.amount || 0);
       const mk = o.market || 'turkey';
       map[name].marketCount[mk] = (map[name].marketCount[mk] || 0) + 1;
       (o.items || []).forEach(it => {
@@ -653,13 +692,13 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
 
       // 3) Employees (deliveries + sales + commission)
       const employees = byEmployee.map(e => {
-        const c = commissionBreakdown(e, rules, adjustments.find(a => a.employee_name === e.name));
+        const c = commissionBreakdown(e, rulesById, adjustments.find(a => a.employee_name === e.name));
         const row = {
-          'الموظف': e.name, 'عدد التسليمات': e.orders.length,
-          'المبيعات (USD)': Math.round(e.usdTotal),
+          'الموظف': e.name, 'السوق': e.market === 'syria' ? 'سوريا' : 'تركيا',
+          'عدد التسليمات': e.orders.length, 'المبيعات (USD)': Math.round(e.usdTotal),
         };
         Object.entries(e.totals).forEach(([cur, v]) => { row[`مبيعات ${cur}`] = v; });
-        row['العمولة (₺)'] = Math.round(c.net);
+        row['العمولة'] = `${Math.round(c.net)} ${c.cur}`;
         return row;
       });
 
@@ -776,6 +815,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       )}
       {isManager && showSettings && (
         <CommissionSettings rules={rules} syriaTargetUsd={rulesById?.syria?.monthly_target_usd}
+          syriaAbovePct={rulesById?.syria?.above_target_pct}
           onSave={saveRules} saving={saving} actor={userName} />
       )}
 
@@ -786,6 +826,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           emp={emp}
           rank={i}
           rules={rules}
+          rulesById={rulesById}
           rates={rates}
           targetUsd={targetUsdFor(emp.market)}
           adj={adjustments.find(a => a.employee_name === emp.name)}
