@@ -115,7 +115,13 @@ Deno.serve(async (req) => {
       const batchMarket = body.market || 'turkey';
 
       for (const row of rows) {
-        if (!row.order_id || !row.customer_name) { skipped++; continue; }
+        // A real order is identified by customer NAME + PHONE — never by trailing
+        // cells (WhatsApp/tracking links/buttons) that the sheet fills on blank
+        // rows. Reject phantom rows: require order_id + a non-empty name + a
+        // phone containing at least 6 digits.
+        const cName  = String(row.customer_name || '').trim();
+        const cPhone = String(row.phone_1 || row.phone || row.wa_number || '').replace(/\D/g, '');
+        if (!row.order_id || !cName || cPhone.length < 6) { skipped++; continue; }
 
         // Map status_ar to status key
         const status = resolveStatus(row.status_ar || row.status || '') ?? 'pending';
