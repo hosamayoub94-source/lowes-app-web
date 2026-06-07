@@ -192,7 +192,7 @@ function ProductModal({ open, initial, onClose, onSaved }) {
 }
 
 // ── Product card ───────────────────────────────────────────────
-function ProductCard({ p, onEdit }) {
+function ProductCard({ p, onEdit, onMovements }) {
   const st = stockColor(p.quantity, p.min_stock);
   return (
     <div className={`bg-surface border rounded-2xl p-4 transition-colors ${p.quantity <= p.min_stock ? 'border-amber/50' : 'border-border'}`}>
@@ -229,6 +229,13 @@ function ProductCard({ p, onEdit }) {
           🏬 إدارة المخزون
         </a>
         <button
+          onClick={() => onMovements(p)}
+          className="px-3 py-1.5 rounded-xl bg-surface-alt text-muted text-xs font-semibold hover:text-text transition border border-border"
+          title="كشف حركة"
+        >
+          📜
+        </button>
+        <button
           onClick={() => onEdit(p)}
           className="px-3 py-1.5 rounded-xl bg-surface-alt text-muted text-xs font-semibold hover:text-text transition border border-border"
         >
@@ -240,6 +247,48 @@ function ProductCard({ p, onEdit }) {
 }
 
 // ── Main screen ────────────────────────────────────────────────
+// ── Movement statement (كشف حركة) for one product ──────────────
+const MOVE_LBL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع' };
+function MovementModal({ product, onClose }) {
+  const [moves, setMoves] = useState(null);
+  const [whNames, setWhNames] = useState({});
+  useEffect(() => {
+    (async () => {
+      const [mv, wh] = await Promise.all([
+        supabase.from('wh_movements').select('*').eq('product_id', product.id).order('created_at', { ascending: false }).limit(60),
+        supabase.from('wh_warehouses').select('id, name'),
+      ]);
+      const names = {}; (wh.data || []).forEach(w => { names[w.id] = w.name; });
+      setWhNames(names);
+      setMoves(mv.data || []);
+    })();
+  }, [product.id]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" dir="rtl"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border max-h-[85vh] flex flex-col">
+        <div className="px-5 py-4 border-b border-border shrink-0 flex items-center justify-between">
+          <div><h3 className="font-bold text-text">📜 كشف حركة</h3><p className="text-xs text-muted mt-0.5">{product.name}</p></div>
+          <button onClick={onClose} className="text-muted hover:text-text text-xl">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-3 space-y-1">
+          {moves === null ? <p className="text-sm text-muted text-center py-6 animate-pulse">…</p>
+            : moves.length === 0 ? <p className="text-sm text-muted text-center py-6">لا حركة لهذا المنتج</p>
+            : moves.map(m => (
+              <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs border-b border-border/40">
+                <span className="text-text">{MOVE_LBL[m.type] || m.type} · <b className="tabular-nums">{m.quantity}</b></span>
+                <span className="text-muted truncate text-[11px]">
+                  {m.from_warehouse_id ? (whNames[m.from_warehouse_id] || '—') : ''}{m.to_warehouse_id ? ' → ' + (whNames[m.to_warehouse_id] || '—') : ''}
+                  {' · '}{new Date(m.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')}
+                </span>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InventoryScreen() {
   const [products, setProducts] = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -248,6 +297,7 @@ export default function InventoryScreen() {
   const [catFilter, setCat]     = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editProd, setEditProd] = useState(null);
+  const [moveProd, setMoveProd] = useState(null);
   const [dbMissing, setDbMissing] = useState(false);
   const [seeding,   setSeeding]   = useState(false);
 
@@ -255,15 +305,23 @@ export default function InventoryScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('name');
-      if (error) {
-        if (error.code === '42P01') { setDbMissing(true); return; }
-        throw new Error(error.message);
+      // Syria scope: live quantity = Σ wh_stock over all NON-Turkey warehouses
+      // (central + Syria sales + Syria sub-warehouses). Turkey is excluded.
+      const [prodRes, whRes, stockRes] = await Promise.all([
+        supabase.from('products').select('*').order('name'),
+        supabase.from('wh_warehouses').select('id, market, type').eq('is_active', true),
+        supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
+      ]);
+      if (prodRes.error) {
+        if (prodRes.error.code === '42P01') { setDbMissing(true); return; }
+        throw new Error(prodRes.error.message);
       }
-      setProducts(data || []);
+      const syriaWh = new Set((whRes.data || []).filter(w => w.market !== 'turkey').map(w => w.id));
+      const qtyBy = {};
+      (stockRes.data || []).forEach(s => {
+        if (syriaWh.has(s.warehouse_id)) qtyBy[s.product_id] = (qtyBy[s.product_id] || 0) + Number(s.quantity || 0);
+      });
+      setProducts((prodRes.data || []).map(p => ({ ...p, quantity: qtyBy[p.id] ?? 0 })));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -385,8 +443,8 @@ ON CONFLICT (sku) DO NOTHING;`}
     <div className="space-y-5">
       <Hero
         eyebrow="المخزون"
-        title="إدارة المخزون"
-        subtitle="تتبّع منتجات Lowe's Professional وإدارة الكميات."
+        title="إدارة المخزون — سوريا"
+        subtitle="الكميات المعروضة من مخزون سوريا الفعلي (المركزي + مبيعات سوريا + الفروع). تركيا منفصلة."
         actions={
           <Button variant="teal" size="lg" onClick={openNew}>+ منتج جديد</Button>
         }
@@ -443,7 +501,7 @@ ON CONFLICT (sku) DO NOTHING;`}
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map(p => (
-                <ProductCard key={p.id} p={p} onEdit={openEdit} />
+                <ProductCard key={p.id} p={p} onEdit={openEdit} onMovements={setMoveProd} />
               ))}
             </div>
           )}
@@ -457,6 +515,7 @@ ON CONFLICT (sku) DO NOTHING;`}
         onClose={() => { setShowForm(false); setEditProd(null); }}
         onSaved={load}
       />
+      {moveProd && <MovementModal product={moveProd} onClose={() => setMoveProd(null)} />}
     </div>
   );
 }
