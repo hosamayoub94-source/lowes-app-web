@@ -53,6 +53,42 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
 };
 
+// One-line Arabic descriptions — shown in the admin permissions editor so
+// the admin knows exactly WHAT each capability unlocks (and why).
+export const PERMISSION_DESCRIPTIONS = {
+  [PERMISSIONS.ASSIGN_TASKS]:        'إنشاء مهام وإسنادها لأعضاء الفريق.',
+  [PERMISSIONS.EDIT_TASK]:           'تعديل عنوان/وصف/أولوية/تاريخ أي مهمة.',
+  [PERMISSIONS.DELETE_TASK]:         'حذف المهام نهائياً — صلاحية حسّاسة.',
+  [PERMISSIONS.MANAGE_ORDERS]:       'تغيير حالة الطلبات وتعديل بياناتها.',
+  [PERMISSIONS.VIEW_ALL_ATTENDANCE]: 'رؤية حضور وانصراف كل الموظفين وتقاريرهم.',
+  [PERMISSIONS.MANAGE_ATTENDANCE]:   'تعديل/تصحيح سجلات الحضور يدوياً.',
+  [PERMISSIONS.APPROVE_LEAVES]:      'الموافقة على طلبات الإجازة أو رفضها.',
+  [PERMISSIONS.MANAGE_PAYROLL]:      'إعداد الرواتب والبدلات وصرفها.',
+  [PERMISSIONS.MANAGE_KPI]:          'إدخال مؤشرات الأداء والعمولات والتارجت.',
+  [PERMISSIONS.MANAGE_PRODUCTS]:     'إضافة/تعديل منتجات الكتالوج وأسعارها.',
+  [PERMISSIONS.VIEW_FINANCE]:        'الاطّلاع على الحسابات والسجل المالي والخزينة.',
+  [PERMISSIONS.VIEW_ANALYTICS]:      'رؤية لوحات التحليلات والتقارير التنفيذية.',
+  [PERMISSIONS.MANAGE_USERS]:        'إضافة/تعديل الموظفين وأرقامهم السرية وصلاحياتهم.',
+  [PERMISSIONS.MANAGE_SETTINGS]:     'تغيير إعدادات النظام العامة.',
+  [PERMISSIONS.MANAGE_CENTRAL_STOCK]:'استلام وتخصيص البضاعة من المخزن المركزي.',
+  [PERMISSIONS.MANAGE_SALES_STOCK]:  'تعديل مخزون مخازن المبيعات والمناديب.',
+  [PERMISSIONS.VIEW_INVENTORY]:      'عرض لوحة المخازن والأرصدة.',
+};
+
+// Logical groups — drive the sectioned UI in the permissions editor.
+export const PERMISSION_GROUPS = [
+  { key: 'tasks',      icon: '✅', label: 'المهام',
+    permissions: [PERMISSIONS.ASSIGN_TASKS, PERMISSIONS.EDIT_TASK, PERMISSIONS.DELETE_TASK] },
+  { key: 'orders',     icon: '📦', label: 'الطلبات والمخزون',
+    permissions: [PERMISSIONS.MANAGE_ORDERS, PERMISSIONS.MANAGE_PRODUCTS, PERMISSIONS.VIEW_INVENTORY, PERMISSIONS.MANAGE_CENTRAL_STOCK, PERMISSIONS.MANAGE_SALES_STOCK] },
+  { key: 'attendance', icon: '🕐', label: 'الحضور والإجازات',
+    permissions: [PERMISSIONS.VIEW_ALL_ATTENDANCE, PERMISSIONS.MANAGE_ATTENDANCE, PERMISSIONS.APPROVE_LEAVES] },
+  { key: 'finance',    icon: '💰', label: 'المالية والأداء',
+    permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
+  { key: 'system',     icon: '⚙️', label: 'النظام',
+    permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS] },
+];
+
 const ALL = Object.values(PERMISSIONS);
 
 // ── Default permissions per role ──────────────────────────────
@@ -130,3 +166,72 @@ export function sessionCan(session, permission) {
   if (session?.role === ROLES.ADMIN) return true;
   return resolvePermissions(session).has(permission);
 }
+
+// ── Role templates (for the admin UI) ─────────────────────────
+// Each role carries a human label + a one-line "responsibility" so the
+// admin can pick a ready template and instantly understand the scope.
+export const ROLE_TEMPLATES = {
+  [ROLES.ADMIN]: {
+    label: 'أدمن', icon: '👑',
+    responsibility: 'تحكّم كامل بالنظام والمستخدمين والصلاحيات (حسام/أماني/ريم).',
+  },
+  [ROLES.MANAGER]: {
+    label: 'مدير', icon: '🏅',
+    responsibility: 'إدارة شاملة: مهام، طلبات، حضور، رواتب، مخازن، تحليلات.',
+  },
+  [ROLES.SALES_MANAGER]: {
+    label: 'مدير مبيعات', icon: '📈',
+    responsibility: 'قيادة فريق المبيعات: مهام، طلبات، KPI، منتجات، مخزون.',
+  },
+  [ROLES.SOCIAL_MANAGER]: {
+    label: 'مدير سوشال', icon: '📱',
+    responsibility: 'إدارة فريق السوشال والمهام ومتابعة الحضور والتحليلات.',
+  },
+  [ROLES.MEDIA_BUYER]: {
+    label: 'ميديا باير', icon: '🎯',
+    responsibility: 'إدارة الحملات والطلبات ومتابعة الأداء والتحليلات.',
+  },
+  [ROLES.EMPLOYEE]: {
+    label: 'موظف', icon: '🌱',
+    responsibility: 'الوصول الأساسي: حضوره، مهامه، طلباته — بلا صلاحيات إدارية.',
+  },
+};
+
+/** Base (role-default) permissions for a role_type. */
+export function basePermissionsFor(roleType) {
+  if (roleType === ROLES.ADMIN) return new Set(ALL);
+  return new Set(ROLE_PERMISSIONS[roleType] ?? []);
+}
+
+/**
+ * Resolve effective permissions for a profile-shaped object
+ * ({ role_type, extra_permissions, denied_permissions }) — used by the
+ * admin preview ("ماذا يرى هذا المستخدم").
+ */
+export function resolveProfilePermissions(profile) {
+  if (!profile) return new Set();
+  if (profile.role_type === ROLES.ADMIN) return new Set(ALL);
+  const base   = ROLE_PERMISSIONS[profile.role_type] ?? [];
+  const extra  = Array.isArray(profile.extra_permissions)  ? profile.extra_permissions  : [];
+  const denied = Array.isArray(profile.denied_permissions) ? profile.denied_permissions : [];
+  const set = new Set([...base, ...extra]);
+  denied.forEach(p => set.delete(p));
+  return set;
+}
+
+/**
+ * Classify a single permission for the 3-state editor:
+ *   'base'    — comes from the role (on by default)
+ *   'granted' — added on top via extra_permissions
+ *   'denied'  — explicitly revoked from the role default
+ *   'off'     — not granted (neither base nor extra)
+ */
+export function permissionState(roleType, permKey, extra = [], denied = []) {
+  const isBase = (ROLE_PERMISSIONS[roleType] ?? []).includes(permKey) || roleType === ROLES.ADMIN;
+  if (denied.includes(permKey)) return 'denied';
+  if (isBase) return 'base';
+  if (extra.includes(permKey)) return 'granted';
+  return 'off';
+}
+
+export const ALL_PERMISSIONS = ALL;

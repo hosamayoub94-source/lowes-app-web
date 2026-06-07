@@ -3,7 +3,7 @@
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
-import { PERMISSION_LABELS } from '@data/permissions';
+import PermissionsEditor from '@components/feature/PermissionsEditor';
 
 const ROLE_LABELS = {
   employee:       'موظف',
@@ -86,7 +86,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -140,6 +140,7 @@ const EMPTY_FORM = {
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
   commission_pct: '',
   extra_permissions: [],
+  denied_permissions: [],
 };
 
 // ── Input helpers ─────────────────────────────────────────────
@@ -318,6 +319,7 @@ export default function AdminUsersScreen() {
       transport_allowance_usd: p.transport_allowance_usd ?? '',
       commission_pct:          p.commission_pct          ?? '',
       extra_permissions:       Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
+      denied_permissions:      Array.isArray(p.denied_permissions) ? p.denied_permissions : [],
     });
     setSaveError(null);
   };
@@ -349,6 +351,7 @@ export default function AdminUsersScreen() {
       patch.transport_allowance_usd = form.transport_allowance_usd === '' ? 0 : Number(form.transport_allowance_usd);
       patch.commission_pct          = form.commission_pct          === '' ? 0 : Number(form.commission_pct);
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
+      patch.denied_permissions      = Array.isArray(form.denied_permissions) ? form.denied_permissions : [];
       await updateProfile(editUser.id, patch);
 
       // ── Auto-sync chat channel membership when team changes ──
@@ -711,30 +714,17 @@ export default function AdminUsersScreen() {
                     </Field>
                   </div>
 
-                  {/* Extra permissions — for granting future managers specific powers */}
-                  {form.role_type !== 'admin' && (
-                    <div className="border-t border-border pt-3">
-                      <p className="text-xs font-semibold text-muted mb-1">🔑 صلاحيات إضافية</p>
-                      <p className="text-[11px] text-muted mb-3">امنح هذا الموظف صلاحيات إدارية إضافية فوق دوره الأساسي (للمدراء الجدد).</p>
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {Object.entries(PERMISSION_LABELS).map(([key, label]) => {
-                          const checked = (form.extra_permissions || []).includes(key);
-                          return (
-                            <label key={key} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-alt cursor-pointer hover:bg-teal/5 transition">
-                              <input type="checkbox" checked={checked}
-                                onChange={e => setForm(f => {
-                                  const set = new Set(f.extra_permissions || []);
-                                  if (e.target.checked) set.add(key); else set.delete(key);
-                                  return { ...f, extra_permissions: [...set] };
-                                })}
-                                className="w-4 h-4 accent-teal" />
-                              <span className="text-xs text-text">{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {/* Permissions — grouped, 3-state, with role template + live preview */}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted mb-1">🔑 الصلاحيات</p>
+                    <p className="text-[11px] text-muted mb-3">القالب يأتي من الدور أعلاه. فعّل أو امنع أي صلاحية لهذا الموظف تحديداً.</p>
+                    <PermissionsEditor
+                      roleType={form.role_type}
+                      extra={form.extra_permissions}
+                      denied={form.denied_permissions}
+                      onChange={({ extra, denied }) => setForm(f => ({ ...f, extra_permissions: extra, denied_permissions: denied }))}
+                    />
+                  </div>
 
                   {/* Admin notes */}
                   <div className="border-t border-border pt-3">
