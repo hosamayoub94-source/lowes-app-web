@@ -221,23 +221,48 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
   );
 }
 
-// ── Add Ad Modal ───────────────────────────────────────────────
-function AddAdModal({ open, campaign, onClose, onSaved }) {
+// ── Upload an ad image to storage (reuses the public chat-files bucket) ──
+async function uploadAdImage(file, campaignId) {
+  const safe = (file.name || 'img').replace(/[^\w.\-]/g, '_').slice(-40);
+  const path = `campaign-ads/${campaignId}/${Date.now()}-${safe}`;
+  const { error } = await supabase.storage.from('chat-files').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true });
+  if (error) throw new Error(error.message);
+  return supabase.storage.from('chat-files').getPublicUrl(path).data.publicUrl;
+}
+
+// ── Add / Edit Ad Modal ────────────────────────────────────────
+function AddAdModal({ open, campaign, editAd, onClose, onSaved }) {
   const [name, setName]   = useState('');
   const [img, setImg]     = useState('');
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr]     = useState(null);
 
-  useEffect(() => { if (open) { setName(''); setImg(''); setErr(null); } }, [open]);
+  useEffect(() => {
+    if (open) { setName(editAd?.ad_name || ''); setImg(editAd?.ad_image_url || ''); setErr(null); }
+  }, [open, editAd]);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErr('الملف يجب أن يكون صورة'); return; }
+    if (file.size > 5 * 1024 * 1024) { setErr('حجم الصورة أكبر من 5MB'); return; }
+    setUploading(true); setErr(null);
+    try { setImg(await uploadAdImage(file, campaign.id)); }
+    catch (e) { setErr('فشل رفع الصورة: ' + e.message); }
+    finally { setUploading(false); }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     if (!name.trim()) { setErr('اسم الإعلان مطلوب'); return; }
     setSaving(true); setErr(null);
     try {
-      const { error } = await supabase.from('campaign_ads').insert({
-        campaign_id: campaign.id, ad_name: name.trim(), ad_image_url: img.trim() || null, status: 'active',
-      });
+      const payload = { ad_name: name.trim(), ad_image_url: img.trim() || null };
+      const q = editAd
+        ? supabase.from('campaign_ads').update(payload).eq('id', editAd.id)
+        : supabase.from('campaign_ads').insert({ ...payload, campaign_id: campaign.id, status: 'active' });
+      const { error } = await q;
       if (error) throw new Error(error.message);
       onSaved(); onClose();
     } catch (e) { setErr(e.message); }
@@ -250,7 +275,7 @@ function AddAdModal({ open, campaign, onClose, onSaved }) {
          onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-sm bg-surface rounded-2xl shadow-xl border border-border" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-bold text-text">🖼️ إعلان جديد</h2>
+          <h2 className="text-base font-bold text-text">🖼️ {editAd ? 'تعديل الإعلان' : 'إعلان جديد'}</h2>
           <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none">✕</button>
         </div>
         <form onSubmit={submit} className="p-5 space-y-4">
@@ -258,14 +283,28 @@ function AddAdModal({ open, campaign, onClose, onSaved }) {
             <label className="text-xs font-semibold text-muted">اسم الإعلان *</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="إعلان الفيديو الأول…" className={inputCls} required />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">رابط الصورة (اختياري)</label>
-            <input value={img} onChange={e => setImg(e.target.value)} placeholder="https://…" className={inputCls} style={{ direction: 'ltr' }} />
+
+          {/* Image: upload or paste a link */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted">صورة الإعلان (اختياري)</label>
+            {img && (
+              <div className="relative">
+                <img src={img} alt="معاينة" className="w-full h-32 object-cover rounded-xl border border-border" />
+                <button type="button" onClick={() => setImg('')}
+                  className="absolute top-1.5 end-1.5 w-7 h-7 rounded-full bg-black/60 text-white text-sm hover:bg-black/80">×</button>
+              </div>
+            )}
+            <label className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-dashed cursor-pointer text-sm transition ${uploading ? 'opacity-60' : 'border-teal/40 text-teal hover:bg-teal/5'}`}>
+              {uploading ? '⏳ جارٍ الرفع…' : '📤 رفع صورة من جهازك'}
+              <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} className="hidden" />
+            </label>
+            <input value={img} onChange={e => setImg(e.target.value)} placeholder="أو الصق رابط صورة https://…" className={inputCls} style={{ direction: 'ltr' }} />
           </div>
+
           {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2 border border-red/20">⚠️ {err}</p>}
           <div className="flex gap-3">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>إلغاء</Button>
-            <Button type="submit" variant="teal" className="flex-1" disabled={saving}>{saving ? '⏳…' : '➕ إضافة'}</Button>
+            <Button type="submit" variant="teal" className="flex-1" disabled={saving || uploading}>{saving ? '⏳…' : (editAd ? '💾 حفظ' : '➕ إضافة')}</Button>
           </div>
         </form>
       </div>
@@ -350,7 +389,15 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState('ads'); // ads | log | performance
   const [showAddAd, setShowAddAd] = useState(false);
+  const [editAd, setEditAd]   = useState(null);
   const [logAd, setLogAd]     = useState(null);
+
+  const deleteAd = async (ad) => {
+    if (!window.confirm(`حذف الإعلان "${ad.ad_name}" وكل تسجيلاته؟`)) return;
+    const { error } = await supabase.from('campaign_ads').delete().eq('id', ad.id);
+    if (error) { alert('فشل الحذف: ' + error.message); return; }
+    reload(); onChanged?.();
+  };
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -427,17 +474,24 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
                   )}
                   {ads.length === 0 ? <EmptyState description="لا توجد إعلانات بعد" /> : ads.map(ad => {
                     const agg = perAd[ad.id] || { messages: 0, purchases: 0 };
+                    const conv = agg.messages > 0 ? Math.round((agg.purchases / agg.messages) * 100) : 0;
                     return (
                       <div key={ad.id} className="flex items-center gap-3 p-3 rounded-xl border border-border">
-                        <div className="w-10 h-10 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                        <div className="w-12 h-12 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0 overflow-hidden">
                           {ad.ad_image_url ? <img src={ad.ad_image_url} alt={ad.ad_name} className="w-full h-full object-cover" /> : '🖼️'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-text truncate">{ad.ad_name}</p>
-                          <p className="text-[11px] text-muted">💬 {fmtNum(agg.messages)} · 🛒 {fmtNum(agg.purchases)}</p>
+                          <p className="text-[11px] text-muted">💬 {fmtNum(agg.messages)} · 🛒 {fmtNum(agg.purchases)} · <span className="text-teal font-semibold">{conv}%</span></p>
                         </div>
                         {(isAssigned || canManage) && (
                           <button onClick={() => { setLogAd(ad); }} className="px-3 py-1.5 rounded-lg bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition shrink-0">📝 سجّل</button>
+                        )}
+                        {canManage && (
+                          <>
+                            <button onClick={() => setEditAd(ad)} title="تعديل" className="w-8 h-8 rounded-lg bg-surface-alt text-muted hover:text-text text-sm shrink-0">✏️</button>
+                            <button onClick={() => deleteAd(ad)} title="حذف" className="w-8 h-8 rounded-lg bg-red-bg text-red-fg hover:bg-red/20 text-sm shrink-0">🗑️</button>
+                          </>
                         )}
                       </div>
                     );
@@ -511,14 +565,16 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
         </div>
       </div>
 
-      <AddAdModal open={showAddAd} campaign={campaign} onClose={() => setShowAddAd(false)} onSaved={() => { reload(); onChanged?.(); }} />
+      <AddAdModal open={showAddAd || !!editAd} campaign={campaign} editAd={editAd}
+        onClose={() => { setShowAddAd(false); setEditAd(null); }}
+        onSaved={() => { reload(); onChanged?.(); }} />
       {logAd && <LogModal open ad={logAd} campaign={campaign} userName={userName} onClose={() => setLogAd(null)} onSaved={() => { reload(); onChanged?.(); }} />}
     </div>
   );
 }
 
 // ── Campaign Card ──────────────────────────────────────────────
-function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit }) {
+function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete }) {
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 cursor-pointer hover:border-teal transition-colors" onClick={() => onSelect(c)}>
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -541,10 +597,85 @@ function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit }) {
       </div>
       {(c._assignedCount > 0 || canManage) && (
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-[10px] text-muted">👥 {fmtNum(c._assignedCount)} مكلّف</span>
-          {canManage && <button onClick={e => { e.stopPropagation(); onEdit(c); }} className="text-[11px] text-teal font-semibold hover:underline">✏️ تعديل</button>}
+          <span className="text-[10px] text-muted">
+            👥 {fmtNum(c._assignedCount)} مكلّف
+            {c._assignedCount > 0 && (
+              <span className={c._loggedToday >= c._assignedCount ? 'text-green-600' : 'text-amber-fg'}> · ✅ {c._loggedToday}/{c._assignedCount} اليوم</span>
+            )}
+          </span>
+          {canManage && (
+            <span className="flex gap-3">
+              <button onClick={e => { e.stopPropagation(); onEdit(c); }} className="text-[11px] text-teal font-semibold hover:underline">✏️ تعديل</button>
+              <button onClick={e => { e.stopPropagation(); onDelete(c); }} className="text-[11px] text-red-fg font-semibold hover:underline">🗑️ حذف</button>
+            </span>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Manager dashboard (overview across all campaigns) ──────────
+function CampaignsDashboard({ campaigns, canViewCost }) {
+  const active = campaigns.filter(c => c.status === 'active');
+  const totMsg = campaigns.reduce((s, c) => s + c._messages, 0);
+  const totBuy = campaigns.reduce((s, c) => s + c._purchases, 0);
+  const totCost = campaigns.reduce((s, c) => s + (Number(c.cost_usd) || 0), 0);
+  const conv = totMsg > 0 ? Math.round((totBuy / totMsg) * 100) : 0;
+  const costPerBuy = totBuy > 0 ? totCost / totBuy : 0;
+  const assignedTot = campaigns.reduce((s, c) => s + c._assignedCount, 0);
+  const loggedTot   = campaigns.reduce((s, c) => s + c._loggedToday, 0);
+  const topByBuy = [...campaigns].filter(c => c._purchases > 0).sort((a, b) => b._purchases - a._purchases).slice(0, 5);
+  // Active campaigns where not everyone logged today
+  const behind = active.filter(c => c._assignedCount > 0 && c._loggedToday < c._assignedCount);
+
+  const cell = (label, val, tone = 'text-text') => (
+    <div className="bg-surface border border-border rounded-xl p-3 text-center">
+      <p className={`text-lg font-black ${tone}`}>{val}</p>
+      <p className="text-[10px] text-muted mt-0.5">{label}</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className={`grid grid-cols-2 ${canViewCost ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
+        {cell('رسائل', fmtNum(totMsg))}
+        {cell('مشتريات', fmtNum(totBuy), 'text-teal')}
+        {cell('نسبة التحويل', conv + '%', 'text-amber-fg')}
+        {cell('التزام اليوم', `${loggedTot}/${assignedTot}`, loggedTot >= assignedTot && assignedTot > 0 ? 'text-green-600' : 'text-red-500')}
+        {canViewCost && cell('تكلفة/شراء', costPerBuy > 0 ? fmtUSD(costPerBuy) : '—', 'text-amber-fg')}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {/* Top campaigns by purchases */}
+        <div className="bg-surface border border-border rounded-2xl p-3">
+          <p className="text-xs font-bold text-text mb-2">🏆 الأعلى مبيعات</p>
+          {topByBuy.length === 0 ? <p className="text-[11px] text-muted">لا بيانات بعد.</p> : (
+            <div className="space-y-1.5">
+              {topByBuy.map((c, i) => (
+                <div key={c.id} className="flex items-center justify-between text-xs">
+                  <span className="text-text truncate flex-1">{i + 1}. {c.name}</span>
+                  <span className="text-teal font-bold shrink-0">🛒 {fmtNum(c._purchases)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Compliance — campaigns behind on logging */}
+        <div className="bg-surface border border-border rounded-2xl p-3">
+          <p className="text-xs font-bold text-text mb-2">⚠️ متأخّرة بالتسجيل اليوم</p>
+          {behind.length === 0 ? <p className="text-[11px] text-green-600">الكل ملتزم اليوم ✓</p> : (
+            <div className="space-y-1.5">
+              {behind.slice(0, 6).map(c => (
+                <div key={c.id} className="flex items-center justify-between text-xs">
+                  <span className="text-text truncate flex-1">{c.name}</span>
+                  <span className="text-red-500 font-bold shrink-0">{c._loggedToday}/{c._assignedCount}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -565,21 +696,25 @@ export default function CampaignsScreen() {
   const [editCampaign, setEditCampaign] = useState(null);
   const [selected, setSelected]   = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [showDashboard, setShowDashboard] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [cmpRes, adsRes, logRes, empRes] = await Promise.allSettled([
+      const today = new Date().toISOString().slice(0, 10);
+      const [cmpRes, adsRes, logRes, empRes, todayRes] = await Promise.allSettled([
         supabase.from('ad_campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('campaign_ads').select('id,campaign_id'),
         supabase.from('ad_daily_logs').select('campaign_id,messages,purchases'),
         supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name'),
+        supabase.from('ad_daily_logs').select('campaign_id,employee_name').eq('log_date', today),
       ]);
 
       let cmps = [];
       if (cmpRes.status === 'fulfilled' && !cmpRes.value.error) cmps = cmpRes.value.data || [];
       const ads  = (adsRes.status === 'fulfilled' && !adsRes.value.error) ? adsRes.value.data || [] : [];
       const logs = (logRes.status === 'fulfilled' && !logRes.value.error) ? logRes.value.data || [] : [];
+      const todayLogs = (todayRes.status === 'fulfilled' && !todayRes.value.error) ? todayRes.value.data || [] : [];
       if (empRes.status === 'fulfilled' && !empRes.value.error) setEmployees(empRes.value.data || []);
 
       // ad_daily_logs missing → prompt setup (only managers can act)
@@ -592,14 +727,21 @@ export default function CampaignsScreen() {
         byId[l.campaign_id].messages  += Number(l.messages)  || 0;
         byId[l.campaign_id].purchases += Number(l.purchases) || 0;
       });
+      const loggedTodayByCmp = {};
+      todayLogs.forEach(l => { (loggedTodayByCmp[l.campaign_id] ||= new Set()).add(l.employee_name); });
 
-      let enriched = cmps.map(c => ({
-        ...c,
-        _ads: adCount[c.id] || 0,
-        _messages:  byId[c.id]?.messages  || 0,
-        _purchases: byId[c.id]?.purchases || 0,
-        _assignedCount: Array.isArray(c.assigned_to) ? c.assigned_to.length : 0,
-      }));
+      let enriched = cmps.map(c => {
+        const assigned = Array.isArray(c.assigned_to) ? c.assigned_to : [];
+        const logged = loggedTodayByCmp[c.id] || new Set();
+        return {
+          ...c,
+          _ads: adCount[c.id] || 0,
+          _messages:  byId[c.id]?.messages  || 0,
+          _purchases: byId[c.id]?.purchases || 0,
+          _assignedCount: assigned.length,
+          _loggedToday: assigned.filter(n => logged.has(n)).length,
+        };
+      });
 
       // Employees only see campaigns they're assigned to
       if (!canManage) enriched = enriched.filter(c => (c.assigned_to || []).includes(userName));
@@ -611,6 +753,13 @@ export default function CampaignsScreen() {
   }, [canManage, userName]);
 
   useEffect(() => { load(); }, [load]);
+
+  const deleteCampaign = async (c) => {
+    if (!window.confirm(`حذف حملة "${c.name}" نهائياً مع كل إعلاناتها وتسجيلاتها؟`)) return;
+    const { error } = await supabase.from('ad_campaigns').delete().eq('id', c.id);
+    if (error) { alert('فشل الحذف: ' + error.message); return; }
+    load();
+  };
 
   const filtered = filterStatus === 'all' ? campaigns : campaigns.filter(c => c.status === filterStatus);
   const activeCnt = campaigns.filter(c => c.status === 'active').length;
@@ -627,6 +776,17 @@ export default function CampaignsScreen() {
       />
 
       {canManage && needsSetup && <SetupBanner />}
+
+      {/* Manager dashboard */}
+      {canManage && (
+        <div className="space-y-2">
+          <button onClick={() => setShowDashboard(v => !v)}
+            className="flex items-center gap-2 text-sm font-bold text-text hover:text-teal transition">
+            📊 لوحة الأداء {showDashboard ? '▲' : '▼'}
+          </button>
+          {showDashboard && !loading && <CampaignsDashboard campaigns={campaigns} canViewCost={canViewCost} />}
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -659,7 +819,7 @@ export default function CampaignsScreen() {
               <div className="grid sm:grid-cols-2 gap-3">
                 {filtered.map(c => (
                   <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
-                    onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }} />
+                    onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }} onDelete={deleteCampaign} />
                 ))}
               </div>
             )}
