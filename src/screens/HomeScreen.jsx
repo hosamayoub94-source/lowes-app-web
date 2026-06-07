@@ -11,10 +11,12 @@ import {
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { useAuth }  from '@hooks/useAuth';
 import { useTheme } from '@hooks/useTheme';
-import { navItemsForRole } from '@data/navigation';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
+import { homeBlocksForRole } from '@data/homeLayout';
+import { TARGETS_BY_CURRENCY } from '@data/targets';
+import { getStockMatrix } from '@services/warehouseService';
 
 // ── Daily motivation quotes ─────────────────────────────────────
 const MOTIVATIONS = [
@@ -610,22 +612,146 @@ function MiniLeaderboard() {
   );
 }
 
-// ── Quick Shortcuts ──────────────────────────────────────────────
-function QuickShortcuts({ role }) {
-  const items = navItemsForRole(role).slice(0, 8);
+// ── My Target Card (seller) ──────────────────────────────────────
+// Monthly progress toward sales target, per market. Syria → $1000 (catalog
+// USD basis, offer-immune). Turkey → 65,000₺ (recorded TRY amounts).
+const _norm = s => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+function MyTargetCard({ name }) {
+  const [data, setData] = useState(null); // { syria:{val,target}, turkey:{val,target} }
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!name) { setLoading(false); return; }
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    Promise.allSettled([
+      supabase.from('product_economics').select('item_name, sale_price_usd'),
+      supabase.from('orders').select('items, amount, currency, market, status, created_at, handler_name')
+        .eq('handler_name', name).eq('status', 'delivered').gte('created_at', monthStart + 'T00:00:00'),
+    ]).then(([pRes, oRes]) => {
+      const prices = {};
+      (pRes.value?.data ?? []).forEach(r => { prices[_norm(r.item_name)] = Number(r.sale_price_usd) || 0; });
+      const orders = oRes.value?.data ?? [];
+      let syriaUsd = 0, turkeyTry = 0, hasSyria = false, hasTurkey = false;
+      orders.forEach(o => {
+        const isTurkey = (o.market === 'turkey') || /try|تركي|₺/i.test(o.currency || '');
+        if (isTurkey) {
+          hasTurkey = true;
+          turkeyTry += Number(o.amount) || 0;
+        } else {
+          hasSyria = true;
+          let v = 0;
+          (o.items || []).forEach(it => { const p = prices[_norm(it.name)]; if (p > 0) v += p * Number(it.qty || 1); });
+          syriaUsd += v;
+        }
+      });
+      const out = {};
+      if (hasSyria || !hasTurkey) out.syria  = { val: syriaUsd,  target: TARGETS_BY_CURRENCY.USD, cur: '$', usd: true };
+      if (hasTurkey)             out.turkey = { val: turkeyTry, target: TARGETS_BY_CURRENCY.TRY, cur: '₺' };
+      setData(out);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [name]);
+
+  const Bar = ({ b }) => {
+    const pct = b.target > 0 ? Math.min(100, Math.round((b.val / b.target) * 100)) : 0;
+    const reached = pct >= 100;
+    return (
+      <div>
+        <div className="flex items-baseline justify-between mb-1.5">
+          <span className="text-lg font-extrabold text-text tabular-nums">
+            {b.usd ? '$' : ''}{Math.round(b.val).toLocaleString()}{b.usd ? '' : ' ₺'}
+          </span>
+          <span className={`text-xs font-bold ${reached ? 'text-emerald-600' : 'text-muted'}`}>
+            {pct}% {reached ? '🎉' : `من ${b.usd ? '$' : ''}${b.target.toLocaleString()}${b.usd ? '' : '₺'}`}
+          </span>
+        </div>
+        <div className="h-2.5 rounded-full bg-surface-alt overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-teal'}`} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4">
-      <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-3">وصول سريع</p>
-      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-        {items.map(item => (
-          <Link key={item.id} to={item.path}
-            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl hover:bg-surface-alt transition-all group hover:scale-105 active:scale-95">
-            <span className="text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
-            <span className="text-[10px] text-muted font-medium text-center leading-tight group-hover:text-teal transition-colors">{item.label}</span>
-          </Link>
-        ))}
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div>
+          <p className="text-[11px] font-bold text-muted uppercase tracking-wider">🎯 هدفي هذا الشهر</p>
+          <p className="text-xs text-muted/70 mt-0.5">المبيعات المسلّمة مقابل التارجت</p>
+        </div>
+        <Link to="/orders" className="text-xs text-teal font-semibold hover:underline">طلباتي ←</Link>
+      </div>
+      <div className="px-4 pb-4 space-y-3">
+        {loading ? <Skel className="h-10" /> : !data ? null : (
+          <>
+            {data.syria  && <Bar b={data.syria} />}
+            {data.turkey && <Bar b={data.turkey} />}
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+// ── Low Stock Card (storage) ─────────────────────────────────────
+function LowStockCard() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    getStockMatrix()
+      .then(({ rows }) => {
+        const low = rows
+          .map(r => ({ name: r.name, total: r.total, min: r.min_stock ?? 10 }))
+          .filter(r => r.total <= r.min)
+          .sort((a, b) => (a.total - a.min) - (b.total - b.min))
+          .slice(0, 6);
+        setRows(low);
+      })
+      .catch(() => setRows([]));
+  }, []);
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div>
+          <p className="text-[11px] font-bold text-muted uppercase tracking-wider">⚠️ نواقص المخزون</p>
+          <p className="text-xs text-muted/70 mt-0.5">منتجات تحت الحد الأدنى</p>
+        </div>
+        <Link to="/warehouses" className="text-xs text-teal font-semibold hover:underline">المخازن ←</Link>
+      </div>
+      <div className="px-4 pb-4 space-y-2">
+        {rows === null ? [1, 2, 3].map(i => <Skel key={i} className="h-10" />) :
+          rows.length === 0 ? (
+            <div className="flex flex-col items-center py-5 text-center">
+              <span className="text-3xl mb-1.5 opacity-50">✅</span>
+              <p className="text-xs text-muted font-medium">كل المنتجات فوق الحد الأدنى</p>
+            </div>
+          ) : rows.map(r => (
+            <div key={r.name} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-alt">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${r.total === 0 ? 'bg-red-500' : 'bg-amber-400'}`} />
+              <p className="flex-1 text-sm text-text truncate font-medium">{r.name}</p>
+              <span className={`text-[11px] font-bold tabular-nums shrink-0 ${r.total === 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                {r.total} / {r.min}
+              </span>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Campaigns Link Card (sales/social/media) ────────────────────
+function CampaignsLinkCard() {
+  return (
+    <Link to="/campaigns" className="block">
+      <div className="bg-gradient-to-r from-navy to-teal rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-navy/10">
+        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">📣</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-black text-sm">الحملات</p>
+          <p className="text-white/70 text-xs mt-0.5">تابِع حملاتك وسجّل أداء اليوم</p>
+        </div>
+        <span className="text-white/50 text-lg shrink-0">←</span>
+      </div>
+    </Link>
   );
 }
 
@@ -831,13 +957,86 @@ export default function HomeScreen() {
     }).catch(() => { setKpiLoaded(true); setChartsLoaded(true); });
   }, [name, userId, isManager]);
 
+  // ── Block renderers — composed per role via homeBlocksForRole ──
+  const AttendanceChartBlock = () => (
+    <div className="bg-surface border border-border rounded-2xl p-4">
+      <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">حضور الفريق</p>
+      <p className="text-xs text-muted/70 mb-4">آخر 7 أيام</p>
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={attChart} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+            <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: cc.cursor }} />
+            <Bar dataKey="count" fill={cc.teal} radius={[6,6,0,0]} maxBarSize={40} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+  const SalesChartBlock = () => (
+    <div className="bg-surface border border-border rounded-2xl p-4">
+      <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">المبيعات</p>
+      <p className="text-xs text-muted/70 mb-4">آخر 7 أيام بالدولار</p>
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={salesChart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+            <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip prefix="$" />} />
+            <Line type="monotone" dataKey="sales" stroke={cc.green} strokeWidth={2.5}
+              dot={{ fill: cc.green, r: 3 }} activeDot={{ r: 5 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  const renderBlock = (key) => {
+    switch (key) {
+      case 'attendance':      return <AttendanceCard name={name} team={team} />;
+      case 'myTasks':         return <MyTasksCard name={name} userId={userId} />;
+      case 'myTarget':        return <MyTargetCard name={name} />;
+      case 'announcement':    return <AnnouncementCard />;
+      case 'celebration':     return <CelebrationBanner />;
+      case 'training':        return (
+        <Link to="/training" className="block">
+          <div className="bg-gradient-to-r from-teal to-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-teal/10">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">🧠</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-black text-sm">التدريب اليومي</p>
+              <p className="text-white/70 text-xs mt-0.5">أسئلة وأجوبة — زد معرفتك بالمنتجات يومياً</p>
+            </div>
+            <span className="text-white/50 text-lg shrink-0">←</span>
+          </div>
+        </Link>
+      );
+      case 'teamStatus':      return <TodayTeamStatus />;
+      case 'attendanceChart': return chartsLoaded ? <AttendanceChartBlock /> : null;
+      case 'salesChart':      return chartsLoaded ? <SalesChartBlock /> : null;
+      case 'leaderboard':     return <MiniLeaderboard />;
+      case 'currency':        return <CurrencyWidget />;
+      case 'campaignsLink':   return <CampaignsLinkCard />;
+      case 'lowStock':        return <LowStockCard />;
+      default:                return null;
+    }
+  };
+
+  const blocks = homeBlocksForRole(role);
+  // attendance + myTasks render side-by-side when adjacent at the top.
+  const pairAtTop = blocks[0] === 'attendance' && blocks[1] === 'myTasks';
+  const rest = pairAtTop ? blocks.slice(2) : blocks;
+  const isChart = k => k === 'salesChart' || k === 'attendanceChart';
+
   return (
     <div className="space-y-4" dir="rtl">
 
-      {/* ── Emergency banner ────────────────────────────────────── */}
+      {/* ── Emergency banner (always) ───────────────────────────── */}
       <EmergencyBanner />
 
-      {/* ── Hero greeting ───────────────────────────────────────── */}
+      {/* ── Hero greeting (always) ──────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 pt-1">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold text-xl shadow-sm ${avatarColor(name)}`}>
@@ -860,91 +1059,32 @@ export default function HomeScreen() {
         </Link>
       </div>
 
-      {/* ── Daily motivation ────────────────────────────────────── */}
+      {/* ── Daily motivation (always — light, dismissible) ──────── */}
       <DailyMotivation />
 
-      {/* ── Celebration ─────────────────────────────────────────── */}
-      <CelebrationBanner />
-
-      {/* ── 2-column layout (quick cards) ───────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <AttendanceCard name={name} team={team} />
-        <MyTasksCard name={name} userId={userId} />
-      </div>
-
-      {/* ── Latest Announcement ─────────────────────────────────── */}
-      <AnnouncementCard />
-
-      {/* ── KPI strip ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
-        <KpiItem label="مهام مفتوحة" icon="📋" value={kpi.tasks}  tone="blue"   loading={!kpiLoaded} />
-        <KpiItem label="إشعارات جديدة" icon="🔔" value={kpi.notifs} tone="amber"  loading={!kpiLoaded} />
-        <KpiItem label="رصيد الإجازة" icon="🏖️" value={kpi.leave}  tone="purple" loading={!kpiLoaded} />
-      </div>
-
-      {/* ── Currency Rates ──────────────────────────────────────── */}
-      <CurrencyWidget />
-
-      {/* ── Charts ──────────────────────────────────────────────── */}
-      {chartsLoaded && (
-        <div className={`grid gap-4 ${isManager ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-          <div className="bg-surface border border-border rounded-2xl p-4">
-            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">حضور الفريق</p>
-            <p className="text-xs text-muted/70 mb-4">آخر 7 أيام</p>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attChart} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip suffix=" موظف" />} cursor={{ fill: cc.cursor }} />
-                  <Bar dataKey="count" fill={cc.teal} radius={[6,6,0,0]} maxBarSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {isManager && (
-            <div className="bg-surface border border-border rounded-2xl p-4">
-              <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-0.5">المبيعات</p>
-              <p className="text-xs text-muted/70 mb-4">آخر 7 أيام بالدولار</p>
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesChart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: cc.axis }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<ChartTooltip prefix="$" />} />
-                    <Line type="monotone" dataKey="sales" stroke={cc.green} strokeWidth={2.5}
-                      dot={{ fill: cc.green, r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+      {/* ── Top pair: attendance + my tasks (when present) ──────── */}
+      {pairAtTop && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <AttendanceCard name={name} team={team} />
+          <MyTasksCard name={name} userId={userId} />
         </div>
       )}
 
-      {/* ── Today Team Status (managers only) ──────────────────── */}
-      {isManager && <TodayTeamStatus />}
-
-      {/* ── Daily Training Card ─────────────────────────────────── */}
-      <Link to="/training" className="block">
-        <div className="bg-gradient-to-r from-teal to-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-teal/10">
-          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">🧠</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-black text-sm">التدريب اليومي</p>
-            <p className="text-white/70 text-xs mt-0.5">أسئلة وأجوبة — زد معرفتك بالمنتجات يومياً</p>
-          </div>
-          <span className="text-white/50 text-lg shrink-0">←</span>
-        </div>
-      </Link>
-
-      {/* ── Leaderboard ─────────────────────────────────────────── */}
-      <MiniLeaderboard />
-
-      {/* ── Quick shortcuts ──────────────────────────────────────── */}
-      <QuickShortcuts role={role} />
+      {/* ── Role-specific blocks (in order; adjacent charts pair) ─ */}
+      {rest.map((key, i) => {
+        // Pair two consecutive charts into one 2-column grid (skip the 2nd).
+        if (isChart(key) && isChart(rest[i + 1])) {
+          if (!chartsLoaded) return null;
+          return (
+            <div key={key} className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              {renderBlock(key)}
+              {renderBlock(rest[i + 1])}
+            </div>
+          );
+        }
+        if (isChart(key) && isChart(rest[i - 1])) return null; // already rendered as pair
+        return <div key={key}>{renderBlock(key)}</div>;
+      })}
 
     </div>
   );
