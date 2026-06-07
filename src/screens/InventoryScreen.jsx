@@ -10,6 +10,10 @@ import { StatCard }  from '@components/ui/StatCard';
 import { Button }    from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
 import { supabase }  from '@services/supabase';
+import { useAuth } from '@hooks/useAuth';
+import { usePermissions } from '@hooks/usePermissions';
+import { PERMISSIONS } from '@data/permissions';
+import { receiveStock, adjustStock } from '@services/warehouseService';
 
 const CATEGORIES = ['العناية بالوجه', 'العناية بالبشرة', 'واقي الشمس', 'الماسك', 'العناية بالجسم', 'منتجات خاصة', 'العناية بالشعر', 'الأدوات'];
 
@@ -192,7 +196,7 @@ function ProductModal({ open, initial, onClose, onSaved }) {
 }
 
 // ── Product card ───────────────────────────────────────────────
-function ProductCard({ p, onEdit, onMovements }) {
+function ProductCard({ p, onEdit, onMovements, onStock, canManage }) {
   const st = stockColor(p.quantity, p.min_stock);
   return (
     <div className={`bg-surface border rounded-2xl p-4 transition-colors ${p.quantity <= p.min_stock ? 'border-amber/50' : 'border-border'}`}>
@@ -228,6 +232,15 @@ function ProductCard({ p, onEdit, onMovements }) {
         >
           🏬 إدارة المخزون
         </a>
+        {canManage && (
+          <button
+            onClick={() => onStock(p)}
+            className="px-3 py-1.5 rounded-xl bg-surface-alt text-muted text-xs font-semibold hover:text-text transition border border-border"
+            title="حركة مخزون سريعة"
+          >
+            📦
+          </button>
+        )}
         <button
           onClick={() => onMovements(p)}
           className="px-3 py-1.5 rounded-xl bg-surface-alt text-muted text-xs font-semibold hover:text-text transition border border-border"
@@ -283,6 +296,71 @@ function MovementModal({ product, onClose }) {
                 </span>
               </div>
             ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Quick stock action (receive / adjust) for one product ─────
+function StockActionModal({ product, performedBy, onClose, onDone }) {
+  const [whs, setWhs]   = useState([]);
+  const [whId, setWhId] = useState('');
+  const [mode, setMode] = useState('receive'); // receive | adjust
+  const [qty, setQty]   = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      // Syria warehouses only (exclude Turkey)
+      const { data } = await supabase.from('wh_warehouses').select('id, name, type, market').eq('is_active', true);
+      const list = (data || []).filter(w => w.market !== 'turkey');
+      setWhs(list);
+      setWhId(list.find(w => w.type === 'central')?.id || list[0]?.id || '');
+    })();
+  }, []);
+
+  const submit = async () => {
+    if (!whId || qty === '') return;
+    setBusy(true); setErr(null);
+    try {
+      if (mode === 'receive') await receiveStock({ productId: product.id, warehouseId: whId, quantity: Number(qty), performedBy, reason });
+      else                    await adjustStock({ productId: product.id, warehouseId: whId, newQuantity: Number(qty), performedBy, reason: reason || 'جرد' });
+      onDone(); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" dir="rtl"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-xl border border-border p-5 space-y-3">
+        <div><h3 className="font-bold text-text">📦 حركة مخزون</h3><p className="text-xs text-muted mt-0.5">{product.name}</p></div>
+        <div className="grid grid-cols-2 gap-2">
+          {[['receive','📥 استلام (إضافة)'],['adjust','± جرد (تعيين)']].map(([k,l]) => (
+            <button key={k} onClick={() => setMode(k)}
+              className={'py-2 rounded-xl text-xs font-bold border ' + (mode===k ? 'bg-teal text-white border-teal' : 'border-border text-muted')}>{l}</button>
+          ))}
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted block mb-1">المخزن</label>
+          <select value={whId} onChange={e => setWhId(e.target.value)} className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text">
+            {whs.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted block mb-1">{mode === 'adjust' ? 'الكمية الجديدة (المطلقة)' : 'الكمية المُضافة'}</label>
+          <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="0"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" style={{ direction: 'ltr', textAlign: 'right' }} />
+        </div>
+        <input value={reason} onChange={e => setReason(e.target.value)} placeholder="ملاحظة (اختياري)"
+          className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+        {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2">⚠️ {err}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-border text-sm text-muted">إلغاء</button>
+          <button onClick={submit} disabled={busy || qty === '' || !whId} className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">{busy ? '…' : 'تأكيد'}</button>
         </div>
       </div>
     </div>
@@ -379,8 +457,12 @@ export default function InventoryScreen() {
   const [showForm, setShowForm] = useState(false);
   const [editProd, setEditProd] = useState(null);
   const [moveProd, setMoveProd] = useState(null);
+  const [stockProd, setStockProd] = useState(null);
   const [showCatSales, setShowCatSales] = useState(false);
   const [dbMissing, setDbMissing] = useState(false);
+  const { name: userName } = useAuth();
+  const { can } = usePermissions();
+  const canManageStock = can(PERMISSIONS.MANAGE_CENTRAL_STOCK) || can(PERMISSIONS.MANAGE_SALES_STOCK);
   const [seeding,   setSeeding]   = useState(false);
 
   const load = useCallback(async () => {
@@ -590,7 +672,7 @@ ON CONFLICT (sku) DO NOTHING;`}
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map(p => (
-                <ProductCard key={p.id} p={p} onEdit={openEdit} onMovements={setMoveProd} />
+                <ProductCard key={p.id} p={p} onEdit={openEdit} onMovements={setMoveProd} onStock={setStockProd} canManage={canManageStock} />
               ))}
             </div>
           )}
@@ -605,6 +687,7 @@ ON CONFLICT (sku) DO NOTHING;`}
         onSaved={load}
       />
       {moveProd && <MovementModal product={moveProd} onClose={() => setMoveProd(null)} />}
+      {stockProd && <StockActionModal product={stockProd} performedBy={userName} onClose={() => setStockProd(null)} onDone={load} />}
     </div>
   );
 }
