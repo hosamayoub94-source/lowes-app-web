@@ -27,7 +27,7 @@ SELECT
         CASE WHEN employee_name IS NOT NULL THEN ' | الموظف: ' || employee_name ELSE '' END,
         CASE WHEN created_by IS NOT NULL THEN ' | أنشأه: ' || created_by ELSE '' END,
         ' | (مُرحَّل من finance_ledger)')),
-  NULL,   -- created_by: نص في finance_ledger و UUID في accounting_entries → فارغ
+  (SELECT id FROM profiles WHERE role_type = 'admin' ORDER BY created_at LIMIT 1),  -- created_by NOT NULL UUID
   created_at
 FROM finance_ledger
 WHERE COALESCE(is_archived, false) = false
