@@ -19,7 +19,7 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
-import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory } from '@services/orderSyncService';
+import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates } from '@services/orderSyncService';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -2236,6 +2236,9 @@ export default function OrdersScreen() {
   const [viewTracking,   setViewTracking]  = useState(false);   // «تتبع الشحنات» toggle
   const [viewMonthly,    setViewMonthly]   = useState(false);   // «تسليمات الشهر» toggle
   const [viewWallet,     setViewWallet]    = useState(false);   // «محفظتي» toggle
+  const [viewDeleted,    setViewDeleted]   = useState(false);   // «المحذوفة» toggle (managers)
+  const [deletedOrders,  setDeletedOrders] = useState([]);
+  const [deletedLoading, setDeletedLoading]= useState(false);
   const [refreshing,     setRefreshing]    = useState(false);   // manual tracking refresh
   const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
@@ -2410,6 +2413,25 @@ export default function OrdersScreen() {
     // Fold the seller name to its canonical active-profile spelling so new/edited
     // orders never re-fragment the leaderboard (e.g. "Haneen" → "Haneen Mohamad").
     const form = { ...formRaw, handler_name: canonicalSeller(formRaw.handler_name) };
+
+    // ── تحقّق عند الإدخال (per-market) — تحذيرات لا توقف الحفظ إجبارياً ──
+    if (!existingId) {
+      const warns = [];
+      const digits = String(form.phone_1 || '').replace(/\D/g, '');
+      if (digits.length < 9) warns.push('رقم الهاتف يبدو غير مكتمل');
+      if (!String(form.city || '').trim()) warns.push('المدينة فارغة');
+      if (!String(form.address || '').trim()) warns.push('العنوان فارغ');
+      const hasItem = Array.isArray(form.items) && form.items.some(it => String(it?.name || '').trim());
+      if (!hasItem) warns.push('لا يوجد منتج في الطلب');
+      if (warns.length && !window.confirm(`⚠️ تنبيهات:\n• ${warns.join('\n• ')}\n\nحفظ الطلب رغم ذلك؟`)) return;
+
+      // ── حارس التكرار: نفس الهاتف + منتج خلال دقائق ──
+      try {
+        const dups = await findDuplicates({ phone: form.phone_1, items: form.items, market: form.market, withinMinutes: 10 });
+        if (dups.length && !window.confirm(`🔁 يوجد ${dups.length} طلب مشابه قبل دقائق (${dups.slice(0,2).map(d=>d.customer_name||d.order_id).join('، ')}).\nقد يكون مكرراً — متابعة الحفظ؟`)) return;
+      } catch { /* best-effort */ }
+    }
+
     let savedId = existingId;
     if (existingId) {
       const { error } = await supabase.from('orders')
@@ -2452,6 +2474,22 @@ export default function OrdersScreen() {
       await softDeleteOrder(o, userName);   // deleted_at + status=cancelled + sync to sheet
       setOrders(p => p.filter(x => x.id !== o.id));
     } catch (e) { window.alert('تعذّر الحذف: ' + e.message); }
+  };
+
+  // المحذوفة (soft-deleted) — تحميل عند فتح العرض.
+  useEffect(() => {
+    if (!viewDeleted) return;
+    setDeletedLoading(true);
+    listDeleted().then(setDeletedOrders).catch(() => {}).finally(() => setDeletedLoading(false));
+  }, [viewDeleted]);
+
+  const handleRestore = async (o) => {
+    if (!window.confirm(`استرجاع طلب «${o.customer_name || o.order_id}»؟ سيعود للقائمة النشطة ويُزامَن.`)) return;
+    try {
+      await restoreOrder(o, userName);
+      setDeletedOrders(p => p.filter(x => x.id !== o.id));
+      await load();
+    } catch (e) { window.alert('تعذّر الاسترجاع: ' + e.message); }
   };
 
   // إعادة مزامنة طلب واحد من الكرت (يدوي).
@@ -2584,6 +2622,13 @@ export default function OrdersScreen() {
             </button>
           )}
           {isManager && !viewArchive && (
+            <button onClick={() => { setViewDeleted(v => !v); setViewTracking(false); setViewMonthly(false); setViewWallet(false); }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewDeleted ? 'bg-red-fg text-white border-red-fg' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="الطلبات المحذوفة (استرجاع)">
+              🗑 المحذوفة
+            </button>
+          )}
+          {isManager && !viewArchive && (
             <button onClick={archiveOldDelivered} disabled={archiving}
               className="px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition disabled:opacity-40"
               title="أرشفة الطلبات المسلّمة الأقدم من شهر">
@@ -2626,7 +2671,7 @@ export default function OrdersScreen() {
       )}
 
       {/* «طلباتي» / «كل الطلبات» toggle */}
-      {!isFulfillment && !viewTracking && !viewMonthly && !viewWallet && (
+      {!isFulfillment && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
         <div className="flex gap-2">
           <button onClick={() => setMyOrders(false)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
@@ -2642,7 +2687,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Seller stats — visible when in «طلباتي» mode */}
-      {myOrders && !isFulfillment && !viewTracking && !viewMonthly && !viewWallet && (
+      {myOrders && !isFulfillment && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
         <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
       )}
 
@@ -2681,7 +2726,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Failed-sync panel — managers: orders that never reached the sheet */}
-      {isManager && !viewArchive && !viewTracking && !viewMonthly && !viewWallet && failedSync.length > 0 && (
+      {isManager && !viewArchive && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && failedSync.length > 0 && (
         <div className="bg-red-bg border border-red/30 rounded-2xl px-4 py-3 flex items-center gap-3">
           <span className="text-2xl">⚠️</span>
           <div className="flex-1 min-w-0">
@@ -2698,7 +2743,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Stats row */}
-      {!viewTracking && !viewMonthly && !viewWallet && <div className="grid grid-cols-4 gap-2">
+      {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'وارد',  value: stats.pending,                  color: 'text-muted',    bg: 'bg-surface-alt', onClick: () => setStatus('pending')   },
           { label: 'تجهيز', value: stats.preparing + stats.ready,  color: 'text-amber-fg', bg: 'bg-amber-bg',    onClick: () => setStatus('preparing') },
@@ -2714,7 +2759,7 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Market tabs — employee's own market first; everyone can browse both */}
-      {!myOrders && !viewTracking && !viewMonthly && !viewWallet && (
+      {!myOrders && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
         <div className="flex gap-2">
           {(() => {
             const mk = [
@@ -2733,7 +2778,7 @@ export default function OrdersScreen() {
       )}
 
       {/* Status filter */}
-      {!viewTracking && !viewMonthly && !viewWallet && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         <button onClick={() => setStatus('all')}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition
             ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
@@ -2752,12 +2797,12 @@ export default function OrdersScreen() {
       </div>}
 
       {/* Search */}
-      {!viewTracking && !viewMonthly && !viewWallet && <input value={search} onChange={e => setSearch(e.target.value)}
+      {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />}
 
       {/* فلتر البائع + المدة */}
-      {!viewTracking && !viewMonthly && !viewWallet && isManager && (
+      {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && isManager && (
         <div className="flex gap-2 flex-wrap">
           <select value={sellerFilter} onChange={e => setSellerFilter(e.target.value)}
             className="flex-1 min-w-[120px] border border-border rounded-xl px-3 py-2 text-xs bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30">
@@ -2790,6 +2835,28 @@ export default function OrdersScreen() {
         />
       )}
 
+      {/* Deleted (soft-deleted) — managers: restore */}
+      {viewDeleted && isManager && (
+        <div className="space-y-3">
+          <p className="text-xs text-muted">🗑 {deletedLoading ? 'جارٍ التحميل…' : `${deletedOrders.length} طلب محذوف — يمكن استرجاعه`}</p>
+          {deletedOrders.map(o => (
+            <div key={o.id} className="bg-surface border border-red/20 rounded-2xl p-3 flex items-center justify-between gap-2 opacity-80">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-text truncate">{o.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {o.customer_name || o.order_id}</p>
+                <p className="text-[10px] text-muted">حُذف: {o.deleted_at ? new Date(o.deleted_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}{o.deleted_by ? ` · ${o.deleted_by}` : ''}</p>
+              </div>
+              <button onClick={() => handleRestore(o)}
+                className="px-3 py-2 rounded-xl bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition shrink-0">
+                ↩️ استرجاع
+              </button>
+            </div>
+          ))}
+          {!deletedLoading && deletedOrders.length === 0 && (
+            <div className="text-center py-12 text-muted border-2 border-dashed border-border rounded-2xl text-sm">لا توجد طلبات محذوفة.</div>
+          )}
+        </div>
+      )}
+
       {/* Tracking Tab */}
       {viewTracking && (
         <TrackingTab
@@ -2800,9 +2867,9 @@ export default function OrdersScreen() {
       )}
 
       {/* List */}
-      {!viewTracking && !viewMonthly && loading ? (
+      {!viewTracking && !viewMonthly && !viewDeleted && loading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-36 bg-surface-alt animate-pulse rounded-2xl" />)}</div>
-      ) : !viewTracking && filtered.length === 0 ? (
+      ) : !viewTracking && !viewDeleted && filtered.length === 0 ? (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">📋</p>
           <p className="text-sm font-bold">{myOrders ? 'لا توجد طلبات باسمك بعد' : 'لا توجد طلبات'}</p>
@@ -2813,7 +2880,7 @@ export default function OrdersScreen() {
             </button>
           )}
         </div>
-      ) : !viewTracking && !viewMonthly ? (
+      ) : !viewTracking && !viewMonthly && !viewDeleted ? (
         <div className="space-y-3">
           {filtered.map(o => (
             <OrderCard key={o.id} order={o}

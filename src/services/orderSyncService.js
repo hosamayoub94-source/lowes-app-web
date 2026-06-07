@@ -101,6 +101,25 @@ export async function softDeleteOrder(order, by) {
   if (isSyncable({ ...order, deleted_at: null })) syncToSheet(order.id);
 }
 
+// استرجاع طلب محذوف (للمدير): يصفّر deleted_at ويعيد المزامنة.
+export async function restoreOrder(order, by) {
+  const { error } = await supabase.from('orders')
+    .update({ deleted_at: null, deleted_by: null, updated_by: by || null, updated_at: new Date().toISOString() })
+    .eq('id', order.id);
+  if (error) throw new Error(error.message);
+  if (['syria', 'turkey'].includes(order.market) && order.archived !== true) syncToSheet(order.id);
+}
+
+// قائمة الطلبات المحذوفة (soft-deleted) — للمدير.
+export async function listDeleted({ limit = 200 } = {}) {
+  const { data } = await supabase.from('orders')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
 // ── حارس التكرار ──────────────────────────────────────────────
 // يحذّر لو نفس الهاتف + منتج متطابق خلال X دقيقة بنفس السوق.
 export async function findDuplicates({ phone, items = [], market, withinMinutes = 10, excludeId = null }) {

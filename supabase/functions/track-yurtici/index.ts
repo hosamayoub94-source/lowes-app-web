@@ -79,6 +79,35 @@ async function fetchTracking(barcodes: string[], token: string): Promise<any[]> 
   return Array.isArray(data) ? data : (data?.trackingList ?? data?.data ?? []);
 }
 
+const STATUS_AR: Record<string, string> = {
+  pending:'وارد جديد', preparing:'في التجهيز', ready:'جاهز', motor:'قيد توصيل الموتور',
+  at_center:'في المركز', shipped:'في النقل', on_way:'في الطريق للعميل', delivered:'تم التسليم',
+  waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع',
+  settled:'تمت التسوية', cancelled:'ملغي',
+};
+
+// إشعار البائع عند تغيّر حالة طلبه من شركة الشحن (server-side).
+async function notifySeller(supabase: any, order: any, newStatus: string, sourceLabel: string) {
+  try {
+    if (!order?.handler_name) return;
+    const { data: prof } = await supabase.from('profiles').select('id').eq('employee_name', order.handler_name).maybeSingle();
+    if (!prof?.id) return;
+    const label = STATUS_AR[newStatus] || newStatus;
+    const title = `📦 تحديث حالة طلب ${order.customer_name || ''}`.trim();
+    const message = `انتقل الطلب إلى «${label}» (من ${sourceLabel}).`;
+    await supabase.from('notifications').insert({
+      user_id: prof.id, type: 'system_alert', title, message,
+      entity_type: 'order', entity_id: String(order.id), severity: 'info',
+      metadata: { status: newStatus, source: sourceLabel, kind: 'order_status_remote' },
+      dedup_key: `${prof.id}|order_status|${order.id}|${newStatus}`,
+    }).then(() => {}, () => {});
+    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: 'POST', headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: prof.id, title, body: message, url: '/orders' }),
+    }).then(() => {}, () => {});
+  } catch { /* best-effort */ }
+}
+
 // ── Sync order to sheet (re-use existing edge fn) ────────────
 async function syncSheet(orderId: string) {
   try {
@@ -101,7 +130,7 @@ Deno.serve(async (req) => {
   // 1. Load all active Turkey orders with a tracking number
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, shipping_company, status, market')
+    .select('id, order_id, tracking_number, shipping_company, status, market, handler_name, customer_name')
     .eq('market', 'turkey')
     .not('tracking_number', 'is', null)
     .not('tracking_number', 'eq', '')
@@ -184,6 +213,8 @@ Deno.serve(async (req) => {
           order_id: order.id, from_status: order.status, to_status: newStatus,
           changed_by: 'يورتيتشي', source: 'yurtici',
         }).then(() => {}, () => {});
+        // إشعار البائع بتغيّر الحالة من شركة الشحن
+        await notifySeller(supabase, order, newStatus, 'يورتيتشي');
         // 6. Sync sheet
         await syncSheet(order.id);
         console.log(`✅ ${order.order_id}: ${order.status} → ${newStatus}`);
