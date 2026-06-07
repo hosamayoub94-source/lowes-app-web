@@ -251,8 +251,13 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
   const usdTotal = emp.usdTotal != null
     ? emp.usdTotal
     : emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
-  const targetU  = Number(targetUsd) || 0;
-  const pct = targetU > 0 ? Math.min(100, Math.round((usdTotal / targetU) * 100)) : 0;
+  // Target progress — in the market's own currency: Turkey TRY vs TRY target,
+  // Syria catalog-USD vs USD target (so the bar matches how commission is judged).
+  const isSyria = (emp.market || 'turkey') === 'syria';
+  const progVal    = isSyria ? usdTotal : tryTotal;
+  const progTarget = isSyria ? (Number(targetUsd) || 0) : (Number(rulesById?.turkey?.monthly_target_try) || 0);
+  const progSym    = isSyria ? '$' : '₺';
+  const pct = progTarget > 0 ? Math.min(100, Math.round((progVal / progTarget) * 100)) : 0;
 
   // Tiered, per-market commission breakdown (shared with the Excel export)
   const { cur, aboveComm, prepaidTier1, prepaidTier2, manualAdj, net: netCommission, prepaidCount, reachedPrepaid } =
@@ -285,13 +290,13 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
         </div>
       </div>
 
-      {/* Target progress (USD-equivalent — unified across currencies) */}
-      {targetU > 0 && (
+      {/* Target progress — in the market's own currency */}
+      {progTarget > 0 && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted font-bold">🎯 التارجت</span>
             <span className={`font-extrabold ${pct >= 100 ? 'text-green-fg' : 'text-text'}`}>
-              ${usdTotal.toFixed(0)} / ${targetU.toLocaleString('en-US')} ({pct}%)
+              {progSym}{Math.round(progVal).toLocaleString('en-US')} / {progSym}{progTarget.toLocaleString('en-US')} ({pct}%)
             </span>
           </div>
           <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
