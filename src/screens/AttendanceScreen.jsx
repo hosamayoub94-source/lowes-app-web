@@ -343,11 +343,19 @@ export default function AttendanceScreen() {
   const noteRef = useRef(null);
   const today   = week[todaySlash()] ?? null;
 
+  // ── Shift model (decoupled from calendar date) ────────────────
+  // A shift is "open" while you've checked in and have NOT yet checked
+  // out for THAT shift. Night shifts cross midnight, so a stray "out"
+  // row (e.g. 01:00) from yesterday's shift must NOT make today look
+  // "done" and block a fresh morning check-in.
+  const openShift      = !!today?.checkIn && (!today?.checkOut || today.checkOut < today.checkIn);
+  const completedToday = !!today?.checkIn && !!today?.checkOut && today.checkOut >= today.checkIn;
+
   // Live clock + check-out lock countdown
   useEffect(() => {
     const tick = () => {
       setClock(nowHHMMSS());
-      if (today?.checkIn && !today?.checkOut) {
+      if (openShift) {
         setDuration(calcDuration(today.checkIn, null) ?? '');
         const left = MIN_MINUTES_BEFORE_CHECKOUT - minutesSinceCheckIn(today.checkIn);
         setCheckoutLockLeft(left > 0 ? left : 0);
@@ -437,15 +445,9 @@ export default function AttendanceScreen() {
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3500); };
 
   // ── Check-in ─────────────────────────────────────────────────
-  // Tap → open selfie camera → doCheckIn(url)
-  const handleCheckIn = () => {
-    if (saving || today?.checkIn) return;
-    setError(null);
-    setCameraMode('in');
-  };
-
-  // Start a NEW check-in even if the day already shows complete
-  // (second shift, or fixing a wrong/old record — e.g. admin).
+  // Single entry point: open the selfie camera, then doCheckIn(url).
+  // Always allowed when there's no open shift (handles night shifts that
+  // cross midnight and second shifts within the same calendar day).
   const handleNewCheckIn = () => {
     if (saving) return;
     setError(null);
@@ -576,20 +578,21 @@ export default function AttendanceScreen() {
   const handleQuizSkip     = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
 
   const isCheckedIn  = !!today?.checkIn;
-  // Counts as "checked out" only when the latest out is at/after the latest in.
-  // A new check-in after an earlier out re-opens the day (multiple shifts).
-  const isCheckedOut = !!today?.checkOut && (!today?.checkIn || today.checkOut >= today.checkIn);
-  const isComplete   = isCheckedIn && isCheckedOut;
+  const isCheckedOut = completedToday;
+  const isComplete   = completedToday;
 
-  const btnState = isComplete ? 'done' : isCheckedIn ? 'checkout' : 'checkin';
+  // Primary action follows the OPEN SHIFT, never the calendar day:
+  //   open shift  → check-out
+  //   no open shift → check-in (always available — even after completing an
+  //                   earlier shift today, or with only a night-shift "out" row)
+  const btnState = openShift ? 'checkout' : 'checkin';
   // Check-out is locked during the first hour after check-in
   const checkoutLocked = btnState === 'checkout' && checkoutLockLeft > 0;
   const BIG_BTN = checkoutLocked
     ? { label: `الانصراف متاح بعد ${checkoutLockLeft} د`, icon: '⏳', cls: 'bg-surface-alt text-muted cursor-not-allowed shadow-none border border-border' }
     : {
-        checkin:  { label: 'تسجيل الحضور',    icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
+        checkin:  { label: completedToday ? 'بدء وردية جديدة' : 'تسجيل الحضور', icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
         checkout: { label: 'تسجيل الانصراف',  icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
-        done:     { label: 'اليوم مكتمل 🎉',   icon: '✨', cls: 'bg-emerald-500 text-white cursor-default shadow-emerald-200' },
       }[btnState];
 
   // Stats
@@ -654,8 +657,8 @@ export default function AttendanceScreen() {
 
         {/* Big action button */}
         <button
-          onClick={checkoutLocked ? undefined : btnState === 'checkin' ? handleCheckIn : btnState === 'checkout' ? handleCheckOut : undefined}
-          disabled={saving || btnState === 'done' || checkoutLocked}
+          onClick={checkoutLocked ? undefined : btnState === 'checkin' ? handleNewCheckIn : handleCheckOut}
+          disabled={saving || checkoutLocked}
           className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl text-lg font-extrabold shadow-xl transition-all active:scale-[0.97] disabled:active:scale-100 ${BIG_BTN.cls}`}
         >
           {saving ? (
@@ -673,17 +676,12 @@ export default function AttendanceScreen() {
           </p>
         )}
 
-        {/* New check-in — allowed even when the day shows complete
-            (second shift, or fixing a wrong/old record). */}
-        {btnState === 'done' && (
-          <button
-            onClick={handleNewCheckIn}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border border-teal/40 text-teal bg-teal/5 hover:bg-teal/10 transition-all active:scale-[0.98] disabled:opacity-60"
-          >
-            <span className="text-lg">➕</span>
-            تسجيل حضور جديد
-          </button>
+        {/* Completed-today hint — the primary button already offers a fresh
+            check-in (decoupled from the calendar day), so no dead-end here. */}
+        {completedToday && !openShift && (
+          <p className="text-center text-xs text-emerald-600 font-semibold -mt-1">
+            🎉 أنجزت وردية اليوم — يمكنك بدء وردية جديدة في أي وقت
+          </p>
         )}
 
         {/* Today stats row */}
