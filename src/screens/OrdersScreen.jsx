@@ -1571,11 +1571,10 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
 }
 
 // ── Order Form Modal ──────────────────────────────────────────
-function OrderFormModal({ order, onClose, onSave, allOrders }) {
+function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null }) {
   const { name: userName, team, order_market } = useAuth();
-  // Default a brand-new order to the seller's own market so it doesn't land in
-  // a market they can't see. Falls back to Turkey when unknown.
-  const myMarket = order_market ?? teamToMarket(team) ?? 'turkey';
+  // «ماكنة» السوق المخصّصة تقفل سوق الطلب الجديد. وإلا سوق البائع.
+  const myMarket = forcedMarket ?? order_market ?? teamToMarket(team) ?? 'turkey';
   const isEdit = !!order?.id;
   const prefill = order?.__prefill || null; // reorder from a customer
 
@@ -1606,7 +1605,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders }) {
   } : prefill ? {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
-    market:        prefill.market || 'turkey',
+    market:        forcedMarket || prefill.market || 'turkey',
     brand:         prefill.brand || 'lowes',
     currency:      prefill.market === 'syria' ? 'SYP' : 'TRY',
     customer_name: prefill.customer_name || '',
@@ -2213,20 +2212,25 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
 // ══════════════════════════════════════════════════════════════
 // Main Screen
 // ══════════════════════════════════════════════════════════════
-export default function OrdersScreen() {
+export default function OrdersScreen({ forcedMarket = null }) {
   const { role, team, name: userName, id: userId, order_role, order_market } = useAuth();
 
   const isManager        = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
   const isFulfillment    = order_role === 'fulfillment';
   const isStorage        = order_role === 'storage';   // تخزين/تغليف — يشوف الكل، لا يعدّل
   const userMarket       = order_market ?? teamToMarket(team) ?? null;
+  const lockedMarket     = forcedMarket || null;       // «ماكنة» مخصّصة لسوق واحد
   const canAdvanceOrders = isFulfillment || isManager;
   // البائع يقدر يغيّر حالة طلبه هو فقط
   const canAdvanceOrder  = (o) => canAdvanceOrders || o.handler_name === userName;
 
   const [orders,        setOrders]        = useState([]);
   const [loading,       setLoading]       = useState(true);
-  const [market,        setMarket]        = useState(userMarket ?? 'all');
+  const [market,        setMarket]        = useState(lockedMarket ?? userMarket ?? 'all');
+  const [brandFilter,   setBrandFilter]   = useState('all');   // تركيا: lowes/strong
+
+  // قفل السوق على ماكنة السوق المخصّصة (لا يمكن تغييره من التابات).
+  useEffect(() => { if (lockedMarket) setMarket(lockedMarket); }, [lockedMarket]);
   const [status,        setStatus]        = useState(isFulfillment ? 'pending' : 'all');
   const [search,        setSearch]        = useState('');
   const [modal,         setModal]         = useState(null);    // null | 'new' | order
@@ -2542,6 +2546,8 @@ export default function OrdersScreen() {
   const filtered = useMemo(() => orders.filter(o => {
     if (myOrders && !myNames.has(o.handler_name)) return false;
     if (market !== 'all' && o.market !== market) return false;
+    // فلتر البراند (تركيا: LOWES vs سترونغ)
+    if (brandFilter !== 'all' && (o.brand || 'lowes').toLowerCase() !== brandFilter) return false;
     if (status !== 'all' && o.status !== status) return false;
     if (sellerFilter && canonicalSeller(o.handler_name) !== sellerFilter) return false;
     if (dateFrom) {
@@ -2559,7 +2565,7 @@ export default function OrdersScreen() {
              o.phone_1?.includes(q);
     }
     return true;
-  }), [orders, market, status, search, myOrders, myNames, sellerFilter, dateFrom, dateTo]);
+  }), [orders, market, brandFilter, status, search, myOrders, myNames, sellerFilter, dateFrom, dateTo]);
 
   // قائمة البائعين الفريدة من الطلبات الحالية
   const sellerOptions = useMemo(() =>
@@ -2603,7 +2609,10 @@ export default function OrdersScreen() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-text">
-            {isFulfillment ? '📦 طلبات التجهيز' : 'إدارة الطلبات'}
+            {isFulfillment ? '📦 طلبات التجهيز'
+              : lockedMarket === 'syria'  ? '🇸🇾 طلبات سوريا'
+              : lockedMarket === 'turkey' ? "🇹🇷 طلبات تركيا — LOWE'S وسترونغ"
+              : 'إدارة الطلبات'}
           </h1>
           <p className="text-xs text-muted mt-0.5">
             {viewArchive
@@ -2758,8 +2767,8 @@ export default function OrdersScreen() {
         ))}
       </div>}
 
-      {/* Market tabs — employee's own market first; everyone can browse both */}
-      {!myOrders && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
+      {/* Market tabs — مخفية في «ماكنة» السوق المخصّصة (السوق مقفل) */}
+      {!lockedMarket && !myOrders && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
         <div className="flex gap-2">
           {(() => {
             const mk = [
@@ -2772,6 +2781,23 @@ export default function OrdersScreen() {
               className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
                 ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
               {m.icon} {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* فلتر البراند — ماكنة تركيا فقط (LOWES / سترونغ مدموجان) */}
+      {lockedMarket === 'turkey' && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
+        <div className="flex gap-2">
+          {[
+            { key: 'all',    label: 'الكل',    icon: '🌍' },
+            { key: 'lowes',  label: "LOWE'S",  icon: '🌿' },
+            { key: 'strong', label: 'سترونغ',  icon: '💪' },
+          ].map(b => (
+            <button key={b.key} onClick={() => setBrandFilter(b.key)}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+                ${brandFilter === b.key ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+              {b.icon} {b.label}
             </button>
           ))}
         </div>
@@ -2907,6 +2933,7 @@ export default function OrdersScreen() {
         <OrderFormModal
           order={modal === 'new' ? null : modal}
           allOrders={orders}
+          forcedMarket={lockedMarket}
           onClose={() => setModal(null)}
           onSave={handleSave}
         />

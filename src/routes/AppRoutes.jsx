@@ -5,7 +5,8 @@
 // easier inspection in the build output.
 // =============================================================
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@hooks/useAuth';
 import { MainLayout } from '@layouts/MainLayout';
 import { AuthLayout } from '@layouts/AuthLayout';
 import { LoadingScreen } from '@components/ui/Loading';
@@ -77,6 +78,14 @@ const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
 const FINANCE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
 const SALES_ROLES   = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER];
+
+// /orders → يحوّل لماكنة سوق المستخدم (سوريا/تركيا) مع الحفاظ على state (إعادة الطلب).
+function OrdersRedirect() {
+  const { order_market, team } = useAuth();
+  const location = useLocation();
+  const m = order_market ?? (team && String(team).includes('سوريا') ? 'syria' : 'turkey');
+  return <Navigate to={m === 'syria' ? ROUTES.ORDERS_SYRIA : ROUTES.ORDERS_TURKEY} replace state={location.state} />;
+}
 
 export function AppRoutes() {
   return (
@@ -255,7 +264,9 @@ export function AppRoutes() {
           <Route path={ROUTES.ADVANCES} element={<AdvanceRequestsScreen />} />
           <Route path={ROUTES.REVIEWS}  element={<PerformanceReviewScreen />} />
           <Route path="/field-crm"      element={<FieldCRMScreen />} />
-          <Route path={ROUTES.ORDERS}   element={<OrdersScreen />} />
+          <Route path={ROUTES.ORDERS}         element={<OrdersRedirect />} />
+          <Route path={ROUTES.ORDERS_SYRIA}   element={<OrdersScreen forcedMarket="syria" />} />
+          <Route path={ROUTES.ORDERS_TURKEY}  element={<OrdersScreen forcedMarket="turkey" />} />
           <Route path="/mystery-shopper" element={
             <ProtectedRoute roles={MANAGEMENT}>
               <MysteryShopperScreen />

@@ -73,8 +73,10 @@ export const ROUTES = {
   SOCIAL_TEAM:   '/social-team',
   PROFITABILITY: '/profitability',
 
-  // Orders
+  // Orders — ماكنتان منفصلتان (سوريا / تركيا) + /orders يحوّل لسوق المستخدم
   ORDERS: '/orders',
+  ORDERS_SYRIA: '/orders/syria',
+  ORDERS_TURKEY: '/orders/turkey',
 
   // Warehouses
   WAREHOUSES: '/warehouses',

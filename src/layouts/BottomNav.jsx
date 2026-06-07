@@ -7,9 +7,10 @@ import { usePermissions } from '@hooks/usePermissions';
 import { bottomTabsForRole } from '@data/navigation';
 
 export function BottomNav() {
-  const { role } = useAuth();
+  const { role, order_market, team } = useAuth();
   const { permissions } = usePermissions();
-  const tabs = bottomTabsForRole(role, permissions);
+  const userMarket = order_market ?? (team && String(team).includes('سوريا') ? 'syria' : null);
+  const tabs = bottomTabsForRole(role, permissions, userMarket);
   if (!tabs.length) return null;
 
   return (

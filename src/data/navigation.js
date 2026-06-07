@@ -35,7 +35,8 @@ export const NAV_ITEMS = [
   { id: 'workspace',    label: 'الرئيسية',   icon: '🏠', path: '/',            roles: ALL,                 group: 'core' },
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
-  { id: 'orders',       label: 'الطلبات',    icon: '🛒', path: '/orders',      roles: [E, M, A, SM, MB],   group: 'sales' },
+  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
+  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
@@ -114,9 +115,11 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
 };
 
-export function bottomTabsForRole(role, permSet = null) {
+export function bottomTabsForRole(role, permSet = null, userMarket = null) {
   if (!role) return [];
-  const ids = ROLE_BOTTOM_TABS[role] || [];
+  // «orders» في الشريط السفلي = ماكنة سوق المستخدم (سوريا/تركيا).
+  const ordersId = `orders-${userMarket === 'syria' ? 'syria' : 'turkey'}`;
+  const ids = (ROLE_BOTTOM_TABS[role] || []).map(id => id === 'orders' ? ordersId : id);
   const all = navItemsForRole(role, permSet);
   const byId = Object.fromEntries(all.map(i => [i.id, i]));
   return ids.map(id => byId[id]).filter(Boolean);
