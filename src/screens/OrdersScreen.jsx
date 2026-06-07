@@ -2304,24 +2304,40 @@ export default function OrdersScreen() {
     // Cancelling / returning releases reserved stock back to the source warehouse
     if (order && RELEASE_STATUSES.includes(newStatus)) releaseForOrder({ ...order, status: newStatus }, userName);
 
-    // ── Auto accounting entry when delivered ──────────────────────
+    // ── Auto accounting entry when delivered (idempotent) ─────────
+    // Records the cash collected on delivery as income, tied to the order via
+    // reference_no so re-delivering / toggling status never double-counts.
     if (newStatus === 'delivered' && order && Number(order.amount) > 0) {
       try {
-        const cur  = (order.currency || 'SYP').toUpperCase();
-        const amt  = Number(order.amount);
-        const orderNum = order.order_number || order.id?.slice(0, 8) || '—';
-        await supabase.from('accounting_entries').insert({
-          entry_type:     'income',
-          category:       'مبيعات أونلاين',
-          description:    `مبيعات — طلب #${orderNum} (${order.customer_name || order.client_name || '—'})`,
-          amount_usd:     cur === 'USD' ? amt : 0,
-          amount_try:     cur === 'TRY' ? amt : 0,
-          amount_syp:     cur === 'SYP' ? amt : 0,
-          payment_method: order.payment_method === 'bank' ? 'bank' : 'cash',
-          entry_date:     new Date().toISOString().slice(0, 10),
-          notes:          `تسجيل تلقائي عند التسليم — البائع: ${userName}`,
-          created_by:     userName,
-        });
+        const cur     = (order.currency || 'SYP').toUpperCase();
+        const orderNum = order.order_id || order.order_number || order.id?.slice(0, 8) || '—';
+        const ref     = `ORD-${orderNum}`;
+        // Skip if this order already has an income entry (idempotency guard).
+        const { data: existing } = await supabase
+          .from('accounting_entries').select('id').eq('reference_no', ref).limit(1).maybeSingle();
+        if (!existing) {
+          // Amount actually collected: partial → paid_amount, otherwise full.
+          const amt = order.payment_status === 'partial' && Number(order.paid_amount) > 0
+            ? Number(order.paid_amount) : Number(order.amount);
+          // Map to a specific treasury wallet by currency + method.
+          const isBank = order.payment_method === 'bank';
+          const wallet = cur === 'USD' ? (isBank ? 'bank_usd' : 'cash_usd')
+                       : cur === 'TRY' ? (isBank ? 'bank_try' : 'cash_try')
+                       : 'cash_syp';
+          await supabase.from('accounting_entries').insert({
+            entry_type:     'income',
+            category:       'مبيعات أونلاين',
+            description:    `مبيعات — طلب #${orderNum} (${order.customer_name || order.client_name || '—'})`,
+            amount_usd:     cur === 'USD' ? amt : 0,
+            amount_try:     cur === 'TRY' ? amt : 0,
+            amount_syp:     cur === 'SYP' ? amt : 0,
+            payment_method: wallet,
+            reference_no:   ref,
+            entry_date:     new Date().toISOString().slice(0, 10),
+            notes:          `تسجيل تلقائي عند التسليم — البائع: ${userName}`,
+            created_by:     userName,
+          });
+        }
       } catch (e) {
         console.warn('⚠️ لم يتم تسجيل القيد المحاسبي تلقائياً:', e.message);
       }
