@@ -216,7 +216,8 @@ function ProductModal({ open, initial, onClose, onSaved }) {
 }
 
 // ── Product card ───────────────────────────────────────────────
-function ProductCard({ p, onEdit, onMovements, onStock, canManage }) {
+const WH_ICON = { central: '🏛️', sales: '📦', distributor: '🚙', returns: '↩️' };
+function ProductCard({ p, onEdit, onMovements, onStock, canManage, warehouses = [] }) {
   const st = stockColor(p.quantity, p.min_stock);
   return (
     <div className={`bg-surface border rounded-2xl p-4 transition-colors ${p.quantity <= p.min_stock ? 'border-amber/50' : 'border-border'}`}>
@@ -244,6 +245,21 @@ function ProductCard({ p, onEdit, onMovements, onStock, canManage }) {
           <p className="text-[10px] text-muted">TRY</p>
         </div>
       </div>
+
+      {/* Per-warehouse breakdown (Syria warehouses with stock) */}
+      {warehouses.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {warehouses.map(w => {
+            const q = Number(p.perWh?.[w.id] || 0);
+            if (q === 0) return null;
+            return (
+              <span key={w.id} className={`text-[10px] px-2 py-0.5 rounded-full ${q < 0 ? 'bg-red-bg text-red-fg' : 'bg-surface-alt text-muted'}`}>
+                {WH_ICON[w.type] || '🏬'} {w.name.replace('مبيعات ', '').replace('المخزن ', '')}: <b className="tabular-nums text-text">{q}</b>
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <a
@@ -318,6 +334,64 @@ function MovementModal({ product, onClose }) {
             ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Reorder suggestions — products below min + 30-day demand ──
+function ReorderPanel() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const since = new Date(Date.now() - 30 * 86400000).toISOString();
+      const [whRes, prodRes, stockRes, mvRes] = await Promise.all([
+        supabase.from('wh_warehouses').select('id, market').eq('is_active', true),
+        supabase.from('products').select('id, name, sku, min_stock').eq('is_active', true),
+        supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
+        supabase.from('wh_movements').select('product_id, quantity, type, created_at').eq('type', 'reserve').gte('created_at', since),
+      ]);
+      const syria = new Set((whRes.data || []).filter(w => w.market !== 'turkey').map(w => w.id));
+      const qty = {};
+      (stockRes.data || []).forEach(s => { if (syria.has(s.warehouse_id)) qty[s.product_id] = (qty[s.product_id] || 0) + Number(s.quantity || 0); });
+      const sold30 = {};
+      (mvRes.data || []).forEach(m => { sold30[m.product_id] = (sold30[m.product_id] || 0) + Number(m.quantity || 0); });
+      const out = (prodRes.data || []).map(p => {
+        const have = qty[p.id] ?? 0;
+        const min  = Number(p.min_stock) || 0;
+        const demand = sold30[p.id] || 0;
+        // suggest: cover next 30 days of demand + reach min, minus current stock
+        const suggest = Math.max(0, Math.ceil(Math.max(min, demand) - have));
+        return { ...p, have, min, demand, suggest };
+      }).filter(r => r.suggest > 0 || r.have <= r.min)
+        .sort((a, b) => b.suggest - a.suggest);
+      setRows(out);
+    })();
+  }, []);
+
+  if (rows === null) return <div className="bg-surface border border-border rounded-2xl p-4 text-sm text-muted text-center animate-pulse">…</div>;
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-2">
+      <p className="text-sm font-bold text-text">🔁 يحتاج توريد ({rows.length})</p>
+      {rows.length === 0 ? <p className="text-xs text-green-600">كل المنتجات فوق الحد الأدنى ✓</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="text-[10px] text-muted">
+              <th className="text-right py-1">المنتج</th><th>المتوفّر</th><th>الحد</th><th>مباع 30ي</th><th className="text-teal">اطلب</th>
+            </tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className="border-t border-border/40">
+                  <td className="py-1.5 text-text truncate max-w-[12rem]">{r.name}</td>
+                  <td className={`text-center tabular-nums ${r.have <= 0 ? 'text-red-fg font-bold' : r.have <= r.min ? 'text-amber-fg' : 'text-muted'}`}>{r.have}</td>
+                  <td className="text-center tabular-nums text-muted">{r.min}</td>
+                  <td className="text-center tabular-nums text-muted">{r.demand}</td>
+                  <td className="text-center tabular-nums font-extrabold text-teal">{r.suggest}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -562,6 +636,8 @@ export default function InventoryScreen() {
   const [stockProd, setStockProd] = useState(null);
   const [showCatSales, setShowCatSales] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [showReorder, setShowReorder] = useState(false);
+  const [syriaWhList, setSyriaWhList] = useState([]);
   const [dbMissing, setDbMissing] = useState(false);
   const { name: userName } = useAuth();
   const { can } = usePermissions();
@@ -583,12 +659,17 @@ export default function InventoryScreen() {
         if (prodRes.error.code === '42P01') { setDbMissing(true); return; }
         throw new Error(prodRes.error.message);
       }
-      const syriaWh = new Set((whRes.data || []).filter(w => w.market !== 'turkey').map(w => w.id));
-      const qtyBy = {};
+      const syriaList = (whRes.data || []).filter(w => w.market !== 'turkey')
+        .sort((a, b) => (a.type === 'central' ? -1 : b.type === 'central' ? 1 : 0));
+      const syriaWh = new Set(syriaList.map(w => w.id));
+      setSyriaWhList(syriaList);
+      const qtyBy = {}, perWh = {};
       (stockRes.data || []).forEach(s => {
-        if (syriaWh.has(s.warehouse_id)) qtyBy[s.product_id] = (qtyBy[s.product_id] || 0) + Number(s.quantity || 0);
+        if (!syriaWh.has(s.warehouse_id)) return;
+        qtyBy[s.product_id] = (qtyBy[s.product_id] || 0) + Number(s.quantity || 0);
+        (perWh[s.product_id] ??= {})[s.warehouse_id] = Number(s.quantity || 0);
       });
-      setProducts((prodRes.data || []).map(p => ({ ...p, quantity: qtyBy[p.id] ?? 0 })));
+      setProducts((prodRes.data || []).map(p => ({ ...p, quantity: qtyBy[p.id] ?? 0, perWh: perWh[p.id] || {} })));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -729,12 +810,19 @@ ON CONFLICT (sku) DO NOTHING;`}
         <StatCard label="قيمة المخزون"     value={loading ? '—' : '$' + Math.round(totalValue).toLocaleString()} tone="green" />
       </div>
 
-      {/* Sales by category */}
-      <button onClick={() => setShowCatSales(v => !v)}
-        className="flex items-center gap-2 text-sm font-bold text-text hover:text-teal transition">
-        📊 مبيعات الأقسام {showCatSales ? '▲' : '▼'}
-      </button>
+      {/* Sales by category + reorder suggestions */}
+      <div className="flex gap-4 flex-wrap">
+        <button onClick={() => setShowCatSales(v => !v)}
+          className="flex items-center gap-2 text-sm font-bold text-text hover:text-teal transition">
+          📊 مبيعات الأقسام {showCatSales ? '▲' : '▼'}
+        </button>
+        <button onClick={() => setShowReorder(v => !v)}
+          className="flex items-center gap-2 text-sm font-bold text-text hover:text-teal transition">
+          🔁 يحتاج توريد {showReorder ? '▲' : '▼'}
+        </button>
+      </div>
       {showCatSales && <CategorySalesPanel />}
+      {showReorder && <ReorderPanel />}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
@@ -779,7 +867,7 @@ ON CONFLICT (sku) DO NOTHING;`}
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map(p => (
-                <ProductCard key={p.id} p={p} onEdit={openEdit} onMovements={setMoveProd} onStock={setStockProd} canManage={canManageStock} />
+                <ProductCard key={p.id} p={p} onEdit={openEdit} onMovements={setMoveProd} onStock={setStockProd} canManage={canManageStock} warehouses={syriaWhList} />
               ))}
             </div>
           )}
