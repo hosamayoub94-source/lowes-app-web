@@ -234,12 +234,51 @@ export async function releaseForOrder(order, performedBy) {
 }
 
 // Recent movements (for the activity log).
-export async function listMovements({ limit = 50 } = {}) {
-  const { data, error } = await supabase
+export async function listMovements({ limit = 50, warehouseId = null } = {}) {
+  let q = supabase
     .from('wh_movements')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (warehouseId) q = q.or(`from_warehouse_id.eq.${warehouseId},to_warehouse_id.eq.${warehouseId}`);
+  const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
+}
+
+// Create a new (sub-)warehouse. Syria sub-centers use type 'distributor'.
+export async function createWarehouse({ name, type = 'distributor', market = 'syria', ownerName = null }) {
+  const { data, error } = await supabase
+    .from('wh_warehouses')
+    .insert({ name: String(name).trim(), type, market, owner_name: ownerName || null, is_active: true })
+    .select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+// Rename / toggle a warehouse.
+export async function updateWarehouse(id, patch) {
+  const { error } = await supabase.from('wh_warehouses').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+// Active sellers and their current warehouse assignment (profiles.warehouse_id).
+export async function listSellersWithWarehouse() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, employee_name, team, warehouse_id')
+    .eq('is_active', true)
+    .order('employee_name');
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Assign a seller to a warehouse → their orders deduct from it (reserveForOrder
+// resolves the seller's own warehouse first). Pass null to unassign.
+export async function assignSellerWarehouse(profileId, warehouseId) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ warehouse_id: warehouseId || null })
+    .eq('id', profileId);
+  if (error) throw error;
 }

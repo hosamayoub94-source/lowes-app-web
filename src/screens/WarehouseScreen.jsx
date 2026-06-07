@@ -9,10 +9,97 @@ import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
 import {
   getStockMatrix, receiveStock, allocateStock, adjustStock,
+  listMovements, createWarehouse, updateWarehouse,
+  listSellersWithWarehouse, assignSellerWarehouse,
 } from '@services/warehouseService';
 
 const TYPE_LABEL = { central: '🏛️ مركزي', sales: '📦 مبيعات', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
+const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع' };
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
+
+// ── Management panel: create sub-warehouses + assign sellers + movement log ──
+function ManagePanel({ warehouses, onChanged }) {
+  const [tab, setTab] = useState('warehouses'); // warehouses | sellers | log
+  const [sellers, setSellers] = useState([]);
+  const [moves, setMoves]     = useState([]);
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy]       = useState(false);
+  const whName = (id) => warehouses.find(w => w.id === id)?.name ?? '—';
+
+  const loadSellers = useCallback(async () => { try { setSellers(await listSellersWithWarehouse()); } catch {} }, []);
+  const loadMoves   = useCallback(async () => { try { setMoves(await listMovements({ limit: 40 })); } catch {} }, []);
+  useEffect(() => { if (tab === 'sellers') loadSellers(); if (tab === 'log') loadMoves(); }, [tab, loadSellers, loadMoves]);
+
+  const addWarehouse = async () => {
+    if (!newName.trim()) return;
+    setBusy(true);
+    try { await createWarehouse({ name: newName, type: 'distributor', market: 'syria' }); setNewName(''); onChanged?.(); }
+    catch (e) { alert('فشل: ' + e.message); }
+    finally { setBusy(false); }
+  };
+  const assign = async (profileId, whId) => {
+    try { await assignSellerWarehouse(profileId, whId); loadSellers(); }
+    catch (e) { alert('فشل الإسناد: ' + e.message); }
+  };
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+      <div className="flex gap-1.5">
+        {[['warehouses','🏬 المخازن'],['sellers','👤 إسناد البائعين'],['log','📜 الحركات']].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={'px-3 py-1.5 rounded-xl text-xs font-bold transition ' + (tab===k ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text')}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'warehouses' && (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن سوريا الفرعي (مندوب/مدينة)…" className={INP} />
+            <button onClick={addWarehouse} disabled={busy || !newName.trim()} className="px-4 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 shrink-0">+ إضافة</button>
+          </div>
+          <div className="space-y-1">
+            {warehouses.map(w => (
+              <div key={w.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-alt text-sm">
+                <span className="text-text">{TYPE_LABEL[w.type]} {w.name} {w.market && <span className="text-[10px] text-muted">· {w.market}</span>}</span>
+                {w.type !== 'central' && (
+                  <button onClick={() => updateWarehouse(w.id, { is_active: !w.is_active }).then(onChanged)}
+                    className="text-[11px] text-muted hover:text-red-fg">{w.is_active ? 'تعطيل' : 'تفعيل'}</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'sellers' && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] text-muted">أسند كل بائع لمخزنه الفرعي — تُخصم طلباته منه تلقائياً.</p>
+          {sellers.map(s => (
+            <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-surface-alt">
+              <span className="text-sm text-text truncate flex-1">{s.employee_name} {s.team && <span className="text-[10px] text-muted">· {s.team}</span>}</span>
+              <select value={s.warehouse_id || ''} onChange={e => assign(s.id, e.target.value)}
+                className="border border-border rounded-lg px-2 py-1 text-xs bg-surface text-text max-w-[10rem]">
+                <option value="">— افتراضي السوق —</option>
+                {warehouses.filter(w => w.type !== 'central').map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'log' && (
+        <div className="space-y-1 max-h-72 overflow-y-auto">
+          {moves.length === 0 ? <p className="text-xs text-muted text-center py-4">لا حركات</p> : moves.map(m => (
+            <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs border-b border-border/40">
+              <span className="text-text">{MOVE_LABEL[m.type] || m.type} · <b className="tabular-nums">{m.quantity}</b></span>
+              <span className="text-muted truncate">{m.from_warehouse_id ? whName(m.from_warehouse_id) : ''}{m.to_warehouse_id ? ' → ' + whName(m.to_warehouse_id) : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ActionModal({ title, warehouses, products, mode, onClose, onSubmit }) {
   // mode: 'receive' | 'allocate' | 'adjust'
@@ -114,6 +201,7 @@ export default function WarehouseScreen() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null); // 'receive' | 'allocate' | 'adjust' | null
+  const [showManage, setShowManage] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -164,8 +252,13 @@ export default function WarehouseScreen() {
           {(canCentral || canSales) && (
             <button onClick={() => setModal('adjust')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">± جرد</button>
           )}
+          {canCentral && (
+            <button onClick={() => setShowManage(v => !v)} className={'px-3 py-2 rounded-xl text-xs font-bold transition border ' + (showManage ? 'bg-navy text-white border-navy' : 'bg-surface-alt text-muted hover:text-text border-border')}>⚙️ إدارة</button>
+          )}
         </div>
       </div>
+
+      {canCentral && showManage && <ManagePanel warehouses={warehouses} onChanged={load} />}
 
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالمنتج أو SKU..."
