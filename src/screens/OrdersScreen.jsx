@@ -16,7 +16,7 @@ import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data
 import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
-import { lookupCustomer, starLabel } from '@services/customerService';
+import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 
 // ── Google Sheet dual-write (Syria) ──────────────────────────
@@ -546,7 +546,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const byEmployee = useMemo(() => {
     const map = {};
     for (const o of delivered) {
-      const name = o.handler_name || 'غير محدد';
+      const name = canonicalSeller(o.handler_name) || 'غير محدد';
       if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {} };
       map[name].orders.push(o);
       const cur = (o.currency || 'SYP').toUpperCase();
@@ -2234,7 +2234,10 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleSave = async (form, existingId) => {
+  const handleSave = async (formRaw, existingId) => {
+    // Fold the seller name to its canonical active-profile spelling so new/edited
+    // orders never re-fragment the leaderboard (e.g. "Haneen" → "Haneen Mohamad").
+    const form = { ...formRaw, handler_name: canonicalSeller(formRaw.handler_name) };
     let savedId = existingId;
     if (existingId) {
       const { error } = await supabase.from('orders')
@@ -2303,7 +2306,7 @@ export default function OrdersScreen() {
     if (myOrders && !myNames.has(o.handler_name)) return false;
     if (market !== 'all' && o.market !== market) return false;
     if (status !== 'all' && o.status !== status) return false;
-    if (sellerFilter && o.handler_name !== sellerFilter) return false;
+    if (sellerFilter && canonicalSeller(o.handler_name) !== sellerFilter) return false;
     if (dateFrom) {
       const oDate = (o.order_date || o.created_at || '').slice(0, 10);
       if (oDate < dateFrom) return false;
@@ -2323,7 +2326,7 @@ export default function OrdersScreen() {
 
   // قائمة البائعين الفريدة من الطلبات الحالية
   const sellerOptions = useMemo(() =>
-    [...new Set(orders.map(o => o.handler_name).filter(Boolean))].sort()
+    [...new Set(orders.map(o => canonicalSeller(o.handler_name)).filter(Boolean))].sort()
   , [orders]);
 
   const stats = useMemo(() => ({

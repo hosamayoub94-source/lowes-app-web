@@ -35,6 +35,49 @@ export function getSellerAliases(userName) {
   return SELLER_ALIASES[key] || [];
 }
 
+// Canonical seller map: normalized variant (lowercase, trimmed) → active profile
+// name. Sheet imports and older data used short / differently-spelled names which
+// fragmented each seller into several leaderboard cards. canonicalSeller() folds
+// every known variant back to the one profile name. Owner-vetted (يونيو 2026),
+// including the 3 distinct «Ziena»s: «Ziena M»→Zeina Almarouf, «ZIENA»→Zina
+// Sulyman, while «Ziena Hamodi» stays itself.
+const SELLER_CANON = {
+  'haneen': 'Haneen Mohamad',
+  'rita': 'Rita Deeb',
+  'sally': 'Sally Teba', 'saly': 'Sally Teba',
+  'dalal': 'Dalal Ali',
+  'raghad': 'Raghad Almaroof', 'raghad m': 'Raghad Almaroof', 'raghad marouf': 'Raghad Almaroof',
+  'petra': 'Petra Dahdouh',
+  'zina': 'Zina Sulyman', 'zina suleiman': 'Zina Sulyman', 'ziena': 'Zina Sulyman',
+  'yasmin hahmoud': 'Yasmin Mahmoud',
+  'leen': 'Leen Alasaad',
+  'taj': 'Taj Mahmoud',
+  'arwa': 'Arwa Mohammed', 'ِarwa': 'Arwa Mohammed',
+  'diana': 'Diana Hasan',
+  'louna': 'Louna Dahdouh',
+  'thanaa': 'Thanaa Al Ashkar',
+  'hassna': 'Hassna Deeb',
+  'hla': 'Hla Al Namra', 'hla nm': 'Hla Al Namra',
+  'khedr': 'Khedr Alnisafe', 'khder': 'Khedr Alnisafe',
+  'rode': 'Rouida Alibrahim',
+  'yasmein': 'Yasmeen Alahmad', 'ِyasmein': 'Yasmeen Alahmad',
+  'bushra': 'Bushra Saidy',
+  'marah': 'Marah Bashir',
+  'sara': 'Sarah Ibrahim', 'sara ibrahem': 'Sarah Ibrahim',
+  'sara h': 'Sarah Alasaad', 'sarah asaad': 'Sarah Alasaad',
+  'ziena m': 'Zeina Almarouf',
+  'yousef': 'Yousef Alkshki',
+  'lowes': 'LOWES',
+};
+
+/** Fold a seller/handler name to its canonical active-profile spelling.
+ *  Unknown names pass through unchanged (trimmed). */
+export function canonicalSeller(name) {
+  if (!name) return name;
+  const key = String(name).trim().toLowerCase();
+  return SELLER_CANON[key] || String(name).trim();
+}
+
 // Normalize a phone to digits-only (must match the view's phone_key).
 export function phoneKey(phone) {
   return String(phone || '').replace(/\D/g, '');
