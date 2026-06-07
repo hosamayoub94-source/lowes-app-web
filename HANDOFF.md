@@ -27,7 +27,10 @@
 
 > 🔴 **إجراء مطلوب من المالك (مرة واحدة):** شغّل `src/modules/campaigns/supabase/campaigns_tracking.sql` في Supabase (Management API/SQL Editor) — يضيف أعمدة `ad_campaigns` وجدول `ad_daily_logs`. حتى يُشغّل، تظهر للمدير لافتة إعداد داخل الشاشة بنفس الـSQL. (لا أملك sbp_ token لتشغيله بنفسي.)
 
-> المتبقي: #3 دليل per-role · #5 محاسبة احترافية · #6 تطوير لوزي.
+### #5 — محاسبة احترافية (لم يبدأ البناء — بانتظار قرار حرج)
+المالك اختار «ابن الكل بالتسلسل». **قبل أي كود: يوجد نظامان متوازيان** — شاشة `/accounting` تقرأ `accounting_entries` (صف واحد، شبه فارغ) بينما البيانات الحقيقية (37 صف) في `finance_ledger`، و`payment_method="cash"` لا يطابق ids المحافظ (`cash_syp`…) → لوحة الخزائن غير وظيفية. **قرار مطلوب: أي جدول رسمي + تطبيع payment_method.** الخطة الكاملة (3 مراحل، التحويلات بلا DDL عبر صفّي transfer_out/in) في memory `accounting_v5_plan`.
+
+> المتبقي: #5 محاسبة (بانتظار قرار) · #3 دليل per-role · #6 تطوير لوزي.
 
 ### 🆕🆕 أحدث جلسة (يونيو 2026 — محاسبة التسليمات + توحيد البائعين + العمولة المتدرّجة + CI)
 أُنجز ونُشر على main (commits `d06ce42`→`5b60f6a`؛ تفاصيل: memory `deliveries_accountant_summary` + `orders_sync_commission_june2026`):
