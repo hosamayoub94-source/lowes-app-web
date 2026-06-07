@@ -5,6 +5,15 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🆕🆕🆕🆕🆕🆕🆕 منظومة الطلبات — إصلاح المزامنة: المرحلة 1 ✅ (8 يونيو 2026 · commit c3892e1)
+المالك طلب إصلاحاً شاملاً لمنظومة الطلبات والمزامنة (المواصفة الكاملة: `docs/superpowers/specs/2026-06-08-orders-sync-overhaul-design.md` — 4 مراحل). **قرارات المالك:** بناء على مراحل (الأساس أولاً) · قوائم حالات منفصلة لكل سوق · صلاحية تغيير الحالة كما هي.
+- **🆕 `src/data/orderStatus.js`:** `STATUSES` + `statusKeysForMarket`/`stagesForMarket`. **تركيا** = مسار شركات الشحن (at_center/shipped/on_way) · **سوريا** = مسار محلي (motor). الـ14 حالة تبقى بقيد القاعدة؛ فقط العرض/الفلتر/الدروبداون/شريط التقدّم per-market.
+- **🆕 `src/services/orderSyncService.js`:** كل منطق المزامنة موحّد: `syncToSheet` (يحدّث `sync_status`/`sync_error`/`sync_attempts`/`last_synced_at`)، `retrySync`، `retryAllFailed`، `recordStatusChange` + `getStatusHistory` (الخط الزمني)، `softDeleteOrder`، `findDuplicates` (حارس التكرار — جاهز للمرحلة 4).
+- **OrdersScreen:** شارة مزامنة على كل كرت (✓ متزامن / ⏳ معلّق / ⚠️ فشل + زر «أعد المزامنة» بالـtooltip نص الخطأ) · بانر للمدير بالطلبات الفاشلة + «🔄 أعد مزامنة الكل» · تغيير الحالة يسجّل بالخط الزمني · **الحذف صار ناعماً** (`deleted_at`+status=cancelled+مزامنة) و`load()` يستثني المحذوف · الدروبداون/الفلتر per-market.
+- **DDL (مطبّق على prod + متحقَّق):** `orders.sync_status/sync_error/sync_attempts/last_synced_at/deleted_at/deleted_by` + جدول `order_status_history` (RLS مفتوح + GRANT لـanon/authenticated — مسار PIN) + RPC `increment_order_sync_attempts`. ملف: `supabase/orders_sync_overhaul_phase1.sql`. الـ31,754 طلب موجود وُسم `synced` (كان sheet_synced=true).
+- **مُختبر حيّاً** (anon/PIN): insert+history+rpc+soft-delete+استثناء deleted_at+تنظيف — كلها نجحت. build أخضر.
+- ⏳ **المراحل التالية (لم تبدأ):** (2) مصدر الحقيقة الثنائي الكامل في edge fns + عرض الخط الزمني على الكرت · (3) soft-delete بالجدول + استرجاع · (4) حارس التكرار UI + التحقق per-market + إشعار البائع عند تغيّر الحالة من الجدول. راجع memory `orders_sync_overhaul_plan`.
+
 ### 🆕🆕🆕🆕🆕🆕 هوم مخصّص لكل دور + إصلاح كراش المخزون (8 يونيو 2026)
 - **هوم per-role:** `src/data/homeLayout.js` (role→archetype→بلوكات مرتّبة: seller/manager/sales_manager/media/storage). `HomeScreen` يركّب البلوكات حسب الدور. **حُذف للجميع:** شريط KPI المكرّر + الوصول السريع المكرّر. widgets جديدة: `MyTargetCard` (تارجت البائع per-market) · `LowStockCard` (نواقص المخزن) · `CampaignsLinkCard`. مُختبر حيّاً (مدير + بائع). راجع memory `ux_simplification_vision`.
 - **🔴 إصلاح كراش `/inventory`:** كويري المصفوفة اختار `(id,market,type)` بلا `name` → `w.name.replace` في تفصيل المخازن ينهار. أُضيف `name` + حماية null.
