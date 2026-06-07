@@ -560,16 +560,28 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   // Catalog USD price list (normName → sale_price_usd) — the offer-immune revenue
   // basis for the leaderboard, target progress and Excel export.
   const [prices, setPrices] = useState({});
-  useEffect(() => {
-    let alive = true;
-    supabase.from('product_economics').select('item_name, sale_price_usd').then(({ data }) => {
-      if (!alive || !data) return;
-      const m = {};
-      data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
-      setPrices(m);
-    });
-    return () => { alive = false; };
-  }, []);
+  const [syncingPrices, setSyncingPrices] = useState(false);
+  const loadPrices = async () => {
+    const { data } = await supabase.from('product_economics').select('item_name, sale_price_usd');
+    if (!data) return;
+    const m = {};
+    data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
+    setPrices(m);
+  };
+  useEffect(() => { loadPrices(); }, []);
+
+  // Manager: pull the latest USD base prices from the Syria price sheet.
+  const syncPrices = async () => {
+    setSyncingPrices(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-prices', { body: { token: 'LOWES-SYRIA-2026' } });
+      if (error) throw error;
+      await loadPrices();
+      window.alert(`✅ تمت مزامنة ${data?.synced ?? 0} سعراً من الجدول`);
+    } catch (e) {
+      window.alert('تعذّرت المزامنة: ' + (e?.message || e));
+    } finally { setSyncingPrices(false); }
+  };
 
   // ── Period selector: a month from a list, or a custom from–to range ──
   const [periodMode, setPeriodMode] = useState('month'); // 'month' | 'custom'
@@ -726,6 +738,13 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             <p className="text-xs text-muted mt-0.5">{delivered.length} طلب مسلّم · {byEmployee.length} موظف</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {isManager && (
+              <button onClick={syncPrices} disabled={syncingPrices}
+                title="تحديث أسعار الدولار الأساسية من جدول الأسعار"
+                className="px-3 py-2 rounded-xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal/40 transition disabled:opacity-40">
+                {syncingPrices ? '…' : '🔄 مزامنة الأسعار'}
+              </button>
+            )}
             {delivered.length > 0 && (
               <button onClick={exportExcel} disabled={exporting}
                 className="px-3 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition disabled:opacity-40">
