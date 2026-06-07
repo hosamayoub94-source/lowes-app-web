@@ -1280,11 +1280,14 @@ export default function ChatScreen(){
       setAllChannels(allGroups);
 
       // ── Memberships ───────────────────────────────────────────────
-      let memberIds=[];
+      // rowMemberIds = rooms with an actual chat_room_members row (source of truth).
+      // memberIds    = display set (rows ∪ approved join requests).
+      let rowMemberIds=[];
       try{
         const{data:memberships}=await supabase.from('chat_room_members').select('room_id').eq('user_id',userId);
-        memberIds=(memberships??[]).map(m=>m.room_id);
+        rowMemberIds=(memberships??[]).map(m=>m.room_id);
       }catch{}
+      let memberIds=[...rowMemberIds];
 
       // Also include rooms where join request was approved
       try{
@@ -1292,9 +1295,10 @@ export default function ChatScreen(){
         (approved??[]).forEach(r=>{if(!memberIds.includes(r.room_id))memberIds.push(r.room_id);});
       }catch{}
 
-      // Auto-join ALL public channels (upsert — safe even if already member)
+      // Auto-join ALL public channels that lack an actual membership row
+      // (base on rowMemberIds, NOT memberIds, so approved-request rooms still get a real row).
       const toJoin=allGroups
-        .filter(r=>!r.is_private&&!memberIds.includes(r.id))
+        .filter(r=>!r.is_private&&!rowMemberIds.includes(r.id))
         .map(r=>({room_id:r.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()}));
       if(toJoin.length){
         try{ await supabase.from('chat_room_members').upsert(toJoin,{onConflict:'room_id,user_id'}); }catch{}
