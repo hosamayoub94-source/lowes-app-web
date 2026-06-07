@@ -236,9 +236,11 @@ function EmployeeCommissionCard({ emp, rank, rules, rates, targetUsd, adj, onSav
   if (!rules) return null;
   const tryTotal = emp.totals['TRY'] || 0;
 
-  // USD-equivalent total across ALL currencies — the unified metric. A Syria
-  // seller's Turkey (TRY) sales convert and count toward their $ target too.
-  const usdTotal = emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+  // USD sales total — catalog-priced (offer-immune), precomputed in byEmployee.
+  // Falls back to amount→USD only if byEmployee didn't set it.
+  const usdTotal = emp.usdTotal != null
+    ? emp.usdTotal
+    : emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
   const targetU  = Number(targetUsd) || 0;
   const pct = targetU > 0 ? Math.min(100, Math.round((usdTotal / targetU) * 100)) : 0;
 
@@ -379,6 +381,19 @@ function soldProducts(delivered) {
   return Object.values(agg).sort((a, b) => b.qty - a.qty);
 }
 
+// Value one order in USD by the catalog price list: Σ qty × sale_price_usd.
+// This is the unified, offer-immune revenue basis (owner-approved). Falls back to
+// the recorded amount→USD conversion only when an order has no catalog-priced items
+// (e.g. non-brand products like third-party items).
+function orderUsd(o, prices, rates) {
+  let v = 0;
+  (o.items || []).forEach(it => {
+    const p = prices?.[normName(it.name)];
+    if (p > 0) v += p * Number(it.qty || 1);
+  });
+  return v > 0 ? v : toUSD(o.amount, o.currency, rates);
+}
+
 // Commission breakdown for one employee (TRY). Mirrors EmployeeCommissionCard.
 function commissionBreakdown(emp, rules, adj) {
   if (!rules) return { base: 0, prepaidBonus: 0, repeatBonus: 0, manualAdj: 0, net: 0, prepaidCount: 0 };
@@ -499,6 +514,20 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [showSettings, setShowSettings] = useState(false);
   const { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
 
+  // Catalog USD price list (normName → sale_price_usd) — the offer-immune revenue
+  // basis for the leaderboard, target progress and Excel export.
+  const [prices, setPrices] = useState({});
+  useEffect(() => {
+    let alive = true;
+    supabase.from('product_economics').select('item_name, sale_price_usd').then(({ data }) => {
+      if (!alive || !data) return;
+      const m = {};
+      data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
+      setPrices(m);
+    });
+    return () => { alive = false; };
+  }, []);
+
   // ── Period selector: a month from a list, or a custom from–to range ──
   const [periodMode, setPeriodMode] = useState('month'); // 'month' | 'custom'
   const [selMonth, setSelMonth] = useState(() => {
@@ -559,14 +588,14 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       });
     }
     const list = Object.values(map).map(emp => {
-      emp.usdTotal = emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+      emp.usdTotal = emp.orders.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
       // dominant market = the one with the most delivered orders
       emp.market = Object.entries(emp.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'turkey';
       return emp;
     });
     // Sort by USD total (the unified metric) descending
     return list.sort((a, b) => b.usdTotal - a.usdTotal);
-  }, [delivered, rates]);
+  }, [delivered, rates, prices]);
 
   // Target (USD) for a given market.
   const targetUsdFor = (market) => {
@@ -599,7 +628,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setExporting(true);
     try {
       const XLSX = await import('xlsx');
-      const usdTotal = delivered.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
+      const usdTotal = delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
 
       // 1) Summary
       const summary = [
@@ -673,7 +702,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           <div className="flex gap-3 mt-3 flex-wrap items-stretch">
             <div className="bg-teal text-white rounded-xl px-3 py-1.5 text-center">
               <p className="text-[10px] opacity-80">الإجمالي ≈ USD</p>
-              <p className="text-sm font-black">${delivered.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0).toFixed(0)}</p>
+              <p className="text-sm font-black">${delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0).toFixed(0)}</p>
             </div>
             {Object.entries(grandTotals).map(([cur, total]) => (
               <div key={cur} className="bg-surface rounded-xl px-3 py-1.5 text-center">
