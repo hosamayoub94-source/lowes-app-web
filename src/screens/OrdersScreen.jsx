@@ -18,19 +18,14 @@ import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
+import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
+import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder } from '@services/orderSyncService';
 
-// ── Google Sheet dual-write (Syria) ──────────────────────────
+// ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
-async function syncOrderToSheet(orderId) {
-  try {
-    await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId }),
-    });
-  } catch { /* best-effort; sheet_synced stays false for retry */ }
-}
+// رفيق توافق: استدعاء قديم بالشاشة → الخدمة الموحّدة.
+const syncOrderToSheet = (orderId) => syncToSheet(orderId);
 
 // Notify the seller (order.handler_name) that their order moved to a new stage.
 // Best-effort: looks up the seller's profile id by name, never blocks the UI.
@@ -76,25 +71,7 @@ async function notifySellerStatusChange(order, newStatus, actorName) {
 }
 
 // ── Constants ────────────────────────────────────────────────
-const STATUSES = {
-  pending:      { label: 'وارد جديد',         icon: '📥', bg: 'bg-surface-alt', text: 'text-muted',      border: 'border-border'      },
-  preparing:    { label: 'في التجهيز',        icon: '📦', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
-  ready:        { label: 'جاهز للشحن',        icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
-  motor:        { label: 'قيد توصيل الموتور', icon: '🏍️', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
-  at_center:    { label: 'في المركز',         icon: '🏢', bg: 'bg-blue-50',     text: 'text-blue-700',   border: 'border-blue-200'    },
-  shipped:      { label: 'في النقل',          icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
-  on_way:       { label: 'في الطريق للعميل',  icon: '🛵', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
-  delivered:    { label: 'تم التسليم',        icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
-  waiting:      { label: 'بالانتظار/متابعة',  icon: '⏳', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
-  not_received: { label: 'لم يتم الاستلام',   icon: '📭', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  returning:    { label: 'راجع للمركز',       icon: '↩️', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  returned:     { label: 'راجع',              icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  settled:      { label: 'تمت التسوية',       icon: '🤝', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
-  cancelled:    { label: 'ملغي',              icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-};
-
-// Linear pipeline for the progress strip; any status outside it hides the strip.
-const STAGES_ORDER = ['pending', 'preparing', 'ready', 'shipped', 'delivered'];
+// STATUSES + قوائم الحالات per-market تُستورد من @data/orderStatus.
 
 // ── Commission helpers ────────────────────────────────────────
 const CURRENCY_SYMBOLS = { TRY: '₺', SYP: '£', USD: '$' };
@@ -1080,13 +1057,14 @@ function StatusBadge({ status, size = 'sm' }) {
   );
 }
 
-// ── Progress Strip ─────────────────────────────────────────────
-function ProgressStrip({ status }) {
-  if (!STAGES_ORDER.includes(status)) return null;
-  const current = STAGES_ORDER.indexOf(status);
+// ── Progress Strip (per-market stages) ─────────────────────────
+function ProgressStrip({ status, market }) {
+  const stages = stagesForMarket(market);
+  if (!stages.includes(status)) return null;
+  const current = stages.indexOf(status);
   return (
     <div className="flex items-center gap-0.5">
-      {STAGES_ORDER.map((_, i) => (
+      {stages.map((_, i) => (
         <div key={i} className="flex-1 h-1.5 rounded-full transition-all"
           style={{
             background: i < current ? '#0d7377' : i === current ? '#0d7377' : 'var(--color-border, #e5e7eb)',
@@ -1338,8 +1316,42 @@ function InvoiceModal({ order, onClose }) {
 }
 
 // ── Order Card ─────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance }) {
+// ── Sync status badge (+ retry) ───────────────────────────────
+function SyncBadge({ order, onRetry }) {
+  const [busy, setBusy] = useState(false);
+  if (!['syria', 'turkey'].includes(order.market) || order.archived === true) return null;
+  // fallback: لو العمود غير موجود بعد، استنتج من sheet_synced.
+  const st = order.sync_status || (order.sheet_synced ? 'synced' : 'pending');
+  const handle = async (e) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    await onRetry(order.id);
+    setBusy(false);
+  };
+  if (st === 'synced')
+    return <span title={`متزامن مع الجدول${order.last_synced_at ? ' · ' + new Date(order.last_synced_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : ''}`}
+      className="text-[10px] font-bold text-green-fg">✓ متزامن</span>;
+  if (st === 'failed')
+    return (
+      <button onClick={handle} disabled={busy}
+        title={`فشل المزامنة${order.sync_error ? ': ' + order.sync_error : ''} — اضغط لإعادة المحاولة`}
+        className="text-[10px] font-bold text-red-fg bg-red-bg px-1.5 py-0.5 rounded-lg hover:opacity-80 transition disabled:opacity-40">
+        {busy ? '…' : '⚠️ فشل · أعد المزامنة'}
+      </button>
+    );
+  return (
+    <button onClick={handle} disabled={busy}
+      title="بانتظار المزامنة — اضغط للمزامنة الآن"
+      className="text-[10px] font-bold text-amber-fg hover:opacity-80 transition disabled:opacity-40">
+      {busy ? '…' : '⏳ معلّق'}
+    </button>
+  );
+}
+
+function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync }) {
   const [changing, setChanging] = useState(false);
+  const statusKeys = statusKeysForMarket(order.market);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
   const itemsSummary = (order.items ?? []).slice(0, 3).map(i => `${i.name} ×${i.qty}`).join(' · ');
@@ -1359,7 +1371,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 space-y-3 active:scale-[0.99] transition-transform">
       {/* Progress strip */}
-      <ProgressStrip status={order.status} />
+      <ProgressStrip status={order.status} market={order.market} />
 
       {/* Top row */}
       <div className="flex items-start justify-between gap-2">
@@ -1436,19 +1448,26 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
           <select value={order.status} onChange={e => handleSetStatus(e.target.value)} disabled={changing}
             title="غيّر حالة الطلب (قابل للتراجع)"
             className="text-xs font-bold rounded-xl bg-teal/10 text-teal px-2 py-1.5 border border-teal/20 hover:bg-teal/20 transition disabled:opacity-40 cursor-pointer focus:outline-none">
-            {Object.entries(STATUSES).map(([k, v]) => (
-              <option key={k} value={k}>{v.icon} {v.label}</option>
+            {statusKeys.map((k) => (
+              <option key={k} value={k}>{STATUSES[k].icon} {STATUSES[k].label}</option>
             ))}
+            {/* الحالة الحالية لو خارج قائمة السوق (بيانات قديمة) تبقى مرئية */}
+            {!statusKeys.includes(order.status) && STATUSES[order.status] && (
+              <option value={order.status}>{STATUSES[order.status].icon} {STATUSES[order.status].label}</option>
+            )}
           </select>
         )}
       </div>
 
-      {/* Handler + date */}
-      <div className="flex items-center justify-between pt-1 border-t border-border/40">
-        <span className="text-[10px] text-muted">{order.handler_name || '—'}</span>
-        <span className="text-[10px] text-muted">
-          {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '—'}
-        </span>
+      {/* Handler + sync + date */}
+      <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
+        <span className="text-[10px] text-muted truncate">{order.handler_name || '—'}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <SyncBadge order={order} onRetry={onRetrySync} />
+          <span className="text-[10px] text-muted">
+            {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '—'}
+          </span>
+        </div>
       </div>
 
       {/* Audit: created / last edited */}
@@ -2264,7 +2283,7 @@ export default function OrdersScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      let q = supabase.from('orders').select('*').order('order_date', { ascending: false });
+      let q = supabase.from('orders').select('*').is('deleted_at', null).order('order_date', { ascending: false });
       if (viewArchive) {
         // Archive view: search the whole archive server-side (not just a page).
         q = q.eq('archived', true);
@@ -2294,8 +2313,11 @@ export default function OrdersScreen() {
   }, [orders]);
 
   const handleStatusChange = async (id, newStatus) => {
-    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
     const order = orders.find(o => o.id === id);
+    const fromStatus = order?.status;
+    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    // الخط الزمني: سجّل التغيير (من→إلى · مَن · المصدر app · الوقت)
+    recordStatusChange({ orderId: id, from: fromStatus, to: newStatus, by: userName, source: 'app' });
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
     // Re-sync to the sheet so status/tracking changes update the existing row
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
@@ -2383,13 +2405,23 @@ export default function OrdersScreen() {
   };
   const handleDelete = async (o) => {
     if (!canDeleteOrder(o)) { window.alert('لا تملك صلاحية حذف هذا الطلب. (الموظف يحذف طلبه بنفس يوم الإنشاء فقط.)'); return; }
-    if (!window.confirm(`حذف طلب «${o.customer_name || o.order_id}»؟ لا يمكن التراجع.`)) return;
+    if (!window.confirm(`حذف طلب «${o.customer_name || o.order_id}»؟ (حذف ناعم — يبقى بالأرشيف ويُزامَن كملغي بالجدول.)`)) return;
     try {
       if ((o.market === 'syria' || o.market === 'turkey') && o.archived !== true) releaseForOrder(o, userName);
-      await supabase.from('orders').delete().eq('id', o.id);
+      recordStatusChange({ orderId: o.id, from: o.status, to: 'cancelled', by: userName, source: 'app' });
+      await softDeleteOrder(o, userName);   // deleted_at + status=cancelled + sync to sheet
       setOrders(p => p.filter(x => x.id !== o.id));
     } catch (e) { window.alert('تعذّر الحذف: ' + e.message); }
   };
+
+  // إعادة مزامنة طلب واحد من الكرت (يدوي).
+  const handleRetrySync = useCallback(async (id) => {
+    const r = await retrySync(id);
+    setOrders(p => p.map(o => o.id === id
+      ? { ...o, sync_status: r.ok ? 'synced' : 'failed', sheet_synced: r.ok ? true : o.sheet_synced, sync_error: r.ok ? null : r.error, last_synced_at: r.ok ? new Date().toISOString() : o.last_synced_at }
+      : o));
+    return r;
+  }, []);
 
   // Monthly archive: flag delivered orders older than 30 days as archived.
   const [archiving, setArchiving] = useState(false);
@@ -2411,6 +2443,23 @@ export default function OrdersScreen() {
   };
 
   const myNames = useMemo(() => new Set([userName, ...partnerNames]), [userName, partnerNames]);
+
+  // الطلبات الفاشلة المزامنة (للوحة المدير + زر إعادة جماعي).
+  const failedSync = useMemo(
+    () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at),
+    [orders]
+  );
+  const [retryingAll, setRetryingAll] = useState(false);
+  const handleRetryAll = async () => {
+    const ids = failedSync.map(o => o.id);
+    if (!ids.length) return;
+    setRetryingAll(true);
+    try {
+      await retryAllFailed(ids);
+      await load();
+    } catch (e) { window.alert('تعذّر: ' + e.message); }
+    finally { setRetryingAll(false); }
+  };
 
   const filtered = useMemo(() => orders.filter(o => {
     if (myOrders && !myNames.has(o.handler_name)) return false;
@@ -2591,6 +2640,23 @@ export default function OrdersScreen() {
         </div>
       )}
 
+      {/* Failed-sync panel — managers: orders that never reached the sheet */}
+      {isManager && !viewArchive && !viewTracking && !viewMonthly && !viewWallet && failedSync.length > 0 && (
+        <div className="bg-red-bg border border-red/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-fg">{failedSync.length} طلب فشلت مزامنته مع الجدول</p>
+            <p className="text-[11px] text-muted truncate">
+              {failedSync.slice(0, 3).map(o => o.customer_name || o.order_id).join(' · ')}{failedSync.length > 3 ? ' …' : ''}
+            </p>
+          </div>
+          <button onClick={handleRetryAll} disabled={retryingAll}
+            className="px-3 py-2 rounded-xl bg-red-fg/10 text-red-fg text-xs font-bold hover:opacity-80 transition disabled:opacity-40 shrink-0">
+            {retryingAll ? '…' : '🔄 أعد مزامنة الكل'}
+          </button>
+        </div>
+      )}
+
       {/* Stats row */}
       {!viewTracking && !viewMonthly && !viewWallet && <div className="grid grid-cols-4 gap-2">
         {[
@@ -2633,13 +2699,16 @@ export default function OrdersScreen() {
             ${status === 'all' ? 'bg-text text-surface' : 'bg-surface border border-border text-muted'}`}>
           الكل
         </button>
-        {Object.entries(STATUSES).map(([k, v]) => (
-          <button key={k} onClick={() => setStatus(k)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition border
-              ${status === k ? `${v.bg} ${v.text} ${v.border}` : 'bg-surface border-border text-muted'}`}>
-            {v.icon} {v.label}
-          </button>
-        ))}
+        {statusKeysForMarket(market === 'all' ? null : market).map((k) => {
+          const v = STATUSES[k];
+          return (
+            <button key={k} onClick={() => setStatus(k)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition border
+                ${status === k ? `${v.bg} ${v.text} ${v.border}` : 'bg-surface border-border text-muted'}`}>
+              {v.icon} {v.label}
+            </button>
+          );
+        })}
       </div>}
 
       {/* Search */}
@@ -2713,6 +2782,7 @@ export default function OrdersScreen() {
               onEdit={(o) => setModal(o)}
               onInvoice={(o) => setInvoice(o)}
               onDelete={handleDelete}
+              onRetrySync={handleRetrySync}
               canDelete={canDeleteOrder(o)} />
           ))}
         </div>
