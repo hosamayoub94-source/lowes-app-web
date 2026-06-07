@@ -26,7 +26,8 @@ export const ALL_STATUS_KEYS = Object.keys(STATUSES);
 // قوائم الحالات حسب السوق (المالك: قوائم منفصلة لكل سوق).
 // تركيا = مسار شركات الشحن (مركز/شحن/في الطريق). سوريا = مسار محلي (موتور).
 const TURKEY_STATUSES = ['pending','preparing','ready','at_center','shipped','on_way','delivered','waiting','not_received','returning','returned','settled','cancelled'];
-const SYRIA_STATUSES  = ['pending','preparing','ready','motor','shipped','delivered','waiting','not_received','returning','returned','settled','cancelled'];
+// سوريا (طلب المالك): فقط 7 حالات — جديد·تجهيز·شحن·تم التسليم·انتظار·تسوية·ملغي.
+const SYRIA_STATUSES  = ['pending','preparing','shipped','delivered','waiting','settled','cancelled'];
 
 export const STATUS_KEYS_BY_MARKET = { turkey: TURKEY_STATUSES, syria: SYRIA_STATUSES };
 
@@ -37,7 +38,7 @@ export function statusKeysForMarket(market) {
 
 // خطوط التقدّم (شريط المراحل) لكل سوق — مسار خطّي فقط.
 const TURKEY_STAGES = ['pending','preparing','ready','at_center','shipped','on_way','delivered'];
-const SYRIA_STAGES  = ['pending','preparing','ready','motor','shipped','delivered'];
+const SYRIA_STAGES  = ['pending','preparing','shipped','delivered'];
 export const STAGES_BY_MARKET = { turkey: TURKEY_STAGES, syria: SYRIA_STAGES };
 
 export function stagesForMarket(market) {
