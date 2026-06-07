@@ -1744,30 +1744,39 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
 
         <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
 
-          {/* Market */}
-          <div className="flex gap-2">
-            {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: '🇸🇾' }].map(m => (
-              <button key={m.key} onClick={() => handleMarketChange(m.key)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
-                  ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
-                {m.flag} {m.label}
-              </button>
-            ))}
-          </div>
+          {/* Market — مقفل في ماكنة السوق المخصّصة (سوريا/تركيا) */}
+          {forcedMarket ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-sm font-bold text-text">
+              <span>{form.market === 'turkey' ? '🇹🇷 طلب تركيا' : '🇸🇾 طلب سوريا'}</span>
+              <span className="text-[10px] text-muted font-normal">(مقفل على هذه الماكنة)</span>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: '🇸🇾' }].map(m => (
+                <button key={m.key} onClick={() => handleMarketChange(m.key)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
+                    ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
+                  {m.flag} {m.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Brand — la ronven glow orders are isolated from Lowe's stock */}
-          <div className="flex gap-2">
-            {[
-              { key: 'lowes', label: "Lowe's", emoji: '🌿' },
-              { key: 'strong', label: 'Strong', emoji: '💪' },
-            ].map(b => (
-              <button key={b.key} onClick={() => set('brand', b.key)}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
-                  ${form.brand === b.key ? 'border-navy bg-navy/10 text-navy' : 'border-border text-muted hover:border-navy/40'}`}>
-                {b.emoji} {b.label}
-              </button>
-            ))}
-          </div>
+          {/* Brand — تركيا فقط (LOWE'S / سترونغ). سوريا = Lowe's دائماً. */}
+          {form.market === 'turkey' && (
+            <div className="flex gap-2">
+              {[
+                { key: 'lowes', label: "Lowe's", emoji: '🌿' },
+                { key: 'strong', label: 'Strong', emoji: '💪' },
+              ].map(b => (
+                <button key={b.key} onClick={() => set('brand', b.key)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+                    ${form.brand === b.key ? 'border-navy bg-navy/10 text-navy' : 'border-border text-muted hover:border-navy/40'}`}>
+                  {b.emoji} {b.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Order Info */}
           <div className="space-y-3">
