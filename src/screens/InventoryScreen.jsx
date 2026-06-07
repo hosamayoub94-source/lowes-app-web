@@ -254,7 +254,7 @@ function ProductCard({ p, onEdit, onMovements, onStock, canManage, warehouses = 
             if (q === 0) return null;
             return (
               <span key={w.id} className={`text-[10px] px-2 py-0.5 rounded-full ${q < 0 ? 'bg-red-bg text-red-fg' : 'bg-surface-alt text-muted'}`}>
-                {WH_ICON[w.type] || '🏬'} {w.name.replace('مبيعات ', '').replace('المخزن ', '')}: <b className="tabular-nums text-text">{q}</b>
+                {WH_ICON[w.type] || '🏬'} {(w.name || '').replace('مبيعات ', '').replace('المخزن ', '')}: <b className="tabular-nums text-text">{q}</b>
               </span>
             );
           })}
@@ -652,7 +652,7 @@ export default function InventoryScreen() {
       // (central + Syria sales + Syria sub-warehouses). Turkey is excluded.
       const [prodRes, whRes, stockRes] = await Promise.all([
         supabase.from('products').select('*').order('name'),
-        supabase.from('wh_warehouses').select('id, market, type').eq('is_active', true),
+        supabase.from('wh_warehouses').select('id, name, market, type').eq('is_active', true),
         supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
       ]);
       if (prodRes.error) {
