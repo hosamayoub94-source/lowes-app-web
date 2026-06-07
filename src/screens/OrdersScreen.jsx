@@ -1014,6 +1014,22 @@ function nextOrderId(market, orders) {
   return `${now.getMonth() + 1}${prefix}${max + 1}`;
 }
 
+// يضمن رقم طلب فريد مقابل القاعدة كاملة (يشمل المؤرشف/المحذوف) — يرفع الرقم
+// التسلسلي حتى يجد رقماً غير مستخدم. يمنع خطأ orders_order_id_key المكرر.
+async function ensureUniqueOrderId(market, desired) {
+  let candidate = String(desired || '').trim() || nextOrderId(market, []);
+  const m = candidate.match(/^(.*?)(\d+)$/);
+  const head = m ? m[1] : `${candidate}-`;
+  let num = m ? parseInt(m[2], 10) : 1;
+  for (let i = 0; i < 200; i++) {
+    const { data } = await supabase.from('orders').select('id').eq('order_id', candidate).maybeSingle();
+    if (!data) return candidate;
+    num += 1;
+    candidate = `${head}${num}`;
+  }
+  return `${head}${num}-${String(Date.now()).slice(-4)}`;
+}
+
 // Remembered Sokak (street) suggestions. There is no public street dataset for
 // Turkey (the address API only covers Mahalle/neighborhoods), so we learn from
 // what the team actually types and persist it locally — autocomplete that grows.
@@ -2452,9 +2468,18 @@ export default function OrdersScreen({ forcedMarket = null }) {
         .eq('id', existingId);
       if (error) throw new Error(error.message);
     } else {
-      const { data, error } = await supabase.from('orders')
+      // ضمان رقم طلب فريد مقابل القاعدة كاملة (المؤرشف/المحذوف ضمناً)
+      form.order_id = await ensureUniqueOrderId(form.market, form.order_id);
+      let { data, error } = await supabase.from('orders')
         .insert({ ...form, created_by: userName })
         .select('id').single();
+      // احتياط: لو حصل سباق وتكرّر الرقم، أعد التوليد وحاول مرة أخرى
+      if (error && (error.code === '23505' || /duplicate key/i.test(error.message))) {
+        form.order_id = await ensureUniqueOrderId(form.market, form.order_id);
+        ({ data, error } = await supabase.from('orders')
+          .insert({ ...form, created_by: userName })
+          .select('id').single());
+      }
       if (error) throw new Error(error.message);
       savedId = data?.id;
     }
