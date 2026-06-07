@@ -89,7 +89,13 @@ Deno.serve(async (req: Request) => {
       });
       const trOut = await trRes.json().catch(() => ({ ok: false, error: 'bad_response' }));
       await supabase.from('orders')
-        .update({ sheet_synced: !!trOut.ok, sheet_synced_at: trOut.ok ? new Date().toISOString() : null })
+        .update({
+          sheet_synced:    !!trOut.ok,
+          sheet_synced_at: trOut.ok ? new Date().toISOString() : null,
+          sync_status:     trOut.ok ? 'synced' : 'failed',
+          sync_error:      trOut.ok ? null : String(trOut.error || 'sheet error').slice(0, 300),
+          last_synced_at:  trOut.ok ? new Date().toISOString() : undefined,
+        })
         .eq('id', orderId);
       return json(trOut, 200);
     }
@@ -131,9 +137,15 @@ Deno.serve(async (req: Request) => {
     });
     const out = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
 
-    // علّم الطلب كمتزامن (أو لا) للتتبّع وإعادة المحاولة
+    // علّم الطلب كمتزامن (أو لا) للتتبّع وإعادة المحاولة + مؤشر المزامنة
     await supabase.from('orders')
-      .update({ sheet_synced: !!out.ok, sheet_synced_at: out.ok ? new Date().toISOString() : null })
+      .update({
+        sheet_synced:    !!out.ok,
+        sheet_synced_at: out.ok ? new Date().toISOString() : null,
+        sync_status:     out.ok ? 'synced' : 'failed',
+        sync_error:      out.ok ? null : String(out.error || 'sheet error').slice(0, 300),
+        last_synced_at:  out.ok ? new Date().toISOString() : undefined,
+      })
       .eq('id', orderId);
 
     return json(out, 200);

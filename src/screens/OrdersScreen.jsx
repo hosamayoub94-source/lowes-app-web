@@ -19,7 +19,7 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
-import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder } from '@services/orderSyncService';
+import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory } from '@services/orderSyncService';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -1349,8 +1349,39 @@ function SyncBadge({ order, onRetry }) {
   );
 }
 
+// ── Status timeline (lazy-loaded from order_status_history) ────
+const SOURCE_LABEL = { app: 'التطبيق', sheet: 'الجدول', yurtici: 'شركة الشحن' };
+function StatusTimeline({ orderId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getStatusHistory(orderId).then(r => { if (alive) setRows(r); });
+    return () => { alive = false; };
+  }, [orderId]);
+  if (rows === null) return <p className="text-[10px] text-muted py-1">… تحميل السجل</p>;
+  if (rows.length === 0) return <p className="text-[10px] text-muted py-1">لا يوجد سجل تغييرات بعد.</p>;
+  return (
+    <div className="space-y-1 pt-1">
+      {rows.map(r => {
+        const f = STATUSES[r.from_status]; const t = STATUSES[r.to_status];
+        return (
+          <div key={r.id} className="flex items-center justify-between gap-2 text-[10px]">
+            <span className="text-text font-semibold">
+              {f ? `${f.icon} ${f.label}` : '—'} ← {t ? `${t.icon} ${t.label}` : r.to_status}
+            </span>
+            <span className="text-muted shrink-0">
+              {r.changed_by || SOURCE_LABEL[r.source] || '—'} · {r.changed_at ? new Date(r.changed_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : ''}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync }) {
   const [changing, setChanging] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const statusKeys = statusKeysForMarket(order.market);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
@@ -1479,6 +1510,15 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
           )}
         </div>
       )}
+
+      {/* خط زمني للحالات — وقت/ساعة كل تغيير (من→إلى · مَن · المصدر) */}
+      <div className="pt-1 border-t border-border/40">
+        <button onClick={() => setShowTimeline(v => !v)}
+          className="text-[10px] font-bold text-teal hover:opacity-80 transition flex items-center gap-1">
+          🕒 سجل الحالات {showTimeline ? '▲' : '▼'}
+        </button>
+        {showTimeline && <StatusTimeline orderId={order.id} />}
+      </div>
     </div>
   );
 }

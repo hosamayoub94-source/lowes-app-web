@@ -72,14 +72,23 @@ Deno.serve(async (req) => {
       const { order_id, tracking_number, status } = body;
       if (!order_id) return json({ ok: false, error: 'order_id required' }, 400);
 
+      // اقرأ الحالة الحالية أولاً (للخط الزمني + تجنّب كتابة نفس القيمة)
+      const { data: cur } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('order_id', order_id)
+        .maybeSingle();
+
+      // مصدر الحقيقة: الجدول يحدّث الحالة + رقم التتبع فقط (لا يلمس بيانات العميل/الأصناف).
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: 'جدول-تلقائي' };
 
       if (tracking_number !== undefined && tracking_number !== null) {
         patch.tracking_number = String(tracking_number).trim();
       }
+      let newStatus: string | null = null;
       if (status) {
         const resolved = resolveStatus(status);
-        if (resolved) patch.status = resolved;
+        if (resolved) { patch.status = resolved; newStatus = resolved; }
       }
 
       if (Object.keys(patch).length <= 2) return json({ ok: false, error: 'nothing to update' }, 400);
@@ -90,6 +99,14 @@ Deno.serve(async (req) => {
         .eq('order_id', order_id);
 
       if (error) return json({ ok: false, error: error.message }, 500);
+
+      // الخط الزمني: سجّل تغيير الحالة القادم من الجدول (source='sheet')
+      if (cur?.id && newStatus && newStatus !== cur.status) {
+        await supabase.from('order_status_history').insert({
+          order_id: cur.id, from_status: cur.status, to_status: newStatus,
+          changed_by: 'الجدول', source: 'sheet',
+        }).then(() => {}, () => {});
+      }
 
       // Sync back to sheet so status bar updates
       try {

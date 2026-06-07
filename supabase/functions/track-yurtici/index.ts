@@ -179,6 +179,11 @@ Deno.serve(async (req) => {
 
       if (!upErr) {
         updated++;
+        // الخط الزمني: تغيير الحالة من شركة الشحن (source='yurtici')
+        await supabase.from('order_status_history').insert({
+          order_id: order.id, from_status: order.status, to_status: newStatus,
+          changed_by: 'يورتيتشي', source: 'yurtici',
+        }).then(() => {}, () => {});
         // 6. Sync sheet
         await syncSheet(order.id);
         console.log(`✅ ${order.order_id}: ${order.status} → ${newStatus}`);
