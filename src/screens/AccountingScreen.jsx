@@ -22,7 +22,7 @@ import {
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
 import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
-import { printPaymentVoucher } from '@modules/accounting/utils/paymentVoucher';
+import { printPaymentVoucher, computeNextVoucherNo } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
   { key: 'all',     label: 'الكل' },
@@ -130,6 +130,42 @@ export default function AccountingScreen() {
       amount_try: w?.amtField === 'amount_try' ? val : 0,
       amount_syp: w?.amtField === 'amount_syp' ? val : 0,
     };
+  };
+
+  // ── Official receipt/payment voucher (سند قبض/صرف) ──────────────────────────
+  const [showVoucher, setShowVoucher] = useState(false);
+  const [vForm, setVForm] = useState({ kind: 'receipt', payee: '', purpose: '', wallet: 'cash_usd', amount: '', date: new Date().toISOString().slice(0, 10) });
+  const [vError, setVError] = useState(null);
+
+  const handleVoucher = async (andPrint) => {
+    const w = WALLETS.find(x => x.id === vForm.wallet);
+    const amt = Number(vForm.amount) || 0;
+    if (!vForm.payee.trim()) { setVError('اسم المستفيد/الدافع مطلوب'); return; }
+    if (amt <= 0) { setVError('أدخل مبلغاً صحيحاً'); return; }
+    setVError(null);
+    const voucherNo = computeNextVoucherNo(entries);
+    const isReceipt = vForm.kind === 'receipt';
+    const payload = {
+      entry_type:  isReceipt ? ENTRY_TYPE.INCOME : ENTRY_TYPE.EXPENSE,
+      category:    isReceipt ? 'سند قبض' : 'سند صرف',
+      description: vForm.purpose.trim() || (isReceipt ? 'سند قبض' : 'سند صرف'),
+      ...walletAmounts(vForm.wallet, amt),
+      payment_method: vForm.wallet,
+      entry_date:  vForm.date,
+      reference_no: voucherNo,
+      notes: `${isReceipt ? 'الدافع' : 'المستفيد'}: ${vForm.payee.trim()}`,
+    };
+    try {
+      await createEntry(payload);
+      if (andPrint) {
+        printPaymentVoucher(
+          { ...payload, entry_date: vForm.date },
+          { payeeName: vForm.payee.trim(), voucherNo, authorizedBy: 'hosam ayoub' },
+        );
+      }
+      setShowVoucher(false);
+      setVForm(f => ({ ...f, payee: '', purpose: '', amount: '' }));
+    } catch (e) { setVError(e.message); }
   };
 
   const handleTransfer = async () => {
@@ -260,6 +296,12 @@ export default function AccountingScreen() {
           </button>
           {isAdmin && (
             <>
+              <button
+                onClick={() => { setShowVoucher(true); setVError(null); }}
+                className="px-4 py-2 rounded-xl border border-teal/40 text-teal text-sm font-semibold hover:bg-teal/5 transition whitespace-nowrap"
+              >
+                🧾 سند قبض/صرف
+              </button>
               <button
                 onClick={() => { setShowTransfer(true); setTError(null); }}
                 className="px-4 py-2 rounded-xl border border-teal/40 text-teal text-sm font-semibold hover:bg-teal/5 transition whitespace-nowrap"
@@ -541,6 +583,73 @@ export default function AccountingScreen() {
           </div>
         </div>
       )}
+
+      {/* Official Voucher Modal (سند قبض / صرف) */}
+      {showVoucher && (() => {
+        const w = WALLETS.find(x => x.id === vForm.wallet);
+        const isReceipt = vForm.kind === 'receipt';
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowVoucher(false)}>
+            <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
+              <h3 className="font-bold text-lg text-text mb-1">🧾 سند {isReceipt ? 'قبض' : 'صرف'} رسمي</h3>
+              <p className="text-xs text-muted mb-4">يُنشئ القيد المالي + رقم سند رسمي ({computeNextVoucherNo(entries)}) قابل للطباعة.</p>
+              <div className="space-y-3">
+                {/* Kind toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[['receipt', '📥 سند قبض (لنا)'], ['payment', '🧾 سند صرف (علينا)']].map(([k, lbl]) => (
+                    <button key={k} onClick={() => setVForm(f => ({ ...f, kind: k }))}
+                      className={['py-2 rounded-xl text-xs font-bold border transition', vForm.kind === k ? 'bg-teal text-white border-teal' : 'border-border text-muted hover:border-teal/40'].join(' ')}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="text-xs text-muted mb-1 block">{isReceipt ? 'الدافع (من استلمنا منه)' : 'المستفيد (من صرفنا له)'} *</label>
+                  <input type="text" value={vForm.payee} onChange={e => setVForm(f => ({ ...f, payee: e.target.value }))}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="الاسم…" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted mb-1 block">الغرض / البيان</label>
+                  <input type="text" value={vForm.purpose} onChange={e => setVForm(f => ({ ...f, purpose: e.target.value }))}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="مثال: دفعة عمولة مايو" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">المحفظة</label>
+                    <select value={vForm.wallet} onChange={e => setVForm(f => ({ ...f, wallet: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                      {WALLETS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">المبلغ ({w?.currency})</label>
+                    <input type="number" step="any" value={vForm.amount} onChange={e => setVForm(f => ({ ...f, amount: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted mb-1 block">التاريخ</label>
+                  <input type="date" value={vForm.date} onChange={e => setVForm(f => ({ ...f, date: e.target.value }))}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
+                </div>
+              </div>
+              {vError && <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{vError}</div>}
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => handleVoucher(true)} disabled={loading.action}
+                  className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+                  {loading.action ? '…' : '💾 حفظ + طباعة'}
+                </button>
+                <button onClick={() => handleVoucher(false)} disabled={loading.action}
+                  className="flex-1 py-2 rounded-xl border border-teal/40 text-teal text-sm font-semibold hover:bg-teal/5 disabled:opacity-50 transition">
+                  حفظ فقط
+                </button>
+                <button onClick={() => setShowVoucher(false)}
+                  className="py-2 px-3 rounded-xl border border-border text-sm text-text hover:bg-cream transition">إلغاء</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Transfer Between Wallets Modal */}
       {showTransfer && (() => {

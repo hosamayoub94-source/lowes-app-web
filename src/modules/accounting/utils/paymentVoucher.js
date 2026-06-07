@@ -58,6 +58,22 @@ function nextVoucherNo() {
   return `VOC-${yr}-${String(_voucherSeq).padStart(3, '0')}`;
 }
 
+/**
+ * Compute the next official voucher number from existing entries' reference_no
+ * (format VOC-YYYY-NNN). DB-derived → stable & sequential across the team,
+ * no localStorage drift. Falls back to 1 for the year.
+ */
+export function computeNextVoucherNo(entries = []) {
+  const yr = new Date().getFullYear();
+  const re = new RegExp(`^VOC-${yr}-(\\d+)$`);
+  let max = 0;
+  for (const e of entries) {
+    const m = re.exec(e.reference_no || '');
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `VOC-${yr}-${String(max + 1).padStart(3, '0')}`;
+}
+
 // ── Main function ──────────────────────────────────────────────
 export function printPaymentVoucher(entry, options = {}) {
   const {
@@ -66,7 +82,9 @@ export function printPaymentVoucher(entry, options = {}) {
     companyName = "Lowe's Professional",
     companyNameAr = 'لويس بروفيشنال',
     tagline     = 'الكوزمتك الاحترافي — تركيا · سوريا · الإمارات',
-    voucherNo   = nextVoucherNo(),
+    // Prefer the entry's stored reference_no so reprints keep the SAME official
+    // number; fall back to a local sequence only for legacy entries without one.
+    voucherNo   = entry.reference_no || nextVoucherNo(),
   } = options;
 
   const dateStr = entry.entry_date
