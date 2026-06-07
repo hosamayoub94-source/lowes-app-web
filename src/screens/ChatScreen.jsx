@@ -246,7 +246,7 @@ function ForwardPanel({msg,rooms,userId,userName,onClose}){
 }
 
 // ── MessageBubble ────────────────────────────────────────────────
-function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,onForward,reactions,isOnline,roomReadMap,isDm}){
+function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDelete,onPin,onImageClick,onForward,reactions,isOnline,roomReadMap,isDm,othersOnline}){
   const[showMenu,setShowMenu]=useState(false),[editMode,setEditMode]=useState(false),[editText,setEditText]=useState('');
   const[showEmoji,setShowEmoji]=useState(false);
   const menuRef=useRef(null),editRef=useRef(null);
@@ -432,9 +432,11 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
           <span className="text-[9px] text-muted/60">{timeLabel(msg.created_at)}</span>
           {msg.edited_at&&<span className="text-[9px] text-muted/50 italic">تم التعديل</span>}
           {isMine&&(
-            <span className={`text-[10px] font-bold leading-none transition-colors ${isRead?'text-teal':'text-muted/40'}`} title={isRead?'تمت القراءة':'تم الإرسال'}>
-              {isRead?'✓✓':'✓'}
-            </span>
+            isRead
+              ? <span className="text-[10px] font-bold leading-none text-teal" title="تمت القراءة">✓✓</span>
+              : othersOnline
+                ? <span className="text-[10px] font-bold leading-none text-muted/40" title="تم التسليم">✓✓</span>
+                : <span className="text-[10px] font-bold leading-none text-muted/40" title="تم الإرسال">✓</span>
           )}
         </div>
       </div>
@@ -691,9 +693,11 @@ function ChannelItem({room,active,unread,lastMsg,onClick}){
   return(
     <button onClick={onClick}
       className={`w-full text-start px-2.5 py-2 rounded-xl transition-all duration-150 flex items-center gap-2.5 ${active?'bg-teal/10 text-teal shadow-sm':'text-muted hover:bg-surface-alt hover:text-text'}`}>
-      <span className={`text-[13px] w-5 text-center flex-shrink-0 font-bold ${active?'text-teal':'text-muted/50'}`}>
-        {room.is_private?'🔒':room.type==='dm'?null:'#'}
-      </span>
+      {room.avatar_url
+        ? <img src={room.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0 border border-border" />
+        : <span className={`text-[13px] w-5 text-center flex-shrink-0 font-bold ${active?'text-teal':'text-muted/50'}`}>
+            {room.is_private?'🔒':room.type==='dm'?null:'#'}
+          </span>}
       <div className="flex-1 min-w-0">
         <span className={`text-sm truncate block ${active?'font-bold':'font-medium'}`}>{label}</span>
         {lastMsg&&!active&&<span className="text-[10px] text-muted/60 truncate block">{lastMsg}</span>}
@@ -955,6 +959,176 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
   );
 }
 
+// ── GroupInfoPanel — members, photo, rename, add/remove, leave ───
+function GroupInfoPanel({room,userId,userName,isApprover,onClose,onUpdated}){
+  const[members,setMembers]=useState([]),[loading,setLoading]=useState(true);
+  const[name,setName]=useState(room.name||'');
+  const[desc,setDesc]=useState(room.description||'');
+  const[avatar,setAvatar]=useState(room.avatar_url||null);
+  const[saving,setSaving]=useState(false),[uploading,setUploading]=useState(false),[acting,setActing]=useState(null);
+  const[showAdd,setShowAdd]=useState(false),[candidates,setCandidates]=useState([]),[addSearch,setAddSearch]=useState('');
+  const fileRef=useRef(null);
+  // Group admin = approver role OR creator OR has admin role in this room's membership
+  const myMembership=members.find(m=>m.user_id===userId);
+  const canManage=isApprover||room.created_by===userId||myMembership?.role==='admin';
+
+  const loadMembers=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const{data}=await supabase.from('chat_room_members').select('user_id,user_name,display_name,role,joined_at').eq('room_id',room.id).order('joined_at');
+      setMembers(data??[]);
+    }catch{setMembers([]);}
+    setLoading(false);
+  },[room.id]);
+  useEffect(()=>{loadMembers();},[loadMembers]);
+
+  const saveInfo=async()=>{
+    if(!name.trim())return;setSaving(true);
+    try{
+      await supabase.from('chat_rooms').update({name:name.trim(),description:desc.trim()||null}).eq('id',room.id);
+      onUpdated?.();
+    }catch(e){alert('خطأ: '+e.message);}finally{setSaving(false);}
+  };
+
+  const onPhoto=async e=>{
+    const file=e.target.files?.[0];e.target.value='';if(!file)return;setUploading(true);
+    try{
+      const ext=file.name.split('.').pop(),path=`group-avatars/${room.id}_${Date.now()}.${ext}`;
+      const{data,error}=await supabase.storage.from('chat-files').upload(path,file,{contentType:file.type,upsert:true});
+      if(error)throw error;
+      const{data:u}=supabase.storage.from('chat-files').getPublicUrl(data.path);
+      await supabase.from('chat_rooms').update({avatar_url:u.publicUrl}).eq('id',room.id);
+      setAvatar(u.publicUrl);onUpdated?.();
+    }catch(err){alert('فشل رفع الصورة: '+err.message);}finally{setUploading(false);}
+  };
+
+  const removeMember=async m=>{
+    if(!confirm(`إزالة ${m.display_name||m.user_name} من المجموعة؟`))return;
+    setActing(m.user_id);
+    try{
+      await supabase.from('chat_room_members').delete().eq('room_id',room.id).eq('user_id',m.user_id);
+      setMembers(p=>p.filter(x=>x.user_id!==m.user_id));
+    }catch(e){alert('خطأ: '+e.message);}finally{setActing(null);}
+  };
+
+  const leaveGroup=async()=>{
+    if(!confirm('مغادرة هذه المجموعة؟'))return;
+    setActing(userId);
+    try{
+      await supabase.from('chat_room_members').delete().eq('room_id',room.id).eq('user_id',userId);
+      onUpdated?.();onClose?.();
+    }catch(e){alert('خطأ: '+e.message);}finally{setActing(null);}
+  };
+
+  const openAdd=async()=>{
+    setShowAdd(true);
+    const memberIds=members.map(m=>m.user_id);
+    const{data}=await supabase.from('profiles').select('id,employee_name,team').eq('is_active',true).order('employee_name');
+    setCandidates((data??[]).filter(p=>!memberIds.includes(p.id)));
+  };
+  const addMember=async p=>{
+    setActing(p.id);
+    try{
+      await supabase.from('chat_room_members').upsert({room_id:room.id,user_id:p.id,user_name:p.employee_name,display_name:p.employee_name,role:'member',joined_at:new Date().toISOString()},{onConflict:'room_id,user_id'});
+      setMembers(prev=>[...prev,{user_id:p.id,user_name:p.employee_name,display_name:p.employee_name,role:'member',joined_at:new Date().toISOString()}]);
+      setCandidates(prev=>prev.filter(x=>x.id!==p.id));
+    }catch(e){alert('خطأ: '+e.message);}finally{setActing(null);}
+  };
+  const filteredCandidates=candidates.filter(p=>!addSearch||p.employee_name?.toLowerCase().includes(addSearch.toLowerCase()));
+
+  return(
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-250 max-h-[85vh] flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <h2 className="font-bold text-text text-sm">معلومات المجموعة</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-4">
+          {/* Avatar + name */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative">
+              {avatar
+                ? <img src={avatar} alt="" className="w-20 h-20 rounded-full object-cover border border-border" />
+                : <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${avatarColor(name)}`}>{name?.[0]?.toUpperCase()||'#'}</div>}
+              {canManage&&(
+                <button onClick={()=>fileRef.current?.click()} disabled={uploading}
+                  className="absolute -bottom-1 -end-1 w-7 h-7 rounded-full bg-teal text-white flex items-center justify-center text-xs shadow hover:bg-teal/90 transition disabled:opacity-50">
+                  {uploading?'⏳':'📷'}
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
+            </div>
+          </div>
+          {canManage?(
+            <div className="space-y-2">
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="اسم المجموعة" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text text-center font-bold focus:outline-none focus:ring-2 focus:ring-teal/30" />
+              <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="وصف (اختياري)" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30" />
+              {(name!==room.name||desc!==(room.description||''))&&(
+                <button onClick={saveInfo} disabled={saving||!name.trim()} className="w-full py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">{saving?'⏳ يحفظ…':'💾 حفظ التعديلات'}</button>
+              )}
+            </div>
+          ):(
+            <div className="text-center"><p className="font-bold text-text">{room.name}</p>{room.description&&<p className="text-xs text-muted mt-0.5">{room.description}</p>}</div>
+          )}
+
+          {/* Members */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-bold text-muted">الأعضاء ({members.length})</p>
+              {canManage&&<button onClick={openAdd} className="text-[11px] text-teal font-bold hover:underline">+ إضافة عضو</button>}
+            </div>
+            {loading?<div className="flex justify-center py-4"><div className="w-4 h-4 border-2 border-teal/30 border-t-teal rounded-full animate-spin"/></div>
+            :<div className="space-y-1 max-h-52 overflow-y-auto">
+              {members.map(m=>(
+                <div key={m.user_id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-surface-alt transition">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarColor(m.display_name||m.user_name)}`}>{(m.display_name||m.user_name)?.[0]?.toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text truncate">{m.display_name||m.user_name}{m.user_id===userId&&<span className="text-[10px] text-muted"> (أنت)</span>}</p>
+                  </div>
+                  {m.role==='admin'&&<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal/10 text-teal font-bold shrink-0">مشرف</span>}
+                  {canManage&&m.user_id!==userId&&room.created_by!==m.user_id&&(
+                    <button onClick={()=>removeMember(m)} disabled={acting===m.user_id} className="text-muted hover:text-red-500 transition text-xs shrink-0 disabled:opacity-40" title="إزالة">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>}
+          </div>
+
+          {/* Leave */}
+          {room.created_by!==userId&&(
+            <button onClick={leaveGroup} disabled={acting===userId} className="w-full py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-bold hover:bg-red-100 disabled:opacity-50 transition">🚪 مغادرة المجموعة</button>
+          )}
+        </div>
+      </div>
+
+      {/* Add member sub-panel */}
+      {showAdd&&(
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}>
+          <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-250" dir="rtl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h2 className="font-bold text-text text-sm">إضافة عضو</h2>
+              <button onClick={()=>setShowAdd(false)} className="w-7 h-7 rounded-lg bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
+            </div>
+            <div className="p-3">
+              <input value={addSearch} onChange={e=>setAddSearch(e.target.value)} placeholder="بحث بالاسم…" autoFocus className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 mb-2" />
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {filteredCandidates.length===0?<p className="text-center text-muted text-sm py-4">لا يوجد أحد لإضافته</p>
+                :filteredCandidates.map(p=>(
+                  <button key={p.id} onClick={()=>addMember(p)} disabled={acting===p.id} className="w-full text-start px-3 py-2 rounded-xl hover:bg-surface-alt transition flex items-center gap-2.5 disabled:opacity-50">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarColor(p.employee_name)}`}>{p.employee_name?.[0]?.toUpperCase()}</div>
+                    <span className="flex-1 text-sm font-medium text-text truncate">{p.employee_name}</span>
+                    <span className="text-[10px] text-muted">{p.team}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════
 // Main ChatScreen
 // ══════════════════════════════════════════════════════════════════
@@ -997,6 +1171,7 @@ export default function ChatScreen(){
   const[showCreateGroup,setShowCreateGroup]=useState(false);
   const[showCreateChannel,setShowCreateChannel]=useState(false);
   const[showNewDm,setShowNewDm]=useState(false);
+  const[showGroupInfo,setShowGroupInfo]=useState(false);
   const[dmSearch,setDmSearch]=useState('');
   const[lightboxUrl,setLightboxUrl]=useState(null);
   const[showScrollBtn,setShowScrollBtn]=useState(false);
@@ -1096,10 +1271,10 @@ export default function ChatScreen(){
     if(!userId)return;
     setLoading(true);
     try{
-      let{data:allGroups,error}=await supabase.from('chat_rooms').select('id,type,name,team,description,requires_approval,is_private,created_at').eq('type','group').order('created_at');
+      let{data:allGroups,error}=await supabase.from('chat_rooms').select('id,type,name,team,description,requires_approval,is_private,avatar_url,created_by,created_at').eq('type','group').order('created_at');
       if(error?.code==='42P01'){setLoading(false);return;}
       if(!allGroups?.length){
-        const{data:seeded}=await supabase.from('chat_rooms').insert(DEFAULT_CHANNELS.map(c=>({type:'group',...c,created_by:userId}))).select('id,type,name,team,description,requires_approval,is_private');
+        const{data:seeded}=await supabase.from('chat_rooms').insert(DEFAULT_CHANNELS.map(c=>({type:'group',...c,created_by:userId}))).select('id,type,name,team,description,requires_approval,is_private,avatar_url,created_by');
         allGroups=seeded??[];
       }
       setAllChannels(allGroups);
@@ -1455,6 +1630,12 @@ export default function ChatScreen(){
           </button>
           <button onClick={()=>setSidebarOpen(o=>!o)} className="hidden sm:flex w-8 h-8 rounded-xl bg-surface-alt border border-border items-center justify-center text-muted hover:text-text transition shrink-0 hover:scale-105">☰</button>
           {activeRoom?(
+            <div className={`flex-1 min-w-0 flex items-center gap-2.5 ${activeRoom.type==='group'?'cursor-pointer rounded-xl hover:bg-surface-alt -mx-1 px-1 py-0.5 transition':''}`}
+              onClick={()=>{if(activeRoom.type==='group')setShowGroupInfo(true);}}>
+              {/* Avatar */}
+              {activeRoom.avatar_url
+                ? <img src={activeRoom.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border border-border" />
+                : <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${avatarColor(activeRoom.display_name??activeRoom.name)}`}>{(activeRoom.display_name??activeRoom.name)?.[0]?.toUpperCase()||'#'}</div>}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-text truncate">{activeRoom.display_name??activeRoom.name}</p>
@@ -1484,6 +1665,7 @@ export default function ChatScreen(){
                   )
                 )}
               </div>
+            </div>
             </div>
           ):null}
           {activeRoom&&(
@@ -1547,6 +1729,7 @@ export default function ChatScreen(){
                         reactions={reactions[item.id]}
                         isOnline={item.sender_id!==userId&&globalOnline.has(item.sender_name)}
                         roomReadMap={roomReadMap} isDm={activeRoom?.type==='dm'}
+                        othersOnline={activeRoom?.type==='dm'?globalOnline.has(activeRoom.display_name??activeRoom.name):onlineUsers.length>0}
                       />
                     );
                   })
@@ -1602,6 +1785,11 @@ export default function ChatScreen(){
       {showDiscover&&<DiscoverPanel allChannels={allChannels} memberRoomIds={memberRoomIds} userId={userId} userName={userName} onClose={()=>setShowDiscover(false)} onRequestSent={()=>{setShowDiscover(false);loadPendingCount();}}/>}
       {showRequests&&<JoinRequestsPanel userName={userName} onApproved={()=>{loadRooms();loadPendingCount();}} onClose={()=>{setShowRequests(false);loadPendingCount();}}/>}
       {showCreateGroup&&<CreateGroupPanel userId={userId} userName={userName} onCreated={()=>{setShowCreateGroup(false);loadRooms();}} onClose={()=>setShowCreateGroup(false)}/>}
+      {showGroupInfo&&activeRoom?.type==='group'&&(
+        <GroupInfoPanel room={activeRoom} userId={userId} userName={userName} isApprover={isApprover}
+          onClose={()=>setShowGroupInfo(false)}
+          onUpdated={()=>{loadRooms();}}/>
+      )}
     </div>
   );
 }
