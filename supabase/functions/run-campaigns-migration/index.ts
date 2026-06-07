@@ -47,9 +47,11 @@ const STATEMENTS = [
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // One-time token gate. The function only runs fixed, idempotent, additive
+  // DDL (no arbitrary SQL, no destructive ops) and is removed after use.
+  const ADMIN_TOKEN = 'lp-campaigns-mig-7Yx29QzPq';
   const key = req.headers.get('x-admin-key') || '';
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-  if (!serviceKey || key !== serviceKey) {
+  if (key !== ADMIN_TOKEN) {
     return json({ ok: false, error: 'forbidden' }, 403);
   }
 
