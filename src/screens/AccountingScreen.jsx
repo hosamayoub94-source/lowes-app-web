@@ -22,6 +22,7 @@ import {
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
 import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
+import AccountingReport from '@modules/accounting/components/AccountingReport';
 import { printPaymentVoucher, computeNextVoucherNo } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
@@ -117,6 +118,7 @@ export default function AccountingScreen() {
   const [form, setForm]             = useState(EMPTY_FORM);
   const [saveError, setSaveError]   = useState(null);
   const [exporting, setExporting]   = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   // ── Transfer between wallets ───────────────────────────────────────────────
   const [showTransfer, setShowTransfer] = useState(false);
@@ -286,6 +288,13 @@ export default function AccountingScreen() {
             onChange={e => setMonthFilter(e.target.value)}
             className="border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text"
           />
+          {/* Report toggle */}
+          <button
+            onClick={() => setShowReport(v => !v)}
+            className={`px-4 py-2 rounded-xl border text-sm font-semibold transition ${showReport ? 'bg-teal text-white border-teal' : 'border-border text-text hover:bg-cream'}`}
+          >
+            📊 تقرير
+          </button>
           {/* Export */}
           <button
             onClick={handleExport}
@@ -321,6 +330,17 @@ export default function AccountingScreen() {
 
       {/* Treasury Panel */}
       <TreasuryPanel entries={entries} />
+
+      {/* Financial report (period = current month filter) */}
+      {showReport && (
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-text">📊 التقرير المالي</h3>
+            <span className="text-xs text-muted">{monthFilter || 'كل الفترات'} · {monthEntries.length} قيد</span>
+          </div>
+          <AccountingReport entries={monthEntries} periodLabel={monthFilter} />
+        </div>
+      )}
 
       {/* Per-currency KPI blocks */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
