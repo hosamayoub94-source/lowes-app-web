@@ -81,7 +81,8 @@ async function fetchTracking(barcodes: string[], token: string): Promise<any[]> 
 
 const STATUS_AR: Record<string, string> = {
   pending:'وارد جديد', preparing:'في التجهيز', ready:'جاهز', motor:'قيد توصيل الموتور',
-  at_center:'في المركز', shipped:'في النقل', on_way:'في الطريق للعميل', delivered:'تم التسليم',
+  motor_prep:'تحضير الموتور', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
+  special_delivery:'توصيل خاص', prepaid:'مسبق الدفع', delivered:'تم التسليم',
   waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع',
   settled:'تمت التسوية', cancelled:'ملغي',
 };

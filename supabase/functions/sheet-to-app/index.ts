@@ -35,27 +35,31 @@ const STATUS_MAP: Record<string, string> = {
   'في التجهيز': 'preparing',  'preparing': 'preparing',
   'جاهز': 'ready',             'ready': 'ready',
   'قيد توصيل الموتور': 'motor','motor': 'motor',
+  'تحضير الموتور': 'motor_prep', 'motor_prep': 'motor_prep',
   'في المركز': 'at_center',    'at_center': 'at_center',
   'في النقل': 'shipped',       'shipped': 'shipped',
-  'في الطريق للعميل': 'on_way','on_way': 'on_way',
+  'في الطريق للعميل': 'on_way','قيد التوصيل': 'on_way', 'on_way': 'on_way',
+  'توصيل خاص': 'special_delivery', 'special_delivery': 'special_delivery',
+  'مسبق الدفع': 'prepaid',     'prepaid': 'prepaid',
   'تم التسليم': 'delivered',   'delivered': 'delivered',
   'بالانتظار': 'waiting',      'waiting': 'waiting',
   'لم يتم الاستلام': 'not_received', 'not_received': 'not_received',
   'راجع للمركز': 'returning',  'returning': 'returning',
   'راجع': 'returned',           'returned': 'returned',
   'تمت التسوية': 'settled',    'settled': 'settled',
-  'ملغي': 'cancelled',          'cancelled': 'cancelled',
+  'ملغي': 'cancelled', 'الغاء': 'cancelled', 'الإلغاء': 'cancelled', 'cancelled': 'cancelled',
 };
 
 function resolveStatus(raw: string): string | null {
   if (!raw) return null;
-  const clean = raw.replace(/[🆕📦🚀🏍️🏢🚚🛵✅⏳📭↩️🔁🤝❌]/g, '').trim();
+  const clean = raw.replace(/[🆕📦🚀🏍️🛠️🏢🚚🛵🚗💳✅⏳📭↩️🔁🤝❌]/g, '').trim();
   return STATUS_MAP[clean] ?? STATUS_MAP[raw.trim()] ?? null;
 }
 
 const STATUS_AR: Record<string, string> = {
   pending:'وارد جديد', preparing:'في التجهيز', ready:'جاهز', motor:'قيد توصيل الموتور',
-  at_center:'في المركز', shipped:'في النقل', on_way:'في الطريق للعميل', delivered:'تم التسليم',
+  motor_prep:'تحضير الموتور', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
+  special_delivery:'توصيل خاص', prepaid:'مسبق الدفع', delivered:'تم التسليم',
   waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع',
   settled:'تمت التسوية', cancelled:'ملغي',
 };

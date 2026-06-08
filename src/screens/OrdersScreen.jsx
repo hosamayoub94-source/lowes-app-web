@@ -1635,6 +1635,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
     ...EMPTY_FORM,
     handler_name: userName ?? '',
     market:   myMarket,
+    status:   statusKeysForMarket(myMarket)[0] || 'pending',  // أول حالة بالسوق (تركيا تبدأ «في التجهيز»)
     currency: myMarket === 'syria' ? 'SYP' : 'TRY',
     shipping_company: myMarket === 'syria' ? 'شركة الكرم' : 'Yurtiçi Kargo',
     payment_method:   myMarket === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
@@ -1815,9 +1816,12 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
               <div>
                 <label className={LBL}>الحالة</label>
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={INP}>
-                  {Object.entries(STATUSES).map(([k, v]) => (
-                    <option key={k} value={k}>{v.icon} {v.label}</option>
+                  {statusKeysForMarket(form.market).map((k) => (
+                    <option key={k} value={k}>{STATUSES[k].icon} {STATUSES[k].label}</option>
                   ))}
+                  {!statusKeysForMarket(form.market).includes(form.status) && STATUSES[form.status] && (
+                    <option value={form.status}>{STATUSES[form.status].icon} {STATUSES[form.status].label}</option>
+                  )}
                 </select>
               </div>
             </div>

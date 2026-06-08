@@ -9,9 +9,12 @@ export const STATUSES = {
   preparing:    { label: 'في التجهيز',        icon: '📦', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
   ready:        { label: 'جاهز للشحن',        icon: '🚀', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
   motor:        { label: 'قيد توصيل الموتور', icon: '🏍️', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  motor_prep:   { label: 'تحضير الموتور',     icon: '🛠️', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
   at_center:    { label: 'في المركز',         icon: '🏢', bg: 'bg-blue-50',     text: 'text-blue-700',   border: 'border-blue-200'    },
   shipped:      { label: 'في النقل',          icon: '🚚', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
-  on_way:       { label: 'في الطريق للعميل',  icon: '🛵', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  on_way:       { label: 'قيد التوصيل',       icon: '🛵', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  special_delivery: { label: 'توصيل خاص',     icon: '🚗', bg: 'bg-blue-100',    text: 'text-blue-700',   border: 'border-blue-200'    },
+  prepaid:      { label: 'مسبق الدفع',        icon: '💳', bg: 'bg-violet-100',  text: 'text-violet-700', border: 'border-violet-200'  },
   delivered:    { label: 'تم التسليم',        icon: '✅', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
   waiting:      { label: 'بالانتظار/متابعة',  icon: '⏳', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
   not_received: { label: 'لم يتم الاستلام',   icon: '📭', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
@@ -25,7 +28,8 @@ export const ALL_STATUS_KEYS = Object.keys(STATUSES);
 
 // قوائم الحالات حسب السوق (المالك: قوائم منفصلة لكل سوق).
 // تركيا = مسار شركات الشحن (مركز/شحن/في الطريق). سوريا = مسار محلي (موتور).
-const TURKEY_STATUSES = ['pending','preparing','ready','at_center','shipped','on_way','delivered','waiting','not_received','returning','returned','settled','cancelled'];
+// تركيا (طلب المالك): مطابقة لقائمة الجدول بالضبط وبترتيبها.
+const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_center','shipped','returning','prepaid','waiting','special_delivery','motor_prep','settled','cancelled','motor'];
 // سوريا (طلب المالك): فقط 7 حالات — جديد·تجهيز·شحن·تم التسليم·انتظار·تسوية·ملغي.
 const SYRIA_STATUSES  = ['pending','preparing','shipped','delivered','waiting','settled','cancelled'];
 
@@ -37,7 +41,7 @@ export function statusKeysForMarket(market) {
 }
 
 // خطوط التقدّم (شريط المراحل) لكل سوق — مسار خطّي فقط.
-const TURKEY_STAGES = ['pending','preparing','ready','at_center','shipped','on_way','delivered'];
+const TURKEY_STAGES = ['preparing','at_center','shipped','on_way','delivered'];
 const SYRIA_STAGES  = ['pending','preparing','shipped','delivered'];
 export const STAGES_BY_MARKET = { turkey: TURKEY_STAGES, syria: SYRIA_STAGES };
 
