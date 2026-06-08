@@ -9,13 +9,18 @@
 --   خطأ «there is no unique or exclusion constraint matching the ON CONFLICT»
 --   → الـRPC كلها تتراجع → لا تُكتب عمولة ولا يُحدَّث wallet_balance.
 --
--- الإصلاح: فهرس فريد جزئي على dedup_key (يسمح بـNULL المتعدّد، يفرض
---   التفرّد فقط على القيم غير الفارغة) — يطابق ما تفترضه ON CONFLICT.
--- آمن وidempotent. لا يؤثّر على صفوف الإشعارات بـdedup_key=NULL.
+-- الإصلاح: فهرس فريد **كامل** (غير جزئي) على dedup_key.
+--   • ON CONFLICT (dedup_key) بلا WHERE لا يستخدم فهرساً جزئياً كـarbiter،
+--     لذلك يجب أن يكون الفهرس كاملاً.
+--   • NULLs المتعدّدة مسموحة تلقائياً في فهرس UNIQUE (كل NULL مميّز) —
+--     فلا يكسر إشعارات dedup_key=NULL.
+-- آمن وidempotent (تأكّدنا: لا تكرارات غير فارغة على prod).
 -- =============================================================
 
+-- أزل أي فهرس جزئي سابق بنفس الاسم (من نسخة أولى خاطئة)
+DROP INDEX IF EXISTS public.notifications_dedup_key_uidx;
+
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedup_key_uidx
-  ON public.notifications (dedup_key)
-  WHERE dedup_key IS NOT NULL;
+  ON public.notifications (dedup_key);
 
 -- بعد التطبيق: أعِد تست العمولة (scripts كانت تُرجع $10 لـfield_rep pro على $100).
