@@ -2455,6 +2455,15 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // orders never re-fragment the leaderboard (e.g. "Haneen" → "Haneen Mohamad").
     const form = { ...formRaw, handler_name: canonicalSeller(formRaw.handler_name) };
 
+    // ── ربط البائع آلياً (لمحرّك العمولات): id من اسم البائع ──
+    try {
+      if (form.handler_name) {
+        const { data: sp } = await supabase.from('profiles')
+          .select('id').eq('employee_name', form.handler_name).maybeSingle();
+        if (sp?.id) form.seller_id = sp.id;
+      }
+    } catch { /* best-effort */ }
+
     // ── تحقّق عند الإدخال (per-market) — تحذيرات لا توقف الحفظ إجبارياً ──
     if (!existingId) {
       const warns = [];
