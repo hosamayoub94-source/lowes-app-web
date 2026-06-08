@@ -86,7 +86,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance,login_code';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -135,7 +135,7 @@ async function adminResetPin(employeeName, newPin) {
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
   employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
-  seller_type: 'online', rep_level: 'junior', mlm_rank: 'bronze', login_code: '',
+  seller_type: 'online', rep_level: 'junior', mlm_rank: 'bronze',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
@@ -307,7 +307,6 @@ export default function AdminUsersScreen() {
       seller_type:   p.seller_type ?? 'online',
       rep_level:     p.rep_level ?? 'junior',
       mlm_rank:      p.mlm_rank ?? 'bronze',
-      login_code:    p.login_code ?? '',
       team:          p.team ?? '',
       manager_scope: p.manager_scope ?? '',
       is_active:     p.is_active ?? true,
@@ -361,7 +360,6 @@ export default function AdminUsersScreen() {
       patch.seller_type = form.seller_type || 'online';
       patch.rep_level   = form.seller_type === 'field_rep' ? (form.rep_level || 'junior') : null;
       patch.mlm_rank    = form.seller_type === 'marketer'  ? (form.mlm_rank  || 'bronze') : null;
-      patch.login_code  = form.login_code.trim().toUpperCase() || null;
       await updateProfile(editUser.id, patch);
 
       // ── Auto-sync chat channel membership when team changes ──
@@ -612,9 +610,6 @@ export default function AdminUsersScreen() {
               {/* Basic */}
               <Field label="الاسم">
                 <input type="text" value={form.employee_name} onChange={e => setForm(f => ({ ...f, employee_name: e.target.value }))} className={inputCls} />
-              </Field>
-              <Field label="كود الدخول (يدخل به بدل الاسم)">
-                <input type="text" value={form.login_code} onChange={e => setForm(f => ({ ...f, login_code: e.target.value.toUpperCase() }))} placeholder="LW-1001" className={inputCls} />
               </Field>
               <Field label="الدور">
                 <select value={form.role_type} onChange={e => setForm(f => ({ ...f, role_type: e.target.value }))} className={selectCls}>

@@ -57,22 +57,6 @@ export const ROLE_LABELS = {
   [ROLES.AREA_AGENT]: 'وكيل منطقة',
 };
 
-// ── Login channels (لوحة الدخول: فريق LOWE'S / شبكة المبيعات) ──
-// أدوار شبكة المبيعات تدخل من قناة منفصلة ولا ترى أسماء الفريق.
-export const CHANNELS = { TEAM: 'team', SALES: 'sales' };
-export const CHANNEL_LABELS = {
-  [CHANNELS.TEAM]:  'فريق LOWE\'S',
-  [CHANNELS.SALES]: 'شبكة المبيعات',
-};
-const SALES_ROLES = new Set([
-  ROLES.FIELD_REP, ROLES.MARKETER, ROLES.SUPERVISOR,
-  ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT,
-]);
-/** القناة التي ينتمي إليها دور (للوحة الدخول وحارس صفحة الفريق). */
-export function channelForRole(roleType) {
-  return SALES_ROLES.has(roleType) ? CHANNELS.SALES : CHANNELS.TEAM;
-}
-
 // Attendance status types (from index_v4.html).
 export const ATTENDANCE_TYPES = {
   IN: 'in',

@@ -168,35 +168,6 @@ export async function signInWithPin(employeeName, pin) {
   return { user: syntheticSession.user, session: syntheticSession, profile };
 }
 
-/**
- * Code-based sign-in — يبحث عن البروفايل بكود الدخول (لا قوائم أسماء)،
- * يتحقّق من القناة، ثم يفوّض للتحقّق من الـPIN عبر الاسم المكتشَف.
- * @param {string} loginCode كود الدخول (مثل LW-1001)
- * @param {string} pin       الرمز السري
- * @param {string} [channel] 'team' | 'sales' — يرفض إن خالف قناة المستخدم
- */
-export async function signInWithCode(loginCode, pin, channel) {
-  const code = String(loginCode || '').trim().toUpperCase();
-  if (!code) throw new Error('أدخل كود الدخول');
-
-  const { data: prof, error } = await supabase
-    .from('profiles')
-    .select('id, employee_name, role_type, is_active')
-    .eq('login_code', code)
-    .maybeSingle();
-  if (error) throw new Error('تعذّر التحقّق — حاول لاحقاً');
-  if (!prof || prof.is_active === false) throw new Error('كود الدخول غير صحيح');
-
-  if (channel) {
-    const { channelForRole } = await import('@data/teams');
-    if (channelForRole(prof.role_type) !== channel) {
-      throw new Error('هذا الكود لا يدخل من هذه القناة');
-    }
-  }
-
-  return signInWithPin(prof.employee_name, pin);
-}
-
 /** Legacy entry point — delegates to signInWithPin. */
 export async function verifyPin(employeeName, pin) {
   try {
