@@ -60,10 +60,9 @@ export const ROLE_LABELS = {
 // ── Login groups — لوحة الدخول مجمّعة بـ4 فئات (≤6) بمسميات إنجليزية ──
 // كل فئة تضم عدة أدوار؛ النقر يعرض أسماء تلك الأدوار ثم PIN.
 export const LOGIN_GROUPS = [
-  { key: 'management', label: 'Management', icon: '🏢',
-    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER] },
+  // كل أفراد الشركة (الإدارة + الموظفون) يدخلون من Team.
   { key: 'team', label: 'Team', icon: '👥',
-    roles: [ROLES.EMPLOYEE] },
+    roles: [ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER] },
   { key: 'stars', label: 'Stars Network', icon: '⭐',
     roles: [ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER] },
   { key: 'field', label: 'Field Sales', icon: '🚚',
