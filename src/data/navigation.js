@@ -48,9 +48,13 @@ export const NAV_ITEMS = [
   { id: 'workspace',    label: 'الرئيسية',   icon: '🏠', path: '/',            roles: ALL,                 group: 'core' },
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
-  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB, ...NET], group: 'sales' },
-  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB, ...NET], group: 'sales' },
-  { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
+  // طلبات الشركة (موظفو الأونلاين/الإدارة فقط) — ممنوعة على أدوار الشبكة (خصوصية بيانات الشركة)
+  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
+  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
+  // العملاء والأرشيف = أرشيف عملاء الشركة (أونلاين) — ليس لأدوار الشبكة (لهم «عملائي» في الزيارات)
+  { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: [E, M, A, SM, MB, SOC, ...MGMT], group: 'sales' },
+  // طلباتي = طلبات المندوب/المسوّقة نفسه فقط (مفلترة بـseller_id)
+  { id: 'my-orders',    label: 'طلباتي',     icon: '📦', path: '/my-orders',   roles: [...NET],            group: 'sales' },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
@@ -133,12 +137,12 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
   [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'performance', 'analytics', 'customers'],
   [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
-  // ── Distribution roles (network tab يُضاف بـP2) ──
-  [ROLES.FIELD_REP]:          ['workspace', 'field-crm', 'orders', 'wallet', 'performance'],
-  [ROLES.MARKETER]:           ['workspace', 'orders', 'network', 'wallet', 'performance'],
-  [ROLES.SUPERVISOR]:         ['workspace', 'orders', 'network', 'wallet', 'performance'],
+  // ── Distribution roles — «طلباتي» المفلترة بدل طلبات الشركة ──
+  [ROLES.FIELD_REP]:          ['workspace', 'field-crm', 'my-orders', 'wallet', 'performance'],
+  [ROLES.MARKETER]:           ['workspace', 'my-orders', 'network', 'wallet', 'performance'],
+  [ROLES.SUPERVISOR]:         ['workspace', 'my-orders', 'network', 'wallet', 'performance'],
   [ROLES.SUPERVISOR_MANAGER]: ['workspace', 'network', 'wallet', 'team', 'performance'],
-  [ROLES.AREA_AGENT]:         ['workspace', 'field-crm', 'orders', 'wallet', 'performance'],
+  [ROLES.AREA_AGENT]:         ['workspace', 'field-crm', 'my-orders', 'wallet', 'performance'],
 };
 
 export function bottomTabsForRole(role, permSet = null, userMarket = null) {

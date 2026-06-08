@@ -79,6 +79,7 @@ const CommissionReportScreen   = lazy(() => import(/* webpackChunkName: "commiss
 const TerritoriesScreen        = lazy(() => import(/* webpackChunkName: "territories"       */ '@modules/distribution/pages/TerritoriesScreen'));
 const ConsignmentScreen        = lazy(() => import(/* webpackChunkName: "consignment"       */ '@modules/distribution/pages/ConsignmentScreen'));
 const CollectionsScreen        = lazy(() => import(/* webpackChunkName: "collections"       */ '@modules/distribution/pages/CollectionsScreen'));
+const MyOrdersScreen           = lazy(() => import(/* webpackChunkName: "my-orders"         */ '@modules/distribution/pages/MyOrdersScreen'));
 const ManagementScreen         = lazy(() => import(/* webpackChunkName: "management"         */ '@screens/ManagementScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
@@ -276,6 +277,14 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.WALLET}   element={<MyWalletScreen />} />{/* محفظتي — كل الأدوار (RLS تحكم الرؤية) */}
+          <Route
+            path={ROUTES.MY_ORDERS}
+            element={
+              <ProtectedRoute roles={[ROLES.FIELD_REP, ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT]}>
+                <MyOrdersScreen />
+              </ProtectedRoute>
+            }
+          />{/* طلباتي — أدوار الشبكة فقط، مفلترة بـseller_id */}
           <Route
             path={ROUTES.NETWORK}
             element={
