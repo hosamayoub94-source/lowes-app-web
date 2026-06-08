@@ -228,7 +228,7 @@ function PinResetModal({ employee, onClose }) {
                 ⚠️ {err}
                 {err.includes('function') && (
                   <p className="mt-1 text-[10px]">
-                    نفّذ SQL التالي في Supabase أولاً (زر "إعداد مطلوب" أعلى الصفحة)
+                    نفّذ SQL التالي في Supabase أولاً (زر «إعداد مطلوب» أعلى الصفحة)
                   </p>
                 )}
               </div>
@@ -378,7 +378,7 @@ export default function AdminUsersScreen() {
               );
             }
           }
-        } catch {} // chat sync is best-effort — don't block save
+        } catch { /* chat sync is best-effort — don't block save */ }
       }
 
       setProfiles(ps => ps.map(p => p.id === editUser.id ? { ...p, ...patch } : p));
