@@ -179,4 +179,11 @@ where employee_name='<الاسم>';
   - **الإصلاح:** `supabase/distribution_system_p7_fix.sql` — فهرس فريد جزئي على `notifications(dedup_key) WHERE dedup_key IS NOT NULL`. **⚠️ يحتاج تطبيق DDL على prod** ثم إعادة التست (يُتوقّع $10).
   - **bug في الواجهة (أُصلح):** `MyOrdersScreen.markDelivered` كان يضبط `delivered_at` — **العمود غير موجود في `orders`** (OrdersScreen يحدّث `status` فقط). أُزيل، وإلا كان زر «تم التسليم» سيفشل.
   - **🔴 حاجز تنفيذ DDL:** لا يمكن تطبيق p6 (RLS) ولا p7 (الإصلاح) برمجياً — الـservice_role JWT لم يعد يصلح كلمة مرور قاعدة (Supabase غيّرته؛ pooler الصحيح `aws-1-ap-northeast-1` يردّ «password authentication failed»). يلزم **كلمة مرور قاعدة البيانات** أو **توكن Management API (sbp_)** أو التطبيق يدوياً عبر **SQL Editor**. (الـREST بالـservice_role يكفي لقراءة/كتابة البيانات لكن ليس DDL.)
+- **8 يونيو 2026 — ✅ تطبيق p6/p7/p8 على prod + محرّك العمولة يعمل (تحقّق حيّ):**
+  - طُبّقت عبر **Management API** (توكن sbp_ مؤقّت ولّده المالك ثم يُلغى): **p6** (RLS) + **p7** (فهرس فريد كامل على notifications.dedup_key) + **p8** (إصلاح `apply_seller_progress`).
+  - **p7 تصحيح:** أول نسخة كانت فهرساً **جزئياً** (`WHERE dedup_key IS NOT NULL`) — Postgres لا يستخدمه arbiter لـ`ON CONFLICT (dedup_key)` العادي. صُحّح لفهرس **كامل** (NULLs المتعدّدة مسموحة تلقائياً).
+  - **p8:** السبب الثاني للعطل: `notifications` على prod أعمدتها الإلزامية `recipient`+`kind` (NOT NULL)، والدالة كانت تكتب سكيمة قديمة (`user_id/type/message`). صُحّحت لتملأ `recipient`(=employee_name)+`kind`+`title`+`body`، **وغُلِّف الإشعار بـEXCEPTION** فلا يكسر العمولة أبداً مستقبلاً.
+  - **✅ تست العمولة الحيّ (المهمة #2 — مكتملة):** field_rep `pro` على طلب $100 → **$10** (10%)؛ `junior` → **$8** (8%). يُكتب صف `personal` في `commission_ledger` + `wallet_balance` يتحدّث + الترقية الآلية تعمل. (بيانات تجريبية نُظّفت بالكامل.)
+  - **✅ تحقّق RLS لم يكسر الإنتاج:** anon (= موظفو الأونلاين/الجلسة اليدوية) ما زال يقرأ `orders` (31,782) و`crm_clients` — تصميم fail-open سليم. السياسات المفتوحة القديمة (`orders_all`/`crm_clients_open`) استُبدلت بـ4 سياسات مقيَّدة لكل جدول.
+  - **ملاحظة:** التقييد الفعلي على مستوى DB يُفعَّل فقط لأدوار الشبكة المُجهّزة بحساب Supabase Auth (auth.uid=profiles.id)؛ العزل العملي الحالي عبر الواجهة + الفلترة client-side. التطبيق منشور على Vercel.
 <!-- أضف الإدخالات الجديدة هنا أعلى السطر، بالتاريخ + ما تغيّر + هل طُبّق على prod -->
