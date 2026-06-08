@@ -202,7 +202,7 @@ export default function MyOrdersScreen() {
     setBusyId(o.id);
     try {
       const { error } = await supabase.from('orders')
-        .update({ status: 'delivered', delivered_at: new Date().toISOString() }).eq('id', o.id);
+        .update({ status: 'delivered' }).eq('id', o.id);
       if (error) throw error;
       await postOrderCommission(o.id); // fire — idempotent عبر commission_locked
       await load();
