@@ -234,6 +234,14 @@ function onSheetEdit(e) {
   } catch (err) { /* best-effort — لا توقف الجدول */ }
 }
 
+// تشغيل مرة واحدة لإنشاء installable trigger (سكربت مستقل openById — لا يظهر
+// خيار «من جدول البيانات» بالواجهة، فننشئه برمجياً). شُغّل وفُوّض حيّاً 8 يونيو 2026.
+function createEditTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t){ if (t.getHandlerFunction()==='onSheetEdit') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(SHEET_ID).onEdit().create();
+  return 'trigger created';
+}
+
 function _colToNum(letter) {
   var n = 0; letter = String(letter).toUpperCase();
   for (var i = 0; i < letter.length; i++) n = n * 26 + (letter.charCodeAt(i) - 64);
