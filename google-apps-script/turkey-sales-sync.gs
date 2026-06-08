@@ -57,8 +57,9 @@ var APP_OWNED = {
 
 var STATUS_AR = {
   pending: 'وارد جديد 🆕', preparing: 'في التجهيز 📦', ready: 'جاهز 🚀',
-  motor: 'قيد توصيل الموتور 🏍️', at_center: 'في المركز 🏢',
-  shipped: 'في النقل 🚚', on_way: 'في الطريق للعميل 🛵', delivered: 'تم التسليم ✅',
+  motor: 'قيد توصيل الموتور 🏍️', motor_prep: 'تحضير الموتور 🛠️', at_center: 'في المركز 🏢',
+  shipped: 'في النقل 🚚', on_way: 'قيد التوصيل 🛵', special_delivery: 'توصيل خاص 🚗',
+  prepaid: 'مسبق الدفع 💳', delivered: 'تم التسليم ✅',
   waiting: 'بالانتظار ⏳', not_received: 'لم يتم الاستلام 📭',
   returning: 'راجع للمركز ↩️', returned: 'راجع 🔁', settled: 'تمت التسوية 🤝',
   cancelled: 'ملغي ❌',
@@ -258,8 +259,11 @@ function _statusKey(ar) {
   if (/راجع للمركز|return.?center/i.test(ar)) return 'returning';
   if (/راجع|return/i.test(ar)) return 'returned';
   if (/انتظار|متابعة|wait/i.test(ar)) return 'waiting';
-  if (/الطريق|on.?way/i.test(ar)) return 'on_way';
+  if (/تحضير.*موتور|motor.?prep/i.test(ar)) return 'motor_prep';
   if (/موتور|motor/i.test(ar)) return 'motor';
+  if (/توصيل خاص|special/i.test(ar)) return 'special_delivery';
+  if (/مسبق|prepaid/i.test(ar)) return 'prepaid';
+  if (/قيد التوصيل|الطريق|on.?way/i.test(ar)) return 'on_way';
   if (/في المركز|center/i.test(ar)) return 'at_center';
   if (/تجهيز/i.test(ar)) return 'preparing';
   if (/جاهز/i.test(ar)) return 'ready';
