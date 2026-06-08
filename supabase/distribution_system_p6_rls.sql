@@ -9,7 +9,7 @@
 -- التصميم (آمن ضد كسر الإنتاج):
 --   «مفتوح افتراضياً — يُقيَّد فقط مَن تأكّدنا أنه دور شبكة».
 --   • موظفو الأونلاين/الإدارة (وأي جلسة بلا auth.uid مثل الجلسة اليدوية)
---     → NOT EXISTS(...) = true → مسموح لهم كل شيء كما هو الآن (لا تغيير سلوك، لا كسر).
+--     → current_is_network()=false → مسموح لهم كل شيء كما هو الآن (لا كسر).
 --   • أدوار الشبكة المُجهّزة بحساب Supabase Auth (auth.uid = profiles.id)
 --     → يُقيَّدون إلى طلباتهم فقط (seller_id = auth.uid) + المشرفة ترى فريقها.
 --
@@ -22,29 +22,40 @@
 -- =============================================================
 
 -- ─────────────────────────────────────────────────────────────
+-- 0) دالة مساعدة: هل المستخدم الحالي «دور شبكة» مؤكَّد؟
+--    SECURITY DEFINER → تقرأ profiles متجاوزةً RLS (لا تعتمد على ظهور
+--    profiles للمستخدم). COALESCE(...,false) → عند auth.uid=NULL
+--    (جلسة يدوية/anon) ترجع false → السياسة تفشل «مفتوحة» (لا تكسر الأونلاين).
+-- ─────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.current_is_network()
+RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE AS $$
+  SELECT COALESCE(
+    public.current_role_type() = ANY (ARRAY[
+      'field_rep','marketer','supervisor','supervisor_manager','area_agent'
+    ]), false);
+$$;
+GRANT EXECUTE ON FUNCTION public.current_is_network() TO anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────
 -- 1) orders — استبدال السياسة المفتوحة بسياسات مُقيِّدة لأدوار الشبكة
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
--- أزل السياسة المفتوحة القديمة (المصدر: orders_migration.sql)
-DROP POLICY IF EXISTS "orders_all"    ON public.orders;
-DROP POLICY IF EXISTS "orders_select" ON public.orders;
-DROP POLICY IF EXISTS "orders_insert" ON public.orders;
-DROP POLICY IF EXISTS "orders_update" ON public.orders;
-DROP POLICY IF EXISTS "orders_delete" ON public.orders;
-
--- شرط مساعد: هل المستخدم الحالي «دور شبكة» مؤكَّد؟
--- (نستخدم EXISTS مباشرة على profiles ليفشل «مفتوحاً» عند auth.uid = NULL)
--- network = field_rep | marketer | supervisor | supervisor_manager | area_agent
+-- أزل كل سياسات orders الموجودة ديناميكياً (مهما كان اسمها) — يشمل
+-- السياسة المفتوحة orders_all. هكذا لا نحتاج معرفة الأسماء مسبقاً،
+-- ونتأكّد أن سياساتنا المقيِّدة هي الوحيدة الفاعلة (لا تتغلّب سياسة OR مفتوحة).
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies
+             WHERE schemaname='public' AND tablename='orders'
+  LOOP EXECUTE format('DROP POLICY %I ON public.orders', pol.policyname); END LOOP;
+END $$;
 
 -- قراءة
 CREATE POLICY "orders_select" ON public.orders FOR SELECT
 USING (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR seller_id = auth.uid()
   OR public.is_supervisor_of(seller_id)
 );
@@ -52,22 +63,14 @@ USING (
 -- إدراج: دور الشبكة يُدرج طلباً باسمه فقط؛ البقية بلا قيد
 CREATE POLICY "orders_insert" ON public.orders FOR INSERT
 WITH CHECK (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR seller_id = auth.uid()
 );
 
 -- تحديث: دور الشبكة يحدّث طلبه (أو المشرفة فريقها)؛ البقية بلا قيد
 CREATE POLICY "orders_update" ON public.orders FOR UPDATE
 USING (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR seller_id = auth.uid()
   OR public.is_supervisor_of(seller_id)
 );
@@ -75,58 +78,47 @@ USING (
 -- حذف: أدوار الشبكة لا تحذف طلبات إطلاقاً؛ البقية كما هي
 CREATE POLICY "orders_delete" ON public.orders FOR DELETE
 USING (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
 );
 
 -- ─────────────────────────────────────────────────────────────
 -- 2) crm_clients — المندوب يرى/يعدّل عملاءه فقط
 -- ─────────────────────────────────────────────────────────────
--- ⚠️ تحقّق أولاً من السياسات الموجودة (قد توجد سياسة مفتوحة USING(true)
---    أنشأتها وحدة field-crm — إن وُجدت يجب حذفها وإلا تتغلّب بالـOR):
---      select polname from pg_policies where tablename='crm_clients';
---    ثم: DROP POLICY "<الاسم_المفتوح>" ON public.crm_clients;
--- نُسقط الأسماء الشائعة احتياطاً:
+-- مؤكَّد تجريبياً (probe بـanon key): توجد سياسة مفتوحة على crm_clients تتيح
+-- قراءة كل الصفوف بلا مصادقة. نُسقط كل السياسات ديناميكياً ثم نعيد بناء المقيِّدة.
 ALTER TABLE public.crm_clients ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "crm_clients_all"    ON public.crm_clients;
-DROP POLICY IF EXISTS "crm_clients_rw"     ON public.crm_clients;
-DROP POLICY IF EXISTS "crm_clients_select" ON public.crm_clients;
-DROP POLICY IF EXISTS "crm_clients_insert" ON public.crm_clients;
-DROP POLICY IF EXISTS "crm_clients_update" ON public.crm_clients;
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies
+             WHERE schemaname='public' AND tablename='crm_clients'
+  LOOP EXECUTE format('DROP POLICY %I ON public.crm_clients', pol.policyname); END LOOP;
+END $$;
 
 CREATE POLICY "crm_clients_select" ON public.crm_clients FOR SELECT
 USING (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR rep_id = auth.uid()
   OR public.is_supervisor_of(rep_id)
 );
 
 CREATE POLICY "crm_clients_insert" ON public.crm_clients FOR INSERT
 WITH CHECK (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR rep_id = auth.uid()
 );
 
 CREATE POLICY "crm_clients_update" ON public.crm_clients FOR UPDATE
 USING (
-  NOT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.role_type IN ('field_rep','marketer','supervisor','supervisor_manager','area_agent')
-  )
+  NOT public.current_is_network()
   OR rep_id = auth.uid()
   OR public.is_supervisor_of(rep_id)
+);
+
+-- حذف: أدوار الشبكة لا تحذف عملاء؛ البقية (إدارة/أونلاين) كما كان
+CREATE POLICY "crm_clients_delete" ON public.crm_clients FOR DELETE
+USING (
+  NOT public.current_is_network()
 );
 
 -- =============================================================
