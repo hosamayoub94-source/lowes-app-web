@@ -111,15 +111,6 @@ async function updateProfile(id, patch) {
   if (error) throw new Error(error.message);
 }
 
-async function insertProfile(payload) {
-  const { supabase } = await import('@services/supabase');
-  // Explicit columns — never select pin/password (revoked from anon role)
-  const { data, error } = await supabase.from('profiles').insert(payload)
-    .select('id, employee_name, role_type, team, is_active').single();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
 async function adminResetPin(employeeName, newPin) {
   if (!/^\d{4}$/.test(String(newPin))) throw new Error('PIN يجب أن يكون 4 أرقام');
   const { supabase } = await import('@services/supabase');
@@ -412,25 +403,40 @@ export default function AdminUsersScreen() {
 
   // ── Add employee ──────────────────────────────────────────────
   const [addForm, setAddForm]     = useState(EMPTY_FORM);
+  const [addPin, setAddPin]       = useState('');
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError]   = useState(null);
 
   const handleAdd = async () => {
     if (!addForm.employee_name.trim()) { setAddError('اسم الموظف مطلوب'); return; }
+    if (addPin && !/^\d{4}$/.test(addPin)) { setAddError('الرمز السري لازم 4 أرقام'); return; }
     setAddSaving(true); setAddError(null);
     try {
-      const payload = {
-        employee_name: addForm.employee_name.trim(),
-        role_type:     addForm.role_type,
-        team:          addForm.team || null,
-        manager_scope: addForm.manager_scope || null,
-        is_active:     addForm.is_active,
-      };
-      const newProfile = await insertProfile(payload);
-      setProfiles(ps => [newProfile, ...ps]);
-      setShowAdd(false); setAddForm(EMPTY_FORM);
+      const st = sellerTypeForRole(addForm.role_type);
+      const URL  = import.meta.env.VITE_SUPABASE_URL;
+      const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${URL}/functions/v1/manage-employee`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ANON}`, apikey: ANON, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          requesterRole: role,
+          employee_name: addForm.employee_name.trim(),
+          role_type: addForm.role_type,
+          team: addForm.team || null,
+          pin: addPin || undefined,
+          seller_type: st,
+          rep_level: st === 'field_rep' ? addForm.rep_level : null,
+          mlm_rank:  st === 'marketer'  ? addForm.mlm_rank  : null,
+        }),
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || 'تعذّر إنشاء الموظف');
+      setProfiles(ps => [data.profile, ...ps]);
+      setShowAdd(false); setAddForm(EMPTY_FORM); setAddPin('');
+      window.alert(`تم إنشاء «${data.profile.employee_name}» ✓\nالرمز السري للدخول: ${data.pin}`);
     } catch (e) {
-      setAddError(e.message || 'لا يمكن إنشاء موظف بدون Auth user. أنشئه أولاً من Supabase Dashboard.');
+      setAddError(e.message || 'تعذّر إنشاء الموظف');
     } finally { setAddSaving(false); }
   };
 
@@ -827,7 +833,7 @@ export default function AdminUsersScreen() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
           <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-lg text-text mb-1">موظف جديد</h3>
-            <p className="text-xs text-muted mb-4">ملاحظة: يجب إنشاء حساب Auth للموظف أولاً عبر Supabase Dashboard ثم ربطه.</p>
+            <p className="text-xs text-muted mb-4">يُنشأ الحساب مباشرة (اسم + دور + رمز سري). يدخل الموظف فوراً برمزه — بلا أي خطوة خارجية.</p>
             <div className="space-y-3">
               <Field label="الاسم">
                 <input type="text" value={addForm.employee_name} onChange={e => setAddForm(f => ({ ...f, employee_name: e.target.value }))} className={inputCls} />
@@ -836,6 +842,32 @@ export default function AdminUsersScreen() {
                 <select value={addForm.role_type} onChange={e => setAddForm(f => ({ ...f, role_type: e.target.value }))} className={selectCls}>
                   {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
+              </Field>
+              {sellerTypeForRole(addForm.role_type) === 'field_rep' && (
+                <Field label="مستوى المندوب">
+                  <select value={addForm.rep_level} onChange={e => setAddForm(f => ({ ...f, rep_level: e.target.value }))} className={selectCls}>
+                    <option value="junior">مبتدئ · 8%</option>
+                    <option value="active">نشيط · 5%</option>
+                    <option value="pro">محترف · 10%</option>
+                    <option value="agent">وكيل منطقة · 20%</option>
+                  </select>
+                </Field>
+              )}
+              {sellerTypeForRole(addForm.role_type) === 'marketer' && (
+                <Field label="رتبة المسوّقة">
+                  <select value={addForm.mlm_rank} onChange={e => setAddForm(f => ({ ...f, mlm_rank: e.target.value }))} className={selectCls}>
+                    <option value="bronze">برونزي · 35%</option>
+                    <option value="silver">فضّي · 40%</option>
+                    <option value="gold">ذهبي · 45%</option>
+                    <option value="platinum">بلاتيني · 48%</option>
+                    <option value="diamond">ألماس · 50%</option>
+                  </select>
+                </Field>
+              )}
+              <Field label="الرمز السري (4 أرقام)">
+                <input type="text" inputMode="numeric" maxLength={4} value={addPin}
+                  onChange={e => setAddPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="مثال: 1234 (الافتراضي 1234)" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
               </Field>
               <Field label="الفريق">
                 <select value={addForm.team} onChange={e => setAddForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>

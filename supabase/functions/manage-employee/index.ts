@@ -21,7 +21,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { action, requesterRole, requesterId, employee_name, team, job_title, pin, target_id } = await req.json();
+    const { action, requesterRole, requesterId, employee_name, team, job_title, pin, target_id,
+            role_type, seller_type, rep_level, mlm_rank } = await req.json();
 
     if (!MANAGE_ROLES.includes(requesterRole)) {
       return json({ ok: false, error: 'forbidden', message: 'ليس لديك صلاحية إدارة الموظفين' }, 200);
@@ -37,9 +38,14 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'add') {
       if (!employee_name?.trim()) return json({ ok: false, error: 'name_required' }, 200);
-      const role = 'employee';
-      const finalTeam = isSocial ? 'ميديا' : (team || 'ميديا');
+      // social_manager مقيّد بموظفي ميديا؛ الأدمن/المدير يحدّدان الدور.
+      const role = isSocial ? 'employee' : (role_type || 'employee');
+      const finalTeam = isSocial ? 'ميديا' : (team || null);
       const finalPin = (pin && /^\d{4}$/.test(String(pin))) ? String(pin) : '1234';
+      // نوع البائع + المستوى/الرتبة (لمحرّك العمولات)
+      const st = isSocial ? 'online' : (seller_type || 'online');
+      const lvl = st === 'field_rep' ? (rep_level || 'junior') : null;
+      const rnk = st === 'marketer'  ? (mlm_rank  || 'bronze') : null;
 
       // prevent duplicate active name
       const { data: existing } = await supabase.from('profiles')
@@ -53,7 +59,10 @@ Deno.serve(async (req: Request) => {
         job_title: job_title?.trim() || (isSocial ? 'فريق السوشال' : null),
         pin: finalPin,
         is_active: true,
-      }).select('id,employee_name,team,job_title').single();
+        seller_type: st,
+        rep_level: lvl,
+        mlm_rank: rnk,
+      }).select('id,employee_name,role_type,team,seller_type').single();
       if (error) return json({ ok: false, error: 'db', message: error.message }, 200);
       return json({ ok: true, action, profile: data, pin: finalPin }, 200);
     }
