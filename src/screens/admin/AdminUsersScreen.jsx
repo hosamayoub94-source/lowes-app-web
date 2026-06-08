@@ -144,6 +144,14 @@ const EMPTY_FORM = {
   denied_permissions: [],
 };
 
+// أدوار شبكة المبيعات — صلاحياتها تلقائية (لا شبكة صلاحيات إدارية).
+const SALES_ROLES = ['field_rep', 'marketer', 'supervisor', 'supervisor_manager', 'area_agent'];
+// نوع البائع يُشتق تلقائياً من الدور (المالك يختار الدور فقط).
+const sellerTypeForRole = (r) =>
+  ['field_rep', 'area_agent'].includes(r) ? 'field_rep'
+    : ['marketer', 'supervisor', 'supervisor_manager'].includes(r) ? 'marketer'
+      : 'online';
+
 // ── Input helpers ─────────────────────────────────────────────
 function Field({ label, children }) {
   return (
@@ -357,9 +365,10 @@ export default function AdminUsersScreen() {
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       patch.denied_permissions      = Array.isArray(form.denied_permissions) ? form.denied_permissions : [];
       // ── Distribution: seller type + level/rank ──
-      patch.seller_type = form.seller_type || 'online';
-      patch.rep_level   = form.seller_type === 'field_rep' ? (form.rep_level || 'junior') : null;
-      patch.mlm_rank    = form.seller_type === 'marketer'  ? (form.mlm_rank  || 'bronze') : null;
+      const st = sellerTypeForRole(form.role_type);
+      patch.seller_type = st;
+      patch.rep_level   = st === 'field_rep' ? (form.rep_level || 'junior') : null;
+      patch.mlm_rank    = st === 'marketer'  ? (form.mlm_rank  || 'bronze') : null;
       await updateProfile(editUser.id, patch);
 
       // ── Auto-sync chat channel membership when team changes ──
@@ -429,6 +438,8 @@ export default function AdminUsersScreen() {
   const total    = profiles.length;
   const active   = profiles.filter(p => p.is_active).length;
   const managers = profiles.filter(p => ['admin','manager','sales_manager'].includes(p.role_type)).length;
+  // دور شبكة مبيعات؟ → صلاحياته تلقائية، نخفي شبكة الصلاحيات الإدارية.
+  const isSalesRole = SALES_ROLES.includes(form.role_type);
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -612,15 +623,10 @@ export default function AdminUsersScreen() {
                 <input type="text" value={form.employee_name} onChange={e => setForm(f => ({ ...f, employee_name: e.target.value }))} className={inputCls} />
               </Field>
               <Field label="الدور">
-                <select value={form.role_type} onChange={e => setForm(f => ({ ...f, role_type: e.target.value }))} className={selectCls}>
+                <select value={form.role_type}
+                  onChange={e => { const r = e.target.value; setForm(f => ({ ...f, role_type: r, seller_type: sellerTypeForRole(r) })); }}
+                  className={selectCls}>
                   {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </Field>
-              <Field label="نوع البائع (لمحرّك العمولات)">
-                <select value={form.seller_type} onChange={e => setForm(f => ({ ...f, seller_type: e.target.value }))} className={selectCls}>
-                  <option value="online">أونلاين (الافتراضي — عمولة per-market)</option>
-                  <option value="field_rep">مندوب ميداني (عمولة بالمستويات)</option>
-                  <option value="marketer">مسوّقة (شبكة MLM بالرتب)</option>
                 </select>
               </Field>
               {form.seller_type === 'field_rep' && (
@@ -739,28 +745,44 @@ export default function AdminUsersScreen() {
                     </div>
                   </div>
 
-                  {/* Commission — for sellers */}
-                  <div className="border-t border-border pt-3">
-                    <p className="text-xs font-semibold text-muted mb-1">📊 عمولة المبيعات</p>
-                    <p className="text-[11px] text-muted mb-3">نسبة العمولة على الطلبات المسلّمة — تظهر للبائع في «طلباتي» وتُحتسب تلقائياً.</p>
-                    <Field label="نسبة العمولة (%)">
-                      <input type="number" min="0" max="100" step="0.5" value={form.commission_pct}
-                        onChange={e => setForm(f => ({ ...f, commission_pct: e.target.value }))}
-                        placeholder="10" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
-                    </Field>
-                  </div>
+                  {/* Commission per-market — أونلاين فقط (لا للمندوب/المسوّقة) */}
+                  {!isSalesRole && (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-xs font-semibold text-muted mb-1">📊 عمولة المبيعات</p>
+                      <p className="text-[11px] text-muted mb-3">نسبة العمولة على الطلبات المسلّمة — تظهر للبائع في «طلباتي» وتُحتسب تلقائياً.</p>
+                      <Field label="نسبة العمولة (%)">
+                        <input type="number" min="0" max="100" step="0.5" value={form.commission_pct}
+                          onChange={e => setForm(f => ({ ...f, commission_pct: e.target.value }))}
+                          placeholder="10" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+                      </Field>
+                    </div>
+                  )}
 
-                  {/* Permissions — grouped, 3-state, with role template + live preview */}
-                  <div className="border-t border-border pt-3">
-                    <p className="text-xs font-semibold text-muted mb-1">🔑 الصلاحيات</p>
-                    <p className="text-[11px] text-muted mb-3">القالب يأتي من الدور أعلاه. فعّل أو امنع أي صلاحية لهذا الموظف تحديداً.</p>
-                    <PermissionsEditor
-                      roleType={form.role_type}
-                      extra={form.extra_permissions}
-                      denied={form.denied_permissions}
-                      onChange={({ extra, denied }) => setForm(f => ({ ...f, extra_permissions: extra, denied_permissions: denied }))}
-                    />
-                  </div>
+                  {/* الصلاحيات: شبكة كاملة للفريق · ملخّص تلقائي لشبكة المبيعات */}
+                  {isSalesRole ? (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-xs font-semibold text-muted mb-2">🔑 الصلاحيات</p>
+                      <div className="rounded-xl bg-surface-alt border border-border p-3 text-sm">
+                        <p className="font-bold mb-1">✅ صلاحيات تلقائية حسب الدور</p>
+                        <p className="text-muted text-xs leading-relaxed">
+                          هذا الدور مفصول عن الفريق — يرى <b>شاشاته الخاصة فقط</b>
+                          (محفظتي · شبكتي · طلباتي · التحصيل). لا وصول لإدارة الفريق
+                          ولا لأسماء الموظفين. العمولة تُحتسب آلياً حسب المستوى/الرتبة أعلاه.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-xs font-semibold text-muted mb-1">🔑 الصلاحيات</p>
+                      <p className="text-[11px] text-muted mb-3">القالب يأتي من الدور أعلاه. فعّل أو امنع أي صلاحية لهذا الموظف تحديداً.</p>
+                      <PermissionsEditor
+                        roleType={form.role_type}
+                        extra={form.extra_permissions}
+                        denied={form.denied_permissions}
+                        onChange={({ extra, denied }) => setForm(f => ({ ...f, extra_permissions: extra, denied_permissions: denied }))}
+                      />
+                    </div>
+                  )}
 
                   {/* Admin notes */}
                   <div className="border-t border-border pt-3">
