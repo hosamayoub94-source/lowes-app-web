@@ -22,7 +22,13 @@ const SUP  = ROLES.SUPERVISOR;
 const SUPM = ROLES.SUPERVISOR_MANAGER;
 const AG   = ROLES.AREA_AGENT;
 const NET  = [FR, MK, SUP, SUPM, AG];          // كل أدوار الشبكة التوزيعية
-const ALL = [E, M, A, SM, MB, SOC, ...NET];
+// مناصب إدارية (تتصرّف كطاقم — تشوف الأساسيات + شاشاتها حسب الصلاحية)
+const ACC  = ROLES.ACCOUNTANT;
+const HR   = ROLES.HR_MANAGER;
+const WH   = ROLES.WAREHOUSE_MANAGER;
+const MKT  = ROLES.MARKETING_MANAGER;
+const MGMT = [ACC, HR, WH, MKT];
+const ALL = [E, M, A, SM, MB, SOC, ...NET, ...MGMT];
 
 // Group keys → Arabic section headers (shown in the sidebar).
 export const NAV_GROUPS = {
@@ -57,6 +63,7 @@ export const NAV_ITEMS = [
   { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
   { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
   { id: 'team',         label: 'الفريق والورديات', icon: '👥', path: '/team',     roles: ALL,                 group: 'hr' },
+  { id: 'management',   label: 'الهيكل الإداري', icon: '🏢', path: '/management', roles: [A, M, SM, ...MGMT], group: 'hr' },
 
   // ── Sales / management
   { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },

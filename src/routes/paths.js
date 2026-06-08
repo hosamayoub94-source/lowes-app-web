@@ -91,6 +91,7 @@ export const ROUTES = {
   TERRITORIES: '/territories',
   CONSIGNMENT: '/consignment',
   COLLECTIONS: '/collections',
+  MANAGEMENT: '/management',
 };
 
 export default ROUTES;

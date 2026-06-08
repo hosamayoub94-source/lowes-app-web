@@ -210,6 +210,27 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.VIEW_INVENTORY,
   ],
+
+  // ── Management positions ──
+  [ROLES.ACCOUNTANT]: [
+    PERMISSIONS.VIEW_FINANCE,
+    PERMISSIONS.MANAGE_PAYROLL,
+  ],
+  [ROLES.HR_MANAGER]: [
+    PERMISSIONS.VIEW_ALL_ATTENDANCE,
+    PERMISSIONS.APPROVE_LEAVES,
+    PERMISSIONS.MANAGE_PAYROLL,
+  ],
+  [ROLES.WAREHOUSE_MANAGER]: [
+    PERMISSIONS.VIEW_INVENTORY,
+    PERMISSIONS.MANAGE_CENTRAL_STOCK,
+    PERMISSIONS.MANAGE_SALES_STOCK,
+  ],
+  [ROLES.MARKETING_MANAGER]: [
+    PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.VIEW_CAMPAIGN_COST,
+    PERMISSIONS.VIEW_ANALYTICS,
+  ],
 };
 
 // ── Resolve effective permissions for a user/session ──────────
@@ -280,6 +301,22 @@ export const ROLE_TEMPLATES = {
   [ROLES.AREA_AGENT]: {
     label: 'وكيل منطقة', icon: '🗺️',
     responsibility: 'يدير منطقة كاملة: مندوبوها، أمانتها، مخزونها، أداؤها.',
+  },
+  [ROLES.ACCOUNTANT]: {
+    label: 'محاسب', icon: '🧾',
+    responsibility: 'الحسابات والخزينة والرواتب — Finance / Accountant.',
+  },
+  [ROLES.HR_MANAGER]: {
+    label: 'مدير موارد بشرية', icon: '🧑‍💼',
+    responsibility: 'الحضور والإجازات والرواتب وشؤون الموظفين — HR Manager.',
+  },
+  [ROLES.WAREHOUSE_MANAGER]: {
+    label: 'مدير المخزن', icon: '🏬',
+    responsibility: 'المخازن واستلام/تخصيص البضاعة — Warehouse Manager.',
+  },
+  [ROLES.MARKETING_MANAGER]: {
+    label: 'مدير التسويق', icon: '📣',
+    responsibility: 'الحملات والتسويق والتحليلات — Marketing Manager.',
   },
 };
 

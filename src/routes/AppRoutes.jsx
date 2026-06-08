@@ -79,6 +79,7 @@ const CommissionReportScreen   = lazy(() => import(/* webpackChunkName: "commiss
 const TerritoriesScreen        = lazy(() => import(/* webpackChunkName: "territories"       */ '@modules/distribution/pages/TerritoriesScreen'));
 const ConsignmentScreen        = lazy(() => import(/* webpackChunkName: "consignment"       */ '@modules/distribution/pages/ConsignmentScreen'));
 const CollectionsScreen        = lazy(() => import(/* webpackChunkName: "collections"       */ '@modules/distribution/pages/CollectionsScreen'));
+const ManagementScreen         = lazy(() => import(/* webpackChunkName: "management"         */ '@screens/ManagementScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -266,6 +267,14 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.TRAINING} element={<TrainingScreen />} />
+          <Route
+            path={ROUTES.MANAGEMENT}
+            element={
+              <ProtectedRoute roles={MANAGEMENT}>
+                <ManagementScreen />
+              </ProtectedRoute>
+            }
+          />
           <Route path={ROUTES.WALLET}   element={<MyWalletScreen />} />{/* محفظتي — كل الأدوار (RLS تحكم الرؤية) */}
           <Route
             path={ROUTES.NETWORK}
