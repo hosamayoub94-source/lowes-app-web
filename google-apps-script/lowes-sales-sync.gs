@@ -169,6 +169,71 @@ function doPost(e) {
 
 function doGet() { return _json({ ok: true, service: 'lowes-sales-sync', ts: new Date() }); }
 
+// ============================================================
+// المزامنة العكسية: جدول سوريا → التطبيق (متل تركيا)
+// عند تعديل عمود الحالة أو رقم التتبع يدوياً، يُرسل للـ Edge Function sheet-to-app.
+// ملاحظة: يحتاج installable trigger (On edit) لأنه يستخدم UrlFetchApp.
+// تعديلات Apps Script البرمجية (sync-back) لا تُشغّل هذا الـ trigger → لا حلقة.
+// ============================================================
+var APP_SHEET_TO_APP_URL = 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sheet-to-app';
+
+function onSheetEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sh = e.range.getSheet();
+    if (sh.getName() !== SHEET_NAME) return;
+
+    var lastCol = sh.getLastColumn();
+    // اكتشاف صف العناوين (نفس منطق doPost)
+    var HEADER_ROW = 0;
+    var scan = sh.getRange(1, 1, Math.min(20, sh.getLastRow()), lastCol).getValues();
+    for (var sr = 0; sr < scan.length && !HEADER_ROW; sr++) {
+      for (var sc = 0; sc < scan[sr].length; sc++) {
+        if (String(scan[sr][sc]).replace(/[^a-zA-Z]/g, '').toLowerCase() === 'orderid') { HEADER_ROW = sr + 1; break; }
+      }
+    }
+    if (!HEADER_ROW) HEADER_ROW = 4;
+
+    var row = e.range.getRow();
+    if (row <= HEADER_ROW) return; // تعديل على صف العناوين أو فوقه
+
+    var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0];
+    var idx = {};
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c]).replace(/[^a-zA-Z]/g, '').trim().toLowerCase();
+      if (h) idx[h] = c + 1;
+    }
+    function col() {
+      for (var i = 0; i < arguments.length; i++) {
+        var k = String(arguments[i]).replace(/[^a-zA-Z]/g, '').trim().toLowerCase();
+        if (idx[k]) return idx[k];
+      }
+      return 0;
+    }
+
+    var cOrderId = col('orderid', 'orderİd');
+    var cStatus  = col('status');
+    var cTrack   = col('trackingnumber', 'tracking', 'trackno', 'track');
+    var editedCol = e.range.getColumn();
+
+    // نتفاعل فقط مع تعديل الحالة أو رقم التتبع
+    if (editedCol !== cStatus && editedCol !== cTrack) return;
+    if (!cOrderId) return;
+
+    var orderId = String(sh.getRange(row, cOrderId).getValue()).trim();
+    if (!orderId) return;
+
+    var payload = { token: SECRET_TOKEN, action: 'update', order_id: orderId };
+    if (cStatus) payload.status = String(sh.getRange(row, cStatus).getValue()).trim();
+    if (cTrack)  payload.tracking_number = String(sh.getRange(row, cTrack).getValue()).trim();
+
+    UrlFetchApp.fetch(APP_SHEET_TO_APP_URL, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify(payload), muteHttpExceptions: true,
+    });
+  } catch (err) { /* best-effort — لا توقف الجدول */ }
+}
+
 function _colToNum(letter) {
   var n = 0; letter = String(letter).toUpperCase();
   for (var i = 0; i < letter.length; i++) n = n * 26 + (letter.charCodeAt(i) - 64);
