@@ -73,6 +73,12 @@ const ManagerBoardScreen       = lazy(() => import(/* webpackChunkName: "manager
 const SocialStudioScreen       = lazy(() => import(/* webpackChunkName: "social-studio"    */ '@screens/SocialStudioScreen'));
 const SocialTeamScreen         = lazy(() => import(/* webpackChunkName: "social-team"      */ '@screens/SocialTeamScreen'));
 const ProfitabilityScreen      = lazy(() => import(/* webpackChunkName: "profitability"    */ '@screens/ProfitabilityScreen'));
+const MyWalletScreen           = lazy(() => import(/* webpackChunkName: "wallet"           */ '@modules/commission/pages/MyWalletScreen'));
+const NetworkScreen            = lazy(() => import(/* webpackChunkName: "network"          */ '@modules/mlm/pages/NetworkScreen'));
+const CommissionReportScreen   = lazy(() => import(/* webpackChunkName: "commission-report"*/ '@modules/commission/pages/CommissionReportScreen'));
+const TerritoriesScreen        = lazy(() => import(/* webpackChunkName: "territories"       */ '@modules/distribution/pages/TerritoriesScreen'));
+const ConsignmentScreen        = lazy(() => import(/* webpackChunkName: "consignment"       */ '@modules/distribution/pages/ConsignmentScreen'));
+const CollectionsScreen        = lazy(() => import(/* webpackChunkName: "collections"       */ '@modules/distribution/pages/CollectionsScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -174,7 +180,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER, ROLES.FIELD_REP, ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT]}>
                 <CustomersScreen />
               </ProtectedRoute>
             }
@@ -260,6 +266,47 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.TRAINING} element={<TrainingScreen />} />
+          <Route path={ROUTES.WALLET}   element={<MyWalletScreen />} />{/* محفظتي — كل الأدوار (RLS تحكم الرؤية) */}
+          <Route
+            path={ROUTES.NETWORK}
+            element={
+              <ProtectedRoute roles={[ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
+                <NetworkScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.COMMISSION_REPORT}
+            element={
+              <ProtectedRoute roles={MANAGEMENT}>
+                <CommissionReportScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.TERRITORIES}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.AREA_AGENT]}>
+                <TerritoriesScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.CONSIGNMENT}
+            element={
+              <ProtectedRoute roles={[ROLES.FIELD_REP, ROLES.AREA_AGENT, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
+                <ConsignmentScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.COLLECTIONS}
+            element={
+              <ProtectedRoute roles={[ROLES.FIELD_REP, ROLES.AREA_AGENT, ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
+                <CollectionsScreen />
+              </ProtectedRoute>
+            }
+          />
           <Route path={ROUTES.SCHEDULE} element={<ShiftScheduleScreen />} />
           <Route path={ROUTES.ADVANCES} element={<AdvanceRequestsScreen />} />
           <Route path={ROUTES.REVIEWS}  element={<PerformanceReviewScreen />} />

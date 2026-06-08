@@ -32,6 +32,11 @@ export const PERMISSIONS = {
   VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
   MANAGE_CAMPAIGNS:     'manage_campaigns',     // create/edit campaigns + ads + assignments
   VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
+  // ── Distribution network (منظومة المندوبين والمسوّقين) ──
+  MANAGE_TERRITORY:     'manage_territory',     // إدارة المناطق المحمية + تعيين الوكلاء
+  MANAGE_CONSIGNMENT:   'manage_consignment',   // رسم وتسوية الأمانة
+  VIEW_NETWORK:         'view_network',         // رؤية شجرة الفريق/الداون-لاين
+  MANAGE_COMMISSION:    'manage_commission',    // اعتماد العمولات والسحوبات + قواعد المستويات/الرتب
 };
 
 // Human labels (for the admin UI)
@@ -55,6 +60,10 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:     'إنشاء/إدارة الحملات والإعلانات والإسناد',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
+  [PERMISSIONS.MANAGE_TERRITORY]:     'إدارة المناطق المحمية وتعيين الوكلاء',
+  [PERMISSIONS.MANAGE_CONSIGNMENT]:   'رسم وتسوية الأمانة',
+  [PERMISSIONS.VIEW_NETWORK]:         'عرض شبكة الفريق (الداون-لاين)',
+  [PERMISSIONS.MANAGE_COMMISSION]:    'اعتماد العمولات والسحوبات والقواعد',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -79,6 +88,10 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.VIEW_INVENTORY]:      'عرض لوحة المخازن والأرصدة.',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:    'إنشاء الحملات وإضافة الإعلانات وإسناد الموظفين للتسجيل.',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
+  [PERMISSIONS.MANAGE_TERRITORY]:    'إنشاء المناطق المحمية وتحديد حالتها وتعيين وكلائها.',
+  [PERMISSIONS.MANAGE_CONSIGNMENT]:  'إنشاء رسوم الأمانة لدى العملاء وتسويتها لاحقاً.',
+  [PERMISSIONS.VIEW_NETWORK]:        'عرض شجرة المسوّقات تحت إشرافه ومبيعات فريقه.',
+  [PERMISSIONS.MANAGE_COMMISSION]:   'اعتماد كشوف العمولات والموافقة على السحوبات وتعديل قواعد المستويات/الرتب.',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -93,6 +106,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
   { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
     permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST] },
+  { key: 'distribution', icon: '🗺️', label: 'التوزيع والشبكة',
+    permissions: [PERMISSIONS.MANAGE_TERRITORY, PERMISSIONS.MANAGE_CONSIGNMENT, PERMISSIONS.VIEW_NETWORK, PERMISSIONS.MANAGE_COMMISSION] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS] },
 ];
@@ -121,6 +136,10 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_INVENTORY,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
+    PERMISSIONS.MANAGE_TERRITORY,
+    PERMISSIONS.MANAGE_CONSIGNMENT,
+    PERMISSIONS.VIEW_NETWORK,
+    PERMISSIONS.MANAGE_COMMISSION,
   ],
 
   [ROLES.SALES_MANAGER]: [
@@ -134,6 +153,10 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.VIEW_INVENTORY,
     PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.MANAGE_TERRITORY,
+    PERMISSIONS.MANAGE_CONSIGNMENT,
+    PERMISSIONS.VIEW_NETWORK,
+    PERMISSIONS.MANAGE_COMMISSION,
   ],
 
   [ROLES.SOCIAL_MANAGER]: [
@@ -157,6 +180,35 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.EMPLOYEE]: [
     // Regular employees have no management permissions by default.
+  ],
+
+  // ── Distribution network roles ──
+  // Field rep / marketer: sell + manage their own orders & clients. No mgmt powers.
+  [ROLES.FIELD_REP]: [
+    PERMISSIONS.MANAGE_ORDERS,   // يقدّم طلبات عملائه ويحرّكها
+  ],
+  [ROLES.MARKETER]: [
+    PERMISSIONS.MANAGE_ORDERS,
+  ],
+  // Supervisor: own selling + sees her downline network.
+  [ROLES.SUPERVISOR]: [
+    PERMISSIONS.MANAGE_ORDERS,
+    PERMISSIONS.VIEW_NETWORK,
+  ],
+  // Supervisor manager: oversees groups + network + KPI of supervisees.
+  [ROLES.SUPERVISOR_MANAGER]: [
+    PERMISSIONS.MANAGE_ORDERS,
+    PERMISSIONS.VIEW_NETWORK,
+    PERMISSIONS.MANAGE_KPI,
+    PERMISSIONS.VIEW_ANALYTICS,
+  ],
+  // Area agent: runs a territory — orders, consignment, network, local analytics.
+  [ROLES.AREA_AGENT]: [
+    PERMISSIONS.MANAGE_ORDERS,
+    PERMISSIONS.MANAGE_CONSIGNMENT,
+    PERMISSIONS.VIEW_NETWORK,
+    PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.VIEW_INVENTORY,
   ],
 };
 
@@ -208,6 +260,26 @@ export const ROLE_TEMPLATES = {
   [ROLES.EMPLOYEE]: {
     label: 'موظف', icon: '🌱',
     responsibility: 'الوصول الأساسي: حضوره، مهامه، طلباته — بلا صلاحيات إدارية.',
+  },
+  [ROLES.FIELD_REP]: {
+    label: 'مندوب ميداني', icon: '🚶',
+    responsibility: 'يبيع للصيدليات في منطقته: زيارات، طلبات، تحصيل، عمولة بالمستويات.',
+  },
+  [ROLES.MARKETER]: {
+    label: 'مسوّقة', icon: '🌸',
+    responsibility: 'تبيع وتضمّ مسوّقات: طلباتها، شبكتها، عمولة بالرتب، محفظتها.',
+  },
+  [ROLES.SUPERVISOR]: {
+    label: 'مشرفة مجموعة', icon: '👩‍🏫',
+    responsibility: 'تقود مجموعة مسوّقات: بيعها + متابعة فريقها + عمولة إشراف.',
+  },
+  [ROLES.SUPERVISOR_MANAGER]: {
+    label: 'مديرة المشرفات', icon: '👑',
+    responsibility: 'تدير المجموعات والمشرفات: توزيع، أداء، KPI، تحليلات الشبكة.',
+  },
+  [ROLES.AREA_AGENT]: {
+    label: 'وكيل منطقة', icon: '🗺️',
+    responsibility: 'يدير منطقة كاملة: مندوبوها، أمانتها، مخزونها، أداؤها.',
   },
 };
 

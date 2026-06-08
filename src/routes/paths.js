@@ -83,6 +83,14 @@ export const ROUTES = {
 
   // Customers
   CUSTOMERS: '/customers',
+
+  // Distribution network — محفظة العمولات + شبكة MLM
+  WALLET: '/wallet',
+  NETWORK: '/network',
+  COMMISSION_REPORT: '/commission-report',
+  TERRITORIES: '/territories',
+  CONSIGNMENT: '/consignment',
+  COLLECTIONS: '/collections',
 };
 
 export default ROUTES;

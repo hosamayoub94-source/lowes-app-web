@@ -35,6 +35,12 @@ export const ROLES = {
   MEDIA_BUYER: 'media_buyer',
   SALES_MANAGER: 'sales_manager',
   SOCIAL_MANAGER: 'social_manager',
+  // ── Distribution network roles (منظومة المندوبين والمسوّقين) ──
+  FIELD_REP: 'field_rep',                  // مندوب ميداني (صيدليات/مناطق)
+  MARKETER: 'marketer',                    // مسوّقة (شبكة MLM)
+  SUPERVISOR: 'supervisor',                // مشرفة مجموعة
+  SUPERVISOR_MANAGER: 'supervisor_manager',// مديرة المشرفات
+  AREA_AGENT: 'area_agent',                // وكيل منطقة
 };
 
 export const ROLE_LABELS = {
@@ -44,6 +50,11 @@ export const ROLE_LABELS = {
   [ROLES.MEDIA_BUYER]: 'ميديا باير',
   [ROLES.SALES_MANAGER]: 'مدير مبيعات',
   [ROLES.SOCIAL_MANAGER]: 'مدير سوشال',
+  [ROLES.FIELD_REP]: 'مندوب ميداني',
+  [ROLES.MARKETER]: 'مسوّقة',
+  [ROLES.SUPERVISOR]: 'مشرفة مجموعة',
+  [ROLES.SUPERVISOR_MANAGER]: 'مديرة المشرفات',
+  [ROLES.AREA_AGENT]: 'وكيل منطقة',
 };
 
 // Attendance status types (from index_v4.html).

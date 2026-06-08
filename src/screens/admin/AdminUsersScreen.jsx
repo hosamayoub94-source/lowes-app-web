@@ -86,7 +86,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions';
+  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -135,6 +135,7 @@ async function adminResetPin(employeeName, newPin) {
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
   employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
+  seller_type: 'online', rep_level: 'junior', mlm_rank: 'bronze',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
@@ -303,6 +304,9 @@ export default function AdminUsersScreen() {
     setForm({
       employee_name: p.employee_name ?? '',
       role_type:     p.role_type ?? 'employee',
+      seller_type:   p.seller_type ?? 'online',
+      rep_level:     p.rep_level ?? 'junior',
+      mlm_rank:      p.mlm_rank ?? 'bronze',
       team:          p.team ?? '',
       manager_scope: p.manager_scope ?? '',
       is_active:     p.is_active ?? true,
@@ -352,6 +356,10 @@ export default function AdminUsersScreen() {
       patch.commission_pct          = form.commission_pct          === '' ? 0 : Number(form.commission_pct);
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       patch.denied_permissions      = Array.isArray(form.denied_permissions) ? form.denied_permissions : [];
+      // ── Distribution: seller type + level/rank ──
+      patch.seller_type = form.seller_type || 'online';
+      patch.rep_level   = form.seller_type === 'field_rep' ? (form.rep_level || 'junior') : null;
+      patch.mlm_rank    = form.seller_type === 'marketer'  ? (form.mlm_rank  || 'bronze') : null;
       await updateProfile(editUser.id, patch);
 
       // ── Auto-sync chat channel membership when team changes ──
@@ -608,6 +616,34 @@ export default function AdminUsersScreen() {
                   {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
+              <Field label="نوع البائع (لمحرّك العمولات)">
+                <select value={form.seller_type} onChange={e => setForm(f => ({ ...f, seller_type: e.target.value }))} className={selectCls}>
+                  <option value="online">أونلاين (الافتراضي — عمولة per-market)</option>
+                  <option value="field_rep">مندوب ميداني (عمولة بالمستويات)</option>
+                  <option value="marketer">مسوّقة (شبكة MLM بالرتب)</option>
+                </select>
+              </Field>
+              {form.seller_type === 'field_rep' && (
+                <Field label="مستوى المندوب">
+                  <select value={form.rep_level} onChange={e => setForm(f => ({ ...f, rep_level: e.target.value }))} className={selectCls}>
+                    <option value="junior">مبتدئ · 8%</option>
+                    <option value="active">نشيط · 5%</option>
+                    <option value="pro">محترف · 10%</option>
+                    <option value="agent">وكيل منطقة · 20%</option>
+                  </select>
+                </Field>
+              )}
+              {form.seller_type === 'marketer' && (
+                <Field label="رتبة المسوّقة">
+                  <select value={form.mlm_rank} onChange={e => setForm(f => ({ ...f, mlm_rank: e.target.value }))} className={selectCls}>
+                    <option value="bronze">برونزي · 35%</option>
+                    <option value="silver">فضّي · 40%</option>
+                    <option value="gold">ذهبي · 45%</option>
+                    <option value="platinum">بلاتيني · 48%</option>
+                    <option value="diamond">ألماس · 50%</option>
+                  </select>
+                </Field>
+              )}
               <Field label="الفريق">
                 <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>
                   {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}

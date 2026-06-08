@@ -15,7 +15,14 @@ const A   = ROLES.ADMIN;
 const SM  = ROLES.SALES_MANAGER;
 const MB  = ROLES.MEDIA_BUYER;
 const SOC = ROLES.SOCIAL_MANAGER;
-const ALL = [E, M, A, SM, MB, SOC];
+// ── Distribution network roles ──
+const FR   = ROLES.FIELD_REP;
+const MK   = ROLES.MARKETER;
+const SUP  = ROLES.SUPERVISOR;
+const SUPM = ROLES.SUPERVISOR_MANAGER;
+const AG   = ROLES.AREA_AGENT;
+const NET  = [FR, MK, SUP, SUPM, AG];          // كل أدوار الشبكة التوزيعية
+const ALL = [E, M, A, SM, MB, SOC, ...NET];
 
 // Group keys → Arabic section headers (shown in the sidebar).
 export const NAV_GROUPS = {
@@ -35,13 +42,18 @@ export const NAV_ITEMS = [
   { id: 'workspace',    label: 'الرئيسية',   icon: '🏠', path: '/',            roles: ALL,                 group: 'core' },
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
-  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
-  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
+  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB, ...NET], group: 'sales' },
+  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB, ...NET], group: 'sales' },
   { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
-  { id: 'field-crm',    label: 'الزيارات',   icon: '🚶', path: '/field-crm',   roles: [E, M, A, SM, SOC, MB], group: 'sales' },
+  { id: 'wallet',       label: 'محفظتي',     icon: '👛', path: '/wallet',      roles: [...NET, E],          group: 'sales' },
+  { id: 'network',      label: 'شبكتي',      icon: '🕸️', path: '/network',     roles: [MK, SUP, SUPM, AG, M, A, SM], group: 'sales', perm: P.VIEW_NETWORK },
+  { id: 'collections',  label: 'التحصيل',    icon: '💳', path: '/collections', roles: [FR, AG, MK, SUP, SUPM, M, A, SM], group: 'sales' },
+  { id: 'consignment',  label: 'الأمانة',    icon: '📥', path: '/consignment', roles: [FR, AG, M, A, SM], group: 'sales', perm: P.MANAGE_CONSIGNMENT },
+  { id: 'territories',  label: 'المناطق',    icon: '🗺️', path: '/territories', roles: [A, M, SM, AG], group: 'admin', perm: P.MANAGE_TERRITORY },
+  { id: 'field-crm',    label: 'الزيارات',   icon: '🚶', path: '/field-crm',   roles: [E, M, A, SM, SOC, MB, FR, SUP, SUPM, AG], group: 'sales' },
   { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
   { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
   { id: 'team',         label: 'الفريق والورديات', icon: '👥', path: '/team',     roles: ALL,                 group: 'hr' },
@@ -50,6 +62,7 @@ export const NAV_ITEMS = [
   { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },
   { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB, SOC], group: 'sales', perm: P.MANAGE_CAMPAIGNS },
   { id: 'crm',           label: 'CRM',              icon: '🤝', path: '/crm',          roles: [M, A, SM],     group: 'sales' },
+  { id: 'commission-report', label: 'كشف العمولات', icon: '🧾', path: '/commission-report', roles: [M, A, SM], group: 'reports', perm: P.MANAGE_COMMISSION },
   { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales', perm: P.VIEW_ANALYTICS },
 
   // ── Inventory (NOT regular employees — revealed by stock permissions)
@@ -113,6 +126,12 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
   [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'performance', 'analytics', 'customers'],
   [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
+  // ── Distribution roles (network tab يُضاف بـP2) ──
+  [ROLES.FIELD_REP]:          ['workspace', 'field-crm', 'orders', 'wallet', 'performance'],
+  [ROLES.MARKETER]:           ['workspace', 'orders', 'network', 'wallet', 'performance'],
+  [ROLES.SUPERVISOR]:         ['workspace', 'orders', 'network', 'wallet', 'performance'],
+  [ROLES.SUPERVISOR_MANAGER]: ['workspace', 'network', 'wallet', 'team', 'performance'],
+  [ROLES.AREA_AGENT]:         ['workspace', 'field-crm', 'orders', 'wallet', 'performance'],
 };
 
 export function bottomTabsForRole(role, permSet = null, userMarket = null) {

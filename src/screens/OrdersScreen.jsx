@@ -18,6 +18,7 @@ import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
+import { postOrderCommission } from '@modules/commission/services/commissionEngine';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates } from '@services/orderSyncService';
 
@@ -2439,6 +2440,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
       } catch (e) {
         console.warn('⚠️ لم يتم تسجيل القيد المحاسبي تلقائياً:', e.message);
       }
+    }
+
+    // ── محرّك العمولات الموحّد (idempotent) ──────────────────────
+    // عند التسليم نحتسب عمولة المندوب/المسوّقة في commission_ledger.
+    // online يُتجاوز داخل الـRPC (تبقى عمولته per-market كما هي).
+    if (newStatus === 'delivered' && order) {
+      postOrderCommission(id);
     }
   };
 
