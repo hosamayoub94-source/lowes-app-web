@@ -10,7 +10,9 @@
 - **`onSheetEdit` أُضيف لسكربت سوريا** (`google-apps-script/lowes-sales-sync.gs`): عند تعديل عمود الحالة/التتبع يدوياً بالجدول → يرسل لـ`sheet-to-app` (الحالة + رقم التتبع فقط). تعديلات السكربت البرمجية (sync-back) لا تُشغّله → لا حلقة.
 - **سكربت سوريا مستقل (openById)** مش bound بالجدول → خيار «من جدول البيانات» غير متاح بالواجهة، فأُنشئ الـ trigger **برمجياً** عبر دالة `createEditTrigger()` (ScriptApp.newTrigger.forSpreadsheet().onEdit().create()). شُغّلت وفُوّضت حيّاً (الحساب المالك = **hosam101hosam10@gmail.com**؛ التفويض لازم يصل خطوة Allow النهائية بعد Advanced→Go to). **المُشغّل ظاهر:** onSheetEdit · عند التعديل ✅.
 - **`sheet-to-app` يحلّ أسماء حالات سوريا المختلفة** (تعبئة وتجهيز/تم الشحن/مع الموتور/راجع للمخزن/مرتجع/في الطريق...) → STATUS_MAP موسّع (commit 5e4bfa8).
-- ⚠️ **درس:** سكربت سوريا standalone فلا يدعم trigger «من جدول البيانات» بالواجهة — استخدم `createEditTrigger`. وأي تفويض لازم يكون بحساب مالك السكربت (hosam101hosam10) ويُكمَل لخطوة Allow.
+- 🔴 **bug كشفه الاختبار + مُصلح:** بوابة Supabase ترفض `sheet-to-app` بلا `Authorization`/`apikey` (UNAUTHORIZED_NO_AUTH_HEADER) حتى مع no-verify-jwt. `onSheetEdit` كان يرسل بلا هيدر → كانت المزامنة ستُرفض بصمت. أُضيف `SUPABASE_ANON_KEY` + هيدر للـUrlFetchApp (مرجع + حيّ).
+- ✅ **اختبار end-to-end (مُنظَّف):** عبر `sheet-to-app` بـpayload الـtrigger على طلب LOWES (5SA-386): الحالة بالDB تغيّرت + صف `order_status_history` بـ`source='sheet'` انكتب + الرجوع نجح. صفوف الاختبار حُذفت والحالة رجعت.
+- ⚠️ **درس:** سكربت سوريا standalone فلا يدعم trigger «من جدول البيانات» بالواجهة — استخدم `createEditTrigger`. التفويض بحساب مالك السكربت (hosam101hosam10) ويُكمَل لخطوة Allow. **وأي UrlFetchApp لـedge functions لازم يحمل apikey+Authorization (anon).**
 
 ### 🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕 حالات الأسواق المخصّصة + إصلاح رقم الطلب المكرر (8 يونيو 2026 · commits a947a1e→6092c61)
 - **رقم الطلب المكرّر (مُصلح):** `nextOrderId` كان يحسب من الطلبات النشطة فقط فيصطدم برقم محجوز بصف **محذوف ناعماً** (6SA-522/523 كانا soft-deleted). أُضيف `ensureUniqueOrderId` يفحص القاعدة كاملة ويرفع الرقم + إعادة محاولة على 23505.

@@ -176,6 +176,8 @@ function doGet() { return _json({ ok: true, service: 'lowes-sales-sync', ts: new
 // تعديلات Apps Script البرمجية (sync-back) لا تُشغّل هذا الـ trigger → لا حلقة.
 // ============================================================
 var APP_SHEET_TO_APP_URL = 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sheet-to-app';
+// مفتاح anon العام — مطلوب كـ auth header من بوابة Supabase (حتى مع no-verify-jwt).
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM';
 
 function onSheetEdit(e) {
   try {
@@ -229,6 +231,7 @@ function onSheetEdit(e) {
 
     UrlFetchApp.fetch(APP_SHEET_TO_APP_URL, {
       method: 'post', contentType: 'application/json',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       payload: JSON.stringify(payload), muteHttpExceptions: true,
     });
   } catch (err) { /* best-effort — لا توقف الجدول */ }
