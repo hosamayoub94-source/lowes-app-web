@@ -1,5 +1,6 @@
 // =============================================================
 // AdminUsersScreen — employee management with extended profile fields
+// (chunk rebuild marker: distribution roles in role picker — 2026-06-08)
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
