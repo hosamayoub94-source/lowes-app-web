@@ -5,15 +5,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import PermissionsEditor from '@components/feature/PermissionsEditor';
-
-const ROLE_LABELS = {
-  employee:       'موظف',
-  manager:        'مدير',
-  sales_manager:  'مدير مبيعات',
-  social_manager: 'مدير سوشيال',
-  media_buyer:    'ميديا باير',
-  admin:          'أدمن',
-};
+// مصدر الحقيقة للأدوار (يشمل أدوار التوزيع + الإدارة) — لا تكرّر القائمة محلياً.
+import { ROLE_LABELS } from '@data/teams';
 
 const ROLE_COLORS = {
   admin:          'bg-purple-bg text-purple-fg',
