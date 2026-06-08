@@ -57,6 +57,19 @@ export const ROLE_LABELS = {
   [ROLES.AREA_AGENT]: 'وكيل منطقة',
 };
 
+// ── Login groups — لوحة الدخول مجمّعة بـ4 فئات (≤6) بمسميات إنجليزية ──
+// كل فئة تضم عدة أدوار؛ النقر يعرض أسماء تلك الأدوار ثم PIN.
+export const LOGIN_GROUPS = [
+  { key: 'management', label: 'Management', icon: '🏢',
+    roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER] },
+  { key: 'team', label: 'Team', icon: '👥',
+    roles: [ROLES.EMPLOYEE] },
+  { key: 'stars', label: 'Stars Network', icon: '⭐',
+    roles: [ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER] },
+  { key: 'field', label: 'Field Sales', icon: '🚚',
+    roles: [ROLES.FIELD_REP, ROLES.AREA_AGENT] },
+];
+
 // Attendance status types (from index_v4.html).
 export const ATTENDANCE_TYPES = {
   IN: 'in',

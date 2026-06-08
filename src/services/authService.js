@@ -58,14 +58,15 @@ export async function getProfileById(profileId) {
   return data || null;
 }
 
-/** Profiles for the role/name picker. */
-export async function listActiveProfiles({ roleType } = {}) {
+/** Profiles for the role/name picker. Accepts a single roleType or roleTypes[]. */
+export async function listActiveProfiles({ roleType, roleTypes } = {}) {
   let q = supabase
     .from('profiles')
     .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, extra_permissions, denied_permissions')
     .eq('is_active', true)
     .order('employee_name');
-  if (roleType) q = q.eq('role_type', roleType);
+  if (Array.isArray(roleTypes) && roleTypes.length) q = q.in('role_type', roleTypes);
+  else if (roleType) q = q.eq('role_type', roleType);
   const { data, error } = await q;
   if (error) throw error;
   return data || [];
