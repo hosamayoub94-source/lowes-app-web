@@ -45,6 +45,24 @@ Deno.serve(async (req: Request) => {
     // Skip archived/imported rows (they never re-sync)
     if (o.archived === true) return json({ ok: true, skipped: 'archived' }, 200);
 
+    // ── Per-order rate limit (kill-switch) ────────────────────────────
+    // Never call the Apps Script web app more than once per COOLDOWN per order.
+    // A runaway client retry-loop (or a stale tab) could otherwise flood the
+    // web app, exhaust its daily quota, and break sync for everyone. We stamp
+    // the attempt time on `last_synced_at` BEFORE calling so concurrent/rapid
+    // retries are throttled too. The first sync of any order always passes
+    // (last_synced_at is null), so legitimate use is unaffected.
+    const COOLDOWN_MS = 15_000;
+    if (o.last_synced_at) {
+      const age = Date.now() - new Date(o.last_synced_at).getTime();
+      if (age >= 0 && age < COOLDOWN_MS) {
+        return json({ ok: false, error: 'throttled', retryAfterMs: COOLDOWN_MS - age }, 200);
+      }
+    }
+    await supabase.from('orders')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', orderId).then(() => {}, () => {});
+
     // Translate product names → English. الجدول (الجرد + الأرشيف) يطابق أسماء
     // المنتجات الإنجليزية في أعمدة Item؛ فأي اسم عربي يكسر معادلات الجرد.
     // مُتين: نطبّع (trim + lowercase + توحيد المسافات) ونقبل أن الاسم قد يأتي
