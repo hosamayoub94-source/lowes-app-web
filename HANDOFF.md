@@ -261,6 +261,7 @@ fetch('https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sync-order-to-sheet
 الرد ok:true يعني وصل Apps Script. لو `run setupSheets first` → الورقتان غير منشأتين.
 
 ### ✅ أُنجز هذه الجلسة (يونيو 2026):
+- **🧰 لوحة التجهيز اليومية (FulfillmentBoard)** — `src/screens/fulfillment/FulfillmentBoard.jsx`، العرض الافتراضي للمجهّز (order_role=fulfillment) وزر 🧰 للمدير. per-market (يوسف الكشكي=سوريا · فاطمة أيوب=تركيا، السوق=المخزن): طلبات اليوم + متأخرات + عدّاد إنجاز · تجميع حسب جهة الإرسال (موتور/شركة/مركز) · تأشير بخطوتين (بدء→تم: سوريا shipped، تركيا motor/at_center/shipped) · ترحيل جماعي **متسلسل** (درس العاصفة) بتأكيد وتقدّم · طباعة قائمة تجهيز · بحث.
 - **داشبورد قيمة المبيعات للأدمن فقط** (ManagerBoardScreen، role===admin): RPC `sales_totals(from,to)` + فلتر اليوم/أسبوع/شهر/سنة/إجمالي. view `sales_value_summary`. (~33M TRY · ~88M SYP).
 - **حذف الطلب بالصلاحيات:** مدراء/أدمن/fulfillment دائماً · الموظف طلبه بنفس اليوم فقط. + أعمدة audit `created_at/by, updated_at/by` تظهر بالكرت (من أنشأ/عدّل ومتى).
 - **نموذج الطلب لا يُغلق عند نقر الخلفية** (كان يضيّع البيانات).
