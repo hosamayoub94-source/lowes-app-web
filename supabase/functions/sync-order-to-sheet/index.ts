@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
     // the attempt time on `last_synced_at` BEFORE calling so concurrent/rapid
     // retries are throttled too. The first sync of any order always passes
     // (last_synced_at is null), so legitimate use is unaffected.
-    const COOLDOWN_MS = 15_000;
+    const COOLDOWN_MS = 3_000;  // حارس ضد الحلقات فقط (لا يعرقل أي فعل يدوي بشري)
     if (o.last_synced_at) {
       const age = Date.now() - new Date(o.last_synced_at).getTime();
       if (age >= 0 && age < COOLDOWN_MS) {

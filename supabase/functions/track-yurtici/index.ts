@@ -125,6 +125,16 @@ async function syncSheet(orderId: string) {
 
 // ── Main handler ──────────────────────────────────────────────
 Deno.serve(async (req) => {
+  // ── التتبّع التلقائي مُعطَّل (قرار المالك: لا تغييرات حالة تلقائية) ──
+  // يعمل فقط عند طلب يدوي صريح {manual:true} من زر «📡 تتبع» بالتطبيق.
+  // استدعاء pg_cron التلقائي (بلا العَلَم) يرجع فوراً بلا أي تغيير.
+  let manual = false;
+  try { const b = await req.json(); manual = !!b?.manual; } catch { /* no body = cron */ }
+  if (!manual) {
+    return new Response(JSON.stringify({ ok: true, skipped: 'auto-tracking disabled' }),
+      { headers: { 'Content-Type': 'application/json' } });
+  }
+
   // Allow manual trigger via POST, or scheduled invocation
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 

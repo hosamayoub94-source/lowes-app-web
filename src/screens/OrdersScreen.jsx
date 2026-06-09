@@ -2341,6 +2341,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
       await fetch(`${SUPABASE_URL}/functions/v1/track-yurtici`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+        // manual:true ⇒ يشتغل فقط عند الطلب اليدوي؛ الكرون التلقائي (بلا العَلَم) يتجاوز.
+        body: JSON.stringify({ manual: true }),
       });
       await load();
     } catch { /* best-effort */ }
@@ -2385,34 +2387,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  // Auto-retry: re-sync Syria/Turkey orders that never reached the sheet.
-  // SERIALIZED + deduped per-session: fire one at a time with a small gap so we
-  // never flood the Apps Script web app. Concurrent doPost calls exceed Apps
-  // Script's simultaneous-execution limit → they fail → return non-JSON
-  // (bad_response) → orders stay sheet_synced=false → this effect re-fires (the
-  // realtime subscription mutates `orders` after every sync) → an escalating
-  // storm that corrupts the two-way sync. Each order is attempted AT MOST ONCE
-  // per session; persistent failures are handled by the manager's
-  // «🔄 أعد مزامنة الكل» banner button.
-  const autoSyncRef = useRef({ attempted: new Set(), running: false });
-  useEffect(() => {
-    if (loading || autoSyncRef.current.running) return;
-    const pending = orders.filter(o =>
-      (o.market === 'syria' || o.market === 'turkey') &&
-      o.archived !== true && !o.deleted_at && o.sheet_synced !== true &&
-      !autoSyncRef.current.attempted.has(o.id),
-    );
-    if (pending.length === 0) return;
-    autoSyncRef.current.running = true;
-    (async () => {
-      for (const o of pending.slice(0, 30)) {
-        autoSyncRef.current.attempted.add(o.id);
-        try { await syncOrderToSheet(o.id); } catch { /* best-effort */ }
-        await new Promise(r => setTimeout(r, 500)); // serialize — one doPost at a time
-      }
-      autoSyncRef.current.running = false;
-    })();
-  }, [orders, loading]);
+  // ── لا مزامنة تلقائية بالخلفية (قرار المالك) ──────────────────
+  // المزامنة التطبيق→الجدول تصير فقط عند فعل صريح: إنشاء/تعديل طلب
+  // (handleSave) أو تغيير حالة (handleStatusChange). والاتجاه العكسي
+  // (الجدول→التطبيق) عبر onSheetEdit. أي طلب فشل دفعه يُعاد يدوياً عبر
+  // زر «🔄 أعد مزامنة الكل» للمدير — لا حلقة إعادة محاولة بالخلفية.
 
   const handleStatusChange = async (id, newStatus) => {
     const order = orders.find(o => o.id === id);
