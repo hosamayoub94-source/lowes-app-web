@@ -20,7 +20,8 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
-import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates } from '@services/orderSyncService';
+import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
+import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -2370,6 +2371,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // قفل السوق على ماكنة السوق المخصّصة (لا يمكن تغييره من التابات).
   useEffect(() => { if (lockedMarket) setMarket(lockedMarket); }, [lockedMarket]);
   const [status,        setStatus]        = useState(isFulfillment ? 'pending' : 'all');
+  const [viewFulfill,   setViewFulfill]   = useState(isFulfillment); // لوحة التجهيز اليومية
   const [search,        setSearch]        = useState('');
   const [modal,         setModal]         = useState(null);    // null | 'new' | order
   const [invoice,       setInvoice]       = useState(null);    // order | null
@@ -2540,6 +2542,28 @@ export default function OrdersScreen({ forcedMarket = null }) {
       }
     }
 
+  };
+
+  // ترحيل جماعي للوحة التجهيز — متسلسل عمداً (درس عاصفة مزامنة الجدول:
+  // استدعاءات Apps Script لازم وحدة-وحدة). حالات التجهيز لا تصل delivered
+  // فلا حاجة لمنطق المحاسبة/تحرير المخزون هنا.
+  const advanceBatch = async (list, nextFor, onProgress) => {
+    let done = 0, failed = 0;
+    for (const o of list) {
+      const next = nextFor(o);
+      try {
+        await supabase.from('orders').update({ status: next }).eq('id', o.id);
+        recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
+        setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
+        if (isSyncable(o)) {
+          const r = await syncToSheet(o.id);   // await = تسلسل فعلي
+          if (!r.ok && !r.skipped) failed++;
+        }
+        notifySellerStatusChange(o, next, userName);
+      } catch { failed++; }
+      done++; onProgress?.(done, list.length);
+    }
+    return { done, failed };
   };
 
   const handleSave = async (formRaw, existingId) => {
@@ -2781,6 +2805,25 @@ export default function OrdersScreen({ forcedMarket = null }) {
     }).catch(() => {});
   }, [userId, stats.myWaiting]);
 
+  // ── لوحة التجهيز اليومية — العرض الافتراضي للمجهّز، ومتاحة للمدير ──
+  if (viewFulfill) {
+    const fulfillMarket = lockedMarket || userMarket || 'all';
+    return (
+      <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
+        <FulfillmentBoard
+          orders={orders}
+          market={fulfillMarket}
+          userName={userName}
+          onAdvance={handleStatusChange}
+          onAdvanceBatch={advanceBatch}
+          loading={loading}
+          canExit
+          onExit={() => setViewFulfill(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
 
@@ -2842,6 +2885,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewMonthly ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تسليمات الشهر">
               📦
+            </button>
+          )}
+          {(isManager || isFulfillment) && !viewArchive && (
+            <button onClick={() => setViewFulfill(true)}
+              className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-surface-alt border-border text-muted hover:text-text transition"
+              title="لوحة التجهيز اليومية">
+              🧰
             </button>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
