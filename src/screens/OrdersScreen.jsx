@@ -2323,9 +2323,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
         (payload) => {
-          setOrders(prev => prev.map(o =>
-            o.id === payload.new.id ? { ...o, ...payload.new } : o
-          ));
+          // طلب صار محذوفاً (soft-delete من جلسة أخرى/الجدول) → أزِله من القائمة
+          // بدل تحديثه، حتى لا يرجع يظهر.
+          setOrders(prev => payload.new?.deleted_at
+            ? prev.filter(o => o.id !== payload.new.id)
+            : prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o));
         }
       )
       .subscribe();
@@ -2383,12 +2385,34 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  // Auto-retry: re-sync Syria/Turkey orders that never reached the sheet
+  // Auto-retry: re-sync Syria/Turkey orders that never reached the sheet.
+  // SERIALIZED + deduped per-session: fire one at a time with a small gap so we
+  // never flood the Apps Script web app. Concurrent doPost calls exceed Apps
+  // Script's simultaneous-execution limit → they fail → return non-JSON
+  // (bad_response) → orders stay sheet_synced=false → this effect re-fires (the
+  // realtime subscription mutates `orders` after every sync) → an escalating
+  // storm that corrupts the two-way sync. Each order is attempted AT MOST ONCE
+  // per session; persistent failures are handled by the manager's
+  // «🔄 أعد مزامنة الكل» banner button.
+  const autoSyncRef = useRef({ attempted: new Set(), running: false });
   useEffect(() => {
-    const pending = orders.filter(o => (o.market === 'syria' || o.market === 'turkey') && o.archived !== true && o.sheet_synced !== true);
+    if (loading || autoSyncRef.current.running) return;
+    const pending = orders.filter(o =>
+      (o.market === 'syria' || o.market === 'turkey') &&
+      o.archived !== true && !o.deleted_at && o.sheet_synced !== true &&
+      !autoSyncRef.current.attempted.has(o.id),
+    );
     if (pending.length === 0) return;
-    pending.slice(0, 20).forEach(o => syncOrderToSheet(o.id));
-  }, [orders]);
+    autoSyncRef.current.running = true;
+    (async () => {
+      for (const o of pending.slice(0, 30)) {
+        autoSyncRef.current.attempted.add(o.id);
+        try { await syncOrderToSheet(o.id); } catch { /* best-effort */ }
+        await new Promise(r => setTimeout(r, 500)); // serialize — one doPost at a time
+      }
+      autoSyncRef.current.running = false;
+    })();
+  }, [orders, loading]);
 
   const handleStatusChange = async (id, newStatus) => {
     const order = orders.find(o => o.id === id);

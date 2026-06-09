@@ -117,9 +117,12 @@ Deno.serve(async (req) => {
       // اقرأ الحالة الحالية أولاً (للخط الزمني + إشعار البائع + تجنّب كتابة نفس القيمة)
       const { data: cur } = await supabase
         .from('orders')
-        .select('id, status, handler_name, customer_name')
+        .select('id, status, handler_name, customer_name, deleted_at')
         .eq('order_id', order_id)
         .maybeSingle();
+
+      // طلب محذوف (soft-delete) — لا نُحييه بتعديل من الجدول.
+      if (cur?.deleted_at) return json({ ok: true, skipped: 'deleted' }, 200);
 
       // مصدر الحقيقة: الجدول يحدّث الحالة + رقم التتبع فقط (لا يلمس بيانات العميل/الأصناف).
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: 'جدول-تلقائي' };
@@ -138,7 +141,8 @@ Deno.serve(async (req) => {
       const { error } = await supabase
         .from('orders')
         .update(patch)
-        .eq('order_id', order_id);
+        .eq('order_id', order_id)
+        .is('deleted_at', null);
 
       if (error) return json({ ok: false, error: error.message }, 500);
 
@@ -216,11 +220,12 @@ Deno.serve(async (req) => {
         // Check if order_id already exists
         const { data: existing } = await supabase
           .from('orders')
-          .select('id')
+          .select('id, deleted_at')
           .eq('order_id', record.order_id)
           .maybeSingle();
 
         if (existing) {
+          if (existing.deleted_at) { skipped++; continue; }  // طلب محذوف — لا نُحييه
           // Update tracking_number and status only (don't overwrite manual data)
           const upd: Record<string, unknown> = { updated_by: 'استيراد-جدول' };
           if (record.tracking_number) upd.tracking_number = record.tracking_number;
