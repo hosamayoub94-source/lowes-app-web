@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
+import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
@@ -2244,6 +2245,7 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
 // ══════════════════════════════════════════════════════════════
 export default function OrdersScreen({ forcedMarket = null }) {
   const { role, team, name: userName, id: userId, order_role, order_market } = useAuth();
+  const toast = useToast();
 
   const isManager        = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(role);
   const isFulfillment    = order_role === 'fulfillment';
@@ -2506,9 +2508,34 @@ export default function OrdersScreen({ forcedMarket = null }) {
     }
     setModal(null);
     load();
-    // مزامنة الجدول عند الإنشاء أو التعديل
+    // مزامنة الجدول عند الإنشاء أو التعديل — مع تأكيد فوري للموظف
+    // (حتى لا يضطر يفتح الجدول يدوياً ليتأكّد أن الطلب نزل).
     const syncId = savedId || existingId;
-    if (syncId && (form.market === 'syria' || form.market === 'turkey')) syncOrderToSheet(syncId);
+    if (syncId && (form.market === 'syria' || form.market === 'turkey')) {
+      const verb = existingId ? 'تحديث' : 'تنزيل';
+      const pending = toast.info?.(`⏳ جاري ${verb} الطلب على الجدول…`, { duration: 8000 });
+      try {
+        const r = await syncToSheet(syncId);
+        if (pending && toast.dismiss) toast.dismiss(pending);
+        if (r.ok) {
+          const where = r.row ? ` · سطر ${r.row}` : '';
+          const dropped = Number.isInteger(r.itemsSent) && Number.isInteger(r.itemsWritten)
+            && r.itemsWritten < r.itemsSent;
+          if (dropped) {
+            // نجاح كاذب: نزل الطلب لكن بعض المنتجات ما طابقت أعمدة الجدول.
+            toast.warning?.(`⚠️ الطلب نزل${where} لكن ${r.itemsSent - r.itemsWritten} منتج لم يُسجَّل بالجدول — راجع أسماء المنتجات.`, { duration: 10000 });
+          } else {
+            toast.success?.(`✅ الطلب ${existingId ? 'تحدّث' : 'نزل'} على الجدول${where}`);
+          }
+        } else {
+          toast.error?.(`⚠️ لم ينزل على الجدول (${r.error || 'خطأ'}). سيُعاد تلقائياً — أو اضغط «أعد المزامنة» على الكرت.`, { duration: 9000 });
+        }
+      } catch {
+        if (pending && toast.dismiss) toast.dismiss(pending);
+        toast.error?.('⚠️ تعذّر التأكد من نزول الطلب على الجدول. سيُعاد تلقائياً.');
+      }
+      load();
+    }
     // Phase 2: reserve stock for NEW lowes-brand orders (best-effort).
     // Deducts catalog items from the seller's source warehouse.
     if (savedId && !existingId) {

@@ -95,7 +95,13 @@ function doPost(e) {
       }
     }
 
-    var row = existingRow || (HEADER_ROW + 1 + existingVals.length); // تحديث أو إضافة
+    // الإضافة الذكية: بعد آخر صف فيه Order ID فعلاً — يتجاهل الصفوف الفارغة/الصيغ
+    // تحت آخر طلب (وإلا ينزل الطلب بسطر بعيد). متوافق مع منطق جدول تركيا.
+    var lastDataIdx = -1;
+    for (var li = existingVals.length - 1; li >= 0; li--) {
+      if (String(existingVals[li][0]).trim() !== '') { lastDataIdx = li; break; }
+    }
+    var row = existingRow || (HEADER_ROW + 1 + lastDataIdx + 1); // تحديث أو إضافة بعد آخر طلب حقيقي
     var rowVals = new Array(lastCol).fill('');
 
     function set(c, v) { if (c && v !== undefined && v !== null) rowVals[c - 1] = v; }
@@ -129,14 +135,30 @@ function doPost(e) {
     for (var c2 = 0; c2 < headers.length; c2++) {
       var hv = String(headers[c2]);
       var m = hv.match(/item\s*(\d+)/i);
-      if (m) itemCols.push({ n: parseInt(m[1], 10), col: c2 + 1 });
+      if (m) itemCols.push({ n: parseInt(m[1], 10), col: c2 + 1 });          // "Item N" إنجليزي
+      else if (/الصنف|صنف/.test(hv)) itemCols.push({ n: 1000 + c2, col: c2 + 1 }); // "الصنف ..." عربي (ترتيب الظهور)
     }
     itemCols.sort(function (a, b) { return a.n - b.n; });
     var items = Array.isArray(o.items) ? o.items : [];
+    var itemsWritten = 0; // كم منتج انكتب فعلاً (لكشف «✓ متزامن» الكاذب)
     for (var k = 0; k < items.length && k < itemCols.length; k++) {
       var ic = itemCols[k].col;
       rowVals[ic - 1]     = items[k].name || '';   // الاسم
       if (ic < lastCol) rowVals[ic]     = items[k].qty || '';  // الكمية بالعمود التالي
+      if (String(items[k].name || '').trim()) itemsWritten++;
+    }
+
+    // 💳 الدفع الجزئي → العمود K (المتبقّي للتحصيل) + العمود O (ملاحظة: دفع العميل X)
+    var COL_REMAINING = 'K', COL_PAYNOTE = 'O';
+    var paidAmt   = Number(o.paidAmount || 0);
+    var remaining = Number(o.remaining || 0);
+    var isPartial = o.paymentStatus === 'partial' || paidAmt > 0;
+    if (isPartial) {
+      rowVals[_colToNum(COL_REMAINING) - 1] = remaining;                 // K = المتبقّي (قد يكون 0)
+      // O = ملاحظة الدفع، مدموجة مع ملاحظة العميل إن وُجدت (لا تُدهَس).
+      var custNote = String(o.note || '').trim();
+      var payNote  = 'دفع العميل ' + paidAmt;
+      rowVals[_colToNum(COL_PAYNOTE) - 1] = custNote ? (custNote + ' · ' + payNote) : payNote;
     }
 
     if (existingRow) {
@@ -145,7 +167,9 @@ function doPost(e) {
                           col('status'), cOrderId, col('salesperson'), col('note'),
                           col('shippingmethod','shipping'), col('payment')];
       var colCurrency = [_colToNum(COL_SYP), _colToNum(COL_USD), _colToNum(COL_TRY)];
-      APP_OWNED_SY.concat(colCurrency).forEach(function(c) {
+      // أعمدة الدفع الجزئي (K المتبقّي + O ملاحظة الدفع) تُكتب فقط عند وجود دفع جزئي
+      var colPartial = isPartial ? [_colToNum(COL_REMAINING), _colToNum(COL_PAYNOTE)] : [];
+      APP_OWNED_SY.concat(colCurrency).concat(colPartial).forEach(function(c) {
         if (c > 0) sh.getRange(existingRow, c).setValue(rowVals[c - 1]);
       });
       // أعمدة المنتجات
@@ -156,10 +180,10 @@ function doPost(e) {
           if (ic.col < lastCol) sh.getRange(existingRow, ic.col + 1).setValue(items[k].qty || '');
         }
       });
-      return _json({ ok: true, action: 'updated', row: existingRow });
+      return _json({ ok: true, action: 'updated', row: existingRow, itemsSent: items.length, itemsWritten: itemsWritten });
     } else {
       sh.getRange(row, 1, 1, lastCol).setValues([rowVals]);
-      return _json({ ok: true, action: 'appended', row: row });
+      return _json({ ok: true, action: 'appended', row: row, itemsSent: items.length, itemsWritten: itemsWritten });
     }
 
   } catch (err) {
@@ -243,6 +267,96 @@ function createEditTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(t){ if (t.getHandlerFunction()==='onSheetEdit') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(SHEET_ID).onEdit().create();
   return 'trigger created';
+}
+
+// ============================================================
+// 🔁 ترحيل لمرة واحدة: توحيد أسماء المنتجات العربية الشاذّة → الإنجليزي القياسي
+// السبب: لوحة الجرد (صف 4) والأرشيف يطابقان أسماء المنتجات الإنجليزية في صف 1
+// عبر SUMPRODUCT — فأي اسم عربي في أعمدة Item يُحتسب صفراً (يكسر الجرد).
+// شغّلها مرّة من محرّر Apps Script (Run → migrateItemsToEnglish).
+// آمنة وقابلة للإعادة (idempotent): الأسماء الإنجليزية لا تطابق المفاتيح العربية فتُترك.
+// تعمل على أعمدة "Item N" فقط — لا تلمس بقية الأعمدة.
+// ============================================================
+var AR_TO_EN_PRODUCTS = {
+  'تونر تنقية البشرة و تضييق المسام': 'PORE TIHGTENNING & PURIFINE TONER',
+  'تونر حليب الارز': 'Rice Milk Toner',
+  'جل شد الجسم و السيليوليت': 'FIRMING GEL',
+  'جيل مقشر الوجه': 'Facial peeling gel',
+  'ديرما رول 0.5mm': 'Derma rolle 0.5 mm',
+  'ديرما رول 1mm': 'Derma rolle 1mm',
+  'رول مساج الوجه': 'ROLLER & GUA SHA',
+  'ريتينال شوت': 'Retinal Shot',
+  'زيت الروزماري': 'Rosemary Oil',
+  'سيروم الارز': 'Rice Serum',
+  'سيروم الترطيب المكثف': 'Intensive Hydration Serum',
+  'سيروم الريتينول': 'RETINOL SERUM',
+  'سيروم العناية بالثدي': 'BREAST CARE SERUM',
+  'سيروم الكولاجين': 'Collagen Serum',
+  'سيروم اللحية': 'BEARD SERUM',
+  'سيروم الهالات و انتفاخ العين': 'UNDER EYE SERUM',
+  'سيروم فيتامين سي': 'VITAMIN C SERUM',
+  'سيروم مصحح البقع الداكنة': 'Dark Spot Corrector Serum',
+  'سيروم مضاد لحب الشباب': 'ANTI ACNE SERUM',
+  'شامبو الروزماري': 'ROSEMARY SHAMPOO',
+  'غسول البشرة الدهنية والحساسة': 'Cleanser for oily and sensitive skin',
+  'غسول البشرة العادية و الجافة': 'Cleanser for normal and dry skin',
+  'كريم الارز': 'RICE MILK SPOT CREAM',
+  'كريم الترطيب المكثف': 'MOISTURIZING CREAM',
+  'كريم العناية بالثدي': 'BREAST CARE CREAM',
+  'كريم العناية بالقدمين': 'FOOT CARE CREAM',
+  'كريم تفتيح البشرة': 'WHITENING CREAM',
+  'ماء الروزماري للشعر و البشرة': 'ROSEMARY WATER',
+  'ماسك الكولاجين المائي': 'COLLAGEN HYDRO BOMB MASK',
+  'مشط السيليكون': 'SHOWER COMB',
+  'واقي الشمس المضاد للبقع': 'ANTI BLEMISH SUNSCREEN',
+  'واقي الشمس الوردي بالكالامين': 'Sunscreen Pink Up Tone'
+};
+
+function _normKey(s) { return String(s == null ? '' : s).trim().replace(/\s+/g, ' '); }
+
+function migrateItemsToEnglish() {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) throw new Error('sheet_not_found');
+
+  var lastCol = sh.getLastColumn(), lastRow = sh.getLastRow();
+
+  // اكتشاف صف العناوين (نفس منطق doPost)
+  var HEADER_ROW = 0;
+  var scan = sh.getRange(1, 1, Math.min(20, lastRow), lastCol).getValues();
+  for (var sr = 0; sr < scan.length && !HEADER_ROW; sr++) {
+    for (var sc = 0; sc < scan[sr].length; sc++) {
+      if (String(scan[sr][sc]).replace(/[^a-zA-Z]/g, '').toLowerCase() === 'orderid') { HEADER_ROW = sr + 1; break; }
+    }
+  }
+  if (!HEADER_ROW) HEADER_ROW = 4;
+
+  // أعمدة Item N
+  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0];
+  var itemCols = [];
+  for (var c = 0; c < headers.length; c++) {
+    var hv = String(headers[c]);
+    if (/item\s*\d+/i.test(hv) || /الصنف|صنف/.test(hv)) itemCols.push(c + 1); // عربي أو إنجليزي
+  }
+  if (!itemCols.length) return 'no_item_columns';
+
+  var firstDataRow = HEADER_ROW + 1;
+  var nRows = lastRow - HEADER_ROW;
+  if (nRows <= 0) return 'no_data';
+
+  var changed = 0;
+  for (var ci = 0; ci < itemCols.length; ci++) {
+    var col = itemCols[ci];
+    var rng = sh.getRange(firstDataRow, col, nRows, 1);
+    var vals = rng.getValues();
+    var dirty = false;
+    for (var r = 0; r < vals.length; r++) {
+      var en = AR_TO_EN_PRODUCTS[_normKey(vals[r][0])];
+      if (en && en !== vals[r][0]) { vals[r][0] = en; dirty = true; changed++; }
+    }
+    if (dirty) rng.setValues(vals);
+  }
+  return 'migrated ' + changed + ' cells';
 }
 
 function _colToNum(letter) {

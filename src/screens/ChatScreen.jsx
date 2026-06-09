@@ -1376,8 +1376,10 @@ export default function ChatScreen(){
   // ── Load messages ──────────────────────────────────────────────
   const loadMessages=useCallback(async(roomId)=>{
     if(!roomId)return;setMsgLoading(true);
-    const{data}=await supabase.from('chat_messages').select('*').eq('room_id',roomId).order('created_at').limit(200);
-    setMessages(data??[]);
+    // جيب أحدث 200 رسالة (تنازلي) ثم اعكس لعرض تصاعدي — وإلا تظهر أقدم 200 فقط
+    const{data:latest}=await supabase.from('chat_messages').select('*').eq('room_id',roomId).order('created_at',{ascending:false}).limit(200);
+    const data=(latest??[]).slice().reverse();
+    setMessages(data);
     if(data?.length){
       const{data:rxs}=await supabase.from('chat_reactions').select('*').in('message_id',data.map(m=>m.id));
       const map={};(rxs??[]).forEach(r=>{if(!map[r.message_id])map[r.message_id]=[];map[r.message_id].push(r);});
@@ -1446,14 +1448,29 @@ export default function ChatScreen(){
 
   useEffect(()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
 
+  // ── شبكة أمان: أعد جلب الرسائل عند رجوع التركيز/ظهور التبويب ──────
+  // على الموبايل/PWA ينقطع سوكِت realtime بالخلفية فتضيع رسائل وصلت
+  // أثناء الغياب. عند العودة نعيد التحميل ونعلّم كمقروء.
+  useEffect(()=>{
+    if(!activeRoom?.id)return;
+    const refetch=()=>{ if(document.visibilityState==='visible'){ loadMessages(activeRoom.id); markAsRead(activeRoom.id); } };
+    window.addEventListener('focus',refetch);
+    document.addEventListener('visibilitychange',refetch);
+    return()=>{ window.removeEventListener('focus',refetch); document.removeEventListener('visibilitychange',refetch); };
+  },[activeRoom?.id,loadMessages,markAsRead]);
+
   // ── Send ───────────────────────────────────────────────────────
   const handleSend=async msgData=>{
     if(!activeRoom||!userId)return;setSending(true);
     try{
       const payload={room_id:activeRoom.id,sender_id:userId,sender_name:userName,created_at:new Date().toISOString(),...msgData};
       if(replyTo){payload.reply_to=replyTo.id;payload.reply_preview=replyTo.content?replyTo.content.slice(0,60):replyTo.message_type==='image'?'📷 صورة':'🎙️ صوت';}
-      const{error}=await supabase.from('chat_messages').insert(payload);
+      // أدرج وأرجِع الصف فوراً — لا تعتمد على realtime وحده (لو تعطّل تختفي الرسالة).
+      const{data:inserted,error}=await supabase.from('chat_messages').insert(payload).select().single();
       if(error)throw error;
+      // optimistic add: تظهر الرسالة فوراً عند المرسِل؛ معالج realtime يزيل التكرار بالـid.
+      if(inserted)setMessages(p=>p.some(m=>m.id===inserted.id)?p:[...p,inserted]);
+      setLastMsgs(p=>({...p,[activeRoom.id]:msgData.message_type==='text'?msgData.content:msgData.message_type==='image'?'📷 صورة':msgData.message_type==='voice'?'🎙️ رسالة صوتية':`📎 ${msgData.file_name||'ملف'}`}));
       setReplyTo(null);
       if(msgData.message_type==='text'&&msgData.content?.startsWith('/'))
         buildBotResponse(msgData.content,activeRoom.id,userId,userName).then(b=>setMessages(p=>[...p,b])).catch(()=>{});

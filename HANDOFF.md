@@ -5,6 +5,14 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🆕 إصلاحات المراسلة + جدول سوريا (الدفع الجزئي + أسماء المنتجات) + تسهيل المزامنة (9 يونيو 2026)
+ثلاث مشاكل طلبها المالك + فهم خبير للجدولين + تحسينان. **الـEdge fn `sync-order-to-sheet` نُشرت على الإنتاج ✅.** متبقٍّ على المالك: نشر Vercel + لصق سكربت سوريا وتشغيل `migrateItemsToEnglish`.
+- **#1 المراسلة (`ChatScreen.jsx`):** `loadMessages` كان `.order('created_at').limit(200)` = يجيب **أقدم** 200 رسالة → آخر رسالة تظهر قديمة والمحادثة تفتح على رسالة قديمة. الإصلاح: تنازلي ثم `.reverse()` → تفتح على الأحدث. (build أخضر).
+- **#2 الدفع الجزئي → جدول سوريا:** `sync-order-to-sheet` صار يبعت `paymentStatus/paidAmount/remaining`؛ وسكربت سوريا يكتب (عند partial) **العمود K=المتبقّي للتحصيل** + **العمود O=NOTE** بصيغة «ملاحظة العميل · دفع العميل X» (دمج لا دهس). تأكيد حيّ: K=«on deliver»، O=«NOTE» (K قيمة نصية لا صيغة → آمن).
+- **#3 أسماء المنتجات — وُحّدت على الإنجليزي (مش العربي):** ⚠️ فحص جدول سوريا الحيّ كشف أن **الجرد والأرشيف مبنيان على الإنجليزي**: صيغة الجرد `=SUMPRODUCT(($T9:$BB2073=A1)*…)` تطابق صف1 الإنجليزي؛ أعمدة المنتجات لكل طلب = **T..BB برأس «Item 1..»** قيمها إنجليزية. أي اسم عربي = يُحتسب صفراً = «خطأ الجرد». الإصلاح: الـEdge fn يبعت **الإنجليزي القياسي** عبر resolver متين (يطبّع trim/lower/مسافات، يقبل name أو name_en، لا fallback صامت) + دالة `migrateItemsToEnglish()` بسكربت سوريا (خريطة AR→EN لـ32 منتج، idempotent) لإصلاح الصفوف العربية القديمة.
+- **تسهيل عمل الموظفين (السبب الجذري لفتح الجدول يدوياً = لا تأكيد):** `handleSave` صار **ينتظر المزامنة ويعرض toast فوري** («✅ نزل على الجدول · سطر N» / «⚠️ فشل — سيُعاد تلقائياً»). + **كشف «✓ متزامن» الكاذب:** السكربت يرجّع `itemsSent/itemsWritten`، الـEdge يمرّرهما، والتطبيق يحذّر «نزل لكن N منتج لم يُسجَّل». + **إدراج ذكي بسوريا** (بعد آخر صف فيه Order ID فعلاً، مثل تركيا) يمنع نزول الطلب بسطر بعيد.
+- **خرائط أعمدة سوريا (LOWES Sales، gid 958535037) مؤكَّدة حيّاً:** A=التاريخ · G/H/I=Price SYP/USD/TRY · **K=on deliver** · L=Status · M=Order ID · N=Salesperson · **O=NOTE** · S=Payment · T..BB=Item 1.. (EN). صفوف 1–5 فوق = لوحة جرد المنتجات (صف1 EN، صف3 AR، صف4 الكمية).
+
 ### 🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕 مزامنة سوريا الثنائية (onSheetEdit) ✅ (8 يونيو 2026 · commit 83dd900)
 سوريا صارت تتزامن **بالاتجاهين** متل تركيا:
 - **`onSheetEdit` أُضيف لسكربت سوريا** (`google-apps-script/lowes-sales-sync.gs`): عند تعديل عمود الحالة/التتبع يدوياً بالجدول → يرسل لـ`sheet-to-app` (الحالة + رقم التتبع فقط). تعديلات السكربت البرمجية (sync-back) لا تُشغّله → لا حلقة.
@@ -415,75 +423,10 @@ fetch('https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sync-order-to-sheet
 
 ---
 
-## 🆕 جلسة سابقة (يونيو 2026 — الحضور + الإشعارات + بوت لوزي + المهام v2)
-
-### أدوات الأدمن + الموسيقى (يونيو 2026)
-- **كتالوج المنتجات:** أُضيفت أعمدة products (`products_columns_fix.sql` مطبّق) → AdminProductsScreen يعمل كاملاً.
-- **لوحة معرفة لوزي:** `/admin/lozy` — الأدمن يدير ما تعلّمته لوزي (`lozy_knowledge`).
-- **موسيقى queue:** `/اغنية` يضيف للقائمة أثناء التشغيل، `/تخطي` للتالي. جدول `channel_music_queue` (مطبّق).
-- **تقارير المدير:** موجودة بالفعل بـ AdminReportsScreen (حضور/مهام/مبيعات/أداء).
-- 🔴 **متابعة المالك:** تدوير service_role key (الوكيل لا يدوّر مفاتيح).
-
-### 🔴 إصلاح حاسم: الانصراف كان يفشل (يونيو 2026)
-- **السبب:** insert الانصراف كان ينقصه عمود `day` (NOT NULL) → الموظفون يدخلون ولا يطلعون. أُصلح بإرسال `day` + جعل العمود nullable (`supabase/attendance_day_nullable.sql` — مطبّق).
-- **لوحة "الموجودون الآن":** بشاشة الحضور — اسم+تيم+وقت لكل موجود + قسم غادروا (live).
-- **Web Push:** `PushPermissionPrompt` banner بعد الدخول ليشترك الموظفون → تصلهم الإشعارات والتطبيق مغلق (كان الاشتراك يدوياً بالملف الشخصي فقط).
-
-### الحضور — قفل الخروج أول ساعة
-- لا يمكن تسجيل الانصراف قبل مرور **ساعة** من الحضور (منع in→out بالخطأ). الزر يظهر معطّلاً مع عدّاد حيّ.
-- `src/screens/AttendanceScreen.jsx` — `MIN_MINUTES_BEFORE_CHECKOUT=60`.
-
-### الإشعارات — إصلاح عدم الوصول (سبب جذري) ✅
-- كانت RLS على `notifications` تستخدم `auth.uid()` لكن الموظفين على manual session (PIN) → `auth.uid()=null` → لا إشعارات.
-- الحل: فتح RLS (`supabase/notifications_rls_fix.sql` — **مطبّق على prod**) + فلترة `user_id` بالكود في `notificationService.js`.
-
-### بوت لوزي 🌸 — يعرف التطبيق ويتعلّم ✅
-- Edge Function `ai-assistant` (نُشرت عبر Dashboard): دليل استخدام كامل للتطبيق في الـ prompt + لم يعد يقول "ما بعرف".
-- تعلّم من الفريق: وسم `[[LEARN: ...]]` يُخزَّن في جدول `lozy_knowledge` ويُحقن بكل المحادثات. جداول: `lozy_knowledge` + `lozy_chats` (`supabase/lozy_knowledge.sql` — مطبّق).
-
-### المهام v2
-- إنشاء مهمة: اختيار تيم → فلترة موظفين + رابط + رفع مرفقات. أعمدة `link`/`team` بجدول tasks.
-- صلاحيات `EDIT_TASK`/`DELETE_TASK` (مدراء + media_buyer) + أزرار تعديل/حذف بالـ drawer.
-
-### المراسلة — إعادة تصميم ✅
-- **خط أخف مثل واتساب:** رسائل 15px وزن عادي، فقاعة teal صلبة، أوزان أخف.
-- **بوت أغاني per-channel (ديسكورد):** `/اغنية <رابط يوتيوب>` بأي قناة يشغّل للكل، `/وقف` يوقف. جدول `channel_music` (realtime، `supabase/channel_music.sql` مطبّق) + `ChannelMusicPlayer` أعلى الرسائل.
-
-### 🔑 نشر Edge Functions (لا CLI)
-Dashboard → Edge Functions → `<name>` → Code → الصق (Set-Clipboard ثم Ctrl+V في Monaco) → Deploy updates.
-
----
-
-## 🆕 آخر تحديثات كبيرة (يونيو 2026 — جلسة الصلاحيات والرواتب والسيلفي)
-
-### نظام الطلبات `/orders`
-- إدارة طلبات تركيا 🇹🇷 + سوريا 🇸🇾. مراحل: وارد → تجهيز → جاهز → شحن → توصيل
-- **صلاحيات الفريق:** الموظف يشوف طلبات تيمه فقط · مسؤول التجهيز (`order_role='fulfillment'`) يشوف سوقه ويحرّك الحالة
-- جدول `orders` (راجع `supabase/orders_migration.sql`) — items كـ JSONB
-- منتقي المنتجات: autocomplete من جدول `products` (32 منتج) + نص حر مسموح
-- Fatima Ayoub (PIN 2626, تركيا, fulfillment) · Yousef Alkshki (سوريا, fulfillment)
-
-### نظام الصلاحيات `src/data/permissions.js`
-- `PERMISSIONS` keys + `ROLE_PERMISSIONS` افتراضي لكل دور
-- per-user: `profiles.extra_permissions` + `denied_permissions` (JSONB)
-- hook: `usePermissions()` → `can(PERMISSIONS.X)`
-- الأدمن يمنح مدراء جدد صلاحيات من شاشة «المستخدمون» (checkboxes)
-- مثال مطبّق: إنشاء المهام محجوب خلف `ASSIGN_TASKS` (الموظف ما يشوف الزر)
-
-### الحضور بالسيلفي `src/components/attendance/SelfieCapture.jsx`
-- **إصلاح bug الخروج:** كان فيه خطوتين (ضغطة تُظهر ملاحظة + ضغطة تسجّل) → الموظفون يمشون بعد الأولى ظناً أنهم سجّلوا. الآن **ضغطة واحدة**.
-- سيلفي عند الدخول والخروج → bucket `attendance-selfies` → `attendance.selfie_url`
-- الكاميرا المعطّلة لا تمنع التسجيل (زر «متابعة بدون صورة»)
-- **مين حاضر اليوم:** `TodayTeamStatus` في HomeScreen (كان يستعلم عن عمود `role` غير موجود → أُصلح لـ `role_type`)
-
-### الرواتب `/payroll`
-- **سبب الصعوبة سابقاً:** لا راتب أساسي مخزّن → إدخال يدوي كل شهر
-- الحل: `profiles.base_salary_usd` + `housing_allowance_usd` + `transport_allowance_usd` (تُعيَّن من «المستخدمون»)
-- زر **«ملء الموظفين تلقائياً»** في دورة الرواتب يضيف كل النشطين برواتبهم الأساسية + البدلات
-
-### 🔐 أمان (من جلسة سابقة)
-- verify-pin Edge Function: التحقق من PIN server-side · أعمدة `pin`/`password` ممنوعة على anon
-- ⚠️ **متابعة مطلوبة:** تدوير service_role key من Supabase Settings → API (كان في git history)
+## 🗃️ أرشيف الجلسات القديمة (مُقلّم — التفاصيل في الأقسام المرجعية أدناه + git history)
+الأنظمة التالية بُنيت بجلسات يونيو 2026 المبكرة وصارت مستقرة وموثّقة بالأقسام المرجعية: الطلبات `/orders` (تركيا+سوريا، fulfillment) · الصلاحيات `permissions.js` (قوالب أدوار + extra/denied) · الحضور بالسيلفي + الوجه · الرواتب `/payroll` (رواتب أساسية + ملء تلقائي) · المخازن متعددة الطبقات (`wh_*`) · توحيد `/inventory` · التارجت · لوزي Agent (tool use) · الأسئلة الذكية · استوديو السوشال · لوحة المدير · ذكاء العملاء + الأرشيف.
+**قواعد دائمة مستخلَصة:** (1) أي جدول يكتب له موظف PIN يحتاج **RLS متساهل + GRANT** (auth.uid()=null). (2) أي عمود audit يكتب له الكود اسماً = **text لا uuid**. (3) أي حالة طلب جديدة = STATUSES + orderStatus + `orders_status_check` + sheet-to-app STATUS_MAP/AR + Apps Script. (4) `tasks` يستخدم `assigned_to`/`assignee_id` (لا `assignee_name`).
+**متابعات مفتوحة للمالك:** تدوير service_role key (كان بـgit history) · دمج profiles مكرّرة (Wasim/Fadi بحالات أحرف) · حذف الحسابات/الصفوف التجريبية قبل الإطلاق.
 
 ---
 

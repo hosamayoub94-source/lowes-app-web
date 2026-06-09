@@ -21,7 +21,7 @@ export async function syncToSheet(orderId, { markPending = false } = {}) {
   if (markPending) {
     await supabase.from('orders').update({ sync_status: 'pending' }).eq('id', orderId).then(() => {}, () => {});
   }
-  let ok = false, errText = null;
+  let ok = false, errText = null, action = null, row = null, skipped = null, itemsSent = null, itemsWritten = null;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
       method: 'POST',
@@ -31,6 +31,11 @@ export async function syncToSheet(orderId, { markPending = false } = {}) {
     let body = null;
     try { body = await res.json(); } catch { /* non-json */ }
     ok = res.ok && body?.ok !== false && !body?.error;
+    action  = body?.action ?? null;   // appended | updated
+    row     = body?.row ?? null;      // رقم السطر في الجدول
+    skipped = body?.skipped ?? null;  // archived | no_sheet (لا يُعدّ فشلاً)
+    itemsSent    = body?.itemsSent    ?? null;  // كم منتج أُرسل
+    itemsWritten = body?.itemsWritten ?? null;  // كم منتج انكتب فعلاً (كشف نجاح كاذب)
     if (!ok) errText = String(body?.error || `HTTP ${res.status}`).slice(0, 300);
   } catch (e) {
     ok = false; errText = String(e?.message || e).slice(0, 300);
@@ -41,7 +46,7 @@ export async function syncToSheet(orderId, { markPending = false } = {}) {
     : { sync_status: 'failed', sync_error: errText };
   await supabase.rpc('increment_order_sync_attempts', { p_order_id: orderId }).then(() => {}, () => {});
   await supabase.from('orders').update(patch).eq('id', orderId).then(() => {}, () => {});
-  return { ok, error: errText };
+  return { ok, error: errText, action, row, skipped, itemsSent, itemsWritten };
 }
 
 // إعادة المزامنة يدوياً (يصفّر الخطأ ويعيد المحاولة فوراً).

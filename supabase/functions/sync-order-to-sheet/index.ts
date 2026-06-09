@@ -45,13 +45,22 @@ Deno.serve(async (req: Request) => {
     // Skip archived/imported rows (they never re-sync)
     if (o.archived === true) return json({ ok: true, skipped: 'archived' }, 200);
 
-    // Translate Arabic product names → English (the sheet's Item columns use English)
+    // Translate product names → English. الجدول (الجرد + الأرشيف) يطابق أسماء
+    // المنتجات الإنجليزية في أعمدة Item؛ فأي اسم عربي يكسر معادلات الجرد.
+    // مُتين: نطبّع (trim + lowercase + توحيد المسافات) ونقبل أن الاسم قد يأتي
+    // عربياً (name) أو إنجليزياً أصلاً (name_en) فنُرجّع دائماً name_en القياسي.
+    const norm = (s: string) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
     let toEn: Record<string,string> = {};
     try {
       const { data: prods } = await supabase.from('products').select('name,name_en');
-      (prods ?? []).forEach((p: any) => { if (p.name && p.name_en) toEn[String(p.name).trim()] = String(p.name_en).trim(); });
-    } catch { /* fall back to Arabic names */ }
-    const enName = (n: string) => toEn[String(n || '').trim()] || n;
+      (prods ?? []).forEach((p: any) => {
+        const en = String(p.name_en || p.name || '').trim();
+        if (!en) return;
+        if (p.name)    toEn[norm(p.name)]    = en;  // عربي → إنجليزي
+        if (p.name_en) toEn[norm(p.name_en)] = en;  // إنجليزي (بأي حالة/مسافات) → إنجليزي قياسي
+      });
+    } catch { /* fall back to original name */ }
+    const enName = (n: string) => toEn[norm(n)] || n;
 
     // ── Turkey: route to the Turkey spreadsheet (Strong / LOWE'S tab) ──
     if (o.market === 'turkey') {
@@ -108,6 +117,11 @@ Deno.serve(async (req: Request) => {
       return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     };
 
+    // الدفع الجزئي: المتبقّي للتحصيل + المدفوع الآن (للأعمدة K / O في الجدول)
+    const _total = Number(o.amount || 0);
+    const _paid  = Number(o.paid_amount || 0);
+    const _remaining = Math.max(0, _total - _paid);
+
     const payload = {
       token: SHEET_TOKEN,
       order: {
@@ -125,6 +139,11 @@ Deno.serve(async (req: Request) => {
         note:           o.notes,
         shippingMethod: o.shipping_company,
         payment:        o.payment_method,
+        // الدفع الجزئي — يكتبهما السكربت في K (المتبقّي) و O (ملاحظة الدفع)
+        paymentStatus:  o.payment_status,
+        paidAmount:     _paid,
+        remaining:      o.payment_status === 'paid' ? 0 : _remaining,
+        // أسماء المنتجات بالإنجليزي القياسي — توافق معادلات الجرد والأرشيف بالجدول
         items:          Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
       },
     };
