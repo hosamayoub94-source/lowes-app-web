@@ -359,8 +359,10 @@ fetch('https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sync-order-to-sheet
 - ⚠️ ملاحظة: عمود `tasks` هو `assigned_to`/`assignee_id` (**لا يوجد `assignee_name`**).
 
 ### 🧠 أسئلة تدريب ذكية بالـ AI (تحل محل الـ104 الغبية)
-- `generate-quiz` edge function (منشورة) — Claude Sonnet + **web search** (للمكوّنات/أسئلة العملاء). يولّد سؤالاً يومياً لكل فئة (منتجات/مكوّنات/مبيعات/عملاء) ويخزّنه في `quiz_questions` (عمود `source='ai'`، `question_date=today`). idempotent (مرة/يوم).
-- `TrainingScreen`: يفضّل أسئلة `source='ai'` لليوم؛ وإن غابت يطلق التوليد بالخلفية (auto على أول فتح). أسئلة سيناريو ذكية واقعية.
+- `generate-quiz` edge function (منشورة) — Claude Sonnet + **web search** (للمكوّنات/أسئلة العملاء). يولّد **سؤالين لكل فئة** (أساسي + متقدّم سيناريو) × 4 فئات = **8 أسئلة/يوم** في `quiz_questions` (`source='ai'`, `question_date=today`). idempotent (مرة/يوم).
+- **الكتالوج حيّ من جدول `products`** (32 منتج فعّال) + `KNOWLEDGE_NOTES` ثابتة للتحذيرات الحرجة (ريتينول/حوامل...). Fallback لقائمة ثابتة إذا فشل الجلب.
+- **Cron يومي:** `generate-quiz-daily` (pg_cron, jobid 2) الساعة 05:00 UTC — لا اعتماد على زيارة الموظفين. Migration: `supabase/migrations/20260610_generate_quiz_cron.sql` (طُبّقت حيّاً 10 يونيو عبر DDL runner مؤقت).
+- `TrainingScreen`: يفضّل أسئلة `source='ai'` لليوم؛ وإن غابت يطلق التوليد بالخلفية (احتياط ثانٍ بعد الـ cron). الخيارات تُخلط client-side (الصح ليس دائماً أول خيار).
 
 ### 🏢 الهيكل التنظيمي + مستخدمون
 - ملف الهيكل الكامل: `C:\Users\acer\Documents\Cowork\operations\team\org_structure.md`.
