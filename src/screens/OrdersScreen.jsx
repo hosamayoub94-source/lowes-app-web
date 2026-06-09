@@ -852,7 +852,7 @@ const TRACKING_STAGES = [
 const TRACKING_STAGE_KEYS = TRACKING_STAGES.map(s => s.key);
 
 // ── Tracking Tab ──────────────────────────────────────────────
-function TrackingTab({ orders, onManualRefresh, refreshing }) {
+function TrackingTab({ orders }) {
   const trackable = useMemo(() =>
     orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' && o.market === 'turkey')
           .sort((a, b) => {
@@ -892,11 +892,8 @@ function TrackingTab({ orders, onManualRefresh, refreshing }) {
         ))}
       </div>
 
-      {/* Manual refresh */}
-      <button onClick={onManualRefresh} disabled={refreshing}
-        className="w-full py-2.5 rounded-xl border border-border text-sm font-bold text-muted hover:text-text hover:border-teal/50 transition disabled:opacity-40 flex items-center justify-center gap-2">
-        {refreshing ? <span className="animate-spin">⟳</span> : '🔄'} تحديث حالات يورتيتشي الآن
-      </button>
+      {/* تتبّع يورتيتشي مُلغى (قرار المالك) — الحالات تُغيَّر يدوياً فقط.
+          هذا التبويب صار عرضاً فقط: أرقام التتبّع + المراحل + رابط شركة الشحن. */}
 
       {/* Tracking cards */}
       <div className="space-y-3">
@@ -2334,20 +2331,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Manual trigger: call track-yurtici function immediately
-  const handleManualTrackingRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/track-yurtici`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-        // manual:true ⇒ يشتغل فقط عند الطلب اليدوي؛ الكرون التلقائي (بلا العَلَم) يتجاوز.
-        body: JSON.stringify({ manual: true }),
-      });
-      await load();
-    } catch { /* best-effort */ }
-    finally { setRefreshing(false); }
-  };
+  // (أُزيل تتبّع يورتيتشي اليدوي — قرار المالك: لا جلب حالات من شركة الشحن، الحالات يدوية فقط.)
 
   // Archive a batch of order IDs (month-end)
   const handleMonthArchive = async (ids) => {
@@ -2970,11 +2954,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
       {/* Tracking Tab */}
       {viewTracking && (
-        <TrackingTab
-          orders={orders}
-          onManualRefresh={handleManualTrackingRefresh}
-          refreshing={refreshing}
-        />
+        <TrackingTab orders={orders} />
       )}
 
       {/* List */}
