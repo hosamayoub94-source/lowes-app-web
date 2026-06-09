@@ -12,7 +12,8 @@ function fmtAmt(n, currency) {
 }
 
 export default function TreasuryPanel({ entries = [], className = '' }) {
-  const [showDetails, setShowDetails] = useState(false);
+  // مفتوحة افتراضياً: «اديش معنا بكل محفظة» تبيّن فوراً بلا نقرة (طلب المالك).
+  const [showDetails, setShowDetails] = useState(true);
 
   // Calculate balance per wallet from entries.
   // walletDelta() centralizes direction (income/transfer_in = +, expense/
