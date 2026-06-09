@@ -395,6 +395,31 @@ export default function AdminUsersScreen() {
     } catch (e) { setError(e.message); }
   };
 
+  // ── Permanent delete (admin only) ─────────────────────────────
+  // تأكيد مزدوج: تحذير + كتابة الاسم بالضبط — يمنع الحذف العَرَضي.
+  const handleDelete = async (p) => {
+    if (!window.confirm(
+      `⚠️ حذف نهائي لـ«${p.employee_name}»؟\n\n` +
+      `يُمسح الحساب من القاعدة نهائياً ولا يمكن التراجع. ` +
+      `للإيقاف المؤقت استخدم «تعطيل» بدلاً منه.`,
+    )) return;
+    const typed = window.prompt(`للتأكيد، اكتب اسم الحساب بالضبط:\n\n${p.employee_name}`);
+    if (typed == null) return;                       // ألغى
+    if (typed.trim() !== p.employee_name) { window.alert('الاسم غير مطابق — أُلغي الحذف.'); return; }
+    try {
+      const URL  = import.meta.env.VITE_SUPABASE_URL;
+      const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${URL}/functions/v1/manage-employee`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ANON}`, apikey: ANON, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', requesterRole: role, target_id: p.id }),
+      });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.message || 'تعذّر الحذف');
+      setProfiles(ps => ps.filter(x => x.id !== p.id));
+    } catch (e) { setError(e.message); }
+  };
+
   // ── Add employee ──────────────────────────────────────────────
   const [addForm, setAddForm]     = useState(EMPTY_FORM);
   const [addPin, setAddPin]       = useState('');
@@ -597,6 +622,12 @@ export default function AdminUsersScreen() {
                       className="w-full py-1.5 rounded-lg bg-amber-bg border border-amber/30 text-amber-fg text-xs font-medium hover:bg-amber/20 transition"
                     >
                       🔑 تغيير PIN
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p)}
+                      className="w-full py-1.5 rounded-lg bg-red-bg border border-red/30 text-red-fg text-xs font-medium hover:bg-red/20 transition"
+                    >
+                      🗑️ حذف نهائي
                     </button>
                   </div>
                 )}
