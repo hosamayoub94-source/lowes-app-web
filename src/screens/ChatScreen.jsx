@@ -1154,6 +1154,7 @@ export default function ChatScreen(){
   const[unreadCounts,setUnreadCounts]=useState({});
   const[loading,setLoading]=useState(true);
   const[msgLoading,setMsgLoading]=useState(false);
+  const[loadingOlder,setLoadingOlder]=useState(false);  // جلب الرسائل الأقدم (pagination)
   const[sending,setSending]=useState(false);
   const[sidebarOpen,setSidebarOpen]=useState(true);
   const[replyTo,setReplyTo]=useState(null);
@@ -1183,6 +1184,11 @@ export default function ChatScreen(){
 
   const msgEndRef=useRef(null),subRef=useRef(null),msgContainerRef=useRef(null),globalSubRef=useRef(null);
   const typingTimers=useRef({});
+  const skipAutoScrollRef=useRef(false);  // عند تحميل الأقدم: لا تنزل للأسفل
+  const loadingOlderRef=useRef(false);    // حارس إعادة دخول لجلب الأقدم
+  const loadOlderRef=useRef(null);         // أحدث نسخة من loadOlder (لمعالج التمرير الثابت)
+  const messagesRef=useRef([]);            // أحدث قائمة رسائل (بلا stale closure)
+  const hasMoreOlderRef=useRef(false);     // هل بعد في أقدم (يمنع استعلامات فارغة متكرّرة)
 
   // ── Pending count ──────────────────────────────────────────────
   const loadPendingCount=useCallback(async()=>{
@@ -1380,6 +1386,7 @@ export default function ChatScreen(){
     const{data:latest}=await supabase.from('chat_messages').select('*').eq('room_id',roomId).order('created_at',{ascending:false}).limit(200);
     const data=(latest??[]).slice().reverse();
     setMessages(data);
+    hasMoreOlderRef.current=(latest??[]).length>=200;  // في رسائل أقدم لو رجع 200 كاملة
     if(data?.length){
       const{data:rxs}=await supabase.from('chat_reactions').select('*').in('message_id',data.map(m=>m.id));
       const map={};(rxs??[]).forEach(r=>{if(!map[r.message_id])map[r.message_id]=[];map[r.message_id].push(r);});
@@ -1387,6 +1394,35 @@ export default function ChatScreen(){
     }
     setMsgLoading(false);
   },[]);
+
+  // ── تحميل الرسائل الأقدم (pagination عند السحب للأعلى) ──────────
+  // يجيب 200 رسالة أقدم من أقدم رسالة محمّلة ويُلصقها بالأعلى مع حفظ موضع
+  // التمرير، حتى يشوف الفريق كل التاريخ مش آخر 200 فقط.
+  const loadOlder=useCallback(async()=>{
+    if(loadingOlderRef.current||!hasMoreOlderRef.current||!activeRoom?.id)return;
+    const el=msgContainerRef.current;
+    const oldest=messagesRef.current[0];
+    if(!oldest||!el)return;
+    loadingOlderRef.current=true;setLoadingOlder(true);
+    const prevH=el.scrollHeight,prevTop=el.scrollTop;
+    try{
+      const{data:older}=await supabase.from('chat_messages').select('*')
+        .eq('room_id',activeRoom.id).lt('created_at',oldest.created_at)
+        .order('created_at',{ascending:false}).limit(200);
+      const batch=(older??[]).slice().reverse();
+      if(batch.length){
+        skipAutoScrollRef.current=true;
+        setMessages(p=>{const ids=new Set(p.map(m=>m.id));return[...batch.filter(m=>!ids.has(m.id)),...p];});
+        const{data:rxs}=await supabase.from('chat_reactions').select('*').in('message_id',batch.map(m=>m.id));
+        if(rxs?.length)setReactions(prev=>{const map={...prev};rxs.forEach(r=>{(map[r.message_id]=map[r.message_id]||[]).push(r);});return map;});
+        // احفظ موضع التمرير: أبقِ نفس الرسالة أمام عين المستخدم بعد الإلصاق
+        requestAnimationFrame(()=>{const e2=msgContainerRef.current;if(e2)e2.scrollTop=e2.scrollHeight-prevH+prevTop;});
+      }
+      hasMoreOlderRef.current=batch.length>=200;
+    }catch{/* best-effort */}
+    loadingOlderRef.current=false;setLoadingOlder(false);
+  },[activeRoom?.id]);
+  loadOlderRef.current=loadOlder;
 
   // ── Broadcast typing (debounced 2s) ───────────────────────────
   const broadcastTyping=useCallback(()=>{
@@ -1446,7 +1482,12 @@ export default function ChatScreen(){
     return()=>{subRef.current?.unsubscribe();};
   },[activeRoom?.id,loadMessages,loadPinned,loadRoomReads,loadRoomMembers,markAsRead,userId]);
 
-  useEffect(()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
+  useEffect(()=>{
+    messagesRef.current=messages;
+    // عند إلصاق رسائل أقدم (pagination) لا تنزل للأسفل — حافظ على موضع القراءة.
+    if(skipAutoScrollRef.current){skipAutoScrollRef.current=false;return;}
+    msgEndRef.current?.scrollIntoView({behavior:'smooth'});
+  },[messages]);
 
   // ── شبكة أمان: أعد جلب الرسائل عند رجوع التركيز/ظهور التبويب ──────
   // على الموبايل/PWA ينقطع سوكِت realtime بالخلفية فتضيع رسائل وصلت
@@ -1534,6 +1575,8 @@ export default function ChatScreen(){
   const handleMsgScroll=useCallback(e=>{
     const el=e.currentTarget;
     setShowScrollBtn(el.scrollHeight-el.scrollTop-el.clientHeight>150);
+    // قرب القمّة → حمّل الرسائل الأقدم (pagination)
+    if(el.scrollTop<80)loadOlderRef.current?.();
   },[]);
   const scrollToBottom=()=>{msgEndRef.current?.scrollIntoView({behavior:'smooth'});};
 
@@ -1719,6 +1762,9 @@ export default function ChatScreen(){
                 </button>
               )}
               <div className="px-3 py-3 space-y-0.5 max-w-3xl mx-auto">
+                {loadingOlder&&(
+                  <div className="flex justify-center py-2"><div className="w-5 h-5 border-2 border-teal/30 border-t-teal rounded-full animate-spin"/></div>
+                )}
                 {!activeRoom?(
                   <div className="h-64 flex flex-col items-center justify-center text-muted">
                     <p className="text-5xl mb-3 opacity-20">💬</p>
