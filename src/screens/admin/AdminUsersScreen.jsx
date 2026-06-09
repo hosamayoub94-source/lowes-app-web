@@ -624,32 +624,11 @@ export default function AdminUsersScreen() {
               </Field>
               <Field label="الدور">
                 <select value={form.role_type}
-                  onChange={e => { const r = e.target.value; setForm(f => ({ ...f, role_type: r, seller_type: sellerTypeForRole(r) })); }}
+                  onChange={e => setForm(f => ({ ...f, role_type: e.target.value }))}
                   className={selectCls}>
                   {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
-              {form.seller_type === 'field_rep' && (
-                <Field label="مستوى المندوب">
-                  <select value={form.rep_level} onChange={e => setForm(f => ({ ...f, rep_level: e.target.value }))} className={selectCls}>
-                    <option value="junior">مبتدئ · 8%</option>
-                    <option value="active">نشيط · 5%</option>
-                    <option value="pro">محترف · 10%</option>
-                    <option value="agent">وكيل منطقة · 20%</option>
-                  </select>
-                </Field>
-              )}
-              {form.seller_type === 'marketer' && (
-                <Field label="رتبة المسوّقة">
-                  <select value={form.mlm_rank} onChange={e => setForm(f => ({ ...f, mlm_rank: e.target.value }))} className={selectCls}>
-                    <option value="bronze">برونزي · 35%</option>
-                    <option value="silver">فضّي · 40%</option>
-                    <option value="gold">ذهبي · 45%</option>
-                    <option value="platinum">بلاتيني · 48%</option>
-                    <option value="diamond">ألماس · 50%</option>
-                  </select>
-                </Field>
-              )}
               <Field label="الفريق">
                 <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>
                   {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}
@@ -837,27 +816,6 @@ export default function AdminUsersScreen() {
                   {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
-              {sellerTypeForRole(addForm.role_type) === 'field_rep' && (
-                <Field label="مستوى المندوب">
-                  <select value={addForm.rep_level} onChange={e => setAddForm(f => ({ ...f, rep_level: e.target.value }))} className={selectCls}>
-                    <option value="junior">مبتدئ · 8%</option>
-                    <option value="active">نشيط · 5%</option>
-                    <option value="pro">محترف · 10%</option>
-                    <option value="agent">وكيل منطقة · 20%</option>
-                  </select>
-                </Field>
-              )}
-              {sellerTypeForRole(addForm.role_type) === 'marketer' && (
-                <Field label="رتبة المسوّقة">
-                  <select value={addForm.mlm_rank} onChange={e => setAddForm(f => ({ ...f, mlm_rank: e.target.value }))} className={selectCls}>
-                    <option value="bronze">برونزي · 35%</option>
-                    <option value="silver">فضّي · 40%</option>
-                    <option value="gold">ذهبي · 45%</option>
-                    <option value="platinum">بلاتيني · 48%</option>
-                    <option value="diamond">ألماس · 50%</option>
-                  </select>
-                </Field>
-              )}
               <Field label="الرمز السري (4 أرقام)">
                 <input type="text" inputMode="numeric" maxLength={4} value={addPin}
                   onChange={e => setAddPin(e.target.value.replace(/\D/g, '').slice(0, 4))}

@@ -5,6 +5,9 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🧹 تنظيف كامل: فصل نظام المندوبين/المسوّقين عن تطبيق الموظفين (9 يونيو 2026)
+المالك قرّر إن المندوبين/المسوّقات **تطبيق منفصل** (`lowes-distributors-web` — موجود وكامل، git repo خاص). التراجع الأول (commit `6635649`) كان جزئياً فبقيت بقايا سبّبت «لخبطة»: فئتا دخول `Stars Network`/`Field Sales` + أدوار شبكة بالقائمة وإنشاء المستخدمين. أُزيل الآن **كل** أثر الشبكة من `lowes-app-web`: الأدوار الـ5 (field_rep/marketer/supervisor/supervisor_manager/area_agent) + فئات الدخول + الموديولات (commission/mlm/distribution/field-crm) + المسارات + الصلاحيات (MANAGE_TERRITORY/CONSIGNMENT/VIEW_NETWORK/MANAGE_COMMISSION) + بقايا navigation/homeLayout/guides/OrdersScreen/AdminUsers + ملفات `distribution_system_*.sql`. **المناصب الإدارية بقيت** (محاسب/HR/مخزن/تسويق + صفحة `/management`). **الباكند المشترك لم يُلمَس** (`manage-employee` + القاعدة المشتركة). `vite build` أخضر + لا أخطاء console + القائمة نظيفة (مُعايَن حيّاً). التفاصيل: `MARKETERS_APP_HANDOFF.md` (قسم «تنظيف كامل»).
+
 ### 🆕 إصلاحات المراسلة + جدول سوريا (الدفع الجزئي + أسماء المنتجات) + تسهيل المزامنة (9 يونيو 2026)
 ثلاث مشاكل طلبها المالك + فهم خبير للجدولين + تحسينان. **الـEdge fn `sync-order-to-sheet` نُشرت على الإنتاج ✅.** متبقٍّ على المالك: نشر Vercel + لصق سكربت سوريا وتشغيل `migrateItemsToEnglish`.
 - **#1 المراسلة (`ChatScreen.jsx`):** `loadMessages` كان `.order('created_at').limit(200)` = يجيب **أقدم** 200 رسالة → آخر رسالة تظهر قديمة والمحادثة تفتح على رسالة قديمة. الإصلاح: تنازلي ثم `.reverse()` → تفتح على الأحدث. (build أخضر).

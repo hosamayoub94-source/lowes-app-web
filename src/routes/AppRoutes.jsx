@@ -64,7 +64,6 @@ const AdminFaceEnrollScreen    = lazy(() => import(/* webpackChunkName: "admin-f
 const ShiftScheduleScreen      = lazy(() => import(/* webpackChunkName: "schedule"         */ '@screens/ShiftScheduleScreen'));
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
-const FieldCRMScreen           = lazy(() => import(/* webpackChunkName: "field-crm"        */ '@modules/field-crm/pages/FieldCRMScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
 const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
@@ -73,12 +72,6 @@ const ManagerBoardScreen       = lazy(() => import(/* webpackChunkName: "manager
 const SocialStudioScreen       = lazy(() => import(/* webpackChunkName: "social-studio"    */ '@screens/SocialStudioScreen'));
 const SocialTeamScreen         = lazy(() => import(/* webpackChunkName: "social-team"      */ '@screens/SocialTeamScreen'));
 const ProfitabilityScreen      = lazy(() => import(/* webpackChunkName: "profitability"    */ '@screens/ProfitabilityScreen'));
-const MyWalletScreen           = lazy(() => import(/* webpackChunkName: "wallet"           */ '@modules/commission/pages/MyWalletScreen'));
-const NetworkScreen            = lazy(() => import(/* webpackChunkName: "network"          */ '@modules/mlm/pages/NetworkScreen'));
-const CommissionReportScreen   = lazy(() => import(/* webpackChunkName: "commission-report"*/ '@modules/commission/pages/CommissionReportScreen'));
-const TerritoriesScreen        = lazy(() => import(/* webpackChunkName: "territories"       */ '@modules/distribution/pages/TerritoriesScreen'));
-const ConsignmentScreen        = lazy(() => import(/* webpackChunkName: "consignment"       */ '@modules/distribution/pages/ConsignmentScreen'));
-const CollectionsScreen        = lazy(() => import(/* webpackChunkName: "collections"       */ '@modules/distribution/pages/CollectionsScreen'));
 const ManagementScreen         = lazy(() => import(/* webpackChunkName: "management"         */ '@screens/ManagementScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
@@ -181,7 +174,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER, ROLES.FIELD_REP, ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER]}>
                 <CustomersScreen />
               </ProtectedRoute>
             }
@@ -275,51 +268,9 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path={ROUTES.WALLET}   element={<MyWalletScreen />} />{/* محفظتي — كل الأدوار (RLS تحكم الرؤية) */}
-          <Route
-            path={ROUTES.NETWORK}
-            element={
-              <ProtectedRoute roles={[ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.AREA_AGENT, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
-                <NetworkScreen />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={ROUTES.COMMISSION_REPORT}
-            element={
-              <ProtectedRoute roles={MANAGEMENT}>
-                <CommissionReportScreen />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={ROUTES.TERRITORIES}
-            element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.AREA_AGENT]}>
-                <TerritoriesScreen />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={ROUTES.CONSIGNMENT}
-            element={
-              <ProtectedRoute roles={[ROLES.FIELD_REP, ROLES.AREA_AGENT, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
-                <ConsignmentScreen />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={ROUTES.COLLECTIONS}
-            element={
-              <ProtectedRoute roles={[ROLES.FIELD_REP, ROLES.AREA_AGENT, ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
-                <CollectionsScreen />
-              </ProtectedRoute>
-            }
-          />
           <Route path={ROUTES.SCHEDULE} element={<ShiftScheduleScreen />} />
           <Route path={ROUTES.ADVANCES} element={<AdvanceRequestsScreen />} />
           <Route path={ROUTES.REVIEWS}  element={<PerformanceReviewScreen />} />
-          <Route path="/field-crm"      element={<FieldCRMScreen />} />
           <Route path={ROUTES.ORDERS}         element={<OrdersRedirect />} />
           <Route path={ROUTES.ORDERS_SYRIA}   element={<OrdersScreen forcedMarket="syria" />} />
           <Route path={ROUTES.ORDERS_TURKEY}  element={<OrdersScreen forcedMarket="turkey" />} />

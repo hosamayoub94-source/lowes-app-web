@@ -7,12 +7,24 @@
 ---
 
 ## ⚠️ تحوّل معماري (9 يونيو 2026) — اقرأ أولاً
-**نظام المندوبين/المسوّقين انفصل إلى تطبيق مستقل** بقرار المالك (المندوبون أشخاص خارجيون، ليسوا موظفين). كل دمج المندوبين داخل `lowes-app-web` **تُراجع عنه** (نظام الموظفين رجع نظيف). التطبيق الجديد:
-- **المشروع:** `C:\Users\acer\Desktop\lowes app\lowes-distributors-web\` — استلامه: `lowes-distributors-web/HANDOFF.md`.
+**نظام المندوبين/المسوّقين انفصل إلى تطبيق مستقل** بقرار المالك (المندوبون أشخاص خارجيون، ليسوا موظفين). التطبيق الجديد:
+- **المشروع:** `C:\Users\acer\Desktop\lowes app\lowes-distributors-web\` — استلامه: `lowes-distributors-web/HANDOFF.md`. (تطبيق كامل مستقل، git repo خاص، نسخته الخاصة من كل الشاشات.)
 - **الإنتاج:** https://lowes-distributors-web.vercel.app
-- يستخدم نفس Supabase (جداول التوزيع p0–p8 المطبّقة) لكن واجهة ونشر منفصلين.
+- يستخدم نفس Supabase (جداول التوزيع p0–p8 المطبّقة + edge fn `manage-employee` المشتركة) لكن واجهة ونشر منفصلين.
 
-ما تبقّى أدناه يخص **نظام الموظفين** (`lowes-app-web`) فقط.
+### ✅ تنظيف كامل لتطبيق الموظفين (9 يونيو 2026) — اكتمل
+التراجع الأول (commit `6635649`) كان **جزئياً** (شال شاشة «طلباتي» + القائمة فقط) فبقيت بقايا سبّبت لخبطة. أُزيل الآن **كل** أثر الشبكة من `lowes-app-web`:
+- **الأدوار:** حُذفت أدوار الشبكة الـ5 (`field_rep/marketer/supervisor/supervisor_manager/area_agent`) من `teams.js` (ROLES + ROLE_LABELS). **المناصب الإدارية بقيت** (accountant/hr_manager/warehouse_manager/marketing_manager) لأنها موظفون لا شبكة.
+- **شاشة الدخول:** حُذفت فئتا `Stars Network ⭐` و`Field Sales 🚚` من `LOGIN_GROUPS` — بقيت فئة `Team` وحدها (كل الموظفين). **هذي كانت اللخبطة الظاهرة.**
+- **الموديولات المحذوفة:** `src/modules/{commission,mlm,distribution,field-crm}/` بالكامل. (gamification بقي — للأوسمة/الإنجازات.)
+- **المسارات:** أُزيلت `/wallet //network //commission-report //territories //consignment //collections //field-crm` من `paths.js` + `AppRoutes.jsx`.
+- **الصلاحيات:** حُذفت `MANAGE_TERRITORY/MANAGE_CONSIGNMENT/VIEW_NETWORK/MANAGE_COMMISSION` + مجموعة «التوزيع والشبكة» + قوالب أدوار الشبكة من `permissions.js`.
+- **بقايا:** نُظّفت `navigation.js` (بنود + bottom tabs)، `homeLayout.js` (archetypes field_rep/marketer/supervisor)، `guides.js` (بلوك المندوبين)، `OrdersScreen.jsx` (نداء `postOrderCommission` + استيراده)، و UI الـrep_level/mlm_rank في `AdminUsersScreen`.
+- **ملفات SQL:** حُذفت `supabase/distribution_system_p0..p9*.sql` من ريبو الموظفين (مجرّد ترتيب — القاعدة مشتركة وغير متأثّرة).
+- **الباكند المشترك لم يُلمَس** (قرار المالك): `manage-employee/index.ts` (تعديلات شجرة الكفلاء غير المحفوظة تبقى للتطبيق المنفصل) + قاعدة البيانات كما هي.
+- **التحقق:** `vite build` أخضر (لا تشانكات شبكة)، لا أخطاء console، القائمة الجانبية نظيفة (مُعايَن حيّاً). كل المستوردين للموديولات المحذوفة كانوا محصورين بـOrdersScreen + AppRoutes — أُصلحا.
+
+ما تبقّى أدناه **تاريخي** (يصف النظام قبل الفصل) — للمرجع فقط.
 
 ---
 

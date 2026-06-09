@@ -35,12 +35,6 @@ export const ROLES = {
   MEDIA_BUYER: 'media_buyer',
   SALES_MANAGER: 'sales_manager',
   SOCIAL_MANAGER: 'social_manager',
-  // ── Distribution network roles (منظومة المندوبين والمسوّقين) ──
-  FIELD_REP: 'field_rep',                  // مندوب ميداني (صيدليات/مناطق)
-  MARKETER: 'marketer',                    // مسوّقة (شبكة MLM)
-  SUPERVISOR: 'supervisor',                // مشرفة مجموعة
-  SUPERVISOR_MANAGER: 'supervisor_manager',// مديرة المشرفات
-  AREA_AGENT: 'area_agent',                // وكيل منطقة
   // ── Management positions (الهيكل الإداري) ──
   ACCOUNTANT: 'accountant',                // محاسب
   HR_MANAGER: 'hr_manager',                // مدير موارد بشرية
@@ -55,28 +49,18 @@ export const ROLE_LABELS = {
   [ROLES.MEDIA_BUYER]: 'ميديا باير',
   [ROLES.SALES_MANAGER]: 'مدير مبيعات',
   [ROLES.SOCIAL_MANAGER]: 'مدير سوشال',
-  [ROLES.FIELD_REP]: 'مندوب ميداني',
-  [ROLES.MARKETER]: 'مسوّقة',
-  [ROLES.SUPERVISOR]: 'مشرفة مجموعة',
-  [ROLES.SUPERVISOR_MANAGER]: 'مديرة المشرفات',
-  [ROLES.AREA_AGENT]: 'وكيل منطقة',
   [ROLES.ACCOUNTANT]: 'محاسب',
   [ROLES.HR_MANAGER]: 'مدير موارد بشرية',
   [ROLES.WAREHOUSE_MANAGER]: 'مدير المخزن',
   [ROLES.MARKETING_MANAGER]: 'مدير التسويق',
 };
 
-// ── Login groups — لوحة الدخول مجمّعة بـ4 فئات (≤6) بمسميات إنجليزية ──
-// كل فئة تضم عدة أدوار؛ النقر يعرض أسماء تلك الأدوار ثم PIN.
+// ── Login groups — كل أفراد الشركة (الإدارة + الموظفون) يدخلون من Team ──
+// النقر يعرض أسماء الأدوار ثم PIN.
 export const LOGIN_GROUPS = [
-  // كل أفراد الشركة (الإدارة + الموظفون) يدخلون من Team.
   { key: 'team', label: 'Team', icon: '👥',
     roles: [ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER,
             ROLES.ACCOUNTANT, ROLES.HR_MANAGER, ROLES.WAREHOUSE_MANAGER, ROLES.MARKETING_MANAGER] },
-  { key: 'stars', label: 'Stars Network', icon: '⭐',
-    roles: [ROLES.MARKETER, ROLES.SUPERVISOR, ROLES.SUPERVISOR_MANAGER] },
-  { key: 'field', label: 'Field Sales', icon: '🚚',
-    roles: [ROLES.FIELD_REP, ROLES.AREA_AGENT] },
 ];
 
 // Attendance status types (from index_v4.html).
