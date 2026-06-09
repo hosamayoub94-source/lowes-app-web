@@ -537,14 +537,20 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
 
   // Catalog USD price list (normName → sale_price_usd) — the offer-immune revenue
   // basis for the leaderboard, target progress and Excel export.
+  // costs: normName → { cost, ad, ship } per unit (USD) — أساس حساب الربح/الخسارة.
   const [prices, setPrices] = useState({});
+  const [costs,  setCosts]  = useState({});
   const [syncingPrices, setSyncingPrices] = useState(false);
   const loadPrices = async () => {
-    const { data } = await supabase.from('product_economics').select('item_name, sale_price_usd');
+    const { data } = await supabase.from('product_economics').select('item_name, sale_price_usd, cost_usd, ad_cost_usd, shipping_cost_usd');
     if (!data) return;
-    const m = {};
-    data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
-    setPrices(m);
+    const m = {}, c = {};
+    data.forEach(r => {
+      const k = normName(r.item_name);
+      m[k] = Number(r.sale_price_usd) || 0;
+      c[k] = { cost: Number(r.cost_usd) || 0, ad: Number(r.ad_cost_usd) || 0, ship: Number(r.shipping_cost_usd) || 0 };
+    });
+    setPrices(m); setCosts(c);
   };
   useEffect(() => { loadPrices(); }, []);
 
@@ -650,6 +656,32 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     return t;
   }, [delivered]);
 
+  // ── P&L: الإيراد − تكلفة المنتجات = ربح إجمالي؛ − شحن − إعلان = صافي ──
+  // التكاليف لكل وحدة من product_economics (تُدخل من شاشة ربحية المنتج).
+  const pnl = useMemo(() => {
+    const blank = () => ({ qty: 0, revenue: 0, cogs: 0, ship: 0, ad: 0 });
+    const total = blank();
+    const perMarket = { turkey: blank(), syria: blank() };
+    const missing = new Set();
+    for (const o of delivered) {
+      const mk = o.market === 'syria' ? 'syria' : 'turkey';
+      const rev = orderUsd(o, prices, rates);
+      total.revenue += rev; perMarket[mk].revenue += rev;
+      for (const it of (o.items || [])) {
+        const q = Number(it.qty || 1);
+        total.qty += q; perMarket[mk].qty += q;
+        const c = costs[normName(it.name)];
+        if (!c || !(c.cost > 0)) missing.add((it.name || '').trim() || '—');
+        if (c) {
+          total.cogs += q * c.cost; total.ship += q * c.ship; total.ad += q * c.ad;
+          perMarket[mk].cogs += q * c.cost; perMarket[mk].ship += q * c.ship; perMarket[mk].ad += q * c.ad;
+        }
+      }
+    }
+    const finish = (t) => ({ ...t, gross: t.revenue - t.cogs, net: t.revenue - t.cogs - t.ship - t.ad });
+    return { ...finish(total), perMarket: { turkey: finish(perMarket.turkey), syria: finish(perMarket.syria) }, missing: [...missing] };
+  }, [delivered, prices, costs, rates]);
+
   const RANK_ICONS = ['🥇', '🥈', '🥉'];
   const BRAND_COLORS = { lowes: 'border-teal/40 bg-teal/5', strong: 'border-amber/40 bg-amber/5' };
 
@@ -664,13 +696,25 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       const XLSX = await import('xlsx');
       const usdTotal = delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
 
-      // 1) Summary
+      // 1) Summary (+ P&L قبل الأرشفة)
       const summary = [
         ['الفترة', periodLabel],
         ['عدد الطلبات المسلّمة', delivered.length],
+        ['عدد القطع المباعة', pnl.qty],
         ['عدد الموظفين', byEmployee.length],
         ['الإجمالي بالدولار (USD)', Math.round(usdTotal)],
         ...Object.entries(grandTotals).map(([cur, t]) => [`الإجمالي ${cur}`, t]),
+        [],
+        ['— ربح/خسارة (USD) —', ''],
+        ['الإيراد', Math.round(pnl.revenue)],
+        ['تكلفة المنتجات', -Math.round(pnl.cogs)],
+        ['ربح إجمالي', Math.round(pnl.gross)],
+        ['الشحن', -Math.round(pnl.ship)],
+        ['الإعلانات', -Math.round(pnl.ad)],
+        ['صافي الربح/الخسارة', Math.round(pnl.net)],
+        ['صافي تركيا', Math.round(pnl.perMarket.turkey.net)],
+        ['صافي سوريا', Math.round(pnl.perMarket.syria.net)],
+        ...(pnl.missing.length ? [[`⚠️ منتجات بلا تكلفة`, pnl.missing.length]] : []),
       ];
 
       // 2) Products (qty + catalog value in USD)
@@ -679,9 +723,13 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       (econ || []).forEach(r => { priceMap[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
       const products = soldProducts(delivered).map(p => {
         const price = priceMap[p.key] || 0;
+        const c = costs[p.key];
+        const unitCost = c ? c.cost + c.ship + c.ad : 0;
         return {
           'المنتج': p.name, 'الكمية': p.qty,
           'السعر (USD)': price || '', 'القيمة (USD)': price ? Math.round(price * p.qty) : '',
+          'التكلفة/وحدة (USD)': unitCost || '',
+          'الربح (USD)': (price && unitCost) ? Math.round((price - unitCost) * p.qty) : '',
         };
       });
 
@@ -754,6 +802,68 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           </div>
         )}
       </div>
+
+      {/* P&L — ربح/خسارة الفترة (للمدير، قبل الأرشفة) */}
+      {isManager && delivered.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-extrabold text-text text-sm">📊 ربح/خسارة الفترة (USD)</h3>
+            <span className="text-[11px] text-muted">{pnl.qty.toLocaleString('en-US')} قطعة مباعة</span>
+          </div>
+
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted text-xs">💵 الإيراد (سعر الكتالوج)</span>
+              <span className="font-bold text-text">${Math.round(pnl.revenue).toLocaleString('en-US')}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted text-xs">📦 − تكلفة المنتجات</span>
+              <span className="font-bold text-red-500">−${Math.round(pnl.cogs).toLocaleString('en-US')}</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border/60 pt-1.5">
+              <span className="text-xs font-bold text-text">= ربح إجمالي</span>
+              <span className={`font-extrabold ${pnl.gross >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(pnl.gross).toLocaleString('en-US')}</span>
+            </div>
+            {(pnl.ship > 0 || pnl.ad > 0) && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted text-xs">🚚 − الشحن</span>
+                  <span className="font-bold text-red-500">−${Math.round(pnl.ship).toLocaleString('en-US')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted text-xs">📣 − الإعلانات</span>
+                  <span className="font-bold text-red-500">−${Math.round(pnl.ad).toLocaleString('en-US')}</span>
+                </div>
+              </>
+            )}
+            <div className={`flex items-center justify-between rounded-xl px-3 py-2 mt-1 ${pnl.net >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+              <span className="text-xs font-extrabold text-text">{pnl.net >= 0 ? '✅ صافي الربح' : '🔻 صافي الخسارة'}</span>
+              <span className={`text-base font-black ${pnl.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(Math.abs(pnl.net)).toLocaleString('en-US')}</span>
+            </div>
+          </div>
+
+          {/* تركيا مقابل سوريا */}
+          <div className="grid grid-cols-2 gap-2">
+            {[['turkey', '🇹🇷 تركيا'], ['syria', '🇸🇾 سوريا']].map(([mk, label]) => {
+              const m = pnl.perMarket[mk];
+              if (!m.qty) return <div key={mk} className="bg-surface-alt rounded-xl px-3 py-2 text-center text-[11px] text-muted">{label}: لا تسليمات</div>;
+              return (
+                <div key={mk} className="bg-surface-alt rounded-xl px-3 py-2 text-center">
+                  <p className="text-[11px] text-muted">{label} · {m.qty} قطعة</p>
+                  <p className={`text-sm font-black ${m.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(m.net).toLocaleString('en-US')}</p>
+                  <p className="text-[10px] text-muted">إيراد ${Math.round(m.revenue).toLocaleString('en-US')}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {pnl.missing.length > 0 && (
+            <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+              ⚠️ {pnl.missing.length} منتج مباع بلا تكلفة محدّدة — الربح أعلاه ناقص. حدّد التكاليف من شاشة «💎 ربحية المنتج».
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Period selector */}
       <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
