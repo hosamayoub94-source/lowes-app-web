@@ -60,6 +60,7 @@ function pollYurticiStatuses() {
       var cur = String(data[i][cStatus - 1] || '').trim();
       if (Date.now() - __start > 290000) break; // حدّ زمني: قف قبل حدّ Apps Script (6د) وأكمِل المرّة التالية
       if (!track || !orderId || yk_isTerminal(cur)) continue;
+      if (/^KP/i.test(track)) continue; // شحنات غير يورتيتشي (KP...) — لا يتعرّف عليها الـAPI، تخطَّ
       checked++;
       try {
         var resp = UrlFetchApp.fetch(YK_PUBLIC + '?id=' + encodeURIComponent(track) + '&language=tr', { muteHttpExceptions: true });
