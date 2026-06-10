@@ -376,7 +376,6 @@ const isCodOrder = (o) => {
 function yurticiRow(o) {
   const cod = isCodOrder(o);
   const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
-  const qty = Array.isArray(o.items) ? o.items.reduce((s, it) => s + (Number(it.qty) || 1), 0) : 1;
   // الإجمالي COD = المتبقّي للجزئي وإلا المبلغ. غير COD → فارغ.
   const codAmount = cod
     ? (o.payment_status === 'partial' && Number(o.paid_amount) > 0 ? Math.max(0, Number(o.amount) - Number(o.paid_amount)) : Number(o.amount || 0))
@@ -394,7 +393,7 @@ function yurticiRow(o) {
     'Ödeme Tipi (*)': 'G',            // Gönderici ödemeli (الشحن على لويز)
     'İrsaliye Numarası': o.order_id || '',
     'Referans Numarası': o.order_id || '',
-    'Adet (*)': qty || 1,
+    'Adet (*)': 1,                    // طرد واحد لكل طلب (قرار المالك)
     'Kargo İçeriği': 'kozmetik',
     'Tahsilat Tipi': cod ? 'N' : '',  // Nakit (نقدي) للتحصيل
     'Fatura Numarası': '',
