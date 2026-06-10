@@ -5,8 +5,11 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
-### 🚚 المهمة القادمة المعتمدة: ربط Yurtiçi Kargo (إنشاء شحنات + تتبّع)
-**المالك اعتمد الربط الكامل (10 يونيو مساءً).** البرومبت المتكامل الجاهز للتنفيذ: **`YURTICI_INTEGRATION_PROMPT.md`** (بجذر المشروع) — كل الحقائق التقنية مُتحقَّقة حيّاً (SOAP endpoint، queryShipment/createShipment، keyType=0=cargoKey، الحساب 1200681314). **القاعدة المثبتة:** التتبّع يتطلب الإنشاء عبر API (cargoKey=order_id)؛ الشحنات اليدوية القديمة غير قابلة للتتبّع. المفاتيح بإيميل المالك `Downloads/Entegrasyon Kod Talebi..eml`. راجع ذاكرة `[[yurtici-integration]]`.
+### 🚚 ✅ ربط Yurtiçi Kargo — مُنجَز ومنشور ومُختبَر حيّاً (10 يونيو)
+الربط الكامل (إنشاء شحنات + تتبّع) **يعمل end-to-end**. التفاصيل الكاملة بذاكرة `[[yurtici-integration]]`.
+- **الاستخدام:** على كرت طلب تركيا (مدير/fulfillment) → زر «🚚 أنشئ شحنة يورتيتشي» → ينشئ شحنة بحساب يورتيتشي (COD تلقائياً بمبلغ الطلب) + يحفظ `yurtici_cargo_key` + يزامن الجدول. الحالة تتتبّع تلقائياً (عند فتح الشاشة + cron).
+- **edge fns:** `create-yurtici-shipment` (SOAP createShipment) · `track-yurtici` (SOAP queryShipment keyType=0). الأسرار `YURTICI_COD_*`/`YURTICI_NORMAL_*` مضبوطة بـ Edge Functions Secrets.
+- **متبقّيات صغيرة:** حساب NORMAL (مدفوع مسبق) غير مختبَر · أكواد حالات النقل/التسليم تُحسم من أول شحنات حقيقية · cron run_yurtici_tracking يحتاج app.settings.service_role_key (refresh-on-open كافٍ). **جلب أكواد الشحنات اليدوية القديمة مستحيل** (قيد API مثبت).
 
 ### ✅ أُنجز في جلسة 10 يونيو (هذه الجلسة)
 - **التدريب الذكي:** cron يومي 05:00 UTC + 8 أسئلة/يوم (أساسي+متقدّم) + كتالوج حيّ من `products` (commit b27af86).
