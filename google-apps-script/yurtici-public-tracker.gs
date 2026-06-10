@@ -71,7 +71,7 @@ function pollYurticiStatuses() {
         UrlFetchApp.fetch(YK_SHEET_TO_APP, {
           method: 'post', contentType: 'application/json',
           headers: { apikey: YK_ANON, Authorization: 'Bearer ' + YK_ANON },
-          payload: JSON.stringify({ token: YK_TOKEN, action: 'update', order_id: orderId, status: ar }),
+          payload: JSON.stringify({ token: YK_TOKEN, action: 'update', order_id: orderId, status: ar, tracking_number: track }),
           muteHttpExceptions: true,
         });
         updated++;
@@ -81,6 +81,41 @@ function pollYurticiStatuses() {
   });
   Logger.log('pollYurtici: checked=' + checked + ' updated=' + updated + ' errors=' + errors);
   return 'checked=' + checked + ' updated=' + updated + ' errors=' + errors;
+}
+
+// تشغيل لمرة واحدة: ادفع كل أرقام التتبّع من الجدول للتطبيق (orders.tracking_number)
+// — لازم لمسار «التحديث الفوري عند فتح الشاشة» (track-yurtici العام يقرأ tracking_number
+// من DB). بعدها يبقى متزامناً عبر onSheetEdit + المؤقّت. شغّل: Run → backfillTrackingToApp
+function backfillTrackingToApp() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pushed = 0, __start = Date.now();
+  YK_TABS.forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return;
+    var lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+    if (lastRow < 2) return;
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    function col(label) { for (var c = 0; c < headers.length; c++) { if (String(headers[c]).trim() === label) return c + 1; } return 0; }
+    var cTrack = col('رقم التتبع'), cId = col('كود الطلب');
+    if (!cTrack || !cId) return;
+    var data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (Date.now() - __start > 290000) break;
+      var track = String(data[i][cTrack - 1] || '').trim();
+      var orderId = String(data[i][cId - 1] || '').trim();
+      if (!track || !orderId) continue;
+      UrlFetchApp.fetch(YK_SHEET_TO_APP, {
+        method: 'post', contentType: 'application/json',
+        headers: { apikey: YK_ANON, Authorization: 'Bearer ' + YK_ANON },
+        payload: JSON.stringify({ token: YK_TOKEN, action: 'update', order_id: orderId, tracking_number: track }),
+        muteHttpExceptions: true,
+      });
+      pushed++;
+      Utilities.sleep(80);
+    }
+  });
+  Logger.log('backfillTracking: pushed=' + pushed);
+  return 'pushed=' + pushed;
 }
 
 // بديل برمجي لإنشاء المؤقّت (إن لم يُنشأ عبر واجهة Triggers). كل 10 دقائق.
