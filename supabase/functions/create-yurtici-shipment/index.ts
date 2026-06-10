@@ -46,7 +46,19 @@ Deno.serve(async (req: Request) => {
 
   try {
     const reqBody = await req.json();
-    const { orderId, test } = reqBody;
+    const { orderId, test, debug } = reqBody;
+
+    // تشخيص: يكشف أي أسماء أسرار موجودة (بلا قيم) + يؤكّد أن البيئة تعمل.
+    if (debug) return json({ ok: true, debug: true, present: {
+      YURTICI_COD_USER:    !!Deno.env.get('YURTICI_COD_USER'),
+      YURTICI_COD_PASS:    !!Deno.env.get('YURTICI_COD_PASS'),
+      YURTICI_COD_DOCID:   !!Deno.env.get('YURTICI_COD_DOCID'),
+      YURTICI_NORMAL_USER: !!Deno.env.get('YURTICI_NORMAL_USER'),
+      YURTICI_NORMAL_PASS: !!Deno.env.get('YURTICI_NORMAL_PASS'),
+      YURTICI_NORMAL_DOCID:!!Deno.env.get('YURTICI_NORMAL_DOCID'),
+      _env_ok_SUPABASE_URL: !!Deno.env.get('SUPABASE_URL'),
+    } });
+
     if (!orderId) return json({ ok: false, error: 'orderId required' }, 400);
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
