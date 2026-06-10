@@ -1,105 +1,84 @@
-// track-yurtici — Edge Function
-// يستعلم من Yurtiçi API كل 30 دقيقة عن الطلبات النشطة التي عندها tracking_number
-// يحدّث status في DB إذا تغيّر + يزامن الجدول تلقائياً
+// track-yurtici — Edge Function (SOAP)
+// يستعلم Yurtiçi عن الطلبات المُنشأة عبر API (yurtici_cargo_key) ويحدّث الحالة.
+// keyType=0 = cargoKey (= order_id). poll فقط (يورتيتشي بلا webhook).
+// يُستدعى يدوياً {manual:true} أو من cron (بلا جسم) — كلاهما يعمل الآن.
 // ════════════════════════════════════════════════════════════
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;   // يُحقن تلقائياً — لا fallback مكشوف
+const ENDPOINT = 'https://webservices.yurticikargo.com/KOPSWebServices/ShippingOrderDispatcherServices';
+const NS = 'http://yurticikargo.com.tr/ShippingOrderDispatcherServices';
 
-const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')  ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
-// YKSS portal credentials — replace with actual API credentials once created in API Bilgileri
-const API_USER      = Deno.env.get('YURTICI_API_USER') ?? 'YOUSEF034';
-const API_PASS      = Deno.env.get('YURTICI_API_PASS') ?? '9i4hfKi4KJ';
+// نستعلم بحساب التحصيل (يرى كل شحنات الحساب 1200681314). NORMAL احتياطي.
+const WS_USER = Deno.env.get('YURTICI_COD_USER') || Deno.env.get('YURTICI_NORMAL_USER');
+const WS_PASS = Deno.env.get('YURTICI_COD_PASS') || Deno.env.get('YURTICI_NORMAL_PASS');
 
-const YURTICI_BASE  = 'https://api.yurticikargo.com';
-
-// Statuses that don't need tracking anymore
-const TERMINAL_STATUSES = ['delivered', 'returned', 'cancelled', 'settled'];
-
-// ── Yurtiçi status code → our status ─────────────────────────
-// Based on YKSS documentation status codes
-function mapYurticiStatus(statusCode: number, statusText: string): string | null {
-  const text = (statusText || '').toLowerCase();
-
-  // Delivered
-  if (statusCode === 40 || text.includes('teslim edildi') || text.includes('delivered')) return 'delivered';
-
-  // Out for delivery
-  if (statusCode === 30 || text.includes('dağıtımda') || text.includes('dağıtım')) return 'on_way';
-
-  // At branch / transfer center
-  if ([20, 21, 22, 23].includes(statusCode) || text.includes('şubede') || text.includes('transfer')) return 'at_center';
-
-  // In transit (picked up from sender)
-  if ([10, 11, 12].includes(statusCode) || text.includes('kargoya verildi') || text.includes('taşımada')) return 'shipped';
-
-  // Could not deliver → not_received
-  if ([35, 45].includes(statusCode) || text.includes('teslim edilemedi') || text.includes('bulunamadı')) return 'not_received';
-
-  // Returned to sender
-  if ([50, 55].includes(statusCode) || text.includes('iade')) return 'returning';
-
-  return null; // unknown → don't change
-}
-
-// ── Get Yurtiçi Bearer token ──────────────────────────────────
-async function getToken(): Promise<string> {
-  const creds = btoa(`${API_USER}:${API_PASS}`);
-  const res = await fetch(`${YURTICI_BASE}/auth/v1`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${creds}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) {
-    // Some versions use Basic auth directly without a token step
-    return creds; // fall back to Basic
-  }
-  const data = await res.json();
-  return data?.access_token || data?.token || creds;
-}
-
-// ── Query Yurtiçi tracking for a batch of barcodes ───────────
-async function fetchTracking(barcodes: string[], token: string): Promise<any[]> {
-  const res = await fetch(`${YURTICI_BASE}/v2/TrackDelivery/tracking`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ barcodes }),
-  });
-  if (!res.ok) {
-    console.error('Yurtiçi API error:', res.status, await res.text());
-    return [];
-  }
-  const data = await res.json();
-  return Array.isArray(data) ? data : (data?.trackingList ?? data?.data ?? []);
-}
+const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
 
 const STATUS_AR: Record<string, string> = {
-  pending:'وارد جديد', preparing:'في التجهيز', ready:'جاهز', motor:'قيد توصيل الموتور',
-  motor_prep:'تحضير الموتور', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
-  special_delivery:'توصيل خاص', prepaid:'مسبق الدفع', delivered:'تم التسليم',
-  waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع',
-  settled:'تمت التسوية', cancelled:'ملغي',
+  preparing:'في التجهيز', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
+  delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع', cancelled:'ملغي',
 };
 
-// إشعار البائع عند تغيّر حالة طلبه من شركة الشحن (server-side).
-async function notifySeller(supabase: any, order: any, newStatus: string, sourceLabel: string) {
+// ترجمة رد يورتيتشي → حالتنا. تعتمد operationStatus + النص التركي (مرن).
+// ملاحظة: أكواد operationStatus الدقيقة للتسليم/النقل تُحسم من أول شحنات حقيقية —
+// نعتمد مطابقة النص (مغطّاة جيداً) ونسجّل المجهول.
+function mapStatus(opStatus: string, text: string): string | null {
+  const s = (opStatus || '').toUpperCase();
+  const t = (text || '').toLocaleLowerCase('tr');
+  if (s === 'CNL' || t.includes('iptal')) return 'cancelled';
+  if (s === 'NOP' || t.includes('işlem görmemiş')) return null;            // أُنشئت ولم تُشحن بعد
+  if (t.includes('teslim edildi') || t.includes('teslim edilmiş')) return 'delivered';
+  if (t.includes('teslim edilemedi') || t.includes('bulunamadı') || t.includes('adreste yok')) return 'not_received';
+  if (t.includes('iade')) return 'returning';
+  if (t.includes('dağıtım')) return 'on_way';
+  if (t.includes('şube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
+  if (t.includes('çıkış') || t.includes('kabul') || t.includes('taşıma') || t.includes('yola çık')) return 'shipped';
+  return null;
+}
+
+async function soap(inner: string): Promise<string> {
+  const body = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ship="${NS}"><soapenv:Body>${inner}</soapenv:Body></soapenv:Envelope>`;
+  const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' }, body });
+  return await res.text();
+}
+
+// يستعلم عن دفعة مفاتيح، يرجّع map: cargoKey → {opStatus, text, trackingNo}
+async function queryBatch(keys: string[]): Promise<Record<string, { opStatus: string; text: string; trackingNo: string }>> {
+  const keysXml = keys.map(k => `<keys>${k.replace(/[<>&]/g, '')}</keys>`).join('');
+  const r = await soap(
+    `<ship:queryShipment><wsUserName>${WS_USER}</wsUserName><wsPassword>${WS_PASS}</wsPassword><wsLanguage>TR</wsLanguage>${keysXml}<keyType>0</keyType><addHistoricalData>true</addHistoricalData><onlyTracking>false</onlyTracking></ship:queryShipment>`
+  );
+  const out: Record<string, any> = {};
+  // كل شحنة داخل <shippingDeliveryDetailVO>...
+  const blocks = r.match(/<shippingDeliveryDetailVO>[\s\S]*?<\/shippingDeliveryDetailVO>/g) || [];
+  for (const b of blocks) {
+    const ck = (b.match(/<cargoKey>(.*?)<\/cargoKey>/)?.[1] || '').trim();
+    if (!ck) continue;
+    const opStatus = (b.match(/<operationStatus>(.*?)<\/operationStatus>/)?.[1] || '').trim();
+    // آخر حركة (إن وُجدت) أدقّ من operationMessage العام
+    const moves = b.match(/<operationMessage>(.*?)<\/operationMessage>/g) || [];
+    const text = moves.map(m => m.replace(/<\/?operationMessage>/g, '')).join(' ');
+    const trackingNo = (b.match(/<cargoTrackingNumber>(.*?)<\/cargoTrackingNumber>/)?.[1]
+      || b.match(/<documentNo>(.*?)<\/documentNo>/)?.[1] || '').trim();
+    out[ck] = { opStatus, text, trackingNo };
+  }
+  return out;
+}
+
+async function notifySeller(supabase: any, order: any, newStatus: string) {
   try {
     if (!order?.handler_name) return;
     const { data: prof } = await supabase.from('profiles').select('id').eq('employee_name', order.handler_name).maybeSingle();
     if (!prof?.id) return;
     const label = STATUS_AR[newStatus] || newStatus;
     const title = `📦 تحديث حالة طلب ${order.customer_name || ''}`.trim();
-    const message = `انتقل الطلب إلى «${label}» (من ${sourceLabel}).`;
+    const message = `انتقل الطلب إلى «${label}» (من يورتيتشي).`;
     await supabase.from('notifications').insert({
       user_id: prof.id, type: 'system_alert', title, message,
       entity_type: 'order', entity_id: String(order.id), severity: 'info',
-      metadata: { status: newStatus, source: sourceLabel, kind: 'order_status_remote' },
+      metadata: { status: newStatus, source: 'yurtici', kind: 'order_status_remote' },
       dedup_key: `${prof.id}|order_status|${order.id}|${newStatus}`,
     }).then(() => {}, () => {});
     await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
@@ -109,133 +88,65 @@ async function notifySeller(supabase: any, order: any, newStatus: string, source
   } catch { /* best-effort */ }
 }
 
-// ── Sync order to sheet (re-use existing edge fn) ────────────
 async function syncSheet(orderId: string) {
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      method: 'POST', headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId }),
     });
   } catch { /* best-effort */ }
 }
 
-// ── Main handler ──────────────────────────────────────────────
 Deno.serve(async (req) => {
-  // ── التتبّع التلقائي مُعطَّل (قرار المالك: لا تغييرات حالة تلقائية) ──
-  // يعمل فقط عند طلب يدوي صريح {manual:true} من زر «📡 تتبع» بالتطبيق.
-  // استدعاء pg_cron التلقائي (بلا العَلَم) يرجع فوراً بلا أي تغيير.
-  let manual = false;
-  try { const b = await req.json(); manual = !!b?.manual; } catch { /* no body = cron */ }
-  if (!manual) {
-    return new Response(JSON.stringify({ ok: true, skipped: 'auto-tracking disabled' }),
-      { headers: { 'Content-Type': 'application/json' } });
-  }
+  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'Content-Type': 'application/json' } });
+  if (!WS_USER || !WS_PASS) return json({ ok: false, error: 'secrets_missing' }, 200);
 
-  // Allow manual trigger via POST, or scheduled invocation
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // 1. Load all active Turkey orders with a tracking number
+  // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية.
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, shipping_company, status, market, handler_name, customer_name')
+    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name')
     .eq('market', 'turkey')
-    .not('tracking_number', 'is', null)
-    .not('tracking_number', 'eq', '')
-    .not('status', 'in', `(${TERMINAL_STATUSES.map(s => `"${s}"`).join(',')})`)
-    .or('archived.is.null,archived.eq.false');
+    .not('yurtici_cargo_key', 'is', null)
+    .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
+    .or('archived.is.null,archived.eq.false')
+    .is('deleted_at', null);
+  if (error) return json({ ok: false, error: error.message }, 500);
+  if (!orders?.length) return json({ ok: true, checked: 0, updated: 0 });
 
-  if (error) {
-    console.error('DB error:', error.message);
-    return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500 });
-  }
-
-  if (!orders || orders.length === 0) {
-    return new Response(JSON.stringify({ ok: true, checked: 0, updated: 0 }), { status: 200 });
-  }
-
-  // 2. Filter only Yurtiçi orders (the only company we have API access for now)
-  const yurticiOrders = orders.filter(o =>
-    !o.shipping_company || // no company set → try anyway
-    o.shipping_company.toLowerCase().includes('yurtiçi') ||
-    o.shipping_company.toLowerCase().includes('yurtici')
-  );
-
-  if (yurticiOrders.length === 0) {
-    return new Response(JSON.stringify({ ok: true, checked: 0, updated: 0, note: 'no yurtici orders' }), { status: 200 });
-  }
-
-  console.log(`Checking ${yurticiOrders.length} Yurtiçi orders...`);
-
-  // 3. Get auth token
-  let token: string;
-  try {
-    token = await getToken();
-  } catch (e) {
-    console.error('Auth error:', e);
-    return new Response(JSON.stringify({ ok: false, error: 'auth failed' }), { status: 500 });
-  }
-
-  // 4. Process in batches of 20 (API limit)
-  const BATCH = 20;
+  const BATCH = 50;
   let updated = 0;
   const results: any[] = [];
 
-  for (let i = 0; i < yurticiOrders.length; i += BATCH) {
-    const batch = yurticiOrders.slice(i, i + BATCH);
-    const barcodes = batch.map(o => o.tracking_number);
+  for (let i = 0; i < orders.length; i += BATCH) {
+    const batch = orders.slice(i, i + BATCH);
+    const map = await queryBatch(batch.map(o => o.yurtici_cargo_key));
+    for (const o of batch) {
+      const hit = map[o.yurtici_cargo_key];
+      if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
+      const newStatus = mapStatus(hit.opStatus, hit.text);
+      results.push({ order: o.order_id, opStatus: hit.opStatus, mapped: newStatus, current: o.status });
 
-    const trackingData = await fetchTracking(barcodes, token);
+      const patch: any = {};
+      if (hit.trackingNo && hit.trackingNo !== o.tracking_number) patch.tracking_number = hit.trackingNo;
+      if (newStatus && newStatus !== o.status) { patch.status = newStatus; patch.updated_by = 'يورتيتشي-تلقائي'; }
+      if (Object.keys(patch).length === 0) continue;
 
-    for (const item of trackingData) {
-      const barcode = item.barcode || item.trackingNumber || item.kargo_no;
-      const order = batch.find(o => o.tracking_number === barcode);
-      if (!order) continue;
+      patch.updated_at = new Date().toISOString();
+      const { error: upErr } = await supabase.from('orders').update(patch).eq('id', o.id);
+      if (upErr) continue;
 
-      // Get latest status from events (most recent first)
-      const events: any[] = item.events || item.trackingEvents || [];
-      const latest = events[0] || item;
-      const statusCode = latest.statusCode ?? latest.status_code ?? item.deliveryStatusCode ?? item.statusCode;
-      const statusText = latest.status ?? latest.description ?? item.deliveryStatus ?? '';
-
-      const newStatus = mapYurticiStatus(Number(statusCode), String(statusText));
-
-      results.push({ order_id: order.order_id, barcode, statusCode, statusText, newStatus, current: order.status });
-
-      if (!newStatus || newStatus === order.status) continue;
-
-      // 5. Update DB
-      const { error: upErr } = await supabase
-        .from('orders')
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-          updated_by: 'يورتيتشي-تلقائي',
-        })
-        .eq('id', order.id);
-
-      if (!upErr) {
+      if (patch.status) {
         updated++;
-        // الخط الزمني: تغيير الحالة من شركة الشحن (source='yurtici')
         await supabase.from('order_status_history').insert({
-          order_id: order.id, from_status: order.status, to_status: newStatus,
-          changed_by: 'يورتيتشي', source: 'yurtici',
+          order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
         }).then(() => {}, () => {});
-        // إشعار البائع بتغيّر الحالة من شركة الشحن
-        await notifySeller(supabase, order, newStatus, 'يورتيتشي');
-        // 6. Sync sheet
-        await syncSheet(order.id);
-        console.log(`✅ ${order.order_id}: ${order.status} → ${newStatus}`);
+        await notifySeller(supabase, o, newStatus);
       }
+      await syncSheet(o.id);
     }
   }
 
-  console.log(`Done: checked=${yurticiOrders.length}, updated=${updated}`);
-  return new Response(
-    JSON.stringify({ ok: true, checked: yurticiOrders.length, updated, results }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
+  return json({ ok: true, checked: orders.length, updated, results });
 });
