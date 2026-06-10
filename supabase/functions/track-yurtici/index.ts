@@ -109,6 +109,19 @@ async function syncSheet(orderId: string) {
   } catch { /* best-effort */ }
 }
 
+// يحوّل ShipmentStatus (نص API يورتيتشي العام) → مفتاح حالة التطبيق.
+function mapPublic(shipmentStatus: string, isDelivered: unknown): string | null {
+  const t = (shipmentStatus || '').toLocaleLowerCase('tr');
+  if (isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi')) return 'delivered';
+  if (t.includes('teslim edilemedi') || t.includes('bulunamad') || t.includes('adreste yok')) return 'not_received';
+  if (t.includes('iade')) return 'returning';
+  if (t.includes('iptal')) return 'cancelled';
+  if (t.includes('dağıt') || t.includes('dagit')) return 'on_way';
+  if (t.includes('şube') || t.includes('sube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
+  if (t.includes('taşı') || t.includes('tasi') || t.includes('yola') || t.includes('çık') || t.includes('cik') || t.includes('kabul')) return 'shipped';
+  return null; // NOP / işlem görmemiş / غير معروف
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -116,8 +129,8 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية.
-  const { data: orders, error } = await supabase
+  // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية → تتبّع SOAP.
+  const { data: orders } = await supabase
     .from('orders')
     .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name')
     .eq('market', 'turkey')
@@ -125,15 +138,14 @@ Deno.serve(async (req) => {
     .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
     .or('archived.is.null,archived.eq.false')
     .is('deleted_at', null);
-  if (error) return json({ ok: false, error: error.message }, 500);
-  if (!orders?.length) return json({ ok: true, checked: 0, updated: 0 });
 
   const BATCH = 50;
   let updated = 0;
   const results: any[] = [];
+  const soapOrders = orders ?? [];
 
-  for (let i = 0; i < orders.length; i += BATCH) {
-    const batch = orders.slice(i, i + BATCH);
+  for (let i = 0; i < soapOrders.length; i += BATCH) {
+    const batch = soapOrders.slice(i, i + BATCH);
     // keyType=0 (cargoKey = order_id لشحنات API). ملاحظة: شحنات الرفع بـExcel
     // لا يتعرّف عليها يورتيتشي بـorder_id (لا cargoKey ولا invoiceKey — مُختبَر
     // حيّاً 11 يونيو)، فمفتاحها الحقيقي يجب جلبه من Teslim Listesi.
@@ -164,5 +176,40 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, checked: orders.length, updated, results });
+  // ── المسار العام: شحنات الرفع بـExcel (رقم تتبّع عام، بلا cargoKey) ──
+  // API يورتيتشي العام بلا مصادقة: /service/shipmentstracking?id=<tracking>&language=tr.
+  // يحلّ ما يعجز عنه SOAP (order_id لا يطابق مفتاح شحنات الرفع). متوازٍ مع مؤقّت
+  // Apps Script (كلاهما idempotent) — هذا المسار يخدم «التحديث الفوري عند فتح الشاشة».
+  const { data: pub } = await supabase
+    .from('orders')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name')
+    .eq('market', 'turkey')
+    .is('yurtici_cargo_key', null)
+    .not('tracking_number', 'is', null)
+    .neq('tracking_number', '')
+    .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
+    .or('archived.is.null,archived.eq.false')
+    .is('deleted_at', null);
+  for (const o of (pub ?? [])) {
+    try {
+      const r = await fetch(`https://www.yurticikargo.com/service/shipmentstracking?id=${encodeURIComponent(o.tracking_number)}&language=tr`);
+      if (!r.ok) continue;
+      const j = await r.json();
+      const newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
+      if (!newStatus || newStatus === o.status) continue;
+      const { error: e2 } = await supabase.from('orders')
+        .update({ status: newStatus, updated_by: 'يورتيتشي-تلقائي', updated_at: new Date().toISOString() })
+        .eq('id', o.id).is('deleted_at', null);
+      if (e2) continue;
+      updated++;
+      results.push({ order: o.order_id, public: j.ShipmentStatus, mapped: newStatus });
+      await supabase.from('order_status_history').insert({
+        order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
+      }).then(() => {}, () => {});
+      await notifySeller(supabase, o, newStatus);
+      await syncSheet(o.id);
+    } catch { /* skip this shipment */ }
+  }
+
+  return json({ ok: true, checked: soapOrders.length + (pub?.length ?? 0), updated, results });
 });

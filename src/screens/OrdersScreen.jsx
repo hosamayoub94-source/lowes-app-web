@@ -2544,13 +2544,16 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
-  // تحديث-عند-الفتح: لو في طلبات يورتيتشي مُنشأة عبر API وغير منتهية، اطلب تتبّعها
-  // مرة واحدة بالخلفية (لتحسّ الحالات تتغيّر «لحالها» عند فتح الشاشة) ثم أعد التحميل.
+  // تحديث-عند-الفتح: لو في طلبات يورتيتشي غير منتهية (مُنشأة عبر API أو لها رقم
+  // تتبّع عام من رفع Excel)، اطلب تتبّعها مرة واحدة بالخلفية (لتحسّ الحالات تتغيّر
+  // «لحالها» عند فتح الشاشة فوراً) ثم أعد التحميل. track-yurtici يتتبّع الاثنين
+  // (SOAP بالـcargoKey + API العام برقم التتبّع).
   const _ytTracked = useRef(false);
   useEffect(() => {
     if (_ytTracked.current || loading) return;
     const trackable = orders.some(o =>
-      o.market === 'turkey' && o.yurtici_cargo_key &&
+      o.market === 'turkey' &&
+      (o.yurtici_cargo_key || (o.tracking_number && String(o.tracking_number).trim() !== '')) &&
       !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
     if (!trackable) return;
     _ytTracked.current = true;
