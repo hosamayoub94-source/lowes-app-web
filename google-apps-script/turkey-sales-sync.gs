@@ -5,6 +5,16 @@
  * Clean = no formulas / stray rows, so new orders always append at the
  * bottom and status/tracking edits sync both ways reliably.
  *
+ * ⚠️ LIVE REALITY (verified 10 Jun 2026): the deployed Turkey Apps Script is
+ * NOT this exact file. It lives in the spreadsheet-bound project id
+ * "1ub2zm_Ne4NzbJmylw_IgB7Mu8ac_EIUBnVGHbCV-n2jhxbymcEmrkX1O" (account
+ * hosam101hosam10@gmail.com), file "Dashboard.gs", and already contains
+ * relaxPickupValidation() (column T) + the doPost upsert. This file is a
+ * reference; treat the live project as source of truth. The
+ * relaxAllStatusValidation() helper below WAS pasted into & run on the live
+ * project to fix order 6S534 (status "motor" was rejected by column I's
+ * "reject" data-validation → relaxed to "warning"). Sheet: 1OP_q1GJeE7...
+ *
  * SETUP (owner, one time):
  *  1. Paste this code → Save.
  *  2. Run the function "setupSheets" once (▶ Run) and authorize. This creates
@@ -294,6 +304,41 @@ function _buildOwned(width, colOf, itemCols, order) {
     if (itemCols[i] + 1 < width) owned[itemCols[i] + 1] = items[i].qty || 1;
   }
   return owned;
+}
+
+// ── Relax ALL dropdown validations to "warning" (allow invalid) ──
+// قاعدة المالك الدائمة: أي عمود ذو قائمة منسدلة لازم «تحذير» لا «رفض» وإلا
+// يكسر المزامنة (سبب فشل 6S534 بعمود الحالة I + مشكلة العمود T 10 يونيو).
+// تحافظ على القوائم كما هي وتغيّر السلوك فقط: رفض (reject) → تحذير (allowInvalid).
+// تغطّي كامل التابين (لا أعمدة محددة) فتحمي العمود I والأعمدة المستقبلية.
+// ✅ هذه الدالة (بنفس الاسم relaxAllStatusValidation) أُلصقت وشُغّلت على المشروع
+// الحيّ 10 يونيو 2026: LOWES_TR=relaxed 2000 cells (عمود I), STRONG_TR=0.
+// شغّلها مرة من المحرّر: Run → relaxAllStatusValidation
+function relaxAllStatusValidation() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var report = [];
+  ['LOWES_TR', 'STRONG_TR'].forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { report.push(name + ': not found'); return; }
+    var maxRow = sh.getMaxRows(), maxCol = sh.getMaxColumns();
+    var rng = sh.getRange(1, 1, maxRow, maxCol);
+    var rules = rng.getDataValidations();
+    var changed = 0;
+    for (var r = 0; r < rules.length; r++) {
+      for (var c = 0; c < rules[r].length; c++) {
+        var rule = rules[r][c];
+        // rule.copy() يحافظ على نوع القاعدة وقيم القائمة كما هي.
+        if (rule && rule.getAllowInvalid() === false) {
+          rules[r][c] = rule.copy().setAllowInvalid(true).build();
+          changed++;
+        }
+      }
+    }
+    if (changed) rng.setDataValidations(rules);
+    report.push(name + ': relaxed ' + changed + ' cells');
+  });
+  Logger.log(report.join(' | '));
+  return report.join(' | ');
 }
 
 // Reset both clean tabs to the new header (run once after changing HEADER).

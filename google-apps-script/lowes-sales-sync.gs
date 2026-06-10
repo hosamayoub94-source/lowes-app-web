@@ -9,6 +9,20 @@
  *  - يتحقق من Order ID قبل الإضافة → لا تكرار عند إعادة الإرسال.
  *  - يرجّع JSON {ok,row} أو {ok:false,error}.
  *
+ * ⚠️ LIVE REALITY (تحقّق فعلي 10 يونيو 2026): المزامنة الحيّة لسوريا تعمل من
+ * مشروع Apps Script **مستقل** اسمه "LOWES Sales Sync" (project id
+ * "1Dpnbvh5fXR8Q1udKUg1IEK1GvQ1u0jTQG_TNZenMXrRj-sl8_lhOBJqH") — هو الذي يستقبل
+ * من الـ Edge Function (SHEET_SYNC_URL). الجدول له **مشروع مربوط منفصل** (id
+ * "15Mtiq-1jX5sUaEgRWNtXoW1TptsHNdQ5XVT5ywmKmvjpr8zQIoMW-egN") فيه onEdit
+ * يحدّث عمود التاريخ + بحث + طباعة (لا doPost). هذا الملف مرجع تقريبي؛
+ * مصدر الحقيقة هو المشروع المستقل.
+ *
+ * بخصوص «تكرار الطلبات الملغاة»: الـ doPost الحيّ يرجع {ok,duplicate:true,row}
+ * عند وجود Order ID مسبقاً ولا يُلحق صفاً → **لا تكرار** (الجدول فُحص: 0 معرّف
+ * مكرر). بق التكرار غير قابل لإعادة الإنتاج الآن (معالَج حيّاً). تنبيه للأولوية 2:
+ * عند الوجود المسبق يتخطّى التحديث، فلا تنعكس تغييرات الحالة من التطبيق للجدول
+ * (متوافق مع تصميم «الحالة مملوكة للجدول/شركة الشحن»).
+ *
  * النشر:
  *  Extensions → Apps Script → الصق هذا الكود → احفظ →
  *  Deploy → New deployment → Type: Web app →
