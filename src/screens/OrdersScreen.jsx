@@ -359,6 +359,51 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
   );
 }
 
+// ── Yurtiçi import-Excel (Dosya İle Gönderi) ──────────────────
+// يولّد صفوفاً بصيغة قالب يورتيتشي الرسمي (25 عمود) لرفعها دفعة وحدة.
+// المالك يرفعها عبر Dosya İle Gönderi → تنزل بـTeslim Listesi (طباعة + ONAY).
+const YURTICI_HEADERS = [
+  'Kişi / Kurum Adı (*)', 'Adresi (*)', 'İl', 'İlçe', 'Telefon Ev/İş', 'Telefon Cep',
+  'E-Mail Adresi', 'Vergi No', 'Kargo Türü (*)', 'Ödeme Tipi (*)', 'İrsaliye Numarası',
+  'Referans Numarası', 'Adet (*)', 'Kargo İçeriği', 'Tahsilat Tipi', 'Fatura Numarası',
+  'Fatura Tutarı', 'Dosya/Poşet No', 'Kampanya No', 'Kampanya Kodu', 'Kg', 'Desi',
+  'Taksit Uygulama Kriteri', 'Taksit Sayısı', 'Hata Mesajları',
+];
+const isCodOrder = (o) => {
+  const p = String(o.payment_method || '');
+  return !(p.includes('مسبق') || p.includes('bank') || p.includes('بنك') || p.includes('حوالة') || /kredi|kart/i.test(p));
+};
+function yurticiRow(o) {
+  const cod = isCodOrder(o);
+  const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
+  const qty = Array.isArray(o.items) ? o.items.reduce((s, it) => s + (Number(it.qty) || 1), 0) : 1;
+  // الإجمالي COD = المتبقّي للجزئي وإلا المبلغ. غير COD → فارغ.
+  const codAmount = cod
+    ? (o.payment_status === 'partial' && Number(o.paid_amount) > 0 ? Math.max(0, Number(o.amount) - Number(o.paid_amount)) : Number(o.amount || 0))
+    : '';
+  return {
+    'Kişi / Kurum Adı (*)': o.customer_name || '-',
+    'Adresi (*)': o.address || o.district || o.city || '-',
+    'İl': o.city || '',
+    'İlçe': o.district || '',
+    'Telefon Ev/İş': '',
+    'Telefon Cep': phone,
+    'E-Mail Adresi': '',
+    'Vergi No': '',
+    'Kargo Türü (*)': 'K',            // standart
+    'Ödeme Tipi (*)': 'G',            // Gönderici ödemeli (الشحن على لويز)
+    'İrsaliye Numarası': o.order_id || '',
+    'Referans Numarası': o.order_id || '',
+    'Adet (*)': qty || 1,
+    'Kargo İçeriği': 'kozmetik',
+    'Tahsilat Tipi': cod ? 'N' : '',  // Nakit (نقدي) للتحصيل
+    'Fatura Numarası': '',
+    'Fatura Tutarı': codAmount === '' ? '' : Math.round(codAmount),
+    'Dosya/Poşet No': '', 'Kampanya No': '', 'Kampanya Kodu': '',
+    'Kg': 1, 'Desi': 1, 'Taksit Uygulama Kriteri': '', 'Taksit Sayısı': '', 'Hata Mesajları': '',
+  };
+}
+
 // ── Shared helpers (sold-products aggregation + commission breakdown) ──
 // تُستخدم في العرض (الكروت + جدول المنتجات) وفي تصدير Excel معاً (DRY).
 const normName = (s) => String(s || '').trim().toLowerCase();
@@ -2598,6 +2643,30 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return { done, failed };
   };
 
+  // تصدير ملف يورتيتشي (Excel) لطلبات تركيا الجاهزة للشحن → رفع دفعة وحدة.
+  const [exportingYurtici, setExportingYurtici] = useState(false);
+  const exportYurticiExcel = async () => {
+    const ship = orders.filter(o =>
+      o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
+      ['pending', 'preparing', 'ready'].includes(o.status) &&
+      (!o.shipping_company || /yurti[çc]i/i.test(o.shipping_company || ''))
+    );
+    if (!ship.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
+    if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
+    setExportingYurtici(true);
+    try {
+      const XLSX = await import('xlsx');
+      const rows = ship.map(yurticiRow);
+      const ws = XLSX.utils.json_to_sheet(rows, { header: YURTICI_HEADERS });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'CargoImportTemplate');
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `yurtici-${today}.xlsx`);
+      toast.success?.(`✅ تم توليد ملف ${ship.length} طلب — ارفعه على يورتيتشي`);
+    } catch (e) { toast.error?.('تعذّر التوليد: ' + (e?.message || e)); }
+    finally { setExportingYurtici(false); }
+  };
+
   // إنشاء شحنة يورتيتشي للطلب (تركيا) → يولّد المفتاح ويزامن الجدول.
   const handleCreateShipment = async (order) => {
     const pend = toast.info?.('⏳ جاري إنشاء شحنة يورتيتشي…', { duration: 8000 });
@@ -2940,6 +3009,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
               className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-surface-alt border-border text-muted hover:text-text transition"
               title="لوحة التجهيز اليومية">
               🧰
+            </button>
+          )}
+          {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
+            <button onClick={exportYurticiExcel} disabled={exportingYurtici}
+              className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40"
+              title="توليد ملف يورتيتشي (Excel) لرفعه دفعة وحدة">
+              {exportingYurtici ? '…' : '📤 يورتيتشي'}
             </button>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
