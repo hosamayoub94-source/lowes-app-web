@@ -60,6 +60,10 @@ Deno.serve(async (req: Request) => {
     if (o.market !== 'syria' && o.market !== 'turkey') return json({ ok: true, skipped: 'no_sheet' }, 200);
     // Skip archived/imported rows (they never re-sync)
     if (o.archived === true) return json({ ok: true, skipped: 'archived' }, 200);
+    // لا تُعِد إضافة الطلبات المُنتهية (تسليم/تسوية/راجع): الفريق ينقلها لتاب
+    // التسليمات، والـdoPost يُلحقها ثانية لو لم يجدها بالتاب النشط → تكرار/عودة.
+    // التسليم يُكتب بالمكان مباشرةً من مؤقّت التتبّع (إن كان الطلب ما زال بالتاب).
+    if (['delivered', 'settled', 'returned'].includes(o.status)) return json({ ok: true, skipped: 'terminal_no_readd' }, 200);
 
     // ── Per-order rate limit (kill-switch) ────────────────────────────
     // Never call the Apps Script web app more than once per COOLDOWN per order.
