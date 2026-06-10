@@ -44,14 +44,15 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   try {
-    const { orderId } = await req.json();
+    const reqBody = await req.json();
+    const { orderId, test } = reqBody;
     if (!orderId) return json({ ok: false, error: 'orderId required' }, 400);
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: o, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
     if (error || !o) return json({ ok: false, error: 'order_not_found' }, 200);
     if (o.market !== 'turkey') return json({ ok: false, error: 'only_turkey', message: 'الربط متاح لطلبات تركيا فقط' }, 200);
-    if (o.yurtici_cargo_key) return json({ ok: false, error: 'already_created', message: 'الشحنة منشأة مسبقاً', cargoKey: o.yurtici_cargo_key }, 200);
+    if (!test && o.yurtici_cargo_key) return json({ ok: false, error: 'already_created', message: 'الشحنة منشأة مسبقاً', cargoKey: o.yurtici_cargo_key }, 200);
 
     // اختيار الحساب حسب نوع الدفع
     const cod = !isPrepaid(o);
@@ -60,7 +61,8 @@ Deno.serve(async (req: Request) => {
     const docId  = cod ? Deno.env.get('YURTICI_COD_DOCID')  : Deno.env.get('YURTICI_NORMAL_DOCID');
     if (!user || !pass || !docId) return json({ ok: false, error: 'secrets_missing', message: `أسرار يورتيتشي غير مضبوطة (${cod ? 'COD' : 'NORMAL'})` }, 200);
 
-    const cargoKey = String(o.order_id || o.id);
+    // وضع الاختبار: مفتاح اختبار + إنشاء ثم إلغاء فوري بلا أي تعديل على الطلب.
+    const cargoKey = test ? `TEST-${o.order_id || o.id}-${Date.now()}` : String(o.order_id || o.id);
     const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
     const itemsDesc = Array.isArray(o.items) ? o.items.map((it: any) => `${it.qty || 1}x ${it.name}`).join(', ').slice(0, 200) : '';
     // COD: مبلغ التحصيل = المتبقّي للجزئي وإلا الإجمالي. غير COD: 0.
@@ -92,7 +94,16 @@ Deno.serve(async (req: Request) => {
     const outFlag = tag(r, 'outFlag');
     if (outFlag !== '0') {
       const err = tag(r, 'errMessage') || tag(r, 'outResult') || 'unknown';
-      return json({ ok: false, error: 'yurtici_error', message: err, cod }, 200);
+      return json({ ok: false, error: 'yurtici_error', message: err, cod, test: !!test }, 200);
+    }
+
+    // وضع الاختبار: ألغِ فوراً (بلا طرد فعلي) ولا تمسّ الطلب.
+    if (test) {
+      const rc = await soap(
+        `<ship:cancelShipment><wsUserName>${xmlEsc(user)}</wsUserName><wsPassword>${xmlEsc(pass)}</wsPassword><userLanguage>TR</userLanguage><cargoKeys>${xmlEsc(cargoKey)}</cargoKeys></ship:cancelShipment>`
+      );
+      const cancelled = tag(rc, 'operationStatus') === 'CNL' || tag(rc, 'outFlag') === '0';
+      return json({ ok: true, test: true, created: true, cancelled, cargoKey, cod, codAmount, account: cod ? 'COD' : 'NORMAL' });
     }
 
     // نجح — احفظ مفتاح الشحنة + الشركة. (رقم التتبّع العام يأتي لاحقاً من track-yurtici.)
