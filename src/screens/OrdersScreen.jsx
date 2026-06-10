@@ -1504,8 +1504,9 @@ function StatusTimeline({ orderId }) {
   );
 }
 
-function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync }) {
+function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync, onCreateShipment }) {
   const [changing, setChanging] = useState(false);
+  const [creatingShip, setCreatingShip] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const statusKeys = statusKeysForMarket(order.market);
   const wa   = waLink(order.wa_number || order.phone_1, order.market);
@@ -1614,6 +1615,22 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
           </select>
         )}
       </div>
+
+      {/* Yurtiçi: إنشاء شحنة (تركيا فقط، لمن يقدر يقدّم الحالة، إن لم تُنشأ بعد) */}
+      {canAdvance && order.market === 'turkey' && onCreateShipment && (
+        order.yurtici_cargo_key ? (
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1.5">
+            🚚 شحنة يورتيتشي مُنشأة · <span className="font-mono">{order.yurtici_cargo_key}</span>
+          </div>
+        ) : (
+          <button
+            onClick={async () => { setCreatingShip(true); try { await onCreateShipment(order); } finally { setCreatingShip(false); } }}
+            disabled={creatingShip}
+            className="w-full py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+            {creatingShip ? '⏳ جارٍ إنشاء الشحنة…' : '🚚 أنشئ شحنة يورتيتشي'}
+          </button>
+        )
+      )}
 
       {/* Handler + sync + date */}
       <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
@@ -2483,6 +2500,21 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // Debounced so archive search hits the server without a request per keystroke.
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
 
+  // تحديث-عند-الفتح: لو في طلبات يورتيتشي مُنشأة عبر API وغير منتهية، اطلب تتبّعها
+  // مرة واحدة بالخلفية (لتحسّ الحالات تتغيّر «لحالها» عند فتح الشاشة) ثم أعد التحميل.
+  const _ytTracked = useRef(false);
+  useEffect(() => {
+    if (_ytTracked.current || loading) return;
+    const trackable = orders.some(o =>
+      o.market === 'turkey' && o.yurtici_cargo_key &&
+      !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
+    if (!trackable) return;
+    _ytTracked.current = true;
+    supabase.functions.invoke('track-yurtici', { body: { manual: true } })
+      .then(({ data }) => { if (data?.updated > 0) load(); })
+      .catch(() => {});
+  }, [orders, loading, load]);
+
   // ── لا مزامنة تلقائية بالخلفية (قرار المالك) ──────────────────
   // المزامنة التطبيق→الجدول تصير فقط عند فعل صريح: إنشاء/تعديل طلب
   // (handleSave) أو تغيير حالة (handleStatusChange). والاتجاه العكسي
@@ -2564,6 +2596,22 @@ export default function OrdersScreen({ forcedMarket = null }) {
       done++; onProgress?.(done, list.length);
     }
     return { done, failed };
+  };
+
+  // إنشاء شحنة يورتيتشي للطلب (تركيا) → يولّد المفتاح ويزامن الجدول.
+  const handleCreateShipment = async (order) => {
+    const pend = toast.info?.('⏳ جاري إنشاء شحنة يورتيتشي…', { duration: 8000 });
+    try {
+      const { data, error } = await supabase.functions.invoke('create-yurtici-shipment', { body: { orderId: order.id } });
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      if (error) throw error;
+      if (!data?.ok) { toast.error?.(`⚠️ تعذّر الإنشاء: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      toast.success?.(`✅ أُنشئت شحنة يورتيتشي · ${data.cargoKey}${data.cod ? ` · تحصيل ${data.codAmount}` : ''}`);
+      setOrders(p => p.map(o => o.id === order.id ? { ...o, yurtici_cargo_key: data.cargoKey, shipping_company: 'Yurtiçi Kargo' } : o));
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّر إنشاء الشحنة: ' + (e?.message || e));
+    }
   };
 
   const handleSave = async (formRaw, existingId) => {
@@ -3141,6 +3189,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
               onInvoice={(o) => setInvoice(o)}
               onDelete={handleDelete}
               onRetrySync={handleRetrySync}
+              onCreateShipment={handleCreateShipment}
               canDelete={canDeleteOrder(o)} />
           ))}
         </div>
