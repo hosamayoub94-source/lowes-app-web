@@ -51,25 +51,30 @@ async function soap(inner: string): Promise<string> {
   return await res.text();
 }
 
-// يستعلم عن دفعة مفاتيح، يرجّع map: cargoKey → {opStatus, text, trackingNo}
-async function queryBatch(keys: string[]): Promise<Record<string, { opStatus: string; text: string; trackingNo: string }>> {
-  const keysXml = keys.map(k => `<keys>${k.replace(/[<>&]/g, '')}</keys>`).join('');
+// يستعلم عن دفعة مفاتيح من نوع keyType (0=cargoKey للشحنات المُنشأة بالـAPI ·
+// 1=invoiceKey = «İrsaliye Numarası» الذي يضعه ملف Excel = order_id لشحنات الرفع).
+// يرجّع map: <المفتاح المُستعلَم به> → {opStatus, text, trackingNo}.
+async function queryBatch(keys: string[], keyType = 0): Promise<Record<string, { opStatus: string; text: string; trackingNo: string }>> {
+  const keysXml = keys.map(k => `<keys>${String(k).replace(/[<>&]/g, '')}</keys>`).join('');
   const r = await soap(
-    `<ship:queryShipment><wsUserName>${WS_USER}</wsUserName><wsPassword>${WS_PASS}</wsPassword><wsLanguage>TR</wsLanguage>${keysXml}<keyType>0</keyType><addHistoricalData>true</addHistoricalData><onlyTracking>false</onlyTracking></ship:queryShipment>`
+    `<ship:queryShipment><wsUserName>${WS_USER}</wsUserName><wsPassword>${WS_PASS}</wsPassword><wsLanguage>TR</wsLanguage>${keysXml}<keyType>${keyType}</keyType><addHistoricalData>true</addHistoricalData><onlyTracking>false</onlyTracking></ship:queryShipment>`
   );
   const out: Record<string, any> = {};
   // كل شحنة داخل <shippingDeliveryDetailVO>...
   const blocks = r.match(/<shippingDeliveryDetailVO>[\s\S]*?<\/shippingDeliveryDetailVO>/g) || [];
   for (const b of blocks) {
-    const ck = (b.match(/<cargoKey>(.*?)<\/cargoKey>/)?.[1] || '').trim();
-    if (!ck) continue;
+    // فهرس الخرج بنفس نوع المفتاح المُستعلَم به (cargoKey لـ0، invoiceKey لـ1)
+    const cargoKey   = (b.match(/<cargoKey>(.*?)<\/cargoKey>/)?.[1] || '').trim();
+    const invoiceKey = (b.match(/<invoiceKey>(.*?)<\/invoiceKey>/)?.[1] || '').trim();
+    const k = keyType === 1 ? invoiceKey : cargoKey;
+    if (!k) continue;
     const opStatus = (b.match(/<operationStatus>(.*?)<\/operationStatus>/)?.[1] || '').trim();
     // آخر حركة (إن وُجدت) أدقّ من operationMessage العام
     const moves = b.match(/<operationMessage>(.*?)<\/operationMessage>/g) || [];
     const text = moves.map(m => m.replace(/<\/?operationMessage>/g, '')).join(' ');
     const trackingNo = (b.match(/<cargoTrackingNumber>(.*?)<\/cargoTrackingNumber>/)?.[1]
       || b.match(/<documentNo>(.*?)<\/documentNo>/)?.[1] || '').trim();
-    out[ck] = { opStatus, text, trackingNo };
+    if (!out[k] || (!out[k].opStatus && opStatus)) out[k] = { opStatus, text, trackingNo };
   }
   return out;
 }
@@ -129,9 +134,16 @@ Deno.serve(async (req) => {
 
   for (let i = 0; i < orders.length; i += BATCH) {
     const batch = orders.slice(i, i + BATCH);
-    const map = await queryBatch(batch.map(o => o.yurtici_cargo_key));
+    // مرور 1: cargoKey (شحنات API). مرور 2 (احتياطي): invoiceKey للمفاتيح بلا
+    // نتيجة — يلتقط شحنات الـExcel التي مفتاحها İrsaliye=order_id لا cargoKey.
+    const map0 = await queryBatch(batch.map(o => o.yurtici_cargo_key), 0);
+    const missing = batch
+      .filter(o => !map0[o.yurtici_cargo_key]?.opStatus)
+      .map(o => o.yurtici_cargo_key);
+    const map1 = missing.length ? await queryBatch(missing, 1) : {};
     for (const o of batch) {
-      const hit = map[o.yurtici_cargo_key];
+      const hit = (map0[o.yurtici_cargo_key]?.opStatus ? map0[o.yurtici_cargo_key] : null)
+        || map1[o.yurtici_cargo_key] || map0[o.yurtici_cargo_key];
       if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
       const newStatus = mapStatus(hit.opStatus, hit.text);
       results.push({ order: o.order_id, opStatus: hit.opStatus, mapped: newStatus, current: o.status });
