@@ -16,6 +16,13 @@ const WS_PASS = Deno.env.get('YURTICI_COD_PASS') || Deno.env.get('YURTICI_NORMAL
 
 const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
 
+// CORS — بدونها يفشل نداء التطبيق من المتصفح (preflight) صامتاً عبر .catch،
+// فالتتبّع التلقائي من شاشة الطلبات لا يعمل إلا من cron. أضفناها 11 يونيو 2026.
+const corsHeaders = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 const STATUS_AR: Record<string, string> = {
   preparing:'في التجهيز', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
   delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع', cancelled:'ملغي',
@@ -98,7 +105,8 @@ async function syncSheet(orderId: string) {
 }
 
 Deno.serve(async (req) => {
-  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'Content-Type': 'application/json' } });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   if (!WS_USER || !WS_PASS) return json({ ok: false, error: 'secrets_missing' }, 200);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
