@@ -9,6 +9,7 @@
 //   YURTICI_COD_USER / YURTICI_COD_PASS / YURTICI_COD_DOCID      (GÖ TAHSİLATLI)
 //   YURTICI_NORMAL_USER / YURTICI_NORMAL_PASS / YURTICI_NORMAL_DOCID (GÖ NORMAL)
 // =============================================================
+// redeploy: التقاط أسرار يورتيتشي (10 يونيو 2026)
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const cors = {
