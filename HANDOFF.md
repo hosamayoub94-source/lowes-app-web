@@ -9,7 +9,8 @@
 الربط الكامل (إنشاء شحنات + تتبّع) **يعمل end-to-end**. التفاصيل الكاملة بذاكرة `[[yurtici-integration]]`.
 - **الاستخدام:** على كرت طلب تركيا (مدير/fulfillment) → زر «🚚 أنشئ شحنة يورتيتشي» → ينشئ شحنة بحساب يورتيتشي (COD تلقائياً بمبلغ الطلب) + يحفظ `yurtici_cargo_key` + يزامن الجدول. الحالة تتتبّع تلقائياً (عند فتح الشاشة + cron).
 - **edge fns:** `create-yurtici-shipment` (SOAP createShipment) · `track-yurtici` (SOAP queryShipment keyType=0). الأسرار `YURTICI_COD_*`/`YURTICI_NORMAL_*` مضبوطة بـ Edge Functions Secrets.
-- **متبقّيات صغيرة:** حساب NORMAL (مدفوع مسبق) غير مختبَر · أكواد حالات النقل/التسليم تُحسم من أول شحنات حقيقية · cron run_yurtici_tracking يحتاج app.settings.service_role_key (refresh-on-open كافٍ). **جلب أكواد الشحنات اليدوية القديمة مستحيل** (قيد API مثبت).
+- **🟦 مسار الإنشاء المعتمد = Excel (قرار المالك):** زر **«📤 يورتيتشي»** (تركيا) يولّد ملف Excel بصيغة قالب يورتيتشي (`CargoImportTemplate`, 25 عمود) لطلبات تركيا الجاهزة → المالك يرفعه عبر **Dosya İle Gönderi** → ينزل بـTeslim Listesi → طباعة + ONAY → مندوب. **السبب:** شحنات `createShipment` (API button) لا تظهر بـTeslim Listesi (لا تُطبع/تُسلَّم)، بينما رفع الـExcel ينزّلها (سير عمل المالك). راجع `[[yurtici-integration]]`.
+- **متبقّيات صغيرة:** زر الـAPI (createShipment) ثانوي · تتبّع شحنات الـExcel (query بالـReferans) لاحقاً · حساب NORMAL غير مختبَر · cron يحتاج app.settings.service_role_key. **جلب أكواد الشحنات اليدوية القديمة مستحيل** (قيد API).
 
 ### ✅ أُنجز في جلسة 10 يونيو (هذه الجلسة)
 - **التدريب الذكي:** cron يومي 05:00 UTC + 8 أسئلة/يوم (أساسي+متقدّم) + كتالوج حيّ من `products` (commit b27af86).
