@@ -16,6 +16,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// يفسّر ردّ Apps Script. عند رد غير JSON (صفحة خطأ HTML من جوجل) يستخرج
+// نص الرسالة الحقيقية بدل «bad_response» الأعمى — درس تشخيص 10 يونيو:
+// خطأ «التحقق من صحة البيانات بالخلية T17» كان مدفوناً بصفحة HTML مبتلعة.
+async function parseSheetResponse(res: Response): Promise<any> {
+  const raw = await res.text();
+  try { return JSON.parse(raw); } catch { /* HTML/نص */ }
+  const msg = raw
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&quot;|&amp;quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { ok: false, error: 'bad_response: ' + (msg ? msg.slice(0, 220) : `HTTP ${res.status}`) };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -85,6 +101,17 @@ Deno.serve(async (req: Request) => {
       const TR_URL   = Deno.env.get('TURKEY_SHEET_SYNC_URL');
       const TR_TOKEN = Deno.env.get('TURKEY_SHEET_SYNC_TOKEN') ?? 'LOWES-TURKEY-2026';
       if (!TR_URL) return json({ ok: false, error: 'turkey_sheet_not_configured' }, 200);
+      // عمود «مكان الاستلام» (T) بالجدول عليه قائمة منسدلة قيمها الحرفية
+      // تتضمن إيموجي وعلامات اقتباس — نطبّع قيم التطبيق إليها حتى تبقى
+      // الخلايا صالحة (ولو أعاد أحدهم وضع «الرفض» لا تنكسر المزامنة).
+      const TR_PICKUP_MAP: Record<string, string> = {
+        'عنوان المنزل':    '🏠 "عنوان منزل"',
+        'عنوان منزل':      '🏠 "عنوان منزل"',
+        'عنوان العمل':     '🏢 "عنوان عمل"',
+        'عنوان عمل':       '🏢 "عنوان عمل"',
+        'استلام من المركز': '📦 "استلام من المركز 🏢"',
+      };
+      const trPickup = (p: unknown) => TR_PICKUP_MAP[String(p ?? '').trim()] ?? p;
       const trPayload = {
         token: TR_TOKEN,
         brand: o.brand || 'lowes',
@@ -104,7 +131,7 @@ Deno.serve(async (req: Request) => {
           handler_name:     o.handler_name,
           tracking_number:  o.tracking_number,
           payment_method:   o.payment_method,
-          pickup_type:      o.pickup_type,
+          pickup_type:      trPickup(o.pickup_type),
           shipping_company: o.shipping_company,
           notes:            o.notes,
           items:            Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
@@ -114,7 +141,7 @@ Deno.serve(async (req: Request) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(trPayload), redirect: 'follow',
       });
-      const trOut = await trRes.json().catch(() => ({ ok: false, error: 'bad_response' }));
+      const trOut = await parseSheetResponse(trRes);
       await supabase.from('orders')
         .update({
           sheet_synced:    !!trOut.ok,
@@ -172,7 +199,7 @@ Deno.serve(async (req: Request) => {
       body:    JSON.stringify(payload),
       redirect: 'follow',
     });
-    const out = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
+    const out = await parseSheetResponse(res);
 
     // علّم الطلب كمتزامن (أو لا) للتتبّع وإعادة المحاولة + مؤشر المزامنة
     await supabase.from('orders')
