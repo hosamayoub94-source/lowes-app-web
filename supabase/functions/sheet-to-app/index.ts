@@ -58,9 +58,18 @@ const STATUS_MAP: Record<string, string> = {
   'ملغي': 'cancelled', 'الغاء': 'cancelled', 'الإلغاء': 'cancelled', 'cancelled': 'cancelled',
 };
 
+// أكواد فريق سوريا الإنجليزية بعمود الحالة (الدروب-داون): NEW/PACK/SHIP/DONE/CANC/
+// Waiting/Settled. كانت لا تُربَط فتبقى تعديلات الفريق محبوسة بالجدول ولا تصل التطبيق.
+const TEAM_MAP: Record<string, string> = {
+  NEW: 'pending', PACK: 'preparing', SHIP: 'shipped', DONE: 'delivered',
+  CANC: 'cancelled', WAITING: 'waiting', SETTLED: 'settled',
+};
+
 function resolveStatus(raw: string): string | null {
   if (!raw) return null;
   const clean = raw.replace(/[🆕📦🚀🏍️🛠️🏢🚚🛵🚗💳✅⏳📭↩️🔁🤝❌]/g, '').trim();
+  const team = TEAM_MAP[clean.toUpperCase()];           // أكواد الفريق (case-insensitive)
+  if (team) return team;
   return STATUS_MAP[clean] ?? STATUS_MAP[raw.trim()] ?? null;
 }
 

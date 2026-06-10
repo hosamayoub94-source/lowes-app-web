@@ -167,6 +167,13 @@ Deno.serve(async (req: Request) => {
     const _paid  = Number(o.paid_amount || 0);
     const _remaining = Math.max(0, _total - _paid);
 
+    // أكواد فريق سوريا الإنجليزية (الدروب-داون بالجدول) — نكتبها بدل المفتاح الخام
+    // ليتوحّد العمود مع تعديلات الفريق (توحيد المسميات، قرار المالك 11 يونيو).
+    const SYRIA_TEAM_CODE: Record<string, string> = {
+      pending: 'NEW', preparing: 'PACK', shipped: 'SHIP', delivered: 'DONE',
+      cancelled: 'CANC', waiting: 'Waiting', settled: 'Settled',
+    };
+
     const payload = {
       token: SHEET_TOKEN,
       order: {
@@ -179,7 +186,7 @@ Deno.serve(async (req: Request) => {
         address:        o.address,
         amount:         o.amount,
         currency:       o.currency,            // SYP / USD / TRY
-        status:         o.status,
+        status:         SYRIA_TEAM_CODE[o.status] ?? o.status,
         salesperson:    o.handler_name,
         note:           o.notes,
         shippingMethod: o.shipping_company,
