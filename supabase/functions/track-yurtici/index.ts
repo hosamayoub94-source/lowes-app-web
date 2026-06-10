@@ -134,16 +134,12 @@ Deno.serve(async (req) => {
 
   for (let i = 0; i < orders.length; i += BATCH) {
     const batch = orders.slice(i, i + BATCH);
-    // مرور 1: cargoKey (شحنات API). مرور 2 (احتياطي): invoiceKey للمفاتيح بلا
-    // نتيجة — يلتقط شحنات الـExcel التي مفتاحها İrsaliye=order_id لا cargoKey.
-    const map0 = await queryBatch(batch.map(o => o.yurtici_cargo_key), 0);
-    const missing = batch
-      .filter(o => !map0[o.yurtici_cargo_key]?.opStatus)
-      .map(o => o.yurtici_cargo_key);
-    const map1 = missing.length ? await queryBatch(missing, 1) : {};
+    // keyType=0 (cargoKey = order_id لشحنات API). ملاحظة: شحنات الرفع بـExcel
+    // لا يتعرّف عليها يورتيتشي بـorder_id (لا cargoKey ولا invoiceKey — مُختبَر
+    // حيّاً 11 يونيو)، فمفتاحها الحقيقي يجب جلبه من Teslim Listesi.
+    const map = await queryBatch(batch.map(o => o.yurtici_cargo_key), 0);
     for (const o of batch) {
-      const hit = (map0[o.yurtici_cargo_key]?.opStatus ? map0[o.yurtici_cargo_key] : null)
-        || map1[o.yurtici_cargo_key] || map0[o.yurtici_cargo_key];
+      const hit = map[o.yurtici_cargo_key];
       if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
       const newStatus = mapStatus(hit.opStatus, hit.text);
       results.push({ order: o.order_id, opStatus: hit.opStatus, mapped: newStatus, current: o.status });
