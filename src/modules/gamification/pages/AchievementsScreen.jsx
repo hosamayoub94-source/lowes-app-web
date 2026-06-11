@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
+import { Tabs } from '@components/ui/Tabs';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { Hero } from '@components/ui/Hero';
 
@@ -384,26 +385,16 @@ export default function AchievementsScreen() {
         </Card>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-2 bg-surface-alt rounded-2xl p-1">
-        {[
+      {/* Tabs (موحّد) */}
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
           { key: 'leaderboard', label: '🏅 الترتيب' },
           { key: 'badges',      label: '🎖️ الشارات' },
           { key: 'history',     label: '📜 سجلي'    },
-        ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
-              tab === t.key
-                ? 'bg-surface text-text shadow-soft'
-                : 'text-muted hover:text-text'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+        ]}
+      />
 
       {/* ── TAB: LEADERBOARD ────────────────────────────────── */}
       {tab === 'leaderboard' && (
