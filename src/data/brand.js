@@ -65,10 +65,13 @@ export const BRAND_ASSETS = {
   logoPdfId:   '1Cl58hXM8A6CK_KrI_MmukvfsqG6b_0gG',
   stampPdfId:  '1X5rB_8j8We1VbwR5677kmL5V87twoWdT', // الختم الرسمي للفواتير
   guidelinesPdfId: '1CH0xsfzSbUJxqex-_YZabsZ8lJ9MKjPi',
-  // logoUrl / stampUrl: تُملأ عند رفع الأصول كملفات محلية (public/brand/)
-  logoUrl:  null,
-  stampUrl: null,
+  // الأصول المحلية (public/brand/) — مسارات تُحلّ من جذر الموقع
+  logoUrl:  '/brand/lowes-seal.png',  // الختم/الشعار الدائري الرسمي
+  stampUrl: '/brand/lowes-seal.png',  // نفس الختم الدائري (للفواتير/السندات)
 };
+
+// المفوّض الافتراضي بالصرف/التوقيع على السندات والفواتير
+export const AUTHORIZED_BY = 'Amany';
 
 // ── هيكل البراندات (Brand Architecture) ─────────────────────
 export const SUB_BRANDS = [

@@ -4,7 +4,7 @@
 // =============================================================
 
 import { PAYMENT_METHOD_LABELS, ENTRY_TYPE_LABELS } from '../types/accounting.types';
-import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
+import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
 
 // ── Arabic number-to-words (SYP/USD) ──────────────────────────
 const ONES = ['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة',
@@ -79,7 +79,7 @@ export function computeNextVoucherNo(entries = []) {
 export function printPaymentVoucher(entry, options = {}) {
   const {
     payeeName   = '',
-    authorizedBy = 'hosam ayoub',
+    authorizedBy = AUTHORIZED_BY,
     companyName = BRAND.nameEn,
     companyNameAr = BRAND.nameAr,
     tagline     = BRAND.sloganAr,
@@ -90,6 +90,8 @@ export function printPaymentVoucher(entry, options = {}) {
 
   // ألوان الهوية الرسمية: أبيض مسيطر · أسود نص · ذهبي accent فقط
   const GOLD = BRAND_COLORS.gold, GOLD_L = BRAND_COLORS.goldLight, CREAM = BRAND_COLORS.cream, INK = BRAND_COLORS.black;
+  // الختم الرسمي (صورة) — مسار مطلق ليُحمّل داخل نافذة الطباعة
+  const sealSrc = (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
 
   const dateStr = entry.entry_date
     ? new Date(entry.entry_date).toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -291,10 +293,13 @@ export function printPaymentVoucher(entry, options = {}) {
 <div class="voucher">
   <!-- Header -->
   <div class="header">
-    <div>
-      <div class="brand-name">LOWE'S <span class="heart">${BRAND.heart}</span></div>
-      <div class="brand-tr">profesyonel</div>
-      <div class="brand-tag">${tagline}</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <img src="${sealSrc}" alt="LOWE'S" style="height:72px; width:auto;" onerror="this.style.display='none'">
+      <div>
+        <div class="brand-name">LOWE'S <span class="heart">${BRAND.heart}</span></div>
+        <div class="brand-tr">profesyonel</div>
+        <div class="brand-tag">${tagline}</div>
+      </div>
     </div>
     <div class="voucher-meta">
       <div class="voucher-no"><small>VOUCHER No.</small>${voucherNo}</div>
@@ -344,11 +349,7 @@ export function printPaymentVoucher(entry, options = {}) {
       <div class="sig-label">المفوّض بالصرف</div>
     </div>
     <div class="stamp-area">
-      <div class="stamp-circle">
-        <span class="lp">LOWE'S</span>
-        <span>ختم رسمي</span>
-        <span>${BRAND.heart}</span>
-      </div>
+      <img src="${sealSrc}" alt="ختم رسمي" style="width:72px; height:72px; object-fit:contain;" onerror="this.style.display='none'">
     </div>
     <div class="sig-block">
       <div class="sig-line"></div>

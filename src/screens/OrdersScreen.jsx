@@ -20,6 +20,7 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
+import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 
@@ -1317,143 +1318,118 @@ function InvoiceModal({ order, onClose }) {
           <button onClick={onClose} className="text-muted hover:text-text w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-alt transition text-sm">✕</button>
         </div>
 
-        {/* Invoice (captured as image) */}
+        {/* Invoice (captured as image) — الهوية الرسمية: أبيض/ذهبي #C9A646/أسود */}
         <div ref={ref} dir="rtl" style={{
           background: '#ffffff', padding: '0',
-          fontFamily: '"Tajawal", "Segoe UI", Arial, sans-serif', color: '#111827',
-          minWidth: '320px',
+          fontFamily: '"Tajawal", "Segoe UI", Arial, sans-serif', color: BRAND_COLORS.black,
+          minWidth: '320px', border: `1.5px solid ${BRAND_COLORS.gold}`,
         }}>
-          {/* Brand header — navy gradient */}
+          {/* Brand header — أبيض + ختم رسمي + فاصل ذهبي */}
           <div style={{
-            background: 'linear-gradient(135deg, #0f1f3d 0%, #0d7377 100%)',
-            padding: '20px 24px 18px',
-            color: '#fff',
-            position: 'relative',
-            overflow: 'hidden',
+            background: '#fff', padding: '16px 20px 12px',
+            display:'flex', alignItems:'center', justifyContent:'space-between',
+            borderBottom: `2px solid ${BRAND_COLORS.gold}`,
           }}>
-            {/* Decorative circles */}
-            <div style={{ position:'absolute', top:'-20px', left:'-20px', width:'80px', height:'80px', borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
-            <div style={{ position:'absolute', bottom:'-15px', right:'-10px', width:'60px', height:'60px', borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <img src={BRAND_ASSETS.logoUrl} alt="LOWE'S" crossOrigin="anonymous"
+                style={{ height:'62px', width:'auto' }} />
               <div>
-                <div style={{ fontSize:'18px', fontWeight:'900', letterSpacing:'-0.3px', lineHeight:1.1 }}>
-                  Lowe&apos;s
+                <div style={{ fontSize:'17px', fontWeight:'900', letterSpacing:'0.3px', color:BRAND_COLORS.black }}>
+                  LOWE&apos;S <span style={{ color:BRAND_COLORS.gold }}>{BRAND.heart}</span>
                 </div>
-                <div style={{ fontSize:'11px', fontWeight:'700', opacity:0.9, letterSpacing:'1px', textTransform:'uppercase' }}>
-                  Professional
-                </div>
-                <div style={{ fontSize:'9px', opacity:0.65, marginTop:'3px' }}>
-                  منتجات عناية البشرة الاحترافية
-                </div>
+                <div style={{ fontSize:'10px', fontStyle:'italic', color:BRAND_COLORS.gold }}>profesyonel</div>
+                <div style={{ fontSize:'8.5px', color:'#6B5D4F', marginTop:'2px' }}>{BRAND.sloganAr}</div>
               </div>
-              {/* Logo circle */}
-              <div style={{
-                width:'44px', height:'44px', borderRadius:'50%',
-                background:'rgba(255,255,255,0.15)',
-                border:'2px solid rgba(255,255,255,0.3)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:'20px',
-              }}>🌿</div>
             </div>
-            {/* Invoice title strip */}
-            <div style={{
-              marginTop:'12px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.15)',
-              display:'flex', justifyContent:'space-between', alignItems:'center',
-              fontSize:'11px', opacity:0.9,
-            }}>
-              <span style={{ fontWeight:'800', fontSize:'13px' }}>فاتورة طلب</span>
-              <span style={{ fontWeight:'700', color:'#a7f3d0' }}>{order.order_id}</span>
-            </div>
-          </div>
-          {/* Body */}
-          <div style={{ padding: '20px 24px 24px' }}>
-
-          {/* Order meta */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', fontSize: '12px', color: '#6b7280' }}>
-            <div>
-              <div style={{ fontSize: '9px', marginBottom: '1px' }}>📅 التاريخ</div>
-              <div style={{ fontWeight: '700', color: '#111827' }}>
+            <div style={{ textAlign:'left' }}>
+              <div style={{ fontSize:'13px', fontWeight:'900', color:BRAND_COLORS.black }}>فاتورة</div>
+              <div style={{ fontSize:'12px', fontWeight:'800', color:BRAND_COLORS.gold }}>{order.order_id}</div>
+              <div style={{ fontSize:'9px', color:'#6B5D4F', marginTop:'2px' }}>
                 {order.order_date
                   ? new Date(order.order_date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
               </div>
             </div>
-            {order.market && (
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '9px', marginBottom: '1px' }}>السوق</div>
-                <div style={{ fontWeight: '700', color: '#111827' }}>
-                  {order.market === 'turkey' ? '🇹🇷 تركيا' : '🇸🇾 سوريا'}
-                </div>
-              </div>
-            )}
           </div>
+          {/* Body */}
+          <div style={{ padding: '14px 20px 18px' }}>
 
           {/* Customer */}
-          <div style={{ background: '#f8f7f4', borderRadius: '10px', padding: '10px', marginBottom: '14px' }}>
-            <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: '700', marginBottom: '5px' }}>بيانات العميل</div>
-            <div style={{ fontSize: '14px', fontWeight: '800', marginBottom: '3px' }}>{order.customer_name}</div>
-            {order.phone_1 && <div style={{ fontSize: '11px', color: '#374151', direction: 'ltr' }}>{order.phone_1}</div>}
-            {order.city && (
-              <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {order.city}{order.district ? ` · ${order.district}` : ''}{order.address ? ` — ${order.address}` : ''}
+          <div style={{ background: BRAND_COLORS.cream, borderRadius: '8px', padding: '10px', marginBottom: '12px', border:`1px solid ${BRAND_COLORS.goldLight}` }}>
+            <div style={{ fontSize: '9px', color: '#6B5D4F', fontWeight: '700', marginBottom: '4px' }}>اسم العميل</div>
+            <div style={{ fontSize: '14px', fontWeight: '800', marginBottom: '3px', color:BRAND_COLORS.black }}>{order.customer_name || '—'}</div>
+            {order.phone_1 && <div style={{ fontSize: '11px', color: '#374151', direction: 'ltr', textAlign:'right' }}>📱 {order.phone_1}</div>}
+            {(order.city || order.address) && (
+              <div style={{ fontSize: '10px', color: '#6B5D4F', marginTop: '2px' }}>
+                📍 {order.city || ''}{order.district ? ` · ${order.district}` : ''}{order.address ? ` — ${order.address}` : ''}
               </div>
             )}
           </div>
 
-          {/* Items */}
-          <div style={{ marginBottom: '14px' }}>
-            <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: '700', marginBottom: '7px' }}>المنتجات</div>
+          {/* Items table — اسم المنتج · الكمية */}
+          <div style={{ marginBottom: '12px', border:`1px solid ${BRAND_COLORS.goldLight}`, borderRadius:'8px', overflow:'hidden' }}>
+            <div style={{ display:'flex', background:BRAND_COLORS.cream, fontSize:'9px', fontWeight:'800', color:'#6B5D4F', padding:'6px 10px' }}>
+              <span style={{ flex:1 }}>اسم المنتج</span>
+              <span style={{ width:'60px', textAlign:'center' }}>الكمية</span>
+            </div>
             {(order.items ?? []).map((item, i) => (
               <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '5px 0', borderBottom: '1px solid #f3f4f6', fontSize: '12px',
+                display: 'flex', alignItems: 'center',
+                padding: '6px 10px', borderTop: `1px solid ${BRAND_COLORS.cream}`, fontSize: '12px', color:BRAND_COLORS.black,
               }}>
-                <span>{item.name}</span>
-                <span style={{ fontWeight: '700', color: '#0d7377' }}>×{item.qty}</span>
+                <span style={{ flex:1, fontWeight:'600' }}>{item.name}</span>
+                <span style={{ width:'60px', textAlign:'center', fontWeight: '800', color: BRAND_COLORS.gold }}>×{item.qty}</span>
               </div>
             ))}
           </div>
 
-          {/* Total */}
+          {/* Total — المجموع */}
           {order.amount > 0 && (
             <div style={{
-              background: '#0f1f3d0d', borderRadius: '10px', padding: '10px',
+              background: BRAND_COLORS.cream, borderRadius: '8px', padding: '10px', border:`1px solid ${BRAND_COLORS.gold}`,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px',
             }}>
-              <span style={{ fontSize: '12px', fontWeight: '700' }}>الإجمالي</span>
-              <span style={{ fontSize: '18px', fontWeight: '900', color: '#0f1f3d' }}>
-                {order.amount} <span style={{ fontSize: '12px' }}>{order.currency}</span>
+              <span style={{ fontSize: '12px', fontWeight: '800' }}>المجموع</span>
+              <span style={{ fontSize: '19px', fontWeight: '900', color: BRAND_COLORS.black }}>
+                {Number(order.amount).toLocaleString()} <span style={{ fontSize: '12px', color:BRAND_COLORS.gold }}>{order.currency}</span>
               </span>
             </div>
           )}
 
           {/* Payment */}
           <div style={{
-            fontSize: '10px', color: '#6b7280', marginBottom: '10px',
-            padding: '7px', background: '#f9fafb', borderRadius: '8px', textAlign: 'center',
+            fontSize: '10px', color: '#6B5D4F', marginBottom: '10px',
+            padding: '7px', background: '#fafafa', borderRadius: '8px', textAlign: 'center',
           }}>
             {paymentText}
           </div>
 
           {/* Shipping */}
           {order.shipping_company && (
-            <div style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '3px' }}>
+            <div style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '8px' }}>
               الشحن: {order.shipping_company}
               {order.tracking_number ? ` · رقم التتبع: ${order.tracking_number}` : ''}
             </div>
           )}
 
-          {/* Seller + brand footer */}
+          {/* Signature + stamp */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginTop:'14px' }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ borderBottom:`1px solid ${BRAND_COLORS.black}`, width:'110px', height:'22px', marginBottom:'4px' }} />
+              <div style={{ fontSize:'9px', color:'#6B5D4F', fontWeight:'600' }}>توقيع العميل</div>
+            </div>
+            <img src={BRAND_ASSETS.stampUrl} alt="ختم" crossOrigin="anonymous"
+              style={{ width:'66px', height:'66px', objectFit:'contain', opacity:0.92 }} />
+          </div>
+
+          {/* Company legal footer */}
           <div style={{
-            borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '12px',
-            display:'flex', justifyContent:'space-between', alignItems:'center',
-            fontSize: '9px', color: '#9ca3af',
+            borderTop: `1.5px solid ${BRAND_COLORS.gold}`, marginTop: '12px', paddingTop: '8px',
+            textAlign:'center', fontSize: '8px', color: '#6B5D4F', lineHeight:1.5,
           }}>
-            {order.handler_name
-              ? <span>البائع: <strong style={{color:'#374151'}}>{order.handler_name}</strong></span>
-              : <span />
-            }
-            <span style={{ color:'#0d7377', fontWeight:'700', fontSize:'8px' }}>Lowe's Professional ✦</span>
+            <div style={{ fontWeight:'700', color:BRAND_COLORS.black, fontSize:'8.5px' }}>{COMPANY.legalName}</div>
+            <div>📧 {COMPANY.email} · 🌐 {COMPANY.website} · 📱 {COMPANY.whatsapp}</div>
+            {order.handler_name && <div style={{ marginTop:'2px' }}>البائع: <strong style={{color:'#374151'}}>{order.handler_name}</strong></div>}
           </div>
           </div>{/* end body */}
         </div>
