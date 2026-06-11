@@ -104,6 +104,37 @@ async function notifySeller(supabase: any, order: any, newStatus: string, source
   } catch { /* best-effort */ }
 }
 
+// يبني سجلّ طلب من صفّ الجدول (موحّد بين bulk_import وإنشاء-عند-عدم-الوجود).
+function buildOrderRecord(row: any, batchMarket: string, createdBy: string) {
+  const status   = resolveStatus(row.status_ar || row.status || '') ?? 'pending';
+  const market   = row.market || batchMarket;
+  const currency = row.currency || (market === 'syria' ? 'SYP' : 'TRY');
+  return {
+    order_id:         String(row.order_id).trim(),
+    market,
+    brand:            row.brand || 'lowes',
+    customer_name:    row.customer_name || '',
+    phone_1:          row.phone_1 || row.phone || '',
+    wa_number:        row.wa_number || row.phone_1 || '',
+    city:             row.city || '',
+    district:         row.district || '',
+    address:          row.address || '',
+    amount:           Number(row.amount) || 0,
+    currency,
+    status,
+    handler_name:     row.handler_name || '',
+    shipping_company: row.shipping_company || '',
+    tracking_number:  row.tracking_number || null,
+    payment_method:   row.payment_method || 'دفع عند الباب',
+    pickup_type:      row.pickup_type || '',
+    notes:            row.notes || '',
+    items:            row.items || [],
+    order_date:       row.order_date ? new Date(row.order_date).toISOString() : new Date().toISOString(),
+    sheet_synced:     true,
+    created_by:       createdBy,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
@@ -132,6 +163,35 @@ Deno.serve(async (req) => {
 
       // طلب محذوف (soft-delete) — لا نُحييه بتعديل من الجدول.
       if (cur?.deleted_at) return json({ ok: true, skipped: 'deleted' }, 200);
+
+      // ── إنشاء عند عدم الوجود (السبب الجذري لضياع الطلبات المكتوبة يدوياً) ──
+      // طلب يُكتب مباشرةً بالجدول لا يوجد بالتطبيق → التحديث الأدنى يطابق 0 صف
+      // ويبقى الطلب غير ظاهر بالتطبيق للأبد. إن أرسل التريغر صفّ البيانات الكامل
+      // (اسم + هاتف ≥6 أرقام) ننشئه الآن. (التحقق يرفض الصفوف الوهمية بلا اسم/هاتف.)
+      if (!cur) {
+        const cName  = String(body.customer_name || '').trim();
+        const cPhone = String(body.phone_1 || body.phone || body.wa_number || '').replace(/\D/g, '');
+        if (!cName || cPhone.length < 6) {
+          return json({ ok: true, skipped: 'not_found_no_data' }, 200);
+        }
+        const record = buildOrderRecord(body, body.market || 'syria', 'جدول-تلقائي');
+        const { error: insErr } = await supabase.from('orders').insert(record);
+        if (insErr) {
+          // 23505 = طلب أُنشئ بالتزامن لتوّه — ليس خطأً فعلياً.
+          if (String(insErr.code) === '23505') return json({ ok: true, skipped: 'race_exists' }, 200);
+          return json({ ok: false, error: insErr.message }, 200);
+        }
+        const { data: nu } = await supabase.from('orders')
+          .select('id, handler_name, customer_name').eq('order_id', record.order_id).maybeSingle();
+        if (nu?.id) {
+          await supabase.from('order_status_history').insert({
+            order_id: nu.id, from_status: null, to_status: record.status,
+            changed_by: 'الجدول', source: 'sheet',
+          }).then(() => {}, () => {});
+          await notifySeller(supabase, nu, record.status, 'الجدول');
+        }
+        return json({ ok: true, created: record.order_id }, 200);
+      }
 
       // مصدر الحقيقة: الجدول يحدّث الحالة + رقم التتبع فقط (لا يلمس بيانات العميل/الأصناف).
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: 'جدول-تلقائي' };
@@ -196,35 +256,9 @@ Deno.serve(async (req) => {
         const cPhone = String(row.phone_1 || row.phone || row.wa_number || '').replace(/\D/g, '');
         if (!row.order_id || !cName || cPhone.length < 6) { skipped++; continue; }
 
-        // Map status_ar to status key
-        const status = resolveStatus(row.status_ar || row.status || '') ?? 'pending';
-        const market = row.market || batchMarket;
-        const currency = row.currency || (market === 'syria' ? 'SYP' : 'TRY');
-
-        const record = {
-          order_id:         String(row.order_id).trim(),
-          market,
-          brand:            row.brand || 'lowes',
-          customer_name:    row.customer_name || '',
-          phone_1:          row.phone_1 || row.phone || '',
-          wa_number:        row.wa_number || row.phone_1 || '',
-          city:             row.city || '',
-          district:         row.district || '',
-          address:          row.address || '',
-          amount:           Number(row.amount) || 0,
-          currency,
-          status,
-          handler_name:     row.handler_name || '',
-          shipping_company: row.shipping_company || '',
-          tracking_number:  row.tracking_number || null,
-          payment_method:   row.payment_method || 'دفع عند الباب',
-          pickup_type:      row.pickup_type || '',
-          notes:            row.notes || '',
-          items:            row.items || [],
-          order_date:       row.order_date ? new Date(row.order_date).toISOString() : new Date().toISOString(),
-          sheet_synced:     true,
-          created_by:       'استيراد-جدول',
-        };
+        // Map status_ar to status key + build the record (shared with create-on-missing)
+        const record = buildOrderRecord(row, batchMarket, 'استيراد-جدول');
+        const status = record.status;
 
         // Check if order_id already exists
         const { data: existing } = await supabase
