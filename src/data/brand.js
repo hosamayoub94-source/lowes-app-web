@@ -71,7 +71,7 @@ export const BRAND_ASSETS = {
 };
 
 // المفوّض الافتراضي بالصرف/التوقيع على السندات والفواتير
-export const AUTHORIZED_BY = 'Amany';
+export const AUTHORIZED_BY = 'Amany Alkshki';
 
 // ── هيكل البراندات (Brand Architecture) ─────────────────────
 export const SUB_BRANDS = [

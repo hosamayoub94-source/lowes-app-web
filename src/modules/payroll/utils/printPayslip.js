@@ -4,10 +4,13 @@
 // Produces a professional Arabic RTL payslip saveable as PDF
 // =============================================================
 
+import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
+
 const MONTHS_AR = [
   'يناير','فبراير','مارس','أبريل','مايو','يونيو',
   'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر',
 ];
+const sealSrc = () => (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
 
 function fmt(n) {
   return `$${Number(n ?? 0).toFixed(2)}`;
@@ -55,14 +58,14 @@ export function printPayslip(entry, run) {
     display:flex;
     justify-content:space-between;
     align-items:flex-start;
-    border-bottom:3px solid #0f1f3d;
+    border-bottom:3px solid #111827;
     padding-bottom:20px;
     margin-bottom:24px;
   }
   .company-name {
     font-size:26px;
     font-weight:800;
-    color:#0f1f3d;
+    color:#111827;
     letter-spacing:-0.5px;
   }
   .company-sub {
@@ -76,7 +79,7 @@ export function printPayslip(entry, run) {
   .slip-title h2 {
     font-size:18px;
     font-weight:700;
-    color:#0d7377;
+    color:#C9A646;
   }
   .slip-title p {
     font-size:12px;
@@ -116,7 +119,7 @@ export function printPayslip(entry, run) {
     margin-bottom:20px;
   }
   thead th {
-    background:#0f1f3d;
+    background:#111827;
     color:#fff;
     font-size:11px;
     font-weight:700;
@@ -141,7 +144,7 @@ export function printPayslip(entry, run) {
 
   /* Net total */
   .net-row {
-    background:#0d7377;
+    background:#111827;
     color:#fff;
     border-radius:10px;
     padding:14px 20px;
@@ -149,9 +152,10 @@ export function printPayslip(entry, run) {
     justify-content:space-between;
     align-items:center;
     margin-bottom:24px;
+    border:1.5px solid #C9A646;
   }
   .net-row .label { font-size:15px; font-weight:700; }
-  .net-row .amount { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .net-row .amount { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:#E5C97A; }
 
   /* Attendance */
   .att-grid {
@@ -215,10 +219,14 @@ export function printPayslip(entry, run) {
 <body>
 
 <!-- Header -->
-<div class="header">
-  <div>
-    <div class="company-name">لويز</div>
-    <div class="company-sub">للعناية بالبشرة والتجميل</div>
+<div class="header" style="border-bottom-color:#C9A646;">
+  <div style="display:flex; align-items:center; gap:12px;">
+    <img src="${sealSrc()}" alt="LOWE'S" style="height:74px; width:auto;" onerror="this.style.display='none'">
+    <div>
+      <div class="company-name">LOWE'S <span style="color:#C9A646">${BRAND.heart}</span></div>
+      <div class="company-sub" style="font-style:italic; color:#C9A646;">profesyonel</div>
+      <div class="company-sub">${BRAND.sloganAr}</div>
+    </div>
   </div>
   <div class="slip-title">
     <h2>كشف الراتب</h2>
@@ -300,8 +308,8 @@ export function printPayslip(entry, run) {
 <!-- Signatures -->
 <div class="footer">
   <div>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:6px">توقيع المدير</p>
-    <div class="sig-line">المدير المفوض</div>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:6px">توقيع المفوّض</p>
+    <div class="sig-line">${AUTHORIZED_BY}</div>
   </div>
   <div>
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px">استلام الموظف</p>
@@ -309,7 +317,11 @@ export function printPayslip(entry, run) {
   </div>
 </div>
 
-<div class="print-date">صدر بتاريخ ${today} — لويز للعناية بالبشرة</div>
+<div class="print-date" style="border-top:1.5px solid #C9A646; padding-top:8px; margin-top:18px; line-height:1.6;">
+  <div style="font-weight:700;color:#111827">${COMPANY.legalName}</div>
+  <div>📧 ${COMPANY.email} · 🌐 ${COMPANY.website} · 📱 ${COMPANY.whatsapp}</div>
+  <div style="margin-top:2px">صدر بتاريخ ${today} — وثيقة سرية للاستخدام الداخلي</div>
+</div>
 
 <script>
   // Auto-print on load
@@ -350,7 +362,7 @@ export function printRunReport(entries, run) {
       <td class="right">$${Number(e.base_salary_usd ?? 0).toFixed(2)}</td>
       <td class="right" style="color:#059669">$${Number(e.bonus_usd ?? 0).toFixed(2)}</td>
       <td class="right" style="color:#dc2626">$${(Number(e.deductions_usd ?? 0) + Number(e.advance_deduction_usd ?? 0)).toFixed(2)}</td>
-      <td class="right" style="font-weight:700;color:#0d7377">$${net.toFixed(2)}</td>
+      <td class="right" style="font-weight:700;color:#111827">$${net.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
@@ -362,19 +374,19 @@ export function printRunReport(entries, run) {
   @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:Tajawal,sans-serif;padding:32px;color:#111;direction:rtl;font-size:13px}
-  h1{font-size:22px;font-weight:800;color:#0f1f3d}
+  h1{font-size:22px;font-weight:800;color:#111827}
   .sub{font-size:12px;color:#6b7280;margin-top:2px;margin-bottom:24px}
   table{width:100%;border-collapse:collapse}
-  th{background:#0f1f3d;color:#fff;padding:9px 12px;text-align:right;font-size:11px;font-weight:700}
+  th{background:#111827;color:#fff;padding:9px 12px;text-align:right;font-size:11px;font-weight:700}
   th.center,td.center{text-align:center}
   th.right,td.right{text-align:left}
   td{padding:9px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}
   tr:nth-child(even) td{background:#f9fafb}
-  .total-row td{background:#0d7377;color:#fff;font-weight:700;padding:11px 12px}
+  .total-row td{background:#111827;color:#E5C97A;font-weight:700;padding:11px 12px}
   .footer{margin-top:20px;font-size:11px;color:#9ca3af;text-align:center}
   @media print{body{padding:16px}@page{size:A4 landscape;margin:1cm}}
 </style></head><body>
-<h1>لويز — تقرير الرواتب</h1>
+<h1 style="color:#111827">LOWE'S <span style="color:#C9A646">${BRAND.heart}</span> — تقرير الرواتب</h1>
 <div class="sub">${month} ${year} · ${entries.length} موظف · صدر ${today}</div>
 <table>
   <thead><tr>
@@ -392,7 +404,7 @@ export function printRunReport(entries, run) {
     <td class="right">$${total.toFixed(2)}</td>
   </tr></tfoot>
 </table>
-<div class="footer">لويز للعناية بالبشرة — وثيقة سرية للاستخدام الداخلي فقط</div>
+<div class="footer">${COMPANY.legalName} — وثيقة سرية للاستخدام الداخلي فقط</div>
 <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),400))<\/script>
 </body></html>`;
 

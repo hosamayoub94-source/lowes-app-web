@@ -35,9 +35,14 @@ export function Header({ title }) {
           </svg>
         </button>
 
+        <Link to="/" className="shrink-0" title="LOWE'S Professional" aria-label="LOWE'S Professional">
+          <img src="/brand/lowes-seal.png" alt="LOWE'S"
+            className="w-9 h-9 rounded-full object-cover bg-white shadow-sm" />
+        </Link>
+
         <div className="flex-1 min-w-0">
           <h1 className="text-base sm:text-lg font-extrabold text-text truncate">
-            {title || 'لويس برو'}
+            {title || "LOWE'S Professional"}
           </h1>
         </div>
 

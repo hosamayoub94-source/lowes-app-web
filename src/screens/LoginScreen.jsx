@@ -85,6 +85,13 @@ export default function LoginScreen() {
 
   return (
     <Card padding="lg" className="w-full max-w-md">
+      <div className="flex flex-col items-center mb-4">
+        <img src="/brand/lowes-seal.png" alt="LOWE'S Professional"
+          className="w-28 h-28 object-contain" />
+        <p className="text-[11px] text-muted mt-1" style={{ fontStyle: 'italic' }}>
+          عنايةٌ تثقين بها، جمالٌ تستحقّينه
+        </p>
+      </div>
       <CardHeader>
         <div>
           <CardTitle>تسجيل الدخول</CardTitle>
