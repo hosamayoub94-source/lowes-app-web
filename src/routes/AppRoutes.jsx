@@ -73,6 +73,8 @@ const SocialStudioScreen       = lazy(() => import(/* webpackChunkName: "social-
 const SocialTeamScreen         = lazy(() => import(/* webpackChunkName: "social-team"      */ '@screens/SocialTeamScreen'));
 const ProfitabilityScreen      = lazy(() => import(/* webpackChunkName: "profitability"    */ '@screens/ProfitabilityScreen'));
 const ManagementScreen         = lazy(() => import(/* webpackChunkName: "management"         */ '@screens/ManagementScreen'));
+const GuideScreen              = lazy(() => import(/* webpackChunkName: "guide"              */ '@screens/GuideScreen'));
+const AdminGuidesScreen        = lazy(() => import(/* webpackChunkName: "admin-guides"       */ '@screens/admin/AdminGuidesScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -118,6 +120,15 @@ export function AppRoutes() {
           <Route path={ROUTES.ACHIEVEMENTS}   element={<AchievementsScreen />}   />
           <Route path={ROUTES.ANNOUNCEMENTS} element={<AnnouncementsScreen />} />
           <Route path={ROUTES.PROFILE}    element={<ProfileScreen />}    />
+          <Route path={ROUTES.GUIDE}      element={<GuideScreen />}      />
+          <Route
+            path={ROUTES.ADMIN_GUIDES}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+                <AdminGuidesScreen />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Management-only */}
           <Route

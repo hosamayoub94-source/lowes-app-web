@@ -14,6 +14,16 @@ const corsHeaders = {
 };
 
 // ── System prompt مع معرفة الشركة الكاملة ─────────────────────
+// يبني كتلة دليل الاستخدام من جدول app_guides (المصدر الموحّد).
+// أي دليل يُضاف من لوحة الأدمن → لوزي تعرفه فوراً (قراءة وقت الطلب).
+function formatGuidesForPrompt(guides: { title: string; icon?: string; why?: string; steps?: string[] }[]) {
+  if (!guides || !guides.length) return '(لا يوجد دليل مُحمّل حالياً.)';
+  return guides.map((g) => {
+    const steps = (g.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
+    return `### ${g.icon || ''} ${g.title}\n${g.why ? g.why + '\n' : ''}${steps}`;
+  }).join('\n\n');
+}
+
 function buildSystemPrompt(ctx: {
   userName: string;
   userRole: string;
@@ -23,6 +33,7 @@ function buildSystemPrompt(ctx: {
   leaveBalance: any;
   kpi: any;
   learnedFacts: { fact: string; taught_by?: string }[];
+  appGuides: { title: string; icon?: string; why?: string; steps?: string[] }[];
 }) {
   const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -132,42 +143,10 @@ ${ctx.kpi ? `${ctx.kpi.total_score}/100 — ${ctx.kpi.level}` : 'غير محدد
 
 ---
 
-## 📱 دليل استخدام التطبيق الكامل (اشرحي منه خطوة بخطوة عند أي سؤال "كيف بدي…")
+## 📱 دليل استخدام التطبيق (اشرحي منه خطوة بخطوة عند أي سؤال "كيف بدي…")
+> هذا الدليل يُبنى تلقائياً من نظام الأدلة في التطبيق — مُحدَّث دائماً.
 
-### الحضور والانصراف (شاشة "الحضور")
-- **تسجيل الحضور:** اضغطي زر "تسجيل الحضور" → تفتح الكاميرا الأمامية لأخذ سيلفي تأكيد → بعدها يُسجَّل دخولك بالوقت تلقائياً.
-- **تسجيل الانصراف:** اضغطي "تسجيل الانصراف" → قد يظهر سؤال اليوم السريع (اختياري) → ثم سيلفي → يُسجَّل خروجك.
-- ⚠️ **لا يمكن تسجيل الانصراف قبل مرور ساعة على الأقل من الحضور** (لتفادي التسجيل بالخطأ). الزر يبقى معطّلاً مع عدّاد للوقت المتبقي.
-- إذا الكاميرا ما اشتغلت، في زر "متابعة بدون صورة".
-- **الغياب:** في شريط آخر 7 أيام، اضغطي على يوم فاتك بدون حضور لتسجيلي سبب الغياب (مرض/إجازة/إذن…).
-
-### المهام (شاشة "المهام")
-- شوفي مهامك في عرض شبكي أو كانبان (أعمدة: قيد الانتظار/جارية/مراجعة/منجزة).
-- **تغيير حالة مهمة:** في الكانبان اسحبي البطاقة للعمود المطلوب، أو افتحي المهمة وغيّري الحالة.
-- **إنشاء مهمة:** زر "مهمة جديدة" (للمدراء ومن لهم صلاحية الإسناد) → عنوان، منصة، نوع، أولوية، تاريخ، **اختيار التيم ثم الموظف**، رابط، ومرفقات.
-- **تفاصيل المهمة:** اضغطي عليها → تعليقات، نشاط، مرفقات، نسبة إنجاز. المدير يقدر يعدّل أو يحذف المهمة من أزرار الرأس.
-
-### الطلبات (شاشة "الطلبات" /orders)
-- طلبات تركيا 🇹🇷 وسوريا 🇸🇾 بمراحل: وارد ← تجهيز ← جاهز ← شحن ← توصيل.
-- الموظف يشوف طلبات تيمه. مسؤول التجهيز يحرّك حالة الطلب. المدير يشوف الكل.
-
-### الإجازات والأذونات
-- **طلب إجازة:** شاشة "طلبات الإجازات" → نوع الإجازة + التواريخ + السبب → إرسال للمدير. رصيدك السنوي 15 يوم.
-- **طلب سلفة:** شاشة "طلبات السلف" → المبلغ + السبب.
-
-### المراسلة (شاشة "المحادثات")
-- قنوات حسب الفريق + رسائل خاصة. تقدري ترسلي نص/صور/ملفات/رسائل صوتية، تعدّلي/تحذفي رسالتك، ردّ، إعادة توجيه، تفاعلات إيموجي، و@منشن.
-- أوامر البوت داخل الشات: /مهامي، /حضور، /الفريق، /اعلانات، /مساعدة.
-
-### الإشعارات
-- جرس الإشعارات أعلى الصفحة يجمع تنبيهاتك (مهمة جديدة، تعليق، إلخ). اضغطي عليه لقراءتها أو "تعليم الكل كمقروء".
-
-### الراتب والأداء
-- **الراتب:** شاشة الرواتب تعرض راتبك الأساسي + البدلات (سكن/مواصلات) حسب ما عيّنه المدير.
-- **KPI/الأداء:** شاشة الأداء تعرض نتيجتك الشهرية ومستواك.
-
-### الملف الشخصي
-- شاشة "حسابي": تغيير صورتك، وتغيير رقم PIN السري (4 أرقام).
+${formatGuidesForPrompt(ctx.appGuides)}
 
 ---
 
@@ -481,7 +460,7 @@ Deno.serve(async (req: Request) => {
     const today = new Date();
     const dateSlash = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
 
-    const [tasksRes, attRes, lbRes, kpiRes, knowRes] = await Promise.allSettled([
+    const [tasksRes, attRes, lbRes, kpiRes, knowRes, guidesRes] = await Promise.allSettled([
       supabase.from('tasks').select('title,status,due_date')
         .or(userId ? `assignee_id.eq.${userId},assigned_to.eq.${userId}` : `assigned_to.eq.${userId}`)
         .not('status', 'in', '("done","completed","cancelled")')
@@ -502,6 +481,10 @@ Deno.serve(async (req: Request) => {
       // Team-taught knowledge — keeps Lozy learning over time
       supabase.from('lozy_knowledge').select('fact,taught_by')
         .eq('is_active', true).order('created_at', { ascending: false }).limit(60),
+
+      // App usage guides — single source feeding Lozy's how-to knowledge
+      supabase.from('app_guides').select('title,icon,why,steps')
+        .eq('is_published', true).order('sort_order', { ascending: true }),
     ]);
 
     const tasks       = tasksRes.status === 'fulfilled' ? (tasksRes.value.data ?? []) : [];
@@ -509,6 +492,7 @@ Deno.serve(async (req: Request) => {
     const leaveRows   = lbRes.status === 'fulfilled'    ? (lbRes.value.data ?? [])    : [];
     const kpi         = kpiRes.status === 'fulfilled'   ? kpiRes.value.data           : null;
     const learnedFacts = knowRes.status === 'fulfilled' ? (knowRes.value.data ?? [])  : [];
+    const appGuides    = guidesRes.status === 'fulfilled' ? (guidesRes.value.data ?? []) : [];
 
     const inRow  = attRows.find((r: any) => r.type === 'in');
     const outRow = attRows.find((r: any) => r.type === 'out');
@@ -530,7 +514,7 @@ Deno.serve(async (req: Request) => {
     const perms = resolvePerms(userRole, extraPermissions ?? [], deniedPermissions ?? []);
     const ctx = { userId, userName, role: userRole, perms };
 
-    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts })
+    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts, appGuides })
       + `\n\n## 🛠️ تنفيذ الأوامر — قاعدة حاسمة (أهم شي)
 أنتِ الآن **منفِّذة فعلية** (agent) ولستِ مجرد محادِثة. عندك أدوات تنفّذ كشوفات وتقارير وإنشاء مهام وإعلانات.
 - إذا طلب المستخدم أي بيان أو إجراء تغطيه أداة → **استدعي الأداة فوراً** ثم اعرضي النتيجة مرتّبة بالعربي.

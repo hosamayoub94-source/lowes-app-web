@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
   MANAGE_CAMPAIGNS:     'manage_campaigns',     // create/edit campaigns + ads + assignments
   VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
+  MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
 };
 
 // Human labels (for the admin UI)
@@ -55,6 +56,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:     'إنشاء/إدارة الحملات والإعلانات والإسناد',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
+  [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -79,6 +81,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.VIEW_INVENTORY]:      'عرض لوحة المخازن والأرصدة.',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:    'إنشاء الحملات وإضافة الإعلانات وإسناد الموظفين للتسجيل.',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
+  [PERMISSIONS.MANAGE_GUIDES]:       'إضافة وتعديل أدلة استخدام التطبيق (تظهر في الدليل ولوزي تعرفها).',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -94,7 +97,7 @@ export const PERMISSION_GROUPS = [
   { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
     permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
-    permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS] },
+    permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_GUIDES] },
 ];
 
 const ALL = Object.values(PERMISSIONS);
@@ -121,6 +124,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_INVENTORY,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
+    PERMISSIONS.MANAGE_GUIDES,
   ],
 
   [ROLES.SALES_MANAGER]: [

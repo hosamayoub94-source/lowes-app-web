@@ -47,6 +47,7 @@ export const NAV_ITEMS = [
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
+  { id: 'guide',        label: 'دليل التطبيق', icon: '📖', path: '/guide',       roles: ALL,                group: 'self' },
   { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
   { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
   { id: 'team',         label: 'الفريق والورديات', icon: '👥', path: '/team',     roles: ALL,                 group: 'hr' },
@@ -85,6 +86,7 @@ export const NAV_ITEMS = [
   { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
   { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
+  { id: 'admin-guides',   label: 'إدارة الأدلة',  icon: '📖', path: '/admin/guides', roles: [A, M],   group: 'admin', perm: P.MANAGE_GUIDES },
 ];
 
 // An item is visible if the role sees it by default, OR the user has been
