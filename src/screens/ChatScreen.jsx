@@ -8,6 +8,7 @@ import { useLocation }    from 'react-router-dom';
 import { useAuth }        from '@hooks/useAuth';
 import { supabase }       from '@services/supabase';
 import { ROLES }          from '@data/teams';
+import { mergeMessagesById, hasMessageChanges } from '@utils/chatMessages';
 
 // ── Constants ──────────────────────────────────────────────────
 const DEFAULT_CHANNELS = [
@@ -1395,6 +1396,38 @@ export default function ChatScreen(){
     setMsgLoading(false);
   },[]);
 
+  // ── إعادة جلب التفاعلات فقط (دون لمس مصفوفة الرسائل) ───────────
+  // كان اشتراك chat_reactions يستدعي loadMessages الكامل على *أي* تفاعل
+  // بأي غرفة → يمحو التاريخ المُرحّل ويقفز لأسفل («رسائل تختفي»). الآن
+  // نُحدّث خريطة التفاعلات للرسائل المحمّلة فقط.
+  const reloadReactions=useCallback(async()=>{
+    const ids=messagesRef.current.map(m=>m.id).filter(Boolean).slice(-400);
+    if(!ids.length)return;
+    const{data}=await supabase.from('chat_reactions').select('*').in('message_id',ids);
+    const map={};(data??[]).forEach(r=>{(map[r.message_id]=map[r.message_id]||[]).push(r);});
+    setReactions(map);
+  },[]);
+
+  // ── شبكة أمان غير هدّامة عند رجوع التبويب ──────────────────────
+  // تدمج أحدث 200 في المصفوفة الحالية (تلتقط ما فات أثناء الغياب) بلا
+  // حذف التاريخ المُرحّل ولا قفز التمرير إن كان المستخدم يقرأ الأعلى.
+  const catchUpMessages=useCallback(async(roomId)=>{
+    if(!roomId)return;
+    const{data:latest}=await supabase.from('chat_messages').select('*')
+      .eq('room_id',roomId).order('created_at',{ascending:false}).limit(200);
+    const fresh=(latest??[]).slice().reverse();
+    if(!fresh.length)return;
+    if(hasMessageChanges(messagesRef.current,fresh)){
+      const el=msgContainerRef.current;
+      const atBottom=!el||el.scrollHeight-el.scrollTop-el.clientHeight<150;
+      if(!atBottom)skipAutoScrollRef.current=true; // أبقِ موضع القراءة
+      setMessages(prev=>mergeMessagesById(prev,fresh));
+    }
+    const{data:rxs}=await supabase.from('chat_reactions').select('*').in('message_id',fresh.map(m=>m.id));
+    if(rxs){const add={};rxs.forEach(r=>{(add[r.message_id]=add[r.message_id]||[]).push(r);});
+      setReactions(prev=>{const map={...prev};fresh.forEach(m=>{map[m.id]=add[m.id]||[];});return map;});}
+  },[]);
+
   // ── تحميل الرسائل الأقدم (pagination عند السحب للأعلى) ──────────
   // يجيب 200 رسالة أقدم من أقدم رسالة محمّلة ويُلصقها بالأعلى مع حفظ موضع
   // التمرير، حتى يشوف الفريق كل التاريخ مش آخر 200 فقط.
@@ -1462,7 +1495,7 @@ export default function ChatScreen(){
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
         setMessages(p=>p.map(m=>m.id===payload.new.id?payload.new:m));
       })
-      .on('postgres_changes',{event:'*',schema:'public',table:'chat_reactions'},()=>loadMessages(activeRoom.id))
+      .on('postgres_changes',{event:'*',schema:'public',table:'chat_reactions'},()=>reloadReactions())
       .on('broadcast',{event:'typing'},({payload})=>{
         if(payload.userId===userId)return;
         setTypingUsers(p=>[...new Set([...p,payload.userName])]);
@@ -1480,7 +1513,7 @@ export default function ChatScreen(){
         }
       });
     return()=>{subRef.current?.unsubscribe();};
-  },[activeRoom?.id,loadMessages,loadPinned,loadRoomReads,loadRoomMembers,markAsRead,userId]);
+  },[activeRoom?.id,loadMessages,reloadReactions,loadPinned,loadRoomReads,loadRoomMembers,markAsRead,userId]);
 
   useEffect(()=>{
     messagesRef.current=messages;
@@ -1494,11 +1527,11 @@ export default function ChatScreen(){
   // أثناء الغياب. عند العودة نعيد التحميل ونعلّم كمقروء.
   useEffect(()=>{
     if(!activeRoom?.id)return;
-    const refetch=()=>{ if(document.visibilityState==='visible'){ loadMessages(activeRoom.id); markAsRead(activeRoom.id); } };
+    const refetch=()=>{ if(document.visibilityState==='visible'){ catchUpMessages(activeRoom.id); markAsRead(activeRoom.id); } };
     window.addEventListener('focus',refetch);
     document.addEventListener('visibilitychange',refetch);
     return()=>{ window.removeEventListener('focus',refetch); document.removeEventListener('visibilitychange',refetch); };
-  },[activeRoom?.id,loadMessages,markAsRead]);
+  },[activeRoom?.id,catchUpMessages,markAsRead]);
 
   // ── Send ───────────────────────────────────────────────────────
   const handleSend=async msgData=>{
