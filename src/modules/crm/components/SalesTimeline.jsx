@@ -112,7 +112,7 @@ function AddForm({ form, setForm, onSubmit, onCancel, isSubmitting }) {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-navy rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
         >
           {isSubmitting ? <Spinner size="sm" /> : null}
           {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
@@ -189,7 +189,7 @@ export default function SalesTimeline({
               className={cn(
                 'px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-colors',
                 filterType === o.value
-                  ? 'bg-teal text-white border-teal'
+                  ? 'bg-teal text-navy border-teal'
                   : 'bg-surface-alt text-muted border-transparent hover:text-text',
               )}
             >
@@ -201,7 +201,7 @@ export default function SalesTimeline({
         <button
           type="button"
           onClick={() => setShowAddForm(v => !v)}
-          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity"
+          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-teal text-navy rounded-lg hover:opacity-90 transition-opacity"
         >
           + تسجيل نشاط
         </button>

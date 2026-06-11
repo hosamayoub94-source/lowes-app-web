@@ -69,7 +69,7 @@ export default function HelpGuide({ open, onClose }) {
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="w-full sm:max-w-lg bg-surface sm:rounded-2xl shadow-xl border border-border max-h-[92vh] flex flex-col" dir="rtl">
-        <div className="px-5 py-4 border-b border-border shrink-0 bg-gradient-to-l from-navy to-teal text-white sm:rounded-t-2xl">
+        <div className="px-5 py-4 border-b border-border shrink-0 bg-navy text-white sm:rounded-t-2xl">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black">❓ دليل الاستخدام</h2>
             <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-lg leading-none">×</button>

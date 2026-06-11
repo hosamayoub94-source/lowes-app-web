@@ -121,7 +121,7 @@ function PrepCard({ o, checked, onCheck, onAdvance, busy }) {
       </div>
       <button onClick={() => onAdvance(o)} disabled={busy}
         className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
-          o.status === 'pending' ? 'bg-amber-fg/10 text-amber-fg hover:bg-amber-fg/20' : 'bg-teal text-white hover:bg-teal/90'}`}>
+          o.status === 'pending' ? 'bg-amber-fg/10 text-amber-fg hover:bg-amber-fg/20' : 'bg-teal text-navy hover:bg-teal/90'}`}>
         {actionLabel(o)}
       </button>
     </div>
@@ -207,7 +207,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
   return (
     <div className="space-y-4">
       {/* الرأس اليومي */}
-      <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-4 text-white">
+      <div className="bg-navy rounded-2xl p-4 text-white">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="font-extrabold text-base">📦 تجهيز اليوم — {marketLabel}</h2>
@@ -257,7 +257,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
           <p className="text-sm font-bold flex-1">{selected.size} طلب محدّد</p>
           {progress && <p className="text-xs text-white/80">{progress.done}/{progress.total}…</p>}
           <button onClick={advanceSelected} disabled={busy}
-            className="px-4 py-2 rounded-xl bg-teal text-white text-xs font-extrabold hover:bg-teal/90 transition disabled:opacity-40">
+            className="px-4 py-2 rounded-xl bg-teal text-navy text-xs font-extrabold hover:bg-teal/90 transition disabled:opacity-40">
             {busy ? '⏳ جارٍ الترحيل…' : '⏭️ رحّل المحدد'}
           </button>
           <button onClick={() => setSelected(new Set())} disabled={busy}

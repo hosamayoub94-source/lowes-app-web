@@ -151,14 +151,14 @@ function TemplatePicker({ targetDate, onSelect, onClose }) {
         {/* Category tabs */}
         <div className="flex gap-1.5 p-3 border-b border-border/50 overflow-x-auto shrink-0">
           <button onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${activeCategory === 'all' ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text'}`}>
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${activeCategory === 'all' ? 'bg-teal text-navy' : 'bg-surface-alt text-muted hover:text-text'}`}>
             📚 الكل ({QUESTION_TEMPLATES.length})
           </button>
           {CATEGORIES.map(c => {
             const cnt = QUESTION_TEMPLATES.filter(t => t.category === c.key).length;
             return (
               <button key={c.key} onClick={() => setActiveCategory(c.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${activeCategory === c.key ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text'}`}>
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${activeCategory === c.key ? 'bg-teal text-navy' : 'bg-surface-alt text-muted hover:text-text'}`}>
                 {c.icon} {c.label} ({cnt})
               </button>
             );
@@ -317,7 +317,7 @@ function AutoGeneratePanel({ onClose, onGenerated }) {
             🔀 إعادة الخلط
           </button>
           <button onClick={handleSave} disabled={saving || !preview.length || !categories.length}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 disabled:opacity-50 transition">
             {saving ? '⏳ جاري الحفظ…' : `✅ حفظ ${preview.length} سؤال`}
           </button>
         </div>
@@ -469,7 +469,7 @@ export default function AdminQuizScreen() {
             ⚡ توليد تلقائي
           </button>
           <button onClick={openNewManual}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition ${showForm && !editId ? 'bg-surface border border-border text-muted' : 'bg-teal text-white hover:opacity-90'}`}>
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition ${showForm && !editId ? 'bg-surface border border-border text-muted' : 'bg-teal text-navy hover:opacity-90'}`}>
             {showForm && !editId ? '✕ إلغاء' : '+ سؤال جديد'}
           </button>
         </div>
@@ -552,7 +552,7 @@ export default function AdminQuizScreen() {
             </div>
             <div className="flex gap-3">
               <button onClick={handleSave} disabled={formSaving}
-                className="flex-1 py-3 rounded-xl bg-teal text-white font-bold text-sm hover:opacity-90 transition disabled:opacity-60">
+                className="flex-1 py-3 rounded-xl bg-teal text-navy font-bold text-sm hover:opacity-90 transition disabled:opacity-60">
                 {formSaving ? 'جاري الحفظ…' : editId ? '💾 حفظ التعديلات' : '✅ إضافة السؤال'}
               </button>
               <button onClick={() => { setShowForm(false); setEditId(null); setFormError(null); }}
@@ -598,7 +598,7 @@ export default function AdminQuizScreen() {
           <p className="text-xs text-muted mb-5">أضف أسئلة يدويًا أو استخدم التوليد التلقائي</p>
           <div className="flex gap-2 justify-center flex-wrap">
             <button onClick={openNewManual}
-              className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition">
+              className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
               + سؤال يدوي
             </button>
             <button onClick={() => setShowGenerate(true)}

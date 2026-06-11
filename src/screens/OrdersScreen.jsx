@@ -210,7 +210,7 @@ function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, savi
           className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
       </div>
       <button onClick={() => onSave(draft, actor)} disabled={saving}
-        className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
+        className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
         {saving ? 'جاري الحفظ…' : '💾 حفظ الإعدادات'}
       </button>
     </div>
@@ -819,7 +819,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             )}
             {delivered.length > 0 && (
               <button onClick={exportExcel} disabled={exporting}
-                className="px-3 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition disabled:opacity-40">
+                className="px-3 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition disabled:opacity-40">
                 {exporting ? '…' : '⬇️ تصدير Excel'}
               </button>
             )}
@@ -835,7 +835,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         {/* Grand totals */}
         {Object.keys(grandTotals).length > 0 && (
           <div className="flex gap-3 mt-3 flex-wrap items-stretch">
-            <div className="bg-teal text-white rounded-xl px-3 py-1.5 text-center">
+            <div className="bg-teal text-navy rounded-xl px-3 py-1.5 text-center">
               <p className="text-[10px] opacity-80">الإجمالي ≈ USD</p>
               <p className="text-sm font-black">${delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0).toFixed(0)}</p>
             </div>
@@ -1079,7 +1079,7 @@ function TrackingTab({ orders }) {
                     <div key={s.key} className="flex items-center flex-1">
                       <div className={`flex flex-col items-center flex-1`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition
-                          ${current ? 'bg-teal text-white shadow-lg scale-110' : done ? 'bg-teal/20 text-teal' : 'bg-surface-alt text-muted/40'}`}>
+                          ${current ? 'bg-teal text-navy shadow-lg scale-110' : done ? 'bg-teal/20 text-teal' : 'bg-surface-alt text-muted/40'}`}>
                           {s.icon}
                         </div>
                         <p className={`text-[9px] mt-0.5 font-medium ${done ? 'text-teal' : 'text-muted/40'}`}>{s.label}</p>
@@ -1100,7 +1100,7 @@ function TrackingTab({ orders }) {
                 </div>
                 {tUrl && (
                   <a href={tUrl} target="_blank" rel="noreferrer"
-                    className="shrink-0 px-3 py-1.5 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
                     🚚 تتبع
                   </a>
                 )}
@@ -2165,7 +2165,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
         <div className="flex gap-2 px-5 py-4 border-t border-border/40 shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
           <button onClick={handleSave} disabled={!form.customer_name.trim() || saving}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
             {saving ? '…جاري الحفظ' : isEdit ? '✓ حفظ التعديلات' : '✓ إنشاء الطلب'}
           </button>
         </div>
@@ -2285,7 +2285,7 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
   return (
     <div className="space-y-4">
       {/* بطاقة الملخص */}
-      <div className="bg-gradient-to-br from-navy to-teal rounded-2xl p-5 text-white space-y-4">
+      <div className="bg-navy rounded-2xl p-5 text-white space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs opacity-80">محفظة مبيعاتي</p>
@@ -2973,7 +2973,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           )}
           {!isFulfillment && !isStorage && !viewArchive && (
             <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-white border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-navy border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تتبع الشحنات">
               📡
             </button>
@@ -3001,7 +3001,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
-              className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
+              className="px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
               + طلب جديد
             </button>
           )}
@@ -3023,7 +3023,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           </button>
           <button onClick={() => setMyOrders(true)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
-              ${myOrders ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+              ${myOrders ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
             👤 طلباتي{partnerNames.length > 0 ? ` +${partnerNames.length}` : ''}{stats.myDelivered > 0 ? ` · ${stats.myDelivered} ✅` : ''}
           </button>
         </div>
@@ -3130,7 +3130,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           ].map(b => (
             <button key={b.key} onClick={() => setBrandFilter(b.key)}
               className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
-                ${brandFilter === b.key ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+                ${brandFilter === b.key ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
               {b.icon} {b.label}
             </button>
           ))}

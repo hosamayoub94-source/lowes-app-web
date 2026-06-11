@@ -215,7 +215,7 @@ function CustomerModal({ c, sellerName, onClose }) {
                 placeholder="بشرة جافة · تحب الترطيب · اشترت لابنتها..."
                 className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
               <button onClick={save} disabled={saving || !text.trim()}
-                className="px-3 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">+</button>
+                className="px-3 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">+</button>
             </div>
             {notes.length === 0 ? (
               <p className="text-[11px] text-muted text-center py-1">لا ملاحظات بعد.</p>
@@ -417,7 +417,7 @@ export default function CustomersScreen() {
           <option value="name">🔤 الاسم</option>
         </select>
         <button onClick={() => setMineOnly(v => !v)}
-          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${mineOnly ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition shrink-0 ${mineOnly ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
           👤 عملائي
         </button>
         <button onClick={() => setVipOnly(v => !v)}

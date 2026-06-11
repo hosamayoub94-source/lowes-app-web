@@ -140,7 +140,7 @@ function RequestFormModal({ onClose, onSaved, name }) {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-3 rounded-2xl bg-teal text-white font-extrabold text-sm hover:bg-teal/90 active:scale-95 transition disabled:opacity-50"
+            className="w-full py-3 rounded-2xl bg-teal text-navy font-extrabold text-sm hover:bg-teal/90 active:scale-95 transition disabled:opacity-50"
           >
             {saving ? 'جاري الإرسال...' : 'إرسال الطلب'}
           </button>
@@ -298,7 +298,7 @@ export default function AdvanceRequestsScreen() {
         {!isManager && (
           <button
             onClick={() => setFormOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-teal text-white text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
           >
             + طلب
           </button>
@@ -334,7 +334,7 @@ export default function AdvanceRequestsScreen() {
                 key={key}
                 onClick={() => setTab(key)}
                 className={`flex-1 py-2 rounded-xl text-sm font-bold transition ${
-                  tab === key ? 'bg-teal text-white shadow' : 'text-muted hover:text-text'
+                  tab === key ? 'bg-teal text-navy shadow' : 'text-muted hover:text-text'
                 }`}
               >
                 {lbl}

@@ -214,7 +214,7 @@ function KpiEntryModal({ employee, month, year, existing, onSave, onClose }) {
         </div>
 
         <div className="flex gap-3 px-5 py-4 border-t border-border/40">
-          <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+          <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
             {saving ? '…جاري الحفظ' : '✓ حفظ البيانات'}
           </button>
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted hover:text-text transition">إلغاء</button>
@@ -358,7 +358,7 @@ function MyKpiView({ kpi, month, year, userId }) {
   return (
     <div className="space-y-4">
       {/* Hero score */}
-      <div className={`bg-gradient-to-br from-navy to-teal rounded-3xl p-6 text-white shadow-xl relative overflow-hidden`}>
+      <div className={`bg-navy rounded-3xl p-6 text-white shadow-xl relative overflow-hidden`}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-8 -end-8 w-40 h-40 rounded-full bg-white" />
         </div>

@@ -69,7 +69,7 @@ export default function SocialStudioScreen() {
     <div className="max-w-3xl mx-auto pb-24 space-y-4" dir="rtl">
 
       {/* Header */}
-      <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-5 text-white">
+      <div className="bg-navy rounded-2xl p-5 text-white">
         <h1 className="text-xl font-extrabold flex items-center gap-2">🌸 استوديو السوشال</h1>
         <p className="text-white/70 text-xs mt-1">مساعد محتوى لويز بالذكاء الاصطناعي — كابشن، ريلز، ردود، وتقويم محتوى</p>
       </div>
@@ -135,7 +135,7 @@ export default function SocialStudioScreen() {
         <button
           onClick={generate}
           disabled={!canGenerate || (mode === 'reply' && !extra.trim())}
-          className="w-full py-3 rounded-xl bg-teal text-white font-bold hover:bg-teal/90 transition disabled:opacity-40 flex items-center justify-center gap-2">
+          className="w-full py-3 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 transition disabled:opacity-40 flex items-center justify-center gap-2">
           {loading ? (
             <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> جارٍ التوليد…</>
           ) : (

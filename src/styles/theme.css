@@ -10,9 +10,9 @@
   /* Brand — deep plum primary (premium, warm) + GOLD accent (هوية البراند)
      الـaccent = الذهبي الرسمي #C9A646 → يوحّد التطبيق مع الفواتير والشعار.
      (للتراجع: أعِد --color-teal إلى 13 115 119). */
-  --color-navy: 45 27 78;           /* #2d1b4e  deep plum (أساس داكن فاخر) */
-  --color-teal: 154 122 30;         /* #9A7A1E  ذهبي عميق (accent) — مقروء مع نص أبيض */
-  --color-gold: 201 166 70;         /* #C9A646  الذهبي الفاتح للمسات على الأبيض */
+  --color-navy: 28 22 40;           /* #1c1628  أسود-فحمي (نص/عناصر داكنة — هوية B) */
+  --color-teal: 201 166 70;         /* #C9A646  الذهبي الرسمي (accent) — نص غامق فوقه */
+  --color-gold: 201 166 70;         /* #C9A646  ذهبي الهوية */
 
   /* Surfaces — warm, spacious */
   --color-cream: 250 248 246;       /* #faf8f6  warm cream */

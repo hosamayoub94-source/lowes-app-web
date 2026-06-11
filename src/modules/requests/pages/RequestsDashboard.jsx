@@ -116,7 +116,7 @@ export function RequestsDashboard() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
           طلب جديد
@@ -156,7 +156,7 @@ export function RequestsDashboard() {
           </p>
           <button
             onClick={() => setShowForm(true)}
-            className="mt-2 px-5 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition"
+            className="mt-2 px-5 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition"
           >
             + تقديم طلب جديد
           </button>
@@ -302,7 +302,7 @@ export function RequestsDashboard() {
               <button
                 onClick={handleSubmit}
                 disabled={loading.action}
-                className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition active:scale-95"
+                className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition active:scale-95"
               >
                 {loading.action ? '…جار الإرسال' : '✓ إرسال الطلب'}
               </button>

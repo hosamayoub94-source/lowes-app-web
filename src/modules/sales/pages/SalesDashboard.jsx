@@ -270,7 +270,7 @@ function NewReportModal({ open, onClose, onSave, loading, campaigns, channels })
         {/* Footer */}
         <div className="flex gap-2 px-6 py-4 border-t border-border shrink-0">
           <button onClick={handleSave} disabled={loading.action}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
             {loading.action ? '⏳ جار الحفظ…' : '💾 حفظ كمسودة'}
           </button>
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text hover:bg-surface-alt transition">
@@ -546,7 +546,7 @@ function SalesTargetWidget({ isAdmin, monthSales }) {
             />
           </div>
           <button onClick={save} disabled={saving}
-            className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-60 transition">
+            className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-60 transition">
             {saving ? '…' : 'حفظ'}
           </button>
           <button onClick={() => setEditing(false)}
@@ -670,7 +670,7 @@ export function SalesDashboard() {
           <p className="text-sm text-muted mt-0.5">تقارير المبيعات ونتائج الحملات الإعلانية</p>
         </div>
         <button onClick={() => setShowForm(true)}
-          className="px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
+          className="px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2 shrink-0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span className="hidden sm:inline">تقرير جديد</span>
         </button>

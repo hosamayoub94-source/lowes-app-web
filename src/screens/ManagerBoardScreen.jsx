@@ -111,7 +111,7 @@ export default function ManagerBoardScreen() {
     <div className="max-w-4xl mx-auto pt-10 text-center" dir="rtl">
       <p className="text-4xl mb-3">⚠️</p>
       <p className="text-text font-bold">{error}</p>
-      <button onClick={load} className="mt-4 px-5 py-2 rounded-xl bg-teal text-white font-semibold">إعادة المحاولة</button>
+      <button onClick={load} className="mt-4 px-5 py-2 rounded-xl bg-teal text-navy font-semibold">إعادة المحاولة</button>
     </div>
   );
 
@@ -127,7 +127,7 @@ export default function ManagerBoardScreen() {
     <div className="max-w-4xl mx-auto pb-24 space-y-4" dir="rtl">
 
       {/* Header */}
-      <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-5 text-white">
+      <div className="bg-navy rounded-2xl p-5 text-white">
         <p className="text-white/80 text-sm">{arGreeting()}، {name} 👋</p>
         <h1 className="text-xl font-extrabold mt-1">لوحة القيادة التنفيذية</h1>
         <p className="text-white/70 text-xs mt-1">{todayLabel()}</p>

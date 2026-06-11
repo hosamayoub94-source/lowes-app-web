@@ -121,7 +121,7 @@ function CurrencyWidget() {
                 placeholder={String(sypRate)}
                 autoFocus
               />
-              <button onClick={saveSyp} className="text-xs bg-teal text-white rounded-lg px-2">✓</button>
+              <button onClick={saveSyp} className="text-xs bg-teal text-navy rounded-lg px-2">✓</button>
             </div>
           ) : (
             <>
@@ -360,7 +360,7 @@ function AttendanceCard({ name, team }) {
               </button>
             ) : (
               <button onClick={checkIn} disabled={saving}
-                className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]">
                 {saving ? '⏳' : '✅ دخول'}
               </button>
             )
@@ -758,7 +758,7 @@ function LowStockCard() {
 function CampaignsLinkCard() {
   return (
     <Link to="/campaigns" className="block">
-      <div className="bg-gradient-to-r from-navy to-teal rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-navy/10">
+      <div className="bg-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-navy/10">
         <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">📣</div>
         <div className="flex-1 min-w-0">
           <p className="text-white font-black text-sm">الحملات</p>
@@ -1018,7 +1018,7 @@ export default function HomeScreen() {
       case 'celebration':     return <CelebrationBanner />;
       case 'training':        return (
         <Link to="/training" className="block">
-          <div className="bg-gradient-to-r from-teal to-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-teal/10">
+          <div className="bg-navy rounded-2xl px-5 py-4 flex items-center gap-4 hover:opacity-95 transition-all active:scale-[0.99] shadow-md shadow-teal/10">
             <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">🧠</div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-black text-sm">التدريب اليومي</p>

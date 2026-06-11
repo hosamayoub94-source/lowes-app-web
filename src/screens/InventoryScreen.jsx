@@ -469,7 +469,7 @@ function BatchPriceModal({ onClose, onDone }) {
         {err && <p className="text-xs text-red-fg bg-red-bg mx-4 my-1 rounded-xl px-3 py-2">⚠️ {err}</p>}
         <div className="flex gap-2 p-4 border-t border-border shrink-0">
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-border text-sm text-muted">إلغاء</button>
-          <button onClick={save} disabled={busy} className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">
+          <button onClick={save} disabled={busy} className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">
             {busy ? '…' : changedCount ? `💾 حفظ ${changedCount} منتج` : 'إغلاق'}
           </button>
         </div>
@@ -517,7 +517,7 @@ function StockActionModal({ product, performedBy, onClose, onDone }) {
         <div className="grid grid-cols-2 gap-2">
           {[['receive','📥 استلام (إضافة)'],['adjust','± جرد (تعيين)']].map(([k,l]) => (
             <button key={k} onClick={() => setMode(k)}
-              className={'py-2 rounded-xl text-xs font-bold border ' + (mode===k ? 'bg-teal text-white border-teal' : 'border-border text-muted')}>{l}</button>
+              className={'py-2 rounded-xl text-xs font-bold border ' + (mode===k ? 'bg-teal text-navy border-teal' : 'border-border text-muted')}>{l}</button>
           ))}
         </div>
         <div>
@@ -536,7 +536,7 @@ function StockActionModal({ product, performedBy, onClose, onDone }) {
         {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2">⚠️ {err}</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-border text-sm text-muted">إلغاء</button>
-          <button onClick={submit} disabled={busy || qty === '' || !whId} className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">{busy ? '…' : 'تأكيد'}</button>
+          <button onClick={submit} disabled={busy || qty === '' || !whId} className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">{busy ? '…' : 'تأكيد'}</button>
         </div>
       </div>
     </div>
@@ -595,7 +595,7 @@ function CategorySalesPanel() {
         <div className="flex gap-1">
           {[['all','الكل'],['month','هذا الشهر']].map(([k,l]) => (
             <button key={k} onClick={() => setPeriod(k)}
-              className={'px-2.5 py-1 rounded-lg text-[11px] font-bold ' + (period===k ? 'bg-teal text-white' : 'bg-surface-alt text-muted')}>{l}</button>
+              className={'px-2.5 py-1 rounded-lg text-[11px] font-bold ' + (period===k ? 'bg-teal text-navy' : 'bg-surface-alt text-muted')}>{l}</button>
           ))}
         </div>
       </div>
@@ -838,7 +838,7 @@ ON CONFLICT (sku) DO NOTHING;`}
             <button
               key={k}
               onClick={() => setCat(k)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${catFilter === k ? 'bg-teal text-white' : 'bg-surface border border-border text-muted hover:text-text'}`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${catFilter === k ? 'bg-teal text-navy' : 'bg-surface border border-border text-muted hover:text-text'}`}
             >
               {lbl}
             </button>

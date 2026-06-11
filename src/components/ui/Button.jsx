@@ -21,7 +21,7 @@ const VARIANTS = {
   success:
     'bg-green text-white hover:opacity-95 border border-transparent',
   teal:
-    'bg-teal text-white hover:opacity-95 border border-transparent',
+    'bg-teal text-navy hover:opacity-95 border border-transparent',
 };
 
 const SIZES = {

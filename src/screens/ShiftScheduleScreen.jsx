@@ -117,11 +117,11 @@ export default function ShiftScheduleScreen() {
           {isManager && (
             <>
               <div className="flex rounded-xl overflow-hidden border border-border text-xs font-bold">
-                <button onClick={() => setMyView(true)}  className={`px-3 py-1.5 transition ${myView  ? 'bg-teal text-white' : 'text-muted hover:bg-surface-alt'}`}>مناوبتي</button>
-                <button onClick={() => setMyView(false)} className={`px-3 py-1.5 transition ${!myView ? 'bg-teal text-white' : 'text-muted hover:bg-surface-alt'}`}>الكل</button>
+                <button onClick={() => setMyView(true)}  className={`px-3 py-1.5 transition ${myView  ? 'bg-teal text-navy' : 'text-muted hover:bg-surface-alt'}`}>مناوبتي</button>
+                <button onClick={() => setMyView(false)} className={`px-3 py-1.5 transition ${!myView ? 'bg-teal text-navy' : 'text-muted hover:bg-surface-alt'}`}>الكل</button>
               </div>
               <button onClick={() => { setFormData({ employee_name: '', work_date: today, shift_type: 'morning', notes: '' }); setFormOpen(true); }}
-                className="px-3 py-1.5 text-xs font-bold bg-teal text-white rounded-xl hover:opacity-90 transition">
+                className="px-3 py-1.5 text-xs font-bold bg-teal text-navy rounded-xl hover:opacity-90 transition">
                 + تعيين مناوبة
               </button>
             </>
@@ -269,7 +269,7 @@ export default function ShiftScheduleScreen() {
                 <div className="grid grid-cols-3 gap-2">
                   {Object.entries(SHIFT_CONFIG).map(([k, v]) => (
                     <button key={k} onClick={() => setFormData(p => ({...p, shift_type: k}))}
-                      className={`px-2 py-2 rounded-xl text-xs font-bold border transition ${formData.shift_type === k ? 'bg-teal text-white border-teal' : `border ${v.color}`}`}>
+                      className={`px-2 py-2 rounded-xl text-xs font-bold border transition ${formData.shift_type === k ? 'bg-teal text-navy border-teal' : `border ${v.color}`}`}>
                       {v.icon} {v.label}
                     </button>
                   ))}
@@ -285,7 +285,7 @@ export default function ShiftScheduleScreen() {
 
             <div className="flex gap-2 pt-1">
               <button onClick={save} disabled={saving || !formData.employee_name || !formData.work_date}
-                className="flex-1 py-2.5 bg-teal text-white rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-40 transition">
+                className="flex-1 py-2.5 bg-teal text-navy rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-40 transition">
                 {saving ? '⏳ جاري الحفظ...' : '💾 حفظ'}
               </button>
               <button onClick={() => setFormOpen(false)}

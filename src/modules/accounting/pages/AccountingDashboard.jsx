@@ -583,7 +583,7 @@ export function AccountingDashboard() {
               className="border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
           </div>
           <button onClick={handleApplyDates}
-            className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition">
+            className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition">
             تطبيق
           </button>
           {(dateFrom || dateTo || search) && (

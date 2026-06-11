@@ -157,7 +157,7 @@ function AbsenceReasonModal({ slash, userName, existingReason, onSave, onClose }
         <div className="flex gap-2 px-4 pb-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
           <button onClick={handleSave} disabled={!selected || saving}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
             {saving ? '…' : '✓ حفظ السبب'}
           </button>
         </div>
@@ -591,7 +591,7 @@ export default function AttendanceScreen() {
   const BIG_BTN = checkoutLocked
     ? { label: `الانصراف متاح بعد ${checkoutLockLeft} د`, icon: '⏳', cls: 'bg-surface-alt text-muted cursor-not-allowed shadow-none border border-border' }
     : {
-        checkin:  { label: completedToday ? 'بدء وردية جديدة' : 'تسجيل الحضور', icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-white shadow-teal/25' },
+        checkin:  { label: completedToday ? 'بدء وردية جديدة' : 'تسجيل الحضور', icon: '✅', cls: 'bg-teal hover:bg-teal/90 text-navy shadow-teal/25' },
         checkout: { label: 'تسجيل الانصراف',  icon: '🏠', cls: 'bg-navy hover:bg-navy/90 text-white shadow-navy/25' },
       }[btnState];
 
@@ -739,7 +739,7 @@ export default function AttendanceScreen() {
           onClick={e => e.target === e.currentTarget && handleQuizSkip()}>
           <div className="bg-surface rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" dir="rtl">
             {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-r from-teal to-navy text-white">
+            <div className="px-5 py-4 bg-navy text-white">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[11px] text-white/60 uppercase tracking-wider">قبل المغادرة</p>

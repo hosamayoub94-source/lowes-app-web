@@ -57,7 +57,7 @@ function EconEditor({ p, onSave, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4 bg-black/50" onClick={e=>e.target===e.currentTarget&&onClose()} dir="rtl">
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-2xl border border-border overflow-hidden">
-        <div className="px-4 py-3 bg-gradient-to-l from-navy to-teal text-white">
+        <div className="px-4 py-3 bg-navy text-white">
           <p className="font-bold text-sm">اقتصاديات: {p.name}</p>
           <p className="text-[11px] text-white/70">كل القيم بالدولار (USD) لكل وحدة</p>
         </div>
@@ -74,7 +74,7 @@ function EconEditor({ p, onSave, onClose }) {
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إلغاء</button>
-            <button onClick={save} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-white font-bold hover:bg-teal/90 disabled:opacity-50">{busy?'جارٍ…':'حفظ'}</button>
+            <button onClick={save} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 disabled:opacity-50">{busy?'جارٍ…':'حفظ'}</button>
           </div>
         </div>
       </div>
@@ -128,7 +128,7 @@ function BulkEconEditor({ products, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center sm:p-4 bg-black/50" onClick={e=>e.target===e.currentTarget&&onClose()} dir="rtl">
       <div className="w-full sm:max-w-2xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
-        <div className="px-4 py-3 bg-gradient-to-l from-navy to-teal text-white shrink-0">
+        <div className="px-4 py-3 bg-navy text-white shrink-0">
           <p className="font-bold text-sm">✏️ تعديل التكاليف للكل — كل القيم بالدولار/وحدة</p>
           <p className="text-[11px] text-white/70">عبّي التكلفة (والإعلان/الشحن إن وُجد) → احفظ مرّة واحدة. الربح يظهر فوراً.</p>
         </div>
@@ -167,7 +167,7 @@ function BulkEconEditor({ products, onClose, onSaved }) {
         </div>
         <div className="flex gap-2 p-3 border-t border-border shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إغلاق</button>
-          <button onClick={saveAll} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-white font-bold hover:bg-teal/90 disabled:opacity-50">
+          <button onClick={saveAll} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 disabled:opacity-50">
             {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'منتج' : 'الكل'}`}
           </button>
         </div>
@@ -216,7 +216,7 @@ export default function ProfitabilityScreen() {
 
   return (
     <div className="max-w-3xl mx-auto pb-24 space-y-4" dir="rtl">
-      <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-5 text-white">
+      <div className="bg-navy rounded-2xl p-5 text-white">
         <h1 className="text-xl font-extrabold flex items-center gap-2">💎 ربحية المنتج</h1>
         <p className="text-white/70 text-xs mt-1">الربح الصافي الحقيقي لكل صنف — حدّد التكلفة لكشف الرابح من الخاسر</p>
       </div>
@@ -225,7 +225,7 @@ export default function ProfitabilityScreen() {
       <div className="flex gap-1.5">
         {PERIODS.map(p => (
           <button key={p.key} onClick={()=>setPeriod(p.key)}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${period===p.key?'bg-teal text-white border-teal':'bg-surface text-muted border-border hover:border-teal/40'}`}>
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${period===p.key?'bg-teal text-navy border-teal':'bg-surface text-muted border-border hover:border-teal/40'}`}>
             {p.label}
           </button>
         ))}
@@ -241,7 +241,7 @@ export default function ProfitabilityScreen() {
 
       {/* Bulk cost entry CTA */}
       <button onClick={()=>setBulk(true)}
-        className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
+        className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
         ✏️ تعديل التكاليف للكل دفعة واحدة
       </button>
 

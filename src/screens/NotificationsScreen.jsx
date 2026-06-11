@@ -279,7 +279,7 @@ export default function NotificationsScreen() {
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                 tab === t.key
-                  ? 'bg-teal text-white shadow-sm'
+                  ? 'bg-teal text-navy shadow-sm'
                   : 'bg-surface border border-border text-muted hover:text-text hover:border-teal/30'
               }`}>
               <span>{t.icon}</span>

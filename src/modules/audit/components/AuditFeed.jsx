@@ -134,7 +134,7 @@ function PageBtn({ label, active, disabled, onClick }) {
       className={cn(
         'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
         active
-          ? 'bg-teal text-white'
+          ? 'bg-teal text-navy'
           : 'bg-surface text-muted hover:bg-border/30 disabled:opacity-40',
       )}
     >

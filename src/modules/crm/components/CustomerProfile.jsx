@@ -34,7 +34,7 @@ function ContactAvatar({ name, isPrimary }) {
   return (
     <div className={cn(
       'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-      isPrimary ? 'bg-teal text-white' : 'bg-surface-alt text-muted',
+      isPrimary ? 'bg-teal text-navy' : 'bg-surface-alt text-muted',
     )}>
       {name?.[0]?.toUpperCase() ?? '?'}
     </div>
@@ -257,7 +257,7 @@ export default function CustomerProfile({ customerId, onClose }) {
                 type="button"
                 onClick={handleAddNote}
                 disabled={isSubmitting || !noteText.trim()}
-                className="mt-2 flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="mt-2 flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-navy rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {isSubmitting ? <Spinner size="sm" /> : null}
                 {isSubmitting ? 'جاري الحفظ...' : 'حفظ الملاحظة'}

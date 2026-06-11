@@ -400,7 +400,7 @@ export default function LeaveRequestsScreen() {
               onClick={() => setTab(t.key)}
               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 tab === t.key
-                  ? 'bg-teal text-white shadow-sm'
+                  ? 'bg-teal text-navy shadow-sm'
                   : 'text-muted hover:text-text'
               }`}
             >
@@ -417,7 +417,7 @@ export default function LeaveRequestsScreen() {
           {!showForm && (
             <button
               onClick={() => { setShowForm(true); setFormMsg(null); }}
-              className="w-full py-3.5 rounded-2xl bg-teal text-white font-bold text-sm hover:opacity-90 transition-all hover:scale-[1.01] active:scale-[0.99] shadow-md">
+              className="w-full py-3.5 rounded-2xl bg-teal text-navy font-bold text-sm hover:opacity-90 transition-all hover:scale-[1.01] active:scale-[0.99] shadow-md">
               ＋ تقديم طلب إجازة جديد
             </button>
           )}
@@ -502,7 +502,7 @@ export default function LeaveRequestsScreen() {
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !formData.start || !formData.end}
-                className="w-full py-3 rounded-xl bg-teal text-white font-bold text-sm hover:opacity-90 transition disabled:opacity-50">
+                className="w-full py-3 rounded-xl bg-teal text-navy font-bold text-sm hover:opacity-90 transition disabled:opacity-50">
                 {submitting ? 'جاري الإرسال…' : '📤 إرسال الطلب'}
               </button>
             </div>

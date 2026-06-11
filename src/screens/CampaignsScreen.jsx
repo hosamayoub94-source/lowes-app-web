@@ -73,7 +73,7 @@ function SetupBanner() {
       <p className="text-xs text-muted">لتفعيل التسجيل اليومي ومتابعة الالتزام، انسخ هذا الـSQL ونفّذه مرة واحدة في Supabase:</p>
       <pre className="text-[10px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-40">{SETUP_SQL}</pre>
       <button onClick={() => { navigator.clipboard.writeText(SETUP_SQL).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); }}
-        className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
+        className="px-3 py-1.5 rounded-lg bg-teal text-navy text-xs font-semibold hover:bg-teal/90 transition">
         {copied ? '✓ تم النسخ' : 'نسخ SQL'}
       </button>
     </div>
@@ -458,7 +458,7 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
         <div className="flex gap-1 px-5 pt-3 shrink-0 flex-wrap">
           {TABS.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={'px-3 py-2 rounded-xl text-xs font-bold transition-colors ' + (tab === k ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text')}>
+              className={'px-3 py-2 rounded-xl text-xs font-bold transition-colors ' + (tab === k ? 'bg-teal text-navy' : 'bg-surface-alt text-muted hover:text-text')}>
               {label}
             </button>
           ))}
@@ -811,7 +811,7 @@ export default function CampaignsScreen() {
       <div className="flex gap-2 flex-wrap">
         {[['all','الكل'],['active','🟢 مفعّلة'],['inactive','⚪ معطّلة'],['paused','⏸️ متوقفة']].map(([k, label]) => (
           <button key={k} onClick={() => setFilterStatus(k)}
-            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' + (filterStatus === k ? 'bg-teal text-white' : 'bg-surface border border-border text-muted hover:text-text')}>
+            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' + (filterStatus === k ? 'bg-teal text-navy' : 'bg-surface border border-border text-muted hover:text-text')}>
             {label}
           </button>
         ))}

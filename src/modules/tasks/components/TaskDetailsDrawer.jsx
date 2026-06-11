@@ -382,7 +382,7 @@ function EditTaskForm({ task, employees, onSave, onCancel, loading }) {
       </div>
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel} className="flex-1 rounded-xl border border-border py-2.5 text-sm font-semibold text-muted hover:text-text transition-colors">إلغاء</button>
-        <button type="submit" disabled={loading || !form.title.trim()} className="flex-1 rounded-xl bg-teal text-white py-2.5 text-sm font-semibold disabled:opacity-50 hover:bg-teal/90 transition-colors">
+        <button type="submit" disabled={loading || !form.title.trim()} className="flex-1 rounded-xl bg-teal text-navy py-2.5 text-sm font-semibold disabled:opacity-50 hover:bg-teal/90 transition-colors">
           {loading ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
         </button>
       </div>

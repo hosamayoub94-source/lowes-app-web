@@ -293,7 +293,7 @@ export function PayrollDashboard() {
         {isAdmin && (
           <button
             onClick={() => setShowNewRun(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
           >
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
             دورة جديدة
@@ -407,7 +407,7 @@ export function PayrollDashboard() {
                   <p>لا توجد إدخالات في هذه الدورة</p>
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
                     <button onClick={handleAutoFillEmployees} disabled={fillLoading}
-                      className="mt-2 px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+                      className="mt-2 px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
                       {fillLoading ? '⏳ جارٍ الملء…' : '👥 ملء كل الموظفين برواتبهم'}
                     </button>
                   )}
@@ -469,7 +469,7 @@ export function PayrollDashboard() {
               <button
                 onClick={handleCreateRun}
                 disabled={loading.action}
-                className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {loading.action ? '…جار الإنشاء' : '✓ إنشاء الدورة'}
               </button>
@@ -516,7 +516,7 @@ export function PayrollDashboard() {
               <button
                 onClick={handleSaveEntry}
                 disabled={isSubmitting}
-                className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {isSubmitting ? '…جار الحفظ' : '✓ حفظ'}
               </button>

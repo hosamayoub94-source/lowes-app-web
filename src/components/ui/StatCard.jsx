@@ -17,7 +17,7 @@ export function StatCard({
   const tones = {
     default: 'bg-surface text-text border-border',
     navy: 'bg-navy text-white border-transparent',
-    teal: 'bg-teal text-white border-transparent',
+    teal: 'bg-teal text-navy border-transparent',
     green: 'bg-green-bg text-green-fg border-transparent',
     red: 'bg-red-bg text-red-fg border-transparent',
     amber: 'bg-amber-bg text-amber-fg border-transparent',

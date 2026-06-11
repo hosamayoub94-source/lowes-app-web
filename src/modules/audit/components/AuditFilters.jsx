@@ -25,7 +25,7 @@ const QuickChip = memo(function QuickChip({ label, active, onClick }) {
       className={cn(
         'px-3 py-1 rounded-full text-xs font-medium transition-colors',
         active
-          ? 'bg-teal text-white'
+          ? 'bg-teal text-navy'
           : 'bg-surface border border-border text-muted hover:border-teal',
       )}
     >
@@ -91,7 +91,7 @@ export const AuditFilters = memo(function AuditFilters({
           </svg>
           تصفية
           {activeCount > 0 && (
-            <span className="flex items-center justify-center w-4 h-4 rounded-full bg-teal text-white text-[9px] font-bold">
+            <span className="flex items-center justify-center w-4 h-4 rounded-full bg-teal text-navy text-[9px] font-bold">
               {activeCount}
             </span>
           )}

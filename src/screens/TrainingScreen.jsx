@@ -321,7 +321,7 @@ export default function TrainingScreen() {
     <div className="max-w-lg mx-auto space-y-4 pb-24 sm:pb-8" dir="rtl">
 
       {/* ── Header ────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-teal to-navy rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-navy rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-4 -end-4 w-32 h-32 rounded-full bg-white" />
           <div className="absolute -bottom-8 -start-8 w-48 h-48 rounded-full bg-white" />
@@ -399,7 +399,7 @@ export default function TrainingScreen() {
           <p className="text-3xl mb-3">⚠️</p>
           <p className="text-sm font-semibold text-text mb-1">خطأ في تحميل الأسئلة</p>
           <p className="text-xs text-muted mb-4 leading-relaxed">{error}</p>
-          <button onClick={loadQuestions} className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition">
+          <button onClick={loadQuestions} className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
             إعادة المحاولة
           </button>
         </div>
@@ -417,7 +417,7 @@ export default function TrainingScreen() {
               : 'جرّب فئة أخرى'}
           </p>
           {questions.length === 0 && isAdmin && (
-            <Link to="/admin/quiz" className="inline-block mt-4 px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition">
+            <Link to="/admin/quiz" className="inline-block mt-4 px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
               + إضافة أسئلة
             </Link>
           )}
@@ -476,7 +476,7 @@ export default function TrainingScreen() {
                 </div>
                 <p className="text-xs text-muted mb-5">الشهادة ظاهرة في بروفايلك تحت تبويب "إنجازاتي"</p>
                 <button onClick={() => setCertAwarded(null)}
-                  className="w-full py-3 rounded-2xl bg-teal text-white font-bold hover:bg-teal/90 transition">
+                  className="w-full py-3 rounded-2xl bg-teal text-navy font-bold hover:bg-teal/90 transition">
                   🎉 رائع!
                 </button>
               </div>

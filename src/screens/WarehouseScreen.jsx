@@ -47,7 +47,7 @@ function ManagePanel({ warehouses, onChanged }) {
       <div className="flex gap-1.5">
         {[['warehouses','🏬 المخازن'],['sellers','👤 إسناد البائعين'],['log','📜 الحركات']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={'px-3 py-1.5 rounded-xl text-xs font-bold transition ' + (tab===k ? 'bg-teal text-white' : 'bg-surface-alt text-muted hover:text-text')}>{l}</button>
+            className={'px-3 py-1.5 rounded-xl text-xs font-bold transition ' + (tab===k ? 'bg-teal text-navy' : 'bg-surface-alt text-muted hover:text-text')}>{l}</button>
         ))}
       </div>
 
@@ -55,7 +55,7 @@ function ManagePanel({ warehouses, onChanged }) {
         <div className="space-y-2">
           <div className="flex gap-2">
             <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن سوريا الفرعي (مندوب/مدينة)…" className={INP} />
-            <button onClick={addWarehouse} disabled={busy || !newName.trim()} className="px-4 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 shrink-0">+ إضافة</button>
+            <button onClick={addWarehouse} disabled={busy || !newName.trim()} className="px-4 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 shrink-0">+ إضافة</button>
           </div>
           <div className="space-y-1">
             {warehouses.map(w => (
@@ -180,7 +180,7 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit }) {
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
           <button onClick={submit} disabled={saving || !productId || !qty}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
             {saving ? '…' : 'تأكيد'}
           </button>
         </div>
@@ -251,7 +251,7 @@ export default function WarehouseScreen() {
           {canCentral && (
             <>
               <button onClick={() => setModal('receive')} className="px-3 py-2 rounded-xl bg-green-bg text-green-fg text-xs font-bold hover:opacity-80 transition">+ استلام</button>
-              <button onClick={() => setModal('allocate')} className="px-3 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition">⇄ تخصيص</button>
+              <button onClick={() => setModal('allocate')} className="px-3 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition">⇄ تخصيص</button>
             </>
           )}
           {(canCentral || canSales) && (

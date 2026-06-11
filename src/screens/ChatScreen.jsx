@@ -237,7 +237,7 @@ function ForwardPanel({msg,rooms,userId,userName,onClose}){
           ))}
         </div>
         <div className="px-4 py-3 border-t border-border">
-          <button onClick={fwd} disabled={!sel||sending} className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+          <button onClick={fwd} disabled={!sel||sending} className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
             {sending?'⏳ جاري الإرسال…':'↗ إرسال'}
           </button>
         </div>
@@ -387,7 +387,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
                 rows={2} />
               <div className="flex gap-1.5 justify-end">
                 <button onClick={()=>setEditMode(false)} className="px-3 py-1 rounded-xl text-xs border border-border text-muted hover:bg-surface-alt transition">إلغاء</button>
-                <button onClick={submitEdit} className="px-3 py-1 rounded-xl text-xs bg-teal text-white hover:bg-teal/90 transition">حفظ</button>
+                <button onClick={submitEdit} className="px-3 py-1 rounded-xl text-xs bg-teal text-navy hover:bg-teal/90 transition">حفظ</button>
               </div>
             </div>
           ):(
@@ -404,7 +404,7 @@ function MessageBubble({msg,isMine,userId,isApprover,onReply,onReact,onEdit,onDe
               )}
               <div className={`relative px-3.5 py-2 rounded-2xl shadow-sm select-text cursor-default transition-transform active:scale-[0.98] ${
                 isMine
-                  ? 'bg-teal text-white rounded-br-sm'
+                  ? 'bg-teal text-navy rounded-br-sm'
                   : 'bg-surface border border-border/70 text-text rounded-bl-sm'
               }`}>
                 {msg.message_type==='text'&&<p className="text-[15px] font-normal leading-[1.5] whitespace-pre-wrap break-words"><MsgText text={msg.content}/></p>}
@@ -592,7 +592,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
             <img src={imgPreview} alt="" className="w-16 h-16 rounded-xl object-cover border border-border shadow-sm" />
             <button onClick={()=>{setImgPreview(null);setImgFile(null);}} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow">×</button>
           </div>
-          <button onClick={sendImage} disabled={uploading} className="mt-1 px-4 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+          <button onClick={sendImage} disabled={uploading} className="mt-1 px-4 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
             {uploading?'⏳ يرفع…':'📤 إرسال'}
           </button>
         </div>
@@ -607,7 +607,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
             <p className="text-xs text-muted">{fmtSize(attachedFile.size)}</p>
           </div>
           <button onClick={()=>setAttachedFile(null)} className="text-muted hover:text-red-500 transition">✕</button>
-          <button onClick={sendFile} disabled={uploading} className="px-4 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+          <button onClick={sendFile} disabled={uploading} className="px-4 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
             {uploading?'⏳':'📤 إرسال'}
           </button>
         </div>
@@ -624,7 +624,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
             ))}
           </div>
           <button onClick={voice.cancel} className="text-xs text-red-500 font-semibold hover:text-red-700 transition px-2">إلغاء</button>
-          <button onClick={voice.stop} className="px-3 py-1.5 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 transition shadow-sm">✓ إرسال</button>
+          <button onClick={voice.stop} className="px-3 py-1.5 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition shadow-sm">✓ إرسال</button>
         </div>
       )}
 
@@ -672,7 +672,7 @@ function MessageInput({onSend,disabled,replyTo,onCancelReply,onTyping,members=[]
           {/* Send / voice */}
           {text.trim()?(
             <button onClick={sendText} disabled={disabled||uploading}
-              className="w-9 h-9 rounded-xl bg-teal text-white flex items-center justify-center hover:bg-teal/90 disabled:opacity-50 transition shrink-0 shadow-sm hover:scale-105 hover:shadow-md">
+              className="w-9 h-9 rounded-xl bg-teal text-navy flex items-center justify-center hover:bg-teal/90 disabled:opacity-50 transition shrink-0 shadow-sm hover:scale-105 hover:shadow-md">
               ↑
             </button>
           ):(
@@ -704,7 +704,7 @@ function ChannelItem({room,active,unread,lastMsg,onClick}){
         {lastMsg&&!active&&<span className="text-[10px] text-muted/60 truncate block">{lastMsg}</span>}
       </div>
       {unread>0&&(
-        <span className="w-5 h-5 rounded-full bg-teal text-white text-[9px] font-bold grid place-items-center flex-shrink-0 shadow-sm">
+        <span className="w-5 h-5 rounded-full bg-teal text-navy text-[9px] font-bold grid place-items-center flex-shrink-0 shadow-sm">
           {unread>9?'9+':unread}
         </span>
       )}
@@ -773,7 +773,7 @@ function DiscoverPanel({allChannels,memberRoomIds,userId,userName,onClose,onRequ
                 {status==='pending'?<span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">⏳ معلق</span>
                 :status==='approved'?<span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">✓ تم الانضمام</span>
                 :status==='rejected'?<span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">✕ مرفوض</span>
-                :<button onClick={()=>requestJoin(room)} disabled={sending===room.id} className="px-3 py-1.5 rounded-xl bg-teal text-white text-[11px] font-bold hover:bg-teal/90 disabled:opacity-50 transition shrink-0">
+                :<button onClick={()=>requestJoin(room)} disabled={sending===room.id} className="px-3 py-1.5 rounded-xl bg-teal text-navy text-[11px] font-bold hover:bg-teal/90 disabled:opacity-50 transition shrink-0">
                   {sending===room.id?'⏳':room.requires_approval?'طلب انضمام':'+ انضمام'}
                 </button>}
               </div>
@@ -833,7 +833,7 @@ function JoinRequestsPanel({userName,onApproved,onClose}){
                 <span className="text-[10px] text-muted shrink-0">{timeLabel(req.requested_at)}</span>
               </div>
               <div className="flex gap-2">
-                <button onClick={()=>approve(req)} disabled={acting===req.id} className="flex-1 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">✓ قبول</button>
+                <button onClick={()=>approve(req)} disabled={acting===req.id} className="flex-1 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">✓ قبول</button>
                 <button onClick={()=>reject(req)} disabled={acting===req.id} className="flex-1 py-2 rounded-xl bg-red-50 text-red-600 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50 transition">✕ رفض</button>
               </div>
             </div>
@@ -900,7 +900,7 @@ function CreateChannelPanel({userId,userName,onCreated,onClose}){
               <p className="text-[10px] text-muted">الأعضاء الجدد يحتاجون موافقتك</p>
             </div>
           </label>
-          <button onClick={create} disabled={saving||!name.trim()} className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
+          <button onClick={create} disabled={saving||!name.trim()} className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
             {saving?'⏳ جاري الإنشاء…':'✓ إنشاء القناة'}
           </button>
         </div>
@@ -951,7 +951,7 @@ function CreateGroupPanel({userId,userName,onCreated,onClose}){
               ))}
             </div>
           </div>
-          <button onClick={create} disabled={saving||!name.trim()} className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
+          <button onClick={create} disabled={saving||!name.trim()} className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition shadow-sm">
             {saving?'⏳ جاري الإنشاء…':'✓ إنشاء المجموعة'}
           </button>
         </div>
@@ -1053,7 +1053,7 @@ function GroupInfoPanel({room,userId,userName,isApprover,onClose,onUpdated}){
                 : <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${avatarColor(name)}`}>{name?.[0]?.toUpperCase()||'#'}</div>}
               {canManage&&(
                 <button onClick={()=>fileRef.current?.click()} disabled={uploading}
-                  className="absolute -bottom-1 -end-1 w-7 h-7 rounded-full bg-teal text-white flex items-center justify-center text-xs shadow hover:bg-teal/90 transition disabled:opacity-50">
+                  className="absolute -bottom-1 -end-1 w-7 h-7 rounded-full bg-teal text-navy flex items-center justify-center text-xs shadow hover:bg-teal/90 transition disabled:opacity-50">
                   {uploading?'⏳':'📷'}
                 </button>
               )}
@@ -1065,7 +1065,7 @@ function GroupInfoPanel({room,userId,userName,isApprover,onClose,onUpdated}){
               <input value={name} onChange={e=>setName(e.target.value)} placeholder="اسم المجموعة" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text text-center font-bold focus:outline-none focus:ring-2 focus:ring-teal/30" />
               <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="وصف (اختياري)" className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30" />
               {(name!==room.name||desc!==(room.description||''))&&(
-                <button onClick={saveInfo} disabled={saving||!name.trim()} className="w-full py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">{saving?'⏳ يحفظ…':'💾 حفظ التعديلات'}</button>
+                <button onClick={saveInfo} disabled={saving||!name.trim()} className="w-full py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">{saving?'⏳ يحفظ…':'💾 حفظ التعديلات'}</button>
               )}
             </div>
           ):(
@@ -1702,7 +1702,7 @@ export default function ChatScreen(){
                           : null
                     }
                   </div>
-                  {(unreadCounts[r.id]??0)>0&&<span className="w-5 h-5 rounded-full bg-teal text-white text-[9px] font-bold grid place-items-center shrink-0">{unreadCounts[r.id]}</span>}
+                  {(unreadCounts[r.id]??0)>0&&<span className="w-5 h-5 rounded-full bg-teal text-navy text-[9px] font-bold grid place-items-center shrink-0">{unreadCounts[r.id]}</span>}
                 </button>
               );})}
             </div>
@@ -1767,7 +1767,7 @@ export default function ChatScreen(){
           ):null}
           {activeRoom&&(
             <button onClick={()=>{setShowSearch(v=>!v);setSearchQuery('');}}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm transition shrink-0 hover:scale-105 ${showSearch?'bg-teal text-white':'bg-surface-alt border border-border text-muted hover:text-teal hover:border-teal/40'}`}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm transition shrink-0 hover:scale-105 ${showSearch?'bg-teal text-navy':'bg-surface-alt border border-border text-muted hover:text-teal hover:border-teal/40'}`}
               title="بحث في الرسائل">🔍</button>
           )}
         </div>
@@ -1790,7 +1790,7 @@ export default function ChatScreen(){
           <>
             <div ref={msgContainerRef} onScroll={handleMsgScroll} className="flex-1 overflow-y-auto overscroll-contain relative" style={{background:'var(--color-surface-alt,#f8f7f4)'}}>
               {showScrollBtn&&(
-                <button onClick={scrollToBottom} className="sticky bottom-4 end-4 float-end z-20 w-9 h-9 rounded-full bg-teal text-white shadow-lg flex items-center justify-center hover:bg-teal/90 hover:scale-110 transition-all animate-in fade-in duration-200 me-3">
+                <button onClick={scrollToBottom} className="sticky bottom-4 end-4 float-end z-20 w-9 h-9 rounded-full bg-teal text-navy shadow-lg flex items-center justify-center hover:bg-teal/90 hover:scale-110 transition-all animate-in fade-in duration-200 me-3">
                   ↓
                 </button>
               )}

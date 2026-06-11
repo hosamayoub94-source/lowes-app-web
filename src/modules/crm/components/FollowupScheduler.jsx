@@ -87,7 +87,7 @@ function AddForm({ form, setForm, onSubmit, onCancel, isSubmitting }) {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-teal text-navy rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
         >
           {isSubmitting ? <Spinner size="sm" /> : null}
           {isSubmitting ? 'جاري الحفظ...' : 'حفظ'}
@@ -219,7 +219,7 @@ export default function FollowupScheduler({ dealId, customerId, leadId }) {
               className={cn(
                 'px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
                 activeTab === t.key
-                  ? 'bg-teal text-white border-teal'
+                  ? 'bg-teal text-navy border-teal'
                   : 'bg-transparent text-muted border-border hover:text-text',
               )}
             >
@@ -231,7 +231,7 @@ export default function FollowupScheduler({ dealId, customerId, leadId }) {
         <button
           type="button"
           onClick={() => setShowForm(v => !v)}
-          className="px-3 py-1.5 text-xs font-semibold bg-teal text-white rounded-lg hover:opacity-90 transition-opacity"
+          className="px-3 py-1.5 text-xs font-semibold bg-teal text-navy rounded-lg hover:opacity-90 transition-opacity"
         >
           + جدولة متابعة
         </button>

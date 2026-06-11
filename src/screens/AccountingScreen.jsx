@@ -292,7 +292,7 @@ export default function AccountingScreen() {
           {/* Report toggle */}
           <button
             onClick={() => setShowReport(v => !v)}
-            className={`px-4 py-2 rounded-xl border text-sm font-semibold transition ${showReport ? 'bg-teal text-white border-teal' : 'border-border text-text hover:bg-cream'}`}
+            className={`px-4 py-2 rounded-xl border text-sm font-semibold transition ${showReport ? 'bg-teal text-navy border-teal' : 'border-border text-text hover:bg-cream'}`}
           >
             📊 تقرير
           </button>
@@ -320,7 +320,7 @@ export default function AccountingScreen() {
               </button>
               <button
                 onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setSaveError(null); }}
-                className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
+                className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
               >
                 + قيد جديد
               </button>
@@ -469,7 +469,7 @@ export default function AccountingScreen() {
                       className={[
                         'px-3 py-1.5 rounded-lg text-xs font-medium transition border',
                         form.entry_type === k
-                          ? 'bg-teal text-white border-teal'
+                          ? 'bg-teal text-navy border-teal'
                           : 'border-border text-muted hover:border-teal/40',
                       ].join(' ')}
                     >
@@ -575,7 +575,7 @@ export default function AccountingScreen() {
               <button
                 onClick={handleSubmit}
                 disabled={loading.action}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {loading.action ? 'جار الحفظ…' : 'إضافة'}
               </button>
@@ -604,7 +604,7 @@ export default function AccountingScreen() {
                 <div className="grid grid-cols-2 gap-2">
                   {[['receipt', '📥 سند قبض (لنا)'], ['payment', '🧾 سند صرف (علينا)']].map(([k, lbl]) => (
                     <button key={k} onClick={() => setVForm(f => ({ ...f, kind: k }))}
-                      className={['py-2 rounded-xl text-xs font-bold border transition', vForm.kind === k ? 'bg-teal text-white border-teal' : 'border-border text-muted hover:border-teal/40'].join(' ')}>
+                      className={['py-2 rounded-xl text-xs font-bold border transition', vForm.kind === k ? 'bg-teal text-navy border-teal' : 'border-border text-muted hover:border-teal/40'].join(' ')}>
                       {lbl}
                     </button>
                   ))}
@@ -642,7 +642,7 @@ export default function AccountingScreen() {
               {vError && <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{vError}</div>}
               <div className="flex gap-2 mt-5">
                 <button onClick={() => handleVoucher(true)} disabled={loading.action}
-                  className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+                  className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
                   {loading.action ? '…' : '💾 حفظ + طباعة'}
                 </button>
                 <button onClick={() => handleVoucher(false)} disabled={loading.action}
@@ -717,7 +717,7 @@ export default function AccountingScreen() {
               {tError && <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{tError}</div>}
               <div className="flex gap-2 mt-5">
                 <button onClick={handleTransfer} disabled={loading.action}
-                  className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+                  className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
                   {loading.action ? 'جار التحويل…' : 'تنفيذ التحويل'}
                 </button>
                 <button onClick={() => setShowTransfer(false)}

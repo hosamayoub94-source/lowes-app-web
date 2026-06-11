@@ -54,7 +54,7 @@ export default function AdminGuidesScreen() {
       <div className="flex items-center justify-between">
         <h1 className="font-extrabold text-text flex items-center gap-2"><span>📖</span> إدارة الأدلة</h1>
         <button onClick={() => setEdit({ ...BLANK })}
-          className="bg-teal-600 text-white rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal-700">+ دليل جديد</button>
+          className="bg-teal text-navy rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal/90">+ دليل جديد</button>
       </div>
       <p className="text-xs text-muted">ما تضيفه هنا يظهر في «دليل التطبيق» لأصحاب الصلاحية، ولوزي تعرفه تلقائياً.</p>
 
@@ -123,7 +123,7 @@ export default function AdminGuidesScreen() {
             </div>
             <div className="flex gap-2 pt-2">
               <button onClick={save} disabled={busy}
-                className="flex-1 bg-teal-600 text-white rounded-xl py-2 text-sm font-bold disabled:opacity-50">
+                className="flex-1 bg-teal text-navy rounded-xl py-2 text-sm font-bold disabled:opacity-50">
                 {busy ? '⏳ جارٍ الحفظ…' : 'حفظ'}</button>
               <button onClick={() => setEdit(null)} className="flex-1 bg-surface-alt rounded-xl py-2 text-sm">إلغاء</button>
             </div>

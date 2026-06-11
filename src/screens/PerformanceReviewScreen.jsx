@@ -245,7 +245,7 @@ function ReviewFormModal({ employees, reviewer, onClose, onSaved }) {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-3 rounded-2xl bg-teal text-white font-extrabold text-sm hover:bg-teal/90 active:scale-95 transition disabled:opacity-50"
+            className="w-full py-3 rounded-2xl bg-teal text-navy font-extrabold text-sm hover:bg-teal/90 active:scale-95 transition disabled:opacity-50"
           >
             {saving ? 'جاري الحفظ...' : 'حفظ التقييم'}
           </button>
@@ -298,7 +298,7 @@ export default function PerformanceReviewScreen() {
         {isManager && (
           <button
             onClick={() => setFormOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-teal text-white text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
           >
             + تقييم
           </button>
@@ -311,7 +311,7 @@ export default function PerformanceReviewScreen() {
           <button
             onClick={() => setFilterEmp('')}
             className={`shrink-0 px-3 py-1.5 rounded-full border text-xs font-bold transition ${
-              !filterEmp ? 'bg-teal text-white border-teal' : 'border-border text-muted hover:border-teal/30 hover:text-teal'
+              !filterEmp ? 'bg-teal text-navy border-teal' : 'border-border text-muted hover:border-teal/30 hover:text-teal'
             }`}
           >الكل</button>
           {employees.map(emp => (
@@ -319,7 +319,7 @@ export default function PerformanceReviewScreen() {
               key={emp}
               onClick={() => setFilterEmp(emp === filterEmp ? '' : emp)}
               className={`shrink-0 px-3 py-1.5 rounded-full border text-xs font-bold transition ${
-                filterEmp === emp ? 'bg-teal text-white border-teal' : 'border-border text-muted hover:border-teal/30 hover:text-teal'
+                filterEmp === emp ? 'bg-teal text-navy border-teal' : 'border-border text-muted hover:border-teal/30 hover:text-teal'
               }`}
             >{emp}</button>
           ))}

@@ -192,7 +192,7 @@ export function SelfieCapture({
       <div className="bg-surface rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
 
         {/* Header */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-navy to-teal flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-navy flex items-center justify-between">
           <p className="text-white font-bold text-sm">📸 {label}</p>
           <button onClick={() => { stopCamera(); onClose?.(); }}
             className="w-7 h-7 rounded-full bg-white/15 text-white/80 hover:text-white flex items-center justify-center text-sm">✕</button>
@@ -236,7 +236,7 @@ export function SelfieCapture({
 
           {phase === 'live' && (
             <button onClick={capture}
-              className="w-full py-3.5 rounded-2xl bg-teal text-white font-bold text-base hover:bg-teal/90 transition active:scale-[0.98] flex items-center justify-center gap-2">
+              className="w-full py-3.5 rounded-2xl bg-teal text-navy font-bold text-base hover:bg-teal/90 transition active:scale-[0.98] flex items-center justify-center gap-2">
               <span className="text-xl">📸</span> التقاط الصورة
             </button>
           )}
@@ -248,7 +248,7 @@ export function SelfieCapture({
                 ↺ إعادة
               </button>
               <button onClick={confirm}
-                className="flex-1 py-3 rounded-2xl bg-teal text-white font-bold hover:bg-teal/90 transition active:scale-[0.98]">
+                className="flex-1 py-3 rounded-2xl bg-teal text-navy font-bold hover:bg-teal/90 transition active:scale-[0.98]">
                 ✓ تأكيد
               </button>
             </div>
@@ -278,7 +278,7 @@ export function SelfieCapture({
 
           {phase === 'error' && (
             <button onClick={startCamera}
-              className="w-full py-3 rounded-2xl bg-teal text-white font-bold hover:bg-teal/90 transition">
+              className="w-full py-3 rounded-2xl bg-teal text-navy font-bold hover:bg-teal/90 transition">
               إعادة المحاولة
             </button>
           )}

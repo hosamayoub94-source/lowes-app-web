@@ -595,14 +595,14 @@ function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewCh
         {/* View toggle */}
         <div className="flex items-center bg-surface border border-border rounded-xl overflow-hidden">
           <button type="button" onClick={() => onViewChange('grid')} title="عرض شبكي"
-            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'grid' ? 'bg-teal text-white' : 'text-muted hover:text-text')}>
+            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'grid' ? 'bg-teal text-navy' : 'text-muted hover:text-text')}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
               <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
           </button>
           <button type="button" onClick={() => onViewChange('kanban')} title="عرض كانبان"
-            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'kanban' ? 'bg-teal text-white' : 'text-muted hover:text-text')}>
+            className={cn('w-9 h-9 grid place-items-center transition-all', viewMode === 'kanban' ? 'bg-teal text-navy' : 'text-muted hover:text-text')}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
               <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="14" rx="1"/>
               <rect x="17" y="3" width="5" height="10" rx="1"/>

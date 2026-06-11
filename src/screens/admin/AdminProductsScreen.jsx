@@ -112,7 +112,7 @@ function ProductModal({ product, onSave, onClose }) {
         <div className="flex gap-2 px-5 py-4 border-t border-border/40 shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
           <button onClick={handleSave} disabled={!form.name.trim() || saving}
-            className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
             {saving ? '…جاري الحفظ' : '✓ حفظ'}
           </button>
         </div>
@@ -212,7 +212,7 @@ export default function AdminProductsScreen() {
           <p className="text-xs text-muted mt-0.5">{products.filter(p => p.is_active).length} منتج نشط</p>
         </div>
         <button onClick={() => setModal('new')}
-          className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition">
+          className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition">
           + منتج جديد
         </button>
       </div>
@@ -228,7 +228,7 @@ export default function AdminProductsScreen() {
           if (!count) return null;
           return (
             <button key={c.key} onClick={() => setCatFilter(c.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition ${catFilter === c.key ? 'bg-teal text-white' : 'bg-surface border border-border text-muted'}`}>
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition ${catFilter === c.key ? 'bg-teal text-navy' : 'bg-surface border border-border text-muted'}`}>
               {c.icon} {c.label} ({count})
             </button>
           );

@@ -20,14 +20,14 @@ export function Tabs({ tabs = [], value, onChange, size = 'md', className = '' }
             onClick={() => onChange(t.key)}
             className={`shrink-0 ${pad} rounded-xl font-bold transition flex items-center gap-1.5 border ${
               active
-                ? 'bg-teal text-white border-teal shadow-sm'
+                ? 'bg-teal text-navy border-teal shadow-sm'
                 : 'bg-surface text-muted border-border hover:text-text hover:border-teal/40'
             }`}
           >
             {t.icon && <span>{t.icon}</span>}
             <span>{t.label}</span>
             {badge ? (
-              <span className={`text-[9px] font-bold px-1.5 rounded-full ${active ? 'bg-white/25 text-white' : 'bg-teal text-white'}`}>
+              <span className={`text-[9px] font-bold px-1.5 rounded-full ${active ? "bg-navy/15 text-navy" : "bg-navy text-white"}`}>
                 {badge}
               </span>
             ) : null}

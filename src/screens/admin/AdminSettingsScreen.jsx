@@ -106,7 +106,7 @@ export default function AdminSettingsScreen() {
             className={[
               'px-4 py-2 text-sm font-medium rounded-t-lg transition',
               tab === t.key
-                ? 'bg-teal text-white'
+                ? 'bg-teal text-navy'
                 : 'text-muted hover:text-text',
             ].join(' ')}
           >
@@ -210,7 +210,7 @@ function AnnouncementsTab() {
           </div>
           {msg && <p className={`text-xs font-semibold ${msg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{msg.text}</p>}
           <button type="submit" disabled={saving}
-            className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition">
+            className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 disabled:opacity-50 transition">
             {saving ? 'جاري النشر…' : '📢 نشر الإعلان'}
           </button>
         </form>
@@ -421,7 +421,7 @@ function ExchangeRatesTab() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {saving ? 'جار الحفظ…' : 'حفظ'}
               </button>
@@ -544,7 +544,7 @@ function SalarySettingsTab() {
         <p className="text-sm text-muted">{settings.length} موظف لديه إعدادات راتب</p>
         <button
           onClick={openNew}
-          className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition"
+          className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition"
         >
           + إضافة
         </button>
@@ -679,7 +679,7 @@ function SalarySettingsTab() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {saving ? 'جار الحفظ…' : 'حفظ'}
               </button>

@@ -18,7 +18,7 @@ export function Card({
   const variants = {
     default: 'border-border shadow-soft',
     flat: 'border-border',
-    gradient: 'border-transparent shadow-soft text-white bg-gradient-to-br from-navy to-teal',
+    gradient: 'border-transparent shadow-soft text-white bg-navy',
   };
   const paddings = {
     none: '',

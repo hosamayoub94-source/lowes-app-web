@@ -106,7 +106,7 @@ export default function LeadCard({ lead, onSelect, onConvert, onDelete, selected
             <button
               type="button"
               onClick={() => onConvert(lead)}
-              className="px-3 py-1 text-[11px] font-semibold rounded-lg bg-teal text-white hover:opacity-90 transition-opacity"
+              className="px-3 py-1 text-[11px] font-semibold rounded-lg bg-teal text-navy hover:opacity-90 transition-opacity"
             >
               تحويل إلى عميل
             </button>

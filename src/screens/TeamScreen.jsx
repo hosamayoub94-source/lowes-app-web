@@ -232,7 +232,7 @@ export default function TeamScreen() {
       <div className="flex gap-2">
         {[['team', '👥 الفريق'], ['schedule', '🗓️ الورديات']].map(([k, l]) => (
           <button key={k} onClick={() => setView(k)}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition ${view === k ? 'border-teal bg-teal text-white' : 'border-border text-muted hover:border-teal/40'}`}>
+            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition ${view === k ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
             {l}
           </button>
         ))}

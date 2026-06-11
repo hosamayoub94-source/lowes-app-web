@@ -485,7 +485,7 @@ export default function ProfileScreen() {
           ) : (
             <div className="flex gap-2">
               <button onClick={saveWorkInfo} disabled={editSaving}
-                className="text-xs font-bold text-white bg-teal hover:opacity-90 px-3 py-1 rounded-lg transition disabled:opacity-60">
+                className="text-xs font-bold text-navy bg-teal hover:opacity-90 px-3 py-1 rounded-lg transition disabled:opacity-60">
                 {editSaving ? '…' : 'حفظ'}
               </button>
               <button onClick={() => { setEditMode(false); setEditMsg(null); setEditData({ job_title: profile?.job_title || '', phone: profile?.phone || '', personal_email: profile?.personal_email || '', work_location: profile?.work_location || '', bio: profile?.bio || '' }); }}
@@ -562,7 +562,7 @@ export default function ProfileScreen() {
             )}
           </div>
           <button onClick={() => { setShowAddPartner(s => !s); setPartnerMsg(null); }}
-            className="text-xs font-bold text-white bg-teal hover:opacity-90 px-3 py-1.5 rounded-xl transition">
+            className="text-xs font-bold text-navy bg-teal hover:opacity-90 px-3 py-1.5 rounded-xl transition">
             {showAddPartner ? '✕ إغلاق' : '+ إضافة شريك'}
           </button>
         </div>
@@ -678,7 +678,7 @@ export default function ProfileScreen() {
             <button
               onClick={sendPartnerRequest}
               disabled={!selectedPartner || partnerSending}
-              className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition disabled:opacity-50">
+              className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition disabled:opacity-50">
               {partnerSending ? 'جاري الإرسال…' : '📨 إرسال طلب الشراكة'}
             </button>
           </div>
@@ -988,7 +988,7 @@ export default function ProfileScreen() {
             </div>
             {pinModal === 'new' && newPin.length === 4 && (
               <button onClick={() => { setPinModal('confirm'); setConfirmPin(''); setPinMsg(null); }}
-                className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:opacity-90 transition">
+                className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
                 التالي — تأكيد الرمز
               </button>
             )}

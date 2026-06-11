@@ -69,7 +69,7 @@ export default function SocialTeamScreen() {
 
   return (
     <div className="max-w-2xl mx-auto pb-24 space-y-4" dir="rtl">
-      <div className="bg-gradient-to-l from-navy to-teal rounded-2xl p-5 text-white">
+      <div className="bg-navy rounded-2xl p-5 text-white">
         <h1 className="text-xl font-extrabold flex items-center gap-2">🌐 فريق السوشال</h1>
         <p className="text-white/70 text-xs mt-1">أضف أو عطّل موظفي السوشال بسرعة — للتعامل مع تغيّر الفريق</p>
       </div>
@@ -77,7 +77,7 @@ export default function SocialTeamScreen() {
       {/* Add */}
       {!adding ? (
         <button onClick={() => setAdding(true)}
-          className="w-full py-3 rounded-2xl bg-teal text-white font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
+          className="w-full py-3 rounded-2xl bg-teal text-navy font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
           + إضافة موظف سوشال
         </button>
       ) : (
@@ -97,7 +97,7 @@ export default function SocialTeamScreen() {
             <button onClick={() => { setAdding(false); setName(''); setTitle(''); }}
               className="flex-1 py-2.5 rounded-xl border border-border text-text font-semibold hover:bg-surface-alt transition">إلغاء</button>
             <button onClick={addEmployee} disabled={busy}
-              className="flex-1 py-2.5 rounded-xl bg-teal text-white font-bold hover:bg-teal/90 transition disabled:opacity-50">
+              className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 transition disabled:opacity-50">
               {busy ? 'جارٍ…' : 'إضافة'}
             </button>
           </div>

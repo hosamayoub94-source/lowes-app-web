@@ -49,7 +49,7 @@ export function PushPermissionPrompt() {
   return (
     <div className="fixed bottom-24 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:start-6 z-[120] sm:max-w-sm animate-in slide-in-from-bottom-4 duration-300" dir="rtl">
       <div className="bg-surface border border-border rounded-2xl shadow-2xl p-4 flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy to-teal grid place-items-center text-xl shrink-0">🔔</div>
+        <div className="w-10 h-10 rounded-full bg-navy grid place-items-center text-xl shrink-0">🔔</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-text">فعّل الإشعارات</p>
           <p className="text-xs text-muted mt-0.5 leading-relaxed">
@@ -57,7 +57,7 @@ export function PushPermissionPrompt() {
           </p>
           <div className="flex gap-2 mt-3">
             <button onClick={enable} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-teal text-white text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
+              className="flex-1 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 disabled:opacity-50 transition">
               {loading ? '⏳ جارٍ التفعيل…' : '🔔 تفعيل'}
             </button>
             <button onClick={dismiss}

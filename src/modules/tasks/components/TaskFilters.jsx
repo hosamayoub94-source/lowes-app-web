@@ -22,7 +22,7 @@ function QuickChip({ active, onClick, children, tone = 'neutral' }) {
       className={cn(
         'inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-semibold border transition-all',
         active
-          ? 'bg-teal text-white border-transparent shadow-sm'
+          ? 'bg-teal text-navy border-transparent shadow-sm'
           : 'bg-surface text-muted border-border hover:border-teal/40 hover:text-text',
       )}
     >

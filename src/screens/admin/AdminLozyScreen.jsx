@@ -79,7 +79,7 @@ export default function AdminLozyScreen() {
             className="flex-1 border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
           />
           <button onClick={addFact} disabled={saving || !newFact.trim()}
-            className="px-5 py-2.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition shrink-0">
+            className="px-5 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition shrink-0">
             {saving ? '…' : 'إضافة'}
           </button>
         </div>

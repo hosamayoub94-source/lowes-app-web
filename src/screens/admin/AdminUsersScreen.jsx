@@ -168,7 +168,7 @@ function SQLBanner({ title, desc, sql, onDismiss }) {
       <pre className="text-[11px] font-mono bg-surface rounded-lg p-3 overflow-x-auto text-text whitespace-pre-wrap max-h-48">
         {sql}
       </pre>
-      <button onClick={copy} className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal/90 transition">
+      <button onClick={copy} className="px-3 py-1.5 rounded-lg bg-teal text-navy text-xs font-semibold hover:bg-teal/90 transition">
         {copied ? '✓ تم النسخ' : 'نسخ SQL'}
       </button>
     </div>
@@ -206,7 +206,7 @@ function PinResetModal({ employee, onClose }) {
           <div className="text-center py-4 space-y-3">
             <div className="text-4xl">✅</div>
             <p className="text-sm font-semibold text-green-fg">تم تغيير PIN بنجاح</p>
-            <button onClick={onClose} className="w-full py-2 rounded-xl bg-teal text-white text-sm font-semibold">إغلاق</button>
+            <button onClick={onClose} className="w-full py-2 rounded-xl bg-teal text-navy text-sm font-semibold">إغلاق</button>
           </div>
         ) : (
           <form onSubmit={handleReset} className="space-y-4">
@@ -235,7 +235,7 @@ function PinResetModal({ employee, onClose }) {
             )}
             <div className="flex gap-2">
               <button type="submit" disabled={saving || newPin.length !== 4}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {saving ? 'جار التغيير…' : 'تأكيد'}
               </button>
@@ -477,7 +477,7 @@ export default function AdminUsersScreen() {
         {isAdmin && (
           <button
             onClick={() => { setShowAdd(true); setAddForm(EMPTY_FORM); setAddError(null); }}
-            className="px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
+            className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
           >
             + موظف
           </button>
@@ -815,7 +815,7 @@ export default function AdminUsersScreen() {
 
             <div className="flex gap-2 px-6 pb-6 pt-2 border-t border-border shrink-0">
               <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {saving ? 'جار الحفظ…' : 'حفظ'}
               </button>
@@ -863,7 +863,7 @@ export default function AdminUsersScreen() {
             )}
             <div className="flex gap-2 mt-5">
               <button onClick={handleAdd} disabled={addSaving}
-                className="flex-1 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
+                className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition"
               >
                 {addSaving ? 'جار الإنشاء…' : 'إنشاء'}
               </button>

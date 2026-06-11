@@ -80,13 +80,13 @@ function Message({ msg }) {
   return (
     <div className={`flex gap-2.5 mb-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-sm font-bold ${
-        isUser ? 'bg-teal text-white' : 'bg-gradient-to-br from-navy to-teal text-white'
+        isUser ? 'bg-teal text-navy' : 'bg-navy text-white'
       }`}>
         {isUser ? '👤' : LOZY_AVATAR}
       </div>
       <div className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
         isUser
-          ? 'bg-teal text-white rounded-tr-sm'
+          ? 'bg-teal text-navy rounded-tr-sm'
           : 'bg-surface border border-border/80 text-text rounded-tl-sm'
       }`}>
         {msg.loading ? (
@@ -359,7 +359,7 @@ export function AIAssistantWidget() {
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-navy to-teal border-b border-white/10 shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 bg-navy border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-full bg-white/15 border-2 border-white/30 flex items-center justify-center text-xl shrink-0">
                 {LOZY_AVATAR}
@@ -430,7 +430,7 @@ export function AIAssistantWidget() {
             <button
               onClick={() => send()}
               disabled={!input.trim() || loading}
-              className="w-9 h-9 rounded-xl bg-teal text-white flex items-center justify-center hover:bg-teal/90 disabled:opacity-50 transition active:scale-95 shrink-0"
+              className="w-9 h-9 rounded-xl bg-teal text-navy flex items-center justify-center hover:bg-teal/90 disabled:opacity-50 transition active:scale-95 shrink-0"
             >
               {loading
                 ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -448,7 +448,7 @@ export function AIAssistantWidget() {
         onTouchStart={handleDragStart}
         className={`fixed z-[99] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl select-none touch-none cursor-grab active:cursor-grabbing ${
           pos.x === null ? 'bottom-20 sm:bottom-6 end-4 sm:end-6' : ''
-        } ${open ? 'bg-navy' : 'bg-gradient-to-br from-navy to-teal hover:shadow-teal/30 hover:shadow-2xl'}`}
+        } ${open ? 'bg-navy' : 'bg-navy hover:shadow-teal/30 hover:shadow-2xl'}`}
         style={btnStyle}
         title="لوزي 🐱 — انقر للدردشة، أو اسحبني لتحريكي"
       >
