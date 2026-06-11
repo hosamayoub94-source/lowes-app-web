@@ -82,6 +82,100 @@ function EconEditor({ p, onSave, onClose }) {
   );
 }
 
+// محرّر جماعي سريع — كل المنتجات بجدول واحد (يحلّ بطء الإدخال منتج-منتج)
+function BulkEconEditor({ products, onClose, onSaved }) {
+  const toast = useToast();
+  const [rows, setRows] = useState(() => {
+    const m = {};
+    products.forEach(p => { m[p.name] = {
+      sale_price_usd: p.price || '', cost_usd: p.cost || '',
+      ad_cost_usd: p.ad || '', shipping_cost_usd: p.ship || '',
+    }; });
+    return m;
+  });
+  const [dirty, setDirty] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState('');
+
+  const set = (name, k, v) => {
+    setRows(s => ({ ...s, [name]: { ...s[name], [k]: v.replace(/[^\d.]/g, '') } }));
+    setDirty(d => new Set(d).add(name));
+  };
+  const unit = (r) => (Number(r.sale_price_usd)||0) - (Number(r.cost_usd)||0) - (Number(r.ad_cost_usd)||0) - (Number(r.shipping_cost_usd)||0);
+
+  const saveAll = async () => {
+    if (!dirty.size) { onClose(); return; }
+    setBusy(true);
+    let done = 0, fail = 0;
+    for (const name of dirty) {
+      const r = rows[name];
+      try {
+        await saveEconomics(name, {
+          sale_price_usd: Number(r.sale_price_usd)||0, cost_usd: Number(r.cost_usd)||0,
+          ad_cost_usd: Number(r.ad_cost_usd)||0, shipping_cost_usd: Number(r.shipping_cost_usd)||0,
+        });
+        done++;
+      } catch { fail++; }
+    }
+    setBusy(false);
+    toast[fail ? 'error' : 'success'](`حُفظ ${done}${fail ? ` · فشل ${fail}` : ''}`);
+    onSaved();
+  };
+
+  const list = products.filter(p => !q || p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const INP = 'w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30';
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center sm:p-4 bg-black/50" onClick={e=>e.target===e.currentTarget&&onClose()} dir="rtl">
+      <div className="w-full sm:max-w-2xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
+        <div className="px-4 py-3 bg-gradient-to-l from-navy to-teal text-white shrink-0">
+          <p className="font-bold text-sm">✏️ تعديل التكاليف للكل — كل القيم بالدولار/وحدة</p>
+          <p className="text-[11px] text-white/70">عبّي التكلفة (والإعلان/الشحن إن وُجد) → احفظ مرّة واحدة. الربح يظهر فوراً.</p>
+        </div>
+        <div className="p-3 shrink-0">
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="ابحث عن منتج…"
+            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+        </div>
+        <div className="overflow-y-auto flex-1 px-3">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-surface">
+              <tr className="text-muted text-[10px]">
+                <th className="text-start py-1.5 font-semibold">المنتج</th>
+                <th className="font-semibold">💵 سعر</th>
+                <th className="font-semibold">📦 تكلفة</th>
+                <th className="font-semibold">📣 إعلان</th>
+                <th className="font-semibold">🚚 شحن</th>
+                <th className="font-semibold">ربح/وحدة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((p) => {
+                const r = rows[p.name]; const u = unit(r);
+                return (
+                  <tr key={p.name} className="border-t border-border/40">
+                    <td className="py-1.5 pe-2 text-text font-medium">{p.name}<span className="text-muted text-[10px] mr-1">· {p.units}u</span></td>
+                    <td className="text-center"><input value={r.sale_price_usd} onChange={e=>set(p.name,'sale_price_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
+                    <td className="text-center"><input value={r.cost_usd} onChange={e=>set(p.name,'cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
+                    <td className="text-center"><input value={r.ad_cost_usd} onChange={e=>set(p.name,'ad_cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
+                    <td className="text-center"><input value={r.shipping_cost_usd} onChange={e=>set(p.name,'shipping_cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
+                    <td className={`text-center font-bold ${u>0?'text-green-600':u<0?'text-red-600':'text-muted'}`}>${fmt(u)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex gap-2 p-3 border-t border-border shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إغلاق</button>
+          <button onClick={saveAll} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-white font-bold hover:bg-teal/90 disabled:opacity-50">
+            {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'منتج' : 'الكل'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PERIODS = [
   { key: '90d',   label: 'آخر 3 شهور' },
   { key: 'month', label: 'هذا الشهر' },
@@ -100,6 +194,7 @@ export default function ProfitabilityScreen() {
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [bulk, setBulk]       = useState(false);
   const [period, setPeriod]   = useState('90d');
 
   const load = useCallback(async () => {
@@ -144,9 +239,15 @@ export default function ProfitabilityScreen() {
         <StatCard icon="⚠️" label="مرتجعات عالية" value={totals.risky} tone="orange" />
       </div>
 
+      {/* Bulk cost entry CTA */}
+      <button onClick={()=>setBulk(true)}
+        className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
+        ✏️ تعديل التكاليف للكل دفعة واحدة
+      </button>
+
       {totals.unset > 0 && (
         <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2.5">
-          💡 {totals.unset} صنف بدون تكلفة محدّدة — اضغط «➕ حدّد» لإدخال السعر والتكلفة وتظهر ربحيته فوراً.
+          💡 {totals.unset} صنف بدون تكلفة محدّدة — اضغط «✏️ تعديل التكاليف للكل» لإدخالها دفعة واحدة وتظهر الأرباح فوراً.
         </div>
       )}
 
@@ -189,6 +290,7 @@ export default function ProfitabilityScreen() {
       </div>
 
       {editing && <EconEditor p={editing} onClose={()=>setEditing(null)} onSave={()=>{ setEditing(null); toast.success('تم الحفظ'); load(); }} />}
+      {bulk && <BulkEconEditor products={products} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
     </div>
   );
 }
