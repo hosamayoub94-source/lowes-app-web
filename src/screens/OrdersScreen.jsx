@@ -2650,7 +2650,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const exportYurticiExcel = async () => {
     const ship = orders.filter(o =>
       o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
+      !o.yurtici_cargo_key &&  // لا تُعِد طلباً له شحنة يورتيتشي مُنشأة (يمنع تكرار الشحنة في الرفع)
       ['pending', 'preparing', 'ready'].includes(o.status) &&
+      // استثنِ التوصيل بالموتور صراحةً (قد يكون shipping_company فارغاً) — يورتيتشي فقط
+      !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '') &&
       (!o.shipping_company || /yurti[çc]i/i.test(o.shipping_company || ''))
     );
     if (!ship.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
