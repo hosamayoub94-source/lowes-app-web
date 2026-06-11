@@ -11,6 +11,7 @@ export const ROUTES = {
   CRM: '/crm',
   ACCOUNTING: '/accounting',
   GUIDE: '/guide',
+  BRAND: '/brand',
   ADMIN: '/admin',
   ADMIN_GUIDES: '/admin/guides',
   ADMIN_USERS: '/admin/users',

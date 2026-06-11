@@ -48,6 +48,7 @@ export const NAV_ITEMS = [
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
   { id: 'guide',        label: 'دليل التطبيق', icon: '📖', path: '/guide',       roles: ALL,                group: 'self' },
+  { id: 'brand',        label: 'هوية البراند', icon: '🎨', path: '/brand',       roles: ALL,                group: 'self' },
   { id: 'announcements', label: 'الإعلانات', icon: '📢', path: '/announcements', roles: ALL,               group: 'core' },
   { id: 'requests',     label: 'طلباتي وإجازاتي', icon: '📝', path: '/requests', roles: ALL,              group: 'hr' },
   { id: 'team',         label: 'الفريق والورديات', icon: '👥', path: '/team',     roles: ALL,                 group: 'hr' },
