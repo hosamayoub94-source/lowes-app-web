@@ -5,6 +5,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
+import { Tabs } from '@components/ui/Tabs';
 import {
   useSalesBootstrap, useSalesDashboard, useSalesActions,
   useSelectedReportId, useReportDetail, useSalesLoading,
@@ -107,19 +108,13 @@ function NewReportModal({ open, onClose, onSave, loading, campaigns, channels })
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 px-4 pt-3 pb-1 border-b border-border shrink-0">
-          {[
+        {/* Tabs (موحّد) */}
+        <div className="px-4 pt-3 pb-2 border-b border-border shrink-0">
+          <Tabs value={tab} onChange={setTab} tabs={[
             { key: 'summary',   label: 'الإجمالي',  icon: '📋' },
             { key: 'campaigns', label: 'الحملات',    icon: '📣', badge: ads.length || null },
             { key: 'channels',  label: 'القنوات',    icon: '📦', badge: chanRows.length || null },
-          ].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${tab === t.key ? 'bg-teal/10 text-teal' : 'text-muted hover:text-text'}`}>
-              {t.icon} {t.label}
-              {t.badge ? <span className="bg-teal text-white text-[9px] font-bold px-1.5 rounded-full">{t.badge}</span> : null}
-            </button>
-          ))}
+          ]} />
         </div>
 
         {/* Body */}

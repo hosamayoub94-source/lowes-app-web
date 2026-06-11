@@ -3,6 +3,7 @@
 // =============================================================
 import { useState, useMemo } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { Tabs } from '@components/ui/Tabs';
 import {
   useAccountingBootstrap,
   useAccountingDashboard,
@@ -349,23 +350,8 @@ export default function AccountingScreen() {
         <CurrencyBlock currency="SYP" symbol="£"  {...currencyKpis.SYP} />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={[
-              'px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition',
-              tab === t.key
-                ? 'bg-teal text-white'
-                : 'bg-surface border border-border text-muted hover:border-teal/40',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs (موحّد) */}
+      <Tabs tabs={TABS} value={tab} onChange={setTab} />
 
       {/* Entries table */}
       {isLoading ? (

@@ -10,6 +10,7 @@ import {
   useRequestsLoading,
 } from '../hooks/useRequests.js';
 import { RequestCard } from '../components/RequestCard.jsx';
+import { Tabs } from '@components/ui/Tabs';
 import {
   REQUEST_TYPE,
   REQUEST_TYPE_LABELS,
@@ -130,32 +131,13 @@ export function RequestsDashboard() {
         <KpiCard icon="❌" label="مرفوضة"             value={kpis.rejected} colorClass="text-red-fg" />
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────── */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
-        {REQUEST_TABS.map(t => {
-          const isActive = activeTab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={[
-                'flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition',
-                isActive
-                  ? 'bg-navy text-white shadow-sm'
-                  : 'bg-surface border border-border text-muted hover:border-teal/40 hover:text-text',
-              ].join(' ')}
-            >
-              <span>{t.icon}</span>
-              {t.label}
-              {t.key === 'pending' && kpis.pending > 0 && (
-                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-amber-bg text-amber-fg'}`}>
-                  {kpis.pending}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Tabs (موحّد) ───────────────────────────────────── */}
+      <Tabs
+        className="mb-5"
+        value={activeTab}
+        onChange={setActiveTab}
+        tabs={REQUEST_TABS.map(t => (t.key === 'pending' && kpis.pending > 0 ? { ...t, badge: kpis.pending } : t))}
+      />
 
       {/* ── List ───────────────────────────────────────────── */}
       {isLoading ? (

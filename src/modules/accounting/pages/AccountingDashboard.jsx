@@ -6,6 +6,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import TreasuryPanel from '../components/TreasuryPanel';
+import { Tabs } from '@components/ui/Tabs';
 import { printPaymentVoucher } from '../utils/paymentVoucher';
 import {
   useAccountingBootstrap,
@@ -593,20 +594,10 @@ export function AccountingDashboard() {
           )}
         </div>
 
-        {/* ── Type Tabs ── */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-          {TYPE_TABS.map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={[
-                'px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition shrink-0',
-                activeTab === t.key
-                  ? 'bg-navy text-white'
-                  : 'bg-surface border border-border text-muted hover:border-navy/40',
-              ].join(' ')}>
-              {t.label}
-            </button>
-          ))}
-          <span className="text-xs text-muted flex items-center shrink-0 mr-auto">
+        {/* ── Type Tabs (موحّد) ── */}
+        <div className="flex items-center gap-2 mb-4">
+          <Tabs tabs={TYPE_TABS} value={activeTab} onChange={setActiveTab} />
+          <span className="text-xs text-muted flex items-center shrink-0 ms-auto">
             {filtered.length} قيد
           </span>
         </div>
