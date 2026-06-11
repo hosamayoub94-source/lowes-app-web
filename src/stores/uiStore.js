@@ -42,6 +42,10 @@ export const useUiStore = create()(
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+      // تنسيق البنرات: بنر واحد كحدّ أقصى (Install له الأولوية على Push)
+      installPromptActive: false,
+      setInstallPromptActive: (v) => set({ installPromptActive: !!v }),
     }),
     {
       name: KEY,

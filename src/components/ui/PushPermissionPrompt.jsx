@@ -7,6 +7,7 @@
 // =============================================================
 import { useEffect, useState } from 'react';
 import { usePushNotifications } from '@hooks/usePushNotifications';
+import { useUiStore } from '@stores/uiStore';
 
 const DISMISS_KEY = 'lozy_push_prompt_dismissed';
 const SNOOZE_MS   = 30 * 24 * 60 * 60 * 1000; // re-ask after 30 days (less naggy)
@@ -20,6 +21,7 @@ function recentlyDismissed() {
 
 export function PushPermissionPrompt() {
   const { supported, vapidConfigured, permission, subscribed, loading, subscribe } = usePushNotifications();
+  const installActive = useUiStore((s) => s.installPromptActive);
   const [show, setShow]       = useState(false);
   const [hidden, setHidden]   = useState(false);
 
@@ -32,7 +34,7 @@ export function PushPermissionPrompt() {
     return () => clearTimeout(t);
   }, [supported, vapidConfigured, subscribed, permission]);
 
-  if (!show || hidden || subscribed) return null;
+  if (!show || hidden || subscribed || installActive) return null; // بنر واحد فقط: Install أولاً
 
   const dismiss = () => {
     try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}

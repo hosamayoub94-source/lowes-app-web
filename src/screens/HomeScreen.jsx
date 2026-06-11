@@ -143,12 +143,20 @@ function CurrencyWidget() {
 function DailyMotivation() {
   const dayIndex = Math.floor(Date.now() / 86400000);
   const q = MOTIVATIONS[dayIndex % MOTIVATIONS.length];
-  const [visible, setVisible] = useState(true);
+  // إغلاقه يُحفظ ليومه فقط — لا يزعج عند كل تحديث، ويعود بمحتوى جديد غداً
+  const [visible, setVisible] = useState(() => {
+    try { return Number(localStorage.getItem('lp_motivation_dismissed') || -1) !== dayIndex; }
+    catch { return true; }
+  });
+  const close = () => {
+    try { localStorage.setItem('lp_motivation_dismissed', String(dayIndex)); } catch { /* noop */ }
+    setVisible(false);
+  };
   if (!visible) return null;
   return (
     <div className="relative rounded-2xl overflow-hidden border border-teal/20 bg-gradient-to-l from-teal/8 to-navy/5 px-4 py-3.5">
       <button
-        onClick={() => setVisible(false)}
+        onClick={close}
         className="absolute top-2 end-2 text-muted/40 hover:text-muted text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-surface-alt transition"
         aria-label="إغلاق"
       >✕</button>
@@ -160,6 +168,13 @@ function DailyMotivation() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Subtle section label (groups the home into clear sections) ───
+function SectionLabel({ children }) {
+  return (
+    <p className="text-[11px] font-bold text-muted/70 uppercase tracking-wider px-1 pt-1">{children}</p>
   );
 }
 
@@ -1064,13 +1079,17 @@ export default function HomeScreen() {
 
       {/* ── Top pair: attendance + my tasks (when present) ──────── */}
       {pairAtTop && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AttendanceCard name={name} team={team} />
-          <MyTasksCard name={name} userId={userId} />
-        </div>
+        <>
+          <SectionLabel>نظرة اليوم</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AttendanceCard name={name} team={team} />
+            <MyTasksCard name={name} userId={userId} />
+          </div>
+        </>
       )}
 
       {/* ── Role-specific blocks (in order; adjacent charts pair) ─ */}
+      {rest.length > 0 && <SectionLabel>لوحتك</SectionLabel>}
       {rest.map((key, i) => {
         // Pair two consecutive charts into one 2-column grid (skip the 2nd).
         if (isChart(key) && isChart(rest[i + 1])) {

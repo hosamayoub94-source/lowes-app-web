@@ -4,6 +4,7 @@
 // Also shows iOS instructions (Safari doesn't fire the event)
 // =============================================================
 import { useEffect, useState } from 'react';
+import { useUiStore } from '@stores/uiStore';
 
 function isIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -20,6 +21,14 @@ export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showIOSHint, setShowIOSHint]       = useState(false);
   const [dismissed, setDismissed]           = useState(false);
+  const setInstallPromptActive = useUiStore((s) => s.setInstallPromptActive);
+
+  // أعلِم بقية الواجهة أن بنر التثبيت ظاهر → يُخفي بنر الإشعارات (واحد فقط)
+  useEffect(() => {
+    const visible = !dismissed && (!!deferredPrompt || showIOSHint);
+    setInstallPromptActive(visible);
+    return () => setInstallPromptActive(false);
+  }, [deferredPrompt, showIOSHint, dismissed, setInstallPromptActive]);
 
   useEffect(() => {
     // Already installed — don't show
