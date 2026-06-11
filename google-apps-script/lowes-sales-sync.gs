@@ -176,9 +176,12 @@ function doPost(e) {
     }
 
     if (existingRow) {
-      // تحديث — اكتب فقط الأعمدة التي يملكها التطبيق (احفظ التعديلات اليدوية)
+      // تحديث بمكانه — اكتب فقط الأعمدة التي يملكها التطبيق (احفظ التعديلات اليدوية).
+      // ⚠️ قرار المالك (11 يونيو 2026): الحالة مملوكة للجدول/الفريق — التحديث من
+      // التطبيق يكتب بيانات العميل + الأصناف + الدفع، لكن **لا يدهس عمود الحالة**
+      // (لا col('status') هنا). إنشاء طلب جديد (append) ما يزال يكتب الحالة الابتدائية.
       var APP_OWNED_SY = [col('name'), col('number'), col('wanumber','wa'), col('city'), col('address'),
-                          col('status'), cOrderId, col('salesperson'), col('note'),
+                          cOrderId, col('salesperson'), col('note'),
                           col('shippingmethod','shipping'), col('payment')];
       var colCurrency = [_colToNum(COL_SYP), _colToNum(COL_USD), _colToNum(COL_TRY)];
       // أعمدة الدفع الجزئي (K المتبقّي + O ملاحظة الدفع) تُكتب فقط عند وجود دفع جزئي
@@ -221,7 +224,31 @@ function onSheetEdit(e) {
   try {
     if (!e || !e.range) return;
     var sh = e.range.getSheet();
-    if (sh.getName() !== SHEET_NAME) return;
+    var __sheetName = sh.getName();
+
+    // قرار المالك (11 يونيو 2026): الفريق ينقل الطلب المُسلَّم لتاب «Delivered Orders»
+    // (قص/لصق صف). هذا الحدث لم يكن يصل التطبيق فيبقى الطلب shipped/pending هناك.
+    // الآن: أي صف يُعدَّل/يُلصَق بتاب التسليمات وفيه Order ID → ادفع «تم التسليم» للتطبيق
+    // (idempotent — لو مُسلَّم سلفاً sheet-to-app لا يكرّر السجل/الإشعار). العمود M=Order ID.
+    if (__sheetName.indexOf('Delivered Orders') >= 0) {
+      var dStart = e.range.getRow(), dN = e.range.getNumRows();
+      for (var dr = 0; dr < dN; dr++) {
+        var drow = dStart + dr;
+        if (drow < 7) continue; // منطقة العناوين/لوحة الجرد فوق
+        var dOid = String(sh.getRange(drow, 13).getValue()).trim(); // العمود M (13) = Order ID
+        if (!dOid) continue;
+        UrlFetchApp.fetch(APP_SHEET_TO_APP_URL, {
+          method: 'post', contentType: 'application/json',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
+          payload: JSON.stringify({ token: SECRET_TOKEN, action: 'update', order_id: dOid, status: 'تم التسليم' }),
+          muteHttpExceptions: true,
+        });
+        Utilities.sleep(80);
+      }
+      return;
+    }
+
+    if (__sheetName !== SHEET_NAME) return;
 
     var lastCol = sh.getLastColumn();
     // اكتشاف صف العناوين (نفس منطق doPost)
