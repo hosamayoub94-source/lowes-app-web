@@ -4,6 +4,7 @@
 // =============================================================
 
 import { PAYMENT_METHOD_LABELS, ENTRY_TYPE_LABELS } from '../types/accounting.types';
+import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
 
 // ── Arabic number-to-words (SYP/USD) ──────────────────────────
 const ONES = ['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة',
@@ -79,13 +80,16 @@ export function printPaymentVoucher(entry, options = {}) {
   const {
     payeeName   = '',
     authorizedBy = 'hosam ayoub',
-    companyName = "Lowe's Professional",
-    companyNameAr = 'لويس بروفيشنال',
-    tagline     = 'الكوزمتك الاحترافي — تركيا · سوريا · الإمارات',
+    companyName = BRAND.nameEn,
+    companyNameAr = BRAND.nameAr,
+    tagline     = BRAND.sloganAr,
     // Prefer the entry's stored reference_no so reprints keep the SAME official
     // number; fall back to a local sequence only for legacy entries without one.
     voucherNo   = entry.reference_no || nextVoucherNo(),
   } = options;
+
+  // ألوان الهوية الرسمية: أبيض مسيطر · أسود نص · ذهبي accent فقط
+  const GOLD = BRAND_COLORS.gold, GOLD_L = BRAND_COLORS.goldLight, CREAM = BRAND_COLORS.cream, INK = BRAND_COLORS.black;
 
   const dateStr = entry.entry_date
     ? new Date(entry.entry_date).toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -112,12 +116,12 @@ export function printPaymentVoucher(entry, options = {}) {
 <meta charset="UTF-8">
 <title>وصل دفع — ${voucherNo}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,500&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Tajawal', sans-serif;
     font-size: 12px;
-    color: #1a1a2e;
+    color: ${INK};
     background: #fff;
     padding: 0;
   }
@@ -130,105 +134,110 @@ export function printPaymentVoucher(entry, options = {}) {
     .voucher { page-break-inside: avoid; }
   }
 
+  /* أبيض مسيطر · إطار ذهبي رفيع (hairline) */
   .voucher {
     width: 200mm;
     min-height: 130mm;
-    border: 2px solid #1a1a2e;
-    border-radius: 6px;
+    background: #fff;
+    border: 1.5px solid ${GOLD};
+    border-radius: 4px;
     overflow: hidden;
     margin: 10px auto;
     display: flex;
     flex-direction: column;
   }
 
-  /* Header */
+  /* Header — أبيض، اسم البراند Playfair أسود + قلب ذهبي، فاصل ذهبي */
   .header {
-    background: linear-gradient(135deg, #0f1f3d 0%, #0d7377 100%);
-    color: #fff;
-    padding: 10px 16px;
+    background: #fff;
+    color: ${INK};
+    padding: 14px 18px 10px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    border-bottom: 2px solid ${GOLD};
   }
-  .company-name { font-size: 18px; font-weight: 800; }
-  .company-sub { font-size: 10px; opacity: 0.8; margin-top: 2px; }
-  .voucher-meta { text-align: left; font-size: 11px; }
-  .voucher-no { font-size: 15px; font-weight: 700; }
+  .brand-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: ${INK};
+  }
+  .brand-name .heart { color: ${GOLD}; }
+  .brand-tr { font-family: 'Playfair Display', serif; font-style: italic; font-size: 11px; color: ${GOLD}; margin-top: 1px; }
+  .brand-tag { font-size: 10px; color: #6B5D4F; margin-top: 3px; }
+  .voucher-meta { text-align: left; }
+  .voucher-no { font-size: 15px; font-weight: 800; color: ${INK}; }
+  .voucher-no small { display:block; font-size:8px; color:#6B5D4F; font-weight:600; letter-spacing:1px; }
+  .voucher-date { font-size: 10px; color: #6B5D4F; margin-top: 4px; }
+
   .voucher-title {
     text-align: center;
-    background: #f8f7f4;
-    padding: 6px;
+    background: ${CREAM};
+    padding: 7px;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.5px;
-    border-bottom: 1px solid #e5e7eb;
-    color: #0f1f3d;
+    border-bottom: 1px solid ${GOLD_L};
+    color: ${INK};
   }
 
   /* Body */
   .body {
-    padding: 12px 16px;
+    padding: 14px 18px;
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px 16px;
+    gap: 9px 18px;
   }
   .field { display: flex; flex-direction: column; gap: 2px; }
   .field-label {
     font-size: 9px;
     text-transform: uppercase;
-    color: #6b7280;
-    font-weight: 600;
+    color: #6B5D4F;
+    font-weight: 700;
     letter-spacing: 0.5px;
   }
   .field-value {
     font-size: 13px;
     font-weight: 700;
-    color: #0f1f3d;
-    border-bottom: 1px solid #e5e7eb;
+    color: ${INK};
+    border-bottom: 1px solid ${GOLD_L};
     padding-bottom: 3px;
     min-height: 22px;
   }
-  .amount-value {
-    font-size: 18px;
-    color: ${isExpense ? '#dc2626' : '#16a34a'};
-  }
+  .amount-value { font-size: 19px; color: ${INK}; }
+  .amount-value .cur { color: ${GOLD}; font-size: 14px; }
   .words-row {
     grid-column: 1 / -1;
-    background: #f8f7f4;
-    border-radius: 6px;
-    padding: 6px 10px;
-    border: 1px solid #e5e7eb;
+    background: ${CREAM};
+    border-radius: 4px;
+    padding: 7px 10px;
+    border: 1px solid ${GOLD_L};
   }
-  .words-label { font-size: 9px; color: #6b7280; font-weight: 600; margin-bottom: 3px; }
-  .words-text { font-size: 12px; font-weight: 700; color: #0f1f3d; }
+  .words-label { font-size: 9px; color: #6B5D4F; font-weight: 700; margin-bottom: 3px; }
+  .words-text { font-size: 12px; font-weight: 700; color: ${INK}; }
 
   /* Footer */
   .footer {
-    border-top: 1px solid #e5e7eb;
-    padding: 10px 16px 12px;
+    border-top: 1px solid ${GOLD_L};
+    padding: 10px 18px 8px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     gap: 8px;
     align-items: end;
   }
   .sig-block { text-align: center; }
-  .sig-line {
-    border-bottom: 1px solid #1a1a2e;
-    width: 80px;
-    margin: 0 auto 4px;
-    height: 22px;
-  }
-  .sig-label { font-size: 10px; color: #6b7280; font-weight: 600; }
-  .sig-name { font-size: 11px; font-weight: 700; }
+  .sig-line { border-bottom: 1px solid ${INK}; width: 90px; margin: 0 auto 4px; height: 22px; }
+  .sig-label { font-size: 10px; color: #6B5D4F; font-weight: 600; }
+  .sig-name { font-size: 11px; font-weight: 700; color: ${INK}; }
 
-  .stamp-area {
-    text-align: center;
-  }
+  .stamp-area { text-align: center; }
   .stamp-circle {
-    width: 55px;
-    height: 55px;
-    border: 2.5px solid #0d7377;
+    width: 58px;
+    height: 58px;
+    border: 2px solid ${GOLD};
     border-radius: 50%;
     margin: 0 auto;
     display: flex;
@@ -237,45 +246,59 @@ export function printPaymentVoucher(entry, options = {}) {
     flex-direction: column;
     font-size: 8px;
     font-weight: 700;
-    color: #0d7377;
-    line-height: 1.3;
+    color: ${GOLD};
+    line-height: 1.25;
   }
+  .stamp-circle .lp { font-family: 'Playfair Display', serif; font-size: 11px; font-weight: 800; color: ${INK}; }
+
+  /* Company legal footer */
+  .company-footer {
+    border-top: 1.5px solid ${GOLD};
+    background: ${CREAM};
+    padding: 6px 18px 8px;
+    text-align: center;
+    font-size: 8.5px;
+    color: #6B5D4F;
+    line-height: 1.5;
+  }
+  .company-footer .legal { font-weight: 700; color: ${INK}; font-size: 9px; }
 
   /* Print button */
   .print-btn {
-    display: block;
-    margin: 10px auto;
+    display: inline-block;
+    margin: 10px 6px;
     padding: 8px 24px;
-    background: #0d7377;
+    background: ${GOLD};
     color: #fff;
     border: none;
     border-radius: 8px;
     font-family: 'Tajawal', sans-serif;
     font-size: 14px;
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 700;
   }
-  .print-btn:hover { background: #0f1f3d; }
+  .print-btn:hover { background: ${INK}; }
+  .print-btn.sec { background: #6B5D4F; }
 </style>
 </head>
 <body>
 
 <div class="no-print" style="text-align:center; padding: 12px 0;">
   <button class="print-btn" onclick="window.print()">🖨️ طباعة وصل الدفع</button>
-  <button class="print-btn" style="background:#6b7280; margin-right:8px;" onclick="window.close()">✕ إغلاق</button>
+  <button class="print-btn sec" onclick="window.close()">✕ إغلاق</button>
 </div>
 
 <div class="voucher">
   <!-- Header -->
   <div class="header">
     <div>
-      <div class="company-name">${companyName}</div>
-      <div class="company-sub">${companyNameAr}</div>
-      <div class="company-sub" style="font-size:9px; opacity:0.6; margin-top:1px">${tagline}</div>
+      <div class="brand-name">LOWE'S <span class="heart">${BRAND.heart}</span></div>
+      <div class="brand-tr">profesyonel</div>
+      <div class="brand-tag">${tagline}</div>
     </div>
     <div class="voucher-meta">
-      <div class="voucher-no">${voucherNo}</div>
-      <div style="font-size:10px; opacity:0.8">${dateStr}</div>
+      <div class="voucher-no"><small>VOUCHER No.</small>${voucherNo}</div>
+      <div class="voucher-date">${dateStr}</div>
     </div>
   </div>
 
@@ -322,9 +345,9 @@ export function printPaymentVoucher(entry, options = {}) {
     </div>
     <div class="stamp-area">
       <div class="stamp-circle">
-        <span>LP</span>
-        <span>ختم</span>
-        <span>رسمي</span>
+        <span class="lp">LOWE'S</span>
+        <span>ختم رسمي</span>
+        <span>${BRAND.heart}</span>
       </div>
     </div>
     <div class="sig-block">
@@ -332,6 +355,13 @@ export function printPaymentVoucher(entry, options = {}) {
       <div class="sig-name"></div>
       <div class="sig-label">المستلم / توقيع</div>
     </div>
+  </div>
+
+  <!-- Company legal footer -->
+  <div class="company-footer">
+    <div class="legal">${COMPANY.legalName}</div>
+    <div>${COMPANY.address} — ${COMPANY.city}, ${COMPANY.country} · سجل تجاري: ${COMPANY.tradeRegistryNo}</div>
+    <div>📧 ${COMPANY.email} · 🌐 ${COMPANY.website} · 📱 ${COMPANY.whatsapp}</div>
   </div>
 </div>
 
