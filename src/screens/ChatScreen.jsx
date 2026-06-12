@@ -1186,6 +1186,7 @@ export default function ChatScreen(){
   const msgEndRef=useRef(null),subRef=useRef(null),msgContainerRef=useRef(null),globalSubRef=useRef(null);
   const typingTimers=useRef({});
   const skipAutoScrollRef=useRef(false);  // عند تحميل الأقدم: لا تنزل للأسفل
+  const lastScrollRoomRef=useRef(null);   // لاكتشاف فتح غرفة جديدة (قفزة فورية للأسفل)
   const loadingOlderRef=useRef(false);    // حارس إعادة دخول لجلب الأقدم
   const loadOlderRef=useRef(null);         // أحدث نسخة من loadOlder (لمعالج التمرير الثابت)
   const messagesRef=useRef([]);            // أحدث قائمة رسائل (بلا stale closure)
@@ -1519,8 +1520,17 @@ export default function ChatScreen(){
     messagesRef.current=messages;
     // عند إلصاق رسائل أقدم (pagination) لا تنزل للأسفل — حافظ على موضع القراءة.
     if(skipAutoScrollRef.current){skipAutoScrollRef.current=false;return;}
-    msgEndRef.current?.scrollIntoView({behavior:'smooth'});
-  },[messages]);
+    const toBottom=()=>{const c=msgContainerRef.current;if(c)c.scrollTop=c.scrollHeight;};
+    // فتح غرفة جديدة → اقفز للأسفل فوراً (auto) مع إعادات للصور المتأخّرة
+    if(lastScrollRoomRef.current!==activeRoom?.id){
+      if(messages.length)lastScrollRoomRef.current=activeRoom?.id;
+      requestAnimationFrame(toBottom); setTimeout(toBottom,120); setTimeout(toBottom,400);
+      return;
+    }
+    // نفس الغرفة (رسالة جديدة) → انزل بسلاسة فقط لو المستخدم قرب الأسفل (لا تدهس قراءة التاريخ)
+    const c=msgContainerRef.current;
+    if(!c||c.scrollHeight-c.scrollTop-c.clientHeight<240)msgEndRef.current?.scrollIntoView({behavior:'smooth'});
+  },[messages,activeRoom?.id]);
 
   // ── شبكة أمان: أعد جلب الرسائل عند رجوع التركيز/ظهور التبويب ──────
   // على الموبايل/PWA ينقطع سوكِت realtime بالخلفية فتضيع رسائل وصلت

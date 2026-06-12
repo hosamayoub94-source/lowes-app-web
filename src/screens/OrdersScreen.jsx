@@ -1331,7 +1331,7 @@ function InvoiceModal({ order, onClose }) {
             borderBottom: `2px solid ${BRAND_COLORS.gold}`,
           }}>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-              <img src={BRAND_ASSETS.logoUrl} alt="LOWE'S" crossOrigin="anonymous"
+              <img src={BRAND_ASSETS.logoUrl} alt="LOWE'S"
                 style={{ height:'62px', width:'auto' }} />
               <div>
                 <div style={{ fontSize:'17px', fontWeight:'900', letterSpacing:'0.3px', color:BRAND_COLORS.black }}>
@@ -1418,7 +1418,7 @@ function InvoiceModal({ order, onClose }) {
               <div style={{ borderBottom:`1px solid ${BRAND_COLORS.black}`, width:'110px', height:'22px', marginBottom:'4px' }} />
               <div style={{ fontSize:'9px', color:'#6B5D4F', fontWeight:'600' }}>توقيع العميل</div>
             </div>
-            <img src={BRAND_ASSETS.stampUrl} alt="ختم" crossOrigin="anonymous"
+            <img src={BRAND_ASSETS.stampUrl} alt="ختم"
               style={{ width:'66px', height:'66px', objectFit:'contain', opacity:0.92 }} />
           </div>
 

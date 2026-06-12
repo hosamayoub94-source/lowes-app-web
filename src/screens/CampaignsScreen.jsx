@@ -765,6 +765,9 @@ export default function CampaignsScreen() {
 
   const deleteCampaign = async (c) => {
     if (!window.confirm(`حذف حملة "${c.name}" نهائياً مع كل إعلاناتها وتسجيلاتها؟`)) return;
+    // احذف الأبناء أولاً (قيود FK بلا CASCADE تمنع حذف الحملة مباشرةً): السجلات → الإعلانات → الحملة
+    await supabase.from('ad_daily_logs').delete().eq('campaign_id', c.id).then(() => {}, () => {});
+    await supabase.from('campaign_ads').delete().eq('campaign_id', c.id).then(() => {}, () => {});
     const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
     if (error) { alert('فشل الحذف: ' + error.message); return; }
     load();
