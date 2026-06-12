@@ -345,19 +345,27 @@ export default function AttendanceScreen() {
 
   // ── Shift model (decoupled from calendar date) ────────────────
   // A shift is "open" while you've checked in and have NOT yet checked
-  // out for THAT shift. Night shifts cross midnight, so a stray "out"
-  // row (e.g. 01:00) from yesterday's shift must NOT make today look
-  // "done" and block a fresh morning check-in.
-  const openShift      = !!today?.checkIn && (!today?.checkOut || today.checkOut < today.checkIn);
+  // out for THAT shift. Night shifts cross midnight: a shift opened at
+  // 20:00 on day-1 may be closed at 02:00 on day-2. So the open shift is
+  // the MOST RECENT day with a check-in but no matching check-out — it
+  // may be YESTERDAY. Check-out is attributed back to that shift's day
+  // so a single overnight shift is never counted as two days.
+  let openShiftDate = null;
+  for (let i = days.length - 1; i >= 0; i--) {
+    const r = week[days[i]];
+    if (r?.checkIn && (!r.checkOut || r.checkOut < r.checkIn)) { openShiftDate = days[i]; break; }
+  }
+  const openRec        = openShiftDate ? week[openShiftDate] : null;
+  const openShift      = !!openRec;
   const completedToday = !!today?.checkIn && !!today?.checkOut && today.checkOut >= today.checkIn;
 
   // Live clock + check-out lock countdown
   useEffect(() => {
     const tick = () => {
       setClock(nowHHMMSS());
-      if (openShift) {
-        setDuration(calcDuration(today.checkIn, null) ?? '');
-        const left = MIN_MINUTES_BEFORE_CHECKOUT - minutesSinceCheckIn(today.checkIn);
+      if (openRec?.checkIn) {
+        setDuration(calcDuration(openRec.checkIn, null) ?? '');
+        const left = MIN_MINUTES_BEFORE_CHECKOUT - minutesSinceCheckIn(openRec.checkIn);
         setCheckoutLockLeft(left > 0 ? left : 0);
       } else {
         setCheckoutLockLeft(0);
@@ -366,18 +374,18 @@ export default function AttendanceScreen() {
     tick(); // run immediately so the lock state is correct on mount
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [today]);
+  }, [openShiftDate, week]);
 
-  // Duration on today change
+  // Duration follows the open/last shift (may be an overnight shift from أمس)
   useEffect(() => {
-    if (today?.checkIn && today?.checkOut) {
-      setDuration(calcDuration(today.checkIn, today.checkOut) ?? '');
+    if (openRec?.checkIn) {
+      setDuration(calcDuration(openRec.checkIn, openRec.checkOut || null) ?? '');
     } else if (today?.checkIn) {
-      setDuration(calcDuration(today.checkIn, null) ?? '');
+      setDuration(calcDuration(today.checkIn, today.checkOut || null) ?? '');
     } else {
       setDuration('');
     }
-  }, [today]);
+  }, [openShiftDate, week, today]);
 
   // Load last-7-days data
   const loadData = useCallback(async () => {
@@ -488,7 +496,9 @@ export default function AttendanceScreen() {
     setCameraMode(null);
     setSaving(true); setError(null);
     const now     = nowHHMM();
-    const dateVal = todaySlash();
+    // الخروج يُنسب ليوم الوردية المفتوحة (يوم الدخول) لا اليوم الحالي — يصلح
+    // الاحتساب المزدوج للوردية الليلية التي تعبر منتصف الليل.
+    const dateVal = openShiftDate || todaySlash();
     const dayName = arabicDaySlash(dateVal);
     try {
       const { error: insErr } = await supabase.from('attendance').insert({
@@ -520,12 +530,12 @@ export default function AttendanceScreen() {
     // "Already out" only counts when the latest out is at/after the latest in
     // (matches the isCheckedOut display logic). A stale/old out row — e.g. an
     // earlier 00:08 record or a previous shift — must NOT block a real checkout.
-    const alreadyOut = !!today?.checkOut && (!today?.checkIn || today.checkOut >= today.checkIn);
-    if (saving || !today?.checkIn || alreadyOut) return;
+    // اعتمد على الوردية المفتوحة (قد تكون ليلية من أمس) لا على اليوم التقويمي.
+    if (saving || !openRec?.checkIn) return;
 
     // Block check-out within the first hour to prevent accidental
     // check-in → instant check-out mistakes.
-    const minsSince = minutesSinceCheckIn(today.checkIn);
+    const minsSince = minutesSinceCheckIn(openRec.checkIn);
     if (minsSince < MIN_MINUTES_BEFORE_CHECKOUT) {
       const left = MIN_MINUTES_BEFORE_CHECKOUT - minsSince;
       setError(`لا يمكن تسجيل الانصراف قبل مرور ساعة على الأقل من الحضور. تبقّى ${left} دقيقة.`);
@@ -577,7 +587,7 @@ export default function AttendanceScreen() {
   const handleQuizContinue = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
   const handleQuizSkip     = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };
 
-  const isCheckedIn  = !!today?.checkIn;
+  const isCheckedIn  = !!openRec?.checkIn;   // وردية مفتوحة (قد تكون ليلية من أمس)
   const isCheckedOut = completedToday;
   const isComplete   = completedToday;
 
@@ -617,7 +627,7 @@ export default function AttendanceScreen() {
           ) : isCheckedIn ? (
             <span className="flex items-center gap-1.5 text-sm font-bold text-teal/90">
               <span className="w-2 h-2 rounded-full bg-teal animate-pulse" />
-              في العمل منذ {today.checkIn?.slice(0,5)} — {duration || '…'}
+              في العمل منذ {openRec?.checkIn?.slice(0,5)} — {duration || '…'}
             </span>
           ) : (
             <span className="text-sm text-white/50">لم تسجّل حضورك بعد</span>
