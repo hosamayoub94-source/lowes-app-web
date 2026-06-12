@@ -19,8 +19,8 @@ export function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Primary navigation"
     >
-      {/* Floating glass bar — adapts to dark via CSS vars */}
-      <div className="mx-3 mb-3 rounded-2xl overflow-hidden bg-surface/90 dark:bg-surface/95 backdrop-blur-xl border border-border/10"
+      {/* Floating bar — سطح معتم (بلا backdrop-blur) لتحريك أسلس بالجوال */}
+      <div className="mx-3 mb-3 rounded-2xl overflow-hidden bg-surface dark:bg-surface border border-border/10"
         style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08)' }}>
         <ul className="grid h-[62px]"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>

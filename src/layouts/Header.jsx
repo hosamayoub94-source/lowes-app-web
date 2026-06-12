@@ -22,7 +22,7 @@ export function Header({ title }) {
   const { name, role, avatar_url } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur border-b border-border">
+    <header className="sticky top-0 z-30 bg-surface/95 md:bg-surface/80 md:backdrop-blur border-b border-border">
       <div className="h-14 px-3 sm:px-5 flex items-center gap-3">
         <button
           type="button"

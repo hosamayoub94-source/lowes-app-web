@@ -30,6 +30,12 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-size: 15px;
+    /* سلاسة التحريك بالجوال: زخم iOS + منع الارتداد + إزالة وميض اللمس */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   @media (min-width: 768px) {
