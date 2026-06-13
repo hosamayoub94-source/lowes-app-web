@@ -676,6 +676,8 @@ function TasksPage() {
   const [creating, setCreating] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [activeTab, setActiveTab] = useState(null); // resolved by effect below
+  const userPickedTab = useRef(false);
+  const handleTabChange = useCallback((k) => { userPickedTab.current = true; setActiveTab(k); }, []);
   const userId = useAuthStore((s) => s.session?.id);
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
@@ -689,17 +691,18 @@ function TasksPage() {
     return t;
   }, [myProjects, viewerTeam, viewerCanSeeAll]);
 
-  // Default tab: land expo/project members on their project (don't scatter);
-  // otherwise management → الكل, plain employee → مهامي.
+  // Default tab: once projects load, land project members on their project
+  // (don't scatter) — until the user manually picks a tab. Management with
+  // no project → الكل; plain employee → مهامي.
   useEffect(() => {
-    if (activeTab && tabDefs.some((t) => t.key === activeTab)) return;
+    if (userPickedTab.current) return;
+    if (loading) return; // wait for myProjects to load before deciding
     const firstProject = (myProjects || [])[0];
-    setActiveTab(
-      firstProject ? `project:${firstProject.id}`
+    const preferred = firstProject ? `project:${firstProject.id}`
       : viewerCanSeeAll ? 'all'
-      : 'mine',
-    );
-  }, [tabDefs, myProjects, viewerCanSeeAll]); // eslint-disable-line react-hooks/exhaustive-deps
+      : 'mine';
+    if (preferred !== activeTab) setActiveTab(preferred);
+  }, [loading, myProjects, viewerCanSeeAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply the active tab on top of the store's search/status filters.
   const scopedTasks = useMemo(() => {
@@ -785,7 +788,7 @@ function TasksPage() {
 
       {/* ── Scope tabs (مهامي · مشاريعي · فريقي · الكل) ── */}
       {!loading && tabsWithCounts.length > 1 && (
-        <Tabs tabs={tabsWithCounts} value={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={tabsWithCounts} value={activeTab} onChange={handleTabChange} />
       )}
 
       {!loading && stats.total > 0 && <TaskStatsBar stats={stats} />}
