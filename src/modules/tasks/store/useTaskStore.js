@@ -22,22 +22,35 @@ import {
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
 import { resolvePermissions, PERMISSIONS } from '@data/permissions';
+import { ROLES } from '@data/teams';
+import { listMyProjects } from '../services/projectService';
 
 /**
  * Resolve the current viewer's visibility scope for tasks.
- * Returns { viewerId, viewAll }. Management (VIEW_ALL_TASKS) sees all;
- * everyone else sees only tasks assigned to / created by them.
+ * Returns { viewerId, viewAll, isAdmin, team, projectIds, projects }.
+ *   • viewAll  — VIEW_ALL_TASKS (management) → sees all non-sensitive.
+ *   • isAdmin  — admin role → also sees sensitive tasks.
+ *   • team / projectIds — widen visibility to the viewer's team + projects.
  * Auth is read lazily to avoid a circular import.
  */
 async function resolveViewer() {
   try {
     const { useAuthStore } = await import('@stores/authStore');
     const session = useAuthStore.getState().session ?? null;
-    if (!session?.id) return { viewerId: null, viewAll: true };
+    if (!session?.id) return { viewerId: null, viewAll: true, isAdmin: false, team: null, projectIds: [], projects: [] };
     const viewAll = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
-    return { viewerId: session.id, viewAll };
+    const isAdmin = session.role === ROLES.ADMIN;
+    const projects = await listMyProjects(session.id).catch(() => []);
+    return {
+      viewerId: session.id,
+      viewAll,
+      isAdmin,
+      team: session.team || null,
+      projectIds: projects.map((p) => p.id),
+      projects,
+    };
   } catch {
-    return { viewerId: null, viewAll: true };
+    return { viewerId: null, viewAll: true, isAdmin: false, team: null, projectIds: [], projects: [] };
   }
 }
 
@@ -58,6 +71,10 @@ export const useTaskStore = create()(
     // ── State ──────────────────────────────────────────────────
     tasks:          [],
     profiles:       [], // all assignable profiles from DB
+    myProjects:     [], // projects the current viewer belongs to (for tabs)
+    viewerTeam:     null,
+    viewerIsAdmin:  false,
+    viewerCanSeeAll:false,
     loading:        false,
     error:          null,
     selectedTaskId: null,
@@ -80,7 +97,13 @@ export const useTaskStore = create()(
           fetchTasks({ ...viewer, ...params }),
           listAssignableProfiles().catch(() => []),
         ]);
-        set({ tasks, profiles, loading: false });
+        set({
+          tasks, profiles, loading: false,
+          myProjects:      viewer.projects || [],
+          viewerTeam:      viewer.team || null,
+          viewerIsAdmin:   !!viewer.isAdmin,
+          viewerCanSeeAll: !!viewer.viewAll,
+        });
       } catch (err) {
         set({ error: err?.message || 'حدث خطأ أثناء تحميل المهام', loading: false });
       }

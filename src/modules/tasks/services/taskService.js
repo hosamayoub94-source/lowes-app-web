@@ -33,6 +33,7 @@ const TASK_SELECT = `
   due_date, due_time, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, assignee_id, created_by,
   platform, task_type, attachments_note, completion_note, link, team,
+  project_id, is_sensitive,
   assignee:profiles!tasks_assignee_id_fkey ( id, employee_name, avatar_url, role_type, team ),
   creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
@@ -64,18 +65,23 @@ const findEmp = (id) => MOCK_EMPLOYEES.find((e) => e.id === id) || null;
 // -------------------------------------------------------------
 
 /**
- * Load tasks.
+ * Load tasks with the owner's visibility model:
+ *   • A task is visible to its ASSIGNEE/CREATOR, to members of its
+ *     PROJECT, to members of its TEAM, and to MANAGEMENT (viewAll).
+ *   • SENSITIVE tasks are visible to ADMINS ONLY (Hosam/Amany/Reem) —
+ *     even managers and project/team members don't see them.
  *
- * Visibility rule (chosen by the owner): a task is visible to its
- * ASSIGNEE and to MANAGEMENT only. So when `params.viewAll` is falsy
- * we restrict the result to tasks where the current viewer is the
- * assignee (or the creator). Management passes `viewAll: true` and
- * sees everything. This is enforced at the app layer because the app
- * uses mixed auth (real JWT for some users, anon manual-session for
- * others) so per-row RLS via auth.uid() is unreliable here.
+ * Enforced at the app layer because the app uses mixed auth (real JWT
+ * for some users, anon manual-session for others) so per-row RLS via
+ * auth.uid() is unreliable here.
+ *
+ * params: { viewAll, viewerId, isAdmin, team, projectIds[] }
  */
 export async function fetchTasks(params = {}) {
-  const { viewAll = true, viewerId = null } = params;
+  const {
+    viewAll = true, viewerId = null, isAdmin = false,
+    team = null, projectIds = [],
+  } = params;
   const restrict = !viewAll && !!viewerId;
 
   if (USE_MOCK_DATA) {
@@ -83,10 +89,15 @@ export async function fetchTasks(params = {}) {
     refreshMock();
     let tasks = [..._mockStore];
     if (restrict) {
+      const projSet = new Set(projectIds);
       tasks = tasks.filter((t) =>
-        t.assigned_to?.id === viewerId || t.created_by?.id === viewerId,
+        t.assigned_to?.id === viewerId ||
+        t.created_by?.id === viewerId ||
+        (t.project_id && projSet.has(t.project_id)) ||
+        (team && t.team === team),
       );
     }
+    if (!isAdmin) tasks = tasks.filter((t) => !t.is_sensitive);
     if (params.assignedTo) tasks = tasks.filter((t) => t.assigned_to?.id === params.assignedTo);
     if (params.status)     tasks = tasks.filter((t) => t.status === params.status);
     if (params.priority)   tasks = tasks.filter((t) => t.priority === params.priority);
@@ -99,10 +110,21 @@ export async function fetchTasks(params = {}) {
     .order('created_at', { ascending: false });
 
   if (restrict) {
-    // assigned_to / assignee_id both hold the profile UUID; created_by lets
-    // a lead still track a task they created. Any match → visible.
-    q = q.or(`assignee_id.eq.${viewerId},assigned_to.eq.${viewerId},created_by.eq.${viewerId}`);
+    // Any match → visible. assigned_to/assignee_id both hold the profile UUID.
+    const clauses = [
+      `assignee_id.eq.${viewerId}`,
+      `assigned_to.eq.${viewerId}`,
+      `created_by.eq.${viewerId}`,
+    ];
+    if (Array.isArray(projectIds) && projectIds.length) {
+      clauses.push(`project_id.in.(${projectIds.join(',')})`);
+    }
+    if (team) clauses.push(`team.eq.${team}`);
+    q = q.or(clauses.join(','));
   }
+  // Sensitive tasks are admin-only — hide from everyone else.
+  if (!isAdmin) q = q.eq('is_sensitive', false);
+
   if (params.assignedTo) q = q.eq('assigned_to', params.assignedTo);
   if (params.status)     q = q.eq('status', params.status);
   if (params.priority)   q = q.eq('priority', params.priority);

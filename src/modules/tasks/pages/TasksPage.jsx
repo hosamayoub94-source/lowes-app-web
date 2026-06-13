@@ -9,7 +9,9 @@ import { cn } from '@utils/classNames';
 import { Button } from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
 import { Spinner } from '@components/ui/Loading';
+import { Tabs } from '@components/ui/Tabs';
 import { useTasks } from '../hooks/useTasks';
+import { useTaskStore } from '../store/useTaskStore';
 import { useAuthStore } from '@stores/authStore';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
@@ -62,11 +64,12 @@ const EMPTY_FORM = {
   title: '', description: '', priority: 'medium',
   due_date: '', due_time: '', assigned_to: '',
   platform: '', task_type: '', link: '', team: '',
+  project_id: '', is_sensitive: false,
 };
 
 const INPUT_CLS = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 
-function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
+function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects = [], canMarkSensitive = false }) {
   const formRef = useRef(null);
   const fileRef = useRef(null);
   const [form, setFormState] = useState(EMPTY_FORM);
@@ -232,6 +235,30 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees }) {
                   </p>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Project + Sensitive */}
+          <div className="rounded-xl border border-border bg-surface-alt/40 p-3 space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">المشروع</label>
+              <select value={form.project_id} onChange={(e) => set('project_id', e.target.value)} className={INPUT_CLS}>
+                <option value="">— بلا مشروع (مهمة عامة) —</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.icon ? `${p.icon} ` : ''}{p.name}</option>
+                ))}
+              </select>
+            </div>
+            {canMarkSensitive && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.is_sensitive}
+                  onChange={(e) => set('is_sensitive', e.target.checked)}
+                  className="w-4 h-4 accent-teal"
+                />
+                <span className="text-xs font-semibold text-text">🔒 مهمة حسّاسة — تظهر للأدمن فقط (حسام/أماني/ريم)</span>
+              </label>
             )}
           </div>
 
@@ -639,12 +666,64 @@ function TasksPage() {
   const { can } = usePermissions();
   const canAssign = can(PERMISSIONS.ASSIGN_TASKS);
 
+  // ── Tab scope (projects / team / mine / all) ──────────────────
+  const myProjects      = useTaskStore((s) => s.myProjects);
+  const viewerTeam      = useTaskStore((s) => s.viewerTeam);
+  const viewerIsAdmin   = useTaskStore((s) => s.viewerIsAdmin);
+  const viewerCanSeeAll = useTaskStore((s) => s.viewerCanSeeAll);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
+  const [activeTab, setActiveTab] = useState(null); // resolved by effect below
   const userId = useAuthStore((s) => s.session?.id);
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
+
+  // Build the tab list: مهامي · [each project] · فريقي · الكل(للإدارة)
+  const tabDefs = useMemo(() => {
+    const t = [{ key: 'mine', label: 'مهامي', icon: '👤' }];
+    (myProjects || []).forEach((p) => t.push({ key: `project:${p.id}`, label: p.name, icon: p.icon || '📁' }));
+    if (viewerTeam) t.push({ key: 'team', label: 'فريقي', icon: '👥' });
+    if (viewerCanSeeAll) t.push({ key: 'all', label: 'الكل', icon: '🗂️' });
+    return t;
+  }, [myProjects, viewerTeam, viewerCanSeeAll]);
+
+  // Default tab: land expo/project members on their project (don't scatter);
+  // otherwise management → الكل, plain employee → مهامي.
+  useEffect(() => {
+    if (activeTab && tabDefs.some((t) => t.key === activeTab)) return;
+    const firstProject = (myProjects || [])[0];
+    setActiveTab(
+      firstProject ? `project:${firstProject.id}`
+      : viewerCanSeeAll ? 'all'
+      : 'mine',
+    );
+  }, [tabDefs, myProjects, viewerCanSeeAll]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply the active tab on top of the store's search/status filters.
+  const scopedTasks = useMemo(() => {
+    if (!activeTab || activeTab === 'all') return filteredTasks;
+    if (activeTab === 'mine') return filteredTasks.filter((t) => t.assigned_to?.id === userId);
+    if (activeTab === 'team') return filteredTasks.filter((t) => t.team && t.team === viewerTeam);
+    if (activeTab.startsWith('project:')) {
+      const pid = activeTab.slice('project:'.length);
+      return filteredTasks.filter((t) => t.project_id === pid);
+    }
+    return filteredTasks;
+  }, [activeTab, filteredTasks, userId, viewerTeam]);
+
+  const tabsWithCounts = useMemo(() => tabDefs.map((t) => {
+    let count;
+    if (t.key === 'all') count = filteredTasks.length;
+    else if (t.key === 'mine') count = filteredTasks.filter((x) => x.assigned_to?.id === userId).length;
+    else if (t.key === 'team') count = filteredTasks.filter((x) => x.team && x.team === viewerTeam).length;
+    else if (t.key.startsWith('project:')) {
+      const pid = t.key.slice('project:'.length);
+      count = filteredTasks.filter((x) => x.project_id === pid).length;
+    }
+    return { ...t, badge: count || null };
+  }), [tabDefs, filteredTasks, userId, viewerTeam]);
 
   const handleCreateSubmit = useCallback(async (form, pendingFiles = []) => {
     setCreating(true);
@@ -662,6 +741,8 @@ function TasksPage() {
         task_type:   form.task_type || null,
         link:        form.link.trim() || null,
         team:        form.team || null,
+        project_id:  form.project_id || null,
+        is_sensitive: !!form.is_sensitive,
       }, userId);
 
       // Upload any staged files after task is created
@@ -684,6 +765,8 @@ function TasksPage() {
         onSubmit={handleCreateSubmit}
         saving={creating}
         employees={employees}
+        projects={myProjects}
+        canMarkSensitive={viewerIsAdmin}
       />
 
       {/* ── Page header ── */}
@@ -699,18 +782,24 @@ function TasksPage() {
 
       {/* ── Error banner ── */}
       {error && <ErrorBanner message={error} onDismiss={clearError} />}
+
+      {/* ── Scope tabs (مهامي · مشاريعي · فريقي · الكل) ── */}
+      {!loading && tabsWithCounts.length > 1 && (
+        <Tabs tabs={tabsWithCounts} value={activeTab} onChange={setActiveTab} />
+      )}
+
       {!loading && stats.total > 0 && <TaskStatsBar stats={stats} />}
       <TaskFilters filters={filters} employees={employees} onSetFilter={setFilter} onToggleFilter={toggleFilter} onReset={resetFilters} />
       {loading ? (
         <div className="py-16 flex items-center justify-center"><Spinner size="lg" /></div>
-      ) : filteredTasks.length === 0 ? (
+      ) : scopedTasks.length === 0 ? (
         <TasksEmpty hasFilters={hasFilters} onReset={resetFilters} />
       ) : (
         <div className="space-y-3">
-          <SectionHeader count={filteredTasks.length} hasFilters={hasFilters} onReset={resetFilters} />
+          <SectionHeader count={scopedTasks.length} hasFilters={hasFilters} onReset={resetFilters} />
           {viewMode === 'kanban'
-            ? <KanbanView tasks={filteredTasks} onOpen={openTask} onStatusChange={changeStatus} />
-            : <TaskGrid tasks={filteredTasks} onOpen={openTask} />
+            ? <KanbanView tasks={scopedTasks} onOpen={openTask} onStatusChange={changeStatus} />
+            : <TaskGrid tasks={scopedTasks} onOpen={openTask} />
           }
         </div>
       )}
