@@ -92,3 +92,19 @@ export async function createProject({ key, name, icon = '📁' }) {
   if (error) throw error;
   return data;
 }
+
+/**
+ * Delete a project. project_members rows cascade; tasks.project_id is
+ * set to NULL (tasks survive, just lose the project tag).
+ */
+export async function deleteProject(projectId) {
+  if (USE_MOCK_DATA) {
+    const i = MOCK_PROJECTS.findIndex((p) => p.id === projectId);
+    if (i >= 0) MOCK_PROJECTS.splice(i, 1);
+    _mockMembers = _mockMembers.filter((m) => m.project_id !== projectId);
+    return true;
+  }
+  const { error } = await supabase.from('projects').delete().eq('id', projectId);
+  if (error) throw error;
+  return true;
+}

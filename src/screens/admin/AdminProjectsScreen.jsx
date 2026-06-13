@@ -8,7 +8,7 @@ import { Button } from '@components/ui/Button';
 import { Spinner } from '@components/ui/Loading';
 import { listActiveProfiles } from '@services/authService';
 import {
-  listProjects, createProject, listProjectMemberIds,
+  listProjects, createProject, deleteProject, listProjectMemberIds,
   addProjectMember, removeProjectMember,
 } from '@modules/tasks/services/projectService';
 
@@ -80,6 +80,22 @@ export default function AdminProjectsScreen() {
     }
   };
 
+  const handleDelete = async (proj, e) => {
+    e.stopPropagation();
+    if (busy) return;
+    if (!window.confirm(`حذف مشروع «${proj.name}»؟\nالمهام لن تُحذف — فقط سيزول ربطها بالمشروع.`)) return;
+    setBusy(true);
+    try {
+      await deleteProject(proj.id);
+      setProjects((prev) => prev.filter((p) => p.id !== proj.id));
+      if (selected?.id === proj.id) setSelected(null);
+    } catch (e2) {
+      setErr(e2?.message || 'فشل حذف المشروع');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     const name = npName.trim();
@@ -130,18 +146,33 @@ export default function AdminProjectsScreen() {
         {/* Project list */}
         <div className="space-y-1.5">
           {projects.map((p) => (
-            <button
+            <div
               key={p.id}
-              type="button"
-              onClick={() => setSelected(p)}
-              className={`w-full text-start px-3 py-2.5 rounded-xl border text-sm font-semibold transition ${
+              className={`group flex items-center gap-1 rounded-xl border transition ${
                 selected?.id === p.id
                   ? 'bg-teal text-navy border-teal'
                   : 'bg-surface text-text border-border hover:border-teal/40'
               }`}
             >
-              <span className="me-1.5">{p.icon || '📁'}</span>{p.name}
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelected(p)}
+                className="flex-1 text-start px-3 py-2.5 text-sm font-semibold"
+              >
+                <span className="me-1.5">{p.icon || '📁'}</span>{p.name}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleDelete(p, e)}
+                disabled={busy}
+                title="حذف المشروع"
+                className={`shrink-0 px-2.5 py-2.5 rounded-l-xl transition ${
+                  selected?.id === p.id ? 'text-navy/60 hover:text-red-700' : 'text-muted hover:text-red-500'
+                }`}
+              >
+                🗑
+              </button>
+            </div>
           ))}
           {projects.length === 0 && <p className="text-xs text-muted px-2">لا مشاريع بعد.</p>}
         </div>

@@ -12,6 +12,7 @@ import { Spinner } from '@components/ui/Loading';
 import { Tabs } from '@components/ui/Tabs';
 import { useTasks } from '../hooks/useTasks';
 import { useTaskStore } from '../store/useTaskStore';
+import { createProject, addProjectMember } from '../services/projectService';
 import { useAuthStore } from '@stores/authStore';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
@@ -69,12 +70,29 @@ const EMPTY_FORM = {
 
 const INPUT_CLS = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 
-function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects = [], canMarkSensitive = false }) {
+function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects = [], canMarkSensitive = false, onCreateProject }) {
   const formRef = useRef(null);
   const fileRef = useRef(null);
   const [form, setFormState] = useState(EMPTY_FORM);
   const [pendingFiles, setPendingFiles] = useState([]);
+  const [localProjects, setLocalProjects] = useState(projects);
+  const [addingProject, setAddingProject] = useState(false);
   const set = (k, v) => setFormState((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => { setLocalProjects(projects); }, [projects]);
+
+  const handleAddProject = async () => {
+    const name = window.prompt('اسم المشروع الجديد:');
+    if (!name || !name.trim() || !onCreateProject) return;
+    setAddingProject(true);
+    try {
+      const p = await onCreateProject(name.trim());
+      if (p?.id) {
+        setLocalProjects((prev) => [...prev.filter((x) => x.id !== p.id), p]);
+        set('project_id', p.id);
+      }
+    } catch { /* surfaced by caller */ } finally { setAddingProject(false); }
+  };
 
   // When team changes, clear assignee if they don't belong to new team
   const handleTeamChange = (teamVal) => {
@@ -242,12 +260,25 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
           <div className="rounded-xl border border-border bg-surface-alt/40 p-3 space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">المشروع</label>
-              <select value={form.project_id} onChange={(e) => set('project_id', e.target.value)} className={INPUT_CLS}>
-                <option value="">— بلا مشروع (مهمة عامة) —</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.icon ? `${p.icon} ` : ''}{p.name}</option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select value={form.project_id} onChange={(e) => set('project_id', e.target.value)} className={INPUT_CLS}>
+                  <option value="">— بلا مشروع (مهمة عامة) —</option>
+                  {localProjects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.icon ? `${p.icon} ` : ''}{p.name}</option>
+                  ))}
+                </select>
+                {canMarkSensitive && onCreateProject && (
+                  <button
+                    type="button"
+                    onClick={handleAddProject}
+                    disabled={addingProject}
+                    title="إنشاء مشروع جديد"
+                    className="shrink-0 px-3 rounded-xl border border-teal/40 bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition"
+                  >
+                    {addingProject ? '…' : '＋ جديد'}
+                  </button>
+                )}
+              </div>
             </div>
             {canMarkSensitive && (
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -682,6 +713,16 @@ function TasksPage() {
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
 
+  // Quick-create a project from the task modal (admin). Creator is auto-added
+  // as a member so it shows up as their tab; tasks reload to pick it up.
+  const handleCreateProject = useCallback(async (name) => {
+    const key = name.replace(/\s+/g, '_').toLowerCase().slice(0, 30) + '_' + userId?.slice(0, 6);
+    const p = await createProject({ key, name, icon: '📁' });
+    if (p?.id && userId) await addProjectMember(p.id, userId).catch(() => {});
+    loadTasks();
+    return p;
+  }, [userId, loadTasks]);
+
   // Build the tab list: مهامي · [each project] · فريقي · الكل(للإدارة)
   const tabDefs = useMemo(() => {
     const t = [{ key: 'mine', label: 'مهامي', icon: '👤' }];
@@ -770,6 +811,7 @@ function TasksPage() {
         employees={employees}
         projects={myProjects}
         canMarkSensitive={viewerIsAdmin}
+        onCreateProject={viewerIsAdmin ? handleCreateProject : undefined}
       />
 
       {/* ── Page header ── */}
