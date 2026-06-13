@@ -589,10 +589,14 @@ export async function uploadTaskAttachment(taskId, file) {
     .upload(path, file, { upsert: false, contentType: file.type || undefined });
   if (uploadErr) throw uploadErr;
 
-  // Get public URL
-  const { data: { publicUrl } } = supabase.storage
+  // Private bucket → store a long-lived SIGNED url (the bucket is NOT public,
+  // so getPublicUrl would 404). Falls back to public url shape if signing fails.
+  const TEN_YEARS = 315_360_000; // seconds
+  let url = null;
+  const { data: signed } = await supabase.storage
     .from('task-attachments')
-    .getPublicUrl(path);
+    .createSignedUrl(path, TEN_YEARS);
+  url = signed?.signedUrl || null;
 
   const att = {
     id:         path, // use storage path as stable id
@@ -600,7 +604,7 @@ export async function uploadTaskAttachment(taskId, file) {
     size:       file.size,
     mime:       file.type,
     type:       _fileType(file.name),
-    url:        publicUrl,
+    url,
     path:       uploadData.path,
     created_at: new Date().toISOString(),
   };
