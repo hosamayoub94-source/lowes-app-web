@@ -21,6 +21,25 @@ import {
   listAssignableProfiles,
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
+import { resolvePermissions, PERMISSIONS } from '@data/permissions';
+
+/**
+ * Resolve the current viewer's visibility scope for tasks.
+ * Returns { viewerId, viewAll }. Management (VIEW_ALL_TASKS) sees all;
+ * everyone else sees only tasks assigned to / created by them.
+ * Auth is read lazily to avoid a circular import.
+ */
+async function resolveViewer() {
+  try {
+    const { useAuthStore } = await import('@stores/authStore');
+    const session = useAuthStore.getState().session ?? null;
+    if (!session?.id) return { viewerId: null, viewAll: true };
+    const viewAll = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
+    return { viewerId: session.id, viewAll };
+  } catch {
+    return { viewerId: null, viewAll: true };
+  }
+}
 
 // ── Initial filter state ──────────────────────────────────────
 const INITIAL_FILTERS = {
@@ -56,8 +75,9 @@ export const useTaskStore = create()(
     loadTasks: async (params = {}) => {
       set({ loading: true, error: null });
       try {
+        const viewer = await resolveViewer();
         const [tasks, profiles] = await Promise.all([
-          fetchTasks(params),
+          fetchTasks({ ...viewer, ...params }),
           listAssignableProfiles().catch(() => []),
         ]);
         set({ tasks, profiles, loading: false });
@@ -69,7 +89,8 @@ export const useTaskStore = create()(
     /** Reload silently (no loading spinner — background refresh) */
     refreshTasks: async () => {
       try {
-        const tasks = await fetchTasks();
+        const viewer = await resolveViewer();
+        const tasks = await fetchTasks(viewer);
         set({ tasks });
       } catch {
         /* silent */

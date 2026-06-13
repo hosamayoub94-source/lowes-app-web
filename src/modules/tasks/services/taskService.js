@@ -63,12 +63,30 @@ const findEmp = (id) => MOCK_EMPLOYEES.find((e) => e.id === id) || null;
 // Public API — Tasks
 // -------------------------------------------------------------
 
-/** Load all tasks (optionally filtered server-side). */
+/**
+ * Load tasks.
+ *
+ * Visibility rule (chosen by the owner): a task is visible to its
+ * ASSIGNEE and to MANAGEMENT only. So when `params.viewAll` is falsy
+ * we restrict the result to tasks where the current viewer is the
+ * assignee (or the creator). Management passes `viewAll: true` and
+ * sees everything. This is enforced at the app layer because the app
+ * uses mixed auth (real JWT for some users, anon manual-session for
+ * others) so per-row RLS via auth.uid() is unreliable here.
+ */
 export async function fetchTasks(params = {}) {
+  const { viewAll = true, viewerId = null } = params;
+  const restrict = !viewAll && !!viewerId;
+
   if (USE_MOCK_DATA) {
     await sleep(280);
     refreshMock();
     let tasks = [..._mockStore];
+    if (restrict) {
+      tasks = tasks.filter((t) =>
+        t.assigned_to?.id === viewerId || t.created_by?.id === viewerId,
+      );
+    }
     if (params.assignedTo) tasks = tasks.filter((t) => t.assigned_to?.id === params.assignedTo);
     if (params.status)     tasks = tasks.filter((t) => t.status === params.status);
     if (params.priority)   tasks = tasks.filter((t) => t.priority === params.priority);
@@ -80,6 +98,11 @@ export async function fetchTasks(params = {}) {
     .select(TASK_SELECT)
     .order('created_at', { ascending: false });
 
+  if (restrict) {
+    // assigned_to / assignee_id both hold the profile UUID; created_by lets
+    // a lead still track a task they created. Any match → visible.
+    q = q.or(`assignee_id.eq.${viewerId},assigned_to.eq.${viewerId},created_by.eq.${viewerId}`);
+  }
   if (params.assignedTo) q = q.eq('assigned_to', params.assignedTo);
   if (params.status)     q = q.eq('status', params.status);
   if (params.priority)   q = q.eq('priority', params.priority);

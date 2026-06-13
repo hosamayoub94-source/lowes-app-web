@@ -14,6 +14,7 @@ import { ROLES } from './teams';
 // ── Permission keys ───────────────────────────────────────────
 export const PERMISSIONS = {
   ASSIGN_TASKS:        'assign_tasks',         // create / assign tasks to others
+  VIEW_ALL_TASKS:      'view_all_tasks',       // see ALL tasks (not just own) — management/leads
   EDIT_TASK:           'edit_task',            // edit task title/description/priority/date
   DELETE_TASK:         'delete_task',          // delete tasks permanently
   MANAGE_ORDERS:       'manage_orders',        // advance status, edit orders
@@ -38,6 +39,7 @@ export const PERMISSIONS = {
 // Human labels (for the admin UI)
 export const PERMISSION_LABELS = {
   [PERMISSIONS.ASSIGN_TASKS]:        'إسناد المهام للموظفين',
+  [PERMISSIONS.VIEW_ALL_TASKS]:      'عرض كل المهام (لا مهامه فقط)',
   [PERMISSIONS.EDIT_TASK]:           'تعديل تفاصيل المهام',
   [PERMISSIONS.DELETE_TASK]:         'حذف المهام',
   [PERMISSIONS.MANAGE_ORDERS]:       'إدارة الطلبات (تغيير الحالة/التعديل)',
@@ -63,6 +65,7 @@ export const PERMISSION_LABELS = {
 // the admin knows exactly WHAT each capability unlocks (and why).
 export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.ASSIGN_TASKS]:        'إنشاء مهام وإسنادها لأعضاء الفريق.',
+  [PERMISSIONS.VIEW_ALL_TASKS]:      'رؤية مهام كل الفريق ومتابعة تقدّمها — للإدارة والمسؤولين. الموظف بدونها يرى مهامه فقط.',
   [PERMISSIONS.EDIT_TASK]:           'تعديل عنوان/وصف/أولوية/تاريخ أي مهمة.',
   [PERMISSIONS.DELETE_TASK]:         'حذف المهام نهائياً — صلاحية حسّاسة.',
   [PERMISSIONS.MANAGE_ORDERS]:       'تغيير حالة الطلبات وتعديل بياناتها.',
@@ -87,7 +90,7 @@ export const PERMISSION_DESCRIPTIONS = {
 // Logical groups — drive the sectioned UI in the permissions editor.
 export const PERMISSION_GROUPS = [
   { key: 'tasks',      icon: '✅', label: 'المهام',
-    permissions: [PERMISSIONS.ASSIGN_TASKS, PERMISSIONS.EDIT_TASK, PERMISSIONS.DELETE_TASK] },
+    permissions: [PERMISSIONS.ASSIGN_TASKS, PERMISSIONS.VIEW_ALL_TASKS, PERMISSIONS.EDIT_TASK, PERMISSIONS.DELETE_TASK] },
   { key: 'orders',     icon: '📦', label: 'الطلبات والمخزون',
     permissions: [PERMISSIONS.MANAGE_ORDERS, PERMISSIONS.MANAGE_PRODUCTS, PERMISSIONS.VIEW_INVENTORY, PERMISSIONS.MANAGE_CENTRAL_STOCK, PERMISSIONS.MANAGE_SALES_STOCK] },
   { key: 'attendance', icon: '🕐', label: 'الحضور والإجازات',
@@ -108,6 +111,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.VIEW_ALL_TASKS,
     PERMISSIONS.EDIT_TASK,
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
@@ -129,6 +133,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.SALES_MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.VIEW_ALL_TASKS,
     PERMISSIONS.EDIT_TASK,
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
@@ -142,6 +147,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.SOCIAL_MANAGER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.VIEW_ALL_TASKS,
     PERMISSIONS.EDIT_TASK,
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
@@ -151,6 +157,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.MEDIA_BUYER]: [
     PERMISSIONS.ASSIGN_TASKS,
+    PERMISSIONS.VIEW_ALL_TASKS,
     PERMISSIONS.EDIT_TASK,
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.MANAGE_ORDERS,
@@ -179,6 +186,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_SALES_STOCK,
   ],
   [ROLES.MARKETING_MANAGER]: [
+    PERMISSIONS.VIEW_ALL_TASKS,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
     PERMISSIONS.VIEW_ANALYTICS,
