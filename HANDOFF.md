@@ -17,7 +17,11 @@
 
 **C) مدير الإعلانات بالحملات (رؤية/تحليل):** `campaigns.manager_name` (حيّ) + منسدلة بالنموذج + عرض بالبطاقة/التفاصيل + قسم «الأداء حسب المدير» باللوحة.
 
-**تقنية:** DDL طُبّق عبر Chrome→Supabase SQL Editor (تبويب «+» جديد ثم `window.monaco.editor.getEditors()[0].setValue(sql)`+Run). ملف DDL: `supabase/phase_bc_ddl.sql`. مواصفة: `docs/superpowers/specs/2026-06-14-warehouse-accuracy-design.md`.
+**D) تدقيق خبير + فجوة الأسماء (commit 605889c):** الخصم كان يطابق بالاسم الحرفي → 36% من الأصناف لا تُخصم (تركيا غالباً). `_normName` (طيّ تركي + إزالة بادئة LOWES + المسافات) + `PRODUCT_ALIASES` في `warehouseService.js` → **64%→98%**. + إصلاح مرآة 5 منتجات. **تركيا تحتاج استلام/جرد فعلي** (مستودعها فارغ، مبيعاتها سالبة).
+
+**E) شاشة مخازن احترافية (commit 05c0eb2):** بطاقات/بنرات لكل مخزن (إحصائيات + «📋 الأصناف» + «⬇️ تزويد من المستودع») + جدول تفصيلي قابل للطيّ + «↩️ تراجع» عن حركات الاستلام/التخصيص الخاطئة (للمسؤولين، `reverseMovement`+عمود `reverses_id`) + زر «📖 دليل» ومدخل app_guides «نظام المخازن».
+
+**تقنية:** DDL طُبّق عبر Chrome→Supabase SQL Editor (تبويب «+» جديد ثم `window.monaco.editor.getEditors()[0].setValue(sql)`+Run). ملفات DDL: `supabase/phase_bc_ddl.sql` + `supabase/warehouse_reverse_movement.sql`. مواصفة: `docs/superpowers/specs/2026-06-14-warehouse-accuracy-design.md`.
 
 ### 🗓️ جلسة 12 يونيو 2026 — هوية بصرية + ثيم + تنظيم UX + 7 إصلاحات
 جلسة كبيرة. كل شي منشور على `main` (Vercel + CI). الملخّص:
