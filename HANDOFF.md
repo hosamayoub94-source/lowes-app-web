@@ -5,6 +5,17 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🗓️ جلسة 15 يونيو 2026 — التقرير اليومي + لوحة الميديا باير (منشور على main)
+commits c293d65 + 8e4ddd5 + DDL حيّ. مرجع: `[[campaigns_daily_reports]]`.
+
+**اكتشاف:** النظام الفعلي للحملات = **`daily_reports` + `report_ad_results`** (212+176 صف تاريخي، يقرأها manager board) — وليس `ad_daily_logs` (فارغ، هُجر). شاشة الإدخال كانت أُزيلت فتوقّفت البيانات بمايو.
+
+- **`/daily-report`** (DailyReportScreen): الموظف يسجّل يومياً لكل إعلان من حملاته (members): رسائل + تأكيدات + قيمة+عملة + تقييم★ + ملاحظة، + مصادر أخرى (عميل سابق/آخر بعدد وقيمة). upsert يدوي (لا UNIQUE — 4 مكرّرات تاريخية).
+- **`/media-buyer`** (MediaBuyerBoardScreen، صلاحية VIEW_MEDIA_BUYER_BOARD): لأولغا «Olka Zghaib» (media_buyer) — perCampaign/perAd/perEmployee + تقسيم مصدر البيع + اتجاه يومي + التزام اليوم + فلاتر. رسوم recharts. **الإجماليات تُشتق من report_ad_results** (رؤوس daily_reports التاريخية total_confirmations/sales=0).
+- **إصلاح حذف الحملة:** FK RESTRICT من report_ad_results كان يمنع الحذف → حملة بنتائج = **تعطيل ناعم `is_active=false`** (يحفظ التاريخ)؛ فارغة = حذف نهائي. ⚠️ `status='inactive'` ينتهك CHECK (active/paused/ended) → التعطيل عبر is_active فقط.
+- خدمة `campaignAnalyticsService.js`. DDL: `supabase/daily_reports_media_buyer.sql`.
+- ⏳ ربط حساب ميتا (إنفاق/ROAS) مؤجّل بقرار المالك.
+
 ### 🗓️ جلسة 14 يونيو 2026 — دقّة المخازن + مزامنة الحالة + مدير الحملات (منشور على main)
 كل شي منشور على `main` (commits 34f1ce6 · 6505515 · a3cdefe) + DDL مطبّق حيّاً.
 
