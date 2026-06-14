@@ -165,71 +165,86 @@ async function _matchItemsToProducts(items) {
   return matched;
 }
 
-// Reserve stock for a newly created order: deduct each catalog item from
-// the source warehouse + log a 'reserve' movement. No-op for non-lowes
-// brands. Idempotent: skips if this order already has reserve movements.
-// Best-effort — never throws (stock can go negative if oversold; surfaced
-// in the dashboard as a low/negative total for the manager to correct).
-export async function reserveForOrder(order, performedBy) {
+// الحالات التي يكون فيها مخزون الطلب «خارج المخزن» (مخصوم): من «في التجهيز»
+// فما فوق حتى التسليم/التسوية. أي حالة أخرى (وارد جديد/بالانتظار/راجع/ملغي/لم
+// يُستلم) تعني أن البضاعة موجودة بالمخزن — فيُسترد ما كان مخصوماً.
+// قرار المالك (يونيو 2026): الخصم يبدأ عند «📦 في التجهيز» لا عند الإنشاء.
+const DEDUCTED_STATUSES = new Set([
+  'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
+  'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled',
+]);
+
+// هل الطلب مخصوم فعلاً الآن؟ (صافي الحركات: Σحجز − Σإرجاع > 0).
+async function _isCurrentlyReserved(orderId) {
+  const { data: moves } = await supabase
+    .from('wh_movements')
+    .select('type, quantity')
+    .eq('order_id', orderId)
+    .in('type', ['reserve', 'release']);
+  let reserved = 0, released = 0;
+  for (const m of (moves || [])) {
+    if (m.type === 'reserve') reserved += Number(m.quantity || 0);
+    else                      released += Number(m.quantity || 0);
+  }
+  return reserved > released;
+}
+
+// داخلي: اخصم أصناف الطلب من مخزن المصدر + سجّل حركة 'reserve'.
+async function _reserveOrder(order, performedBy) {
+  const warehouseId = await _resolveSourceWarehouse(order);
+  if (!warehouseId) return;
+  const matched = await _matchItemsToProducts(order.items);
+  for (const { productId, qty } of matched) {
+    if (!qty || qty <= 0) continue;
+    const current = await _currentQty(warehouseId, productId);
+    await _setQty(warehouseId, productId, current - qty);
+    await _logMovement({
+      product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: null,
+      quantity: qty, type: 'reserve', reason: 'حجز طلب (في التجهيز)', performed_by: performedBy || null,
+      order_id: order.id,
+    });
+  }
+}
+
+// داخلي: أعد الصافي المخصوم المتبقّي لكل (مخزن، منتج) إلى المخزن + سجّل 'release'.
+// net-aware: يدعم دورات تجهيز↔انتظار متكررة دون ازدواج (يرجّع الفرق فقط).
+async function _releaseOrder(order, performedBy) {
+  const { data: moves } = await supabase
+    .from('wh_movements')
+    .select('product_id, quantity, type, from_warehouse_id, to_warehouse_id')
+    .eq('order_id', order.id)
+    .in('type', ['reserve', 'release']);
+  const net = {}; // "whId|productId" → { whId, productId, qty }
+  for (const m of (moves || [])) {
+    const whId = m.type === 'reserve' ? m.from_warehouse_id : m.to_warehouse_id;
+    if (!whId) continue;
+    const k = whId + '|' + m.product_id;
+    (net[k] ??= { whId, productId: m.product_id, qty: 0 });
+    net[k].qty += (m.type === 'reserve' ? 1 : -1) * Number(m.quantity || 0);
+  }
+  for (const { whId, productId, qty } of Object.values(net)) {
+    if (qty <= 0) continue; // لا شيء مخصوم متبقٍّ
+    const current = await _currentQty(whId, productId);
+    await _setQty(whId, productId, current + qty);
+    await _logMovement({
+      product_id: productId, from_warehouse_id: null, to_warehouse_id: whId,
+      quantity: qty, type: 'release', reason: 'استرداد للمخزون', performed_by: performedBy || null,
+      order_id: order.id,
+    });
+  }
+}
+
+// مُصلِّح الحالة الموحّد: يضمن أن مخزون الطلب يطابق حالته الحالية.
+// يُستدعى عند كل إنشاء/تغيير حالة (فردي/جماعي) + الحذف/الإلغاء.
+// idempotent + net-aware. no-op للعلامات غير lowes. best-effort (لا يرمي).
+export async function syncOrderStock(order, performedBy) {
   try {
     if (!order?.id) return;
     if ((order.brand || 'lowes') !== 'lowes') return;
-    // idempotency: already reserved?
-    const { data: existing } = await supabase
-      .from('wh_movements')
-      .select('id')
-      .eq('order_id', order.id)
-      .eq('type', 'reserve')
-      .limit(1);
-    if (existing && existing.length) return;
-
-    const warehouseId = await _resolveSourceWarehouse(order);
-    if (!warehouseId) return;
-    const matched = await _matchItemsToProducts(order.items);
-    for (const { productId, qty } of matched) {
-      if (!qty || qty <= 0) continue;
-      const current = await _currentQty(warehouseId, productId);
-      await _setQty(warehouseId, productId, current - qty);
-      await _logMovement({
-        product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: null,
-        quantity: qty, type: 'reserve', reason: 'حجز طلب', performed_by: performedBy || null,
-        order_id: order.id,
-      });
-    }
-  } catch { /* best-effort */ }
-}
-
-// Release a previously reserved order (e.g. on cancellation): add the
-// quantities back to the source warehouse + log 'release'. Idempotent:
-// only acts if reserve movements exist and no release yet.
-export async function releaseForOrder(order, performedBy) {
-  try {
-    if (!order?.id) return;
-    const { data: reserves } = await supabase
-      .from('wh_movements')
-      .select('product_id, quantity, from_warehouse_id')
-      .eq('order_id', order.id)
-      .eq('type', 'reserve');
-    if (!reserves || reserves.length === 0) return;
-    const { data: releases } = await supabase
-      .from('wh_movements')
-      .select('id')
-      .eq('order_id', order.id)
-      .eq('type', 'release')
-      .limit(1);
-    if (releases && releases.length) return; // already released
-
-    for (const r of reserves) {
-      const whId = r.from_warehouse_id;
-      if (!whId) continue;
-      const current = await _currentQty(whId, r.product_id);
-      await _setQty(whId, r.product_id, current + Number(r.quantity || 0));
-      await _logMovement({
-        product_id: r.product_id, from_warehouse_id: null, to_warehouse_id: whId,
-        quantity: Number(r.quantity || 0), type: 'release', reason: 'إلغاء طلب',
-        performed_by: performedBy || null, order_id: order.id,
-      });
-    }
+    const desiredOut   = DEDUCTED_STATUSES.has(order.status);
+    const currentlyOut = await _isCurrentlyReserved(order.id);
+    if (desiredOut && !currentlyOut)      await _reserveOrder(order, performedBy);
+    else if (!desiredOut && currentlyOut) await _releaseOrder(order, performedBy);
   } catch { /* best-effort */ }
 }
 

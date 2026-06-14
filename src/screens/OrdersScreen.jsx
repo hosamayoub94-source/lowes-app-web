@@ -11,7 +11,7 @@ import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
-import { reserveForOrder, releaseForOrder } from '@services/warehouseService';
+import { syncOrderStock } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
 import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
@@ -2555,8 +2555,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
-    // Cancelling / returning releases reserved stock back to the source warehouse
-    if (order && RELEASE_STATUSES.includes(newStatus)) releaseForOrder({ ...order, status: newStatus }, userName);
+    // مُصلِّح المخزون: يخصم عند «في التجهيز» فما فوق، يسترد عند الانتظار/الرجوع/الإلغاء
+    if (order) syncOrderStock({ ...order, status: newStatus }, userName);
 
     // ── Auto accounting entry when delivered (idempotent) ─────────
     // Records the cash collected on delivery as income, tied to the order via
@@ -2609,6 +2609,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       try {
         await supabase.from('orders').update({ status: next }).eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
+        syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
         setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
         if (isSyncable(o)) {
           const r = await syncToSheet(o.id);   // await = تسلسل فعلي
@@ -2748,10 +2749,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
       }
       load();
     }
-    // Phase 2: reserve stock for NEW lowes-brand orders (best-effort).
-    // Deducts catalog items from the seller's source warehouse.
-    if (savedId && !existingId) {
-      reserveForOrder({ id: savedId, ...form }, userName);
+    // مزامنة المخزون مع حالة الطلب (best-effort). جديد بحالة «وارد جديد» =
+    // لا خصم؛ «في التجهيز» = خصم. تعديل طلب قائم يُصالِح المخزون تلقائياً.
+    if (savedId) {
+      syncOrderStock({ id: savedId, ...form }, userName);
     }
   };
 
@@ -2767,7 +2768,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!canDeleteOrder(o)) { window.alert('لا تملك صلاحية حذف هذا الطلب. (الموظف يحذف طلبه بنفس يوم الإنشاء فقط.)'); return; }
     if (!window.confirm(`حذف طلب «${o.customer_name || o.order_id}»؟ (حذف ناعم — يبقى بالأرشيف ويُزامَن كملغي بالجدول.)`)) return;
     try {
-      if ((o.market === 'syria' || o.market === 'turkey') && o.archived !== true) releaseForOrder(o, userName);
+      if ((o.market === 'syria' || o.market === 'turkey') && o.archived !== true) syncOrderStock({ ...o, status: 'cancelled' }, userName);
       recordStatusChange({ orderId: o.id, from: o.status, to: 'cancelled', by: userName, source: 'app' });
       await softDeleteOrder(o, userName);   // deleted_at + status=cancelled + sync to sheet
       setOrders(p => p.filter(x => x.id !== o.id));

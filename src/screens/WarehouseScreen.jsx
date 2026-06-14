@@ -13,7 +13,10 @@ import {
   listSellersWithWarehouse, assignSellerWarehouse,
 } from '@services/warehouseService';
 
-const TYPE_LABEL = { central: '🏛️ مركزي', sales: '📦 مبيعات', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
+const TYPE_LABEL = { central: '🏛️ مستودع', sales: '📦 مبيعات', wholesale: '🏪 جملة', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
+// ترتيب هرمي ضمن كل سوق: مستودع كبير → مبيعات → جملة → مناديب → مرتجعات
+const TYPE_RANK = { central: 0, sales: 1, wholesale: 2, distributor: 3, returns: 4 };
+const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
 const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع' };
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
 
@@ -203,6 +206,7 @@ export default function WarehouseScreen() {
   const [modal, setModal] = useState(null); // 'receive' | 'allocate' | 'adjust' | null
   const [showManage, setShowManage] = useState(false);
   const [lowOnly, setLowOnly] = useState(false);
+  const [marketFilter, setMarketFilter] = useState('all'); // all | syria | turkey
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -217,6 +221,19 @@ export default function WarehouseScreen() {
   useEffect(() => { load(); }, [load]);
 
   const products = useMemo(() => rows.map(r => ({ id: r.id, name: r.name })), [rows]);
+
+  // الأعمدة المعروضة: مفلترة بالسوق + مرتّبة هرمياً (مستودع→مبيعات→جملة) ضمن كل سوق.
+  const visibleWarehouses = useMemo(() => {
+    const list = warehouses.filter(w => marketFilter === 'all' || w.market === marketFilter);
+    return [...list].sort((a, b) =>
+      (a.market || '').localeCompare(b.market || '') ||
+      (TYPE_RANK[a.type] ?? 9) - (TYPE_RANK[b.type] ?? 9) ||
+      (a.name || '').localeCompare(b.name || ''));
+  }, [warehouses, marketFilter]);
+
+  // مجموع صف عبر الأعمدة المعروضة فقط (يطابق ما يُعرض عند فلترة السوق).
+  const visTotal = useCallback((r) =>
+    visibleWarehouses.reduce((s, w) => s + Number(r.perWh[w.id] || 0), 0), [visibleWarehouses]);
 
   const isLow = (r) => r.min_stock != null && r.total <= r.min_stock;
   const lowCount = useMemo(() => rows.filter(isLow).length, [rows]);
@@ -234,11 +251,13 @@ export default function WarehouseScreen() {
     const totals = {};
     let all = 0;
     for (const r of rows) {
-      for (const w of warehouses) { totals[w.id] = (totals[w.id] || 0) + Number(r.perWh[w.id] || 0); }
-      all += r.total;
+      for (const w of visibleWarehouses) { totals[w.id] = (totals[w.id] || 0) + Number(r.perWh[w.id] || 0); }
+      all += visibleWarehouses.reduce((s, w) => s + Number(r.perWh[w.id] || 0), 0);
     }
     return { totals, all };
-  }, [rows, warehouses]);
+  }, [rows, visibleWarehouses]);
+
+  const markets = useMemo(() => [...new Set(warehouses.map(w => w.market).filter(Boolean))], [warehouses]);
 
   return (
     <div className="space-y-4 pb-24" dir="rtl">
@@ -276,6 +295,16 @@ export default function WarehouseScreen() {
         </button>
       </div>
 
+      {markets.length > 1 && (
+        <div className="flex gap-1.5">
+          {[['all', '🌍 الكل'], ...markets.map(m => [m, MARKET_LABEL[m] || m])].map(([k, l]) => (
+            <button key={k} onClick={() => setMarketFilter(k)}
+              className={'px-3 py-1.5 rounded-xl text-xs font-bold transition border ' +
+                (marketFilter === k ? 'bg-teal text-navy border-teal' : 'bg-surface-alt text-muted hover:text-text border-border')}>{l}</button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="h-64 bg-surface-alt animate-pulse rounded-2xl" />
       ) : error ? (
@@ -289,7 +318,7 @@ export default function WarehouseScreen() {
             <thead className="bg-surface-alt">
               <tr>
                 <th className="text-right px-3 py-2.5 font-bold text-muted sticky right-0 bg-surface-alt">المنتج</th>
-                {warehouses.map(w => (
+                {visibleWarehouses.map(w => (
                   <th key={w.id} className="px-3 py-2.5 font-bold text-muted text-center whitespace-nowrap">
                     {TYPE_LABEL[w.type]?.split(' ')[0]} {w.name}
                   </th>
@@ -303,10 +332,10 @@ export default function WarehouseScreen() {
                 return (
                   <tr key={r.id} className="border-t border-border/40">
                     <td className="text-right px-3 py-2 text-text truncate max-w-[10rem] sticky right-0 bg-surface">{r.name}</td>
-                    {warehouses.map(w => (
+                    {visibleWarehouses.map(w => (
                       <td key={w.id} className="px-3 py-2 text-center tabular-nums text-muted">{r.perWh[w.id] || 0}</td>
                     ))}
-                    <td className={`px-3 py-2 text-center tabular-nums font-extrabold ${low ? 'text-red-fg' : 'text-text'}`}>{r.total}</td>
+                    <td className={`px-3 py-2 text-center tabular-nums font-extrabold ${low ? 'text-red-fg' : 'text-text'}`}>{visTotal(r)}</td>
                   </tr>
                 );
               })}
@@ -314,7 +343,7 @@ export default function WarehouseScreen() {
             <tfoot className="bg-surface-alt">
               <tr>
                 <td className="text-right px-3 py-2.5 font-bold text-text sticky right-0 bg-surface-alt">الإجمالي</td>
-                {warehouses.map(w => (
+                {visibleWarehouses.map(w => (
                   <td key={w.id} className="px-3 py-2.5 text-center tabular-nums font-bold text-text">{grandTotals.totals[w.id] || 0}</td>
                 ))}
                 <td className="px-3 py-2.5 text-center tabular-nums font-extrabold text-teal">{grandTotals.all}</td>
