@@ -92,6 +92,11 @@ export default function MediaBuyerBoardScreen() {
         <EmptyState icon="⚠️" title="تعذّر التحميل" />
       ) : (
         <>
+          {t.reportsCount === 0 && (
+            <div className="bg-amber-bg border border-amber/30 text-amber-fg rounded-xl px-4 py-3 text-sm">
+              لا تقارير في هذه الفترة. جرّب فترة أوسع (مثلاً «مخصّص» لشهر سابق)، أو ابدأ التسجيل اليومي من «🧾 تقريري اليومي» وستظهر الأرقام هنا.
+            </div>
+          )}
           {/* بطاقات إجمالية */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <StatCard label="رسائل" value={fmt(t.messages)} icon="💬" />
