@@ -2480,6 +2480,42 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // تحديث صامت للحالات (بلا وميض تحميل): يجلب الحقول المتغيّرة من القاعدة ويدمجها.
+  // السبب: تغييرات الحالة من جدول سوريا/تركيا تصل القاعدة فوراً (sheet-to-app)
+  // لكن realtime على جدول orders غير مُفعّل بالـ publication → كان التطبيق لا
+  // يعكسها إلا بريفرش يدوي (شكوى «الحالة تتأخّر/ما بتتغير»). هذا يحلّها.
+  const refreshStatuses = useCallback(async () => {
+    if (viewArchive) return;
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status, tracking_number, deleted_at')
+        .or('archived.is.null,archived.eq.false');
+      if (!data) return;
+      const byId = new Map(data.map(o => [o.id, o]));
+      setOrders(prev => prev
+        .filter(o => !byId.get(o.id)?.deleted_at)
+        .map(o => {
+          const u = byId.get(o.id);
+          return (u && (u.status !== o.status || u.tracking_number !== o.tracking_number))
+            ? { ...o, status: u.status, tracking_number: u.tracking_number } : o;
+        }));
+    } catch { /* best-effort */ }
+  }, [viewArchive]);
+
+  useEffect(() => {
+    const onFocus = () => refreshStatuses();
+    const onVis = () => { if (document.visibilityState === 'visible') refreshStatuses(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    const iv = setInterval(refreshStatuses, 30000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+      clearInterval(iv);
+    };
+  }, [refreshStatuses]);
+
   // (أُزيل تتبّع يورتيتشي اليدوي — قرار المالك: لا جلب حالات من شركة الشحن، الحالات يدوية فقط.)
 
   // Archive a batch of order IDs (month-end)
