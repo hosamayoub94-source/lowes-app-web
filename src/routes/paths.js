@@ -36,6 +36,8 @@ export const ROUTES = {
   LEDGER:       '/ledger',
   SALES:        '/sales',
   CAMPAIGNS:    '/campaigns',
+  DAILY_REPORT: '/daily-report',
+  MEDIA_BUYER_BOARD: '/media-buyer',
   TASKS_REPORT: '/tasks-report',
 
   // Priority 2 modules

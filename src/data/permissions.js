@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
   MANAGE_CAMPAIGNS:     'manage_campaigns',     // create/edit campaigns + ads + assignments
   VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
+  VIEW_MEDIA_BUYER_BOARD: 'view_media_buyer_board', // media-buyer analytics dashboard
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
 };
 
@@ -58,6 +59,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:     'إنشاء/إدارة الحملات والإعلانات والإسناد',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
+  [PERMISSIONS.VIEW_MEDIA_BUYER_BOARD]: 'لوحة الميديا باير (تحليل أداء الحملات)',
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
 };
 
@@ -98,7 +100,7 @@ export const PERMISSION_GROUPS = [
   { key: 'finance',    icon: '💰', label: 'المالية والأداء',
     permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
   { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
-    permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST] },
+    permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST, PERMISSIONS.VIEW_MEDIA_BUYER_BOARD] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_GUIDES] },
 ];
@@ -128,6 +130,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_INVENTORY,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
+    PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
     PERMISSIONS.MANAGE_GUIDES,
   ],
 
@@ -143,6 +146,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.VIEW_INVENTORY,
     PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
   ],
 
   [ROLES.SOCIAL_MANAGER]: [
@@ -153,6 +157,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
   ],
 
   [ROLES.MEDIA_BUYER]: [
@@ -164,6 +169,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
+    PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
   ],
 
   [ROLES.EMPLOYEE]: [
@@ -190,6 +196,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_CAMPAIGN_COST,
     PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
   ],
 };
 

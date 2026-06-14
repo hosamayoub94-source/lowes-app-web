@@ -47,6 +47,8 @@ const RequestsDashboard = lazy(() => import(/* webpackChunkName: "requests"     
 const LedgerDashboard   = lazy(() => import(/* webpackChunkName: "ledger"        */ '@modules/accounting/pages/AccountingDashboard'));
 const SalesDashboard    = lazy(() => import(/* webpackChunkName: "sales"         */ '@modules/sales/pages/SalesDashboard'));
 const CampaignsScreen     = lazy(() => import(/* webpackChunkName: "campaigns"     */ '@screens/CampaignsScreen'));
+const DailyReportScreen   = lazy(() => import(/* webpackChunkName: "daily-report"   */ '@screens/DailyReportScreen'));
+const MediaBuyerBoardScreen = lazy(() => import(/* webpackChunkName: "media-buyer"  */ '@screens/MediaBuyerBoardScreen'));
 const TaskReportScreen    = lazy(() => import(/* webpackChunkName: "tasks-report"  */ '@screens/TaskReportScreen'));
 const PerformanceScreen        = lazy(() => import(/* webpackChunkName: "performance"   */ '@screens/PerformanceScreen'));
 const InventoryScreen          = lazy(() => import(/* webpackChunkName: "inventory"     */ '@screens/InventoryScreen'));
@@ -230,6 +232,22 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={SALES_ROLES}>
                 <CampaignsScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.DAILY_REPORT}
+            element={
+              <ProtectedRoute roles={[ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER]}>
+                <DailyReportScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.MEDIA_BUYER_BOARD}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER, ROLES.MARKETING_MANAGER]}>
+                <MediaBuyerBoardScreen />
               </ProtectedRoute>
             }
           />

@@ -57,6 +57,7 @@ export const NAV_ITEMS = [
   // ── Sales / management
   { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },
   { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB, SOC], group: 'sales', perm: P.MANAGE_CAMPAIGNS },
+  { id: 'daily-report',  label: 'تقريري اليومي',    icon: '🧾', path: '/daily-report', roles: [E, M, A, SM, MB, SOC], group: 'sales' },
   { id: 'crm',           label: 'CRM',              icon: '🤝', path: '/crm',          roles: [M, A, SM],     group: 'sales' },
   { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales', perm: P.VIEW_ANALYTICS },
 
@@ -73,6 +74,7 @@ export const NAV_ITEMS = [
 
   // ── Analytics & reports
   { id: 'manager-board',   label: 'لوحة المدير',     icon: '📈', path: '/manager-board',   roles: [M, A, SM], group: 'reports', perm: P.VIEW_ANALYTICS },
+  { id: 'media-buyer',     label: 'لوحة الميديا باير', icon: '📡', path: '/media-buyer',   roles: [A, M, SM, MB, SOC, MKT], group: 'reports', perm: P.VIEW_MEDIA_BUYER_BOARD },
   { id: 'analytics',       label: 'التحليلات',       icon: '📊', path: '/analytics',       roles: [M, A, SM], group: 'reports', perm: P.VIEW_ANALYTICS },
   { id: 'tasks-report',    label: 'تقرير المهام',    icon: '📉', path: '/tasks-report',    roles: [A, M, SM], group: 'reports' },
   { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
@@ -121,7 +123,7 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.MANAGER]:        ['workspace', 'orders', 'manager-board', 'team', 'payroll'],
   [ROLES.ADMIN]:          ['workspace', 'orders', 'customers', 'manager-board', 'admin'],
   [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
-  [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'performance', 'analytics', 'customers'],
+  [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'media-buyer', 'daily-report', 'customers'],
   [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
 };
 
