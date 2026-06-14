@@ -164,6 +164,30 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   }
   if (campaignId) results = results.filter(r => r.campaign_id === campaignId);
 
+  // ── إنفاق ميتا (اختياري — الجدول قد لا يكون موجوداً/معبّأً بعد) ──
+  let metaRows = [];
+  try {
+    let mq = supabase.from('meta_ad_insights')
+      .select('campaign_id, spend, reach, impressions, results, currency')
+      .gte('date', fromD).lte('date', toD);
+    if (campaignId) mq = mq.eq('campaign_id', campaignId);
+    const { data, error } = await mq;
+    if (!error) metaRows = data ?? [];
+  } catch { metaRows = []; }
+  const metaByCampaign = {};
+  let metaSpend = 0, metaReach = 0, metaImpr = 0, metaResults = 0, metaCur = null;
+  for (const m of metaRows) {
+    metaSpend += Number(m.spend || 0); metaReach += Number(m.reach || 0);
+    metaImpr += Number(m.impressions || 0); metaResults += Number(m.results || 0);
+    if (!metaCur && m.currency) metaCur = m.currency;
+    if (m.campaign_id) {
+      const x = (metaByCampaign[m.campaign_id] ??= { spend: 0, reach: 0, impressions: 0, results: 0 });
+      x.spend += Number(m.spend || 0); x.reach += Number(m.reach || 0);
+      x.impressions += Number(m.impressions || 0); x.results += Number(m.results || 0);
+    }
+  }
+  const curKey = (metaCur || '').toLowerCase(); // 'try'|'usd'|'syp'
+
   // ── مجاميع مصادر البيع (تُشتق منها الإجماليات وتقسيم المصدر) ──
   // ملاحظة: رؤوس daily_reports التاريخية تحوي total_messages فقط؛ التأكيدات
   // والقيمة الحقيقية في report_ad_results + أعمدة المصادر — فنشتق منها لتطابق.
@@ -207,6 +231,9 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     avgStar:     cStars[c.id]?.length ? +(cStars[c.id].reduce((a, b) => a + b, 0) / cStars[c.id].length).toFixed(1) : null,
     adsCount:    (adsByCamp[c.id] || []).length,
     sellersCount: cSellers[c.id]?.size || 0,
+    spend:       metaByCampaign[c.id]?.spend || 0,
+    reach:       metaByCampaign[c.id]?.reach || 0,
+    roas:        (metaByCampaign[c.id]?.spend > 0 && curKey) ? +(((c.sales[curKey] || 0) / metaByCampaign[c.id].spend)).toFixed(2) : null,
   })).sort((a, b) => b.sales.usd + b.sales.try + b.sales.syp - (a.sales.usd + a.sales.try + a.sales.syp));
 
   // ── لكل إعلان ──
@@ -285,9 +312,18 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     missingToday:  [...expected].filter(n => !reportedToday.has(n)),
   };
 
+  // ── ملخّص ميتا (إنفاق + ROAS) ──
+  const meta = {
+    spend: metaSpend, reach: metaReach, impressions: metaImpr, results: metaResults,
+    currency: metaCur,
+    roas: (metaSpend > 0 && curKey) ? +((totals.sales[curKey] || 0) / metaSpend).toFixed(2) : null,
+    costPerResult: metaResults > 0 ? +(metaSpend / metaResults).toFixed(2) : null,
+    hasData: metaRows.length > 0,
+  };
+
   return {
     range: { from: fromD, to: toD },
-    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance,
+    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta,
     filters: {
       campaigns: campaigns.filter(c => c.is_active !== false).map(c => ({ id: c.id, name: c.name })),
       teams: [...new Set(campaigns.map(c => c.team).filter(Boolean))],

@@ -104,10 +104,25 @@ export default function MediaBuyerBoardScreen() {
             <StatCard label="نسبة التحويل" value={t.convRate + '%'} icon="📈" tone="amber" />
             <StatCard label="عدد التقارير" value={fmt(t.reportsCount)} icon="🧾" />
           </div>
-          <Card padding="md">
-            <CardTitle className="text-sm mb-1">💵 إجمالي المبيعات</CardTitle>
-            <p className="text-xl font-extrabold text-teal">{fmtSales(t.sales)}</p>
-          </Card>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <Card padding="md">
+              <CardTitle className="text-sm mb-1">💵 إجمالي المبيعات</CardTitle>
+              <p className="text-xl font-extrabold text-teal">{fmtSales(t.sales)}</p>
+            </Card>
+            <Card padding="md">
+              <CardTitle className="text-sm mb-1">📊 إنفاق ميتا · ROAS</CardTitle>
+              {data.meta?.hasData ? (
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-xl font-extrabold text-amber-fg">{fmt(data.meta.spend)} {data.meta.currency || ''}</span>
+                  {data.meta.roas != null && <span className="text-sm font-bold text-teal">ROAS ×{data.meta.roas}</span>}
+                  {data.meta.costPerResult != null && <span className="text-xs text-muted">تكلفة النتيجة {data.meta.costPerResult}</span>}
+                  <span className="text-xs text-muted">وصول {fmt(data.meta.reach)}</span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted">لم يُربط حساب ميتا بعد — أضف سرّي <span className="font-mono">META_ACCESS_TOKEN</span> و<span className="font-mono">META_AD_ACCOUNT_ID</span> لتظهر الإنفاق وROAS تلقائياً.</p>
+              )}
+            </Card>
+          </div>
 
           {/* الاتجاه اليومي */}
           <Card padding="md">
@@ -141,6 +156,7 @@ export default function MediaBuyerBoardScreen() {
                     <span className="text-muted font-normal"> · {c.sellersCount} موظف · {c.adsCount} إعلان</span>
                   </span>
                   <span className="text-muted shrink-0">💬{fmt(c.messages)} · ✅{fmt(c.confirmations)} ({c.convRate}%)</span>
+                  {c.spend > 0 && <span className="text-amber-fg shrink-0">📊{fmt(c.spend)}{c.roas != null ? ` · ×${c.roas}` : ''}</span>}
                   <span className="text-teal font-bold shrink-0">{fmtSales(c.sales)}</span>
                 </div>
               ))}
