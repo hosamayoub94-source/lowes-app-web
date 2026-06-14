@@ -141,25 +141,57 @@ async function _resolveSourceWarehouse(order) {
   return wh?.id ?? null;
 }
 
-// Map order items ({name, qty}) to catalog product ids by exact name
-// (Arabic name or name_en). Unmatched items are skipped silently —
-// only catalog products are stock-tracked.
+// تطبيع اسم المنتج للمطابقة: lowercase + طيّ الحروف التركية (İ/ı/Ş/Ğ/Ç/Ö/Ü)
+// + إزالة بادئة العلامة LOWE'S/LOWES + إزالة المسافات والترقيم (يُبقي العربي
+// واللاتيني والأرقام). يُطبَّق على الطرفين (الطلب + الكتالوج) فلا مطابقات خاطئة.
+// يعالج: «LOWE'S VİTAMİN C SERUM» / «LOWE'SVİTAMİNCSERUM» → vitamincserum.
+function _normName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/i̇/g, 'i').replace(/[ıİ]/g, 'i')
+    .replace(/[şŞ]/g, 's').replace(/[ğĞ]/g, 'g').replace(/[çÇ]/g, 'c')
+    .replace(/[öÖ]/g, 'o').replace(/[üÜ]/g, 'u')
+    .replace(/[^a-z0-9؀-ۿ]/g, '')
+    .replace(/^lowes/, '');
+}
+
+// مرادفات يدوية مؤكَّدة من المالك (14 يونيو 2026): اسم كما يظهر بالطلب →
+// اسم المنتج بالكتالوج (name_en، كلاهما يُطبَّع). للأسماء المختلفة لغوياً
+// (تركية كاملة) أو المُسمّاة خطأً. القيمة لازم تطابق name/name_en بالكتالوج.
+const PRODUCT_ALIASES = {
+  'ROSEMARY SERUM':         'Rosemary Oil',                       // قرار المالك: = زيت الروزماري
+  'Body toner':             'PORE TIHGTENNING & PURIFINE TONER',  // = تونر تنقية البشرة
+  'sakal ve Bıyık Serumu':  'BEARD SERUM',                        // تركي = سيروم اللحية
+  'GÖĞÜS BAKIM SERUM':      'BREAST CARE SERUM',                  // تركي = سيروم العناية بالثدي
+  'WHITHING CREAM':         'WHITENING CREAM',                    // خطأ إملائي = كريم تفتيح البشرة
+  // مُتجاهَلة عمداً (ليست بمخزون لويز المتتبَّع): Strawberry Body Scrub,
+  // Hair Removal Cream, كريم سوبر فيغا الأزرق.
+};
+
+// Map order items ({name, qty}) to catalog product ids via normalized name
+// (Arabic name or name_en) + confirmed aliases. Unmatched items are skipped
+// silently — only catalog products are stock-tracked.
 async function _matchItemsToProducts(items) {
   if (!Array.isArray(items) || items.length === 0) return [];
-  const names = items.map(i => (i.name || '').trim()).filter(Boolean);
-  if (names.length === 0) return [];
   const { data: products } = await supabase
     .from('products')
     .select('id, name, name_en');
-  const byName = {};
+  const byNorm = {};
   for (const p of (products ?? [])) {
-    if (p.name)    byName[p.name.trim().toLowerCase()] = p.id;
-    if (p.name_en) byName[p.name_en.trim().toLowerCase()] = p.id;
+    if (p.name)    byNorm[_normName(p.name)]    = p.id;
+    if (p.name_en) byNorm[_normName(p.name_en)] = p.id;
+  }
+  // اربط المرادفات المؤكَّدة بمعرّف المنتج (فقط إن وُجد المنتج بالكتالوج).
+  const aliasToId = {};
+  for (const [alias, canon] of Object.entries(PRODUCT_ALIASES)) {
+    const pid = byNorm[_normName(canon)];
+    if (pid) aliasToId[_normName(alias)] = pid;
   }
   const matched = [];
   for (const it of items) {
-    const key = (it.name || '').trim().toLowerCase();
-    const pid = byName[key];
+    const key = _normName(it.name);
+    if (!key) continue;
+    const pid = byNorm[key] || aliasToId[key];
     if (pid) matched.push({ productId: pid, qty: Number(it.qty || 1) });
   }
   return matched;
