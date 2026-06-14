@@ -280,6 +280,40 @@ export async function syncOrderStock(order, performedBy) {
   } catch { /* best-effort */ }
 }
 
+// تراجع عن حركة استلام/تخصيص أُدخلت خطأً: يعكس أثرها على المخزون + يسجّل
+// حركة 'reverse' مرتبطة بالأصل عبر reverses_id. idempotent (لا تراجع مزدوج).
+// مسموح فقط لحركات receive/allocate (الإدخالات اليدوية). للمسؤولين فقط (gated بالشاشة).
+export async function reverseMovement(movement, performedBy) {
+  if (!movement?.id) throw new Error('حركة غير صالحة');
+  if (!['receive', 'allocate'].includes(movement.type))
+    throw new Error('يمكن التراجع فقط عن الاستلام أو التخصيص (الجرد يُصحَّح بجرد جديد).');
+  // idempotency: هل تم التراجع عنها سابقاً؟
+  const { data: existing } = await supabase
+    .from('wh_movements').select('id').eq('reverses_id', movement.id).limit(1);
+  if (existing && existing.length) throw new Error('تم التراجع عن هذه الحركة مسبقاً.');
+
+  const qty = Number(movement.quantity || 0);
+  if (movement.type === 'receive') {
+    // الأصل: null → to (+qty). العكس: انقص qty من to.
+    const wh = movement.to_warehouse_id;
+    await _setQty(wh, movement.product_id, (await _currentQty(wh, movement.product_id)) - qty);
+  } else {
+    // allocate: from (−qty) → to (+qty). العكس: أرجِع لـfrom، انقص من to.
+    const { from_warehouse_id: from, to_warehouse_id: to } = movement;
+    await _setQty(from, movement.product_id, (await _currentQty(from, movement.product_id)) + qty);
+    await _setQty(to,   movement.product_id, (await _currentQty(to,   movement.product_id)) - qty);
+  }
+  await _logMovement({
+    product_id: movement.product_id,
+    from_warehouse_id: movement.to_warehouse_id || null,   // عكس الاتجاه (تدقيق)
+    to_warehouse_id:   movement.from_warehouse_id || null,
+    quantity: qty, type: 'reverse',
+    reason: `تراجع عن ${movement.type === 'receive' ? 'استلام' : 'تخصيص'}`,
+    performed_by: performedBy || null,
+    reverses_id: movement.id,
+  });
+}
+
 // Recent movements (for the activity log).
 export async function listMovements({ limit = 50, warehouseId = null } = {}) {
   let q = supabase

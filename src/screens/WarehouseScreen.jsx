@@ -4,24 +4,25 @@
 // central, allocate central→sub, adjust. Gated by permissions.
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
 import {
   getStockMatrix, receiveStock, allocateStock, adjustStock,
   listMovements, createWarehouse, updateWarehouse,
-  listSellersWithWarehouse, assignSellerWarehouse,
+  listSellersWithWarehouse, assignSellerWarehouse, reverseMovement,
 } from '@services/warehouseService';
 
 const TYPE_LABEL = { central: '🏛️ مستودع', sales: '📦 مبيعات', wholesale: '🏪 جملة', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
 // ترتيب هرمي ضمن كل سوق: مستودع كبير → مبيعات → جملة → مناديب → مرتجعات
 const TYPE_RANK = { central: 0, sales: 1, wholesale: 2, distributor: 3, returns: 4 };
 const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
-const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع' };
+const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع', reverse: '↩️ تراجع' };
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
 
 // ── Management panel: create sub-warehouses + assign sellers + movement log ──
-function ManagePanel({ warehouses, onChanged }) {
+function ManagePanel({ warehouses, onChanged, userName, canReverse }) {
   const [tab, setTab] = useState('warehouses'); // warehouses | sellers | log
   const [sellers, setSellers] = useState([]);
   const [moves, setMoves]     = useState([]);
@@ -32,6 +33,14 @@ function ManagePanel({ warehouses, onChanged }) {
   const loadSellers = useCallback(async () => { try { setSellers(await listSellersWithWarehouse()); } catch {} }, []);
   const loadMoves   = useCallback(async () => { try { setMoves(await listMovements({ limit: 40 })); } catch {} }, []);
   useEffect(() => { if (tab === 'sellers') loadSellers(); if (tab === 'log') loadMoves(); }, [tab, loadSellers, loadMoves]);
+
+  // مجموعة معرّفات الحركات التي تم التراجع عنها (لإخفاء زر التراجع ومنع التكرار).
+  const reversedIds = useMemo(() => new Set(moves.filter(m => m.reverses_id).map(m => m.reverses_id)), [moves]);
+  const doReverse = async (m) => {
+    if (!window.confirm(`تراجع عن «${MOVE_LABEL[m.type] || m.type}» بكمية ${m.quantity}؟ سيُعكَس أثرها على المخزون.`)) return;
+    try { await reverseMovement(m, userName); await loadMoves(); onChanged?.(); }
+    catch (e) { alert('تعذّر التراجع: ' + e.message); }
+  };
 
   const addWarehouse = async () => {
     if (!newName.trim()) return;
@@ -91,25 +100,36 @@ function ManagePanel({ warehouses, onChanged }) {
       )}
 
       {tab === 'log' && (
-        <div className="space-y-1 max-h-72 overflow-y-auto">
-          {moves.length === 0 ? <p className="text-xs text-muted text-center py-4">لا حركات</p> : moves.map(m => (
-            <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs border-b border-border/40">
-              <span className="text-text">{MOVE_LABEL[m.type] || m.type} · <b className="tabular-nums">{m.quantity}</b></span>
-              <span className="text-muted truncate">{m.from_warehouse_id ? whName(m.from_warehouse_id) : ''}{m.to_warehouse_id ? ' → ' + whName(m.to_warehouse_id) : ''}</span>
-            </div>
-          ))}
+        <div className="space-y-1 max-h-80 overflow-y-auto">
+          <p className="text-[11px] text-muted pb-1">تصحيح خطأ؟ اضغط «↩️ تراجع» على حركة الاستلام/التخصيص — يعكس أثرها على المخزون ويُسجَّل.</p>
+          {moves.length === 0 ? <p className="text-xs text-muted text-center py-4">لا حركات</p> : moves.map(m => {
+            const reversible = canReverse && ['receive', 'allocate'].includes(m.type);
+            const isReversed = reversedIds.has(m.id);
+            return (
+              <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs border-b border-border/40">
+                <span className={'text-text ' + (isReversed ? 'line-through opacity-50' : '')}>
+                  {MOVE_LABEL[m.type] || m.type} · <b className="tabular-nums">{m.quantity}</b>
+                  <span className="text-muted"> · {m.from_warehouse_id ? whName(m.from_warehouse_id) : ''}{m.to_warehouse_id ? ' → ' + whName(m.to_warehouse_id) : ''}</span>
+                </span>
+                {reversible && !isReversed && (
+                  <button onClick={() => doReverse(m)} className="shrink-0 text-[11px] text-red-fg font-bold hover:underline">↩️ تراجع</button>
+                )}
+                {isReversed && <span className="shrink-0 text-[10px] text-muted">متراجَع ✓</span>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function ActionModal({ title, warehouses, products, mode, onClose, onSubmit }) {
+function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, initialFrom, initialTo }) {
   // mode: 'receive' | 'allocate' | 'adjust'
   const central = warehouses.find(w => w.type === 'central');
   const [productId, setProductId]   = useState(products[0]?.id ?? '');
-  const [fromWh, setFromWh]         = useState(central?.id ?? warehouses[0]?.id ?? '');
-  const [toWh, setToWh]             = useState(warehouses.find(w => w.type !== 'central')?.id ?? '');
+  const [fromWh, setFromWh]         = useState(initialFrom ?? central?.id ?? warehouses[0]?.id ?? '');
+  const [toWh, setToWh]             = useState(initialTo ?? warehouses.find(w => w.type !== 'central')?.id ?? '');
   const [warehouseId, setWarehouseId] = useState(central?.id ?? warehouses[0]?.id ?? '');
   const [qty, setQty]   = useState('');
   const [reason, setReason] = useState('');
@@ -192,7 +212,62 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit }) {
   );
 }
 
+// ── بطاقة مخزن (بنر مفصّل) — إحصائيات + تزويد + تفاصيل ──────────
+function WarehouseCard({ wh, stats, hasCentral, canManage, onReplenish, onDetail }) {
+  const isSub = wh.type !== 'central';
+  const icon  = TYPE_LABEL[wh.type]?.split(' ')[0] || '📦';
+  const typeName = TYPE_LABEL[wh.type]?.split(' ').slice(1).join(' ') || wh.type;
+  return (
+    <div className={'bg-surface border rounded-2xl p-3.5 flex flex-col gap-2.5 ' + (stats.neg > 0 ? 'border-red/40' : 'border-border')}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-text text-sm truncate">{icon} {wh.name}</p>
+          <p className="text-[10px] text-muted mt-0.5">{MARKET_LABEL[wh.market] || wh.market || '—'}{wh.owner_name ? ` · ${wh.owner_name}` : ''}</p>
+        </div>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-alt text-muted shrink-0">{typeName}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        <div><p className="text-base font-black text-text tabular-nums">{stats.total}</p><p className="text-[9px] text-muted">قطعة</p></div>
+        <div><p className="text-base font-black text-teal tabular-nums">{stats.products}</p><p className="text-[9px] text-muted">صنف</p></div>
+        <div><p className={'text-base font-black tabular-nums ' + (stats.neg > 0 ? 'text-red-fg' : 'text-muted')}>{stats.neg}</p><p className="text-[9px] text-muted">سالب</p></div>
+      </div>
+      <div className="flex gap-1.5">
+        <button onClick={() => onDetail(wh)} className="flex-1 py-1.5 rounded-lg bg-surface-alt text-muted text-[11px] font-bold hover:text-text transition">📋 الأصناف</button>
+        {isSub && canManage && hasCentral && (
+          <button onClick={() => onReplenish(wh)} className="flex-1 py-1.5 rounded-lg bg-teal/15 text-teal text-[11px] font-bold hover:bg-teal/25 transition">⬇️ تزويد من المستودع</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── نافذة أصناف مخزن واحد ──────────────────────────────────────
+function WarehouseDetailModal({ wh, rows, onClose }) {
+  const items = rows.map(r => ({ name: r.name, qty: Number(r.perWh[wh.id] || 0) }))
+    .filter(x => x.qty !== 0).sort((a, b) => b.qty - a.qty);
+  const total = items.reduce((s, i) => s + i.qty, 0);
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+      <div className="bg-surface rounded-2xl w-full max-w-md shadow-2xl p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <h3 className="font-bold text-base text-text">{TYPE_LABEL[wh.type]?.split(' ')[0]} {wh.name}</h3>
+        <p className="text-[11px] text-muted mb-3">{items.length} صنف · {total} قطعة</p>
+        <div className="space-y-1 overflow-y-auto">
+          {items.length === 0 ? <p className="text-xs text-muted text-center py-6">لا أصناف في هذا المخزن</p> :
+            items.map((it, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface-alt text-sm">
+                <span className="text-text truncate">{it.name}</span>
+                <b className={'tabular-nums shrink-0 ' + (it.qty < 0 ? 'text-red-fg' : 'text-text')}>{it.qty}</b>
+              </div>
+            ))}
+        </div>
+        <button onClick={onClose} className="mt-3 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إغلاق</button>
+      </div>
+    </div>
+  );
+}
+
 export default function WarehouseScreen() {
+  const navigate = useNavigate();
   const { name: userName } = useAuth();
   const { can } = usePermissions();
   const canCentral = can(PERMISSIONS.MANAGE_CENTRAL_STOCK);
@@ -207,6 +282,9 @@ export default function WarehouseScreen() {
   const [showManage, setShowManage] = useState(false);
   const [lowOnly, setLowOnly] = useState(false);
   const [marketFilter, setMarketFilter] = useState('all'); // all | syria | turkey
+  const [showMatrix, setShowMatrix] = useState(false);     // الجدول التفصيلي مطويّ افتراضياً
+  const [detailWh, setDetailWh] = useState(null);          // نافذة أصناف مخزن
+  const [replenishWh, setReplenishWh] = useState(null);    // تزويد مخزن من المستودع
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -259,6 +337,25 @@ export default function WarehouseScreen() {
 
   const markets = useMemo(() => [...new Set(warehouses.map(w => w.market).filter(Boolean))], [warehouses]);
 
+  // إحصائيات كل مخزن (إجمالي القطع · عدد الأصناف الموجبة · عدد السوالب).
+  const whStats = useMemo(() => {
+    const m = {};
+    for (const w of warehouses) m[w.id] = { total: 0, products: 0, neg: 0 };
+    for (const r of rows) {
+      for (const w of warehouses) {
+        const q = Number(r.perWh[w.id] || 0);
+        if (q === 0) continue;
+        m[w.id].total += q;
+        if (q > 0) m[w.id].products++; else m[w.id].neg++;
+      }
+    }
+    return m;
+  }, [rows, warehouses]);
+
+  const centralOfMarket = useCallback(
+    (market) => warehouses.find(w => w.type === 'central' && w.market === market),
+    [warehouses]);
+
   return (
     <div className="space-y-4 pb-24" dir="rtl">
       <div className="flex items-start justify-between gap-3">
@@ -276,24 +373,14 @@ export default function WarehouseScreen() {
           {(canCentral || canSales) && (
             <button onClick={() => setModal('adjust')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">± جرد</button>
           )}
+          <button onClick={() => navigate('/guide')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">📖 دليل</button>
           {canCentral && (
             <button onClick={() => setShowManage(v => !v)} className={'px-3 py-2 rounded-xl text-xs font-bold transition border ' + (showManage ? 'bg-navy text-white border-navy' : 'bg-surface-alt text-muted hover:text-text border-border')}>⚙️ إدارة</button>
           )}
         </div>
       </div>
 
-      {canCentral && showManage && <ManagePanel warehouses={warehouses} onChanged={load} />}
-
-      <div className="flex gap-2">
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 بحث بالمنتج أو SKU..."
-          className="flex-1 border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-        <button onClick={() => setLowOnly(v => !v)}
-          className={'px-3 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition border ' +
-            (lowOnly ? 'bg-red-fg text-white border-red-fg' : lowCount > 0 ? 'bg-red-bg text-red-fg border-red/30' : 'bg-surface-alt text-muted border-border')}>
-          ⚠️ نواقص {lowCount > 0 ? `(${lowCount})` : ''}
-        </button>
-      </div>
+      {canCentral && showManage && <ManagePanel warehouses={warehouses} onChanged={load} userName={userName} canReverse={canCentral} />}
 
       {markets.length > 1 && (
         <div className="flex gap-1.5">
@@ -305,6 +392,45 @@ export default function WarehouseScreen() {
         </div>
       )}
 
+      {/* بطاقات المخازن (بنرات مفصّلة) مجمَّعة حسب السوق + هرمياً */}
+      {!loading && !error && (marketFilter === 'all' ? markets : [marketFilter]).map(mk => {
+        const whs = visibleWarehouses.filter(w => w.market === mk);
+        if (!whs.length) return null;
+        return (
+          <div key={mk} className="space-y-2">
+            <p className="text-xs font-bold text-muted">{MARKET_LABEL[mk] || mk}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {whs.map(w => (
+                <WarehouseCard key={w.id} wh={w} stats={whStats[w.id] || { total: 0, products: 0, neg: 0 }}
+                  hasCentral={!!centralOfMarket(w.market)} canManage={canCentral}
+                  onReplenish={setReplenishWh} onDetail={setDetailWh} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* زر الجدول التفصيلي (منتج × مخزن) — مطويّ افتراضياً */}
+      {!loading && !error && (
+        <button onClick={() => setShowMatrix(v => !v)}
+          className="w-full text-right px-3 py-2.5 rounded-xl bg-surface-alt text-sm font-bold text-text hover:bg-surface-alt/70 transition border border-border">
+          {showMatrix ? '▾' : '▸'} 📊 الجدول التفصيلي (منتج × مخزن)
+        </button>
+      )}
+
+      {showMatrix && (
+        <div className="flex gap-2">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 بحث بالمنتج أو SKU..."
+            className="flex-1 border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          <button onClick={() => setLowOnly(v => !v)}
+            className={'px-3 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition border ' +
+              (lowOnly ? 'bg-red-fg text-white border-red-fg' : lowCount > 0 ? 'bg-red-bg text-red-fg border-red/30' : 'bg-surface-alt text-muted border-border')}>
+            ⚠️ نواقص {lowCount > 0 ? `(${lowCount})` : ''}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="h-64 bg-surface-alt animate-pulse rounded-2xl" />
       ) : error ? (
@@ -312,7 +438,7 @@ export default function WarehouseScreen() {
           <span>{error}</span>
           <button onClick={load} className="underline text-xs">إعادة</button>
         </div>
-      ) : (
+      ) : showMatrix ? (
         <div className="overflow-x-auto border border-border rounded-2xl">
           <table className="w-full text-sm">
             <thead className="bg-surface-alt">
@@ -351,11 +477,22 @@ export default function WarehouseScreen() {
             </tfoot>
           </table>
         </div>
-      )}
+      ) : null}
 
       {modal === 'receive'  && <ActionModal title="📥 استلام بضاعة" mode="receive"  warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleReceive} />}
       {modal === 'allocate' && <ActionModal title="⇄ تخصيص بين المخازن" mode="allocate" warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleAllocate} />}
       {modal === 'adjust'   && <ActionModal title="± جرد / تصحيح" mode="adjust"   warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleAdjust} />}
+
+      {/* تزويد مخزن فرعي من المستودع المركزي لسوقه (تخصيص مُسبق) */}
+      {replenishWh && (
+        <ActionModal title={`⬇️ تزويد «${replenishWh.name}» من المستودع`} mode="allocate"
+          warehouses={warehouses} products={products}
+          initialFrom={centralOfMarket(replenishWh.market)?.id} initialTo={replenishWh.id}
+          onClose={() => setReplenishWh(null)} onSubmit={handleAllocate} />
+      )}
+
+      {/* نافذة أصناف مخزن واحد */}
+      {detailWh && <WarehouseDetailModal wh={detailWh} rows={rows} onClose={() => setDetailWh(null)} />}
     </div>
   );
 }
