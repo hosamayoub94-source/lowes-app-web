@@ -164,11 +164,21 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   }
   if (campaignId) results = results.filter(r => r.campaign_id === campaignId);
 
+  // ── مجاميع مصادر البيع (تُشتق منها الإجماليات وتقسيم المصدر) ──
+  // ملاحظة: رؤوس daily_reports التاريخية تحوي total_messages فقط؛ التأكيدات
+  // والقيمة الحقيقية في report_ad_results + أعمدة المصادر — فنشتق منها لتطابق.
+  const adSales    = results.reduce((a, r) => addCur(a, rowCur(r)), zeroCur());
+  const adCount    = results.reduce((n, r) => n + Number(r.confirmations || 0), 0);
+  const oldCount   = reports.reduce((n, r) => n + Number(r.old_customer_count || 0), 0);
+  const oldSales   = reports.reduce((a, r) => addCur(a, { try: r.old_customer_amount_try, syp: r.old_customer_amount_syp, usd: r.old_customer_amount_usd }), zeroCur());
+  const otherCount = reports.reduce((n, r) => n + Number(r.other_source_count || 0), 0);
+  const otherSales = reports.reduce((a, r) => addCur(a, { try: r.other_source_amount_try, syp: r.other_source_amount_syp, usd: r.other_source_amount_usd }), zeroCur());
+
   // ── المجاميع العامة ──
   const totals = {
     messages:      reports.reduce((n, r) => n + Number(r.total_messages || 0), 0),
-    confirmations: reports.reduce((n, r) => n + Number(r.total_confirmations || 0), 0),
-    sales:         reports.reduce((a, r) => addCur(a, { try: r.total_sales_try, syp: r.total_sales_syp, usd: r.total_sales_usd }), zeroCur()),
+    confirmations: adCount + oldCount + otherCount,
+    sales:         addCur(addCur(addCur(zeroCur(), adSales), oldSales), otherSales),
     reportsCount:  reports.length,
   };
   totals.convRate = totals.messages > 0 ? Math.round((totals.confirmations / totals.messages) * 100) : 0;
@@ -243,25 +253,21 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   })).sort((a, b) => (b.sales.usd + b.sales.try + b.sales.syp) - (a.sales.usd + a.sales.try + a.sales.syp));
 
   // ── تقسيم مصدر البيع (إعلان / عميل سابق / مصدر آخر) — عدد + قيمة ──
-  const adSales = results.reduce((a, r) => addCur(a, rowCur(r)), zeroCur());
-  const adCount = results.reduce((n, r) => n + Number(r.confirmations || 0), 0);
-  const oldCount = reports.reduce((n, r) => n + Number(r.old_customer_count || 0), 0);
-  const oldSales = reports.reduce((a, r) => addCur(a, { try: r.old_customer_amount_try, syp: r.old_customer_amount_syp, usd: r.old_customer_amount_usd }), zeroCur());
-  const otherCount = reports.reduce((n, r) => n + Number(r.other_source_count || 0), 0);
-  const otherSales = reports.reduce((a, r) => addCur(a, { try: r.other_source_amount_try, syp: r.other_source_amount_syp, usd: r.other_source_amount_usd }), zeroCur());
   const sourceSplit = {
     ad:    { label: 'إعلان',      count: adCount,    sales: adSales },
     old:   { label: 'عميل سابق',  count: oldCount,   sales: oldSales },
     other: { label: 'مصدر آخر',   count: otherCount, sales: otherSales },
   };
 
-  // ── الاتجاه اليومي ──
+  // ── الاتجاه اليومي ── (الرسائل من الرؤوس، التأكيدات من النتائج حسب تاريخ التقرير)
   const trendMap = {};
   for (const r of reports) {
-    const t = (trendMap[r.report_date] ??= { date: r.report_date, messages: 0, confirmations: 0, salesUsd: 0 });
-    t.messages += Number(r.total_messages || 0);
-    t.confirmations += Number(r.total_confirmations || 0);
-    t.salesUsd += Number(r.total_sales_usd || 0);
+    (trendMap[r.report_date] ??= { date: r.report_date, messages: 0, confirmations: 0 }).messages += Number(r.total_messages || 0);
+  }
+  for (const res of results) {
+    const d = reportById[res.report_id]?.report_date;
+    if (!d) continue;
+    (trendMap[d] ??= { date: d, messages: 0, confirmations: 0 }).confirmations += Number(res.confirmations || 0);
   }
   const dailyTrend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
 
