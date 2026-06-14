@@ -81,7 +81,7 @@ function SetupBanner() {
 }
 
 // ── New / Edit Campaign Modal ──────────────────────────────────
-const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '' };
+const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '', manager_name: '' };
 
 function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign, userName }) {
   const [form, setForm]   = useState(EMPTY_CMP);
@@ -97,6 +97,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         status: editCampaign.status ?? 'active', cost_usd: editCampaign.cost_usd ?? '',
         assigned_to: Array.isArray(editCampaign.assigned_to) ? editCampaign.assigned_to : [],
         start_date: editCampaign.start_date ?? '', end_date: editCampaign.end_date ?? '',
+        manager_name: editCampaign.manager_name ?? '',
       });
     } else setForm(EMPTY_CMP);
     setErr(null);
@@ -120,6 +121,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         channel_name_custom: form.channel_name.trim() || null,
         budget_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
         members: form.assigned_to,
+        manager_name: form.manager_name || null,
       };
       const q = editCampaign
         ? supabase.from('campaigns').update(payload).eq('id', editCampaign.id)
@@ -175,6 +177,15 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
               <label className="text-xs font-semibold text-muted">اسم القناة</label>
               <input value={form.channel_name} onChange={e => set('channel_name', e.target.value)} placeholder="صفحة لويز…" className={inputCls} />
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">🎯 مدير الإعلانات (للرؤية والتحليل)</label>
+            <select value={form.manager_name} onChange={e => set('manager_name', e.target.value)} className={inputCls}>
+              <option value="">— بدون —</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.employee_name}>{emp.employee_name}{emp.team ? ` · ${emp.team}` : ''}</option>
+              ))}
+            </select>
           </div>
           {canViewCost && (
             <div className="space-y-1">
@@ -443,6 +454,7 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
           <div className="min-w-0">
             <h2 className="text-base font-bold text-text truncate">{campaign.name}</h2>
             <p className="text-xs text-muted mt-0.5">{campaign.team} · {campaign.channel_name || '—'} · <StatusBadge status={campaign.status} /></p>
+            {campaign.manager_name && <p className="text-[11px] text-teal mt-0.5">🎯 مدير الإعلانات: {campaign.manager_name}</p>}
           </div>
           <button onClick={onClose} className="text-muted hover:text-text text-xl leading-none shrink-0">✕</button>
         </div>
@@ -581,7 +593,7 @@ function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete })
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
           <p className="font-bold text-text text-sm truncate">{c.name}</p>
-          <p className="text-xs text-muted mt-0.5">{c.team}</p>
+          <p className="text-xs text-muted mt-0.5">{c.team}{c.manager_name ? ` · 🎯 ${c.manager_name}` : ''}</p>
         </div>
         <StatusBadge status={c.status} />
       </div>
@@ -630,6 +642,15 @@ function CampaignsDashboard({ campaigns, canViewCost }) {
   // Active campaigns where not everyone logged today
   const behind = active.filter(c => c._assignedCount > 0 && c._loggedToday < c._assignedCount);
 
+  // تحليل الأداء حسب مدير الإعلانات (للرؤية/المتابعة — طلب المالك).
+  const byManager = {};
+  for (const c of campaigns) {
+    if (!c.manager_name) continue;
+    const m = (byManager[c.manager_name] ??= { manager: c.manager_name, count: 0, msg: 0, buy: 0, cost: 0 });
+    m.count++; m.msg += c._messages; m.buy += c._purchases; m.cost += Number(c.cost_usd) || 0;
+  }
+  const managerRows = Object.values(byManager).sort((a, b) => b.buy - a.buy);
+
   const cell = (label, val, tone = 'text-text') => (
     <div className="bg-surface border border-border rounded-xl p-3 text-center">
       <p className={`text-lg font-black ${tone}`}>{val}</p>
@@ -677,6 +698,27 @@ function CampaignsDashboard({ campaigns, canViewCost }) {
           )}
         </div>
       </div>
+
+      {/* تحليل حسب مدير الإعلانات */}
+      {managerRows.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl p-3">
+          <p className="text-xs font-bold text-text mb-2">🎯 الأداء حسب مدير الإعلانات</p>
+          <div className="space-y-1.5">
+            {managerRows.map(m => {
+              const cv = m.msg > 0 ? Math.round((m.buy / m.msg) * 100) : 0;
+              return (
+                <div key={m.manager} className="flex items-center justify-between gap-2 text-xs border-b border-border/40 pb-1.5 last:border-0">
+                  <span className="text-text font-semibold truncate flex-1">{m.manager} <span className="text-[10px] text-muted font-normal">· {m.count} حملة</span></span>
+                  <span className="text-muted shrink-0">💬 {fmtNum(m.msg)}</span>
+                  <span className="text-teal font-bold shrink-0">🛒 {fmtNum(m.buy)}</span>
+                  <span className="text-amber-fg shrink-0">{cv}%</span>
+                  {canViewCost && <span className="text-amber-fg shrink-0">{fmtUSD(m.cost)}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
