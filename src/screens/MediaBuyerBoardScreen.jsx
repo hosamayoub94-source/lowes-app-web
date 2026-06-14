@@ -110,16 +110,19 @@ export default function MediaBuyerBoardScreen() {
               <p className="text-xl font-extrabold text-teal">{fmtSales(t.sales)}</p>
             </Card>
             <Card padding="md">
-              <CardTitle className="text-sm mb-1">📊 إنفاق ميتا · ROAS</CardTitle>
-              {data.meta?.hasData ? (
+              <CardTitle className="text-sm mb-1">📊 الإنفاق · ROAS {data.spendSummary?.source === 'meta' ? '(ميتا)' : data.spendSummary?.source === 'manual' ? '(يدوي)' : ''}</CardTitle>
+              {data.spendSummary?.any ? (
                 <div className="flex items-center gap-4 flex-wrap">
-                  <span className="text-xl font-extrabold text-amber-fg">{fmt(data.meta.spend)} {data.meta.currency || ''}</span>
-                  {data.meta.roas != null && <span className="text-sm font-bold text-teal">ROAS ×{data.meta.roas}</span>}
-                  {data.meta.costPerResult != null && <span className="text-xs text-muted">تكلفة النتيجة {data.meta.costPerResult}</span>}
-                  <span className="text-xs text-muted">وصول {fmt(data.meta.reach)}</span>
+                  {['try', 'syp', 'usd'].filter(c => data.spendSummary.byCur[c] > 0).map(c => (
+                    <span key={c} className="flex items-center gap-1.5">
+                      <span className="text-xl font-extrabold text-amber-fg">{fmt(data.spendSummary.byCur[c])} {CUR_SYM[c]}</span>
+                      {data.spendSummary.roasByCur[c] != null && <span className="text-sm font-bold text-teal">ROAS ×{data.spendSummary.roasByCur[c]}</span>}
+                    </span>
+                  ))}
+                  {data.meta?.hasData && <span className="text-xs text-muted">وصول {fmt(data.meta.reach)}</span>}
                 </div>
               ) : (
-                <p className="text-xs text-muted">لم يُربط حساب ميتا بعد — أضف سرّي <span className="font-mono">META_ACCESS_TOKEN</span> و<span className="font-mono">META_AD_ACCOUNT_ID</span> لتظهر الإنفاق وROAS تلقائياً.</p>
+                <p className="text-xs text-muted">أدخل إنفاق كل حملة من «✏️ تعديل الحملة» (حقل الإنفاق) لتظهر ROAS — أو اربط حساب ميتا لاحقاً للسحب التلقائي.</p>
               )}
             </Card>
           </div>

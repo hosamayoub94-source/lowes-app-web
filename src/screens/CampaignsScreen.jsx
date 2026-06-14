@@ -47,7 +47,7 @@ function StatusBadge({ status }) {
 const inputCls = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40';
 
 // ── New / Edit Campaign Modal ──────────────────────────────────
-const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '', manager_name: '' };
+const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '', manager_name: '', spend: '', spend_currency: 'TRY' };
 
 function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign, userName }) {
   const [form, setForm]   = useState(EMPTY_CMP);
@@ -64,6 +64,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         assigned_to: Array.isArray(editCampaign.assigned_to) ? editCampaign.assigned_to : [],
         start_date: editCampaign.start_date ?? '', end_date: editCampaign.end_date ?? '',
         manager_name: editCampaign.manager_name ?? '',
+        spend: editCampaign.spend ?? '', spend_currency: editCampaign.spend_currency ?? 'TRY',
       });
     } else setForm(EMPTY_CMP);
     setErr(null);
@@ -88,6 +89,8 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         budget_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
         members: form.assigned_to,
         manager_name: form.manager_name || null,
+        spend: form.spend === '' ? 0 : Number(form.spend),
+        spend_currency: form.spend_currency || 'TRY',
       };
       const q = editCampaign
         ? supabase.from('campaigns').update(payload).eq('id', editCampaign.id)
@@ -157,6 +160,19 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">💰 تكلفة الحملة ($) <span className="text-[10px] font-normal">(مخفية عن الموظفين)</span></label>
               <input type="number" min="0" step="0.01" value={form.cost_usd} onChange={e => set('cost_usd', e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+            </div>
+          )}
+          {canViewCost && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">📊 الإنفاق الفعلي (للـ ROAS) <span className="text-[10px] font-normal">— يُحسب ROAS = المبيعات ÷ الإنفاق</span></label>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="number" min="0" step="0.01" value={form.spend} onChange={e => set('spend', e.target.value)} placeholder="0" className={inputCls + ' col-span-2'} style={{ direction: 'ltr', textAlign: 'right' }} />
+                <select value={form.spend_currency} onChange={e => set('spend_currency', e.target.value)} className={inputCls}>
+                  <option value="TRY">₺ TRY</option>
+                  <option value="SYP">ل.س SYP</option>
+                  <option value="USD">$ USD</option>
+                </select>
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
