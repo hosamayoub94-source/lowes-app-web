@@ -34,6 +34,7 @@ const DailyWorkspacePage   = lazy(() => import(/* webpackChunkName: "workspace" 
 const NotificationsScreen = lazy(() => import(/* webpackChunkName: "notifications"  */ '@screens/NotificationsScreen'));
 const AdminScreen         = lazy(() => import(/* webpackChunkName: "admin"          */ '@screens/AdminScreen'));
 const AdminUsersScreen    = lazy(() => import(/* webpackChunkName: "admin-users"    */ '@screens/admin/AdminUsersScreen'));
+const ResignedEmployeesScreen = lazy(() => import(/* webpackChunkName: "admin-resigned" */ '@screens/admin/ResignedEmployeesScreen'));
 const AdminSettingsScreen = lazy(() => import(/* webpackChunkName: "admin-settings" */ '@screens/admin/AdminSettingsScreen'));
 const AdminReportsScreen  = lazy(() => import(/* webpackChunkName: "admin-reports"  */ '@screens/admin/AdminReportsScreen'));
 const AuditDashboard      = lazy(() => import(/* webpackChunkName: "admin-audit"    */ '@modules/audit/pages/AuditDashboard'));
@@ -330,6 +331,7 @@ export function AppRoutes() {
             }
           >
             <Route path="users"       element={<AdminUsersScreen />}    />
+            <Route path="resigned"    element={<ResignedEmployeesScreen />} />
             <Route path="settings"    element={<AdminSettingsScreen />} />
             <Route path="reports"     element={<AdminReportsScreen />}  />
             <Route path="audit"       element={<AuditDashboard />}      />

@@ -9,6 +9,7 @@ import { cn } from '@utils/classNames';
 
 const SUB_TABS = [
   { id: 'users',    label: 'المستخدمون', path: ROUTES.ADMIN_USERS    },
+  { id: 'resigned', label: '👋 المستقيلون', path: ROUTES.ADMIN_RESIGNED },
   { id: 'settings', label: 'الإعدادات',  path: ROUTES.ADMIN_SETTINGS },
   { id: 'reports',  label: 'التقارير',   path: ROUTES.ADMIN_REPORTS  },
   { id: 'audit',    label: '📋 سجل النشاط', path: ROUTES.ADMIN_AUDIT },

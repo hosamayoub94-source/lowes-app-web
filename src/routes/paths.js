@@ -16,6 +16,7 @@ export const ROUTES = {
   ADMIN_GUIDES: '/admin/guides',
   ADMIN_PROJECTS: '/admin/projects',
   ADMIN_USERS: '/admin/users',
+  ADMIN_RESIGNED: '/admin/resigned',
   ADMIN_SETTINGS: '/admin/settings',
   ADMIN_REPORTS: '/admin/reports',
   ADMIN_AUDIT: '/admin/audit',

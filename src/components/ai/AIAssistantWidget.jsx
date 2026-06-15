@@ -289,6 +289,10 @@ export function AIAssistantWidget() {
     // History = all real messages (no loading placeholders)
     const history = withUser.map(m => ({ role: m.role, content: m.content }));
 
+    // Distinguish a server-side failure (function returned non-2xx — e.g. API
+    // credit/quota issue) from a real network failure, so we don't mislead the
+    // user with "تأكد من الإنترنت" when the internet is fine.
+    let serverError = false;
     try {
       let todayVisits = 0;
       try {
@@ -310,7 +314,7 @@ export function AIAssistantWidget() {
           deniedPermissions: session?.denied_permissions ?? [] }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) { serverError = true; throw new Error(`HTTP ${res.status}`); }
       const data  = await res.json();
       const reply = data?.reply ?? 'عذراً، ما قدرت أفهم. حاولي مجدداً 😊';
 
@@ -321,7 +325,9 @@ export function AIAssistantWidget() {
       if (!open) setUnread(u => u + 1);
     } catch {
       setMessages(withUser);
-      setError('فشل الاتصال. تأكد من الإنترنت وحاولي مجدداً 🌐');
+      setError(serverError
+        ? 'لوزي مش متوفرة هلّق 🌸 في خلل مؤقت بالخدمة — جرّبي بعد شوي، وإذا ضلّت بلّغي الأدمن.'
+        : 'فشل الاتصال. تأكد من الإنترنت وحاولي مجدداً 🌐');
     } finally {
       setLoading(false);
     }

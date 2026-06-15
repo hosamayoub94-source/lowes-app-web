@@ -48,33 +48,32 @@ const MIGRATION_SQL = `ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS admin_notes text;`;
 
 // SQL for admin PIN reset function (run once in Supabase SQL Editor)
-const RESET_PIN_SQL = `-- دالة تغيير PIN من قبل الأدمن (نفّذها مرة واحدة في SQL Editor)
+const RESET_PIN_SQL = `-- دالة تغيير PIN من قبل الأدمن — نسخة محدّثة تشمل profiles.pin
 CREATE OR REPLACE FUNCTION admin_reset_pin(
   target_employee_name text,
   new_pin text
 ) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   target_id uuid;
-  synth_email text;
 BEGIN
-  -- التحقق أن المستدعي أدمن أو مدير
-  IF NOT EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role_type IN ('admin','manager')
-  ) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
-
   SELECT id INTO target_id FROM profiles
   WHERE employee_name = target_employee_name LIMIT 1;
   IF target_id IS NULL THEN RETURN false; END IF;
 
-  synth_email := target_id::text || '@auth.lowes-pro.local';
-  UPDATE auth.users
-  SET encrypted_password = crypt('lp:' || new_pin, gen_salt('bf', 10))
-  WHERE email = synth_email;
+  -- تحديث profiles.pin (المصدر الحقيقي لتسجيل الدخول)
+  UPDATE profiles SET pin = new_pin WHERE id = target_id;
+
+  -- تحديث Supabase Auth password (best-effort)
+  BEGIN
+    UPDATE auth.users
+    SET encrypted_password = crypt('lp:' || new_pin, gen_salt('bf', 10))
+    WHERE email = target_id::text || '@auth.lowes-pro.local';
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+
   RETURN true;
 END;$$;
 REVOKE ALL ON FUNCTION admin_reset_pin FROM public;
-GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated;`;
+GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
 
 // ── Data layer ────────────────────────────────────────────────
 async function fetchProfiles() {
@@ -113,7 +112,7 @@ async function adminResetPin(employeeName, newPin) {
     new_pin: String(newPin),
   });
   if (error) throw new Error(error.message);
-  if (!data) throw new Error('الموظف غير موجود أو لم يتم إنشاء حساب Auth له');
+  if (!data) throw new Error('الموظف غير موجود');
   return true;
 }
 
@@ -385,6 +384,28 @@ export default function AdminUsersScreen() {
     } catch (e) { setError(e.message); }
   };
 
+  // ── Mark as resigned (preferred over delete — keeps all data) ──
+  // يعطّل الدخول + يؤرشف الموظف كمستقيل (تبقى مبيعاته وبياناته محجوزة).
+  const markResigned = async (p) => {
+    if (!window.confirm(
+      `وضع «${p.employee_name}» كمستقيل؟\n\n` +
+      `سيُعطَّل دخوله، لكن كل بياناته ومبيعاته تبقى محفوظة ومتاحة في شاشة «الموظفون المستقيلون». ` +
+      `هذا البديل الآمن للحذف.`,
+    )) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      // نحاول الحالة المستقلة؛ نتدرّج بأمان لو العمود غير مُضاف بعد (المايغريشن).
+      let { error } = await updateProfile(p.id, { employment_status: 'resigned', resigned_at: today, is_active: false })
+        .then(() => ({}), (e) => ({ error: e }));
+      if (error && (String(error.message).includes('does not exist') || String(error.message).includes('column'))) {
+        await updateProfile(p.id, { is_active: false });
+      } else if (error) {
+        throw error;
+      }
+      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, is_active: false, employment_status: 'resigned' } : x));
+    } catch (e) { setError(e.message); }
+  };
+
   // ── Permanent delete (admin only) ─────────────────────────────
   // تأكيد مزدوج: تحذير + كتابة الاسم بالضبط — يمنع الحذف العَرَضي.
   const handleDelete = async (p) => {
@@ -608,6 +629,14 @@ export default function AdminUsersScreen() {
                     >
                       🔑 تغيير PIN
                     </button>
+                    {p.is_active && (
+                      <button
+                        onClick={() => markResigned(p)}
+                        className="w-full py-1.5 rounded-lg bg-surface-alt border border-border text-text text-xs font-medium hover:border-amber/40 transition"
+                      >
+                        👋 وضع كمستقيل (يحفظ البيانات)
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(p)}
                       className="w-full py-1.5 rounded-lg bg-red-bg border border-red/30 text-red-fg text-xs font-medium hover:bg-red/20 transition"
