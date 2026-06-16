@@ -42,6 +42,7 @@ export default function ChannelPnL({
   subtitle = 'لكل مصدر: وارد − صادر = صافي (وين نربح وين نخسر)',
 }) {
   const [rateMap, setRateMap] = useState({});
+  const [rateDate, setRateDate] = useState(null);
   const [kind, setKind] = useState('all');
   const [showClosed, setShowClosed] = useState(true);
   const [sort, setSort] = useState('usd');
@@ -50,13 +51,18 @@ export default function ChannelPnL({
     let alive = true;
     fetchExchangeRates().then(rows => {
       if (!alive) return;
-      const m = {};
+      const m = {}; let date = null;
       for (const r of rows || []) {
         const from = r.from_currency ?? r.from_cur;
         const to   = r.to_currency ?? r.to_cur;
-        if (from === 'USD' && to && m[to] === undefined) m[to] = Number(r.rate) || 0;
+        const d    = r.effective_date ?? r.created_at;
+        if (from === 'USD' && to && m[to] === undefined) {
+          m[to] = Number(r.rate) || 0;
+          if (d && (!date || d > date)) date = d;
+        }
       }
       setRateMap(m);
+      setRateDate(date);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -160,8 +166,13 @@ export default function ChannelPnL({
               </tr>
             </tfoot>
           </table>
-          <div className="px-4 py-2 text-[10px] text-muted border-t border-border/40">
-            ≈ بالدولار تقريبي حسب أحدث سعر صرف — الأعمدة بكل عملة هي المرجع الدقيق.
+          <div className="px-4 py-2 text-[10px] text-muted border-t border-border/40 space-y-0.5">
+            <div>≈ بالدولار تقريبي (تدفّق نقدي لكل مصدر، وليس هامش الربح الصافي) — الأعمدة بكل عملة هي المرجع الدقيق.</div>
+            {(rateMap.TRY || rateMap.SYP) ? (
+              <div>سعر الصرف المُستخدَم{rateDate ? ` (بتاريخ ${rateDate})` : ''}:{rateMap.TRY ? ` $1=${Number(rateMap.TRY).toLocaleString()}₺` : ''}{rateMap.SYP ? ` · $1=${Number(rateMap.SYP).toLocaleString()} ل.س` : ''}</div>
+            ) : (
+              <div className="text-amber-600">⚠️ لا يوجد سعر صرف محدّث — الإجمالي بالدولار يحسب العملات الأجنبية صفراً.</div>
+            )}
           </div>
         </div>
       )}
