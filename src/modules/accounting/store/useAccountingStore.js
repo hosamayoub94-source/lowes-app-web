@@ -57,6 +57,7 @@ const useAccountingStore = create()(
     async createEntry(data) {
       get()._setLoading('action', true);
       try {
+        if (!get()._userId) throw new Error('الجلسة غير جاهزة — أعد تسجيل الدخول');
         const { createEntry } = await import('../services/accountingService.js');
         const entry = await createEntry({ ...data, created_by: get()._userId });
         set(s => ({ entries: [entry, ...s.entries] }));
@@ -73,6 +74,7 @@ const useAccountingStore = create()(
     async createTransfer(args) {
       get()._setLoading('action', true);
       try {
+        if (!get()._userId) throw new Error('الجلسة غير جاهزة — أعد تسجيل الدخول');
         const { createTransfer } = await import('../services/accountingService.js');
         const legs = await createTransfer({ ...args, createdBy: get()._userId });
         set(s => ({ entries: [...legs, ...s.entries] }));
