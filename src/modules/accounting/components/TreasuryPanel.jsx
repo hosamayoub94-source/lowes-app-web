@@ -4,6 +4,7 @@
 // =============================================================
 import { useMemo, useState } from 'react';
 import { WALLETS, WALLET_CURRENCY_SYMBOL, walletDelta } from '../types/accounting.types';
+import AccountStatement from './AccountStatement';
 
 function fmtAmt(n, currency) {
   const sym = WALLET_CURRENCY_SYMBOL[currency] || '';
@@ -14,6 +15,8 @@ function fmtAmt(n, currency) {
 export default function TreasuryPanel({ entries = [], className = '' }) {
   // مفتوحة افتراضياً: «اديش معنا بكل محفظة» تبيّن فوراً بلا نقرة (طلب المالك).
   const [showDetails, setShowDetails] = useState(true);
+  // المحفظة المختارة لعرض كشف حركتها (نقر على البطاقة).
+  const [selectedWallet, setSelectedWallet] = useState(null);
 
   // Calculate balance per wallet from entries.
   // walletDelta() centralizes direction (income/transfer_in = +, expense/
@@ -73,9 +76,12 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
         <div className="border-t border-border/40 p-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {walletBalances.map(w => (
-              <div
+              <button
                 key={w.id}
-                className="rounded-xl p-3 border text-center"
+                type="button"
+                onClick={() => setSelectedWallet(w)}
+                title="اعرض كشف حركة هذه المحفظة"
+                className="rounded-xl p-3 border text-center transition hover:shadow-md hover:-translate-y-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal/40"
                 style={{ background: w.bg, borderColor: `${w.color}30` }}
               >
                 <div className="text-base mb-1">{w.label}</div>
@@ -98,7 +104,7 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
                     <span className="text-red-500">-{fmtAmt(w.expense, w.currency)}</span>
                   </div>
                 )}
-              </div>
+              </button>
             ))}
           </div>
 
@@ -126,6 +132,16 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
           </div>
         </div>
       )}
+
+      {/* كشف حركة المحفظة المختارة */}
+      <AccountStatement
+        open={!!selectedWallet}
+        onClose={() => setSelectedWallet(null)}
+        kind="wallet"
+        wallet={selectedWallet}
+        title={selectedWallet?.label || ''}
+        entries={entries}
+      />
     </div>
   );
 }

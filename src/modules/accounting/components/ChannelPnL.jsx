@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { computeChannelPnL } from './channelPnL.logic.js';
 import { CCY, blank } from './sourceBreakdown.logic.js';
 import { fetchExchangeRates } from '../services/accountingService.js';
+import AccountStatement from './AccountStatement';
 
 const KIND_LABEL = {
   shipping: '🚚 شحن', distributor: '🤝 موزّع', marketer: '📣 مسوّق', online: '🛒 أونلاين',
@@ -38,6 +39,7 @@ const usdFmt = (n) => `${n >= 0 ? '+' : '−'}$${Math.abs(Number(n) || 0).toLoca
 export default function ChannelPnL({
   entries = [],
   channels = [],
+  statementEntries = null,   // اختياري: مصدر القيود لكشف الحركة (افتراضياً = entries)
   title = '📈 الربح/الخسارة لكل قناة',
   subtitle = 'لكل مصدر: وارد − صادر = صافي (وين نربح وين نخسر)',
 }) {
@@ -46,6 +48,7 @@ export default function ChannelPnL({
   const [kind, setKind] = useState('all');
   const [showClosed, setShowClosed] = useState(true);
   const [sort, setSort] = useState('usd');
+  const [selected, setSelected] = useState(null);   // صفّ القناة المختار لكشف حركته
 
   useEffect(() => {
     let alive = true;
@@ -139,14 +142,15 @@ export default function ChannelPnL({
             </thead>
             <tbody>
               {view.map(r => (
-                <tr key={r.key} className="border-t border-border hover:bg-cream/50 transition align-top">
+                <tr key={r.key} onClick={() => setSelected(r)} title="اعرض كشف حركة هذه القناة"
+                  className="border-t border-border hover:bg-cream/50 transition align-top cursor-pointer">
                   <td className="py-2.5 px-3">
                     <div className="font-semibold text-text">
                       {r.channel?.icon ? r.channel.icon + ' ' : ''}{r.name}
                       {r.channel && !r.channel.is_active && <span className="text-[10px] text-amber-600"> ⏸</span>}
                     </div>
                     <div className="text-[10px] text-muted mt-0.5">
-                      {r.channel ? (KIND_LABEL[r.channel.kind] || r.channel.kind) + ' · ' : ''}{r.count} حركة
+                      {r.channel ? (KIND_LABEL[r.channel.kind] || r.channel.kind) + ' · ' : ''}{r.count} حركة · <span className="text-teal">📑 كشف</span>
                     </div>
                   </td>
                   <td className="py-2.5 px-3 text-center"><MoneyCell amounts={r.in}  tone="text-green-600" /></td>
@@ -176,6 +180,17 @@ export default function ChannelPnL({
           </div>
         </div>
       )}
+
+      {/* كشف حركة القناة المختارة (التاريخ الكامل عبر statementEntries إن مُرّر) */}
+      <AccountStatement
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        kind="channel"
+        title={selected ? `${selected.channel?.icon ? selected.channel.icon + ' ' : ''}${selected.name}` : ''}
+        channelId={selected?.channel?.id || null}
+        categoryKey={selected && !selected.channel ? selected.key : null}
+        entries={statementEntries || entries}
+      />
     </div>
   );
 }

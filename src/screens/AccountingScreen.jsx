@@ -424,6 +424,7 @@ export default function AccountingScreen() {
       {/* الربح/الخسارة لكل قناة (شركة شحن/أونلاين/موزّع…) — للشهر المحدد */}
       <ChannelPnL
         entries={monthEntries}
+        statementEntries={bookEntries}
         channels={channels}
         title={`🚚 الربح/الخسارة لكل قناة — ${monthFilter || 'كل الفترات'}`}
         subtitle="شركات الشحن، الأونلاين، الموزّعين… — وارد/صادر/صافي لكل مصدر (وين نربح وين نخسر)"

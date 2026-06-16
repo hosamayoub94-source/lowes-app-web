@@ -675,6 +675,7 @@ export function AccountingDashboard() {
         <div className="mb-4">
           <ChannelPnL
             entries={monthSourceEntries}
+            statementEntries={entries}
             channels={channels}
             title={`🏦 الربح/الخسارة لكل قناة — شهر ${monthlyKpis.monthLabel}${sourceFilter ? ` · ${sourceFilter}` : ''}`}
             subtitle="كل جهة/مصدر مع وارده وصادره وصافيه هذا الشهر — وين نربح وين نخسر"
