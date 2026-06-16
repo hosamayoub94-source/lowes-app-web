@@ -22,17 +22,28 @@ import {
   TRANSFER_OUT,
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
-import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
 import AccountingReport from '@modules/accounting/components/AccountingReport';
 import SourceBreakdown from '@modules/accounting/components/SourceBreakdown';
+import OperationalBalanceCard from '@modules/accounting/components/OperationalBalanceCard';
+import {
+  filterOperational,
+  computeOperationalBalance,
+  OP_ALL_SOURCES,
+  OP_INCOME_SOURCES,
+  OP_EXPENSE_SOURCES,
+} from '@modules/accounting/components/operationalAccount';
 import { printPaymentVoucher, computeNextVoucherNo } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
   { key: 'all',     label: 'الكل' },
-  { key: 'income',  label: 'دخل' },
-  { key: 'expense', label: 'مصروف' },
-  { key: 'advance', label: 'سلف' },
-  { key: 'salary',  label: 'رواتب' },
+  { key: 'income',  label: '🟢 استلامات' },
+  { key: 'expense', label: '🔴 مصاريف' },
+];
+
+// نوعا القيد في هذا القسم فقط: استلام + مصروف (لا رواتب/سلف/تحويل).
+const SECTION_TYPES = [
+  { key: ENTRY_TYPE.INCOME,  label: '🟢 استلام' },
+  { key: ENTRY_TYPE.EXPENSE, label: '🔴 مصروف' },
 ];
 
 const EMPTY_FORM = {
@@ -86,7 +97,7 @@ function CurrencyBlock({ currency, symbol, income, expense, net }) {
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-sm font-bold text-green-600">{symbol}{Number(income).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}</div>
-          <div className="text-[10px] text-muted mt-0.5">دخل</div>
+          <div className="text-[10px] text-muted mt-0.5">استلامات</div>
         </div>
         <div>
           <div className="text-sm font-bold text-red-500">{symbol}{Number(expense).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 })}</div>
@@ -204,12 +215,18 @@ export default function AccountingScreen() {
     } catch (e) { setTError(e.message); }
   };
 
+  // ── Operational entries only (استلام + مصروف — لا رواتب/سلف/تحويل) ──────────
+  const opEntries = useMemo(() => filterOperational(entries), [entries]);
+
+  // الرصيد التراكمي الموجود لدى فادي ووسيم = Σ استلامات − Σ مصاريف (كل الفترات).
+  const opBalance = useMemo(() => computeOperationalBalance(opEntries), [opEntries]);
+
   // ── Month filtering ────────────────────────────────────────────────────────
   const monthEntries = useMemo(() =>
     monthFilter
-      ? entries.filter(e => (e.entry_date ?? '').startsWith(monthFilter))
-      : entries,
-  [entries, monthFilter]);
+      ? opEntries.filter(e => (e.entry_date ?? '').startsWith(monthFilter))
+      : opEntries,
+  [opEntries, monthFilter]);
 
   const filtered = tab === 'all'
     ? monthEntries
@@ -238,11 +255,14 @@ export default function AccountingScreen() {
   // كل «الجهات / المصادر» المعروفة = التصنيفات + أي مصدر استُخدم سابقاً في القيود.
   // (المصدر نصّ حر في حقل category — فإضافة مصدر جديد = مجرّد كتابته.)
   const knownSources = useMemo(() => {
-    const set = new Set();
+    const set = new Set(OP_ALL_SOURCES); // مصادر جاهزة: شحن/أجور/مشتريات/قيمة بضاعة مباعة/توريد…
     categories.forEach(c => { const n = c.name_ar ?? c.name; if (n) set.add(n); });
-    entries.forEach(e => { if (e.category) set.add(e.category); });
+    opEntries.forEach(e => { if (e.category) set.add(e.category); });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [categories, entries]);
+  }, [categories, opEntries]);
+
+  // مصادر مقترحة حسب نوع القيد المختار حالياً (تظهر أولاً كاقتراح سريع).
+  const suggestedSources = form.entry_type === ENTRY_TYPE.INCOME ? OP_INCOME_SOURCES : OP_EXPENSE_SOURCES;
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -320,12 +340,6 @@ export default function AccountingScreen() {
                 🧾 سند قبض/صرف
               </button>
               <button
-                onClick={() => { setShowTransfer(true); setTError(null); }}
-                className="px-4 py-2 rounded-xl border border-teal/40 text-teal text-sm font-semibold hover:bg-teal/5 transition whitespace-nowrap"
-              >
-                🔄 تحويل
-              </button>
-              <button
                 onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setSaveError(null); }}
                 className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition whitespace-nowrap"
               >
@@ -336,8 +350,12 @@ export default function AccountingScreen() {
         </div>
       </div>
 
-      {/* Treasury Panel */}
-      <TreasuryPanel entries={entries} />
+      {/* الرصيد الموجود حالياً لدى فادي ووسيم (تُسوّيه الإدارة المالية آخر الشهر) */}
+      <OperationalBalanceCard
+        balance={opBalance}
+        title="💼 الرصيد الموجود حالياً (لدى فادي ووسيم)"
+        subtitle="إجمالي الاستلامات ناقص المصاريف — هذا ما تُسوّيه «الإدارة المالية» آخر الشهر (سحب أو توريد)"
+      />
 
       {/* Financial report (period = current month filter) */}
       {showReport && (
@@ -475,33 +493,50 @@ export default function AccountingScreen() {
               {/* Type */}
               <div>
                 <label className="text-xs text-muted mb-1 block">النوع</label>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(ENTRY_TYPE_LABELS).map(([k, v]) => (
+                <div className="grid grid-cols-2 gap-2">
+                  {SECTION_TYPES.map(({ key, label }) => (
                     <button
-                      key={k}
-                      onClick={() => setForm(f => ({ ...f, entry_type: k, category: '' }))}
+                      key={key}
+                      onClick={() => setForm(f => ({ ...f, entry_type: key, category: '' }))}
                       className={[
-                        'px-3 py-1.5 rounded-lg text-xs font-medium transition border',
-                        form.entry_type === k
+                        'px-3 py-2 rounded-lg text-sm font-semibold transition border',
+                        form.entry_type === key
                           ? 'bg-teal text-navy border-teal'
                           : 'border-border text-muted hover:border-teal/40',
                       ].join(' ')}
                     >
-                      {ENTRY_TYPE_ICONS[k]} {v}
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* الجهة / المصدر — اختر موجوداً أو اكتب مصدراً جديداً (= إضافة مصدر للمصروف) */}
+              {/* الجهة / المصدر — أزرار سريعة + كتابة حرة (= إضافة مصدر جديد) */}
               <div>
-                <label className="text-xs text-muted mb-1 block">الجهة / المصدر (شركة شحن، إعلانات، إيجار…)</label>
+                <label className="text-xs text-muted mb-1 block">
+                  {form.entry_type === ENTRY_TYPE.INCOME ? 'مصدر الاستلام' : 'بند المصروف'} (اختر أو اكتب جديداً)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {suggestedSources.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, category: s }))}
+                      className={[
+                        'px-2.5 py-1 rounded-lg text-xs font-medium border transition',
+                        form.category === s ? 'bg-teal text-navy border-teal' : 'border-border text-muted hover:border-teal/40',
+                      ].join(' ')}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="text"
                   list="acct-source-list"
                   value={form.category}
                   onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                  placeholder="اختر من القائمة أو اكتب مصدراً جديداً…"
+                  placeholder="أو اكتب بنداً/مصدراً جديداً…"
                   className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text"
                 />
                 <datalist id="acct-source-list">

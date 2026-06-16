@@ -7,6 +7,8 @@ import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import TreasuryPanel from '../components/TreasuryPanel';
 import SourceBreakdown from '../components/SourceBreakdown';
+import OperationalBalanceCard from '../components/OperationalBalanceCard';
+import { computeOperationalBalance, filterOperational, OP_CAT } from '../components/operationalAccount';
 import { Tabs } from '@components/ui/Tabs';
 import { printPaymentVoucher } from '../utils/paymentVoucher';
 import {
@@ -287,6 +289,76 @@ function EntryForm({ initial, sources = [], onSave, onClose, loading }) {
   );
 }
 
+// ── Settlement Modal (سحب الرصيد / توريد) ───────────────────────────────────────
+function SettleModal({ kind, balance, onConfirm, onClose, loading }) {
+  const isWithdraw = kind === 'withdraw';
+  const CCY_OPTS = [
+    { code: 'USD', field: 'amount_usd', sym: '$' },
+    { code: 'TRY', field: 'amount_try', sym: '₺' },
+    { code: 'SYP', field: 'amount_syp', sym: 'ل.س' },
+  ];
+  const firstWithBal = CCY_OPTS.find(c => Number(balance?.[c.field] || 0) !== 0)?.code || 'USD';
+  const [currency, setCurrency] = useState(firstWithBal);
+  const [amount, setAmount]     = useState('');
+  const [date, setDate]         = useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote]         = useState('');
+  const cur = CCY_OPTS.find(c => c.code === currency);
+  const bal = Number(balance?.[cur.field] || 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
+        <h3 className="font-bold text-lg text-text mb-1">{isWithdraw ? '⬇️ سحب الرصيد إلى الإدارة المالية' : '⬆️ توريد للحساب التشغيلي'}</h3>
+        <p className="text-xs text-muted mb-4">
+          {isWithdraw
+            ? 'تسجّل تسليم الرصيد من فادي ووسيم إلى الإدارة المالية (يقلّ رصيدهم).'
+            : 'تسجّل توريد أموال من الإدارة المالية إليهم (يزيد رصيدهم).'}
+        </p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted mb-1 block">العملة</label>
+              <select value={currency} onChange={e => setCurrency(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                {CCY_OPTS.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted mb-1 block">المبلغ ({cur.sym})</label>
+              <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+            </div>
+          </div>
+          {isWithdraw && bal > 0 && (
+            <button type="button" onClick={() => setAmount(String(bal))}
+              className="text-xs text-teal font-semibold hover:underline">
+              سحب الرصيد كاملاً ({cur.sym}{bal.toLocaleString('ar-SA-u-nu-latn')})
+            </button>
+          )}
+          <div>
+            <label className="text-xs text-muted mb-1 block">التاريخ</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">ملاحظة (اختياري)</label>
+            <input type="text" value={note} onChange={e => setNote(e.target.value)}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="تسوية شهر…" />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={() => onConfirm({ kind, currency, amount, date, note })} disabled={loading}
+            className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
+            {loading ? '…' : 'تأكيد'}
+          </button>
+          <button onClick={onClose}
+            className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-cream transition">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export function AccountingDashboard() {
   const { id, role } = useAuth();
@@ -344,6 +416,10 @@ export function AccountingDashboard() {
     if (sourceFilter) list = list.filter(e => (e.category || '') === sourceFilter);
     return list;
   }, [entries, sourceFilter]);
+
+  // الرصيد التشغيلي الموجود لدى فادي ووسيم (استلامات − مصاريف) — لتسويته آخر الشهر.
+  const opBalance = useMemo(() => computeOperationalBalance(filterOperational(entries)), [entries]);
+  const [settle, setSettle] = useState(null); // { kind:'withdraw'|'supply' }
 
   // KPIs for filtered view — multi-currency (USD + TRY + SYP)
   const filteredKpis = useMemo(() => {
@@ -412,6 +488,28 @@ export function AccountingDashboard() {
   const LARGE_EXPENSE_SYP = 500_000;
   const LARGE_EXPENSE_USD = 100;
   const LARGE_EXPENSE_TRY = 3000;
+
+  // تسوية الحساب التشغيلي: سحب الرصيد (مصروف→تسليم) أو توريد (دخل) — تُنشئ قيداً واحداً.
+  const handleSettle = async ({ kind, currency, amount, date, note }) => {
+    const amt = Number(amount) || 0;
+    if (amt <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return; }
+    const isWithdraw = kind === 'withdraw';
+    const field = currency === 'TRY' ? 'amount_try' : currency === 'SYP' ? 'amount_syp' : 'amount_usd';
+    const pm    = currency === 'TRY' ? 'cash_try'   : currency === 'SYP' ? 'cash_syp'   : 'cash_usd';
+    await createEntry({
+      entry_type:  isWithdraw ? 'expense' : 'income',
+      category:    isWithdraw ? OP_CAT.HANDOVER : OP_CAT.SUPPLY,
+      description: isWithdraw ? 'تسوية: سحب الرصيد إلى الإدارة المالية' : 'تسوية: توريد من الإدارة المالية',
+      amount_usd:  field === 'amount_usd' ? amt : 0,
+      amount_try:  field === 'amount_try' ? amt : 0,
+      amount_syp:  field === 'amount_syp' ? amt : 0,
+      payment_method: pm,
+      entry_date:  date,
+      notes:       note || null,
+    });
+    toast.success(isWithdraw ? 'تم تسجيل سحب الرصيد ✅' : 'تم تسجيل التوريد ✅');
+    setSettle(null);
+  };
 
   const handleSave = async (form) => {
     const data = {
@@ -488,6 +586,28 @@ export function AccountingDashboard() {
 
         {/* ── Treasury Panel ── */}
         <TreasuryPanel entries={entries} className="mb-0" />
+
+        {/* ── تسوية الحساب التشغيلي (فادي ووسيم) — الإدارة المالية تسحب أو تورّد ── */}
+        <div className="my-4">
+          <OperationalBalanceCard
+            balance={opBalance}
+            title="💼 الرصيد لدى الحساب التشغيلي (فادي ووسيم)"
+            subtitle="استلاماتهم ناقص مصاريفهم — تُسوّيه الإدارة المالية آخر الشهر"
+          >
+            {isAdmin && (
+              <>
+                <button onClick={() => setSettle({ kind: 'withdraw' })}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-navy text-white hover:opacity-90 transition">
+                  ⬇️ سحب الرصيد
+                </button>
+                <button onClick={() => setSettle({ kind: 'supply' })}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold border border-teal/50 text-teal hover:bg-teal/5 transition">
+                  ⬆️ توريد لهم
+                </button>
+              </>
+            )}
+          </OperationalBalanceCard>
+        </div>
 
         {/* ── Monthly Summary ── */}
         <div className="bg-surface border border-border/60 rounded-2xl mb-4 overflow-hidden">
@@ -768,6 +888,17 @@ export function AccountingDashboard() {
           loading={loading.action}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditEntry(null); }}
+        />
+      )}
+
+      {/* ── Settlement Modal ── */}
+      {settle && (
+        <SettleModal
+          kind={settle.kind}
+          balance={opBalance}
+          loading={loading.action}
+          onConfirm={handleSettle}
+          onClose={() => setSettle(null)}
         />
       )}
 
