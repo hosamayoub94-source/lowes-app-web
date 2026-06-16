@@ -19,11 +19,13 @@ export const OP_CAT = {
   OTHER_INC: 'استلامات أخرى',
 };
 
+// ملاحظة: التسليم/التوريد (HANDOVER/SUPPLY) لم يعودا بنود إدخال سريعة — صارا
+// تحويلاً بزرّ مخصّص («رفع/تسليم الرصيد»)؛ إبقاؤهما كبند مصروف/استلام يسبب ازدواجاً.
 export const OP_EXPENSE_SOURCES = [
-  OP_CAT.SHIPPING, OP_CAT.WAGES, OP_CAT.PURCHASES, OP_CAT.HANDOVER, OP_CAT.OTHER_EXP,
+  OP_CAT.SHIPPING, OP_CAT.WAGES, OP_CAT.PURCHASES, OP_CAT.OTHER_EXP,
 ];
 export const OP_INCOME_SOURCES = [
-  OP_CAT.GOODS_SOLD, OP_CAT.SUPPLY, OP_CAT.OTHER_INC,
+  OP_CAT.GOODS_SOLD, OP_CAT.OTHER_INC,
 ];
 export const OP_ALL_SOURCES = [...OP_INCOME_SOURCES, ...OP_EXPENSE_SOURCES];
 

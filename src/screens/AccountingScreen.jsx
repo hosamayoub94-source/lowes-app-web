@@ -429,6 +429,42 @@ export default function AccountingScreen() {
         subtitle="شركات الشحن، الأونلاين، الموزّعين… — وارد/صادر/صافي لكل مصدر (وين نربح وين نخسر)"
       />
 
+      {/* التحويلات والتسليمات (تسليم/توريد بين الحساب التشغيلي والخزينة) — أثر تدقيقي */}
+      {(() => {
+        const transfers = bookEntries
+          .filter(e => e.entry_type === ENTRY_TYPE.TRANSFER)
+          .filter(e => !monthFilter || (e.entry_date ?? '').startsWith(monthFilter))
+          .sort((a, b) => (b.entry_date || '').localeCompare(a.entry_date || ''));
+        if (transfers.length === 0) return null;
+        const fmtAmt = (e) => Number(e.amount_usd) ? `$${Number(e.amount_usd).toLocaleString()}`
+          : Number(e.amount_try) ? `${Number(e.amount_try).toLocaleString()}₺`
+          : `${Number(e.amount_syp).toLocaleString()} ل.س`;
+        return (
+          <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-cream/60">
+              <h3 className="text-sm font-bold text-text">🔁 التحويلات والتسليمات — {monthFilter || 'كل الفترات'}</h3>
+              <p className="text-[11px] text-muted mt-0.5">تسليم الرصيد للخزينة المركزية أو التوريد منها (لا يُحتسب ربحاً/خسارة).</p>
+            </div>
+            <div className="divide-y divide-border">
+              {transfers.map(e => {
+                const isOut = e.category === TRANSFER_OUT;
+                return (
+                  <div key={e.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-text truncate">{isOut ? '⬆️' : '⬇️'} {e.description}</p>
+                      <p className="text-[10px] text-muted">{e.entry_date}{e.notes ? ` · ${e.notes}` : ''}</p>
+                    </div>
+                    <span className={`text-sm font-bold shrink-0 ${isOut ? 'text-red-500' : 'text-green-600'}`}>
+                      {isOut ? '−' : '+'}{fmtAmt(e)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Tabs (موحّد) */}
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
 
@@ -864,6 +900,16 @@ export default function AccountingScreen() {
                     className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
                 </div>
               </div>
+              {(() => {
+                const fld = hForm.currency === 'TRY' ? 'amount_try' : hForm.currency === 'SYP' ? 'amount_syp' : 'amount_usd';
+                const bal = Number(opBalance?.[fld] || 0);
+                return bal > 0 ? (
+                  <button type="button" onClick={() => setHForm(f => ({ ...f, amount: String(bal) }))}
+                    className="text-xs text-teal font-semibold hover:underline">
+                    سلّم الكل ({bal.toLocaleString('ar-SA-u-nu-latn')} {hForm.currency})
+                  </button>
+                ) : null;
+              })()}
               <div>
                 <label className="text-xs text-muted mb-1 block">التاريخ</label>
                 <input type="date" value={hForm.date} onChange={e => setHForm(f => ({ ...f, date: e.target.value }))}
