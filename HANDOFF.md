@@ -15,6 +15,14 @@
 - **التحقّق:** `npm run build` أخضر ×متكرر + اختبارات نقيّة: `test-accounting-books.mjs` 9/9 · `test-channel-pnl.mjs` 10/10 · `test-source-breakdown.mjs` 16/16. ملفات جديدة lint-نظيفة (المتبقّي 4 تنبيهات قديمة سابقة لجلستي).
 - **✅ الهجرة مُطبَّقة ومُتحقَّقة على القاعدة الحيّة (16 يونيو):** بعد تدقيق القاعدة (92 صف · pm=cash/sham_cash · type=income/expense/salary · **0 تحويلات/تسليمات قديمة** → بلا قفزة رصيد/ازدواج) طُبِّق `0006` (نسخة مُمتّنة بعد مراجعة عدائية: حذف قيود CHECK ديناميكي محصّن ضد اختلاف الاسم + `category DROP NOT NULL` + معاملة واحدة + نسخة `accounting_entries_bak_0006` للرجوع + GRANT للقنوات). **تحقّق حيّ:** `pm_check` يقبل cash_usd · `type_check` يقبل transfer (قيد واحد لكلّ، بلا تكرار) · أعمدة book/channel_id/transfer_group موجودة · 13 قناة مزروعة · backfill تشغيلي **57**/مركزي **35** · **اختبار إدخال** `transfer`+`cash_usd`+`channel_id` نجح ثم ROLLBACK (0 أثر، total ثابت 92). القاعدة **متوافقة مع الكود القديم والجديد** فالنشر آمن. للرجوع: `UPDATE accounting_entries e SET book=b.book FROM accounting_entries_bak_0006 b WHERE e.id=b.id;` ثم `DROP TABLE accounting_entries_bak_0006;`.
 - **معماريّة:** المفاهيم الثلاثة منفصلة — **المحفظة** (`payment_method`=وين الكاش) · **القناة** (`channel_id`=من أي مصدر) · **الكتاب** (`book`=تشغيلي/مركزي). الملفات: `modules/accounting/{components/operationalAccount.js, components/channelPnL.logic.js, components/ChannelPnL.jsx, services/accountingService.js, store/useAccountingStore.js, types/accounting.types.js}` + `screens/{AccountingScreen.jsx, admin/AdminChannelsScreen.jsx}` + `pages/AccountingDashboard.jsx`. مرجع: `[[accounting-channels-books]]`.
+- **🧪 اختبار قبول (UAT) + 5 تحسينات (نُفّذت ونُشرت ومُتحقَّقة حيّاً · PR#2 `efd9ac2`):** فحص محاسبي حيّ على الإنتاج →
+  (1) إزالة «تسليم/توريد الإدارة المالية» من أزرار «قيد جديد» السريعة (`OP_EXPENSE/INCOME_SOURCES`) — منع ازدواج وتضخيم المصاريف (التسليم صار بزرّ تحويل مخصّص).
+  (2) إظهار سعر الصرف المُستخدَم وتاريخه **+ تحذير عند غيابه** بتذييل `ChannelPnL`.
+  (3) قسم «🔁 التحويلات والتسليمات» على `/accounting` (أثر تدقيقي).
+  (4) مودال التسليم: إظهار الرصيد + زر «سلّم الكل».
+  (5) توضيح أنّ التقرير = تدفّق نقدي لكل مصدر لا هامش ربح.
+  - **⚠️ اكتشاف:** جدول `exchange_rates` **لا يحوي USD→SYP/TRY** → عمود «≈ بالدولار» يحسب العملات الأجنبية صفراً (الرقم الموحّد كان دولار فقط). **على المالك إدخال أسعار الصرف** ليصير «≈USD» دقيقاً.
+  - **punch-list كامل (المنفَّذ + المتبقّي):** `docs/accounting-uat-findings-2026-06-16.md`. المتبقّي: شاشة تحديث الأسعار · كشف حساب تراكمي للموزّعين (له/عليه) · فلترة فترة مخصّصة · ربط القيود القديمة بالقنوات · اختيار المحفظة بالتسليم.
 
 ### 🗓️ جلسة 16 يونيو 2026 — المحاسبة قسمان: «المصاريف والشحن» + «المالية العامة» (✅ منشور على main: 2b28832 · fb66f1b · 515d618)
 طلب المالك: تقسيم المحاسبة قسمين بتسميات أوضح + رؤية الوارد/الصادر الشهري لكل **شركة شحن/جهة** + حصر «الحساب المركزي» بالأدمن. ثم تبسيط القسم 1 لحساب تشغيلي (استلام/مصروف فقط، بلا رواتب/سلف/تحويل) + رصيد + تسوية.
