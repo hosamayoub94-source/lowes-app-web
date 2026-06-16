@@ -13,7 +13,7 @@ import { ROLE_LABELS } from '@data/teams';
 import { NotificationBell } from '@modules/notifications';
 import HelpGuide from '@components/ui/HelpGuide';
 
-export function Header({ title }) {
+export function Header({ title, onOpenSearch }) {
   const [showHelp, setShowHelp] = useState(false);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const theme = useUiStore((s) => s.theme);
@@ -47,6 +47,23 @@ export function Header({ title }) {
         </div>
 
         {!isOnline && <Badge tone="amber">غير متصل</Badge>}
+
+        {/* بحث سريع — وصول لأي أداة (Ctrl/Cmd+K) */}
+        {onOpenSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="flex items-center gap-2 rounded-xl hover:bg-surface-alt text-muted hover:text-text transition w-10 h-10 justify-center md:w-auto md:h-9 md:px-3 md:border md:border-border"
+            aria-label="بحث سريع"
+            title="بحث سريع — وصول لأي أداة (Ctrl/Cmd+K)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" />
+            </svg>
+            <span className="hidden md:inline text-xs">بحث…</span>
+            <kbd className="hidden md:inline text-[10px] text-muted border border-border rounded px-1">⌘K</kbd>
+          </button>
+        )}
 
         <button
           type="button"

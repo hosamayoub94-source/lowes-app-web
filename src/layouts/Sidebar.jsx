@@ -7,6 +7,7 @@ import { cn } from '@utils/classNames';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
+import { useFavorites } from '@hooks/useFavorites';
 import { groupedNavForRole } from '@data/navigation';
 import { Avatar } from '@components/ui/Avatar';
 import { ROLE_LABELS } from '@data/teams';
@@ -16,6 +17,7 @@ export function Sidebar() {
   const closeSidebar = useUiStore((s) => s.closeSidebar);
   const { role, name, avatar_url, logout } = useAuth();
   const { permissions } = usePermissions();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const groups = groupedNavForRole(role, permissions);
   const roleLabel = ROLE_LABELS[role] || role || '';
 
@@ -74,27 +76,43 @@ export function Sidebar() {
                 </p>
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.id}
-                    to={item.path}
-                    onClick={closeSidebar}
-                    className={({ isActive }) =>
-                      cn(
-                        'flex items-center gap-3 h-10 px-3 rounded-xl text-sm font-semibold transition-all duration-150',
-                        isActive
-                          ? 'text-white shadow-soft'
-                          : 'text-muted hover:text-text hover:bg-navy/5 dark:hover:bg-white/5',
-                      )
-                    }
-                    style={({ isActive }) => isActive
-                      ? { background: 'linear-gradient(135deg, rgb(var(--color-navy)) 0%, rgb(var(--color-teal)) 100%)' }
-                      : {}}
-                  >
-                    <span aria-hidden className="text-base w-5 text-center shrink-0">{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </NavLink>
-                ))}
+                {group.items.map((item) => {
+                  const fav = isFavorite(item.id);
+                  return (
+                    <div key={item.id} className="group/nav relative">
+                      <NavLink
+                        to={item.path}
+                        onClick={closeSidebar}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center gap-3 h-10 ps-3 pe-9 rounded-xl text-sm font-semibold transition-all duration-150',
+                            isActive
+                              ? 'text-white shadow-soft'
+                              : 'text-muted hover:text-text hover:bg-navy/5 dark:hover:bg-white/5',
+                          )
+                        }
+                        style={({ isActive }) => isActive
+                          ? { background: 'linear-gradient(135deg, rgb(var(--color-navy)) 0%, rgb(var(--color-teal)) 100%)' }
+                          : {}}
+                      >
+                        <span aria-hidden className="text-base w-5 text-center shrink-0">{item.icon}</span>
+                        <span className="flex-1 truncate">{item.label}</span>
+                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(item.id)}
+                        className={cn(
+                          'absolute top-1/2 -translate-y-1/2 end-2 z-10 text-sm leading-none transition',
+                          fav ? 'opacity-100' : 'opacity-0 group-hover/nav:opacity-100',
+                        )}
+                        title={fav ? 'إزالة من المفضّلة' : 'إضافة للمفضّلة'}
+                        aria-label="تثبيت في المفضّلة"
+                      >
+                        {fav ? '⭐' : '☆'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}

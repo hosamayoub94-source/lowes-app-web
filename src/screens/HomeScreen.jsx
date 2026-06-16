@@ -15,6 +15,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 import { homeBlocksForRole } from '@data/homeLayout';
+import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
 
@@ -1076,6 +1077,9 @@ export default function HomeScreen() {
 
       {/* ── Daily motivation (always — light, dismissible) ──────── */}
       <DailyMotivation />
+
+      {/* ── أدواتي المفضّلة (تظهر فقط عند وجود مفضّلات) ──────────── */}
+      <FavoritesQuickAccess />
 
       {/* ── Top pair: attendance + my tasks (when present) ──────── */}
       {pairAtTop && (
