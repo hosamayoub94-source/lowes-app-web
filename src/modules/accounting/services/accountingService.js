@@ -1,7 +1,7 @@
 // =============================================================
 // Accounting Service — mock + real branches
 // =============================================================
-import { ENTRY_TYPE, TRANSFER_IN, TRANSFER_OUT, BOOK } from '../types/accounting.types.js';
+import { ENTRY_TYPE, TRANSFER_IN, TRANSFER_OUT, BOOK, WALLETS } from '../types/accounting.types.js';
 
 export const USE_MOCK =
   String(import.meta.env.VITE_USE_MOCK_ACCOUNTING ?? '').toLowerCase() !== 'false';
@@ -110,11 +110,14 @@ export async function createEntry(data) {
  *   • الساق الواصلة:  book=toBook   · category=TRANSFER_IN  (يزيد رصيد المُستلِم)
  * كلاهما entry_type='transfer' → يُستثنيان من الربح/الخسارة، والمجموع = صفر للشركة.
  */
-export async function createTransfer({ amount, currency, fromBook, toBook, date, note, createdBy }) {
+export async function createTransfer({ amount, currency, wallet, fromBook, toBook, date, note, createdBy }) {
   const amt = Number(amount) || 0;
   if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
-  const field = currency === 'TRY' ? 'amount_try' : currency === 'SYP' ? 'amount_syp' : 'amount_usd';
-  const pm    = currency === 'TRY' ? 'cash_try'   : currency === 'SYP' ? 'cash_syp'   : 'cash_usd';
+  // اختياري: تمرير محفظة محدّدة (بنك/شام/كاش) — تُشتقّ منها العملة وطريقة الدفع.
+  const w = wallet ? WALLETS.find(x => x.id === wallet) : null;
+  const cur   = w ? w.currency : currency;
+  const field = w ? w.amtField : (cur === 'TRY' ? 'amount_try' : cur === 'SYP' ? 'amount_syp' : 'amount_usd');
+  const pm    = w ? w.id       : (cur === 'TRY' ? 'cash_try'   : cur === 'SYP' ? 'cash_syp'   : 'cash_usd');
   const group = globalThis.crypto?.randomUUID?.() || `trf-${Date.now()}-${Math.round(amt)}`;
   const fromOp = fromBook === BOOK.OPERATIONAL;
   const amounts = {

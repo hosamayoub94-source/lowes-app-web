@@ -19,11 +19,15 @@ export const OP_CAT = {
   OTHER_INC: 'استلامات أخرى',
 };
 
+// ملاحظة: HANDOVER/SUPPLY ليسا بنديْ مصروف/استلام سريع — التسليم/التوريد
+// صار تحويلاً بساقين عبر زرّ «رفع/تسليم الرصيد» (createTransfer). إبقاؤهما هنا
+// كان يسمح بتسجيل التسليم كمصروف عادي → ازدواج وتضخيم للمصاريف. أبقيناهما
+// تسميتين للتحويلات فقط (تُستهلكان عبر OP_CAT في عرض التحويلات).
 export const OP_EXPENSE_SOURCES = [
-  OP_CAT.SHIPPING, OP_CAT.WAGES, OP_CAT.PURCHASES, OP_CAT.HANDOVER, OP_CAT.OTHER_EXP,
+  OP_CAT.SHIPPING, OP_CAT.WAGES, OP_CAT.PURCHASES, OP_CAT.OTHER_EXP,
 ];
 export const OP_INCOME_SOURCES = [
-  OP_CAT.GOODS_SOLD, OP_CAT.SUPPLY, OP_CAT.OTHER_INC,
+  OP_CAT.GOODS_SOLD, OP_CAT.OTHER_INC,
 ];
 export const OP_ALL_SOURCES = [...OP_INCOME_SOURCES, ...OP_EXPENSE_SOURCES];
 

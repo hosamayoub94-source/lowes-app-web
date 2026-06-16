@@ -28,6 +28,8 @@ import {
 } from '@modules/accounting/types/accounting.types.js';
 import AccountingReport from '@modules/accounting/components/AccountingReport';
 import ChannelPnL from '@modules/accounting/components/ChannelPnL';
+import ChannelStatement from '@modules/accounting/components/ChannelStatement';
+import ChannelRemapTool from '@modules/accounting/components/ChannelRemapTool';
 import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
 import OperationalBalanceCard from '@modules/accounting/components/OperationalBalanceCard';
 import {
@@ -40,9 +42,10 @@ import {
 import { printPaymentVoucher, computeNextVoucherNo } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
-  { key: 'all',     label: 'الكل' },
-  { key: 'income',  label: '🟢 استلامات' },
-  { key: 'expense', label: '🔴 مصاريف' },
+  { key: 'all',      label: 'الكل' },
+  { key: 'income',   label: '🟢 استلامات' },
+  { key: 'expense',  label: '🔴 مصاريف' },
+  { key: 'transfer', label: '🔄 تحويلات/تسليمات' },
 ];
 
 // نوعا القيد في هذا القسم فقط: استلام + مصروف (لا رواتب/سلف/تحويل).
@@ -125,7 +128,7 @@ export default function AccountingScreen() {
   useAccountingBootstrap(id);
 
   const { entries, isLoading } = useAccountingDashboard();
-  const { createEntry, createTransfer, deleteEntry }  = useAccountingActions();
+  const { createEntry, createTransfer, updateEntry, deleteEntry }  = useAccountingActions();
   const loading    = useAccountingLoading();
   const categories = useCategories();
   const channels   = useChannels();
@@ -137,11 +140,17 @@ export default function AccountingScreen() {
 
   const [tab, setTab]               = useState('all');
   const [monthFilter, setMonthFilter] = useState(currentMonth());
+  // فلترة فترة مخصّصة (ربع/سنة/مدى) — بديلة عن الشهر الواحد.
+  const [rangeMode, setRangeMode]   = useState(false);
+  const [fromDate, setFromDate]     = useState('');
+  const [toDate, setToDate]         = useState('');
   const [showForm, setShowForm]     = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [saveError, setSaveError]   = useState(null);
   const [exporting, setExporting]   = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showStatement, setShowStatement] = useState(false);
+  const [showRemap, setShowRemap] = useState(false);
 
   // ── Transfer between wallets ───────────────────────────────────────────────
   const [showTransfer, setShowTransfer] = useState(false);
@@ -150,7 +159,7 @@ export default function AccountingScreen() {
 
   // ── Handover to central treasury (تسليم الرصيد للإدارة المالية) ─────────────
   const [showHandover, setShowHandover] = useState(false);
-  const [hForm, setHForm] = useState({ currency: 'USD', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
+  const [hForm, setHForm] = useState({ wallet: 'cash_usd', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
   const [hError, setHError] = useState(null);
 
   const walletAmounts = (walletId, val) => {
@@ -236,7 +245,7 @@ export default function AccountingScreen() {
     setHError(null);
     try {
       await createTransfer({
-        amount: amt, currency: hForm.currency,
+        amount: amt, wallet: hForm.wallet,
         fromBook: BOOK.OPERATIONAL, toBook: BOOK.CENTRAL,
         date: hForm.date, note: hForm.note,
       });
@@ -254,15 +263,34 @@ export default function AccountingScreen() {
   const opBalance = useMemo(() => computeBookBalance(entries, BOOK.OPERATIONAL), [entries]);
 
   // ── Month filtering ────────────────────────────────────────────────────────
-  const monthEntries = useMemo(() =>
-    monthFilter
-      ? opEntries.filter(e => (e.entry_date ?? '').startsWith(monthFilter))
-      : opEntries,
-  [opEntries, monthFilter]);
+  // مُسنِّف الفترة: إمّا شهر واحد (YYYY-MM) أو مدى تواريخ مخصّص (من/إلى).
+  const inPeriod = useMemo(() => {
+    if (rangeMode) {
+      const f = fromDate || '0000-00-00';
+      const t = toDate || '9999-99-99';
+      return (e) => { const d = e.entry_date ?? ''; return d >= f && d <= t; };
+    }
+    if (monthFilter) return (e) => (e.entry_date ?? '').startsWith(monthFilter);
+    return () => true;
+  }, [rangeMode, fromDate, toDate, monthFilter]);
+
+  const periodLabel = rangeMode
+    ? `${fromDate || '…'} → ${toDate || '…'}`
+    : (monthFilter || 'كل الفترات');
+
+  const monthEntries = useMemo(() => opEntries.filter(inPeriod), [opEntries, inPeriod]);
+
+  // التحويلات/التسليمات للكتاب التشغيلي (لا تظهر بجدول الاستلام/المصروف) — أثر تدقيقي.
+  const monthTransfers = useMemo(
+    () => bookEntries.filter(e => e.entry_type === ENTRY_TYPE.TRANSFER && inPeriod(e)),
+    [bookEntries, inPeriod],
+  );
 
   const filtered = tab === 'all'
     ? monthEntries
-    : monthEntries.filter(e => e.entry_type === tab);
+    : tab === 'transfer'
+      ? monthTransfers
+      : monthEntries.filter(e => e.entry_type === tab);
 
   // ── Per-currency KPIs ─────────────────────────────────────────────────────
   const currencyKpis = useMemo(() => {
@@ -330,7 +358,7 @@ export default function AccountingScreen() {
 
   const handleExport = async () => {
     setExporting(true);
-    try { await exportToExcel(filtered, monthFilter); }
+    try { await exportToExcel(filtered, rangeMode ? `${fromDate || 'بداية'}_${toDate || 'نهاية'}` : monthFilter); }
     finally { setExporting(false); }
   };
 
@@ -343,13 +371,30 @@ export default function AccountingScreen() {
           <p className="text-sm text-muted mt-0.5">مصاريف وإيرادات التشغيل وشركات الشحن — الوارد والصادر لكل جهة شهرياً</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Month filter */}
-          <input
-            type="month"
-            value={monthFilter}
-            onChange={e => setMonthFilter(e.target.value)}
-            className="border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text"
-          />
+          {/* Period filter: month or custom range */}
+          {rangeMode ? (
+            <div className="flex items-center gap-1">
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="border border-border rounded-xl px-2 py-2 text-sm bg-surface text-text" title="من" />
+              <span className="text-muted text-xs">→</span>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="border border-border rounded-xl px-2 py-2 text-sm bg-surface text-text" title="إلى" />
+            </div>
+          ) : (
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={e => setMonthFilter(e.target.value)}
+              className="border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text"
+            />
+          )}
+          <button
+            onClick={() => setRangeMode(v => !v)}
+            className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-text hover:bg-cream transition whitespace-nowrap"
+            title="تبديل بين شهر واحد ومدى تواريخ مخصّص"
+          >
+            {rangeMode ? '📅 شهر' : '🗓️ مدى مخصّص'}
+          </button>
           {/* Report toggle */}
           <button
             onClick={() => setShowReport(v => !v)}
@@ -357,6 +402,22 @@ export default function AccountingScreen() {
           >
             📊 تقرير
           </button>
+          {/* كشف حساب تراكمي لكل موزّع/مسوّق (له/عليه) — مستقلّ عن الشهر */}
+          <button
+            onClick={() => setShowStatement(true)}
+            className="px-4 py-2 rounded-xl border border-border text-sm font-semibold text-text hover:bg-cream transition"
+          >
+            📒 كشف حساب
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowRemap(true)}
+              className="px-4 py-2 rounded-xl border border-border text-sm font-semibold text-text hover:bg-cream transition"
+              title="ربط القيود القديمة (نصّ حر) بالقنوات المُدارة"
+            >
+              🔗 ربط بالقنوات
+            </button>
+          )}
           {/* Export */}
           <button
             onClick={handleExport}
@@ -402,15 +463,19 @@ export default function AccountingScreen() {
 
       {/* لوحة المحافظ — شو معنا بكل محفظة (ل.س / دولار / شام بالعملتين) لدى فادي/وسيم */}
       <TreasuryPanel entries={bookEntries} />
+      <p className="text-[11px] text-muted -mt-3 px-1">
+        ℹ️ مجموع المحافظ هنا قد يختلف عن «الرصيد الموجود» أعلاه: لوحة المحافظ تشمل كل حركات الكتاب (تحويلات بين المحافظ أيضاً)،
+        بينما الرصيد الموجود = استلامات − مصاريف − ما سُلّم للإدارة المالية.
+      </p>
 
       {/* Financial report (period = current month filter) */}
       {showReport && (
         <div className="bg-surface border border-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-text">📊 التقرير المالي</h3>
-            <span className="text-xs text-muted">{monthFilter || 'كل الفترات'} · {monthEntries.length} قيد</span>
+            <span className="text-xs text-muted">{periodLabel} · {monthEntries.length} قيد</span>
           </div>
-          <AccountingReport entries={monthEntries} periodLabel={monthFilter} />
+          <AccountingReport entries={monthEntries} periodLabel={periodLabel} />
         </div>
       )}
 
@@ -425,8 +490,8 @@ export default function AccountingScreen() {
       <ChannelPnL
         entries={monthEntries}
         channels={channels}
-        title={`🚚 الربح/الخسارة لكل قناة — ${monthFilter || 'كل الفترات'}`}
-        subtitle="شركات الشحن، الأونلاين، الموزّعين… — وارد/صادر/صافي لكل مصدر (وين نربح وين نخسر)"
+        title={`🚚 التدفّق النقدي لكل قناة — ${periodLabel}`}
+        subtitle="وارد/صادر/صافي لكل مصدر (تدفّق نقدي — ليس هامش الربح الصافي؛ الأخير يحتاج تكلفة البضاعة في /profitability)"
       />
 
       {/* Tabs (موحّد) */}
@@ -558,17 +623,19 @@ export default function AccountingScreen() {
                 </div>
               </div>
 
-              {/* القناة المُدارة (شركة شحن/موزّع/أونلاين…) — اختياري، يصفّى حسب نوع القيد */}
+              {/* القناة المُدارة (شركة شحن/موزّع/أونلاين…) — مُبرَزة: ربطها يغني التقرير بدل النصّ الحر */}
               {channels.length > 0 && (
-                <div>
-                  <label className="text-xs text-muted mb-1 block">القناة / المصدر (اختياري)</label>
+                <div className="rounded-xl border-2 border-teal/40 bg-teal/5 p-3">
+                  <label className="text-xs font-bold text-teal mb-1 flex items-center gap-1">
+                    📌 اربط القناة / المصدر <span className="font-normal text-muted">(يغني التقرير — مُستحسَن)</span>
+                  </label>
                   <select
                     value={form.channel_id}
                     onChange={e => {
                       const ch = channels.find(c => c.id === e.target.value);
                       setForm(f => ({ ...f, channel_id: e.target.value, category: ch ? ch.name_ar : f.category }));
                     }}
-                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text"
+                    className="w-full border border-teal/40 rounded-xl px-3 py-2 text-sm bg-surface text-text font-semibold"
                   >
                     <option value="">— بلا قناة (اكتب المصدر يدوياً) —</option>
                     {channels
@@ -844,22 +911,41 @@ export default function AccountingScreen() {
       })()}
 
       {/* Handover to central treasury Modal (تسليم الرصيد للإدارة المالية) */}
-      {showHandover && (
+      {showHandover && (() => {
+        const hW = WALLETS.find(x => x.id === hForm.wallet);
+        const hCur = hW?.currency || 'USD';
+        const curBal = hCur === 'TRY' ? opBalance.amount_try : hCur === 'SYP' ? opBalance.amount_syp : opBalance.amount_usd;
+        const curSym = hCur === 'TRY' ? '₺' : hCur === 'SYP' ? 'ل.س' : '$';
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowHandover(false)}>
           <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
             <h3 className="font-bold text-lg text-text mb-1">⬆️ تسليم الرصيد للإدارة المالية</h3>
             <p className="text-xs text-muted mb-4">يُسجَّل تحويلاً ينقص رصيدكم ويزيد الخزينة المركزية (بلا تأثير على الربح/الخسارة).</p>
             <div className="space-y-3">
+              {/* الرصيد الحالي بالعملة + تسليم الكل */}
+              <div className="flex items-center justify-between rounded-xl bg-cream border border-border px-3 py-2">
+                <span className="text-xs text-muted">الرصيد الحالي ({hCur})</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold font-mono ${curBal >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {curBal >= 0 ? '' : '−'}{curSym}{Math.abs(Number(curBal) || 0).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 2 })}
+                  </span>
+                  <button type="button" disabled={curBal <= 0}
+                    onClick={() => setHForm(f => ({ ...f, amount: String(Math.max(0, Number(curBal) || 0)) }))}
+                    className="px-2 py-1 rounded-lg text-[11px] font-bold border border-navy/40 text-navy hover:bg-navy/5 disabled:opacity-40">
+                    سلّم الكل
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted mb-1 block">العملة</label>
-                  <select value={hForm.currency} onChange={e => setHForm(f => ({ ...f, currency: e.target.value }))}
+                  <label className="text-xs text-muted mb-1 block">المحفظة</label>
+                  <select value={hForm.wallet} onChange={e => setHForm(f => ({ ...f, wallet: e.target.value, amount: '' }))}
                     className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
-                    {['USD', 'TRY', 'SYP'].map(c => <option key={c} value={c}>{c}</option>)}
+                    {WALLETS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted mb-1 block">المبلغ ({hForm.currency})</label>
+                  <label className="text-xs text-muted mb-1 block">المبلغ ({hCur})</label>
                   <input type="number" step="any" value={hForm.amount} onChange={e => setHForm(f => ({ ...f, amount: e.target.value }))}
                     className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
                 </div>
@@ -886,6 +972,22 @@ export default function AccountingScreen() {
             </div>
           </div>
         </div>
+        );
+      })()}
+
+      {/* كشف حساب تراكمي لكل قناة/موزّع (كل الزمن — غير مقيّد بالشهر) */}
+      {showStatement && (
+        <ChannelStatement entries={bookEntries} channels={channels} onClose={() => setShowStatement(false)} />
+      )}
+
+      {/* أداة ربط القيود القديمة بالقنوات (أدمن فقط — تعدّل بيانات فعلية) */}
+      {showRemap && isAdmin && (
+        <ChannelRemapTool
+          entries={opEntries}
+          channels={channels}
+          updateEntry={updateEntry}
+          onClose={() => setShowRemap(false)}
+        />
       )}
     </div>
   );

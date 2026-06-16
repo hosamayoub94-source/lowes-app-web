@@ -8,6 +8,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { computeChannelPnL } from './channelPnL.logic.js';
 import { CCY, blank } from './sourceBreakdown.logic.js';
 import { fetchExchangeRates } from '../services/accountingService.js';
+import { upsertExchangeRate } from '../../payroll/services/payrollService.js';
+
+// العملات القابلة للتحديث (مقابل الدولار) — التي تُستخدم في عمود «≈ بالدولار».
+const RATE_CCY = [
+  { to: 'TRY', label: 'الليرة التركية', sym: '₺' },
+  { to: 'SYP', label: 'الليرة السورية', sym: 'ل.س' },
+];
 
 const KIND_LABEL = {
   shipping: '🚚 شحن', distributor: '🤝 موزّع', marketer: '📣 مسوّق', online: '🛒 أونلاين',
@@ -42,24 +49,46 @@ export default function ChannelPnL({
   subtitle = 'لكل مصدر: وارد − صادر = صافي (وين نربح وين نخسر)',
 }) {
   const [rateMap, setRateMap] = useState({});
+  const [rateMeta, setRateMeta] = useState({}); // { TRY: { rate, date }, … } لأحدث صف مستخدَم
+  const [showRates, setShowRates] = useState(false);
   const [kind, setKind] = useState('all');
   const [showClosed, setShowClosed] = useState(true);
   const [sort, setSort] = useState('usd');
 
-  useEffect(() => {
-    let alive = true;
-    fetchExchangeRates().then(rows => {
-      if (!alive) return;
+  async function loadRates() {
+    try {
+      const rows = await fetchExchangeRates();
       const m = {};
+      const meta = {};
+      // الصفوف مرتّبة تنازلياً حسب التاريخ → أول ظهور لكل عملة = أحدث سعر.
       for (const r of rows || []) {
         const from = r.from_currency ?? r.from_cur;
         const to   = r.to_currency ?? r.to_cur;
-        if (from === 'USD' && to && m[to] === undefined) m[to] = Number(r.rate) || 0;
+        if (from === 'USD' && to && m[to] === undefined) {
+          m[to] = Number(r.rate) || 0;
+          meta[to] = { rate: Number(r.rate) || 0, date: r.effective_date ?? r.effectiveDate ?? null };
+        }
       }
-      setRateMap(m);
-    }).catch(() => {});
+      return { m, meta };
+    } catch {
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    loadRates().then(res => {
+      if (!alive || !res) return;
+      setRateMap(res.m);
+      setRateMeta(res.meta);
+    });
     return () => { alive = false; };
   }, []);
+
+  async function refreshRates() {
+    const res = await loadRates();
+    if (res) { setRateMap(res.m); setRateMeta(res.meta); }
+  }
 
   const { rows } = useMemo(
     () => computeChannelPnL(entries, { channels, rates: rateMap }),
@@ -160,11 +189,111 @@ export default function ChannelPnL({
               </tr>
             </tfoot>
           </table>
-          <div className="px-4 py-2 text-[10px] text-muted border-t border-border/40">
-            ≈ بالدولار تقريبي حسب أحدث سعر صرف — الأعمدة بكل عملة هي المرجع الدقيق.
+          <div className="px-4 py-2 text-[10px] text-muted border-t border-border/40 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>≈ بالدولار تقريبي حسب سعر الصرف المُستخدَم — الأعمدة بكل عملة هي المرجع الدقيق.</span>
+              {RATE_CCY.map(rc => {
+                const mt = rateMeta[rc.to];
+                if (!mt || !mt.rate) return null;
+                return (
+                  <span key={rc.to} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cream border border-border/60 font-mono">
+                    1$ = {Number(mt.rate).toLocaleString('en-US')} {rc.sym}
+                    {mt.date && <span className="text-muted/70">({mt.date})</span>}
+                  </span>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRates(true)}
+              className="px-2 py-1 rounded-lg border border-border bg-surface hover:bg-cream text-[10px] font-semibold text-text"
+            >
+              تحديث الأسعار
+            </button>
           </div>
         </div>
       )}
+
+      {showRates && (
+        <RateModal
+          rateMeta={rateMeta}
+          onClose={() => setShowRates(false)}
+          onSaved={refreshRates}
+        />
+      )}
+    </div>
+  );
+}
+
+// مودال بسيط لتحديث أسعار الصرف (USD→TRY / USD→SYP) عبر upsertExchangeRate.
+function RateModal({ rateMeta, onClose, onSaved }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState(() => {
+    const f = {};
+    for (const rc of RATE_CCY) f[rc.to] = rateMeta[rc.to]?.rate ? String(rateMeta[rc.to].rate) : '';
+    return f;
+  });
+  const [date, setDate] = useState(today);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    setErr('');
+    setSaving(true);
+    try {
+      const jobs = RATE_CCY
+        .filter(rc => form[rc.to] && Number(form[rc.to]) > 0)
+        .map(rc => upsertExchangeRate({
+          from_currency: 'USD',
+          to_currency: rc.to,
+          rate: Number(form[rc.to]),
+          effective_date: date,
+        }));
+      if (!jobs.length) { setErr('أدخل سعراً واحداً على الأقل.'); setSaving(false); return; }
+      await Promise.all(jobs);
+      await onSaved();
+      onClose();
+    } catch (e) {
+      setErr(e?.message || 'تعذّر الحفظ.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl" onClick={onClose}>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-sm p-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-bold text-text">تحديث أسعار الصرف</h4>
+          <button type="button" onClick={onClose} className="text-muted hover:text-text text-lg leading-none">×</button>
+        </div>
+        <p className="text-[11px] text-muted">السعر = كم وحدة من العملة مقابل 1 دولار.</p>
+        {RATE_CCY.map(rc => (
+          <label key={rc.to} className="block">
+            <span className="text-xs text-text font-semibold">{rc.label} (1$ = ؟ {rc.sym})</span>
+            <input
+              type="number" min="0" step="any" inputMode="decimal"
+              value={form[rc.to]}
+              onChange={e => setForm(f => ({ ...f, [rc.to]: e.target.value }))}
+              className="mt-1 w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-cream text-text font-mono"
+              placeholder={rateMeta[rc.to]?.rate ? String(rateMeta[rc.to].rate) : '0'}
+            />
+          </label>
+        ))}
+        <label className="block">
+          <span className="text-xs text-text font-semibold">تاريخ السريان</span>
+          <input
+            type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="mt-1 w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-cream text-text"
+          />
+        </label>
+        {err && <div className="text-[11px] text-red-500">{err}</div>}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted hover:bg-cream">إلغاء</button>
+          <button type="button" onClick={save} disabled={saving} className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold disabled:opacity-60">
+            {saving ? 'جارٍ الحفظ…' : 'حفظ'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
