@@ -144,11 +144,11 @@ export function AppRoutes() {
             }
           />
 
-          {/* Management-only */}
+          {/* المصاريف والشحن — الإدارة + المحاسبون (فادي ووسيم) */}
           <Route
             path={ROUTES.ACCOUNTING}
             element={
-              <ProtectedRoute roles={MANAGEMENT}>
+              <ProtectedRoute roles={[ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.ACCOUNTANT]}>
                 <AccountingScreen />
               </ProtectedRoute>
             }
@@ -164,10 +164,11 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.REQUESTS} element={<RequestsDashboard />} />
+          {/* المالية العامة (الحساب المركزي) — أدمن فقط */}
           <Route
             path={ROUTES.LEDGER}
             element={
-              <ProtectedRoute roles={FINANCE_ROLES}>
+              <ProtectedRoute roles={[ROLES.ADMIN]}>
                 <LedgerDashboard />
               </ProtectedRoute>
             }

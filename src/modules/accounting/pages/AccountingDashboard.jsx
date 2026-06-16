@@ -6,6 +6,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import TreasuryPanel from '../components/TreasuryPanel';
+import SourceBreakdown from '../components/SourceBreakdown';
 import { Tabs } from '@components/ui/Tabs';
 import { printPaymentVoucher } from '../utils/paymentVoucher';
 import {
@@ -162,13 +163,9 @@ function printInvoice(entries, kpis, dateRange) {
 }
 
 // ── Entry Form (create / edit) ────────────────────────────────────────────────
-function EntryForm({ initial, categories, onSave, onClose, loading }) {
+function EntryForm({ initial, sources = [], onSave, onClose, loading }) {
   const [form, setForm] = useState(initial);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const filteredCats = categories.filter(c =>
-    c.entry_type === form.entry_type
-  );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -199,15 +196,16 @@ function EntryForm({ initial, categories, onSave, onClose, loading }) {
         </div>
 
         <div className="space-y-3 mb-4">
-          {/* Category */}
+          {/* الجهة / المصدر — اختر أو اكتب جديداً */}
           <div>
-            <label className="text-xs text-muted mb-1 block">التصنيف</label>
-            <select value={form.category}
+            <label className="text-xs text-muted mb-1 block">الجهة / المصدر</label>
+            <input type="text" list="ledger-source-list" value={form.category}
               onChange={e => set('category', e.target.value)}
-              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text">
-              <option value="">اختر التصنيف</option>
-              {filteredCats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
+              placeholder="اختر أو اكتب مصدراً جديداً…"
+              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text" />
+            <datalist id="ledger-source-list">
+              {sources.map(s => <option key={s} value={s} />)}
+            </datalist>
           </div>
 
           {/* Description */}
@@ -310,12 +308,23 @@ export function AccountingDashboard() {
   const [search,       setSearch]       = useState('');
   const [confirmDel,   setConfirmDel]   = useState(null);
   const [showMonthly,  setShowMonthly]  = useState(true);
+  const [sourceFilter, setSourceFilter] = useState('');   // فلتر «الجهة / المكان»
 
-  // Client-side filter (tab + search + date)
+  // كل الجهات/المصادر المعروفة (تصنيفات + ما استُخدم في القيود) — للفلتر والإدخال.
+  const knownSources = useMemo(() => {
+    const set = new Set();
+    categories.forEach(c => { const n = c.name_ar ?? c.name; if (n) set.add(n); });
+    entries.forEach(e => { if (e.category) set.add(e.category); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [categories, entries]);
+
+  // Client-side filter (tab + search + date + source)
   const filtered = useMemo(() => {
     let list = entries;
     if (activeTab !== 'all')
       list = list.filter(e => e.entry_type === activeTab);
+    if (sourceFilter)
+      list = list.filter(e => (e.category || '') === sourceFilter);
     if (search.trim())
       list = list.filter(e =>
         (e.description || '').includes(search) || (e.category || '').includes(search)
@@ -325,7 +334,16 @@ export function AccountingDashboard() {
     if (dateTo)
       list = list.filter(e => e.entry_date <= dateTo);
     return list;
-  }, [entries, activeTab, search, dateFrom, dateTo]);
+  }, [entries, activeTab, sourceFilter, search, dateFrom, dateTo]);
+
+  // قيود الشهر الحالي — لجدول الوارد/الصادر لكل جهة شهرياً
+  const monthSourceEntries = useMemo(() => {
+    const now = new Date();
+    const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    let list = entries.filter(e => (e.entry_date || '').startsWith(prefix));
+    if (sourceFilter) list = list.filter(e => (e.category || '') === sourceFilter);
+    return list;
+  }, [entries, sourceFilter]);
 
   // KPIs for filtered view — multi-currency (USD + TRY + SYP)
   const filteredKpis = useMemo(() => {
@@ -447,8 +465,8 @@ export function AccountingDashboard() {
         {/* ── Header ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-text">📒 دفتر الحسابات</h1>
-            <p className="text-sm text-muted mt-0.5">السجل المالي المتكامل — Lowe's Professional</p>
+            <h1 className="text-2xl font-bold text-text">🏦 المالية العامة</h1>
+            <p className="text-sm text-muted mt-0.5">الحساب المركزي — أماكن الصادر والوارد الشهرية · Lowe's Professional</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             {isAdmin && (
@@ -527,6 +545,15 @@ export function AccountingDashboard() {
           )}
         </div>
 
+        {/* ── أماكن الصادر والوارد الشهرية (لكل جهة) ── */}
+        <div className="mb-4">
+          <SourceBreakdown
+            entries={monthSourceEntries}
+            title={`🏦 أماكن الصادر والوارد — شهر ${monthlyKpis.monthLabel}${sourceFilter ? ` · ${sourceFilter}` : ''}`}
+            subtitle="كل جهة/مكان مع إجمالي وارده وصادره وصافيه هذا الشهر — استخدم فلتر «الجهة» للتركيز"
+          />
+        </div>
+
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
@@ -570,6 +597,15 @@ export function AccountingDashboard() {
               placeholder="ابحث في الوصف أو التصنيف…"
               className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
           </div>
+          {/* Source / place filter */}
+          <div className="min-w-[150px]">
+            <label className="text-xs text-muted mb-1 block">الجهة / المكان</label>
+            <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+              <option value="">كل الجهات</option>
+              {knownSources.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           {/* Date from */}
           <div>
             <label className="text-xs text-muted mb-1 block">من تاريخ</label>
@@ -586,8 +622,8 @@ export function AccountingDashboard() {
             className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 transition">
             تطبيق
           </button>
-          {(dateFrom || dateTo || search) && (
-            <button onClick={() => { setSearch(''); handleResetDates(); }}
+          {(dateFrom || dateTo || search || sourceFilter) && (
+            <button onClick={() => { setSearch(''); setSourceFilter(''); handleResetDates(); }}
               className="px-4 py-2 rounded-xl border border-border text-sm text-muted hover:text-text transition">
               مسح
             </button>
@@ -728,7 +764,7 @@ export function AccountingDashboard() {
       {showForm && (
         <EntryForm
           initial={editEntry ? { ...editEntry } : { ...EMPTY_FORM }}
-          categories={categories}
+          sources={knownSources}
           loading={loading.action}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditEntry(null); }}

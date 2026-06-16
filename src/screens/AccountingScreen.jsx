@@ -24,6 +24,7 @@ import {
 } from '@modules/accounting/types/accounting.types.js';
 import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
 import AccountingReport from '@modules/accounting/components/AccountingReport';
+import SourceBreakdown from '@modules/accounting/components/SourceBreakdown';
 import { printPaymentVoucher, computeNextVoucherNo } from '@modules/accounting/utils/paymentVoucher';
 
 const TABS = [
@@ -112,6 +113,8 @@ export default function AccountingScreen() {
   const categories = useCategories();
 
   const isAdmin = role === 'admin' || role === 'manager';
+  // المحاسبون (فادي ووسيم) ومدير المبيعات يقدرون يسجّلون قيوداً ومصادر — الحذف/التعديل للأدمن/المدير فقط.
+  const canEnter = isAdmin || role === 'accountant' || role === 'sales_manager';
 
   const [tab, setTab]               = useState('all');
   const [monthFilter, setMonthFilter] = useState(currentMonth());
@@ -232,10 +235,14 @@ export default function AccountingScreen() {
     };
   }, [monthEntries]);
 
-  // ── Category options ───────────────────────────────────────────────────────
-  const catOptions = categories.filter(c =>
-    !form.entry_type || c.entry_type === form.entry_type
-  );
+  // كل «الجهات / المصادر» المعروفة = التصنيفات + أي مصدر استُخدم سابقاً في القيود.
+  // (المصدر نصّ حر في حقل category — فإضافة مصدر جديد = مجرّد كتابته.)
+  const knownSources = useMemo(() => {
+    const set = new Set();
+    categories.forEach(c => { const n = c.name_ar ?? c.name; if (n) set.add(n); });
+    entries.forEach(e => { if (e.category) set.add(e.category); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [categories, entries]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -278,8 +285,8 @@ export default function AccountingScreen() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-text">📒 المحاسبة</h1>
-          <p className="text-sm text-muted mt-0.5">الإيرادات والمصاريف والصندوق</p>
+          <h1 className="text-2xl font-bold text-text">🚚 المصاريف والشحن</h1>
+          <p className="text-sm text-muted mt-0.5">مصاريف وإيرادات التشغيل وشركات الشحن — الوارد والصادر لكل جهة شهرياً</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Month filter */}
@@ -304,7 +311,7 @@ export default function AccountingScreen() {
           >
             {exporting ? 'جار التصدير…' : '⬇️ Excel'}
           </button>
-          {isAdmin && (
+          {canEnter && (
             <>
               <button
                 onClick={() => { setShowVoucher(true); setVError(null); }}
@@ -349,6 +356,13 @@ export default function AccountingScreen() {
         <CurrencyBlock currency="TRY" symbol="₺"  {...currencyKpis.TRY} />
         <CurrencyBlock currency="SYP" symbol="£"  {...currencyKpis.SYP} />
       </div>
+
+      {/* الوارد والصادر لكل جهة / شركة شحن — للشهر المحدد */}
+      <SourceBreakdown
+        entries={monthEntries}
+        title={`🚚 الوارد والصادر لكل جهة — ${monthFilter || 'كل الفترات'}`}
+        subtitle="شركات الشحن، الإعلانات، الإيجار… — كل مصدر مع وارده وصادره وصافيه"
+      />
 
       {/* Tabs (موحّد) */}
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
@@ -479,22 +493,21 @@ export default function AccountingScreen() {
                 </div>
               </div>
 
-              {/* Category */}
-              {catOptions.length > 0 && (
-                <div>
-                  <label className="text-xs text-muted mb-1 block">الفئة</label>
-                  <select
-                    value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text"
-                  >
-                    <option value="">— اختر فئة —</option>
-                    {catOptions.map(c => (
-                      <option key={c.id} value={c.name_ar ?? c.name}>{c.name_ar ?? c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* الجهة / المصدر — اختر موجوداً أو اكتب مصدراً جديداً (= إضافة مصدر للمصروف) */}
+              <div>
+                <label className="text-xs text-muted mb-1 block">الجهة / المصدر (شركة شحن، إعلانات، إيجار…)</label>
+                <input
+                  type="text"
+                  list="acct-source-list"
+                  value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  placeholder="اختر من القائمة أو اكتب مصدراً جديداً…"
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text"
+                />
+                <datalist id="acct-source-list">
+                  {knownSources.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
 
               {/* Description */}
               <div>

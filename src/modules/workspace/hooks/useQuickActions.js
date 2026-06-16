@@ -157,8 +157,8 @@ export function useQuickActions() {
     if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
       list.push({
         id:     'accounting',
-        label:  'الحسابات',
-        icon:   '💰',
+        label:  'المصاريف والشحن',
+        icon:   '🚚',
         color:  'bg-emerald-100 text-emerald-700',
         action: () => navigate(ROUTES.ACCOUNTING),
       });

@@ -84,8 +84,8 @@ export const NAV_ITEMS = [
   { id: 'social-studio', label: 'استوديو السوشال', icon: '🌸', path: '/social-studio', roles: [A, M, SOC, MB], group: 'social' },
 
   // ── Admin / finance
-  { id: 'accounting',     label: 'الحسابات',     icon: '💰', path: '/accounting', roles: [M, A, SM], group: 'admin', perm: P.VIEW_FINANCE },
-  { id: 'ledger',         label: 'الحسابات+',    icon: '📒', path: '/ledger',     roles: [A, M],     group: 'admin', perm: P.VIEW_FINANCE },
+  { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'admin', perm: P.VIEW_FINANCE },
+  { id: 'ledger',         label: 'المالية العامة',  icon: '🏦', path: '/ledger',     roles: [A],            group: 'admin' }, // الحساب المركزي — أدمن فقط
   { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
   { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },

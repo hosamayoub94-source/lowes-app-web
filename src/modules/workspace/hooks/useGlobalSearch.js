@@ -43,7 +43,8 @@ export const NAV_COMMANDS = [
   { id: 'nav-tasks',      label: 'المهام',                icon: '📋', type: RESULT_TYPES.NAV, path: ROUTES.TASKS,      shortcut: 'G T' },
   { id: 'nav-team',       label: 'الفريق',                icon: '👥', type: RESULT_TYPES.NAV, path: ROUTES.TEAM,       shortcut: 'G E' },
   { id: 'nav-holidays',   label: 'الإجازات',              icon: '🏖️', type: RESULT_TYPES.NAV, path: ROUTES.HOLIDAYS },
-  { id: 'nav-accounting', label: 'الحسابات',              icon: '💰', type: RESULT_TYPES.NAV, path: ROUTES.ACCOUNTING },
+  { id: 'nav-accounting', label: 'المصاريف والشحن',        icon: '🚚', type: RESULT_TYPES.NAV, path: ROUTES.ACCOUNTING },
+  { id: 'nav-ledger',     label: 'المالية العامة',         icon: '🏦', type: RESULT_TYPES.NAV, path: ROUTES.LEDGER },
   { id: 'nav-profile',    label: 'الملف الشخصي',          icon: '👤', type: RESULT_TYPES.NAV, path: ROUTES.PROFILE,   shortcut: 'G P' },
   { id: 'nav-admin',      label: 'الإدارة',               icon: '⚙️', type: RESULT_TYPES.NAV, path: ROUTES.ADMIN },
 ];
