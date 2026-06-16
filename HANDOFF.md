@@ -5,6 +5,17 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يونيو 2026)
 
+### 🗓️ جلسة 16 يونيو 2026 (متابعة) — منظومة المالية: محافظ + كتابان + قنوات + ربح/خسارة لكل مصدر (⏳ على فرع `claude/stoic-villani-c5aab8`، غير مدموج)
+طلب المالك: «السحب مش عم يسحب» + منظومة محاسب تدوم 10 سنين (محافظ متعددة العملات، قنوات لشركات الشحن/الموزّعين/المسوّقين/الأونلاين تُفتح/تُسكّر ولها وارد/صادر، وتقرير ربح/خسارة لكل مصدر، وفصل حساب فادي/وسيم عن الإدارة المالية).
+
+- **🐞 سبب عطل السحب (مؤكَّد):** `accounting_entries.payment_method` فيه `CHECK IN ('cash','bank','sham_cash','transfer')` فقط، وزرّ السحب يُدخل `cash_usd/cash_syp/cash_try` → يُرفض، و`handleSettle/handleSave` بلا try/catch → فشل صامت. **الإصلاح:** توسيع القيد + `entry_type` يقبل `transfer` (DDL) + لفّ الدوال بـ try/catch + toast.
+- **🏦 الكتابان (`book`):** عمود جديد `operational` (فادي/وسيم) / `central` (الإدارة). السحب/التوريد + زرّ «رفع الرصيد للخزينة» الجديد على `/accounting` = **تحويل بساقين** (`createTransfer`: `transfer_out` بكتاب + `transfer_in` بالآخر، `transfer_group` واحد) يساوي صفراً للشركة ويُستثنى من P&L. `computeOperationalBalance` صار مراعياً للتحويلات؛ `computeBookBalance(entries, book)`.
+- **🔀 القنوات:** جدول جديد `accounting_channels` (name_ar/kind/currency/is_active/allows_income/allows_expense/book/sort_order/icon) + RLS + بذرة (قدموس/الكرم/الموتور/ايزلا/جرمانا + أونلاين/مسوّقين/موزّعين + بنود متكررة). شاشة **`/admin/channels` «قنوات المحاسبة»** (admin/manager، نمط AdminGuides) + منتقي قناة في نموذج `/accounting`. عمود `channel_id` على القيد (مع بقاء `category` كاحتياط).
+- **📈 الربح/الخسارة لكل قناة:** `ChannelPnL` (يحلّ محل SourceBreakdown على الشاشتين) — وارد/صادر/صافي لكل عملة + إجمالي **≈USD** (عبر `exchange_rates`، تقريبي) + فلترة بالنوع/المسكّرة + فرز. + **TreasuryPanel أُضيف لـ`/accounting`** (شو بكل محفظة لدى فادي/وسيم).
+- **التحقّق:** `npm run build` أخضر ×متكرر + اختبارات نقيّة: `test-accounting-books.mjs` 9/9 · `test-channel-pnl.mjs` 10/10 · `test-source-breakdown.mjs` 16/16. ملفات جديدة lint-نظيفة (المتبقّي 4 تنبيهات قديمة سابقة لجلستي).
+- **⚠️⚠️ ترتيب نشر حرج:** **طبّق `supabase/0006_accounting_channels_books.sql` على القاعدة الحيّة (Supabase SQL Editor) قبل دمج/نشر الكود.** الكود يُرسل `book` في كل إدخال؛ لو نُشر قبل إضافة العمود → **كل إدخالات المحاسبة تفشل**. الملف idempotent + فيه خطوة اكتشاف أسماء القيود الفعلية. Backfill: `income/expense → operational`، الباقي `central` (عكوس بـUPDATE واحد، تحقّق `GROUP BY book`).
+- **معماريّة:** المفاهيم الثلاثة منفصلة — **المحفظة** (`payment_method`=وين الكاش) · **القناة** (`channel_id`=من أي مصدر) · **الكتاب** (`book`=تشغيلي/مركزي). الملفات: `modules/accounting/{components/operationalAccount.js, components/channelPnL.logic.js, components/ChannelPnL.jsx, services/accountingService.js, store/useAccountingStore.js, types/accounting.types.js}` + `screens/{AccountingScreen.jsx, admin/AdminChannelsScreen.jsx}` + `pages/AccountingDashboard.jsx`. مرجع: `[[accounting-channels-books]]`.
+
 ### 🗓️ جلسة 16 يونيو 2026 — المحاسبة قسمان: «المصاريف والشحن» + «المالية العامة» (✅ منشور على main: 2b28832 · fb66f1b · 515d618)
 طلب المالك: تقسيم المحاسبة قسمين بتسميات أوضح + رؤية الوارد/الصادر الشهري لكل **شركة شحن/جهة** + حصر «الحساب المركزي» بالأدمن. ثم تبسيط القسم 1 لحساب تشغيلي (استلام/مصروف فقط، بلا رواتب/سلف/تحويل) + رصيد + تسوية.
 - **القسم 1 «المصاريف والشحن» 🚚** (`/accounting` · `AccountingScreen`) — **حساب تشغيلي لفادي ووسيم** (دورهم **مدير** فعلياً، لا محاسب → وصولهم يعمل بلا تغيير RLS):

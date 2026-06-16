@@ -9,6 +9,7 @@ import useAccountingStore from '../store/useAccountingStore.js';
 
 export const useEntries           = () => useAccountingStore(s => s.entries);
 export const useCategories        = () => useAccountingStore(s => s.categories);
+export const useChannels          = () => useAccountingStore(s => s.channels);
 export const useAccountingFilters = () => useAccountingStore(s => s.filters);
 export const useAccountingLoading = () => useAccountingStore(s => s.loading);
 export const useAccountingError   = () => useAccountingStore(s => s.error);
@@ -27,10 +28,15 @@ export const useAccountingActions = () =>
   useAccountingStore(s => ({
     loadEntries:     s.loadEntries,
     createEntry:     s.createEntry,
+    createTransfer:  s.createTransfer,
     updateEntry:     s.updateEntry,
     deleteEntry:     s.deleteEntry,
     loadCategories:  s.loadCategories,
     createCategory:  s.createCategory,
+    loadChannels:    s.loadChannels,
+    createChannel:   s.createChannel,
+    updateChannel:   s.updateChannel,
+    deleteChannel:   s.deleteChannel,
     setFilters:      s.setFilters,
     resetFilters:    s.resetFilters,
     clearError:      s.clearError,

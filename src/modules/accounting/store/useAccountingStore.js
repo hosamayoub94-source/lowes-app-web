@@ -14,6 +14,7 @@ import {
 const INITIAL_STATE = {
   entries:    [],
   categories: [],
+  channels:   [],
   filters: { type: null, from: null, to: null, category: null },
   loading: { entries: false, action: false, categories: false },
   error: null,
@@ -29,7 +30,7 @@ const useAccountingStore = create()(
     async init(userId) {
       if (get()._initialized && get()._userId === userId) return;
       set({ _userId: userId, _initialized: true, error: null });
-      await Promise.all([get().loadEntries(), get().loadCategories()]);
+      await Promise.all([get().loadEntries(), get().loadCategories(), get().loadChannels()]);
       get()._startRealtime();
     },
 
@@ -60,6 +61,22 @@ const useAccountingStore = create()(
         const entry = await createEntry({ ...data, created_by: get()._userId });
         set(s => ({ entries: [entry, ...s.entries] }));
         return entry;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      } finally {
+        get()._setLoading('action', false);
+      }
+    },
+
+    // تحويل بساقين بين الكتابين (تسليم/توريد الرصيد) — يُضيف القيدين فوراً.
+    async createTransfer(args) {
+      get()._setLoading('action', true);
+      try {
+        const { createTransfer } = await import('../services/accountingService.js');
+        const legs = await createTransfer({ ...args, createdBy: get()._userId });
+        set(s => ({ entries: [...legs, ...s.entries] }));
+        return legs;
       } catch (err) {
         set({ error: err.message });
         throw err;
@@ -125,6 +142,49 @@ const useAccountingStore = create()(
       } finally {
         get()._setLoading('action', false);
       }
+    },
+
+    // ── Channels ─────────────────────────────────────────────────────────────
+
+    async loadChannels() {
+      try {
+        const { fetchChannels } = await import('../services/accountingService.js');
+        set({ channels: await fetchChannels() });
+      } catch (err) {
+        set({ error: err.message });
+      }
+    },
+
+    async createChannel(data) {
+      get()._setLoading('action', true);
+      try {
+        const { createChannel } = await import('../services/accountingService.js');
+        const ch = await createChannel({ ...data, created_by: get()._userId });
+        set(s => ({ channels: [...s.channels, ch].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)) }));
+        return ch;
+      } catch (err) { set({ error: err.message }); throw err; }
+      finally { get()._setLoading('action', false); }
+    },
+
+    async updateChannel(id, data) {
+      get()._setLoading('action', true);
+      try {
+        const { updateChannel } = await import('../services/accountingService.js');
+        const ch = await updateChannel(id, data);
+        set(s => ({ channels: s.channels.map(c => (c.id === id ? ch : c)) }));
+        return ch;
+      } catch (err) { set({ error: err.message }); throw err; }
+      finally { get()._setLoading('action', false); }
+    },
+
+    async deleteChannel(id) {
+      get()._setLoading('action', true);
+      try {
+        const { deleteChannel } = await import('../services/accountingService.js');
+        await deleteChannel(id);
+        set(s => ({ channels: s.channels.filter(c => c.id !== id) }));
+      } catch (err) { set({ error: err.message }); throw err; }
+      finally { get()._setLoading('action', false); }
     },
 
     // ── Filters ────────────────────────────────────────────────────────────

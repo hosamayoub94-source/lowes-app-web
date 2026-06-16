@@ -14,6 +14,7 @@ export const ROUTES = {
   BRAND: '/brand',
   ADMIN: '/admin',
   ADMIN_GUIDES: '/admin/guides',
+  ADMIN_CHANNELS: '/admin/channels',
   ADMIN_PROJECTS: '/admin/projects',
   ADMIN_USERS: '/admin/users',
   ADMIN_RESIGNED: '/admin/resigned',

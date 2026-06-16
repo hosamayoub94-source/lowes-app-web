@@ -90,6 +90,7 @@ export const NAV_ITEMS = [
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
   { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
   { id: 'admin-guides',   label: 'إدارة الأدلة',  icon: '📖', path: '/admin/guides', roles: [A, M],   group: 'admin', perm: P.MANAGE_GUIDES },
+  { id: 'admin-channels', label: 'قنوات المحاسبة', icon: '🔀', path: '/admin/channels', roles: [A, M, ACC], group: 'admin', perm: P.VIEW_FINANCE },
   { id: 'admin-projects', label: 'المشاريع والفرق', icon: '🗂️', path: '/admin/projects', roles: [A], group: 'admin' },
 ];
 
