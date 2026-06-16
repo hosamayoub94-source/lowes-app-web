@@ -1,10 +1,11 @@
 // =============================================================
 // الحساب التشغيلي (فادي ووسيم) — منطق نقيّ
-//   حركتان فقط: استلام (دخل) · مصروف. لا رواتب/سلف/تحويلات.
-//   الرصيد = Σ الاستلامات − Σ المصاريف (تراكمي) = الكاش الموجود لديهم،
-//   وهو ما تُسوّيه «الإدارة المالية» آخر الشهر (سحب الرصيد / توريد).
+//   جدول القيود يعرض: استلام (دخل) · مصروف (لا رواتب/سلف).
+//   الرصيد التراكمي يحسب أيضاً التحويلات (تسليم/توريد بين الكتابين):
+//     الرصيد = Σ استلامات − Σ مصاريف + Σ تحويل وارد − Σ تحويل صادر.
+//   هذا ما تُسوّيه «الإدارة المالية» (سحب/توريد) كتحويل بساقين يساوي صفراً.
 // =============================================================
-import { ENTRY_TYPE } from '../types/accounting.types.js';
+import { ENTRY_TYPE, TRANSFER_IN, TRANSFER_OUT, BOOK, filterByBook } from '../types/accounting.types.js';
 
 // تصنيفات/مصادر جاهزة (المالك يقدر يضيف غيرها بالكتابة)
 export const OP_CAT = {
@@ -35,16 +36,27 @@ export function filterOperational(entries = []) {
   return entries.filter(isOperational);
 }
 
-/** الرصيد التراكمي لكل عملة = استلامات − مصاريف. */
+/**
+ * الرصيد التراكمي لكل عملة:
+ *   استلام (+) · مصروف (−) · تحويل وارد (+) · تحويل صادر (−).
+ * التحويلات تجعل التسليم بين الكتابين يُنقص رصيد المُسلِّم ويزيد المُستلِم.
+ */
 export function computeOperationalBalance(entries = []) {
   const bal = { amount_usd: 0, amount_try: 0, amount_syp: 0 };
   for (const e of entries) {
-    const sign = e.entry_type === ENTRY_TYPE.INCOME ? 1
-               : e.entry_type === ENTRY_TYPE.EXPENSE ? -1 : 0;
+    const sign = e.entry_type === ENTRY_TYPE.INCOME   ?  1
+               : e.entry_type === ENTRY_TYPE.EXPENSE  ? -1
+               : e.entry_type === ENTRY_TYPE.TRANSFER ? (e.category === TRANSFER_IN ? 1 : e.category === TRANSFER_OUT ? -1 : 0)
+               : 0;
     if (!sign) continue;
     bal.amount_usd += sign * (Number(e.amount_usd) || 0);
     bal.amount_try += sign * (Number(e.amount_try) || 0);
     bal.amount_syp += sign * (Number(e.amount_syp) || 0);
   }
   return bal;
+}
+
+/** رصيد كتاب معيّن (تشغيلي/مركزي) — مراعٍ للتحويلات. */
+export function computeBookBalance(entries = [], book = BOOK.OPERATIONAL) {
+  return computeOperationalBalance(filterByBook(entries, book));
 }

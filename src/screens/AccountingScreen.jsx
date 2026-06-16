@@ -3,6 +3,7 @@
 // =============================================================
 import { useState, useMemo } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { useToast } from '@hooks/useToast';
 import { Tabs } from '@components/ui/Tabs';
 import {
   useAccountingBootstrap,
@@ -10,6 +11,7 @@ import {
   useAccountingActions,
   useAccountingLoading,
   useCategories,
+  useChannels,
 } from '@modules/accounting/hooks/useAccounting.js';
 import {
   ENTRY_TYPE,
@@ -20,14 +22,17 @@ import {
   WALLETS,
   TRANSFER_IN,
   TRANSFER_OUT,
+  BOOK,
+  filterByBook,
   entryColorClass,
 } from '@modules/accounting/types/accounting.types.js';
 import AccountingReport from '@modules/accounting/components/AccountingReport';
-import SourceBreakdown from '@modules/accounting/components/SourceBreakdown';
+import ChannelPnL from '@modules/accounting/components/ChannelPnL';
+import TreasuryPanel from '@modules/accounting/components/TreasuryPanel';
 import OperationalBalanceCard from '@modules/accounting/components/OperationalBalanceCard';
 import {
   filterOperational,
-  computeOperationalBalance,
+  computeBookBalance,
   OP_ALL_SOURCES,
   OP_INCOME_SOURCES,
   OP_EXPENSE_SOURCES,
@@ -49,6 +54,7 @@ const SECTION_TYPES = [
 const EMPTY_FORM = {
   entry_type:     ENTRY_TYPE.EXPENSE,
   category:       '',
+  channel_id:     '',
   description:    '',
   amount_usd:     '',
   amount_try:     '',
@@ -119,9 +125,11 @@ export default function AccountingScreen() {
   useAccountingBootstrap(id);
 
   const { entries, isLoading } = useAccountingDashboard();
-  const { createEntry, deleteEntry }  = useAccountingActions();
+  const { createEntry, createTransfer, deleteEntry }  = useAccountingActions();
   const loading    = useAccountingLoading();
   const categories = useCategories();
+  const channels   = useChannels();
+  const toast      = useToast();
 
   const isAdmin = role === 'admin' || role === 'manager';
   // المحاسبون (فادي ووسيم) ومدير المبيعات يقدرون يسجّلون قيوداً ومصادر — الحذف/التعديل للأدمن/المدير فقط.
@@ -139,6 +147,11 @@ export default function AccountingScreen() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [tForm, setTForm] = useState({ from: 'cash_usd', to: 'bank_usd', amount_from: '', amount_to: '', date: new Date().toISOString().slice(0, 10), note: '' });
   const [tError, setTError] = useState(null);
+
+  // ── Handover to central treasury (تسليم الرصيد للإدارة المالية) ─────────────
+  const [showHandover, setShowHandover] = useState(false);
+  const [hForm, setHForm] = useState({ currency: 'USD', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
+  const [hError, setHError] = useState(null);
 
   const walletAmounts = (walletId, val) => {
     const w = WALLETS.find(x => x.id === walletId);
@@ -163,6 +176,7 @@ export default function AccountingScreen() {
     const voucherNo = computeNextVoucherNo(entries);
     const isReceipt = vForm.kind === 'receipt';
     const payload = {
+      book:        BOOK.OPERATIONAL,
       entry_type:  isReceipt ? ENTRY_TYPE.INCOME : ENTRY_TYPE.EXPENSE,
       category:    isReceipt ? 'سند قبض' : 'سند صرف',
       description: vForm.purpose.trim() || (isReceipt ? 'سند قبض' : 'سند صرف'),
@@ -198,14 +212,14 @@ export default function AccountingScreen() {
     try {
       // Outflow from source wallet
       await createEntry({
-        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_OUT,
+        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_OUT, book: BOOK.OPERATIONAL,
         description: `تحويل إلى ${to.label}${tForm.note ? ' — ' + tForm.note : ''}`,
         ...walletAmounts(from.id, amtFrom),
         payment_method: from.id, entry_date: tForm.date, reference_no: ref,
       });
       // Inflow to destination wallet
       await createEntry({
-        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_IN,
+        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_IN, book: BOOK.OPERATIONAL,
         description: `تحويل من ${from.label}${tForm.note ? ' — ' + tForm.note : ''}`,
         ...walletAmounts(to.id, amtTo),
         payment_method: to.id, entry_date: tForm.date, reference_no: ref,
@@ -215,11 +229,29 @@ export default function AccountingScreen() {
     } catch (e) { setTError(e.message); }
   };
 
-  // ── Operational entries only (استلام + مصروف — لا رواتب/سلف/تحويل) ──────────
-  const opEntries = useMemo(() => filterOperational(entries), [entries]);
+  // تسليم الرصيد للإدارة المالية = تحويل من الكتاب التشغيلي → المركزي (بساقين).
+  const handleHandover = async () => {
+    const amt = Number(hForm.amount) || 0;
+    if (amt <= 0) { setHError('أدخل مبلغاً صحيحاً'); return; }
+    setHError(null);
+    try {
+      await createTransfer({
+        amount: amt, currency: hForm.currency,
+        fromBook: BOOK.OPERATIONAL, toBook: BOOK.CENTRAL,
+        date: hForm.date, note: hForm.note,
+      });
+      toast.success('تم تسليم الرصيد للإدارة المالية ✅');
+      setShowHandover(false);
+      setHForm(f => ({ ...f, amount: '', note: '' }));
+    } catch (e) { setHError(e.message); }
+  };
 
-  // الرصيد التراكمي الموجود لدى فادي ووسيم = Σ استلامات − Σ مصاريف (كل الفترات).
-  const opBalance = useMemo(() => computeOperationalBalance(opEntries), [opEntries]);
+  // ── قيود الكتاب التشغيلي (فادي/وسيم) فقط ───────────────────────────────────
+  const bookEntries = useMemo(() => filterByBook(entries, BOOK.OPERATIONAL), [entries]);
+  // جدول العمليات = استلام + مصروف (بلا تحويلات).
+  const opEntries = useMemo(() => filterOperational(bookEntries), [bookEntries]);
+  // الرصيد التراكمي (مراعٍ للتحويلات: تسليم/توريد) = الكاش الموجود لديهم.
+  const opBalance = useMemo(() => computeBookBalance(entries, BOOK.OPERATIONAL), [entries]);
 
   // ── Month filtering ────────────────────────────────────────────────────────
   const monthEntries = useMemo(() =>
@@ -273,7 +305,9 @@ export default function AccountingScreen() {
     try {
       await createEntry({
         entry_type:     form.entry_type,
+        book:           BOOK.OPERATIONAL,
         category:       form.category || null,
+        channel_id:     form.channel_id || null,
         description:    form.description.trim(),
         amount_usd:     Number(form.amount_usd) || 0,
         amount_try:     Number(form.amount_try) || 0,
@@ -354,8 +388,20 @@ export default function AccountingScreen() {
       <OperationalBalanceCard
         balance={opBalance}
         title="💼 الرصيد الموجود حالياً (لدى فادي ووسيم)"
-        subtitle="إجمالي الاستلامات ناقص المصاريف — هذا ما تُسوّيه «الإدارة المالية» آخر الشهر (سحب أو توريد)"
-      />
+        subtitle="إجمالي الاستلامات ناقص المصاريف والتحويلات — سلّمه للإدارة المالية عند الحاجة"
+      >
+        {canEnter && (
+          <button
+            onClick={() => { setShowHandover(true); setHError(null); }}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-navy text-white hover:opacity-90 transition"
+          >
+            ⬆️ رفع/تسليم الرصيد للخزينة
+          </button>
+        )}
+      </OperationalBalanceCard>
+
+      {/* لوحة المحافظ — شو معنا بكل محفظة (ل.س / دولار / شام بالعملتين) لدى فادي/وسيم */}
+      <TreasuryPanel entries={bookEntries} />
 
       {/* Financial report (period = current month filter) */}
       {showReport && (
@@ -375,11 +421,12 @@ export default function AccountingScreen() {
         <CurrencyBlock currency="SYP" symbol="£"  {...currencyKpis.SYP} />
       </div>
 
-      {/* الوارد والصادر لكل جهة / شركة شحن — للشهر المحدد */}
-      <SourceBreakdown
+      {/* الربح/الخسارة لكل قناة (شركة شحن/أونلاين/موزّع…) — للشهر المحدد */}
+      <ChannelPnL
         entries={monthEntries}
-        title={`🚚 الوارد والصادر لكل جهة — ${monthFilter || 'كل الفترات'}`}
-        subtitle="شركات الشحن، الإعلانات، الإيجار… — كل مصدر مع وارده وصادره وصافيه"
+        channels={channels}
+        title={`🚚 الربح/الخسارة لكل قناة — ${monthFilter || 'كل الفترات'}`}
+        subtitle="شركات الشحن، الأونلاين، الموزّعين… — وارد/صادر/صافي لكل مصدر (وين نربح وين نخسر)"
       />
 
       {/* Tabs (موحّد) */}
@@ -497,7 +544,7 @@ export default function AccountingScreen() {
                   {SECTION_TYPES.map(({ key, label }) => (
                     <button
                       key={key}
-                      onClick={() => setForm(f => ({ ...f, entry_type: key, category: '' }))}
+                      onClick={() => setForm(f => ({ ...f, entry_type: key, category: '', channel_id: '' }))}
                       className={[
                         'px-3 py-2 rounded-lg text-sm font-semibold transition border',
                         form.entry_type === key
@@ -510,6 +557,26 @@ export default function AccountingScreen() {
                   ))}
                 </div>
               </div>
+
+              {/* القناة المُدارة (شركة شحن/موزّع/أونلاين…) — اختياري، يصفّى حسب نوع القيد */}
+              {channels.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted mb-1 block">القناة / المصدر (اختياري)</label>
+                  <select
+                    value={form.channel_id}
+                    onChange={e => {
+                      const ch = channels.find(c => c.id === e.target.value);
+                      setForm(f => ({ ...f, channel_id: e.target.value, category: ch ? ch.name_ar : f.category }));
+                    }}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text"
+                  >
+                    <option value="">— بلا قناة (اكتب المصدر يدوياً) —</option>
+                    {channels
+                      .filter(c => c.is_active && (form.entry_type === ENTRY_TYPE.INCOME ? c.allows_income : c.allows_expense))
+                      .map(c => <option key={c.id} value={c.id}>{c.icon || '📌'} {c.name_ar}</option>)}
+                  </select>
+                </div>
+              )}
 
               {/* الجهة / المصدر — أزرار سريعة + كتابة حرة (= إضافة مصدر جديد) */}
               <div>
@@ -775,6 +842,51 @@ export default function AccountingScreen() {
           </div>
         );
       })()}
+
+      {/* Handover to central treasury Modal (تسليم الرصيد للإدارة المالية) */}
+      {showHandover && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowHandover(false)}>
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()} dir="rtl">
+            <h3 className="font-bold text-lg text-text mb-1">⬆️ تسليم الرصيد للإدارة المالية</h3>
+            <p className="text-xs text-muted mb-4">يُسجَّل تحويلاً ينقص رصيدكم ويزيد الخزينة المركزية (بلا تأثير على الربح/الخسارة).</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted mb-1 block">العملة</label>
+                  <select value={hForm.currency} onChange={e => setHForm(f => ({ ...f, currency: e.target.value }))}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                    {['USD', 'TRY', 'SYP'].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted mb-1 block">المبلغ ({hForm.currency})</label>
+                  <input type="number" step="any" value={hForm.amount} onChange={e => setHForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">التاريخ</label>
+                <input type="date" value={hForm.date} onChange={e => setHForm(f => ({ ...f, date: e.target.value }))}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">ملاحظة (اختياري)</label>
+                <input type="text" value={hForm.note} onChange={e => setHForm(f => ({ ...f, note: e.target.value }))}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="تسليم شهر…" />
+              </div>
+            </div>
+            {hError && <div className="mt-3 text-xs text-red-fg bg-red-bg rounded-lg px-3 py-2 border border-red/20">{hError}</div>}
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleHandover} disabled={loading.action}
+                className="flex-1 py-2 rounded-xl bg-navy text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition">
+                {loading.action ? '…' : 'تأكيد التسليم'}
+              </button>
+              <button onClick={() => setShowHandover(false)}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text hover:bg-cream transition">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

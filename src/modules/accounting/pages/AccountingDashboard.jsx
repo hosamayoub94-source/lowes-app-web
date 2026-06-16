@@ -6,9 +6,9 @@ import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import TreasuryPanel from '../components/TreasuryPanel';
-import SourceBreakdown from '../components/SourceBreakdown';
+import ChannelPnL from '../components/ChannelPnL';
 import OperationalBalanceCard from '../components/OperationalBalanceCard';
-import { computeOperationalBalance, filterOperational, OP_CAT } from '../components/operationalAccount';
+import { computeBookBalance } from '../components/operationalAccount';
 import { Tabs } from '@components/ui/Tabs';
 import { printPaymentVoucher } from '../utils/paymentVoucher';
 import {
@@ -16,6 +16,7 @@ import {
   useAccountingDashboard,
   useAccountingActions,
   useCategories,
+  useChannels,
   useAccountingLoading,
 } from '../hooks/useAccounting.js';
 import {
@@ -25,6 +26,7 @@ import {
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
   WALLETS,
+  BOOK,
   entryColorClass,
 } from '../types/accounting.types.js';
 import { ROLES } from '@data/teams';
@@ -183,7 +185,7 @@ function EntryForm({ initial, sources = [], onSave, onClose, loading }) {
 
         {/* Type selector */}
         <div className="grid grid-cols-3 gap-1.5 mb-4">
-          {Object.entries(ENTRY_TYPE_LABELS).map(([k, v]) => (
+          {Object.entries(ENTRY_TYPE_LABELS).filter(([k]) => k !== ENTRY_TYPE.TRANSFER).map(([k, v]) => (
             <button key={k}
               onClick={() => set('entry_type', k)}
               className={[
@@ -366,7 +368,8 @@ export function AccountingDashboard() {
 
   const { entries, kpis, breakdown, isLoading } = useAccountingDashboard();
   const categories = useCategories();
-  const { createEntry, updateEntry, deleteEntry, setFilters, resetFilters } = useAccountingActions();
+  const channels = useChannels();
+  const { createEntry, createTransfer, updateEntry, deleteEntry, setFilters, resetFilters } = useAccountingActions();
   const loading = useAccountingLoading();
   const toast = useToast();
 
@@ -417,8 +420,8 @@ export function AccountingDashboard() {
     return list;
   }, [entries, sourceFilter]);
 
-  // الرصيد التشغيلي الموجود لدى فادي ووسيم (استلامات − مصاريف) — لتسويته آخر الشهر.
-  const opBalance = useMemo(() => computeOperationalBalance(filterOperational(entries)), [entries]);
+  // الرصيد التشغيلي الموجود لدى فادي ووسيم (كتاب التشغيلي، مراعٍ للتحويلات) — لتسويته آخر الشهر.
+  const opBalance = useMemo(() => computeBookBalance(entries, BOOK.OPERATIONAL), [entries]);
   const [settle, setSettle] = useState(null); // { kind:'withdraw'|'supply' }
 
   // KPIs for filtered view — multi-currency (USD + TRY + SYP)
@@ -494,51 +497,54 @@ export function AccountingDashboard() {
     const amt = Number(amount) || 0;
     if (amt <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return; }
     const isWithdraw = kind === 'withdraw';
-    const field = currency === 'TRY' ? 'amount_try' : currency === 'SYP' ? 'amount_syp' : 'amount_usd';
-    const pm    = currency === 'TRY' ? 'cash_try'   : currency === 'SYP' ? 'cash_syp'   : 'cash_usd';
-    await createEntry({
-      entry_type:  isWithdraw ? 'expense' : 'income',
-      category:    isWithdraw ? OP_CAT.HANDOVER : OP_CAT.SUPPLY,
-      description: isWithdraw ? 'تسوية: سحب الرصيد إلى الإدارة المالية' : 'تسوية: توريد من الإدارة المالية',
-      amount_usd:  field === 'amount_usd' ? amt : 0,
-      amount_try:  field === 'amount_try' ? amt : 0,
-      amount_syp:  field === 'amount_syp' ? amt : 0,
-      payment_method: pm,
-      entry_date:  date,
-      notes:       note || null,
-    });
-    toast.success(isWithdraw ? 'تم تسجيل سحب الرصيد ✅' : 'تم تسجيل التوريد ✅');
-    setSettle(null);
+    try {
+      // سحب = نقل من التشغيلي → المركزي · توريد = العكس (تحويل بساقين يساوي صفراً).
+      await createTransfer({
+        amount: amt, currency,
+        fromBook: isWithdraw ? BOOK.OPERATIONAL : BOOK.CENTRAL,
+        toBook:   isWithdraw ? BOOK.CENTRAL : BOOK.OPERATIONAL,
+        date, note,
+      });
+      toast.success(isWithdraw ? 'تم تسجيل سحب الرصيد ✅' : 'تم تسجيل التوريد ✅');
+      setSettle(null);
+    } catch (e) {
+      toast.error(e?.message || 'فشل تسجيل العملية — حاول مجدداً');
+    }
   };
 
   const handleSave = async (form) => {
     const data = {
+      book: BOOK.CENTRAL,   // قيود /ledger مركزية افتراضياً (التعديل يحافظ على book القيد عبر ...form)
       ...form,
       amount_usd: Number(form.amount_usd) || 0,
       amount_try: Number(form.amount_try) || 0,
       amount_syp: Number(form.amount_syp) || 0,
     };
-    if (form.id) {
-      await updateEntry(form.id, data);
-      toast.success('تم تحديث القيد ✅');
-    } else {
-      await createEntry(data);
-      // Check large expense alert
-      const isExpense = ['expense', 'salary', 'advance'].includes(data.entry_type);
-      const isLarge   = data.amount_syp > LARGE_EXPENSE_SYP ||
-                        data.amount_usd > LARGE_EXPENSE_USD ||
-                        data.amount_try > LARGE_EXPENSE_TRY;
-      if (isExpense && isLarge) {
-        const amt = data.amount_syp > 0
-          ? `${Number(data.amount_syp).toLocaleString()} ل.س`
-          : data.amount_usd > 0 ? `$${data.amount_usd}` : `${data.amount_try} ₺`;
-        toast.warning(`⚠️ مصروف كبير مسجّل: ${data.description} — ${amt}`);
+    try {
+      if (form.id) {
+        await updateEntry(form.id, data);
+        toast.success('تم تحديث القيد ✅');
       } else {
-        toast.success('تم إضافة القيد ✅');
+        await createEntry(data);
+        // Check large expense alert
+        const isExpense = ['expense', 'salary', 'advance'].includes(data.entry_type);
+        const isLarge   = data.amount_syp > LARGE_EXPENSE_SYP ||
+                          data.amount_usd > LARGE_EXPENSE_USD ||
+                          data.amount_try > LARGE_EXPENSE_TRY;
+        if (isExpense && isLarge) {
+          const amt = data.amount_syp > 0
+            ? `${Number(data.amount_syp).toLocaleString()} ل.س`
+            : data.amount_usd > 0 ? `$${data.amount_usd}` : `${data.amount_try} ₺`;
+          toast.warning(`⚠️ مصروف كبير مسجّل: ${data.description} — ${amt}`);
+        } else {
+          toast.success('تم إضافة القيد ✅');
+        }
       }
+      setShowForm(false);
+      setEditEntry(null);
+    } catch (e) {
+      toast.error(e?.message || 'فشل حفظ القيد — حاول مجدداً');
     }
-    setShowForm(false);
-    setEditEntry(null);
   };
 
   const handleDelete = async (id) => {
@@ -665,12 +671,13 @@ export function AccountingDashboard() {
           )}
         </div>
 
-        {/* ── أماكن الصادر والوارد الشهرية (لكل جهة) ── */}
+        {/* ── الربح/الخسارة لكل قناة (شهرياً، على مستوى الشركة) ── */}
         <div className="mb-4">
-          <SourceBreakdown
+          <ChannelPnL
             entries={monthSourceEntries}
-            title={`🏦 أماكن الصادر والوارد — شهر ${monthlyKpis.monthLabel}${sourceFilter ? ` · ${sourceFilter}` : ''}`}
-            subtitle="كل جهة/مكان مع إجمالي وارده وصادره وصافيه هذا الشهر — استخدم فلتر «الجهة» للتركيز"
+            channels={channels}
+            title={`🏦 الربح/الخسارة لكل قناة — شهر ${monthlyKpis.monthLabel}${sourceFilter ? ` · ${sourceFilter}` : ''}`}
+            subtitle="كل جهة/مصدر مع وارده وصادره وصافيه هذا الشهر — وين نربح وين نخسر"
           />
         </div>
 

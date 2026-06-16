@@ -95,6 +95,20 @@ export const WALLET_CURRENCY_SYMBOL = { SYP: 'ل.س', USD: '$', TRY: '₺' };
 export const TRANSFER_IN  = 'transfer_in';
 export const TRANSFER_OUT = 'transfer_out';
 
+// ── Books — الكتابان: تشغيلي (فادي/وسيم) · مركزي (الإدارة المالية) ─────────────
+//   التسليم بينهما = تحويل بساقين (transfer_out بكتاب + transfer_in بالآخر)
+//   يساوي صفراً على مستوى الشركة ويُستثنى من الربح/الخسارة.
+export const BOOK = { OPERATIONAL: 'operational', CENTRAL: 'central' };
+export const BOOK_LABELS = {
+  [BOOK.OPERATIONAL]: 'الحساب التشغيلي',
+  [BOOK.CENTRAL]:     'الإدارة المالية',
+};
+
+/** قيود كتاب معيّن. القيود القديمة بلا `book` تُعامل كـ central (افتراض الهجرة). */
+export function filterByBook(entries = [], book) {
+  return entries.filter(e => (e.book ?? BOOK.CENTRAL) === book);
+}
+
 /**
  * Map a legacy/generic payment_method to a specific wallet id by currency,
  * so old entries (payment_method = "cash"/"bank"/"sham_cash") still show up
@@ -167,4 +181,17 @@ export function entryColorClass(type) {
     salary:   'text-blue-600',
     transfer: 'text-purple-500',
   }[type] ?? 'text-text';
+}
+
+/**
+ * يحوّل مبلغاً بعملة معيّنة إلى ما يعادله بالدولار (تقريبي).
+ * rateMap = { TRY: وحدات لكل 1 دولار, SYP: ... } (سعر USD→العملة).
+ * يعيد 0 إذا لا يوجد سعر للعملة (الأعمدة لكل عملة تبقى مصدر الحقيقة).
+ */
+export function convertToUsd(amount, currency, rateMap = {}) {
+  const amt = Number(amount) || 0;
+  if (!amt) return 0;
+  if (currency === 'USD') return amt;
+  const per = Number(rateMap[currency]) || 0;   // كم وحدة من العملة = 1 دولار
+  return per > 0 ? amt / per : 0;
 }
