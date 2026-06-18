@@ -9,9 +9,10 @@ import {
   listCustomers, countCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
-  getSellerAliases, exportMetaCSV,
+  sellerVariants, canonicalSeller, exportMetaCSV,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
+import { STATUSES } from '@data/orderStatus';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -72,6 +73,7 @@ function CustomerModal({ c, sellerName, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const [bought, setBought] = useState([]);
+  const [history, setHistory] = useState([]);
   const [lastOrder, setLastOrder] = useState(null);
   const [lastOrderDays, setLastOrderDays] = useState(idle);
   const [msg, setMsg]       = useState(followupMessage(c.name, sellerName));
@@ -79,12 +81,13 @@ function CustomerModal({ c, sellerName, onClose }) {
 
   useEffect(() => { getNotes(c.phone_key).then(setNotes); }, [c.phone_key]);
   useEffect(() => {
-    getCustomerOrders(c.phone).then((orders) => {
+    getCustomerOrders(c.phone_key || c.phone).then((orders) => {
+      setHistory(orders);
       setBought(boughtProductNames(orders));
       setLastOrder(orders[0] || null);
       if (orders[0]?.order_date) setLastOrderDays(daysSince(orders[0].order_date));
     });
-  }, [c.phone]);
+  }, [c.phone_key, c.phone]);
 
   // One-tap reorder: open a NEW order pre-filled with this customer's
   // details + their last order's products.
@@ -104,6 +107,30 @@ function CustomerModal({ c, sellerName, onClose }) {
 
   const suggestions = useMemo(() => suggestComplements(bought), [bought]);
   const reorderDue  = lastOrderDays >= REORDER_DAYS && bought.length > 0;
+
+  // درل-داون «مين باع شو»: جمّع طلبات العميل حسب البائع، وحدّد المنتجات المكرّرة
+  // (منتج ظهر بأكتر من طلب = احتمال بيع مكرّر لنفس العميل).
+  const salesHistory = useMemo(() => {
+    const bySeller = new Map();
+    const productOrders = new Map(); // اسم المنتج (حروف صغيرة) → عدد الطلبات التي ظهر فيها
+    for (const o of history) {
+      const seller = canonicalSeller(o.handler_name) || '—';
+      if (!bySeller.has(seller)) bySeller.set(seller, []);
+      bySeller.get(seller).push(o);
+      const seen = new Set();
+      for (const it of (o.items || [])) {
+        const nm = String(it?.name || '').trim().toLowerCase();
+        if (!nm || seen.has(nm)) continue;
+        seen.add(nm);
+        productOrders.set(nm, (productOrders.get(nm) || 0) + 1);
+      }
+    }
+    const repeated = new Set([...productOrders.entries()].filter(([, n]) => n >= 2).map(([k]) => k));
+    const groups = [...bySeller.entries()]
+      .map(([seller, orders]) => ({ seller, orders }))
+      .sort((a, b) => b.orders.length - a.orders.length);
+    return { groups, sellerCount: bySeller.size, repeated, total: history.length };
+  }, [history]);
 
   const save = async () => {
     if (!text.trim()) return;
@@ -176,6 +203,57 @@ function CustomerModal({ c, sellerName, onClose }) {
                   <span key={s} className="text-[11px] bg-teal/10 text-teal font-semibold px-2 py-1 rounded-lg">{s}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* درل-داون: سجل المبيعات حسب البائع + كشف البيع المكرّر */}
+          {salesHistory.total > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-extrabold text-muted">📜 سجل المبيعات — مين باع شو</p>
+                {salesHistory.sellerCount > 1 && (
+                  <span className="text-[11px] font-bold text-amber-fg bg-amber-bg border border-amber/30 rounded-lg px-2 py-0.5">
+                    🔀 باعه {salesHistory.sellerCount} بائعين
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {salesHistory.groups.map(({ seller, orders }) => (
+                  <div key={seller} className="bg-surface-alt rounded-xl p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-text">👤 {seller}</span>
+                      <span className="text-[10px] text-muted">{orders.length} طلب</span>
+                    </div>
+                    {orders.map((o, i) => (
+                      <div key={o.id || o.order_id || i} className="border-t border-border/40 pt-1.5 first:border-t-0 first:pt-0">
+                        <div className="flex items-center justify-between text-[10px] text-muted">
+                          <span dir="ltr">{o.order_id ? `#${o.order_id}` : ''} · {o.order_date ? new Date(o.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}</span>
+                          <span className="flex items-center gap-1">
+                            {Number(o.amount) > 0 && <span className="font-bold text-text">{fmt(o.amount)} {o.currency || ''}</span>}
+                            {STATUSES[o.status] && <span title={STATUSES[o.status].label}>{STATUSES[o.status].icon}</span>}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(o.items || []).length === 0 ? (
+                            <span className="text-[10px] text-muted">—</span>
+                          ) : (o.items || []).map((it, k) => {
+                            const nm = String(it?.name || '').trim();
+                            const isRep = nm && salesHistory.repeated.has(nm.toLowerCase());
+                            return (
+                              <span key={k} className={`text-[10px] px-1.5 py-0.5 rounded-md ${isRep ? 'bg-amber-bg text-amber-fg font-bold' : 'bg-surface text-muted'}`}>
+                                {nm || '—'}{Number(it?.qty) > 1 ? ` ×${it.qty}` : ''}{isRep ? ' 🔁' : ''}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {salesHistory.repeated.size > 0 && (
+                <p className="text-[10px] text-amber-fg">🔁 = منتج اتباع لهالعميل بأكتر من طلب (احتمال تكرار).</p>
+              )}
             </div>
           )}
 

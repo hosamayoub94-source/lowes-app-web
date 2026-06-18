@@ -363,6 +363,9 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
 // ── Yurtiçi import-Excel (Dosya İle Gönderi) ──────────────────
 // يولّد صفوفاً بصيغة قالب يورتيتشي الرسمي (25 عمود) لرفعها دفعة وحدة.
 // المالك يرفعها عبر Dosya İle Gönderi → تنزل بـTeslim Listesi (طباعة + ONAY).
+// عَلَم مؤقت: إخفاء زر «أنشئ شحنة يورتيتشي» (API SOAP) داخل كروت الطلبات.
+// التصدير عبر Excel «📤 يورتيتشي» يبقى فعّالاً. أعِدها true للإظهار مجدّداً.
+const SHOW_YURTICI_CREATE_SHIPMENT = false;
 const YURTICI_HEADERS = [
   'Kişi / Kurum Adı (*)', 'Adresi (*)', 'İl', 'İlçe', 'Telefon Ev/İş', 'Telefon Cep',
   'E-Mail Adresi', 'Vergi No', 'Kargo Türü (*)', 'Ödeme Tipi (*)', 'İrsaliye Numarası',
@@ -374,7 +377,7 @@ const isCodOrder = (o) => {
   const p = String(o.payment_method || '');
   return !(p.includes('مسبق') || p.includes('bank') || p.includes('بنك') || p.includes('حوالة') || /kredi|kart/i.test(p));
 };
-function yurticiRow(o) {
+function yurticiRow(o, idx = 0) {
   const cod = isCodOrder(o);
   const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
   // الإجمالي COD = المتبقّي للجزئي وإلا المبلغ. غير COD → فارغ.
@@ -397,7 +400,7 @@ function yurticiRow(o) {
     'Adet (*)': 1,                    // طرد واحد لكل طلب (قرار المالك)
     'Kargo İçeriği': 'kozmetik',
     'Tahsilat Tipi': cod ? 'N' : '',  // Nakit (نقدي) للتحصيل
-    'Fatura Numarası': '',
+    'Fatura Numarası': String(idx + 1),  // ترقيم تسلسلي 1..N — يورتيتشي بيطلبه إجبارياً مع Tahsilat Tipi
     'Fatura Tutarı': codAmount === '' ? '' : Math.round(codAmount),
     'Dosya/Poşet No': '', 'Kampanya No': '', 'Kampanya Kodu': '',
     'Kg': 1, 'Desi': 1, 'Taksit Uygulama Kriteri': '', 'Taksit Sayısı': '', 'Hata Mesajları': '',
@@ -1637,7 +1640,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
       </div>
 
       {/* Yurtiçi: إنشاء شحنة (تركيا فقط، لمن يقدر يقدّم الحالة، إن لم تُنشأ بعد) */}
-      {canAdvance && order.market === 'turkey' && onCreateShipment && (
+      {SHOW_YURTICI_CREATE_SHIPMENT && canAdvance && order.market === 'turkey' && onCreateShipment && (
         order.yurtici_cargo_key ? (
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1.5">
             🚚 شحنة يورتيتشي مُنشأة · <span className="font-mono">{order.yurtici_cargo_key}</span>
@@ -2540,7 +2543,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
         q = q.eq('archived', true);
         const s = search.trim();
         if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
-        q = q.limit(500);
+        // كان السقف 500 → كان يخفي الطلبات الأقدم، فبعض البائعين ما بيطلعوا بقائمة
+        // الفلتر (sellerOptions مشتقّة من الطلبات المحمّلة) ولا تظهر طلباتهم المؤرشفة.
+        // العرض النشط بلا سقف أصلاً، فرفعنا الأرشيف لسقف واسع ليظهر كامل الأرشيف.
+        q = q.limit(5000);
       } else {
         q = q.or('archived.is.null,archived.eq.false');
       }
@@ -2675,7 +2681,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setExportingYurtici(true);
     try {
       const XLSX = await import('xlsx');
-      const rows = ship.map(yurticiRow);
+      const rows = ship.map((o, idx) => yurticiRow(o, idx));
       const ws = XLSX.utils.json_to_sheet(rows, { header: YURTICI_HEADERS });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CargoImportTemplate');
