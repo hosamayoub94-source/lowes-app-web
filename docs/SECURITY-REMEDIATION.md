@@ -76,16 +76,14 @@ if (!['admin','manager'].includes(me?.role_type)) return json({ok:false,error:'f
 
 ---
 
-## 4) إصلاحات قاعدة بيانات جاهزة للتطبيق — `supabase/migrations/0007_audit_remediation.sql`
+## 4) ✅ إصلاحات قاعدة البيانات — مُطبَّقة (18 يونيو 2026)
 
-طبّقها في **SQL Editor بجلستك** (idempotent):
-- **`wh_apply_stock_delta` / `wh_transfer_stock`** (#5/#15): عمليات مخزون ذرّية تمنع ضياع
-  التحديثات عند الكتابة المتزامنة. **بعد التطبيق:** عدّل `src/services/warehouseService.js`
-  ليستدعي `supabase.rpc('wh_apply_stock_delta', { p_warehouse, p_product, p_delta })` بدل
-  `_currentQty`+`_setQty` في receiveStock/adjustStock/_reserveOrder/_releaseOrder/reverseMovement،
-  و`wh_transfer_stock` في allocateStock.
-- **`orders.yurtici_exported_at`** (#16): عمود ختم التصدير. **بعد التطبيق:** في
-  `OrdersScreen.exportYurticiExcel` اكتب الختم للطلبات المُصدَّرة واستثنِ ما له ختم.
+هجرة `supabase/migrations/0007_audit_remediation.sql` **طُبِّقت على القاعدة الحيّة ومُتحقَّقة** (عبر SQL Editor):
+- **`wh_apply_stock_delta` / `wh_transfer_stock`** (#5/#15): عمليات مخزون ذرّية. ✅ موجودة حيّاً،
+  و`src/services/warehouseService.js` صار يستدعيها (receive/allocate/reserve/release/reverse) — انتهى سباق الكتابة.
+- **`orders.yurtici_exported_at`** (#16): ✅ العمود موجود، و`OrdersScreen.exportYurticiExcel` يكتب
+  الختم للطلبات المُصدَّرة ويستثني ما له ختم (منع شحنة مكرّرة).
+- تأكيد نهائي يبقى عليك: نفّذ عملية استلام/تخصيص فعلية للتأكد (تجنّبنا الكتابة على الإنتاج بالاختبار).
 
 ---
 

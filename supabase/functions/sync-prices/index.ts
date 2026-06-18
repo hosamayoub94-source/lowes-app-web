@@ -10,7 +10,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+// Prefer new secret API key (SB_SECRET_KEY); fall back to the auto-injected legacy service_role during migration.
+const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) ?? '';
 const VALID_TOKENS = [
   Deno.env.get('SHEET_SYNC_TOKEN'),
   'LOWES-SYRIA-2026',

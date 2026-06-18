@@ -6,7 +6,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;   // يُحقن تلقائياً — لا fallback مكشوف
+const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;   // SB_SECRET_KEY أولاً، وإلا الـservice_role المُحقَن
 const ENDPOINT = 'https://webservices.yurticikargo.com/KOPSWebServices/ShippingOrderDispatcherServices';
 const NS = 'http://yurticikargo.com.tr/ShippingOrderDispatcherServices';
 

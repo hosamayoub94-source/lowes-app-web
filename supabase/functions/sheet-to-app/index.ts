@@ -11,7 +11,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // SECURITY: the service-role key is auto-injected by the Supabase Edge runtime —
 // never hardcode it (the previous literal is in git history and MUST be rotated).
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')  ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+// Prefer new secret API key (SB_SECRET_KEY); fall back to the auto-injected legacy service_role during migration.
+const SERVICE_KEY   = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
 // Accept either the Turkey or Syria sheet token (both sheets call this fn).
 // ⚠️ SECURITY TODO (owner-coordinated deploy): remove the plaintext literals below
 // and rely solely on the env secrets — but first set SHEET_SYNC_TOKEN /
