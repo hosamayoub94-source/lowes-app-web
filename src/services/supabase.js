@@ -4,8 +4,14 @@
 // =============================================================
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Publishable key — safe to ship in the browser (the new replacement for the
+// legacy anon key, which is being revoked because it leaked). We prefer an env
+// value ONLY if it's already a publishable key; otherwise we use the publishable
+// key directly so the client never depends on the (leaked) legacy anon JWT.
+const PUBLISHABLE_KEY = 'sb_publishable_iYn5Rc00ZmdLPUBH5_09fg_eLiok3UO';
+const url = import.meta.env.VITE_SUPABASE_URL || 'https://fghdumrgimoeqsafdhhh.supabase.co';
+const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const anonKey = (typeof envKey === 'string' && envKey.startsWith('sb_publishable_')) ? envKey : PUBLISHABLE_KEY;
 
 if (!url || !anonKey) {
   // Don't crash the app — surface a clear console error so the dev sees it.
