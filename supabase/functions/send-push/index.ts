@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     // Admin client — bypasses RLS so it can read any user's subscriptions
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
     );
 
     // Fetch all registered devices for this user

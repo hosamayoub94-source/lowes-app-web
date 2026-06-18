@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
 
     if (!orderId) return json({ ok: false, error: 'orderId required' }, 400);
 
-    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!);
     const { data: o, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
     if (error || !o) return json({ ok: false, error: 'order_not_found' }, 200);
     if (o.market !== 'turkey') return json({ ok: false, error: 'only_turkey', message: 'الربط متاح لطلبات تركيا فقط' }, 200);
@@ -129,7 +129,7 @@ Deno.serve(async (req: Request) => {
     // زامن الجدول (best-effort)
     fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-order-to-sheet`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId }),
     }).catch(() => {});
 
