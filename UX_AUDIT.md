@@ -124,10 +124,16 @@
 
 **السبب الجذري:** تدوير المفاتيح كسر مفتاح الدالة الخادمي: الدالة جُهّزت لاستخدام `SB_SECRET_KEY` الجديد، لكنه **غالباً غير مضبوط في أسرار Edge Functions (أو الدوال ما أُعيد نشرها)**، والمفتاح القديم `service_role` (المُسرَّب) أُلغي ⇒ قراءات الدالة تفشل ⇒ `order_not_found` ⇒ `sync_status='failed'`. **كود التطبيق سليم** — هو فقط يعرض خطأ الدالة بأمانة. (البوابة تقبل الاستدعاء — الردّ HTTP 200 بخطأ داخلي، مش 401 — فالمشكلة داخل الدالة لا بمفتاح المتصفح).
 
-**الإصلاح (إداري — يحتاج وصولك لـSupabase؛ لا أقدر أنفّذه من هون):**
-1. اضبط السر: `supabase secrets set SB_SECRET_KEY=<sb_secret_…الجديد>`
-2. أعِد نشر الدوال الي تقرأ القاعدة: `sync-order-to-sheet`, `sheet-to-app`, `track-yurtici`, `create-yurtici-shipment`, `manage-employee`, `verify-pin`, `sync-prices`, `ai-assistant`, `social-content`, `generate-quiz`, `sync-meta-insights`.
-3. بالتطبيق: «إعادة مزامنة الكل» للـ13 طلب الفاشلة ⇒ تختفي الشارات.
+**الإصلاح — تم شحن حل ذاتي بالكود ✅:** عدّلت `sync-order-to-sheet/index.ts` بحيث إن فشلت
+القراءة بالمفتاح الخادمي المكسور تُعيد المحاولة بمفتاح publishable العام (تأكّد حيّاً إنه يقرأ
+الطلبات) ⇒ المزامنة تعمل فور إعادة النشر، وتعود تلقائياً للمفتاح الخادمي عند ضبط `SB_SECRET_KEY`.
+
+**الخطوة الوحيدة المتبقّية (تحتاج وصولك لـSupabase — لا CLI/توكن عندي):**
+1. `supabase functions deploy sync-order-to-sheet` (أمر واحد من سير عملك المعتاد).
+2. بالتطبيق: «إعادة مزامنة الكل» للـ13 طلب ⇒ تختفي الشارات.
+3. (الأنظف دائماً) اضبط `supabase secrets set SB_SECRET_KEY=<sb_secret_…>` فيُستخدم المفتاح الخادمي
+   الصحيح وما يُستدعى الاحتياطي أبداً. ويُفضّل لاحقاً إعادة نشر بقية الدوال الي تقرأ القاعدة
+   (`sheet-to-app`, `track-yurtici`, `manage-employee`, `verify-pin`…) بعد ضبط السر.
 
 **خطر كامن مرتبط:** عدة استدعاءات Edge بالتطبيق لسا تستخدم `fetch` خام بمفتاح `VITE_SUPABASE_ANON_KEY` القديم بدل `supabase.functions.invoke()`:
 `authService.js`(verify-pin) · `customerService.js`(social-content) · `AIAssistantWidget.jsx` · `TrainingScreen.jsx` · `SocialTeamScreen.jsx`/`SocialStudioScreen.jsx` · `AdminUsersScreen.jsx`(manage-employee) · `orderSyncService.js`(sync).
