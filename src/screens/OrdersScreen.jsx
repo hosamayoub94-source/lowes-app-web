@@ -2667,17 +2667,30 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // تصدير ملف يورتيتشي (Excel) لطلبات تركيا الجاهزة للشحن → رفع دفعة وحدة.
   const [exportingYurtici, setExportingYurtici] = useState(false);
   const exportYurticiExcel = async () => {
-    const ship = orders.filter(o =>
+    // مؤهّل بالحالة/السوق/الشركة فقط (بدون شرط «لم يُصدّر») — للتمييز بين الجديد والمُصدَّر سابقاً
+    // كي لا يطلع «0» بصمت ويظنّ المستخدم إن في عطل بينما الطلبات تم تصديرها/رفعها سابقاً.
+    const eligible = orders.filter(o =>
       o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
-      !o.yurtici_cargo_key &&  // لا تُعِد طلباً له شحنة يورتيتشي مُنشأة (يمنع تكرار الشحنة في الرفع)
-      !o.yurtici_exported_at &&  // ولا طلباً سبق تصديره بملف Excel (يمنع شحنة مكرّرة بعد إعادة التحميل)
       ['pending', 'preparing', 'ready'].includes(o.status) &&
       // استثنِ التوصيل بالموتور صراحةً (قد يكون shipping_company فارغاً) — يورتيتشي فقط
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '') &&
       (!o.shipping_company || /yurti[çc]i/i.test(o.shipping_company || ''))
     );
-    if (!ship.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
-    if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
+    // جديد = لم يُنشأ له شحنة ولم يُصدَّر بعد. مُصدَّر سابقاً = له cargoKey أو ختم تصدير.
+    const fresh   = eligible.filter(o => !o.yurtici_cargo_key && !o.yurtici_exported_at);
+    const already = eligible.filter(o =>  o.yurtici_cargo_key ||  o.yurtici_exported_at);
+
+    let ship = fresh;
+    if (!fresh.length) {
+      if (!already.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
+      // كل المؤهّلين تم تصديرهم سابقاً — وضّح الحقيقة واسمح بإعادة التنزيل بوعي.
+      if (!window.confirm(`ما في طلبات جديدة للتصدير.\nلكن ${already.length} طلب جاهز تم تصديره سابقاً.\n\nتنزيلهم مرة ثانية؟\n⚠️ لا ترفع الملف على يورتيتشي لو سبق ورفعتهم — بتصير شحنة مكرّرة.`)) return;
+      ship = already;
+    } else if (already.length) {
+      if (!window.confirm(`توليد ملف لـ${fresh.length} طلب جديد.\n(${already.length} طلب تم تصديره سابقاً — مستثنى تلقائياً).\n\nمتابعة؟`)) return;
+    } else {
+      if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
+    }
     setExportingYurtici(true);
     try {
       const XLSX = await import('xlsx');
