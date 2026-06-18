@@ -17,7 +17,7 @@
 //   Agents:     assignSalesAgent
 //   Search:     searchCRM
 // =============================================================
-export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK_CRM ?? '').toLowerCase() !== 'false';
+export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK_CRM ?? '').toLowerCase() === 'true';
 
 import {
   DEFAULT_STAGES,

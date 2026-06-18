@@ -47,7 +47,7 @@ function _output(level, module, message, data, throttleKey) {
   if (isProd) {
     // In production: structured JSON (ready for log aggregation)
     if (level === 'error') {
-      // eslint-disable-next-line no-console
+       
       console.error(JSON.stringify({ level, module, message, data, ts: Date.now() }));
     }
     return;
@@ -57,7 +57,7 @@ function _output(level, module, message, data, throttleKey) {
   const tag   = `[${module}]`;
   const label = ts ? `${ts} ${tag} ${message}` : `${tag} ${message}`;
 
-  /* eslint-disable no-console */
+   
   if (grouped && data !== undefined) {
     console.groupCollapsed(`%c${level.toUpperCase()} ${label}`, COLORS[level]);
     if (data !== undefined) console.log(data);
@@ -69,7 +69,7 @@ function _output(level, module, message, data, throttleKey) {
   } else {
     console.log(`%c${label}`, COLORS[level], ...(data !== undefined ? [data] : []));
   }
-  /* eslint-enable no-console */
+   
 }
 
 // ── Logger factory ─────────────────────────────────────────────
@@ -98,11 +98,11 @@ export function createLogger(module) {
     /** Group helper — works in dev, no-op in prod. */
     group(label, fn) {
       if (!getFlag('isDev')) return fn();
-      /* eslint-disable no-console */
+       
       console.group(`[${module}] ${label}`);
       try { return fn(); }
       finally { console.groupEnd(); }
-      /* eslint-enable no-console */
+       
     },
   };
 }

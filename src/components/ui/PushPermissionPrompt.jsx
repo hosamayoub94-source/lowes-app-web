@@ -37,7 +37,7 @@ export function PushPermissionPrompt() {
   if (!show || hidden || subscribed || installActive) return null; // بنر واحد فقط: Install أولاً
 
   const dismiss = () => {
-    try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}
+    try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch { /* تجاهل */ }
     setHidden(true);
   };
 

@@ -87,6 +87,7 @@ const NavItem = memo(({ item, isActive, badge, onClick }) => (
     )}
   </button>
 ));
+NavItem.displayName = 'NavItem';
 
 // ── Main component ─────────────────────────────────────────────
 export function MobileNav({ onAttendancePress }) {

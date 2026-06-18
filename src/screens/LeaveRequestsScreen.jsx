@@ -323,12 +323,19 @@ export default function LeaveRequestsScreen() {
         .eq('id', requestId)
         .single();
 
-      await supabase.from('leave_requests').update({
+      const { data: updated } = await supabase.from('leave_requests').update({
         status:       decision,
         manager_id:   userId,
         manager_note: note?.trim() || null,
         updated_at:   new Date().toISOString(),
-      }).eq('id', requestId);
+      }).eq('id', requestId).eq('status', 'pending').select();
+
+      // Guard against double-approval / decision-overwrite race
+      if (!updated || updated.length === 0) {
+        alert('هذا الطلب تمت معالجته مسبقاً');
+        loadPending();
+        return;
+      }
 
       // Notify employee
       if (req) {

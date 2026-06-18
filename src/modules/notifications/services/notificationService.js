@@ -43,7 +43,7 @@ const TTL_DAYS   = 30;
 // Mock mode: active unless VITE_USE_MOCK_NOTIFICATIONS is explicitly 'false'
 // Mirrors the same pattern used by the audit service.
 const _mockFlag = String(import.meta.env.VITE_USE_MOCK_NOTIFICATIONS ?? '').toLowerCase();
-const USE_MOCK  = _mockFlag !== 'false';
+const USE_MOCK  = _mockFlag === 'true';
 
 // In-memory mock store (empty by default — events will push into it via sendNotification)
 let _mockStore = [];

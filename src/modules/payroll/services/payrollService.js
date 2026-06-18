@@ -3,7 +3,7 @@
 // =============================================================
 
 export const USE_MOCK =
-  String(import.meta.env.VITE_USE_MOCK_PAYROLL ?? '').toLowerCase() !== 'false';
+  String(import.meta.env.VITE_USE_MOCK_PAYROLL ?? '').toLowerCase() === 'true';
 
 // ── Mock data ──────────────────────────────────────────────────────────────
 

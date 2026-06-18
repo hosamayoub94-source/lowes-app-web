@@ -39,7 +39,7 @@ export function useEvent(eventName, handler, opts = {}) {
     const dispatch = (payload, envelope) => {
       try { return handlerRef.current?.(payload, envelope); }
       catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.warn('[useEvent] handler threw:', err);
         return undefined;
       }

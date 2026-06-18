@@ -617,12 +617,12 @@ export function SalesDashboard() {
       try { await createAdResult({ report_id: newReport.id, campaign_name: ad.campaign_name, platform: ad.platform,
         ad_spend_usd: Number(ad.ad_spend_usd)||0, orders: Number(ad.orders)||0, revenue_usd: Number(ad.revenue_usd)||0,
         roas: Number(ad.ad_spend_usd)>0 ? +(Number(ad.revenue_usd)/Number(ad.ad_spend_usd)).toFixed(2) : 0 });
-      } catch {}
+      } catch { /* تجاهل */ }
     }
     for (const c of chanRows) {
       try { await createChannelResult({ report_id: newReport.id, channel_name: c.channel_name,
         orders: Number(c.orders)||0, sales_usd: Number(c.sales_usd)||0 });
-      } catch {}
+      } catch { /* تجاهل */ }
     }
     setShowForm(false);
     selectReport(newReport.id);

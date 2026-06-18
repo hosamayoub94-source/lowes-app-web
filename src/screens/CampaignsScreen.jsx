@@ -217,7 +217,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
 
 // ── Upload an ad image to storage (reuses the public chat-files bucket) ──
 async function uploadAdImage(file, campaignId) {
-  const safe = (file.name || 'img').replace(/[^\w.\-]/g, '_').slice(-40);
+  const safe = (file.name || 'img').replace(/[^\w.-]/g, '_').slice(-40);
   const path = `campaign-ads/${campaignId}/${Date.now()}-${safe}`;
   const { error } = await supabase.storage.from('chat-files').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true });
   if (error) throw new Error(error.message);

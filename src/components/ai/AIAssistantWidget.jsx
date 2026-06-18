@@ -131,7 +131,7 @@ export function AIAssistantWidget() {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
       if (s) return JSON.parse(s);
-    } catch {}
+    } catch { /* تجاهل */ }
     return { x: null, y: null }; // null = use CSS default (bottom-right)
   };
   const [pos, setPos] = useState(defaultPos);
@@ -141,7 +141,7 @@ export function AIAssistantWidget() {
   const btnRef = useRef(null);
 
   const savePos = useCallback((p) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch { /* تجاهل */ }
   }, []);
 
   // Drag listeners are attached ONLY while dragging, so the rest of the
@@ -301,7 +301,7 @@ export function AIAssistantWidget() {
           .select('id', { count: 'exact', head: true })
           .eq('rep_id', userId).eq('visit_date', today);
         todayVisits = count ?? 0;
-      } catch {}
+      } catch { /* تجاهل */ }
 
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;

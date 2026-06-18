@@ -10,7 +10,7 @@
 // Usage:
 //   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 // =============================================================
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuthStore }           from '@stores/authStore';
 import { subscribeToNotifications } from '../services/notificationService';
 import {
@@ -80,15 +80,43 @@ export function useNotifications({
   }, [realtime, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-dismiss toasts ─────────────────────────────────────
+  // schedule exactly one timer per toast keyed by _toastId, so adding/removing
+  // a toast never restarts other toasts' timers (avoids the toasts.length gap).
+  const toastTimersRef = useRef(new Map()); // _toastId → timeoutId
+
   useEffect(() => {
-    if (!autoToast || !toasts.length) return;
+    const timers = toastTimersRef.current;
+    if (!autoToast) return;
 
-    const timers = toasts.map((toast) =>
-      setTimeout(() => dismissToast(toast._toastId), TOAST_DURATION_MS),
-    );
+    const liveIds = new Set(toasts.map((t) => t._toastId));
 
-    return () => timers.forEach(clearTimeout);
-  }, [toasts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Schedule only for newly-added toasts not yet scheduled
+    toasts.forEach((toast) => {
+      if (timers.has(toast._toastId)) return;
+      const id = setTimeout(() => {
+        timers.delete(toast._toastId);
+        dismissToast(toast._toastId);
+      }, TOAST_DURATION_MS);
+      timers.set(toast._toastId, id);
+    });
+
+    // Clear timers for toasts that no longer exist
+    timers.forEach((id, toastId) => {
+      if (!liveIds.has(toastId)) {
+        clearTimeout(id);
+        timers.delete(toastId);
+      }
+    });
+  }, [toasts, autoToast, dismissToast]);
+
+  // Clear all pending toast timers on unmount
+  useEffect(() => {
+    const timers = toastTimersRef.current;
+    return () => {
+      timers.forEach((id) => clearTimeout(id));
+      timers.clear();
+    };
+  }, []);
 
   return {
     // Data

@@ -15,7 +15,7 @@ export function MockModeBanner() {
   if (!import.meta.env.DEV) return null;
 
   const activeMocks = MOCK_FLAGS.filter(
-    ({ key }) => String(import.meta.env[key] ?? '').toLowerCase() !== 'false',
+    ({ key }) => String(import.meta.env[key] ?? '').toLowerCase() === 'true',
   );
 
   if (activeMocks.length === 0) return null;

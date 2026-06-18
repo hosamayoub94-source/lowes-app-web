@@ -62,9 +62,11 @@ export const TaskCard = memo(function TaskCard({
   onClick,
   className = '',
 }) {
+  const effStatus = task ? effectiveStatus(task) : 'pending';
+  const { label: countdown, colorClass: countdownColor } = useCountdown(task?.due_date ?? null, effStatus);
+
   if (!task) return null;
 
-  const effStatus = effectiveStatus(task);
   const { title, description, priority, progress, due_date, assigned_to, comments_count, seen, tags, platform, task_type } = task;
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[priority] || null;
@@ -72,7 +74,6 @@ export const TaskCard = memo(function TaskCard({
   const taskTypeMeta = task_type ? TASK_TYPE_META[task_type] : null;
   const isOverdue    = effStatus === 'overdue';
   const isCompleted  = effStatus === 'completed';
-  const { label: countdown, colorClass: countdownColor } = useCountdown(due_date, effStatus);
 
   return (
     <article className="relative">

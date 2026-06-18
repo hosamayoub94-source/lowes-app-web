@@ -88,6 +88,7 @@ const ProgressDots = memo(({ steps, current }) => (
     ))}
   </div>
 ));
+ProgressDots.displayName = 'ProgressDots';
 
 const StepBtn = memo(({ onClick, children, variant = 'primary' }) => (
   <button
@@ -101,6 +102,7 @@ const StepBtn = memo(({ onClick, children, variant = 'primary' }) => (
     {children}
   </button>
 ));
+StepBtn.displayName = 'StepBtn';
 
 // ── Step screens ───────────────────────────────────────────────
 function WelcomeStep({ name, role }) {

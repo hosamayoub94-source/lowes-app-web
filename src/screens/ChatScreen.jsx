@@ -867,7 +867,7 @@ function CreateChannelPanel({userId,userName,onCreated,onClose}){
     try{
       const{data:room,error}=await supabase.from('chat_rooms').insert({type:'group',name:name.trim(),description:desc.trim()||null,team,requires_approval:needsApproval,is_private:false,created_by:userId,created_by_name:userName}).select().single();
       if(error)throw error;
-      try{ await supabase.from('chat_room_members').insert({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'admin',joined_at:new Date().toISOString()}); }catch{}
+      try{ await supabase.from('chat_room_members').insert({room_id:room.id,user_id:userId,user_name:userName,display_name:userName,role:'admin',joined_at:new Date().toISOString()}); }catch{/* تجاهل */}
       onCreated?.(room);
     }catch(e){alert('خطأ: '+e.message);}finally{setSaving(false);}
   };
@@ -1294,14 +1294,14 @@ export default function ChatScreen(){
       try{
         const{data:memberships}=await supabase.from('chat_room_members').select('room_id').eq('user_id',userId);
         rowMemberIds=(memberships??[]).map(m=>m.room_id);
-      }catch{}
+      }catch{/* تجاهل */}
       let memberIds=[...rowMemberIds];
 
       // Also include rooms where join request was approved
       try{
         const{data:approved}=await supabase.from('chat_join_requests').select('room_id').eq('user_id',userId).eq('status','approved');
         (approved??[]).forEach(r=>{if(!memberIds.includes(r.room_id))memberIds.push(r.room_id);});
-      }catch{}
+      }catch{/* تجاهل */}
 
       // Auto-join ALL public channels that lack an actual membership row
       // (base on rowMemberIds, NOT memberIds, so approved-request rooms still get a real row).
@@ -1309,7 +1309,7 @@ export default function ChatScreen(){
         .filter(r=>!r.is_private&&!rowMemberIds.includes(r.id))
         .map(r=>({room_id:r.id,user_id:userId,user_name:userName,display_name:userName,role:'member',joined_at:new Date().toISOString()}));
       if(toJoin.length){
-        try{ await supabase.from('chat_room_members').upsert(toJoin,{onConflict:'room_id,user_id'}); }catch{}
+        try{ await supabase.from('chat_room_members').upsert(toJoin,{onConflict:'room_id,user_id'}); }catch{/* تجاهل */}
         toJoin.forEach(m=>{if(!memberIds.includes(m.room_id))memberIds.push(m.room_id);});
       }
       setMemberRoomIds([...memberIds]);
@@ -1332,7 +1332,7 @@ export default function ChatScreen(){
             dmRooms=enriched;
           }
         }
-      }catch{}
+      }catch{/* تجاهل */}
 
       const allRooms=[...myGroups,...dmRooms];
       setRooms(allRooms);
@@ -1344,8 +1344,8 @@ export default function ChatScreen(){
           const map={};
           (lms??[]).forEach(m=>{if(!map[m.room_id])map[m.room_id]=m.message_type==='text'?m.content:m.message_type==='image'?'📷 صورة':m.message_type==='file'?`📎 ${m.file_name||'ملف'}`:'🎙️ رسالة صوتية';});
           setLastMsgs(map);
-        }catch{}
-        try{ await loadUnreadCounts(allRooms); }catch{}
+        }catch{/* تجاهل */}
+        try{ await loadUnreadCounts(allRooms); }catch{/* تجاهل */}
       }
 
       if(allRooms.length&&!activeRoom)setActiveRoom(allRooms[0]);
@@ -1376,7 +1376,7 @@ export default function ChatScreen(){
         setRooms(r=>[...r,roomWithDisplay]);
         setActiveRoom(roomWithDisplay);
         setSidebarOpen(false);setMobileView('chat');
-      }catch{}
+      }catch{/* تجاهل */}
     };
     createDm();
   },[dmTarget,userId,userName,rooms.length]);
@@ -1461,7 +1461,7 @@ export default function ChatScreen(){
   // ── Broadcast typing (debounced 2s) ───────────────────────────
   const broadcastTyping=useCallback(()=>{
     if(!subRef.current||!userId)return;
-    try{subRef.current.send({type:'broadcast',event:'typing',payload:{userId,userName}});}catch{}
+    try{subRef.current.send({type:'broadcast',event:'typing',payload:{userId,userName}});}catch{/* تجاهل */}
   },[userId,userName]);
 
   // ── Auto-refresh sidebar when membership changes ──────────────
@@ -1496,7 +1496,7 @@ export default function ChatScreen(){
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
         setMessages(p=>p.map(m=>m.id===payload.new.id?payload.new:m));
       })
-      .on('postgres_changes',{event:'*',schema:'public',table:'chat_reactions'},()=>reloadReactions())
+      .on('postgres_changes',{event:'*',schema:'public',table:'chat_reactions'},(payload)=>{const mid=payload.new?.message_id??payload.old?.message_id;if(mid&&messagesRef.current.some(m=>m.id===mid))reloadReactions();})
       .on('broadcast',{event:'typing'},({payload})=>{
         if(payload.userId===userId)return;
         setTypingUsers(p=>[...new Set([...p,payload.userName])]);
@@ -1513,7 +1513,7 @@ export default function ChatScreen(){
           await subRef.current.track({userId,userName}).catch(()=>{});
         }
       });
-    return()=>{subRef.current?.unsubscribe();};
+    return()=>{subRef.current?.unsubscribe();Object.values(typingTimers.current).forEach(clearTimeout);typingTimers.current={};};
   },[activeRoom?.id,loadMessages,reloadReactions,loadPinned,loadRoomReads,loadRoomMembers,markAsRead,userId]);
 
   useEffect(()=>{
@@ -1642,7 +1642,7 @@ export default function ChatScreen(){
         {/* Header */}
         <div className="px-3 py-3 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="font-extrabold text-text text-sm tracking-tight">Lowe's Pro 💙</h2>
+            <h2 className="font-extrabold text-text text-sm tracking-tight">Lowe&apos;s Pro 💙</h2>
             <div className="flex items-center gap-1">
               {isAdmin&&<button onClick={()=>setShowCreateChannel(true)} className="w-7 h-7 rounded-lg bg-surface-alt border border-border text-muted text-xs flex items-center justify-center hover:text-teal hover:border-teal/40 transition" title="قناة جديدة">#</button>}
               {isAdmin&&<button onClick={()=>setShowCreateGroup(true)} className="w-7 h-7 rounded-lg bg-surface-alt border border-border text-muted text-xs flex items-center justify-center hover:text-teal hover:border-teal/40 transition" title="مجموعة خاصة">🔒</button>}

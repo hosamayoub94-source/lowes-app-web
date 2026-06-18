@@ -6,6 +6,7 @@
 // =============================================================
 import { validateEnvironment, validateFeatureFlags } from '../environment/envValidation';
 import { createLogger } from '@/core/production/productionLogger';
+import { getFlag } from '@/core/production/productionConfig';
 
 const log = createLogger('ReleaseChecklist');
 
@@ -21,17 +22,17 @@ function checkItem(name, category, fn) {
 
 const CHECKLIST_ITEMS = [
   // Auth integrity
-  { name: 'Supabase URL configured',   category: 'Auth',    fn: () => ({ status: !!import.meta.env.VITE_SUPABASE_URL ? 'pass' : 'fail', message: import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Missing VITE_SUPABASE_URL' }) },
-  { name: 'Supabase key configured',   category: 'Auth',    fn: () => ({ status: !!import.meta.env.VITE_SUPABASE_ANON_KEY ? 'pass' : 'fail', message: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Missing VITE_SUPABASE_ANON_KEY' }) },
+  { name: 'Supabase URL configured',   category: 'Auth',    fn: () => ({ status: import.meta.env.VITE_SUPABASE_URL ? 'pass' : 'fail', message: import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Missing VITE_SUPABASE_URL' }) },
+  { name: 'Supabase key configured',   category: 'Auth',    fn: () => ({ status: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'pass' : 'fail', message: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Missing VITE_SUPABASE_ANON_KEY' }) },
 
   // Production config
-  { name: 'Error reporting enabled',   category: 'Config',  fn: () => { const { getFlag } = require('@/core/production/productionConfig'); return { status: getFlag('enableErrorReporting') ? 'pass' : 'warn', message: getFlag('enableErrorReporting') ? 'Enabled' : 'Disabled' }; } },
-  { name: 'Health monitor enabled',    category: 'Config',  fn: () => { try { const { getFlag } = require('@/core/production/productionConfig'); return { status: getFlag('enableHealthMonitor') ? 'pass' : 'warn', message: getFlag('enableHealthMonitor') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: 'Config unavailable' }; } } },
-  { name: 'Action locking enabled',    category: 'Config',  fn: () => { try { const { getFlag } = require('@/core/production/productionConfig'); return { status: getFlag('enableActionLocking') ? 'pass' : 'warn', message: getFlag('enableActionLocking') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: 'Config unavailable' }; } } },
-  { name: 'Safe mode OFF (prod)',       category: 'Config',  fn: () => { try { const { getFlag } = require('@/core/production/productionConfig'); const sm = getFlag('safeMode'); return { status: sm ? 'warn' : 'pass', message: sm ? 'Safe mode is ON — intentional?' : 'Off' }; } catch { return { status: 'skip', message: '' }; } } },
+  { name: 'Error reporting enabled',   category: 'Config',  fn: () => { return { status: getFlag('enableErrorReporting') ? 'pass' : 'warn', message: getFlag('enableErrorReporting') ? 'Enabled' : 'Disabled' }; } },
+  { name: 'Health monitor enabled',    category: 'Config',  fn: () => { try { return { status: getFlag('enableHealthMonitor') ? 'pass' : 'warn', message: getFlag('enableHealthMonitor') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: 'Config unavailable' }; } } },
+  { name: 'Action locking enabled',    category: 'Config',  fn: () => { try { return { status: getFlag('enableActionLocking') ? 'pass' : 'warn', message: getFlag('enableActionLocking') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: 'Config unavailable' }; } } },
+  { name: 'Safe mode OFF (prod)',       category: 'Config',  fn: () => { try { const sm = getFlag('safeMode'); return { status: sm ? 'warn' : 'pass', message: sm ? 'Safe mode is ON — intentional?' : 'Off' }; } catch { return { status: 'skip', message: '' }; } } },
 
   // Offline safety
-  { name: 'Offline recovery enabled',  category: 'Offline', fn: () => { try { const { getFlag } = require('@/core/production/productionConfig'); return { status: getFlag('enableOfflineRecovery') ? 'pass' : 'warn', message: getFlag('enableOfflineRecovery') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: '' }; } } },
+  { name: 'Offline recovery enabled',  category: 'Offline', fn: () => { try { return { status: getFlag('enableOfflineRecovery') ? 'pass' : 'warn', message: getFlag('enableOfflineRecovery') ? 'Enabled' : 'Disabled' }; } catch { return { status: 'skip', message: '' }; } } },
   { name: 'localStorage available',    category: 'Offline', fn: () => {
     try { localStorage.setItem('__rc', '1'); localStorage.removeItem('__rc'); return { status: 'pass', message: 'Available' }; }
     catch { return { status: 'fail', message: 'localStorage blocked' }; }

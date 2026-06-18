@@ -67,7 +67,7 @@ export function SelfieCapture({
   useEffect(() => {
     startCamera();
     return () => stopCamera();
-  }, [startCamera]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [startCamera]);  
 
   // Safety net: if the camera never resolves (permission prompt hangs, slow
   // device, or some browsers never reject getUserMedia), fall back to the

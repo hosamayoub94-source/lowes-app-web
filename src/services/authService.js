@@ -118,6 +118,7 @@ export async function signInWithPin(employeeName, pin) {
 
   if (!result?.ok) {
     if (result?.error === 'not_found')  throw new Error('المستخدم غير موجود');
+    if (result?.error === 'inactive')   throw new Error('هذا الحساب معطّل — تواصل مع المدير');
     if (result?.error === 'no_pin_set') throw new Error('لم يتم تعيين PIN لهذا المستخدم — تواصل مع المدير');
     // wrong_pin (or anything else) → log + generic message
     logActivityImmediate({
@@ -181,7 +182,9 @@ export async function verifyPin(employeeName, pin) {
 }
 
 export async function signOut() {
-  // Always clear manual session
+  // Capture the manual session BEFORE clearing it so we can still audit
+  // logout for manual-session users (who have no Supabase auth user).
+  const ms = getManualSession();
   localStorage.removeItem(MANUAL_SESSION_KEY);
 
   // Best-effort: log the sign-out event
@@ -198,6 +201,14 @@ export async function signOut() {
         entityType: ENTITY_TYPE.AUTH,
         userId:     profileRow?.id            || null,
         userName:   profileRow?.employee_name || null,
+      }).catch(() => {});
+    } else if (ms) {
+      logActivityImmediate({
+        actionType: ACTION_TYPE.LOGOUT,
+        entityType: ENTITY_TYPE.AUTH,
+        userId:     ms.profileId    || null,
+        userName:   ms.employeeName || null,
+        metadata:   { mode: 'manual_session' },
       }).catch(() => {});
     }
   } catch { /* best-effort */ }
@@ -266,7 +277,7 @@ export async function getMyProfile() {
 // Updates both profiles.pin (source of truth) and Supabase Auth
 // password (if the user has an auth account).
 // -------------------------------------------------------------
-export async function changeMyPin(newPin) {
+export async function changeMyPin(currentPin, newPin) {
   if (!/^\d{4}$/.test(String(newPin))) {
     throw new Error('PIN يجب أن يكون 4 أرقام');
   }
@@ -283,6 +294,13 @@ export async function changeMyPin(newPin) {
   }
 
   if (!profileId) throw new Error('لم يتم التعرف على المستخدم');
+
+  // Verify the CURRENT pin server-side before allowing a change — prevents a
+  // hijacked/left-open session from silently resetting the PIN.
+  const me = await getProfileById(profileId);
+  if (!me?.employee_name) throw new Error('تعذّر التحقق من المستخدم');
+  const check = await verifyPinServerSide(me.employee_name, currentPin);
+  if (!check?.ok) throw new Error('الرمز السري الحالي غير صحيح');
 
   // Update profiles.pin (always works via anon key + USING(true) RLS)
   const { error: pinErr } = await supabase

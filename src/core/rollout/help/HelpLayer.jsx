@@ -63,6 +63,7 @@ export const HelpTooltip = memo(({ content, children, position = 'top', icon = '
     </span>
   );
 });
+HelpTooltip.displayName = 'HelpTooltip';
 
 // ── ShortcutHint ───────────────────────────────────────────────
 export const ShortcutHint = memo(({ keys = [], label, className = '' }) => (
@@ -75,6 +76,7 @@ export const ShortcutHint = memo(({ keys = [], label, className = '' }) => (
     {label && <span className="text-gray-400 mr-1">{label}</span>}
   </span>
 ));
+ShortcutHint.displayName = 'ShortcutHint';
 
 // ── OnboardingHint ─────────────────────────────────────────────
 export function OnboardingHint({ id, icon = '💡', title, children, className = '' }) {

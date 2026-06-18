@@ -272,7 +272,7 @@ export default function TrainingScreen() {
           setCertAwarded({ pct, correct, total });
         }
       }
-    } catch {}
+    } catch { /* تجاهل */ }
   }, [userId, userName]);
 
   // Handle answering a question
@@ -306,7 +306,7 @@ export default function TrainingScreen() {
           correct: (sm[question.id]?.correct ?? 0) + (isCorrect ? 1 : 0),
         },
       }));
-    } catch {}
+    } catch { /* تجاهل */ }
   };
 
   // Filtered questions by category
@@ -474,7 +474,7 @@ export default function TrainingScreen() {
                   <p className="text-white font-extrabold text-3xl tabular-nums">{certAwarded.pct}%</p>
                   <p className="text-white/80 text-xs mt-1">{certAwarded.correct}/{certAwarded.total} إجابة صحيحة</p>
                 </div>
-                <p className="text-xs text-muted mb-5">الشهادة ظاهرة في بروفايلك تحت تبويب "إنجازاتي"</p>
+                <p className="text-xs text-muted mb-5">الشهادة ظاهرة في بروفايلك تحت تبويب &quot;إنجازاتي&quot;</p>
                 <button onClick={() => setCertAwarded(null)}
                   className="w-full py-3 rounded-2xl bg-teal text-navy font-bold hover:bg-teal/90 transition">
                   🎉 رائع!

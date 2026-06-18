@@ -26,10 +26,11 @@ export const useAdvanceEntries     = () => useAccountingStore(s => s.entries.fil
 
 export const useAccountingActions = () =>
   useAccountingStore(s => ({
-    loadEntries:     s.loadEntries,
-    createEntry:     s.createEntry,
-    createTransfer:  s.createTransfer,
-    updateEntry:     s.updateEntry,
+    loadEntries:         s.loadEntries,
+    createEntry:         s.createEntry,
+    createTransfer:      s.createTransfer,
+    createWalletTransfer: s.createWalletTransfer,
+    updateEntry:         s.updateEntry,
     deleteEntry:     s.deleteEntry,
     loadCategories:  s.loadCategories,
     createCategory:  s.createCategory,

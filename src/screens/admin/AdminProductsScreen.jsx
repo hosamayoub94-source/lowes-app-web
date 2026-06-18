@@ -134,7 +134,7 @@ export default function AdminProductsScreen() {
     try {
       const { data } = await supabase.from('products').select('*').order('name');
       setProducts(data ?? []);
-    } catch {}
+    } catch { /* تجاهل */ }
     finally { setLoading(false); }
   }, []);
 
@@ -180,7 +180,7 @@ export default function AdminProductsScreen() {
             metadata: { product: form.name, price_usd: form.price_usd, discount_pct: form.discount_pct },
           });
         }
-      } catch {}
+      } catch { /* تجاهل */ }
     }
 
     setModal(null);

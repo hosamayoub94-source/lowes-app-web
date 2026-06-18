@@ -60,6 +60,6 @@ export async function requestPushPermission() {
 
 export function pushNotify(title, body, icon = '/icon-192.png') {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  // eslint-disable-next-line no-new
+   
   new Notification(title, { body, icon });
 }

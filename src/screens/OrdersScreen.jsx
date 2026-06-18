@@ -1853,7 +1853,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
   useEffect(() => {
     const built = buildTurkishAddress({ mahalle: form.mahalle, sokak: form.sokak, bno: form.bno, daire: form.daire });
     if (built) set('address', built);
-  }, [form.mahalle, form.sokak, form.bno, form.daire]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.mahalle, form.sokak, form.bno, form.daire]);  
 
   const addItem    = () => setItems(p => [...p, { name: '', qty: 1 }]);
   const removeItem = (i) => setItems(p => p.filter((_, idx) => idx !== i));
@@ -2549,7 +2549,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // Edits/permissions are handled per-card, not by hiding rows here.
       const { data } = await q;
       setOrders(data ?? []);
-    } catch {}
+    } catch { /* تجاهل */ }
     finally { setLoading(false); }
   }, [viewArchive, search]);
 
@@ -2645,7 +2645,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       try {
         await supabase.from('orders').update({ status: next }).eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
-        syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
+        await syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
         setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
         if (isSyncable(o)) {
           const r = await syncToSheet(o.id);   // await = تسلسل فعلي

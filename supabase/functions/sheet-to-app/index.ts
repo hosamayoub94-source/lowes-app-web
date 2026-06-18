@@ -8,9 +8,15 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// SECURITY: the service-role key is auto-injected by the Supabase Edge runtime —
+// never hardcode it (the previous literal is in git history and MUST be rotated).
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')  ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
-// Accept either the Turkey or Syria sheet token (both sheets call this fn)
+const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+// Accept either the Turkey or Syria sheet token (both sheets call this fn).
+// ⚠️ SECURITY TODO (owner-coordinated deploy): remove the plaintext literals below
+// and rely solely on the env secrets — but first set SHEET_SYNC_TOKEN /
+// TURKEY_SHEET_SYNC_TOKEN to rotated values AND update the Google Apps Script side,
+// otherwise inbound order sync breaks. Literals kept temporarily to avoid an outage.
 const VALID_TOKENS = [
   Deno.env.get('SHEET_SYNC_TOKEN'),
   Deno.env.get('TURKEY_SHEET_SYNC_TOKEN'),

@@ -52,6 +52,6 @@ export function registerEventBusQueueBridge() {
  * Called at shutdown.
  */
 export function unregisterEventBusQueueBridge() {
-  _unsubs.forEach((unsub) => { try { unsub(); } catch (_) {} });
+  _unsubs.forEach((unsub) => { try { unsub(); } catch (_) { /* تجاهل */ } });
   _unsubs = [];
 }

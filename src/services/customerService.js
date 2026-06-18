@@ -199,7 +199,8 @@ function triggerCSVDownload(phones, filename) {
 export async function exportMetaCSV({ vipOnly = false } = {}) {
   const all = [];
   let offset = 0;
-  while (true) {
+  let hasMore = true;
+  while (hasMore) {
     let q = supabase.from('customer_stats')
       .select('phone_key')
       .contains('markets', ['turkey'])
@@ -210,6 +211,7 @@ export async function exportMetaCSV({ vipOnly = false } = {}) {
     all.push(...data);
     if (data.length < 1000) break;
     offset += 1000;
+    hasMore = true;
   }
   const phones = all
     .map(r => normalizeTurkishPhone(r.phone_key))

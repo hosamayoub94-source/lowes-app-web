@@ -142,6 +142,7 @@ export default function ProfileScreen() {
 
   // ── PIN change state ───────────────────────────────────────
   const [pinModal, setPinModal]       = useState(false);
+  const [currentPin, setCurrentPin]   = useState('');
   const [newPin, setNewPin]           = useState('');
   const [confirmPin, setConfirmPin]   = useState('');
   const [pinSaving, setPinSaving]     = useState(false);
@@ -249,7 +250,7 @@ export default function ProfileScreen() {
         .neq('employee_name', name)
         .order('employee_name');
       setAllEmployees(data ?? []);
-    } catch {}
+    } catch { /* تجاهل */ }
   };
 
   useEffect(() => { loadPartners(); loadEmployees(); }, [name]);
@@ -277,7 +278,7 @@ export default function ProfileScreen() {
       // Realtime unavailable or table doesn't exist — silently ignore
     }
     return () => {
-      try { if (channel) supabase.removeChannel(channel); } catch {}
+      try { if (channel) supabase.removeChannel(channel); } catch { /* تجاهل */ }
     };
   }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -359,7 +360,7 @@ export default function ProfileScreen() {
         responded_at: new Date().toISOString(),
       }).eq('id', requestId);
       await loadPartners();
-    } catch {}
+    } catch { /* تجاهل */ }
   };
 
   // ── Derived partner lists ──────────────────────────────────
@@ -948,7 +949,7 @@ export default function ProfileScreen() {
         {!pinModal ? (
           <div className="px-4 pb-4">
             <button
-              onClick={() => { setPinModal('new'); setNewPin(''); setConfirmPin(''); setPinMsg(null); }}
+              onClick={() => { setPinModal('current'); setCurrentPin(''); setNewPin(''); setConfirmPin(''); setPinMsg(null); }}
               className="w-full py-2.5 rounded-xl border border-border bg-surface-alt hover:border-teal/40 text-sm font-semibold text-text transition-colors">
               تغيير الرمز السري (PIN)
             </button>
@@ -956,11 +957,12 @@ export default function ProfileScreen() {
         ) : (
           <div className="px-4 pb-4 space-y-3">
             <p className="text-xs text-muted">
-              {pinModal === 'new' ? 'أدخل الرمز السري الجديد (4 أرقام)' : 'أعد إدخال الرمز السري للتأكيد'}
+              {pinModal === 'current' ? 'أدخل رمزك السري الحالي للتأكيد' : pinModal === 'new' ? 'أدخل الرمز السري الجديد (4 أرقام)' : 'أعد إدخال الرمز السري للتأكيد'}
             </p>
             <div className="flex items-center justify-center gap-3">
               {[0, 1, 2, 3].map(i => {
-                const filled = pinModal === 'new' ? newPin.length > i : confirmPin.length > i;
+                const _activePin = pinModal === 'current' ? currentPin : pinModal === 'new' ? newPin : confirmPin;
+                const filled = _activePin.length > i;
                 return <span key={i} className={`w-4 h-4 rounded-full transition-colors ${filled ? 'bg-teal' : 'bg-border'}`} />;
               })}
             </div>
@@ -968,6 +970,7 @@ export default function ProfileScreen() {
               {[1,2,3,4,5,6,7,8,9].map(d => (
                 <button key={d} type="button" disabled={pinSaving}
                   onClick={() => {
+                    if (pinModal === 'current' && currentPin.length < 4) setCurrentPin(p => p + d);
                     if (pinModal === 'new' && newPin.length < 4) setNewPin(p => p + d);
                     if (pinModal === 'confirm' && confirmPin.length < 4) setConfirmPin(p => p + d);
                   }}
@@ -976,16 +979,23 @@ export default function ProfileScreen() {
                 </button>
               ))}
               <button type="button" disabled={pinSaving}
-                onClick={() => { if (pinModal === 'new') setNewPin(p => p.slice(0,-1)); else setConfirmPin(p => p.slice(0,-1)); }}
+                onClick={() => { if (pinModal === 'current') setCurrentPin(p => p.slice(0,-1)); else if (pinModal === 'new') setNewPin(p => p.slice(0,-1)); else setConfirmPin(p => p.slice(0,-1)); }}
                 className="h-11 rounded-xl bg-surface-alt hover:bg-surface border border-border text-xs font-bold disabled:opacity-50 transition-colors">مسح</button>
               <button type="button" disabled={pinSaving}
                 onClick={() => {
+                  if (pinModal === 'current' && currentPin.length < 4) setCurrentPin(p => p + '0');
                   if (pinModal === 'new' && newPin.length < 4) setNewPin(p => p + '0');
                   if (pinModal === 'confirm' && confirmPin.length < 4) setConfirmPin(p => p + '0');
                 }}
                 className="h-11 rounded-xl bg-surface-alt hover:bg-surface border border-border text-base font-extrabold disabled:opacity-50 transition-colors">0</button>
               <div />
             </div>
+            {pinModal === 'current' && currentPin.length === 4 && (
+              <button onClick={() => { setPinModal('new'); setNewPin(''); setPinMsg(null); }}
+                className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
+                التالي — الرمز الجديد
+              </button>
+            )}
             {pinModal === 'new' && newPin.length === 4 && (
               <button onClick={() => { setPinModal('confirm'); setConfirmPin(''); setPinMsg(null); }}
                 className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
@@ -998,7 +1008,7 @@ export default function ProfileScreen() {
                   if (newPin !== confirmPin) { setPinMsg({ type: 'err', text: 'الرمزان غير متطابقَين' }); setConfirmPin(''); return; }
                   setPinSaving(true); setPinMsg(null);
                   try {
-                    await changeMyPin(newPin);
+                    await changeMyPin(currentPin, newPin);
                     setPinMsg({ type: 'ok', text: '✅ تم تغيير الرمز السري بنجاح!' });
                     setTimeout(() => { setPinModal(false); setPinMsg(null); }, 1800);
                   } catch (e) { setPinMsg({ type: 'err', text: e?.message || 'حدث خطأ' }); }

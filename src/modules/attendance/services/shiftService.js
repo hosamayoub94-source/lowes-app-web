@@ -17,7 +17,7 @@ const TABLE = 'shifts';
 
 // Mock flag — same pattern as notificationService
 const _mockFlag = String(import.meta.env.VITE_USE_MOCK_ATTENDANCE ?? '').toLowerCase();
-export const USE_MOCK = _mockFlag !== 'false';
+export const USE_MOCK = _mockFlag === 'true';
 
 // ── Fetch all active shifts ───────────────────────────────────
 

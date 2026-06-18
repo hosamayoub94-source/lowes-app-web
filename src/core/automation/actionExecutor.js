@@ -67,9 +67,8 @@ async function _dispatch(type, params, payload, context) {
         '@modules/notifications/services/notificationService'
       );
       // params: { userId?, userIds?, type, title, message, entityType?, entityId? }
-      const recipients = params.userIds
-        ?? (params.userId ? [params.userId] : [])
-        ?? _extractRecipients(payload, params);
+      let recipients = params.userIds ?? (params.userId ? [params.userId] : []);
+      if (!recipients.length) recipients = _extractRecipients(payload, params);
 
       if (!recipients.length && params.userId) {
         await sendNotification({
@@ -204,7 +203,7 @@ async function _dispatch(type, params, payload, context) {
 
     // ── LOG_CONSOLE ───────────────────────────────────────────
     case ACTION_TYPE.LOG_CONSOLE: {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[Automation] Rule "${context.ruleName}" (${context.ruleId}) fired:`,
         params.message ?? '',

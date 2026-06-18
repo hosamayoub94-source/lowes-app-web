@@ -4,7 +4,7 @@
 import { ENTRY_TYPE, TRANSFER_IN, TRANSFER_OUT, BOOK } from '../types/accounting.types.js';
 
 export const USE_MOCK =
-  String(import.meta.env.VITE_USE_MOCK_ACCOUNTING ?? '').toLowerCase() !== 'false';
+  String(import.meta.env.VITE_USE_MOCK_ACCOUNTING ?? '').toLowerCase() === 'true';
 
 // ── Mock data ──────────────────────────────────────────────────────────────
 
@@ -137,6 +137,28 @@ export async function createTransfer({ amount, currency, fromBook, toBook, date,
   }
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase.from('accounting_entries').insert([legOut, legIn]).select();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * تحويل بين محفظتين (داخل الكتاب التشغيلي) — قيدان مرتبطان بـ transfer_group واحد
+ * وبنداء insert واحد (ذرّي: يُحفظ القيدان معاً أو لا يُحفظ أيّهما).
+ * يدعم اختلاف العملة (مبلغ مُرسَل ≠ مبلغ مُستلَم) وطريقة دفع لكل محفظة.
+ * كلا الساقين entry_type='transfer' → يُستثنيان من الربح/الخسارة.
+ */
+export async function createWalletTransfer({ legOut, legIn, createdBy }) {
+  const group = globalThis.crypto?.randomUUID?.() || `trf-${Date.now()}`;
+  const out = { ...legOut, transfer_group: group, created_by: createdBy ?? null };
+  const inn = { ...legIn,  transfer_group: group, created_by: createdBy ?? null };
+
+  if (USE_MOCK) {
+    const rows = [out, inn].map((l, i) => ({ id: `ac-${Date.now()}-${i}`, ...l, created_at: new Date().toISOString() }));
+    _mockEntries.unshift(...rows);
+    return rows;
+  }
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase.from('accounting_entries').insert([out, inn]).select();
   if (error) throw new Error(error.message);
   return data;
 }

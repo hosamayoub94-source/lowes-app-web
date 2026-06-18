@@ -12,7 +12,7 @@
 // Call audit() for a read-only report.
 // =============================================================
 import { createLogger }        from '@/core/production/productionLogger';
-import { emit }                from '@/core/events/eventBus';
+import { emit, on }            from '@/core/events/eventBus';
 
 const log = createLogger('PerfCleanup');
 
@@ -23,6 +23,11 @@ const _activeTimeouts  = new Map();
 let   _patchedTimers   = false;
 
 export function patchTimerTracking() {
+  // Gate behind DEV only: the tracked data is consumed solely by the getTimerStats
+  // diagnostic and serves no production purpose. In production this is a no-op,
+  // avoiding the unbounded _activeTimeouts growth (fired one-shot timeouts are never
+  // cleared, so their Map entries would accumulate for the whole session — a leak).
+  if (!import.meta.env.DEV) return;
   if (_patchedTimers || typeof window === 'undefined') return;
   _patchedTimers = true;
 
@@ -104,7 +109,6 @@ export async function auditEventBusHealth() {
       // Subscribe temporarily
       let _unsub = null;
       try {
-        const { on } = require('@/core/events/eventBus');
         _unsub = on(PONG_EVENT, (payload) => {
           responses.push({ source: payload?.source, latencyMs: Date.now() - start });
         });

@@ -30,7 +30,7 @@ const EVENTS_TABLE  = 'attendance_events';
 
 // ── Mock flag ─────────────────────────────────────────────────
 const _mockFlag = String(import.meta.env.VITE_USE_MOCK_ATTENDANCE ?? '').toLowerCase();
-export let USE_MOCK = _mockFlag !== 'false';
+export let USE_MOCK = _mockFlag === 'true';
 
 // ── DB probe ──────────────────────────────────────────────────
 // If VITE_USE_MOCK_ATTENDANCE=false but attendance_records table doesn't exist,
@@ -53,14 +53,14 @@ function _ensureReady() {
       .then(({ error }) => {
         if (error && _isTableMissing(error)) {
           USE_MOCK = true;
-          _seedDemoTeam(); // eslint-disable-line no-use-before-define
-          // eslint-disable-next-line no-console
+          _seedDemoTeam();  
+           
           console.warn('[attendance] attendance_records table not found — falling back to mock mode');
         }
       })
       .catch(() => {
         USE_MOCK = true;
-        _seedDemoTeam(); // eslint-disable-line no-use-before-define
+        _seedDemoTeam();  
       });
   }
   return _probePromise;

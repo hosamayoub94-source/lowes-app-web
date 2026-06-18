@@ -194,5 +194,5 @@ export function hydrateAutomation() {
 
 /** Wipe persisted rules. */
 export function clearPersistedAutomation() {
-  try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
+  try { localStorage.removeItem(PERSIST_KEY); } catch (_) { /* تجاهل */ }
 }

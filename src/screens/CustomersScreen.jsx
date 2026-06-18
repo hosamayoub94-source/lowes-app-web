@@ -109,7 +109,7 @@ function CustomerModal({ c, sellerName, onClose }) {
     if (!text.trim()) return;
     setSaving(true);
     try { const n = await addNote(c.phone_key, text, sellerName); setNotes(p => [n, ...p]); setText(''); }
-    catch {} finally { setSaving(false); }
+    catch { /* تجاهل */ } finally { setSaving(false); }
   };
 
   const writeWithAi = async () => {

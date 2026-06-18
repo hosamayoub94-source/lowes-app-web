@@ -16,7 +16,7 @@ const PRESENT_STATUSES = new Set(['present', 'late', 'on_break', 'checked_out'])
 function _isMockAttendance() {
   try {
     const flag = String(import.meta.env.VITE_USE_MOCK_ATTENDANCE ?? '').toLowerCase();
-    return flag !== 'false';
+    return flag === 'true';
   } catch {
     return true;
   }
@@ -34,7 +34,8 @@ function getWorkingDates(year, month) {
   for (let d = 1; d <= lastDay; d++) {
     const date = new Date(year, month - 1, d);
     if (date.getDay() !== 0) { // 0 = Sunday
-      dates.push(date.toISOString().slice(0, 10));
+      // صيغة محلية YYYY-MM-DD بدون تحويل UTC (toISOString يُزيح يوماً في توقيت +UTC مثل تركيا +3).
+      dates.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
     }
   }
   return dates;

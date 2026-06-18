@@ -2,7 +2,7 @@
 // Sales Service — mock + real branches
 // =============================================================
 export const USE_MOCK =
-  String(import.meta.env.VITE_USE_MOCK_SALES ?? '').toLowerCase() !== 'false';
+  String(import.meta.env.VITE_USE_MOCK_SALES ?? '').toLowerCase() === 'true';
 
 let _mockReports = [
   { id: 'sr-1', report_date: '2026-05-19', total_orders: 87, total_sales_usd: 4320, total_ad_spend_usd: 980, roas: 4.41, status: 'approved', notes: 'يوم ممتاز', created_by: 'admin-1', created_at: '2026-05-19T20:00:00Z' },

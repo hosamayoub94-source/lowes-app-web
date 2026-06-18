@@ -328,7 +328,7 @@ export function printPayslip(entry, run) {
   window.addEventListener('load', () => {
     setTimeout(() => { window.print(); }, 400);
   });
-<\/script>
+</script>
 </body>
 </html>`;
 
@@ -405,7 +405,7 @@ export function printRunReport(entries, run) {
   </tr></tfoot>
 </table>
 <div class="footer">${COMPANY.legalName} — وثيقة سرية للاستخدام الداخلي فقط</div>
-<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),400))<\/script>
+<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),400))</script>
 </body></html>`;
 
   const w = window.open('', '_blank', 'width=1000,height=800');

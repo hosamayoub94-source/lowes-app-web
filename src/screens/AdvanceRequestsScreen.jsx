@@ -365,7 +365,7 @@ export default function AdvanceRequestsScreen() {
             <div className="text-center py-16 text-muted">
               <p className="text-4xl mb-3">📄</p>
               <p className="text-sm font-semibold">لا توجد طلبات بعد</p>
-              <p className="text-xs mt-1">اضغط "+ طلب" لتقديم طلب سلفة أو خصم</p>
+              <p className="text-xs mt-1">اضغط &quot;+ طلب&quot; لتقديم طلب سلفة أو خصم</p>
             </div>
           ) : (
             <div className="space-y-3">

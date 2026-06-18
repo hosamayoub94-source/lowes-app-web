@@ -54,7 +54,7 @@ function nextId() { return `evt_${Date.now().toString(36)}_${(++_seq).toString(3
 
 function trace(...args) {
   if (!_debug) return;
-  // eslint-disable-next-line no-console
+   
   console.debug('%c[eventBus]', 'color:#0ea5e9;font-weight:600', ...args);
 }
 
@@ -102,7 +102,7 @@ async function deliver(envelope) {
   if (_debug) {
     results.forEach((r, i) => {
       if (r.status === 'rejected') {
-        // eslint-disable-next-line no-console
+         
         console.warn(`[eventBus] handler #${i} for "${envelope.name}" threw:`, r.reason);
       }
     });
@@ -208,7 +208,7 @@ export function on(eventName, handler, opts = {}) {
   set.add(wrapped);
 
   if (set.size > MAX_HANDLERS_WARN && _debug) {
-    // eslint-disable-next-line no-console
+     
     console.warn(`[eventBus] "${eventName}" has ${set.size} handlers — possible leak`);
   }
 

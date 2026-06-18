@@ -570,7 +570,7 @@ export function AccountingDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-text">🏦 المالية العامة</h1>
-            <p className="text-sm text-muted mt-0.5">الحساب المركزي — أماكن الصادر والوارد الشهرية · Lowe's Professional</p>
+            <p className="text-sm text-muted mt-0.5">الحساب المركزي — أماكن الصادر والوارد الشهرية · Lowe&apos;s Professional</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             {isAdmin && (

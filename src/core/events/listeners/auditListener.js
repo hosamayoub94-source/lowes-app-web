@@ -20,7 +20,7 @@ import {
 const safe = (fn) => async (...args) => {
   try { await fn(...args); }
   catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.warn('[auditListener]', err?.message || err);
   }
 };

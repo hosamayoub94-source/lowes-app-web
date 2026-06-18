@@ -7,9 +7,13 @@
 // =============================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// SECURITY: service-role key is auto-injected by the Edge runtime — never hardcode
+// it (the old literal is in git history and MUST be rotated).
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
-const ADMIN_KEY    = 'LOWES-META-SYNC-2026';   // بوّابة ثابتة (cron/يدوي)
+const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+// ⚠️ SECURITY TODO (owner-coordinated): move this gate to an env secret
+// (META_SYNC_ADMIN_KEY) and rotate the value — it is exposed in git history.
+const ADMIN_KEY    = Deno.env.get('META_SYNC_ADMIN_KEY') ?? 'LOWES-META-SYNC-2026';
 const GRAPH_VER    = 'v21.0';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-key' };

@@ -80,7 +80,12 @@ export function buildStatement(rows = [], { from = null, to = null, query = '' }
     return true;
   });
   // ترتيب زمنيّ صاعد (الأقدم أولاً) — الرصيد الجاري يتراكم بهذا الترتيب.
-  const sorted = [...filtered].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  // كسر تعادل نفس اليوم بـcreated_at ثم id كي يكون الرصيد الجاري حتميّاً (لا يعتمد ترتيب الإدخال).
+  const sorted = [...filtered].sort((a, b) =>
+    (a.date || '').localeCompare(b.date || '') ||
+    String(a.raw?.created_at || '').localeCompare(String(b.raw?.created_at || '')) ||
+    String(a.id).localeCompare(String(b.id)),
+  );
 
   const running = blank();
   const totals = { in: blank(), out: blank(), net: blank(), count: 0 };
