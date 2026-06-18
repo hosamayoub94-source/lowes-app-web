@@ -99,7 +99,7 @@ export function getFlag(key) {
 export function setFlag(key, value) {
   _runtimeFlags[key] = value;
   if (_config.isDev) {
-    // eslint-disable-next-line no-console
+     
     console.info(`[ProductionConfig] flag override: ${key} =`, value);
   }
 }

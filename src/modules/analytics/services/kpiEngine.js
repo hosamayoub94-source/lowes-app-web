@@ -19,7 +19,7 @@ import {
   ANALYTICS_CACHE_TTL_MS,
 } from '../types/analytics.types';
 
-export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK_ANALYTICS ?? '').toLowerCase() !== 'false';
+export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK_ANALYTICS ?? '').toLowerCase() === 'true';
 
 // ── In-memory metric cache ────────────────────────────────────
 // key = JSON.stringify(filters), value = { data, ts }

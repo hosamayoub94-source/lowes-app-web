@@ -30,8 +30,8 @@ function ManagePanel({ warehouses, onChanged, userName, canReverse }) {
   const [busy, setBusy]       = useState(false);
   const whName = (id) => warehouses.find(w => w.id === id)?.name ?? '—';
 
-  const loadSellers = useCallback(async () => { try { setSellers(await listSellersWithWarehouse()); } catch {} }, []);
-  const loadMoves   = useCallback(async () => { try { setMoves(await listMovements({ limit: 40 })); } catch {} }, []);
+  const loadSellers = useCallback(async () => { try { setSellers(await listSellersWithWarehouse()); } catch { /* تجاهل */ } }, []);
+  const loadMoves   = useCallback(async () => { try { setMoves(await listMovements({ limit: 40 })); } catch { /* تجاهل */ } }, []);
   useEffect(() => { if (tab === 'sellers') loadSellers(); if (tab === 'log') loadMoves(); }, [tab, loadSellers, loadMoves]);
 
   // مجموعة معرّفات الحركات التي تم التراجع عنها (لإخفاء زر التراجع ومنع التكرار).

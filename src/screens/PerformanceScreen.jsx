@@ -327,7 +327,7 @@ function MyKpiView({ kpi, month, year, userId }) {
         .gte('report_date', from).lte('report_date', to);
       const total = (data ?? []).reduce((s,r) => s + (Number(r.total_sales_usd)||0), 0);
       setEstSales(Math.round(total));
-    } catch {}
+    } catch { /* تجاهل */ }
     finally { setEstLoading(false); }
   };
 
@@ -497,7 +497,7 @@ export default function PerformanceScreen() {
           .eq('employee_id', userId).eq('year', year).eq('month', month).maybeSingle();
         setMyKpi(kpi);
       }
-    } catch {}
+    } catch { /* تجاهل */ }
     finally { setLoading(false); }
   }, [isAdmin, userId, year, month]);
 

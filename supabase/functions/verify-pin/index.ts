@@ -38,6 +38,9 @@ Deno.serve(async (req: Request) => {
 
     if (error)    return json({ ok: false, error: 'server_error' }, 500);
     if (!profile) return json({ ok: false, error: 'not_found' }, 200);
+    // Block deactivated accounts before checking the PIN — a former employee
+    // must not be able to sign in even with a still-valid PIN.
+    if (profile.is_active === false) return json({ ok: false, error: 'inactive' }, 200);
 
     const storedPin  = String(profile.pin ?? '').trim();
     const enteredPin = String(pin ?? '').trim();

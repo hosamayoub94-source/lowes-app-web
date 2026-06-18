@@ -31,7 +31,7 @@ const ACTIVITY_TABLE = 'file_activity';
 
 // ── Mock flag ─────────────────────────────────────────────────
 const _mockFlag = String(import.meta.env.VITE_USE_MOCK_FILES ?? '').toLowerCase();
-export const USE_MOCK = _mockFlag !== 'false';
+export const USE_MOCK = _mockFlag === 'true';
 
 // ── Mock store ────────────────────────────────────────────────
 const MOCK_KEY_FILES   = '__mock_files';

@@ -168,7 +168,7 @@ export function useQuickActions() {
   }, [
     isCheckedIn, isCheckedOut, overdueTasks.length,
     unreadCount, isFocusMode, timeBlock, role,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);  
 
   return { actions, timeBlock, overdueTasks };
 }

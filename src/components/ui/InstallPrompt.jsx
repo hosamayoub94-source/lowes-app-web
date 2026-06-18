@@ -144,11 +144,11 @@ export function InstallPrompt() {
             </li>
             <li className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-teal/10 text-teal flex items-center justify-center text-xs font-bold flex-shrink-0">٢</span>
-              اختر <strong className="text-text">"إضافة إلى الشاشة الرئيسية"</strong>
+              اختر <strong className="text-text">&quot;إضافة إلى الشاشة الرئيسية&quot;</strong>
             </li>
             <li className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-teal/10 text-teal flex items-center justify-center text-xs font-bold flex-shrink-0">٣</span>
-              اضغط <strong className="text-text">"إضافة"</strong> في الزاوية اليمنى
+              اضغط <strong className="text-text">&quot;إضافة&quot;</strong> في الزاوية اليمنى
             </li>
           </ol>
         </div>

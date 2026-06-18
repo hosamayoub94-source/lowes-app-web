@@ -20,6 +20,7 @@ import {
   MONTHS_AR,
   formatCurrency,
   calcRunTotal,
+  calcNetSalary,
   periodLabel,
 } from '../types/payroll.types.js';
 import { ROLES } from '@data/teams';
@@ -228,11 +229,7 @@ export function PayrollDashboard() {
   };
 
   const handleSaveEntry = async () => {
-    const net =
-      Number(entryForm.base_salary_usd) +
-      Number(entryForm.bonus_usd) -
-      Number(entryForm.deductions_usd) -
-      Number(entryForm.advance_deduction_usd);
+    const net = calcNetSalary(entryForm);
     await upsertEntry({ ...entryForm, net_salary_usd: net });
     setEditEntry(null);
     setEntryForm({});

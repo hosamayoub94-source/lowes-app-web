@@ -4,7 +4,10 @@
 -- ============================================================
 
 -- Step 1: Set service_role key in DB settings
-ALTER DATABASE postgres SET "app.settings.service_role_key" = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE5MTc5NCwiZXhwIjoyMDkxNzY3Nzk0fQ.xpvq4jRX-SiEy5WpLCOnAbY68k_hXlpPDn6Jp_MhhRs';
+-- ⚠️ SECURITY: never commit the real key. Paste your CURRENT (rotated) service_role
+-- key below only in your local SQL Editor session. The previously committed literal
+-- has been removed and MUST be rotated in the Supabase dashboard.
+ALTER DATABASE postgres SET "app.settings.service_role_key" = '<PASTE_ROTATED_SERVICE_ROLE_KEY_HERE>';
 SELECT pg_reload_conf();
 
 -- Step 2: Enable extensions

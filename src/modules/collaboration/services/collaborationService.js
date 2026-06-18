@@ -3,7 +3,7 @@
 //
 // Handles: comments · threads · channels · mentions · presence
 //
-// Mock mode: active by default (VITE_USE_MOCK_COLLAB !== 'false')
+// Mock mode: real by default; mock only when VITE_USE_MOCK_COLLAB === 'true'
 // Real mode: persists to Supabase tables:
 //   - collaboration_comments   (comments + threads)
 //   - collaboration_channels   (channels + DMs)
@@ -20,7 +20,7 @@ import { useQueueStore }          from '@/core/queue/queueStore';
 
 // ── Mock mode ─────────────────────────────────────────────────
 const _flag   = String(import.meta.env.VITE_USE_MOCK_COLLAB ?? '').toLowerCase();
-export const USE_MOCK = _flag !== 'false';
+export const USE_MOCK = _flag === 'true';
 
 // ── In-memory mock stores ─────────────────────────────────────
 let _comments  = [];

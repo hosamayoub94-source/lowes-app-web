@@ -435,7 +435,7 @@ export default function AdminQuizScreen() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('هل تريد حذف هذا السؤال؟')) return;
-    try { await supabase.from('quiz_questions').update({ is_active: false }).eq('id', id); await loadQuestions(); } catch {}
+    try { await supabase.from('quiz_questions').update({ is_active: false }).eq('id', id); await loadQuestions(); } catch { /* تجاهل */ }
   };
 
   const handleToggleCheckout = async (q) => {
@@ -447,7 +447,7 @@ export default function AdminQuizScreen() {
         await supabase.from('quiz_questions').update({ is_checkout_question: false }).eq('id', q.id);
       }
       await loadQuestions();
-    } catch {}
+    } catch { /* تجاهل */ }
   };
 
   const getCatMeta = (key) => CATEGORIES.find(c => c.key === key) ?? CATEGORIES[0];

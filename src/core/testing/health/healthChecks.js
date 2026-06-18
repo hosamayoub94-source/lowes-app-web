@@ -136,7 +136,7 @@ async function checkStorage() {
     // Check used space estimate
     let used = 0;
     for (const k in localStorage) {
-      if (localStorage.hasOwnProperty(k)) used += (localStorage[k]?.length ?? 0) + k.length;
+      if (Object.prototype.hasOwnProperty.call(localStorage, k)) used += (localStorage[k]?.length ?? 0) + k.length;
     }
     const usedKB = Math.round(used / 1024);
     return {

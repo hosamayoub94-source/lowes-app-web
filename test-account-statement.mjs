@@ -74,5 +74,17 @@ ok(catRows.length === 1 && catRows[0].id === 'c5', `مصدر "إيجار" بلا
 ok(statementHasCurrency(chStmt.totals, 'amount_try') === true, `القدموس له حركة TRY`);
 ok(statementHasCurrency(chStmt.totals, 'amount_syp') === false, `القدموس بلا حركة SYP`);
 
+// ── [#27] ترتيب حركات نفس اليوم بـcreated_at ثم id (رصيد جارٍ حتميّ) ──────────────
+const cashUsd = WALLETS.find(w => w.id === 'cash_usd');
+const sameDay = [ // مُدخَل بترتيب مبعثر عمداً (d2, d1, d3)
+  { id: 'd2', entry_date: '2026-06-01', entry_type: 'income',  description: 'ثاني', payment_method: 'cash_usd', amount_usd: 100, created_at: '2026-06-01T12:00:00Z' },
+  { id: 'd1', entry_date: '2026-06-01', entry_type: 'expense', description: 'أول',  payment_method: 'cash_usd', amount_usd: 40,  created_at: '2026-06-01T09:00:00Z' },
+  { id: 'd3', entry_date: '2026-06-01', entry_type: 'income',  description: 'ثالث', payment_method: 'cash_usd', amount_usd: 10,  created_at: '2026-06-01T15:00:00Z' },
+];
+const sdStmt = buildStatement(walletStatementRows(sameDay, cashUsd), {});
+ok(sdStmt.rows.map(r => r.id).join(',') === 'd1,d2,d3', `ترتيب نفس اليوم بـcreated_at = d1,d2,d3 (كان ${sdStmt.rows.map(r => r.id).join(',')})`);
+ok(sdStmt.rows[0].balance.amount_usd === -40, `رصيد جارٍ بعد d1 = −40 (كان ${sdStmt.rows[0].balance.amount_usd})`);
+ok(sdStmt.rows[2].balance.amount_usd === 70,  `رصيد جارٍ نهائي = 70 (كان ${sdStmt.rows[2].balance.amount_usd})`);
+
 console.log(`\n${fail === 0 ? '✅' : '⚠️'} نتيجة: ${pass}/${pass + fail} نجحت`);
 process.exit(fail === 0 ? 0 : 1);

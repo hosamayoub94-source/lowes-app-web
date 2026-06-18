@@ -6,14 +6,6 @@
 import React, { useState } from 'react';
 import useCRMStore from '../store/useCRMStore.js';
 
-// Only render in dev
-if (import.meta.env.PROD) {
-  // eslint-disable-next-line import/no-anonymous-default-export
-  export default function DevCRMMonitor() { return null; }
-  // stop parsing
-  throw new Error('__CRM_MONITOR_PROD_EXIT__');
-}
-
 const TABS = ['kpis', 'deals', 'leads', 'followups', 'state'];
 
 function TabContent({ tab }) {
@@ -139,6 +131,9 @@ function TabContent({ tab }) {
 export default function DevCRMMonitor() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('kpis');
+
+  // Only render in dev
+  if (import.meta.env.PROD) return null;
 
   return (
     <>

@@ -24,7 +24,7 @@ import { ENTITY_TYPE }             from '@modules/audit/types/audit.types';
 const safe = (fn) => async (...args) => {
   try { await fn(...args); }
   catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.warn('[notificationsListener]', err?.message || err);
   }
 };

@@ -52,10 +52,10 @@ export function evaluateCondition(condition, payload, context = {}) {
 
     // ── Equality ──────────────────────────────────────────────
     case CONDITION_TYPE.EQUALS:
-      // eslint-disable-next-line eqeqeq
+       
       return fieldVal == value; // intentional loose equality (string '3' == 3)
     case CONDITION_TYPE.NOT_EQUALS:
-      // eslint-disable-next-line eqeqeq
+       
       return fieldVal != value;
 
     // ── Numeric comparisons ───────────────────────────────────
@@ -90,13 +90,13 @@ export function evaluateCondition(condition, payload, context = {}) {
     case CONDITION_TYPE.IN_LIST: {
       const list = Array.isArray(value) ? value : [value];
       return list.some((v) => {
-        // eslint-disable-next-line eqeqeq
+         
         return v == fieldVal;
       });
     }
     case CONDITION_TYPE.NOT_IN_LIST: {
       const list = Array.isArray(value) ? value : [value];
-      // eslint-disable-next-line eqeqeq
+       
       return !list.some((v) => v == fieldVal);
     }
 

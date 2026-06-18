@@ -197,11 +197,11 @@ function _schedulePersist(get) {
     try {
       const { jobs, deadLetter } = get();
       // Persist only non-terminal active jobs + last 50 completed for history
-      const toSave = jobs.filter(
-        (j) =>
-          j.state !== JOB_STATE.COMPLETED ||
-          jobs.indexOf(j) < 50,
-      );
+      const active = jobs.filter((j) => j.state !== JOB_STATE.COMPLETED);
+      const recentDone = jobs
+        .filter((j) => j.state === JOB_STATE.COMPLETED)
+        .slice(-50);
+      const toSave = [...active, ...recentDone];
       localStorage.setItem('__queue_jobs',       JSON.stringify(toSave));
       localStorage.setItem('__queue_deadLetter', JSON.stringify(deadLetter));
     } catch (_) { /* quota exceeded or private mode — silently skip */ }

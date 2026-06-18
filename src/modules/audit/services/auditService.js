@@ -24,7 +24,7 @@ import {
 
 // ── Mode flag ────────────────────────────────────────────────
 const explicit = String(import.meta.env.VITE_USE_MOCK_AUDIT || '').toLowerCase();
-export const USE_MOCK_AUDIT = explicit !== 'false';
+export const USE_MOCK_AUDIT = explicit === 'true';
 
 // ── Constants ────────────────────────────────────────────────
 const BATCH_SIZE        = 10;

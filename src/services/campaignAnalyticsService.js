@@ -195,8 +195,9 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   for (const c of campaigns) {
     const metaSp = metaByCampaign[c.id]?.spend || 0;
     if (metaSp > 0) {
-      campSpend[c.id] = { spend: metaSp, cur: curKey || 'try' };
-      if (curKey) spendByCur[curKey] += metaSp;
+      const cur = curKey || null;
+      campSpend[c.id] = { spend: metaSp, cur };
+      if (cur) spendByCur[cur] += metaSp;
       anySpend = true;
     } else {
       const s = Number(c.spend || 0);

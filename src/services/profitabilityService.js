@@ -59,7 +59,7 @@ export async function loadProfitability({ since } = {}) {
     const totalUnits  = p.units + p.returns;
     const returnRate  = totalUnits ? Math.round((p.returns / totalUnits) * 100) : 0;
     const margin      = revenue ? Math.round((netProfit / revenue) * 100) : null;
-    const hasEcon     = price > 0 || cost > 0;
+    const hasEcon     = price > 0 && cost > 0;
 
     return {
       name: p.name, units: p.units, returns: p.returns, returnRate,

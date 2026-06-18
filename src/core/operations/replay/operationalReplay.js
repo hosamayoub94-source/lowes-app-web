@@ -8,7 +8,7 @@
 //   • Simulate realtime disconnect + reconnect
 // =============================================================
 import { createLogger }          from '@/core/production/productionLogger';
-import { emit, on }              from '@/core/events/eventBus';
+import { emit, on, onAny }       from '@/core/events/eventBus';
 import { enqueueOfflineAction }  from '@/core/production/offlineRecovery';
 
 const log = createLogger('OperationalReplay');
@@ -70,7 +70,6 @@ export function stopRecording(label, unsub) {
 function _subscribeAll(handler) {
   // Try to use wildcard subscription if available
   try {
-    const { onAny } = require('@/core/events/eventBus');
     return onAny?.(handler) ?? (() => {});
   } catch { return () => {}; }
 }

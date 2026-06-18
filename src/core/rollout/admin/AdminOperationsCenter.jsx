@@ -61,6 +61,7 @@ const EmployeeRow = memo(({ emp }) => (
     </div>
   </div>
 ));
+EmployeeRow.displayName = 'EmployeeRow';
 
 const ApprovalRow = memo(({ item, onApprove, onReject }) => {
   const typeIcons = { vacation: '🏖️', overtime: '⏰', task: '✅' };
@@ -96,6 +97,7 @@ const ApprovalRow = memo(({ item, onApprove, onReject }) => {
     </div>
   );
 });
+ApprovalRow.displayName = 'ApprovalRow';
 
 // ── Main panel ─────────────────────────────────────────────────
 export function AdminOperationsCenter() {

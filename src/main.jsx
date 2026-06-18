@@ -19,6 +19,8 @@ import {
 } from '@/core/operations';
 import { patchTimerTracking, scheduleMaintenanceCleanup } from '@/core/maintenance';
 import { validateEnvironment } from '@/core/testing';
+import { bootProductionLayer } from '@/core/production';
+import { supabase } from '@/services/supabase';
 
 import './styles/theme.css';
 import './styles/globals.css';
@@ -36,13 +38,15 @@ function safeBoot(label, fn) {
 // Warn if any mock modules are active in production
 if (!import.meta.env.DEV) {
   const mockModules = ['VITE_USE_MOCK_TASKS','VITE_USE_MOCK_ATTENDANCE','VITE_USE_MOCK_NOTIFICATIONS','VITE_USE_MOCK_ANALYTICS','VITE_USE_MOCK_AUDIT','VITE_USE_MOCK_FILES','VITE_USE_MOCK_CRM'];
-  const active = mockModules.filter(k => String(import.meta.env[k] ?? '').toLowerCase() !== 'false');
+  const active = mockModules.filter(k => String(import.meta.env[k] ?? '').toLowerCase() === 'true');
   if (active.length > 0) {
     console.warn('[PRODUCTION WARNING] Mock modules are active:', active.join(', '));
   }
 }
 
 // ── Boot sequence (each wrapped — one bad subsystem won't kill the app) ──
+// Production hardening first so error capture wraps the rest of the boot.
+safeBoot('Production',           () => bootProductionLayer(supabase));
 safeBoot('EventListeners',      () => bootEventListeners());
 safeBoot('Queue',               () => bootQueue());
 safeBoot('Automation',          () => bootAutomation());

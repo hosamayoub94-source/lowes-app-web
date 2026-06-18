@@ -38,7 +38,7 @@ export default function BrandScreen() {
       <div className="flex items-center gap-4 bg-surface border border-border/60 rounded-2xl p-4">
         <img src={BRAND_ASSETS.logoUrl} alt="LOWE'S" className="w-24 h-24 object-contain" />
         <div>
-          <h1 className="text-xl font-black text-text">LOWE'S <span style={{ color: BRAND_COLORS.gold }}>{BRAND.heart}</span> Professional</h1>
+          <h1 className="text-xl font-black text-text">LOWE&apos;S <span style={{ color: BRAND_COLORS.gold }}>{BRAND.heart}</span> Professional</h1>
           <p className="text-sm italic" style={{ color: BRAND_COLORS.gold }}>{BRAND.sloganAr}</p>
           <p className="text-xs text-muted mt-1">{BRAND.sloganEn} · تأسّست {BRAND.founded}</p>
         </div>
@@ -68,7 +68,7 @@ export default function BrandScreen() {
       {/* Fonts */}
       <Section title="🔤 الخطوط">
         <div className="space-y-2 text-text">
-          <div style={{ fontFamily: BRAND_FONTS.display }} className="text-2xl">LOWE'S Professional</div>
+          <div style={{ fontFamily: BRAND_FONTS.display }} className="text-2xl">LOWE&apos;S Professional</div>
           <div className="text-[11px] text-muted">Playfair Display — العناوين واسم البراند (لاتيني)</div>
           <div style={{ fontFamily: BRAND_FONTS.bodyAr }} className="text-lg pt-1">عنايةٌ تثقين بها، جمالٌ تستحقّينه</div>
           <div className="text-[11px] text-muted">Tajawal — النص العربي · El Messiri — العناوين العربية</div>

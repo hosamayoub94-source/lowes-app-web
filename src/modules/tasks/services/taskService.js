@@ -17,12 +17,12 @@ import { mapTask, mapComment, mapActivity, toTaskInsert, toTaskUpdate } from './
 
 // -------------------------------------------------------------
 // Mode flag
-// Default: MOCK is on. The user must explicitly opt into Supabase
-// by setting VITE_USE_MOCK_TASKS=false in .env.local — this
-// prevents broken queries before the schema migration is applied.
+// Default: REAL data (Supabase). The user must explicitly opt into
+// mock by setting VITE_USE_MOCK_TASKS=true in .env.local — so a
+// missing flag never silently serves fake data in production.
 // -------------------------------------------------------------
 const explicit = String(import.meta.env.VITE_USE_MOCK_TASKS || '').toLowerCase();
-export const USE_MOCK_DATA = explicit !== 'false';
+export const USE_MOCK_DATA = explicit === 'true';
 
 // -------------------------------------------------------------
 // Supabase select strings — kept here so the wire payload is

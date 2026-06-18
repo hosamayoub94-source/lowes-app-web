@@ -54,6 +54,6 @@ export function registerAutomationBridge() {
  * Called at shutdown from bootstrap.js.
  */
 export function unregisterAutomationBridge() {
-  _unsubs.forEach((unsub) => { try { unsub(); } catch (_) {} });
+  _unsubs.forEach((unsub) => { try { unsub(); } catch (_) { /* تجاهل */ } });
   _unsubs = [];
 }

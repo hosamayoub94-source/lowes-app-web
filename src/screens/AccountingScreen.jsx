@@ -125,7 +125,7 @@ export default function AccountingScreen() {
   useAccountingBootstrap(id);
 
   const { entries, isLoading } = useAccountingDashboard();
-  const { createEntry, createTransfer, deleteEntry }  = useAccountingActions();
+  const { createEntry, createTransfer, createWalletTransfer, deleteEntry }  = useAccountingActions();
   const loading    = useAccountingLoading();
   const categories = useCategories();
   const channels   = useChannels();
@@ -209,21 +209,22 @@ export default function AccountingScreen() {
     if (amtFrom <= 0 || amtTo <= 0) { setTError('أدخل مبلغاً صحيحاً'); return; }
     setTError(null);
     const ref = `TRF-${Date.now()}`;
+    // الساقان تُحفظان بنداء إدراج واحد (ذرّي) مع transfer_group مشترك للربط/التدقيق —
+    // كي لا تبقى ساق صرف يتيمة لو فشلت ساق القبض (يكسر توازن الخزينة).
+    const legOut = {
+      entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_OUT, book: BOOK.OPERATIONAL,
+      description: `تحويل إلى ${to.label}${tForm.note ? ' — ' + tForm.note : ''}`,
+      ...walletAmounts(from.id, amtFrom),
+      payment_method: from.id, entry_date: tForm.date, reference_no: ref,
+    };
+    const legIn = {
+      entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_IN, book: BOOK.OPERATIONAL,
+      description: `تحويل من ${from.label}${tForm.note ? ' — ' + tForm.note : ''}`,
+      ...walletAmounts(to.id, amtTo),
+      payment_method: to.id, entry_date: tForm.date, reference_no: ref,
+    };
     try {
-      // Outflow from source wallet
-      await createEntry({
-        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_OUT, book: BOOK.OPERATIONAL,
-        description: `تحويل إلى ${to.label}${tForm.note ? ' — ' + tForm.note : ''}`,
-        ...walletAmounts(from.id, amtFrom),
-        payment_method: from.id, entry_date: tForm.date, reference_no: ref,
-      });
-      // Inflow to destination wallet
-      await createEntry({
-        entry_type: ENTRY_TYPE.TRANSFER, category: TRANSFER_IN, book: BOOK.OPERATIONAL,
-        description: `تحويل من ${from.label}${tForm.note ? ' — ' + tForm.note : ''}`,
-        ...walletAmounts(to.id, amtTo),
-        payment_method: to.id, entry_date: tForm.date, reference_no: ref,
-      });
+      await createWalletTransfer({ legOut, legIn });
       setShowTransfer(false);
       setTForm(t => ({ ...t, amount_from: '', amount_to: '', note: '' }));
     } catch (e) { setTError(e.message); }

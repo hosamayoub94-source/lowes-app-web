@@ -17,7 +17,7 @@ import {
 } from '../types/inventory.types.js';
 
 export const USE_MOCK =
-  String(import.meta.env.VITE_USE_MOCK_INVENTORY ?? '').toLowerCase() !== 'false';
+  String(import.meta.env.VITE_USE_MOCK_INVENTORY ?? '').toLowerCase() === 'true';
 
 // ── In-memory mock store ───────────────────────────────────────────────────
 let _mock = null;

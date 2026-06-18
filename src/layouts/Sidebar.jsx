@@ -51,7 +51,7 @@ export function Sidebar() {
             </div>
             <div className="min-w-0">
               <div className="font-extrabold text-sm text-navy">لويس برو</div>
-              <div className="text-[10px] text-amber-500">Lowe's Professional</div>
+              <div className="text-[10px] text-amber-500">Lowe&apos;s Professional</div>
             </div>
           </div>
         </div>

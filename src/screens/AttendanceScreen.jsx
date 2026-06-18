@@ -353,11 +353,11 @@ export default function AttendanceScreen() {
   let openShiftDate = null;
   for (let i = days.length - 1; i >= 0; i--) {
     const r = week[days[i]];
-    if (r?.checkIn && (!r.checkOut || r.checkOut < r.checkIn)) { openShiftDate = days[i]; break; }
+    if (r?.checkIn && !r.checkOut) { openShiftDate = days[i]; break; }
   }
   const openRec        = openShiftDate ? week[openShiftDate] : null;
   const openShift      = !!openRec;
-  const completedToday = !!today?.checkIn && !!today?.checkOut && today.checkOut >= today.checkIn;
+  const completedToday = !!today?.checkIn && !!today?.checkOut;
 
   // Live clock + check-out lock countdown
   useEffect(() => {
@@ -562,7 +562,7 @@ export default function AttendanceScreen() {
         setCheckoutQuizLoading(false);
         return; // quiz modal first, then it opens the camera
       }
-    } catch {} // no quiz table / network error → proceed to camera
+    } catch { /* no quiz table / network error → proceed to camera */ }
     setCheckoutQuizLoading(false);
     setCheckoutQuizChecked(true);
     setCameraMode('out');
@@ -581,7 +581,7 @@ export default function AttendanceScreen() {
         is_correct:      isCorrect,
         source:          'checkout',
       });
-    } catch {}
+    } catch { /* تجاهل */ }
   };
   // After the quiz, open the selfie camera (then doActualCheckOut runs)
   const handleQuizContinue = () => { setCheckoutQuiz(null); setCheckoutQuizChecked(true); setCameraMode('out'); };

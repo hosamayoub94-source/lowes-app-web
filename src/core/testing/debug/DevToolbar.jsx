@@ -107,8 +107,6 @@ export function DevToolbar() {
   const [stopBurst,    setStopBurst]   = useState(null);
   const [burstActive,  setBurstActive] = useState(false);
 
-  if (!IS_DEV) return null;
-
   const togglePanel = (name) => setPanel((p) => (p === name ? null : name));
 
   // Ctrl+Shift+D toggle
@@ -145,6 +143,8 @@ export function DevToolbar() {
       setTimeout(() => { setBurstActive(false); setStopBurst(null); }, 6_500);
     }
   }, [burstActive, stopBurst]);
+
+  if (!IS_DEV) return null;
 
   if (!visible) {
     return (

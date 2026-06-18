@@ -45,7 +45,9 @@ const useAccountingStore = create()(
       get()._setLoading('entries', true);
       try {
         const { fetchEntries } = await import('../services/accountingService.js');
-        const entries = await fetchEntries({ ...get().filters, ...extra });
+        // الرصيد/الخزينة تعتمد على الدفتر الكامل — لا نمرّر فلاتر التاريخ/النوع للسيرفر،
+        // والتصفية تتم في الواجهة (filtered useMemo) كي تبقى entries هي الدفتر الكامل دائماً.
+        const entries = await fetchEntries({ ...extra });
         set({ entries });
       } catch (err) {
         set({ error: err.message });
@@ -77,6 +79,23 @@ const useAccountingStore = create()(
         if (!get()._userId) throw new Error('الجلسة غير جاهزة — أعد تسجيل الدخول');
         const { createTransfer } = await import('../services/accountingService.js');
         const legs = await createTransfer({ ...args, createdBy: get()._userId });
+        set(s => ({ entries: [...legs, ...s.entries] }));
+        return legs;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      } finally {
+        get()._setLoading('action', false);
+      }
+    },
+
+    // تحويل بين محفظتين (ساقان مرتبطان) — إدراج ذرّي بنداء واحد كي لا تبقى ساق يتيمة.
+    async createWalletTransfer(args) {
+      get()._setLoading('action', true);
+      try {
+        if (!get()._userId) throw new Error('الجلسة غير جاهزة — أعد تسجيل الدخول');
+        const { createWalletTransfer } = await import('../services/accountingService.js');
+        const legs = await createWalletTransfer({ ...args, createdBy: get()._userId });
         set(s => ({ entries: [...legs, ...s.entries] }));
         return legs;
       } catch (err) {
@@ -221,6 +240,7 @@ const useAccountingStore = create()(
       const { entries } = get();
       const map = {};
       entries.forEach(e => {
+        if (e.entry_type === ENTRY_TYPE.TRANSFER) return;
         const key = e.category || 'غير مصنف';
         if (!map[key]) map[key] = { label: key, total: 0, count: 0 };
         map[key].total += Number(e.amount_usd ?? 0);

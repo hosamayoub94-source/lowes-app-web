@@ -223,7 +223,7 @@ export function CommandPalette() {
           {q && flatList.length === 0 && (
             <div className="text-center py-10 text-gray-400">
               <p className="text-3xl mb-2">🔍</p>
-              <p className="text-sm">لا توجد نتائج لـ "<strong className="text-gray-600">{q}</strong>"</p>
+              <p className="text-sm">لا توجد نتائج لـ &quot;<strong className="text-gray-600">{q}</strong>&quot;</p>
               <p className="text-xs mt-1 text-gray-300">جرب كلمات أخرى</p>
             </div>
           )}
