@@ -78,6 +78,35 @@ export function canonicalSeller(name) {
   return SELLER_CANON[key] || String(name).trim();
 }
 
+/**
+ * كل التهجئات المعروفة (مع تنويعات حالة الأحرف) التي تعود لاسم البائع القانوني.
+ * يستخدمها فلتر «عملائي» كي تظهر عملاء البائع حتى لو انتسبوا في الأرشيف باسم
+ * مختصر أو مكتوب بحالة أحرف مختلفة. توسيع آمن: يضيف مرشّحات مطابقة فقط ولا يستثني.
+ * المصدر: الاسم نفسه + الاسم القانوني + الاسم الأول + SELLER_ALIASES + معكوس SELLER_CANON.
+ */
+export function sellerVariants(userName) {
+  if (!userName) return [];
+  const canon = canonicalSeller(userName);
+  const out = new Set();
+  const add = (s) => {
+    const v = String(s || '').trim();
+    if (!v) return;
+    out.add(v);
+    out.add(v.toLowerCase());
+    out.add(v.toUpperCase());
+    out.add(v.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())); // Title Case
+  };
+  add(userName);
+  add(canon);
+  add(String(canon).trim().split(/\s+/)[0]); // الاسم الأول
+  getSellerAliases(canon).forEach(add);
+  getSellerAliases(userName).forEach(add);
+  for (const [variant, target] of Object.entries(SELLER_CANON)) {
+    if (target === canon) add(variant);
+  }
+  return [...out];
+}
+
 // Normalize a phone to digits-only (must match the view's phone_key).
 export function phoneKey(phone) {
   return String(phone || '').replace(/\D/g, '');
@@ -249,12 +278,22 @@ export function daysSince(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
-// Fetch a customer's orders by phone (for purchase-aware suggestions).
+// Fetch a customer's FULL order history (for purchase-aware suggestions AND the
+// «سجل المبيعات — مين باع شو» drill-down). Matches by normalized phone (digits-only)
+// across phone_1 + wa_number via the RPC, so orders saved in different phone formats
+// still aggregate to the same customer — same key the customer_stats view groups by.
+// Falls back to legacy exact phone_1 match if the RPC isn't deployed yet (migration 0008).
 export async function getCustomerOrders(rawPhone) {
+  const key = phoneKey(rawPhone);
+  if (key.length >= 6) {
+    const { data, error } = await supabase.rpc('get_customer_orders_by_key', { p_key: key });
+    if (!error && Array.isArray(data)) return data;
+    // RPC missing/blocked → fall through to legacy exact-match query below.
+  }
   if (!rawPhone) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('order_date, items, amount, currency, status, city, address, wa_number, market, brand, customer_name')
+    .select('order_date, items, amount, currency, status, city, address, wa_number, market, brand, customer_name, handler_name, order_id, phone_1')
     .eq('phone_1', rawPhone)
     .order('order_date', { ascending: false })
     .limit(50);

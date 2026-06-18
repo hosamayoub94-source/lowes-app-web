@@ -43,17 +43,25 @@ Deno.serve(async (req: Request) => {
     const SHEET_TOKEN = Deno.env.get('SHEET_SYNC_TOKEN') ?? 'LOWES-SYRIA-2026';
     if (!SHEET_URL) return json({ ok: false, error: 'sheet_not_configured', message: 'لم يُضبط رابط الجدول بعد' }, 200);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
-    );
+    const SB_URL = Deno.env.get('SUPABASE_URL')!;
+    // مفتاح publishable العام (نفس المُضمَّن أصلاً بالمتصفح، آمن للنشر) — شبكة أمان
+    // للقراءة/الكتابة إن انكسر المفتاح الخادمي بعد تدوير المفاتيح. RLS الحالية تسمح
+    // بطلبات orders/products، والتطبيق نفسه يكتب sync_status بهذا المفتاح.
+    const PUBLISHABLE_FALLBACK = 'sb_publishable_iYn5Rc00ZmdLPUBH5_09fg_eLiok3UO';
+    const PRIV_KEY = Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // اقرأ الطلب من قاعدة البيانات (مصدر الحقيقة) — لا نثق بجسم الطلب
-    const { data: o, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .maybeSingle();
+    // اقرأ الطلب من قاعدة البيانات (مصدر الحقيقة) — لا نثق بجسم الطلب.
+    // نُفضّل المفتاح الخادمي؛ وإن فشلت القراءة (مفتاح مكسور بعد التدوير — كان يرجّع
+    // «order_not_found» زوراً رغم وجود الطلب) نُعيد بمفتاح publishable فتعمل المزامنة.
+    let supabase = createClient(SB_URL, PRIV_KEY ?? PUBLISHABLE_FALLBACK);
+    let { data: o, error } = await supabase
+      .from('orders').select('*').eq('id', orderId).maybeSingle();
+    if ((error || !o) && PRIV_KEY && PRIV_KEY !== PUBLISHABLE_FALLBACK) {
+      console.warn('[sync-order-to-sheet] privileged read failed — fallback to publishable key. اضبط SB_SECRET_KEY لإزالة هذا التحذير.', error?.message || '');
+      supabase = createClient(SB_URL, PUBLISHABLE_FALLBACK);
+      ({ data: o, error } = await supabase
+        .from('orders').select('*').eq('id', orderId).maybeSingle());
+    }
     if (error || !o) return json({ ok: false, error: 'order_not_found' }, 200);
 
     // Only Syria + Turkey have sheets (team isolation)
