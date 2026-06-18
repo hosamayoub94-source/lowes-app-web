@@ -2664,6 +2664,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     const ship = orders.filter(o =>
       o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
       !o.yurtici_cargo_key &&  // لا تُعِد طلباً له شحنة يورتيتشي مُنشأة (يمنع تكرار الشحنة في الرفع)
+      !o.yurtici_exported_at &&  // ولا طلباً سبق تصديره بملف Excel (يمنع شحنة مكرّرة بعد إعادة التحميل)
       ['pending', 'preparing', 'ready'].includes(o.status) &&
       // استثنِ التوصيل بالموتور صراحةً (قد يكون shipping_company فارغاً) — يورتيتشي فقط
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '') &&
@@ -2680,6 +2681,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
       XLSX.utils.book_append_sheet(wb, ws, 'CargoImportTemplate');
       const today = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `yurtici-${today}.xlsx`);
+      // اختم الطلبات المُصدَّرة كي لا تتكرّر بالتصدير التالي (يُحفظ بالقاعدة — عمود 0007).
+      const ids = ship.map(o => o.id);
+      const stamp = new Date().toISOString();
+      await supabase.from('orders').update({ yurtici_exported_at: stamp }).in('id', ids);
+      setOrders(p => p.map(o => ids.includes(o.id) ? { ...o, yurtici_exported_at: stamp } : o));
       toast.success?.(`✅ تم توليد ملف ${ship.length} طلب — ارفعه على يورتيتشي`);
     } catch (e) { toast.error?.('تعذّر التوليد: ' + (e?.message || e)); }
     finally { setExportingYurtici(false); }

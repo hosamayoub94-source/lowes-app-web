@@ -75,12 +75,21 @@ async function _logMovement(row) {
   if (error) throw error;
 }
 
+// Atomic stock delta via SECURITY DEFINER RPC (race-free — see migration 0007).
+// Replaces read-then-write (_currentQty + _setQty) for incremental changes so two
+// concurrent operations on the same (warehouse, product) can't lose an update.
+async function _applyDelta(warehouseId, productId, delta) {
+  const { error } = await supabase.rpc('wh_apply_stock_delta', {
+    p_warehouse: warehouseId, p_product: productId, p_delta: delta,
+  });
+  if (error) throw error;
+}
+
 // Receive new stock into a warehouse (typically central).
 export async function receiveStock({ productId, warehouseId, quantity, performedBy, reason }) {
   const qty = Number(quantity);
   if (!qty || qty <= 0) throw new Error('أدخل كمية صحيحة');
-  const current = await _currentQty(warehouseId, productId);
-  await _setQty(warehouseId, productId, current + qty);
+  await _applyDelta(warehouseId, productId, qty);
   await _logMovement({
     product_id: productId, from_warehouse_id: null, to_warehouse_id: warehouseId,
     quantity: qty, type: 'receive', reason: reason || null, performed_by: performedBy || null,
@@ -92,11 +101,17 @@ export async function allocateStock({ productId, fromWarehouseId, toWarehouseId,
   const qty = Number(quantity);
   if (!qty || qty <= 0) throw new Error('أدخل كمية صحيحة');
   if (fromWarehouseId === toWarehouseId) throw new Error('المخزن المصدر والوجهة متطابقان');
-  const fromQty = await _currentQty(fromWarehouseId, productId);
-  if (fromQty < qty) throw new Error(`الكمية المتاحة بالمصدر ${fromQty} فقط`);
-  const toQty = await _currentQty(toWarehouseId, productId);
-  await _setQty(fromWarehouseId, productId, fromQty - qty);
-  await _setQty(toWarehouseId,   productId, toQty + qty);
+  // Atomic transfer (locks the source row, checks sufficiency, moves) — race-free.
+  const { error: trErr } = await supabase.rpc('wh_transfer_stock', {
+    p_from: fromWarehouseId, p_to: toWarehouseId, p_product: productId, p_qty: qty,
+  });
+  if (trErr) {
+    if (/insufficient stock/i.test(trErr.message || '')) {
+      const have = await _currentQty(fromWarehouseId, productId);
+      throw new Error(`الكمية المتاحة بالمصدر ${have} فقط`);
+    }
+    throw trErr;
+  }
   await _logMovement({
     product_id: productId, from_warehouse_id: fromWarehouseId, to_warehouse_id: toWarehouseId,
     quantity: qty, type: 'allocate', reason: null, performed_by: performedBy || null,
@@ -228,8 +243,7 @@ async function _reserveOrder(order, performedBy) {
   const matched = await _matchItemsToProducts(order.items);
   for (const { productId, qty } of matched) {
     if (!qty || qty <= 0) continue;
-    const current = await _currentQty(warehouseId, productId);
-    await _setQty(warehouseId, productId, current - qty);
+    await _applyDelta(warehouseId, productId, -qty);
     await _logMovement({
       product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: null,
       quantity: qty, type: 'reserve', reason: 'حجز طلب (في التجهيز)', performed_by: performedBy || null,
@@ -256,8 +270,7 @@ async function _releaseOrder(order, performedBy) {
   }
   for (const { whId, productId, qty } of Object.values(net)) {
     if (qty <= 0) continue; // لا شيء مخصوم متبقٍّ
-    const current = await _currentQty(whId, productId);
-    await _setQty(whId, productId, current + qty);
+    await _applyDelta(whId, productId, qty);
     await _logMovement({
       product_id: productId, from_warehouse_id: null, to_warehouse_id: whId,
       quantity: qty, type: 'release', reason: 'استرداد للمخزون', performed_by: performedBy || null,
@@ -295,13 +308,11 @@ export async function reverseMovement(movement, performedBy) {
   const qty = Number(movement.quantity || 0);
   if (movement.type === 'receive') {
     // الأصل: null → to (+qty). العكس: انقص qty من to.
-    const wh = movement.to_warehouse_id;
-    await _setQty(wh, movement.product_id, (await _currentQty(wh, movement.product_id)) - qty);
+    await _applyDelta(movement.to_warehouse_id, movement.product_id, -qty);
   } else {
     // allocate: from (−qty) → to (+qty). العكس: أرجِع لـfrom، انقص من to.
-    const { from_warehouse_id: from, to_warehouse_id: to } = movement;
-    await _setQty(from, movement.product_id, (await _currentQty(from, movement.product_id)) + qty);
-    await _setQty(to,   movement.product_id, (await _currentQty(to,   movement.product_id)) - qty);
+    await _applyDelta(movement.from_warehouse_id, movement.product_id, qty);
+    await _applyDelta(movement.to_warehouse_id,   movement.product_id, -qty);
   }
   await _logMovement({
     product_id: movement.product_id,
