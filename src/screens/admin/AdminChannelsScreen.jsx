@@ -13,6 +13,7 @@ import {
   useAccountingLoading,
 } from '@modules/accounting/hooks/useAccounting.js';
 import { BOOK, BOOK_LABELS } from '@modules/accounting/types/accounting.types.js';
+import { useShippingStore } from '@services/shippingService';
 
 const KINDS = [
   { k: 'shipping',    l: '🚚 شركة شحن' },
@@ -58,17 +59,18 @@ export default function AdminChannelsScreen() {
       else await createChannel(data);
       toast.success('تم الحفظ ✅');
       setEdit(null);
+      useShippingStore.getState().reload(); // keep the order-form carrier picker fresh
     } catch (e) { toast.error(e.message); }
   };
 
   const toggleActive = async (c) => {
-    try { await updateChannel(c.id, { is_active: !c.is_active }); }
+    try { await updateChannel(c.id, { is_active: !c.is_active }); useShippingStore.getState().reload(); }
     catch (e) { toast.error(e.message); }
   };
 
   const del = async (c) => {
     if (!confirm(`حذف القناة «${c.name_ar}» نهائياً؟ (القيود المرتبطة تبقى لكن بلا قناة)`)) return;
-    try { await deleteChannel(c.id); toast.success('تم الحذف'); }
+    try { await deleteChannel(c.id); toast.success('تم الحذف'); useShippingStore.getState().reload(); }
     catch (e) { toast.error(e.message); }
   };
 

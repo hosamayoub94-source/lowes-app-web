@@ -9,7 +9,7 @@ import {
   listCustomers, countCustomers, starLabel, customerWaLink, followupMessage,
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
-  sellerVariants, canonicalSeller, exportMetaCSV,
+  sellerVariants, canonicalSeller, exportMetaCSV, getSellerAliases,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { STATUSES } from '@data/orderStatus';

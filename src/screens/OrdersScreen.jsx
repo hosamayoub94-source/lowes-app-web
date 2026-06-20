@@ -12,7 +12,8 @@ import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { syncOrderStock } from '@services/warehouseService';
-import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
+import { citiesForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
+import { useShippingStore, mergeShipping } from '@services/shippingService';
 import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
@@ -1891,7 +1892,13 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
     }
   };
 
-  const companies = shippingForMarket(form.market);
+  // Carrier picker = hardcoded defaults ∪ admin-managed shipping channels,
+  // so «بابل» (and any future carrier the admin adds in /admin/channels)
+  // shows up here too. Falls back to the hardcoded list if the DB is empty.
+  const shipChannels = useShippingStore((s) => s.channels);
+  const loadShipping = useShippingStore((s) => s.load);
+  useEffect(() => { loadShipping(); }, [loadShipping]);
+  const companies = mergeShipping(shipChannels, form.market);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
