@@ -1162,31 +1162,11 @@ function trackingLink(company, number) {
   if (number) return `https://kargomnerede.com.tr/tracking?t=${encodeURIComponent(number)}`;
   return null;
 }
-function nextOrderId(market, orders) {
-  const prefix = market === 'syria' ? 'SA-' : 'S';
-  const existing = orders
-    .filter(o => o.market === market && o.order_id)
-    .map(o => { const m = o.order_id.match(/\d+$/); return m ? parseInt(m[0], 10) : 0; });
-  const max = existing.length ? Math.max(...existing) : 0;
-  const now = new Date();
-  return `${now.getMonth() + 1}${prefix}${max + 1}`;
-}
-
-// يضمن رقم طلب فريد مقابل القاعدة كاملة (يشمل المؤرشف/المحذوف) — يرفع الرقم
-// التسلسلي حتى يجد رقماً غير مستخدم. يمنع خطأ orders_order_id_key المكرر.
-async function ensureUniqueOrderId(market, desired) {
-  let candidate = String(desired || '').trim() || nextOrderId(market, []);
-  const m = candidate.match(/^(.*?)(\d+)$/);
-  const head = m ? m[1] : `${candidate}-`;
-  let num = m ? parseInt(m[2], 10) : 1;
-  for (let i = 0; i < 200; i++) {
-    const { data } = await supabase.from('orders').select('id').eq('order_id', candidate).maybeSingle();
-    if (!data) return candidate;
-    num += 1;
-    candidate = `${head}${num}`;
-  }
-  return `${head}${num}-${String(Date.now()).slice(-4)}`;
-}
+// رقم الطلب (order_id) يُولَّد تلقائياً بقاعدة البيانات: تريغر BEFORE INSERT
+// (assign_order_code) يعطي كوداً تسلسلياً ذرّياً لكل فريق (market+brand):
+//   TL- تركيا-لويز · TS- تركيا-سترونغ · SL- سوريا-لويز · SS- سوريا-سترونغ.
+// يُترك order_id فارغاً عند الإنشاء فيملؤه التريغر — لا عشوائية ولا تضارب ولا سباق.
+// راجع: supabase/migrations/20260622_order_code_sequential.sql
 
 // Remembered Sokak (street) suggestions. There is no public street dataset for
 // Turkey (the address API only covers Mahalle/neighborhoods), so we learn from
@@ -1205,8 +1185,24 @@ function rememberSokak(v) {
   } catch { /* ignore */ }
 }
 
+// التوقيت المحلي للموظف بصيغة datetime-local (YYYY-MM-DDTHH:mm). يُستخدم كقيمة
+// افتراضية للتاريخ بدل toISOString (UTC) حتى يطابق يومُ الطلب يومَ الموظف الفعلي
+// (يتسق مع تخزين order_date كتوقيت محلي + Z).
+const localNow = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+};
+// عرض «يوم الطلب» من جزء التاريخ المخزَّن (YYYY-MM-DD) بمنطقة UTC، ليطابق إسناد
+// الشهر (slice(0,10)) فلا يختلف يومٌ بين الفاتورة/الكرت والفلاتر.
+const fmtOrderDay = (value, locale, opts) => {
+  if (!value) return '—';
+  const d = new Date(String(value).slice(0, 10) + 'T00:00:00Z');
+  return d.toLocaleDateString(locale, { ...opts, timeZone: 'UTC' });
+};
+
 const EMPTY_FORM = {
-  market: 'turkey', brand: 'lowes', order_id: '', order_date: new Date().toISOString().slice(0, 16),
+  market: 'turkey', brand: 'lowes', order_id: '', order_date: localNow(),
   handler_name: '', status: 'pending', notes: '',
   customer_name: '', phone_1: '', phone_2: '', wa_number: '',
   city: '', district: '', sy_neighborhood: '', address: '',
@@ -1350,7 +1346,7 @@ function InvoiceModal({ order, onClose }) {
               <div style={{ fontSize:'12px', fontWeight:'800', color:BRAND_COLORS.gold }}>{order.order_id}</div>
               <div style={{ fontSize:'9px', color:'#6B5D4F', marginTop:'2px' }}>
                 {order.order_date
-                  ? new Date(order.order_date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
+                  ? fmtOrderDay(order.order_date, 'ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
               </div>
             </div>
@@ -1662,7 +1658,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         <div className="flex items-center gap-2 shrink-0">
           <SyncBadge order={order} onRetry={onRetrySync} />
           <span className="text-[10px] text-muted">
-            {order.order_date ? new Date(order.order_date).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '—'}
+            {order.order_date ? fmtOrderDay(order.order_date, 'ar', { day: 'numeric', month: 'short' }) : '—'}
           </span>
         </div>
       </div>
@@ -1722,10 +1718,21 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
         )}
       </div>
       <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0 mt-0.5">
-        <button type="button" onClick={() => onChange(index, 'qty', Math.max(1, item.qty - 1))}
+        <button type="button" onClick={() => onChange(index, 'qty', Math.max(1, Number(item.qty || 1) - 1))}
           className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">−</button>
-        <span className="px-2 text-sm font-bold text-text tabular-nums min-w-[1.5rem] text-center">{item.qty}</span>
-        <button type="button" onClick={() => onChange(index, 'qty', item.qty + 1)}
+        <input type="number" inputMode="numeric" min={1} step={1} value={item.qty}
+          onChange={e => {
+            const raw = e.target.value;
+            if (raw === '') { onChange(index, 'qty', ''); return; }
+            const n = Math.floor(Number(raw));
+            onChange(index, 'qty', Number.isFinite(n) && n >= 1 ? n : 1);
+          }}
+          onBlur={e => {
+            const n = Math.floor(Number(e.target.value));
+            onChange(index, 'qty', Number.isFinite(n) && n >= 1 ? n : 1);
+          }}
+          className="w-11 px-1 py-2 text-sm font-bold text-text tabular-nums text-center bg-transparent focus:outline-none focus:bg-surface-alt [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+        <button type="button" onClick={() => onChange(index, 'qty', Number(item.qty || 1) + 1)}
           className="px-2 py-2 text-muted hover:text-text hover:bg-surface-alt transition text-sm font-bold">+</button>
       </div>
       <button type="button" onClick={() => onRemove(index)}
@@ -1737,7 +1744,7 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
 }
 
 // ── Order Form Modal ──────────────────────────────────────────
-function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null }) {
+function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
   const { name: userName, team, order_market } = useAuth();
   // «ماكنة» السوق المخصّصة تقفل سوق الطلب الجديد. وإلا سوق البائع.
   const myMarket = forcedMarket ?? order_market ?? teamToMarket(team) ?? 'turkey';
@@ -1748,7 +1755,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
     market:           order.market,
     brand:            order.brand            ?? 'lowes',
     order_id:         order.order_id         ?? '',
-    order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+    order_date:       order.order_date ? new Date(order.order_date).toISOString().slice(0, 16) : localNow(),
     handler_name:     order.handler_name     ?? userName ?? '',
     status:           order.status           ?? 'pending',
     notes:            order.notes            ?? '',
@@ -1772,15 +1779,16 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
     ...EMPTY_FORM,
     handler_name: userName ?? '',
     market:        forcedMarket || prefill.market || 'turkey',
-    brand:         prefill.brand || 'lowes',
-    currency:      prefill.market === 'syria' ? 'SYP' : 'TRY',
+    brand:         (forcedMarket || prefill.market) === 'syria' ? 'lowes' : (prefill.brand || 'lowes'), // سوريا = لويز دائماً
+    status:        statusKeysForMarket(forcedMarket || prefill.market || 'turkey')[0] || 'pending',
+    currency:      (forcedMarket || prefill.market) === 'syria' ? 'SYP' : 'TRY',
     customer_name: prefill.customer_name || '',
     phone_1:       prefill.phone_1 || '',
     wa_number:     prefill.wa_number || '',
     city:          prefill.city || '',
     address:       prefill.address || '',
-    shipping_company: prefill.market === 'syria' ? 'شركة الكرم' : 'yurtiçi',
-    payment_method:   prefill.market === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب',
+    shipping_company: (forcedMarket || prefill.market) === 'syria' ? 'شركة الكرم' : 'Yurtiçi Kargo',
+    payment_method:   (forcedMarket || prefill.market) === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
   } : {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
@@ -1814,27 +1822,35 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // Repeat-customer lookup: when phone settles, check if we know this customer.
+  // عملاء الواتساب فقط (شائع بسوريا) بلا phone_1 — نرجع لـwa_number.
   useEffect(() => {
-    const phone = form.phone_1;
+    const phone = form.phone_1 || form.wa_number;
     const t = setTimeout(async () => {
       const c = await lookupCustomer(phone);
       // Only surface as "repeat" if they have prior orders
       setCust(c && c.orders_count > 0 ? c : null);
     }, 500);
     return () => clearTimeout(t);
-  }, [form.phone_1]);
+  }, [form.phone_1, form.wa_number]);
 
   const handleMarketChange = (market) => {
-    set('market', market);
-    set('currency', market === 'turkey' ? 'TRY' : 'SYP');
-    set('shipping_company', market === 'turkey' ? 'Yurtiçi Kargo' : 'شركة الكرم');
-    set('payment_method', market === 'turkey' ? 'دفع عند الباب 💵' : 'دفع عند الاستلام');
-    if (!isEdit) set('order_id', nextOrderId(market, allOrders));
+    setForm(p => {
+      if (p.market === market) return p; // لا تغيير فعلي — تجنّب مسح الحقول بالخطأ
+      return {
+        ...p,
+        market,
+        brand: market === 'syria' ? 'lowes' : p.brand,         // سوريا ما فيها سترونغ
+        status: statusKeysForMarket(market)[0] || p.status,     // حالة صالحة لهذا السوق
+        currency: market === 'turkey' ? 'TRY' : 'SYP',
+        shipping_company: market === 'turkey' ? 'Yurtiçi Kargo' : 'شركة الكرم',
+        payment_method: market === 'turkey' ? 'دفع عند الباب 💵' : 'دفع عند الاستلام',
+        // تنظيف حقول عنوان السوق السابق حتى لا تُحفَظ بيانات خاطئة
+        city: '', district: '', address: '', sy_neighborhood: '',
+        mahalle: '', sokak: '', bno: '', daire: '', tracking_number: '',
+      };
+    });
+    // order_id يُولَّد تلقائياً بالقاعدة عند الحفظ (تريغر تسلسلي لكل فريق) — لا تعبئة مسبقة.
   };
-
-  useEffect(() => {
-    if (!isEdit && !form.order_id) set('order_id', nextOrderId(form.market, allOrders));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live Mahalle suggestions once a Turkish province + district are chosen.
   useEffect(() => {
@@ -1871,12 +1887,32 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
   const handleSave = async () => {
     if (!form.customer_name.trim()) return;
     setSaving(true);
+    // order_date من <input datetime-local> = توقيت محلي بلا منطقة. تحويله بـ
+    // toISOString يعيد تفسيره بتوقيت المتصفّح ويزيحه لـUTC — فطلبٌ قرب منتصف الليل
+    // (تركيا/سوريا UTC+3) قد يقع باليوم/الشهر الغلط في فلاتر العمولة والمحاسبة التي
+    // تقرأ order_date.slice(0,10)/slice(0,7). نخزّن التوقيت المحلي كما هو (نعامله UTC)
+    // ليبقى جزء التاريخ مطابقاً لما اختاره الموظف، مستقلاً عن منطقة العارض.
+    const localDt = String(form.order_date || '').trim();
+    const orderDateIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(localDt)
+      ? `${localDt.slice(0, 16)}:00.000Z`
+      : new Date().toISOString();
     const payload = {
       ...form,
       amount:      form.amount      ? Number(form.amount)      : null,
       paid_amount: form.paid_amount ? Number(form.paid_amount) : null,
-      order_date:  new Date(form.order_date).toISOString(),
-      items:       items.filter(i => i.name.trim()),
+      order_date:  orderDateIso,
+      // أسقط الصفوف بلا اسم، ثم ادمج المنتجات المكرّرة (اسم متطابق بعد التطبيع)
+      // بجمع الكمية — صفّان «Cream ×1» يصيران «Cream ×2» (يحتفظ بأول تهجئة/ترتيب).
+      items:       Object.values(
+        items
+          .filter(i => i.name.trim())
+          .reduce((acc, it) => {
+            const k = normName(it.name);
+            if (acc[k]) acc[k].qty = Number(acc[k].qty || 1) + Number(it.qty || 1);
+            else        acc[k] = { ...it, qty: Number(it.qty || 1) };
+            return acc;
+          }, {}),
+      ),
     };
     // Remember the typed street so it autocompletes next time (no public dataset).
     rememberSokak(form.sokak);
@@ -1957,7 +1993,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>رقم الطلب</label>
-                <input value={form.order_id} onChange={e => set('order_id', e.target.value)} className={INP} placeholder="5S100" />
+                <input value={isEdit ? (form.order_id || '') : ''} readOnly disabled className={`${INP} opacity-70 cursor-not-allowed`} placeholder={isEdit ? '' : 'يُولَّد تلقائياً عند الحفظ (تسلسلي)'} title="كود تسلسلي تلقائي لكل فريق — TL- / TS- / SL- / SS-" />
               </div>
               <div>
                 <label className={LBL}>البائع</label>
@@ -2035,7 +2071,7 @@ function OrderFormModal({ order, onClose, onSave, allOrders, forcedMarket = null
                 {isMotorZone(form.city, form.district) && (
                   <div className="bg-amber-bg border border-amber/30 rounded-xl px-3 py-2 text-xs text-amber-fg flex items-center justify-between gap-2">
                     <span>🏍️ منطقة توصيل موتور (إسطنبول الأوروبية)</span>
-                    <button type="button" onClick={() => set('shipping_company', 'توصيل الموتور')}
+                    <button type="button" onClick={() => set('shipping_company', 'توصيل الموتور 🏍️')}
                       className="font-bold underline shrink-0">اعتمد موتور</button>
                   </div>
                 )}
@@ -2756,14 +2792,42 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (!String(form.address || '').trim()) warns.push('العنوان فارغ');
       const hasItem = Array.isArray(form.items) && form.items.some(it => String(it?.name || '').trim());
       if (!hasItem) warns.push('لا يوجد منتج في الطلب');
-      if (warns.length && !window.confirm(`⚠️ تنبيهات:\n• ${warns.join('\n• ')}\n\nحفظ الطلب رغم ذلك؟`)) return;
 
-      // ── حارس التكرار: نفس الهاتف + منتج خلال دقائق ──
+      // ── تحقّق مالي (عملة-محايد TRY/SYP/USD) — المبلغ هو ما يُحصّله المندوب عند الباب ──
+      // (القيم وصلت أرقاماً أو null من buildPayload في المودال.)
+      const amtRaw = form.amount, paidRaw = form.paid_amount;
+      const amtNum = Number(amtRaw), paidNum = Number(paidRaw);
+      const hasAmt  = amtRaw !== '' && amtRaw != null && !Number.isNaN(amtNum);
+      const hasPaid = paidRaw !== '' && paidRaw != null && !Number.isNaN(paidNum);
+      if (!hasAmt || amtNum <= 0) {
+        warns.push('المبلغ الإجمالي فارغ أو صفر — لن يعرف المندوب كم يُحصّل');
+      } else {
+        if (form.payment_status === 'paid' && !hasPaid) form.paid_amount = amtNum; // مدفوع كامل بلا مبلغ → عبّئه
+        if (form.payment_status === 'partial') {
+          if (!hasPaid) warns.push('دفع جزئي بدون مبلغ مدفوع');
+          else if (paidNum >= amtNum) warns.push('المبلغ المدفوع يساوي/يتجاوز الإجمالي — اختر «مدفوع كامل»');
+        }
+        if (hasPaid && paidNum > amtNum) warns.push('المبلغ المدفوع أكبر من إجمالي الطلب');
+      }
+
+      // ── حارس التكرار: نفس الهاتف/الواتساب + منتج خلال دقائق (best-effort) ──
+      // يشمل رقم الواتساب وphone_2 (عملاء سوريا غالباً واتساب فقط).
+      let dups = [];
       try {
-        const dups = await findDuplicates({ phone: form.phone_1, items: form.items, market: form.market, withinMinutes: 10 });
-        if (dups.length && !window.confirm(`🔁 يوجد ${dups.length} طلب مشابه قبل دقائق (${dups.slice(0,2).map(d=>d.customer_name||d.order_id).join('، ')}).\nقد يكون مكرراً — متابعة الحفظ؟`)) return;
+        dups = await findDuplicates({ phone: form.phone_1 || form.wa_number || form.phone_2, items: form.items, market: form.market, withinMinutes: 10 });
       } catch { /* best-effort */ }
+
+      // ── تأكيد واحد مدمج: كل التنبيهات + احتمال التكرار في قرار واحد ──
+      if (warns.length || dups.length) {
+        const lines = [];
+        if (warns.length) lines.push(`⚠️ تنبيهات:\n• ${warns.join('\n• ')}`);
+        if (dups.length) lines.push(`🔁 يوجد ${dups.length} طلب مشابه قبل دقائق (${dups.slice(0,2).map(d=>d.customer_name||d.order_id).join('، ')}) — قد يكون مكرراً.`);
+        if (!window.confirm(`${lines.join('\n\n')}\n\nحفظ الطلب رغم ذلك؟`)) return;
+      }
     }
+
+    // ثابت إلزامي: سوريا ما فيها سترونغ — أي طلب سوري دائماً lowes (يصحّح القديم عند التعديل أيضاً).
+    if (form.market === 'syria' && form.brand !== 'lowes') form.brand = 'lowes';
 
     let savedId = existingId;
     if (existingId) {
@@ -2772,20 +2836,16 @@ export default function OrdersScreen({ forcedMarket = null }) {
         .eq('id', existingId);
       if (error) throw new Error(error.message);
     } else {
-      // ضمان رقم طلب فريد مقابل القاعدة كاملة (المؤرشف/المحذوف ضمناً)
-      form.order_id = await ensureUniqueOrderId(form.market, form.order_id);
-      let { data, error } = await supabase.from('orders')
-        .insert({ ...form, created_by: userName })
-        .select('id').single();
-      // احتياط: لو حصل سباق وتكرّر الرقم، أعد التوليد وحاول مرة أخرى
-      if (error && (error.code === '23505' || /duplicate key/i.test(error.message))) {
-        form.order_id = await ensureUniqueOrderId(form.market, form.order_id);
-        ({ data, error } = await supabase.from('orders')
-          .insert({ ...form, created_by: userName })
-          .select('id').single());
-      }
+      // الكود يُولَّد تلقائياً بالقاعدة: تريغر BEFORE INSERT تسلسلي ذرّي لكل فريق
+      // (market+brand) عند ترك order_id فارغاً — لا عشوائية ولا تضارب ولا سباق.
+      const payload = { ...form, created_by: userName };
+      delete payload.order_id; // اتركه للتريغر ليولّد TL-/TS-/SL-/SS- التسلسلي
+      const { data, error } = await supabase.from('orders')
+        .insert(payload)
+        .select('id, order_id').single();
       if (error) throw new Error(error.message);
       savedId = data?.id;
+      if (data?.order_id) form.order_id = data.order_id; // الكود المولّد (للعرض/المخزون/المزامنة)
     }
     setModal(null);
     load();
@@ -2804,9 +2864,19 @@ export default function OrdersScreen({ forcedMarket = null }) {
             && r.itemsWritten < r.itemsSent;
           if (dropped) {
             // نجاح كاذب: نزل الطلب لكن بعض المنتجات ما طابقت أعمدة الجدول.
-            toast.warning?.(`⚠️ الطلب نزل${where} لكن ${r.itemsSent - r.itemsWritten} منتج لم يُسجَّل بالجدول — راجع أسماء المنتجات.`, { duration: 10000 });
+            // لو رجّع السكربت أسماء المنتجات غير المطابقة نسمّيها بدل العدد فقط؛ وإلا نرجع لرسالة العدد.
+            const names = (Array.isArray(r.droppedItems) ? r.droppedItems : [])
+              .map(x => (typeof x === 'string' ? x : x?.name))
+              .filter(Boolean);
+            if (names.length) {
+              const shown = names.slice(0, 3).join('، ');
+              const more  = names.length > 3 ? ` و${names.length - 3} غيرها` : '';
+              toast.warning?.(`⚠️ الطلب نزل${where} لكن لم تُسجَّل بالجدول: «${shown}»${more} — صحّح أسماءها لتطابق أعمدة الجدول.`, { duration: 12000 });
+            } else {
+              toast.warning?.(`⚠️ الطلب نزل${where} لكن ${r.itemsSent - r.itemsWritten} منتج لم يُسجَّل بالجدول — راجع أسماء المنتجات.`, { duration: 10000 });
+            }
           } else {
-            toast.success?.(`✅ الطلب ${existingId ? 'تحدّث' : 'نزل'} على الجدول${where}`);
+            toast.success?.(`✅ الطلب ${existingId ? 'تحدّث' : 'نزل'} على الجدول${where}${!existingId && form.order_id ? ` · كود ${form.order_id}` : ''}`);
           }
         } else {
           toast.error?.(`⚠️ لم ينزل على الجدول (${r.error || 'خطأ'}). سيُعاد تلقائياً — أو اضغط «أعد المزامنة» على الكرت.`, { duration: 9000 });
@@ -3332,7 +3402,6 @@ export default function OrdersScreen({ forcedMarket = null }) {
       {modal && (
         <OrderFormModal
           order={modal === 'new' ? null : modal}
-          allOrders={orders}
           forcedMarket={lockedMarket}
           onClose={() => setModal(null)}
           onSave={handleSave}
