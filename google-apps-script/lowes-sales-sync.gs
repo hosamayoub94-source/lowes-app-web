@@ -176,6 +176,7 @@ function doPost(e) {
     }
 
     if (existingRow) {
+      _relaxRow(sh, existingRow, lastCol); // امنع فشل «رفض» المنسدلة (قاعدة المالك)
       // تحديث بمكانه — اكتب فقط الأعمدة التي يملكها التطبيق (احفظ التعديلات اليدوية).
       // ⚠️ قرار المالك (11 يونيو 2026): الحالة مملوكة للجدول/الفريق — التحديث من
       // التطبيق يكتب بيانات العميل + الأصناف + الدفع، لكن **لا يدهس عمود الحالة**
@@ -199,6 +200,7 @@ function doPost(e) {
       });
       return _json({ ok: true, action: 'updated', row: existingRow, itemsSent: items.length, itemsWritten: itemsWritten });
     } else {
+      _relaxRow(sh, row, lastCol); // امنع فشل «رفض» المنسدلة قبل الإلحاق
       sh.getRange(row, 1, 1, lastCol).setValues([rowVals]);
       return _json({ ok: true, action: 'appended', row: row, itemsSent: items.length, itemsWritten: itemsWritten });
     }
@@ -409,6 +411,24 @@ function _numToCol(num) {
   var s = ''; while (num > 0) { var m = (num - 1) % 26; s = String.fromCharCode(65 + m) + s; num = Math.floor((num - 1) / 26); }
   return s;
 }
+// Relax any «reject input» data-validation on a row (→ allowInvalid/warning),
+// keeping the dropdown lists, so app writes never throw. Owner rule: dropdown =
+// warning, never reject. Permanent fix for «bad_response» sync failures.
+function _relaxRow(sh, rowNum, width) {
+  try {
+    var rng = sh.getRange(rowNum, 1, 1, width);
+    var rules = rng.getDataValidations(), changed = false;
+    for (var c = 0; c < rules[0].length; c++) {
+      var rule = rules[0][c];
+      if (rule && rule.getAllowInvalid && rule.getAllowInvalid() === false) {
+        rules[0][c] = rule.copy().setAllowInvalid(true).build();
+        changed = true;
+      }
+    }
+    if (changed) rng.setDataValidations(rules);
+  } catch (e) { /* best-effort */ }
+}
+
 function _json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }

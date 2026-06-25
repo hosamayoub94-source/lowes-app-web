@@ -12,13 +12,12 @@ import { ROLES }    from '@data/teams';
 import { sendNotification } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { syncOrderStock } from '@services/warehouseService';
-import { citiesForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress } from '@data/cities';
-import { useShippingStore, mergeShipping } from '@services/shippingService';
+import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress, parseTurkishAddress } from '@data/cities';
 import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
-import { fetchNeighborhoods, fetchStreets } from '@services/turkeyApi';
+import { fetchNeighborhoods, fetchStreets, fetchMahalles } from '@services/turkeyApi';
 import { targetForCurrency } from '@data/targets';
-import { lookupCustomer, starLabel, canonicalSeller } from '@services/customerService';
+import { lookupCustomer, starLabel, canonicalSeller, getCustomerOrders } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
@@ -364,9 +363,6 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
 // ── Yurtiçi import-Excel (Dosya İle Gönderi) ──────────────────
 // يولّد صفوفاً بصيغة قالب يورتيتشي الرسمي (25 عمود) لرفعها دفعة وحدة.
 // المالك يرفعها عبر Dosya İle Gönderi → تنزل بـTeslim Listesi (طباعة + ONAY).
-// عَلَم مؤقت: إخفاء زر «أنشئ شحنة يورتيتشي» (API SOAP) داخل كروت الطلبات.
-// التصدير عبر Excel «📤 يورتيتشي» يبقى فعّالاً. أعِدها true للإظهار مجدّداً.
-const SHOW_YURTICI_CREATE_SHIPMENT = false;
 const YURTICI_HEADERS = [
   'Kişi / Kurum Adı (*)', 'Adresi (*)', 'İl', 'İlçe', 'Telefon Ev/İş', 'Telefon Cep',
   'E-Mail Adresi', 'Vergi No', 'Kargo Türü (*)', 'Ödeme Tipi (*)', 'İrsaliye Numarası',
@@ -378,7 +374,7 @@ const isCodOrder = (o) => {
   const p = String(o.payment_method || '');
   return !(p.includes('مسبق') || p.includes('bank') || p.includes('بنك') || p.includes('حوالة') || /kredi|kart/i.test(p));
 };
-function yurticiRow(o, idx = 0) {
+function yurticiRow(o) {
   const cod = isCodOrder(o);
   const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
   // الإجمالي COD = المتبقّي للجزئي وإلا المبلغ. غير COD → فارغ.
@@ -401,7 +397,7 @@ function yurticiRow(o, idx = 0) {
     'Adet (*)': 1,                    // طرد واحد لكل طلب (قرار المالك)
     'Kargo İçeriği': 'kozmetik',
     'Tahsilat Tipi': cod ? 'N' : '',  // Nakit (نقدي) للتحصيل
-    'Fatura Numarası': String(idx + 1),  // ترقيم تسلسلي 1..N — يورتيتشي بيطلبه إجبارياً مع Tahsilat Tipi
+    'Fatura Numarası': '',
     'Fatura Tutarı': codAmount === '' ? '' : Math.round(codAmount),
     'Dosya/Poşet No': '', 'Kampanya No': '', 'Kampanya Kodu': '',
     'Kg': 1, 'Desi': 1, 'Taksit Uygulama Kriteri': '', 'Taksit Sayısı': '', 'Hata Mesajları': '',
@@ -1185,6 +1181,24 @@ function rememberSokak(v) {
   } catch { /* ignore */ }
 }
 
+// Generic "remember what was typed" suggestion store — used for building No
+// (bno) and apartment (daire). There's no official dataset for these (turktelekom
+// has them only as private infrastructure data), so we make them smart by learning
+// from prior input. Most-recent-first, capped.
+const BNO_KEY = 'lowes_bno_history', DAIRE_KEY = 'lowes_daire_history';
+function loadHistoryList(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+function rememberValue(key, v) {
+  const s = String(v || '').trim();
+  if (!s) return;
+  try {
+    const list = loadHistoryList(key).filter(x => x.toLowerCase() !== s.toLowerCase());
+    list.unshift(s);
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 200)));
+  } catch { /* ignore */ }
+}
+
 // التوقيت المحلي للموظف بصيغة datetime-local (YYYY-MM-DDTHH:mm). يُستخدم كقيمة
 // افتراضية للتاريخ بدل toISOString (UTC) حتى يطابق يومُ الطلب يومَ الموظف الفعلي
 // (يتسق مع تخزين order_date كتوقيت محلي + Z).
@@ -1637,7 +1651,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
       </div>
 
       {/* Yurtiçi: إنشاء شحنة (تركيا فقط، لمن يقدر يقدّم الحالة، إن لم تُنشأ بعد) */}
-      {SHOW_YURTICI_CREATE_SHIPMENT && canAdvance && order.market === 'turkey' && onCreateShipment && (
+      {canAdvance && order.market === 'turkey' && onCreateShipment && (
         order.yurtici_cargo_key ? (
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1.5">
             🚚 شحنة يورتيتشي مُنشأة · <span className="font-mono">{order.yurtici_cargo_key}</span>
@@ -1774,7 +1788,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     shipping_company: order.shipping_company ?? 'Yurtiçi Kargo',
     pickup_type:      order.pickup_type      ?? 'استلام من المركز',
     tracking_number:  order.tracking_number  ?? '',
-    mahalle: '', sokak: '', bno: '', daire: '',
+    // Repopulate the structured address parts from the saved address string so
+    // editing a Turkey order shows Mahalle/Sokak/No/Daire (was: always blanked).
+    ...(order.market === 'turkey' ? parseTurkishAddress(order.address) : { mahalle: '', sokak: '', bno: '', daire: '' }),
   } : prefill ? {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
@@ -1809,6 +1825,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
   const [mahalleOpts, setMahalleOpts] = useState([]); // live Mahalle suggestions
   const [sokakOpts]   = useState(loadSokakHistory());  // remembered Sokak suggestions
   const [streetOpts,  setStreetOpts]  = useState([]);  // official UAVT streets for the chosen mahalle
+  const [bnoOpts]     = useState(() => loadHistoryList(BNO_KEY));    // remembered building numbers
+  const [daireOpts]   = useState(() => loadHistoryList(DAIRE_KEY));  // remembered apartment numbers
+  const [lastAddr,    setLastAddr]    = useState(null); // repeat customer's previous address (autofill)
 
   // Reload products whenever brand changes.
   // Strong brand: shows ALL products (Strong + Lowe's) — sellers handle both.
@@ -1852,13 +1871,39 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     // order_id يُولَّد تلقائياً بالقاعدة عند الحفظ (تريغر تسلسلي لكل فريق) — لا تعبئة مسبقة.
   };
 
-  // Live Mahalle suggestions once a Turkish province + district are chosen.
+  // Mahalle suggestions: bundled UAVT data FIRST (offline, instant, always
+  // available — fixes "Mahalle sometimes not picked" when the external API is
+  // slow/down), then enriched with the live API if it adds anything. Merged + deduped.
   useEffect(() => {
     if (form.market !== 'turkey' || !form.city || !form.district) { setMahalleOpts([]); return; }
     let alive = true;
-    fetchNeighborhoods(form.city, form.district).then(n => { if (alive) setMahalleOpts(n); });
+    fetchMahalles(form.city, form.district).then(local => {
+      if (!alive) return;
+      setMahalleOpts(local);
+      fetchNeighborhoods(form.city, form.district).then(api => {
+        if (!alive || !api?.length) return;
+        const seen = new Set(local.map(x => String(x).toLocaleLowerCase('tr')));
+        const merged = [...local, ...api.filter(x => !seen.has(String(x).toLocaleLowerCase('tr')))]
+          .sort((a, b) => a.localeCompare(b, 'tr'));
+        setMahalleOpts(merged);
+      }).catch(() => {});
+    }).catch(() => {});
     return () => { alive = false; };
   }, [form.market, form.city, form.district]);
+
+  // Repeat-customer address autofill: when a known customer is matched and the
+  // address is still empty, fetch their most recent same-market order address so
+  // the seller can fill it in one tap (incl. building/apartment they typed before).
+  useEffect(() => {
+    if (!cust || form.market !== 'turkey') { setLastAddr(null); return; }
+    let alive = true;
+    getCustomerOrders(form.phone_1 || form.wa_number).then(orders => {
+      if (!alive) return;
+      const prev = (orders || []).find(o => o.market === 'turkey' && o.address && String(o.address).trim());
+      setLastAddr(prev?.address || null);
+    }).catch(() => { if (alive) setLastAddr(null); });
+    return () => { alive = false; };
+  }, [cust, form.market]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Official Sokak (street) suggestions for the chosen district + mahalle (UAVT).
   useEffect(() => {
@@ -1873,7 +1918,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
   useEffect(() => {
     const built = buildTurkishAddress({ mahalle: form.mahalle, sokak: form.sokak, bno: form.bno, daire: form.daire });
     if (built) set('address', built);
-  }, [form.mahalle, form.sokak, form.bno, form.daire]);  
+  }, [form.mahalle, form.sokak, form.bno, form.daire]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addItem    = () => setItems(p => [...p, { name: '', qty: 1 }]);
   const removeItem = (i) => setItems(p => p.filter((_, idx) => idx !== i));
@@ -1914,8 +1959,10 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
           }, {}),
       ),
     };
-    // Remember the typed street so it autocompletes next time (no public dataset).
+    // Remember the typed street/building/apartment so they autocomplete next time.
     rememberSokak(form.sokak);
+    rememberValue(BNO_KEY, form.bno);
+    rememberValue(DAIRE_KEY, form.daire);
     // Address parts are UI-only helpers (not DB columns) — strip before save.
     delete payload.mahalle; delete payload.sokak; delete payload.bno; delete payload.daire;
     delete payload.sy_neighborhood; // UI-only for Syria address
@@ -1928,13 +1975,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     }
   };
 
-  // Carrier picker = hardcoded defaults ∪ admin-managed shipping channels,
-  // so «بابل» (and any future carrier the admin adds in /admin/channels)
-  // shows up here too. Falls back to the hardcoded list if the DB is empty.
-  const shipChannels = useShippingStore((s) => s.channels);
-  const loadShipping = useShippingStore((s) => s.load);
-  useEffect(() => { loadShipping(); }, [loadShipping]);
-  const companies = mergeShipping(shipChannels, form.market);
+  const companies = shippingForMarket(form.market);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -2063,9 +2104,17 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
                     className={INP} placeholder={streetOpts.length ? 'Sokak (اختر الشارع)' : 'Sokak (الشارع)'} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={form.bno} onChange={e => set('bno', e.target.value)} className={INP} placeholder="No (رقم المبنى)" />
-                  <input value={form.daire} onChange={e => set('daire', e.target.value)} className={INP} placeholder="Daire (الشقة)" />
+                  <ComboBox value={form.bno} onChange={v => set('bno', v)} options={bnoOpts}
+                    className={INP} placeholder="No (رقم المبنى)" />
+                  <ComboBox value={form.daire} onChange={v => set('daire', v)} options={daireOpts}
+                    className={INP} placeholder="Daire (الشقة)" />
                 </div>
+                {lastAddr && !form.address && (
+                  <button type="button" onClick={() => set('address', lastAddr)}
+                    className="w-full text-right bg-teal/5 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal hover:bg-teal/10 transition truncate">
+                    📍 استخدم عنوان آخر طلب: {lastAddr}
+                  </button>
+                )}
                 <input value={form.address} onChange={e => set('address', e.target.value)} className={INP}
                   placeholder="العنوان كامل (يُبنى تلقائياً — أو الصق من فاتورة العميل)" />
                 {isMotorZone(form.city, form.district) && (
@@ -2586,10 +2635,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
         q = q.eq('archived', true);
         const s = search.trim();
         if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
-        // كان السقف 500 → كان يخفي الطلبات الأقدم، فبعض البائعين ما بيطلعوا بقائمة
-        // الفلتر (sellerOptions مشتقّة من الطلبات المحمّلة) ولا تظهر طلباتهم المؤرشفة.
-        // العرض النشط بلا سقف أصلاً، فرفعنا الأرشيف لسقف واسع ليظهر كامل الأرشيف.
-        q = q.limit(5000);
+        q = q.limit(500);
       } else {
         q = q.or('archived.is.null,archived.eq.false');
       }
@@ -2598,7 +2644,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // Edits/permissions are handled per-card, not by hiding rows here.
       const { data } = await q;
       setOrders(data ?? []);
-    } catch { /* تجاهل */ }
+    } catch {}
     finally { setLoading(false); }
   }, [viewArchive, search]);
 
@@ -2694,7 +2740,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       try {
         await supabase.from('orders').update({ status: next }).eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
-        await syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
+        syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
         setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
         if (isSyncable(o)) {
           const r = await syncToSheet(o.id);   // await = تسلسل فعلي
@@ -2710,44 +2756,25 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // تصدير ملف يورتيتشي (Excel) لطلبات تركيا الجاهزة للشحن → رفع دفعة وحدة.
   const [exportingYurtici, setExportingYurtici] = useState(false);
   const exportYurticiExcel = async () => {
-    // مؤهّل بالحالة/السوق/الشركة فقط (بدون شرط «لم يُصدّر») — للتمييز بين الجديد والمُصدَّر سابقاً
-    // كي لا يطلع «0» بصمت ويظنّ المستخدم إن في عطل بينما الطلبات تم تصديرها/رفعها سابقاً.
-    const eligible = orders.filter(o =>
+    const ship = orders.filter(o =>
       o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
+      !o.yurtici_cargo_key &&  // لا تُعِد طلباً له شحنة يورتيتشي مُنشأة (يمنع تكرار الشحنة في الرفع)
       ['pending', 'preparing', 'ready'].includes(o.status) &&
       // استثنِ التوصيل بالموتور صراحةً (قد يكون shipping_company فارغاً) — يورتيتشي فقط
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '') &&
       (!o.shipping_company || /yurti[çc]i/i.test(o.shipping_company || ''))
     );
-    // جديد = لم يُنشأ له شحنة ولم يُصدَّر بعد. مُصدَّر سابقاً = له cargoKey أو ختم تصدير.
-    const fresh   = eligible.filter(o => !o.yurtici_cargo_key && !o.yurtici_exported_at);
-    const already = eligible.filter(o =>  o.yurtici_cargo_key ||  o.yurtici_exported_at);
-
-    let ship = fresh;
-    if (!fresh.length) {
-      if (!already.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
-      // كل المؤهّلين تم تصديرهم سابقاً — وضّح الحقيقة واسمح بإعادة التنزيل بوعي.
-      if (!window.confirm(`ما في طلبات جديدة للتصدير.\nلكن ${already.length} طلب جاهز تم تصديره سابقاً.\n\nتنزيلهم مرة ثانية؟\n⚠️ لا ترفع الملف على يورتيتشي لو سبق ورفعتهم — بتصير شحنة مكرّرة.`)) return;
-      ship = already;
-    } else if (already.length) {
-      if (!window.confirm(`توليد ملف لـ${fresh.length} طلب جديد.\n(${already.length} طلب تم تصديره سابقاً — مستثنى تلقائياً).\n\nمتابعة؟`)) return;
-    } else {
-      if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
-    }
+    if (!ship.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
+    if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
     setExportingYurtici(true);
     try {
       const XLSX = await import('xlsx');
-      const rows = ship.map((o, idx) => yurticiRow(o, idx));
+      const rows = ship.map(yurticiRow);
       const ws = XLSX.utils.json_to_sheet(rows, { header: YURTICI_HEADERS });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CargoImportTemplate');
       const today = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `yurtici-${today}.xlsx`);
-      // اختم الطلبات المُصدَّرة كي لا تتكرّر بالتصدير التالي (يُحفظ بالقاعدة — عمود 0007).
-      const ids = ship.map(o => o.id);
-      const stamp = new Date().toISOString();
-      await supabase.from('orders').update({ yurtici_exported_at: stamp }).in('id', ids);
-      setOrders(p => p.map(o => ids.includes(o.id) ? { ...o, yurtici_exported_at: stamp } : o));
       toast.success?.(`✅ تم توليد ملف ${ship.length} طلب — ارفعه على يورتيتشي`);
     } catch (e) { toast.error?.('تعذّر التوليد: ' + (e?.message || e)); }
     finally { setExportingYurtici(false); }
@@ -2959,9 +2986,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
   const myNames = useMemo(() => new Set([userName, ...partnerNames]), [userName, partnerNames]);
 
-  // الطلبات الفاشلة المزامنة (للوحة المدير + زر إعادة جماعي).
+  // الطلبات الفاشلة المزامنة (للوحة المدير + زر إعادة جماعي). نستثني الحالات
+  // النهائية (تسليم/تسوية/راجع): الـedge fn يتخطّاها (terminal_no_readd) فلا فائدة
+  // من إعادة محاولتها، وإلا تبقى عالقة بالبانر للأبد كـ«فشل» رغم انتهائها.
+  const TERMINAL_SYNC = ['delivered', 'settled', 'returned'];
   const failedSync = useMemo(
-    () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at && (!lockedMarket || o.market === lockedMarket)),
+    () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at
+      && !TERMINAL_SYNC.includes(o.status) && (!lockedMarket || o.market === lockedMarket)),
     [orders, lockedMarket]
   );
   const [retryingAll, setRetryingAll] = useState(false);

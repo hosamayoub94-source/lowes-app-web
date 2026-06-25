@@ -118,7 +118,7 @@ function doPost(e) {
           var rowVals = data[r].slice(0, headers.length);
           while (rowVals.length < headers.length) rowVals.push('');
           for (var k in owned) rowVals[k] = owned[k];
-          sh.getRange(r + 1, 1, 1, headers.length).setValues([rowVals]);
+          _writeRowRelaxed(sh, r + 1, headers.length, rowVals);
           return _json({ ok: true, action: 'updated', row: r + 1 });
         }
       }
@@ -134,7 +134,7 @@ function doPost(e) {
     var insertAt = lastDataRow + 1;
     var blank = new Array(headers.length).fill('');
     for (var k2 in owned) blank[k2] = owned[k2];
-    sh.getRange(insertAt, 1, 1, headers.length).setValues([blank]);
+    _writeRowRelaxed(sh, insertAt, headers.length, blank);
     return _json({ ok: true, action: 'appended', row: insertAt });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -352,6 +352,58 @@ function rebuildSheets() {
     sh.getRange(1, 1, 1, HEADER.length).setValues([HEADER]).setFontWeight('bold').setBackground('#0f1f3d').setFontColor('#ffffff');
     sh.setFrozenRows(1);
   });
+}
+
+// ── Resilient row write — the PERMANENT fix for «bad_response» sync failures ──
+// Any column with a «reject input» data-validation (esp. J «صاحب الطلب») makes
+// setValues throw when the app sends a value not in the dropdown (e.g. a seller
+// name spelled differently). Owner's standing rule: any dropdown = WARNING, never
+// reject. So before writing, we relax (allowInvalid=true) the reject-rules on the
+// TARGET ROW only — keeping the dropdown lists intact — then write. The app's
+// writes can no longer fail regardless of what validation the team adds later.
+function _writeRowRelaxed(sh, rowNum, width, vals) {
+  var rng = sh.getRange(rowNum, 1, 1, width);
+  try {
+    var rules = rng.getDataValidations(), changed = false;
+    for (var c = 0; c < rules[0].length; c++) {
+      var rule = rules[0][c];
+      if (rule && rule.getAllowInvalid && rule.getAllowInvalid() === false) {
+        rules[0][c] = rule.copy().setAllowInvalid(true).build();
+        changed = true;
+      }
+    }
+    if (changed) rng.setDataValidations(rules);
+  } catch (e) { /* best-effort: never block the write */ }
+  rng.setValues([vals]);
+}
+
+// ── Auto-relax safety net ──
+// Installable onChange trigger: whenever the sheet structure/validation changes
+// (e.g. the team re-adds a «reject» dropdown), re-relax everything to «warning».
+// Belt-and-suspenders with _writeRowRelaxed above. Throttled to once/2min via a
+// document property so a burst of edits doesn't re-scan repeatedly.
+function onTurkeyValidationChange(e) {
+  try {
+    if (e && e.changeType && ['EDIT', 'FORMAT', 'OTHER', 'INSERT_ROW', 'REMOVE_ROW'].indexOf(e.changeType) < 0) return;
+    var props = PropertiesService.getDocumentProperties();
+    var last = Number(props.getProperty('lastRelax') || 0);
+    var now = Date.now();
+    if (now - last < 120000) return; // throttle: at most once / 2 minutes
+    props.setProperty('lastRelax', String(now));
+    relaxAllStatusValidation();
+  } catch (err) { /* never block the sheet */ }
+}
+
+// Run ONCE from the editor to install the auto-relax onChange trigger.
+function createRelaxTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'onTurkeyValidationChange') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('onTurkeyValidationChange')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onChange()
+    .create();
+  return 'auto-relax onChange trigger created';
 }
 
 function _json(obj) {

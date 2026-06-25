@@ -24,7 +24,7 @@ export const ISTANBUL_MOTOR_DISTRICTS = [
 ];
 
 // Shipping carriers per market.
-export const SYRIA_SHIPPING  = ['شركة الكرم', 'قدموس', 'بابل', 'مسارات', 'إيزلا', 'توصيل جرمانا', 'توصيل ميتور', 'أخرى'];
+export const SYRIA_SHIPPING  = ['شركة الكرم', 'قدموس', 'مسارات', 'إيزلا', 'توصيل جرمانا', 'توصيل ميتور', 'أخرى'];
 export const TURKEY_SHIPPING = [
   'Yurtiçi Kargo', 'Aras Kargo', 'Sürat Kargo', 'PTT Kargo', 'MNG Kargo',
   'توصيل خاص 🚗', 'توصيل الموتور 🏍️',
@@ -70,4 +70,21 @@ export function buildTurkishAddress({ mahalle, sokak, bno, daire } = {}) {
   if (bno)     parts.push(`No:${bno}`);
   if (daire)   parts.push(`D:${daire}`);
   return parts.join(' ');
+}
+
+// Inverse of buildTurkishAddress: pull the structured parts back out of a saved
+// address string ("X Mah. Y Sok. No:Z D:W") so opening an existing order for edit
+// repopulates the Mahalle/Sokak/No/Daire fields (instead of showing them empty).
+// A free-form/pasted address that doesn't match returns empty parts — the full
+// `address` text is then preserved untouched (the build effect is a no-op).
+export function parseTurkishAddress(address) {
+  const s = String(address || '').trim();
+  const out = { mahalle: '', sokak: '', bno: '', daire: '' };
+  if (!s) return out;
+  const m = s.match(/^(.*?)\s*Mah\./i);            if (m) out.mahalle = m[1].trim();
+  const k = s.match(/Mah\.\s*(.*?)\s*Sok\./i);     if (k) out.sokak = k[1].trim();
+  else if (!m) { const k2 = s.match(/^(.*?)\s*Sok\./i); if (k2) out.sokak = k2[1].trim(); }
+  const b = s.match(/No:\s*([^\sD]\S*)/i);         if (b) out.bno = b[1].trim();
+  const d = s.match(/(?:^|\s)D:\s*(\S+)/i);        if (d) out.daire = d[1].trim();
+  return out;
 }

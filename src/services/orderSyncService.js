@@ -73,6 +73,9 @@ export async function listFailedSync({ limit = 100 } = {}) {
     .eq('sync_status', 'failed')
     .or('archived.is.null,archived.eq.false')
     .is('deleted_at', null)
+    // Terminal orders (delivered/settled/returned) are skipped by the edge fn
+    // (terminal_no_readd) so a stale 'failed' flag on them is not actionable.
+    .not('status', 'in', '("delivered","settled","returned")')
     .order('order_date', { ascending: false })
     .limit(limit);
   return data ?? [];
