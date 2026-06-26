@@ -2780,6 +2780,55 @@ export default function OrdersScreen({ forcedMarket = null }) {
     finally { setExportingYurtici(false); }
   };
 
+  // رفع بوليصة يورتيتشي (PDF) → استخراج (order_id ↔ GÖ) في المتصفّح ثم ضبط
+  // yurtici_cargo_key لطلبات تركيا المطابِقة، فيسحب track-yurtici رقم التتبّع
+  // العام (1160…) والحالة تلقائياً. يحلّ محلّ إدخال أرقام التتبّع يدوياً.
+  const [importingYurtici, setImportingYurtici] = useState(false);
+  const labelFileRef = useRef(null);
+  const importYurticiLabels = async (file) => {
+    if (!file) return;
+    setImportingYurtici(true);
+    const pend = toast.info?.('⏳ جاري قراءة البوليصة…', { duration: 15000 });
+    try {
+      const { parsePdfLabels } = await import('@services/yurticiLabelImport');
+      const { pairs, warnings } = await parsePdfLabels(file);
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      // استبعد المتعارضة (ambiguous: İrsaliye≠REF) من الربط التلقائي — مراجعة يدوية.
+      const safe = pairs.filter(p => !p.ambiguous);
+      const ambiguous = pairs.filter(p => p.ambiguous);
+      if (!safe.length) {
+        toast.error?.(ambiguous.length
+          ? '⚠️ كل الشحنات بها تعارض بالمعرّف — راجعها يدوياً (لا ربط تلقائي).'
+          : '⚠️ لم أجد أي شحنة في هذا الـPDF. تأكّد أنه بوليصة يورتيتشي (Self-Servis).', { duration: 9000 });
+        return;
+      }
+      const sample = safe.slice(0, 3).map(p => `${p.orderId}→${p.go}`).join('، ');
+      if (!window.confirm(`وجدت ${safe.length} شحنة في البوليصة (${sample}${safe.length > 3 ? '…' : ''}).\nربطها بالطلبات وتفعيل التتبّع التلقائي؟`)) return;
+      const { data, error } = await supabase.functions.invoke('import-yurtici-labels', { body: { labels: safe } });
+      if (error) throw error;
+      if (!data?.ok) { toast.error?.(`⚠️ تعذّر الربط: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      const parts = [];
+      if (data.set)       parts.push(`ربط ${data.set}`);
+      if (data.unchanged) parts.push(`موجود مسبقاً ${data.unchanged}`);
+      if (data.conflict)  parts.push(`تعارض مفتاح ${data.conflict}`);
+      if (data.terminal)  parts.push(`منتهية ${data.terminal}`);
+      let msg = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${data.total} شحنة`;
+      if (data.unmatched?.length) msg += ` · لم يُعثر على: ${data.unmatched.join('، ')}`;
+      toast.success?.(msg, { duration: 12000 });
+      if (ambiguous.length) toast.info?.(`⚠️ ${ambiguous.length} شحنة متعارضة المعرّف — راجعها يدوياً: ${ambiguous.map(p => p.go).join('، ')}`, { duration: 11000 });
+      if (warnings?.length) toast.info?.('ملاحظات البوليصة: ' + warnings.slice(0, 4).join(' | '), { duration: 9000 });
+      // اسحب التتبّع فوراً (1160 + الحالة) ثم أعد التحميل.
+      supabase.functions.invoke('track-yurtici', { body: { manual: true } })
+        .then(() => load()).catch(() => load());
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّرت قراءة البوليصة: ' + (e?.message || e), { duration: 9000 });
+    } finally {
+      setImportingYurtici(false);
+      if (labelFileRef.current) labelFileRef.current.value = '';
+    }
+  };
+
   // إنشاء شحنة يورتيتشي للطلب (تركيا) → يولّد المفتاح ويزامن الجدول.
   const handleCreateShipment = async (order) => {
     const pend = toast.info?.('⏳ جاري إنشاء شحنة يورتيتشي…', { duration: 8000 });
@@ -3168,6 +3217,17 @@ export default function OrdersScreen({ forcedMarket = null }) {
               title="توليد ملف يورتيتشي (Excel) لرفعه دفعة وحدة">
               {exportingYurtici ? '…' : '📤 يورتيتشي'}
             </button>
+          )}
+          {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
+            <>
+              <input ref={labelFileRef} type="file" accept="application/pdf,.pdf" className="hidden"
+                onChange={(e) => importYurticiLabels(e.target.files?.[0])} />
+              <button onClick={() => labelFileRef.current?.click()} disabled={importingYurtici}
+                className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-40"
+                title="رفع بوليصة يورتيتشي (PDF) لربط أرقام التتبّع تلقائياً">
+                {importingYurtici ? '…' : '📥 بوليصة'}
+              </button>
+            </>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
