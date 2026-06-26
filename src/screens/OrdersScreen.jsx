@@ -2780,6 +2780,42 @@ export default function OrdersScreen({ forcedMarket = null }) {
     finally { setExportingYurtici(false); }
   };
 
+  // رفع تقرير يورتيتشي (results.xlsx) → تعبئة أرقام التتبّع (1160) لكل الدفعة دفعةً
+  // واحدة بالتطبيق. المصدر المضمون لرقم التتبّع (SOAP لا يرجّعه — مُختبَر حيّاً).
+  const [importingReport, setImportingReport] = useState(false);
+  const reportFileRef = useRef(null);
+  const importYurticiReport = async (file) => {
+    if (!file) return;
+    setImportingReport(true);
+    const pend = toast.info?.('⏳ جاري قراءة التقرير…', { duration: 15000 });
+    try {
+      const { parseReportFile } = await import('@services/yurticiReportImport');
+      const { updates, warnings } = await parseReportFile(file);
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      if (!updates.length) {
+        toast.error?.(warnings[0] || '⚠️ لم أجد شحنات في هذا الملف. تأكّد أنه تقرير يورتيتشي (results.xlsx).', { duration: 9000 });
+        return;
+      }
+      if (!window.confirm(`وجدت ${updates.length} شحنة في التقرير.\nتعبئة أرقام التتبّع بالتطبيق؟`)) return;
+      const { data, error } = await supabase.functions.invoke('import-yurtici-report', { body: { updates } });
+      if (error) throw error;
+      if (!data?.ok) { toast.error?.(`⚠️ تعذّر: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      const parts = [];
+      if (data.tracked)   parts.push(`رقم تتبّع ${data.tracked}`);
+      if (data.unchanged) parts.push(`موجود مسبقاً ${data.unchanged}`);
+      let msg = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${data.total} شحنة`;
+      if (data.unmatched?.length) msg += ` · لم يُعثر على: ${data.unmatched.slice(0, 10).join('، ')}${data.unmatched.length > 10 ? '…' : ''}`;
+      toast.success?.(msg, { duration: 12000 });
+      load();
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّرت قراءة التقرير: ' + (e?.message || e), { duration: 9000 });
+    } finally {
+      setImportingReport(false);
+      if (reportFileRef.current) reportFileRef.current.value = '';
+    }
+  };
+
   // إنشاء شحنة يورتيتشي للطلب (تركيا) → يولّد المفتاح ويزامن الجدول.
   const handleCreateShipment = async (order) => {
     const pend = toast.info?.('⏳ جاري إنشاء شحنة يورتيتشي…', { duration: 8000 });
@@ -3168,6 +3204,17 @@ export default function OrdersScreen({ forcedMarket = null }) {
               title="توليد ملف يورتيتشي (Excel) لرفعه دفعة وحدة">
               {exportingYurtici ? '…' : '📤 يورتيتشي'}
             </button>
+          )}
+          {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
+            <>
+              <input ref={reportFileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
+                onChange={(e) => importYurticiReport(e.target.files?.[0])} />
+              <button onClick={() => reportFileRef.current?.click()} disabled={importingReport}
+                className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition disabled:opacity-40"
+                title="رفع تقرير يورتيتشي (results.xlsx) لتعبئة أرقام التتبّع تلقائياً">
+                {importingReport ? '…' : '📊 تتبّع'}
+              </button>
+            </>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
