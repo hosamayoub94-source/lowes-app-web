@@ -62,12 +62,14 @@ Deno.serve(async (req: Request) => {
 
     const results: any[] = [];
     const unmatched: string[] = [];
+    const sheetItems: { order_id: string; tracking: string }[] = [];
     let tracked = 0, unchanged = 0;
 
     for (const orderId of orderIds) {
       const tracking = byId.get(orderId)!;
       const order = found.get(orderId);
       if (!order) { unmatched.push(orderId); results.push({ orderId, status: 'unmatched' }); continue; }
+      sheetItems.push({ order_id: orderId, tracking });   // كل مطابَق → يُملأ بعمود P
 
       if (String(order.tracking_number || '') === tracking) { unchanged++; results.push({ orderId, status: 'unchanged' }); continue; }
       // لا ندوس رقماً موجوداً على طلب منتهٍ (تقرير قديم قد يُرجِع رقماً مصحَّحاً).
@@ -82,12 +84,30 @@ Deno.serve(async (req: Request) => {
       tracked++; results.push({ orderId, tracking, status: 'tracked' });
     }
 
+    // عمود P بالجدول: نداء Apps Script مُجمَّع واحد (action=fillTracking). مُفعَّل بعلَم
+    // بيئة YURTICI_FILL_SHEET=1 بعد نشر دالة fillTracking على مشروع تركيا الحيّ —
+    // وإلا يبقى مطفأً (التطبيق وحده يمتلئ، بلا خطر صفّ تالف على doPost القديم).
+    let sheetFilled: number | null = null;
+    const TR_URL   = Deno.env.get('TURKEY_SHEET_SYNC_URL');
+    const TR_TOKEN = Deno.env.get('TURKEY_SHEET_SYNC_TOKEN') ?? 'LOWES-TURKEY-2026';
+    if (TR_URL && Deno.env.get('YURTICI_FILL_SHEET') === '1' && sheetItems.length) {
+      try {
+        const r = await fetch(TR_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: TR_TOKEN, action: 'fillTracking', items: sheetItems }),
+        });
+        const j = await r.json().catch(() => null);
+        sheetFilled = typeof j?.filled === 'number' ? j.filled : null;
+      } catch { /* best-effort */ }
+    }
+
     return json({
       ok: true,
       total: orderIds.length,
       tracked, unchanged,
       matched: orderIds.length - unmatched.length,
       unmatched,
+      sheetFilled,
       results,
     });
   } catch (err) {

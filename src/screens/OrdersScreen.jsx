@@ -2796,13 +2796,14 @@ export default function OrdersScreen({ forcedMarket = null }) {
         toast.error?.(warnings[0] || '⚠️ لم أجد شحنات في هذا الملف. تأكّد أنه تقرير يورتيتشي (results.xlsx).', { duration: 9000 });
         return;
       }
-      if (!window.confirm(`وجدت ${updates.length} شحنة في التقرير.\nتعبئة أرقام التتبّع بالتطبيق؟`)) return;
+      if (!window.confirm(`وجدت ${updates.length} شحنة في التقرير.\nتعبئة أرقام التتبّع؟`)) return;
       const { data, error } = await supabase.functions.invoke('import-yurtici-report', { body: { updates } });
       if (error) throw error;
       if (!data?.ok) { toast.error?.(`⚠️ تعذّر: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
       const parts = [];
-      if (data.tracked)   parts.push(`رقم تتبّع ${data.tracked}`);
-      if (data.unchanged) parts.push(`موجود مسبقاً ${data.unchanged}`);
+      if (data.tracked)     parts.push(`رقم تتبّع ${data.tracked}`);
+      if (data.unchanged)   parts.push(`موجود مسبقاً ${data.unchanged}`);
+      if (data.sheetFilled) parts.push(`الجدول ${data.sheetFilled}`);
       let msg = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${data.total} شحنة`;
       if (data.unmatched?.length) msg += ` · لم يُعثر على: ${data.unmatched.slice(0, 10).join('، ')}${data.unmatched.length > 10 ? '…' : ''}`;
       toast.success?.(msg, { duration: 12000 });
