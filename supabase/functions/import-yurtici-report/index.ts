@@ -84,21 +84,31 @@ Deno.serve(async (req: Request) => {
       tracked++; results.push({ orderId, tracking, status: 'tracked' });
     }
 
-    // عمود P بالجدول: نداء Apps Script مُجمَّع واحد (action=fillTracking). مُفعَّل بعلَم
-    // بيئة YURTICI_FILL_SHEET=1 بعد نشر دالة fillTracking على مشروع تركيا الحيّ —
-    // وإلا يبقى مطفأً (التطبيق وحده يمتلئ، بلا خطر صفّ تالف على doPost القديم).
+    // ── عمود P بالجدول: نداء fillTracking مُجمَّع واحد على نشر Apps Script المُثبَّت ──
+    // نُثبّت رابط النشر الذي يحوي دالة fillTracking (V45 «AqhBo» — مُختبَر حيّاً: filled>0)
+    // بدل الاعتماد على TURKEY_SHEET_SYNC_URL الذي قد يشير لنشر قديم بلا الدالة فيتجاهل
+    // الأمر بصمت (هذا بالضبط سبب «الأرقام ما نزلت بالجدول»). قابل للتجاوز ببيئة
+    // YURTICI_SHEET_FILL_URL لو تغيّر النشر مستقبلاً. بلا علَم تعطيل: الدالة منشورة
+    // فالنداء آمن دائماً (يكتب عمود «رقم التتبع» فقط، idempotent، بلا صفّ تالف).
     let sheetFilled: number | null = null;
-    const TR_URL   = Deno.env.get('TURKEY_SHEET_SYNC_URL');
-    const TR_TOKEN = Deno.env.get('TURKEY_SHEET_SYNC_TOKEN') ?? 'LOWES-TURKEY-2026';
-    if (TR_URL && Deno.env.get('YURTICI_FILL_SHEET') === '1' && sheetItems.length) {
-      try {
-        const r = await fetch(TR_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: TR_TOKEN, action: 'fillTracking', items: sheetItems }),
-        });
-        const j = await r.json().catch(() => null);
-        sheetFilled = typeof j?.filled === 'number' ? j.filled : null;
-      } catch { /* best-effort */ }
+    const FILL_URL = Deno.env.get('YURTICI_SHEET_FILL_URL')
+      ?? 'https://script.google.com/macros/s/AKfycbxslmupsmlPawlEIuCalEb_mD9puyk13aoWB0yPqjBi5V6DEstL41L_OO2mNGnAqhBo/exec';
+    const FILL_TOKEN = Deno.env.get('TURKEY_SHEET_SYNC_TOKEN') ?? 'LOWES-TURKEY-2026';
+    if (FILL_URL && sheetItems.length) {
+      const fillBody = JSON.stringify({ token: FILL_TOKEN, action: 'fillTracking', items: sheetItems });
+      // محاولتان: /exec يُعيد توجيهاً لـ googleusercontent؛ نقرأ النصّ ونحلّله يدوياً
+      // (r.json() قد يفشل على إعادة التوجيه فيُرجِع null رغم نجاح الكتابة).
+      for (let attempt = 0; attempt < 2 && sheetFilled === null; attempt++) {
+        try {
+          const r = await fetch(FILL_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: fillBody, redirect: 'follow',
+          });
+          const txt = await r.text();
+          const j = JSON.parse(txt);
+          if (typeof j?.filled === 'number') sheetFilled = j.filled;
+        } catch { /* best-effort: نعيد المحاولة مرّة */ }
+      }
     }
 
     return json({
