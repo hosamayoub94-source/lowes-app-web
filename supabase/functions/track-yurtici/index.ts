@@ -15,6 +15,9 @@ const WS_USER = Deno.env.get('YURTICI_COD_USER') || Deno.env.get('YURTICI_NORMAL
 const WS_PASS = Deno.env.get('YURTICI_COD_PASS') || Deno.env.get('YURTICI_NORMAL_PASS');
 
 const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
+// حالات يملكها الفريق (مرتجعات): لا يدوسها يورتيتشي — يحترم قرار الفريق ويمنع
+// ترفرف «مُسلَّم ↔ راجع» مع مُصالِح Apps Script (نفس حارس pollYurticiStatuses).
+const RETURN_GUARD = ['returning', 'returned', 'not_received', 'cancelled', 'settled'];
 
 // CORS — بدونها يفشل نداء التطبيق من المتصفح (preflight) صامتاً عبر .catch،
 // فالتتبّع التلقائي من شاشة الطلبات لا يعمل إلا من cron. أضفناها 11 يونيو 2026.
@@ -112,10 +115,12 @@ async function syncSheet(orderId: string) {
 // يحوّل ShipmentStatus (نص API يورتيتشي العام) → مفتاح حالة التطبيق.
 function mapPublic(shipmentStatus: string, isDelivered: unknown): string | null {
   const t = (shipmentStatus || '').toLocaleLowerCase('tr');
-  if (isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi')) return 'delivered';
-  if (t.includes('teslim edilemedi') || t.includes('bulunamad') || t.includes('adreste yok')) return 'not_received';
+  // الإرجاع/الفشل/الإلغاء لها الأولوية على IsDelivered: «İADE EDİLDİ» (راجع) يرجّع
+  // IsDelivered=true لكنه إرجاع لا تسليم — لا نخلطهما (كان يقلب المرتجعات «مُسلَّم»).
   if (t.includes('iade')) return 'returning';
+  if (t.includes('teslim edilemedi') || t.includes('bulunamad') || t.includes('adreste yok')) return 'not_received';
   if (t.includes('iptal')) return 'cancelled';
+  if (isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi')) return 'delivered';
   if (t.includes('dağıt') || t.includes('dagit')) return 'on_way';
   if (t.includes('şube') || t.includes('sube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
   if (t.includes('taşı') || t.includes('tasi') || t.includes('yola') || t.includes('çık') || t.includes('cik') || t.includes('kabul')) return 'shipped';
@@ -158,7 +163,8 @@ Deno.serve(async (req) => {
 
       const patch: any = {};
       if (hit.trackingNo && hit.trackingNo !== o.tracking_number) patch.tracking_number = hit.trackingNo;
-      if (newStatus && newStatus !== o.status) { patch.status = newStatus; patch.updated_by = 'يورتيتشي-تلقائي'; }
+      // لا يدوس يورتيتشي حالةً يملكها الفريق (مرتجع/لم يُستلم) — يمنع الترفرف. (رقم التتبّع يُحدَّث دائماً.)
+      if (newStatus && newStatus !== o.status && !RETURN_GUARD.includes(o.status)) { patch.status = newStatus; patch.updated_by = 'يورتيتشي-تلقائي'; }
       if (Object.keys(patch).length === 0) continue;
 
       patch.updated_at = new Date().toISOString();
@@ -196,7 +202,8 @@ Deno.serve(async (req) => {
       if (!r.ok) continue;
       const j = await r.json();
       const newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
-      if (!newStatus || newStatus === o.status) continue;
+      // لا يدوس يورتيتشي حالةً يملكها الفريق (مرتجع/لم يُستلم) — يمنع الترفرف.
+      if (!newStatus || newStatus === o.status || RETURN_GUARD.includes(o.status)) continue;
       const { error: e2 } = await supabase.from('orders')
         .update({ status: newStatus, updated_by: 'يورتيتشي-تلقائي', updated_at: new Date().toISOString() })
         .eq('id', o.id).is('deleted_at', null);
