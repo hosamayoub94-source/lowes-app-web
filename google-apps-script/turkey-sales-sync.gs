@@ -91,6 +91,11 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     if (body.token !== TOKEN) return _json({ ok: false, error: 'bad token' });
+
+    // ── تعبئة أرقام التتبّع (عمود P «رقم التتبع») دفعةً واحدة من تقرير يورتيتشي ──
+    // إجراء مُجمَّع آمن: يطابق بـ«كود الطلب» في كلا التابين ويكتب عمود P فقط.
+    if (body.action === 'fillTracking') return _fillTracking(body.items || []);
+
     var brand = (body.brand || 'lowes').toLowerCase();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(SHEET_FOR[brand] || 'LOWES_TR');
@@ -139,6 +144,47 @@ function doPost(e) {
   } catch (err) {
     return _json({ ok: false, error: String(err) });
   }
+}
+
+// ── تعبئة أرقام التتبّع بعمود P دفعةً واحدة (من تقرير يورتيتشي results.xlsx) ──
+// items: [{order_id, tracking}]. يطابق بـ«كود الطلب» في STRONG_TR + LOWES_TR،
+// يكتب عمود «رقم التتبع» فقط، بكتابة مُجمَّعة واحدة لكل تاب (لا عاصفة، idempotent).
+function _fillTracking(items) {
+  var byId = {};
+  (items || []).forEach(function (it) {
+    if (!it || !it.order_id) return;
+    byId[String(it.order_id).trim().toUpperCase()] = String(it.tracking || '').replace(/\D/g, '');
+  });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var filled = 0, seen = {};
+  ['STRONG_TR', 'LOWES_TR'].forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return;
+    var data = sh.getDataRange().getValues();
+    if (data.length < 2) return;
+    var headers = data[0], idCol = -1, trCol = -1;
+    for (var c = 0; c < headers.length; c++) {
+      var l = String(headers[c]).trim();
+      if (l === 'كود الطلب') idCol = c;
+      if (l === 'رقم التتبع') trCol = c;
+    }
+    if (idCol < 0 || trCol < 0) return;
+    var col = [], changed = false;
+    for (var r = 1; r < data.length; r++) {
+      var oid = String(data[r][idCol] || '').trim().toUpperCase();
+      var v = data[r][trCol];
+      var want = byId[oid];
+      if (oid && want) {
+        seen[oid] = 1;
+        if (want.length >= 6 && String(v || '').replace(/\D/g, '') !== want) { v = want; changed = true; filled++; }
+      }
+      col.push([v]);
+    }
+    if (changed) sh.getRange(2, trCol + 1, col.length, 1).setValues(col);
+  });
+  var notFound = [];
+  for (var k in byId) if (!seen[k]) notFound.push(k);
+  return _json({ ok: true, filled: filled, notFound: notFound });
 }
 
 // ── Sheet → App (edit status / tracking) ──
