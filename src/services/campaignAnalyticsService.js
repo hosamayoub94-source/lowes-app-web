@@ -67,6 +67,46 @@ export async function getDayReport(userName, date) {
   return { report, results };
 }
 
+// ── ملخّص طلبات الموظف الفعلية ليوم معيّن (من جدول orders) ──────────
+// يسحب طلبات البائع (handler_name) المُنشأة بذلك اليوم ويُجمّعها: العدد +
+// المبيعات لكل عملة + الأصناف المباعة (اسم→كمية) + عدد المُسلّم. قراءة فقط —
+// تُحسب تلقائياً لمقارنة التقرير اليدوي بالواقع وتقليل الإدخال المزدوج (البند ٦).
+// يتبع نمط managerBoardService: order_date كحدود محلية [اليوم، اليوم التالي).
+export async function getMyOrdersDaySummary(sellerName, date) {
+  const empty = { count: 0, sales: { TRY: 0, SYP: 0, USD: 0 }, items: [], delivered: 0 };
+  if (!sellerName || !date) return empty;
+  // حدّ اليوم التالي (محلي) — لا انزياح UTC.
+  const next = new Date(date + 'T00:00:00');
+  next.setDate(next.getDate() + 1);
+  const nextISO = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('amount, currency, items, status, handler_name, order_date')
+    .eq('handler_name', sellerName)
+    .gte('order_date', date + 'T00:00:00')
+    .lt('order_date', nextISO + 'T00:00:00');
+  if (error || !data) return empty;
+
+  const sales = { TRY: 0, SYP: 0, USD: 0 };
+  const itemMap = {};
+  let delivered = 0;
+  for (const o of data) {
+    const cur = (o.currency || 'TRY').toUpperCase();
+    sales[cur] = (sales[cur] || 0) + (Number(o.amount) || 0);
+    if (o.status === 'delivered') delivered += 1;
+    for (const it of (Array.isArray(o.items) ? o.items : [])) {
+      const name = (it && it.name ? String(it.name) : '').trim();
+      if (!name) continue;
+      itemMap[name] = (itemMap[name] || 0) + (Number(it.qty) || 0);
+    }
+  }
+  const items = Object.entries(itemMap)
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => b.qty - a.qty);
+  return { count: data.length, sales, items, delivered };
+}
+
 // upsert يدوي حسب (employee_name, report_date) — مقاوم لغياب UNIQUE وللتكرار
 // التاريخي. يُرجع id الرأس.
 export async function upsertDailyReport(payload) {

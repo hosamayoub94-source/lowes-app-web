@@ -8,6 +8,7 @@ import { useAuth } from '@hooks/useAuth';
 import { Hero, Card, CardTitle, Button, EmptyState, StatCard } from '@components/ui';
 import {
   getMyCampaignsAndAds, getDayReport, upsertDailyReport, replaceAdResults, todayISO,
+  getMyOrdersDaySummary,
 } from '@services/campaignAnalyticsService';
 
 const CURS = ['TRY', 'SYP', 'USD'];
@@ -44,6 +45,19 @@ export default function DailyReportScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [msg, setMsg]         = useState(null);
+
+  // ملخّص طلبات اليوم الفعلية (تلقائي من جدول orders) — قراءة فقط، للمقارنة.
+  const [ordSum, setOrdSum]   = useState({ count: 0, sales: { TRY: 0, SYP: 0, USD: 0 }, items: [], delivered: 0 });
+  const [ordLoading, setOrdLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    setOrdLoading(true);
+    getMyOrdersDaySummary(userName, date)
+      .then(s => { if (alive) setOrdSum(s); })
+      .catch(() => { /* */ })
+      .finally(() => { if (alive) setOrdLoading(false); });
+    return () => { alive = false; };
+  }, [userName, date]);
 
   // حملات الموظف وإعلاناتها (مرّة)
   useEffect(() => {
@@ -136,6 +150,7 @@ export default function DailyReportScreen() {
   };
 
   const salesStr = CURS.filter(c => totals.sales[c] > 0).map(c => `${fmt(totals.sales[c])} ${CUR_SYM[c]}`).join(' · ') || '—';
+  const ordSalesStr = CURS.filter(c => ordSum.sales[c] > 0).map(c => `${fmt(ordSum.sales[c])} ${CUR_SYM[c]}`).join(' · ') || '—';
 
   return (
     <div className="space-y-4 pb-28" dir="rtl">
@@ -151,6 +166,38 @@ export default function DailyReportScreen() {
         <StatCard label="تأكيدات" value={fmt(totals.confirmations)} icon="✅" tone="teal" />
         <StatCard label="إجمالي المبيعات" value={<span className="text-base">{salesStr}</span>} icon="💵" />
       </div>
+
+      {/* ملخّص طلباتك الفعلية اليوم — تلقائي من جدول الطلبات (قراءة فقط، للمقارنة) */}
+      <Card padding="md" className="space-y-2 border-teal/30">
+        <CardTitle className="text-sm">
+          📦 طلباتك الفعلية اليوم
+          <span className="text-[10px] font-normal text-muted"> · تلقائي من النظام</span>
+        </CardTitle>
+        {ordLoading ? (
+          <div className="h-16 bg-surface-alt animate-pulse rounded-xl" />
+        ) : ordSum.count === 0 ? (
+          <p className="text-xs text-muted">لا طلبات مسجّلة باسمك في هذا اليوم بعد.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <StatCard label="طلبات" value={fmt(ordSum.count)} icon="🧾" />
+              <StatCard label="مُسلّمة" value={fmt(ordSum.delivered)} icon="✅" tone="teal" />
+              <StatCard label="مبيعات الطلبات" value={<span className="text-base">{ordSalesStr}</span>} icon="💵" />
+            </div>
+            {ordSum.items.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {ordSum.items.slice(0, 12).map(it => (
+                  <span key={it.name} className="text-[11px] bg-surface-alt border border-border rounded-full px-2 py-0.5">
+                    {it.name} <strong className="tabular-nums">×{it.qty}</strong>
+                  </span>
+                ))}
+                {ordSum.items.length > 12 && <span className="text-[11px] text-muted px-1">+{ordSum.items.length - 12}</span>}
+              </div>
+            )}
+            <p className="text-[10px] text-muted">أرقام طلباتك الفعلية في النظام لهذا اليوم — للمقارنة مع تقريرك اليدوي (تُحسب تلقائياً ولا تُحفَظ).</p>
+          </>
+        )}
+      </Card>
 
       {loading ? (
         <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" />
