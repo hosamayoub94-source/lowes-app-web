@@ -1548,6 +1548,10 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
   const tUrl = trackingLink(order.shipping_company, order.tracking_number);
   const itemsSummary = (order.items ?? []).slice(0, 3).map(i => `${i.name} ×${i.qty}`).join(' · ');
   const moreItems = (order.items ?? []).length - 3;
+  // رسالة واتساب جاهزة (تحية + رقم الطلب + ملخّص الأصناف) — تفتح المحادثة بنصّ معبّأ. (البند ٦ Tier-1)
+  const waMsg  = `مرحباً ${order.customer_name || ''}، بخصوص طلبك رقم ${order.order_id}` +
+                 `${itemsSummary ? `\n📦 ${itemsSummary}` : ''}\nمن LOWE'S 💛`;
+  const waHref = wa ? `${wa}?text=${encodeURIComponent(waMsg)}` : null;
 
   // Reversible status: pick ANY status from a dropdown (no more one-way flip).
   const handleSetStatus = async (newStatus) => {
@@ -1577,7 +1581,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         </div>
         <div className="flex gap-1 shrink-0">
           {wa && (
-            <a href={wa} target="_blank" rel="noreferrer"
+            <a href={waHref || wa} target="_blank" rel="noreferrer" title="واتساب — برسالة جاهزة"
               className="w-8 h-8 rounded-xl bg-green-bg flex items-center justify-center text-green-fg hover:opacity-80 transition">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -1864,6 +1868,12 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
   }, [form.phone_1, form.wa_number]);
 
   const handleMarketChange = (market) => {
+    if (form.market === market) return;
+    // تأكيد قبل المسح: تبديل السوق يصفّر حقول العنوان لتجنّب حفظ بيانات سوق خاطئ —
+    // فلو كان المستخدم عبّأ عنواناً، نسأله قبل فقدانه. (البند ٦ Tier-1)
+    const hasAddr = form.city || form.district || form.address || form.sy_neighborhood
+      || form.mahalle || form.sokak || form.bno || form.daire;
+    if (hasAddr && !window.confirm('⚠️ تبديل السوق سيمسح حقول العنوان المُدخَلة. هل تريد المتابعة؟')) return;
     setForm(p => {
       if (p.market === market) return p; // لا تغيير فعلي — تجنّب مسح الحقول بالخطأ
       return {
