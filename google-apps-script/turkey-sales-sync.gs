@@ -32,6 +32,10 @@ var SHEET_TO_APP_URL = SUPA_URL + '/functions/v1/sheet-to-app';
 
 var SHEET_FOR = { strong: 'STRONG_TR', lowes: 'LOWES_TR' };
 
+// البند ٢: تابات التسليمات لكل براند. الطلبات «تم التسليم ✅» تُرحَّل تلقائياً
+// (يومياً) من التاب النشط لتاب التسليمات الموافق. غيّر الأسماء هنا لو رغبت.
+var DELIVERED_SHEET_FOR = { 'STRONG_TR': 'تسليمات سترونغ', 'LOWES_TR': 'تسليمات لويز' };
+
 // Header — mirrors the team's OLD sheet column range (row 5) so it feels familiar.
 // Manual/formula columns (تقييد, واتساب, W.App, الموقع, رقم التتبع, YURTİÇİ, تتبع,
 // فاطمة, زيزو) are kept as placeholders and NEVER overwritten by the app — the
@@ -196,12 +200,13 @@ function onSheetEdit(e) {
     if (sh.getName() !== 'LOWES_TR' && sh.getName() !== 'STRONG_TR') return;
     var lastCol = sh.getLastColumn();
     var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-    var idCol = -1, stCol = -1, trCol = -1;
+    var idCol = -1, stCol = -1, trCol = -1, dateCol = -1;
     for (var c = 0; c < headers.length; c++) {
       var l = String(headers[c]).trim();
       if (l === 'كود الطلب') idCol = c;
       if (l === 'الحالة')    stCol = c;
       if (l === 'رقم التتبع') trCol = c;
+      if (l === 'التاريخ')   dateCol = c;
     }
     var row = e.range.getRow(), col = e.range.getColumn() - 1;
     if (row <= 1 || idCol < 0) return;
@@ -211,7 +216,14 @@ function onSheetEdit(e) {
     if (!orderId) return;
 
     var payload = { token: TOKEN, action: 'update', order_id: orderId };
-    if (col === stCol) payload.status = String(sh.getRange(row, stCol + 1).getValue() || '');
+    if (col === stCol) {
+      payload.status = String(sh.getRange(row, stCol + 1).getValue() || '');
+      // البند ٣ (الخيار B): إعادة ختم عمود «التاريخ» بوقت تغيّر الحالة (إسطنبول)
+      // مباشرةً — لا ننتظر دورة المزامنة العكسية (قد تُكبَح بالـcooldown).
+      if (dateCol >= 0) {
+        try { sh.getRange(row, dateCol + 1).setValue(Utilities.formatDate(new Date(), 'Europe/Istanbul', 'yyyy/MM/dd HH:mm')); } catch (e2) { }
+      }
+    }
     if (col === trCol) payload.tracking_number = String(sh.getRange(row, trCol + 1).getValue() || '');
 
     UrlFetchApp.fetch(SHEET_TO_APP_URL, {
@@ -335,7 +347,10 @@ function _statusKey(ar) {
 function _buildOwned(width, colOf, itemCols, order) {
   var owned = {};
   function put(key, val) { if (colOf[key] != null && val != null && key !== 'tracking_number') owned[colOf[key]] = val; }
-  if (colOf['order_date'] != null && order.order_date) owned[colOf['order_date']] = new Date(order.order_date);
+  // البند ٣ (الخيار B): عمود A «التاريخ» = وقت آخر تغيير (لا وقت الإنشاء) — يُكتب
+  // نصّاً منسّقاً «yyyy/MM/dd HH:mm» بتوقيت إسطنبول مع الوقت. كل upsert (= كل تغيير
+  // حالة/بيانات من التطبيق) يُعيد ختمه؛ والنصّ المنسّق يُظهر الوقت ويبقى قابلاً للفرز.
+  if (colOf['order_date'] != null) owned[colOf['order_date']] = Utilities.formatDate(new Date(), 'Europe/Istanbul', 'yyyy/MM/dd HH:mm');
   put('order_id', order.order_id); put('customer_name', order.customer_name);
   put('phone_1', order.phone_1); put('wa_number', order.wa_number);
   put('city', order.city); put('district', order.district); put('address', order.address);
@@ -509,6 +524,92 @@ function createReconcileTrigger() {
     .onChange()
     .create();
   return 'row-removal reconcile onChange trigger created';
+}
+
+// ── البند ٢: ترحيل المسلَّمات تلقائياً لتاب التسليمات (يومياً) ──
+// ينقل صفوف «تم التسليم ✅» من STRONG_TR/LOWES_TR إلى تابات التسليمات الموافقة،
+// ويحذفها من المصدر. idempotent: dedup بكود الطلب + حذف الصفوف من الأسفل للأعلى.
+// آمن ضد العودة: edge fn (sync-order-to-sheet) يتخطّى الطلبات المنتهية
+// (terminal_no_readd) فلا يُعيد doPost إلحاقها بعد النقل.
+function _fitRow(arr, w) {
+  var out = (arr || []).slice(0, w);
+  while (out.length < w) out.push('');
+  return out;
+}
+function migrateDeliveredTR() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var W = HEADER.length;
+  var report = [];
+  Object.keys(DELIVERED_SHEET_FOR).forEach(function (srcName) {
+    var src = ss.getSheetByName(srcName);
+    if (!src) { report.push(srcName + ': src not found'); return; }
+    var dstName = DELIVERED_SHEET_FOR[srcName];
+    var lastRow = src.getLastRow(), lastCol = src.getLastColumn();
+    if (lastRow < 2) { report.push(srcName + ': empty'); return; }
+    var data = src.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = data[0];
+    var stCol = -1, idCol = -1;
+    for (var c = 0; c < headers.length; c++) {
+      var l = String(headers[c]).trim();
+      if (l === 'الحالة') stCol = c;
+      if (l === 'كود الطلب') idCol = c;
+    }
+    if (stCol < 0 || idCol < 0) { report.push(srcName + ': status/id col not found'); return; }
+
+    // أنشئ تاب التسليمات بنفس الترويسة لو غير موجود.
+    var dst = ss.getSheetByName(dstName);
+    if (!dst) {
+      dst = ss.insertSheet(dstName);
+      dst.getRange(1, 1, 1, W).setValues([HEADER]).setFontWeight('bold').setBackground('#0f1f3d').setFontColor('#ffffff');
+      dst.setFrozenRows(1);
+    }
+
+    // dedup: أكواد الطلبات الموجودة أصلاً بتاب التسليمات.
+    var seen = {};
+    var dLast = dst.getLastRow();
+    if (dLast >= 2) {
+      var dHead = dst.getRange(1, 1, 1, dst.getLastColumn()).getValues()[0];
+      var dId = -1;
+      for (var c2 = 0; c2 < dHead.length; c2++) if (String(dHead[c2]).trim() === 'كود الطلب') { dId = c2; break; }
+      if (dId >= 0) {
+        var dc = dst.getRange(2, dId + 1, dLast - 1, 1).getValues();
+        for (var r2 = 0; r2 < dc.length; r2++) { var v = String(dc[r2][0] || '').trim(); if (v) seen[v] = true; }
+      }
+    }
+
+    // اجمع صفوف «تم التسليم»: للنقل (جديدة) + للحذف من المصدر (كلها).
+    var toMove = [], toDeleteRows = [];
+    for (var r = 1; r < data.length; r++) {
+      if (_statusKey(data[r][stCol]) !== 'delivered') continue;
+      var code = String(data[r][idCol] || '').trim();
+      if (!code) continue;
+      toDeleteRows.push(r + 1);          // رقم الصفّ (1-based) بالمصدر
+      if (seen[code]) continue;          // موجود بالتسليمات أصلاً → احذفه من المصدر فقط
+      seen[code] = true;
+      toMove.push(_fitRow(data[r], W));
+    }
+
+    // ألحق الجديدة بتاب التسليمات (relaxed يتجاوز قيود الـvalidation).
+    var start = dst.getLastRow() + 1;
+    for (var m = 0; m < toMove.length; m++) _writeRowRelaxed(dst, start + m, W, toMove[m]);
+
+    // احذف من المصدر من الأسفل للأعلى (وإلا تنزاح الفهارس).
+    toDeleteRows.sort(function (a, b) { return b - a; });
+    for (var d = 0; d < toDeleteRows.length; d++) src.deleteRow(toDeleteRows[d]);
+
+    report.push(srcName + ' → ' + dstName + ': moved ' + toMove.length + ', removed ' + toDeleteRows.length);
+  });
+  Logger.log(report.join(' | '));
+  return report.join(' | ');
+}
+
+// Run ONCE from the editor to install the daily deliveries-migration trigger (~02:00).
+function createDeliveriesTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'migrateDeliveredTR') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('migrateDeliveredTR').timeBased().everyDays(1).atHour(2).create();
+  return 'daily deliveries-migration trigger created (~02:00)';
 }
 
 function _json(obj) {
