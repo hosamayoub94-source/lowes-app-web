@@ -23,6 +23,7 @@ import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatu
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
+import { printShippingLabel } from '@utils/printShippingLabel';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -1664,6 +1665,16 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
             {creatingShip ? '⏳ جارٍ إنشاء الشحنة…' : '🚚 أنشئ شحنة يورتيتشي'}
           </button>
         )
+      )}
+
+      {/* طباعة البوليصة من التطبيق (سوريا/تركيا) — بوليصة شحن عربية RTL قابلة للطباعة. */}
+      {(order.market === 'turkey' || order.market === 'syria') && (
+        <button
+          onClick={() => printShippingLabel(order)}
+          title="طباعة بوليصة الشحن (للطباعة أو الحفظ PDF)"
+          className="w-full py-1.5 rounded-xl bg-surface-alt border border-border text-text text-xs font-bold hover:bg-border/40 transition flex items-center justify-center gap-1.5">
+          🖨️ طباعة البوليصة
+        </button>
       )}
 
       {/* Handler + sync + date */}
