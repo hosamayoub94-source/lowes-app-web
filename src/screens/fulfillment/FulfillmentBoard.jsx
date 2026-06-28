@@ -53,8 +53,52 @@ const bumpDoneToday = (user, n = 1) => {
   return v;
 };
 
+// وضع «العرض الواضح» — لعامل التغليف ضعيف النظر (سوريا). تفضيل ثابت بين الجلسات.
+// المنتجات تحت بعض، مسطّرة، خط كبير، والعدد رقم كبير واضح.
+const A11Y_KEY = 'fulfillment_accessible_mode';
+const getA11y = () => localStorage.getItem(A11Y_KEY) === '1';
+const setA11y = (on) => localStorage.setItem(A11Y_KEY, on ? '1' : '0');
+
+// قائمة منتجات الطلب — عادية (مضغوطة) أو «واضحة» (عمودية كبيرة مسطّرة).
+function ProductList({ items, accessible }) {
+  if (!items || items.length === 0) {
+    return <span className="text-[11px] text-muted">بلا منتجات مسجّلة — راجع الملاحظات</span>;
+  }
+  if (accessible) {
+    return (
+      <div className="mt-2 rounded-xl border-2 border-border overflow-hidden divide-y-2 divide-border">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-center gap-3 px-3 py-2.5 bg-surface-alt/40">
+            <span className="text-3xl font-black text-teal tabular-nums min-w-[2.75rem] text-center leading-none">{it.qty || 1}</span>
+            <span className="text-xl font-bold text-text leading-snug flex-1 break-words">{it.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {items.map((it, i) => (
+        <span key={i} className="text-[11px] bg-surface-alt border border-border rounded-lg px-2 py-0.5 font-semibold text-text">
+          {it.qty || 1}× {it.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// تنسيق منتجات صفّ الطباعة — مسطّر عمودي (للعرض الواضح) أو سطر واحد مضغوط.
+const printItems = (items, accessible) => {
+  if (!items || items.length === 0) return '—';
+  if (accessible) {
+    return `<div class="plist">${items.map(it =>
+      `<div class="prow"><b class="pqty">${it.qty || 1}</b><span class="pname">${it.name || ''}</span></div>`).join('')}</div>`;
+  }
+  return items.map(it => `${it.qty || 1}× ${it.name}`).join(' · ');
+};
+
 // ── طباعة قائمة التجهيز (نافذة جديدة) ─────────────────────────
-function printPrepList(groups, marketLabel) {
+function printPrepList(groups, marketLabel, accessible = false) {
   const w = window.open('', '_blank', 'width=800,height=900');
   if (!w) { window.alert('فعّل النوافذ المنبثقة للطباعة'); return; }
   const rows = groups.map(([gname, list]) => `
@@ -67,7 +111,7 @@ function printPrepList(groups, marketLabel) {
           <td>${o.order_id || o.id?.slice(0, 6) || ''}</td>
           <td>${o.customer_name || '—'}</td>
           <td>${o.city || '—'}</td>
-          <td>${(o.items || []).map(it => `${it.qty || 1}× ${it.name}`).join(' · ') || '—'}</td>
+          <td>${printItems(o.items, accessible)}</td>
         </tr>`).join('')}
     </table>`).join('');
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
@@ -76,9 +120,14 @@ function printPrepList(groups, marketLabel) {
       body{font-family:Tajawal,Arial,sans-serif;padding:24px;color:#111}
       h1{font-size:20px;margin:0 0 4px} .sub{color:#666;font-size:12px;margin-bottom:16px}
       h2{font-size:15px;background:#f1f5f9;padding:6px 10px;border-radius:8px;margin:18px 0 6px}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border:1px solid #ddd;padding:5px 8px;text-align:right}
+      table{width:100%;border-collapse:collapse;font-size:${accessible ? '15px' : '12px'}}
+      th,td{border:1px solid #ddd;padding:${accessible ? '8px 10px' : '5px 8px'};text-align:right;vertical-align:top}
       th{background:#fafafa} .chk{width:26px;text-align:center;font-size:15px}
+      .plist{display:flex;flex-direction:column}
+      .prow{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1.5px solid #e5e7eb}
+      .prow:last-child{border-bottom:0}
+      .pqty{font-size:22px;font-weight:800;color:#0d7377;min-width:34px;text-align:center}
+      .pname{font-size:17px;font-weight:700}
       @media print{h2{break-after:avoid}}
     </style></head><body>
     <h1>📦 قائمة التجهيز — ${marketLabel}</h1>
@@ -89,16 +138,16 @@ function printPrepList(groups, marketLabel) {
 }
 
 // ── كرت طلب مضغوط للتجهيز ──────────────────────────────────────
-function PrepCard({ o, checked, onCheck, onAdvance, busy }) {
+function PrepCard({ o, checked, onCheck, onAdvance, busy, accessible }) {
   const meta = STATUSES[o.status] || {};
   const age = ageDays(o);
   return (
     <div className={`bg-surface border rounded-2xl p-3 flex items-start gap-3 ${checked ? 'border-teal ring-1 ring-teal/30' : 'border-border'}`}>
       <input type="checkbox" checked={checked} onChange={e => onCheck(o.id, e.target.checked)}
-        className="mt-1.5 w-5 h-5 accent-teal shrink-0 cursor-pointer" />
+        className={`mt-1.5 accent-teal shrink-0 cursor-pointer ${accessible ? 'w-7 h-7' : 'w-5 h-5'}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-bold text-text">{o.customer_name || '—'}</p>
+          <p className={`font-bold text-text ${accessible ? 'text-lg' : 'text-sm'}`}>{o.customer_name || '—'}</p>
           <span className="text-[10px] text-muted font-mono">{o.order_id}</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${meta.bg} ${meta.text}`}>{meta.icon} {meta.label}</span>
           {age >= 1 && (
@@ -109,15 +158,8 @@ function PrepCard({ o, checked, onCheck, onAdvance, busy }) {
           {o.city || '—'}{o.pickup_type ? ` · ${o.pickup_type}` : ''} · البائع: {o.handler_name || '—'}
         </p>
         {/* المنتجات — جوهر عمل المجهّز */}
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          {(o.items || []).map((it, i) => (
-            <span key={i} className="text-[11px] bg-surface-alt border border-border rounded-lg px-2 py-0.5 font-semibold text-text">
-              {it.qty || 1}× {it.name}
-            </span>
-          ))}
-          {(!o.items || o.items.length === 0) && <span className="text-[11px] text-muted">بلا منتجات مسجّلة — راجع الملاحظات</span>}
-        </div>
-        {o.notes && <p className="text-[10px] text-muted mt-1 line-clamp-1">📝 {o.notes}</p>}
+        <ProductList items={o.items} accessible={accessible} />
+        {o.notes && <p className={`text-muted mt-1 ${accessible ? 'text-sm mt-2' : 'text-[10px] line-clamp-1'}`}>📝 {o.notes}</p>}
       </div>
       <button onClick={() => onAdvance(o)} disabled={busy}
         className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
@@ -136,6 +178,8 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
   const [busy, setBusy]         = useState(false);
   const [progress, setProgress] = useState(null); // {done,total}
   const [doneToday, setDoneToday] = useState(() => getDoneToday(userName));
+  const [accessible, setAccessibleState] = useState(getA11y);
+  const toggleAccessible = () => setAccessibleState(v => { const nv = !v; setA11y(nv); return nv; });
 
   const marketLabel = market === 'syria' ? '🇸🇾 سوريا' : market === 'turkey' ? '🇹🇷 تركيا' : '🌍 كل الأسواق';
 
@@ -217,8 +261,13 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button onClick={toggleAccessible}
+              title={accessible ? 'إيقاف العرض الواضح' : 'تفعيل العرض الواضح (خط كبير ومنتجات مسطّرة)'}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition ${accessible ? 'bg-teal text-navy' : 'bg-white/15 text-white hover:bg-white/25'}`}>
+              👁️ {accessible ? 'واضح ✓' : 'عرض واضح'}
+            </button>
             {queue.length > 0 && (
-              <button onClick={() => printPrepList(groups, marketLabel)}
+              <button onClick={() => printPrepList(groups, marketLabel, accessible)}
                 className="px-3 py-2 rounded-xl bg-white/15 text-white text-xs font-bold hover:bg-white/25 transition">
                 🖨️ طباعة
               </button>
@@ -287,7 +336,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
               </button>
             </div>
             {!isCollapsed && list.map(o => (
-              <PrepCard key={o.id} o={o} checked={selected.has(o.id)} onCheck={toggleCheck} onAdvance={advanceOne} busy={busy} />
+              <PrepCard key={o.id} o={o} checked={selected.has(o.id)} onCheck={toggleCheck} onAdvance={advanceOne} busy={busy} accessible={accessible} />
             ))}
           </div>
         );
