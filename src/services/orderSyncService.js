@@ -108,8 +108,9 @@ export async function softDeleteOrder(order, by) {
     .update({ deleted_at: new Date().toISOString(), deleted_by: by || null, status: 'cancelled' })
     .eq('id', order.id);
   if (error) throw new Error(error.message);
-  // يزامن الجدول ليعكس الإلغاء/الحذف (الحالة صارت cancelled).
-  if (isSyncable({ ...order, deleted_at: null })) syncToSheet(order.id);
+  // لا نُزامن الطلب المحذوف مع الجدول: edge fn يرفض إعادة دفعه أصلاً
+  // (deleted_no_readd) لأن doPost كان يُلحقه من جديد بعد حذف صفّه يدوياً =
+  // باگ «الحذف يرجع» (البند ١). حذف صفّ الجدول يُعالَج عبر reconcile-by-presence.
 }
 
 // استرجاع طلب محذوف (للمدير): يصفّر deleted_at ويعيد المزامنة.

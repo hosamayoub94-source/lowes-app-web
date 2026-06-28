@@ -64,6 +64,11 @@ Deno.serve(async (req: Request) => {
     }
     if (error || !o) return json({ ok: false, error: 'order_not_found' }, 200);
 
+    // طلب محذوف (soft-delete): لا تُعِد دفع صفّه للجدول إطلاقاً. بدون هذا الحارس،
+    // softDeleteOrder يدفع الطلب كـ«ملغي» فيُلحقه doPost من جديد بعد أن يحذف الفريق
+    // الصفّ يدوياً من الجدول — وهذا جوهر باگ «الحذف يرجع» (البند ١).
+    if (o.deleted_at) return json({ ok: true, skipped: 'deleted_no_readd' }, 200);
+
     // Only Syria + Turkey have sheets (team isolation)
     if (o.market !== 'syria' && o.market !== 'turkey') return json({ ok: true, skipped: 'no_sheet' }, 200);
     // Skip archived/imported rows (they never re-sync)

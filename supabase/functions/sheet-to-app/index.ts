@@ -292,6 +292,74 @@ Deno.serve(async (req) => {
       return json({ ok: true, inserted, updated, skipped });
     }
 
+    // ── 3. Reconcile-by-presence: soft-delete orders whose sheet row was removed ──
+    // Apps Script onChange (REMOVE_ROW) cannot expose the deleted row's id, so the
+    // live trigger instead sends the FULL set of «كود الطلب» still present in the
+    // active brand tabs (LOWES_TR + STRONG_TR). Any active, non-terminal order for
+    // this market that is NOT in that set was deleted from the sheet → soft-delete
+    // it so it disappears from the app (and never re-appears). Fixes «الحذف يرجع».
+    //
+    // ⚠️ MASS-DELETE SAFETY: a partial/empty sheet read must never wipe orders.
+    //   - empty present list           → abort (never delete on a blank read)
+    //   - would-delete count too large → abort (a human deletes 1 row, not many)
+    //   - terminal orders excluded     → delivered/settled/returned moved to a
+    //     «تسليمات» tab are absent from the active tabs by design — never touch them.
+    if (action === 'reconcile_present') {
+      const market = String(body.market || 'turkey');
+      const presentSet = new Set(
+        (Array.isArray(body.present_ids) ? body.present_ids : [])
+          .map((x: unknown) => String(x ?? '').trim())
+          .filter(Boolean),
+      );
+      if (presentSet.size === 0) {
+        return json({ ok: true, skipped: 'empty_present_list' }, 200);
+      }
+
+      const { data: rows, error: qErr } = await supabase
+        .from('orders')
+        .select('id, order_id, status, archived')
+        .eq('market', market)
+        .is('deleted_at', null)
+        .not('status', 'in', '("delivered","settled","returned","cancelled")');
+      if (qErr) return json({ ok: false, error: qErr.message }, 500);
+
+      const live = (rows ?? []).filter((r: any) => r.archived !== true && r.order_id);
+      const toDelete = live.filter((r: any) => !presentSet.has(String(r.order_id).trim()));
+
+      if (toDelete.length === 0) return json({ ok: true, reconciled: 0, examined: live.length }, 200);
+
+      // Safety floor: one deleted sheet row should remove ~1 order. If the diff is
+      // large (bad/partial read, wrong tab), abort rather than mass-delete.
+      const MAX_RECONCILE_DELETE = 15;
+      if (toDelete.length > MAX_RECONCILE_DELETE || toDelete.length >= live.length) {
+        return json({
+          ok: false, skipped: 'too_many_would_delete',
+          would_delete: toDelete.length, live: live.length, present: presentSet.size,
+        }, 200);
+      }
+
+      let reconciled = 0;
+      const nowIso = new Date().toISOString();
+      for (const o of toDelete) {
+        const { error: dErr } = await supabase
+          .from('orders')
+          .update({
+            deleted_at: nowIso, deleted_by: 'جدول-حذف',
+            status: 'cancelled', updated_at: nowIso, updated_by: 'جدول-حذف',
+          })
+          .eq('id', o.id)
+          .is('deleted_at', null);
+        if (!dErr) {
+          reconciled++;
+          await supabase.from('order_status_history').insert({
+            order_id: o.id, from_status: o.status, to_status: 'cancelled',
+            changed_by: 'الجدول (حذف صف)', source: 'sheet',
+          }).then(() => {}, () => {});
+        }
+      }
+      return json({ ok: true, reconciled, examined: live.length, present: presentSet.size }, 200);
+    }
+
     return json({ ok: false, error: 'unknown action' }, 400);
 
   } catch (err) {
