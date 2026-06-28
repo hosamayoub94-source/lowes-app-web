@@ -13,6 +13,7 @@ import { LoadingScreen } from '@components/ui/Loading';
 import { ProtectedRoute } from './ProtectedRoute';
 import { ROUTES } from './paths';
 import { ROLES } from '@data/teams';
+import { PERMISSIONS as P } from '@data/permissions';
 
 // Login is the cold-start screen — keep it eagerly loaded.
 import LoginScreen from '@screens/LoginScreen';
@@ -86,6 +87,10 @@ const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
 const FINANCE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
 const SALES_ROLES   = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER];
+// المناصب الإدارية (محاسب/موارد بشرية/مخزن/تسويق). تُمنح وصولها عبر الصلاحية
+// (perm) على كل route — مطابقةً لإظهار navigation.js — فلا تظهر شاشة بالقائمة
+// ثم تُعطي 404. الأدوار الأربعة كلها بلا منصب إداري أساسي في الأدوار العامة.
+const MGMT_POSITIONS = [ROLES.ACCOUNTANT, ROLES.HR_MANAGER, ROLES.WAREHOUSE_MANAGER, ROLES.MARKETING_MANAGER];
 
 // /orders → يحوّل لماكنة سوق المستخدم (سوريا/تركيا) مع الحفاظ على state (إعادة الطلب).
 function OrdersRedirect() {
@@ -131,7 +136,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.ADMIN_GUIDES}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]} perm={P.MANAGE_GUIDES}>
                 <AdminGuidesScreen />
               </ProtectedRoute>
             }
@@ -139,7 +144,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.ADMIN_CHANNELS}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]} perm={P.VIEW_FINANCE}>
                 <AdminChannelsScreen />
               </ProtectedRoute>
             }
@@ -157,7 +162,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.ACCOUNTING}
             element={
-              <ProtectedRoute roles={[ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.ACCOUNTANT]}>
+              <ProtectedRoute roles={[ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.ACCOUNTANT]} perm={P.VIEW_FINANCE}>
                 <AccountingScreen />
               </ProtectedRoute>
             }
@@ -167,7 +172,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PAYROLL}
             element={
-              <ProtectedRoute roles={FINANCE_ROLES}>
+              <ProtectedRoute roles={FINANCE_ROLES} perm={P.MANAGE_PAYROLL}>
                 <PayrollDashboard />
               </ProtectedRoute>
             }
@@ -185,7 +190,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.SALES}
             element={
-              <ProtectedRoute roles={SALES_ROLES}>
+              <ProtectedRoute roles={SALES_ROLES} perm={P.VIEW_ANALYTICS}>
                 <SalesDashboard />
               </ProtectedRoute>
             }
@@ -193,7 +198,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.MANAGER_BOARD}
             element={
-              <ProtectedRoute roles={MANAGEMENT}>
+              <ProtectedRoute roles={MANAGEMENT} perm={P.VIEW_ANALYTICS}>
                 <ManagerBoardScreen />
               </ProtectedRoute>
             }
@@ -201,7 +206,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.WAREHOUSES}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE]} perm={P.VIEW_INVENTORY}>
                 <WarehouseScreen />
               </ProtectedRoute>
             }
@@ -209,7 +214,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.EMPLOYEE, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER]}>
+              <ProtectedRoute roles={ALL_ROLES}>
                 <CustomersScreen />
               </ProtectedRoute>
             }
@@ -233,7 +238,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PROFITABILITY}
             element={
-              <ProtectedRoute roles={MANAGEMENT}>
+              <ProtectedRoute roles={MANAGEMENT} perm={P.VIEW_ANALYTICS}>
                 <ProfitabilityScreen />
               </ProtectedRoute>
             }
@@ -241,7 +246,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CAMPAIGNS}
             element={
-              <ProtectedRoute roles={SALES_ROLES}>
+              <ProtectedRoute roles={SALES_ROLES} perm={P.MANAGE_CAMPAIGNS}>
                 <CampaignsScreen />
               </ProtectedRoute>
             }
@@ -257,7 +262,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.MEDIA_BUYER_BOARD}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER, ROLES.MARKETING_MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER, ROLES.SOCIAL_MANAGER, ROLES.MARKETING_MANAGER]} perm={P.VIEW_MEDIA_BUYER_BOARD}>
                 <MediaBuyerBoardScreen />
               </ProtectedRoute>
             }
@@ -281,7 +286,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.INVENTORY}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER]} perm={P.VIEW_INVENTORY}>
                 <InventoryScreen />
               </ProtectedRoute>
             }
@@ -289,7 +294,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.ATTENDANCE_REPORT}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]} perm={P.VIEW_ALL_ATTENDANCE}>
                 <AttendanceReportScreen />
               </ProtectedRoute>
             }
@@ -305,7 +310,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.HR}
             element={
-              <ProtectedRoute roles={FINANCE_ROLES}>
+              <ProtectedRoute roles={FINANCE_ROLES} perm={P.APPROVE_LEAVES}>
                 <HRDashboard />
               </ProtectedRoute>
             }
@@ -314,7 +319,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.MANAGEMENT}
             element={
-              <ProtectedRoute roles={MANAGEMENT}>
+              <ProtectedRoute roles={[...MANAGEMENT, ...MGMT_POSITIONS]}>
                 <ManagementScreen />
               </ProtectedRoute>
             }
