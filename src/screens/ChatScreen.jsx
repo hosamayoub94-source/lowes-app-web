@@ -1152,6 +1152,7 @@ export default function ChatScreen(){
   const[messages,setMessages]=useState([]);
   const[reactions,setReactions]=useState({});
   const[lastMsgs,setLastMsgs]=useState({});
+  const[lastActivity,setLastActivity]=useState({});  // {room_id: ISO} — لترتيب الغرف بالأحدث
   const[unreadCounts,setUnreadCounts]=useState({});
   const[loading,setLoading]=useState(true);
   const[msgLoading,setMsgLoading]=useState(false);
@@ -1341,9 +1342,10 @@ export default function ChatScreen(){
       if(allRooms.length){
         try{
           const{data:lms}=await supabase.from('chat_messages').select('room_id,content,message_type,created_at,sender_id').in('room_id',allRooms.map(r=>r.id)).order('created_at',{ascending:false}).limit(200);
-          const map={};
-          (lms??[]).forEach(m=>{if(!map[m.room_id])map[m.room_id]=m.message_type==='text'?m.content:m.message_type==='image'?'📷 صورة':m.message_type==='file'?`📎 ${m.file_name||'ملف'}`:'🎙️ رسالة صوتية';});
+          const map={},act={};
+          (lms??[]).forEach(m=>{if(!map[m.room_id]){map[m.room_id]=m.message_type==='text'?m.content:m.message_type==='image'?'📷 صورة':m.message_type==='file'?`📎 ${m.file_name||'ملف'}`:'🎙️ رسالة صوتية';act[m.room_id]=m.created_at;}});
           setLastMsgs(map);
+          setLastActivity(act);
         }catch{/* تجاهل */}
         try{ await loadUnreadCounts(allRooms); }catch{/* تجاهل */}
       }
@@ -1491,6 +1493,7 @@ export default function ChatScreen(){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
         setMessages(p=>p.some(m=>m.id===payload.new.id)?p:[...p,payload.new]);
         setLastMsgs(p=>({...p,[activeRoom.id]:payload.new.message_type==='text'?payload.new.content:payload.new.message_type==='image'?'📷 صورة':'🎙️ رسالة صوتية'}));
+        setLastActivity(p=>({...p,[activeRoom.id]:payload.new.created_at||new Date().toISOString()}));
         markAsRead(activeRoom.id);
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_messages',filter:`room_id=eq.${activeRoom.id}`},payload=>{
@@ -1555,6 +1558,7 @@ export default function ChatScreen(){
       // optimistic add: تظهر الرسالة فوراً عند المرسِل؛ معالج realtime يزيل التكرار بالـid.
       if(inserted)setMessages(p=>p.some(m=>m.id===inserted.id)?p:[...p,inserted]);
       setLastMsgs(p=>({...p,[activeRoom.id]:msgData.message_type==='text'?msgData.content:msgData.message_type==='image'?'📷 صورة':msgData.message_type==='voice'?'🎙️ رسالة صوتية':`📎 ${msgData.file_name||'ملف'}`}));
+      setLastActivity(p=>({...p,[activeRoom.id]:new Date().toISOString()}));
       setReplyTo(null);
       if(msgData.message_type==='text'&&msgData.content?.startsWith('/'))
         buildBotResponse(msgData.content,activeRoom.id,userId,userName).then(b=>setMessages(p=>[...p,b])).catch(()=>{});
@@ -1625,9 +1629,15 @@ export default function ChatScreen(){
 
   // ── Render ─────────────────────────────────────────────────────
   const groupRooms=rooms.filter(r=>r.type==='group');
-  const privateRooms=groupRooms.filter(r=>r.is_private);
-  const publicRooms=groupRooms.filter(r=>!r.is_private);
-  const dmRooms=rooms.filter(r=>r.type==='dm');
+  // ترتيب بالأحدث: الغرف ذات آخر نشاط أحدث تظهر أولاً (fallback: تاريخ الإنشاء).
+  const byRecent=(a,b)=>{
+    const ta=lastActivity[a.id]?new Date(lastActivity[a.id]).getTime():new Date(a.created_at||0).getTime();
+    const tb=lastActivity[b.id]?new Date(lastActivity[b.id]).getTime():new Date(b.created_at||0).getTime();
+    return tb-ta;
+  };
+  const privateRooms=groupRooms.filter(r=>r.is_private).sort(byRecent);
+  const publicRooms=groupRooms.filter(r=>!r.is_private).sort(byRecent);
+  const dmRooms=rooms.filter(r=>r.type==='dm').sort(byRecent);
   const displayedMessages=searchQuery.trim()
     ?messages.filter(m=>!m.is_deleted&&(m.content?.toLowerCase().includes(searchQuery.toLowerCase())||m.sender_name?.toLowerCase().includes(searchQuery.toLowerCase())))
     :messages;
