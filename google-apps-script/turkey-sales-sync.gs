@@ -452,6 +452,65 @@ function createRelaxTrigger() {
   return 'auto-relax onChange trigger created';
 }
 
+// ── Sheet → App: حذف صفّ طلب من الجدول يحذف الطلب بالتطبيق (البند ١) ──
+// إصلاح باگ «الحذف يرجع»: onSheetEdit يلتقط التعديلات فقط، لا حذف الصفوف. وعند
+// أول تغيير حالة لاحق كان doPost لا يجد «كود الطلب» فيُلحق الصفّ من جديد → يرجع.
+//
+// onChange (REMOVE_ROW) لا يعطي محتوى الصفّ المحذوف، فالحلّ reconcile-by-presence:
+// نقرأ كل «كود الطلب» الموجودة حالياً بالتابين النشطين ونرسلها؛ يحذف الـedge fn
+// أي طلب نشط غير منتهٍ غاب من القائمة. الأمان (سقف الحذف + رفض القائمة الفارغة +
+// استثناء المنتهية تسليم/تسوية/راجع) كله بجهة الـedge fn (action=reconcile_present)
+// فلا يحذف بالجملة على قراءة ناقصة، ولا يلمس المنقولة لتاب التسليمات.
+function onTurkeyRowRemoved(e) {
+  try {
+    if (!e || e.changeType !== 'REMOVE_ROW') return;
+    // throttle خفيف: حذف دفعة صفوف يولّد عدة أحداث — يكفي نداء واحد.
+    var props = PropertiesService.getDocumentProperties();
+    var now = Date.now();
+    if (now - Number(props.getProperty('lastReconcile') || 0) < 8000) return;
+    props.setProperty('lastReconcile', String(now));
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ids = [];
+    ['LOWES_TR', 'STRONG_TR'].forEach(function (name) {
+      var sh = ss.getSheetByName(name);
+      if (!sh) return;
+      var lastRow = sh.getLastRow();
+      if (lastRow < 2) return;
+      var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+      var idCol = -1;
+      for (var c = 0; c < headers.length; c++) {
+        if (String(headers[c]).trim() === 'كود الطلب') { idCol = c; break; }
+      }
+      if (idCol < 0) return;
+      var col = sh.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+      for (var r = 0; r < col.length; r++) {
+        var v = String(col[r][0] || '').trim();
+        if (v) ids.push(v);
+      }
+    });
+    // حارس إضافي: لا ترسل قائمة فارغة (الـedge fn يرفضها أصلاً، نتجنّب النداء).
+    if (!ids.length) return;
+    UrlFetchApp.fetch(SHEET_TO_APP_URL, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ token: TOKEN, action: 'reconcile_present', market: 'turkey', present_ids: ids }),
+      muteHttpExceptions: true,
+    });
+  } catch (err) { /* never block the sheet */ }
+}
+
+// Run ONCE from the editor to install the row-removal reconcile onChange trigger.
+function createReconcileTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'onTurkeyRowRemoved') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('onTurkeyRowRemoved')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onChange()
+    .create();
+  return 'row-removal reconcile onChange trigger created';
+}
+
 function _json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
