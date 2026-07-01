@@ -2,9 +2,9 @@
 // PayrollDashboard — Payroll Hub (theme-aware v2)
 // =============================================================
 import { useState, useCallback } from 'react';
-import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
+import { runPayrollForMonth, fetchEmployeeSalesStatement } from '../services/payrollEngine.js';
 import {
   usePayrollBootstrap,
   usePayrollDashboard,
@@ -25,21 +25,6 @@ import {
 } from '../types/payroll.types.js';
 import { ROLES } from '@data/teams';
 import { printRunReport } from '../utils/printPayslip.js';
-
-// ── Commission levels from SALES_RULES.md ──────────────────────
-const COMMISSION_LEVELS = {
-  junior:       { base: 8  },
-  active:       { base: 5  },
-  professional: { base: 10 },
-  agent:        { base: 20 },
-};
-function calcVolumeBonus(level, achievePct) {
-  if (achievePct >= 150) return { junior:7, active:7, professional:10, agent:12 }[level] ?? 0;
-  if (achievePct >= 120) return { junior:0, active:5, professional:7,  agent:9  }[level] ?? 0;
-  if (achievePct >= 100) return { junior:0, active:3, professional:5,  agent:6  }[level] ?? 0;
-  if (achievePct >= 80)  return { junior:0, active:1, professional:2,  agent:3  }[level] ?? 0;
-  return 0;
-}
 
 // ─── Input class ─────────────────────────────────────────────
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text outline-none focus:border-teal transition';
@@ -110,7 +95,7 @@ export function PayrollDashboard() {
   const { runs, kpis, isLoading } = usePayrollDashboard();
   const { run, entries, isLoading: loadingEntries, isSubmitting, approveRun, markRunPaid } = useRunDetail();
   const selectedRunId = useSelectedRunId();
-  const { selectRun, createRun, deleteEntry, upsertEntry } = usePayrollActions();
+  const { selectRun, createRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
   const loading = usePayrollLoading();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
@@ -131,42 +116,65 @@ export function PayrollDashboard() {
   const [attLoading, setAttLoading] = useState(false);
   const [attResult,  setAttResult]  = useState(null);
 
-  // ── Commission auto-calc
-  const [commLoading, setCommLoading] = useState(false);
-  const [commMsg,     setCommMsg]     = useState(null);
+  // ── Status / result message
+  const [commMsg, setCommMsg] = useState(null);
 
-  const handleAutoCommission = useCallback(async () => {
-    if (!run || entries.length === 0) return;
-    setCommLoading(true); setCommMsg(null);
+  // ── One-click payroll engine
+  const [engineRunning, setEngineRunning] = useState(false);
+  const [engineProgress, setEngineProgress] = useState(null); // { done, total }
+
+  // ── Sales statement modal (كشف حركة المبيعات)
+  const [statementFor, setStatementFor] = useState(null);   // entry
+  const [statementData, setStatementData] = useState(null); // { orders, total, count }
+  const [statementLoading, setStatementLoading] = useState(false);
+
+  /**
+   * ⚡ One-click: compute the whole run automatically for every active
+   * employee — base + allowances + sales commission − absence − advances.
+   * Manually-edited entries are preserved (not overwritten).
+   */
+  const handleRunEngine = useCallback(async () => {
+    if (!run) return;
+    setEngineRunning(true);
+    setEngineProgress({ done: 0, total: 0 });
+    setCommMsg(null);
     try {
-      const rows = [];
-      for (const e of entries) {
-        const kpiRes = await supabase.from('employee_kpis').select('level,sales_score,sales_target')
-          .eq('employee_id', e.employee_id).eq('year', run.period_year).eq('month', run.period_month).maybeSingle();
-        const kpi = kpiRes.data;
-        const level = kpi?.level ?? 'junior';
-        const salesTarget = kpi?.sales_target ?? 0;
-        const salesActual = kpi?.sales_score ?? Number(e.net_salary_usd ?? 0);
-        const achievePct  = salesTarget > 0 ? Math.round((salesActual / salesTarget) * 100) : 0;
-        const basePct     = COMMISSION_LEVELS[level]?.base ?? 8;
-        const bonusPct    = calcVolumeBonus(level, achievePct);
-        const totalPct    = basePct + bonusPct;
-        const commUsd     = (salesActual * totalPct) / 100;
-        rows.push({
-          employee_id: e.employee_id, year: run.period_year, month: run.period_month,
-          level, base_commission_pct: basePct, volume_bonus_pct: bonusPct,
-          total_sales_usd: salesActual, total_commission_usd: commUsd,
-          status: 'pending', updated_at: new Date().toISOString(),
-        });
-      }
-      for (const r of rows) {
-        await supabase.from('commissions').upsert(r, { onConflict: 'employee_id,year,month' });
-      }
-      setCommMsg(`✅ تم احتساب عمولات ${rows.length} موظف — إجمالي: $${rows.reduce((s,r)=>s+r.total_commission_usd,0).toFixed(2)}`);
-    } catch (err) {
-      setCommMsg('⚠️ ' + err.message);
-    } finally { setCommLoading(false); }
-  }, [run, entries]);
+      const skip = new Set(entries.filter(e => e.source === 'manual').map(e => e.employee_id));
+      const res = await runPayrollForMonth({
+        runId: run.id,
+        year: run.period_year,
+        month: run.period_month,
+        skipEmployeeIds: skip,
+        onProgress: (done, total) => setEngineProgress({ done, total }),
+      });
+      await loadEntries(run.id); // refresh from DB
+      const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
+      setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
+      if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    } finally {
+      setEngineRunning(false);
+      setEngineProgress(null);
+    }
+  }, [run, entries, loadEntries]);
+
+  const openStatement = useCallback(async (entry) => {
+    setStatementFor(entry);
+    setStatementData(null);
+    setStatementLoading(true);
+    try {
+      const data = await fetchEmployeeSalesStatement(
+        { id: entry.employee_id, employee_name: entry.employee_name, salary_currency: entry.currency },
+        run.period_year, run.period_month, entry.currency || 'USD',
+      );
+      setStatementData(data);
+    } catch (e) {
+      setStatementData({ orders: [], total: 0, count: 0, error: e?.message || String(e) });
+    } finally {
+      setStatementLoading(false);
+    }
+  }, [run]);
 
   /** Pull attendance data for the selected run's period and auto-fill the entry form */
   const handleImportAttendance = useCallback(async () => {
@@ -190,7 +198,7 @@ export function PayrollDashboard() {
           ...f,
           absent_days:   summary.absentDays,
           working_days:  summary.workingDays,
-          deductions_usd: deduction,
+          absence_deduction_usd: deduction,
         }));
       }
     } finally {
@@ -218,9 +226,13 @@ export function PayrollDashboard() {
       id: entry.id,
       employee_id: entry.employee_id,
       employee_name: entry.employee_name,
+      currency: entry.currency || run?.currency || 'USD',
       base_salary_usd: entry.base_salary_usd,
+      allowances_usd: entry.allowances_usd ?? 0,
+      commission_usd: entry.commission_usd ?? 0,
       bonus_usd: entry.bonus_usd,
       deductions_usd: entry.deductions_usd,
+      absence_deduction_usd: entry.absence_deduction_usd ?? 0,
       advance_deduction_usd: entry.advance_deduction_usd,
       absent_days: entry.absent_days,
       working_days: entry.working_days,
@@ -229,54 +241,22 @@ export function PayrollDashboard() {
   };
 
   const handleSaveEntry = async () => {
-    const net = calcNetSalary(entryForm);
-    await upsertEntry({ ...entryForm, net_salary_usd: net });
+    // Merge over the original entry so engine fields (allowances, commission,
+    // absence, currency…) are preserved, then recompute net from all parts.
+    const merged = { ...editEntry, ...entryForm, source: 'manual' };
+    merged.net_salary_usd = calcNetSalary(merged);
+    await upsertEntry(merged);
     setEditEntry(null);
     setEntryForm({});
   };
 
-  // ── Auto-fill all active employees with their stored base salaries ──
-  // Removes the "re-enter everyone every month" pain.
-  const [fillLoading, setFillLoading] = useState(false);
-  const handleAutoFillEmployees = useCallback(async () => {
-    if (!run) return;
-    setFillLoading(true); setCommMsg(null);
-    try {
-      const { data: emps } = await supabase.from('profiles')
-        .select('id, employee_name, role_type, base_salary_usd, housing_allowance_usd, transport_allowance_usd')
-        .eq('is_active', true)
-        .order('employee_name');
-      const already = new Set(entries.map(e => e.employee_id));
-      let added = 0;
-      for (const emp of (emps ?? [])) {
-        if (already.has(emp.id)) continue; // skip employees already in this run
-        const base  = Number(emp.base_salary_usd) || 0;
-        const allow = (Number(emp.housing_allowance_usd) || 0) + (Number(emp.transport_allowance_usd) || 0);
-        await upsertEntry({
-          run_id:                run.id,
-          employee_id:           emp.id,
-          employee_name:         emp.employee_name,
-          role_type:             emp.role_type,
-          base_salary_usd:       base,
-          bonus_usd:             allow,
-          deductions_usd:        0,
-          advance_deduction_usd: 0,
-          working_days:          30,
-          absent_days:           0,
-          net_salary_usd:        base + allow,
-          notes:                 null,
-        });
-        added++;
-      }
-      setCommMsg(added > 0
-        ? `✅ تمت إضافة ${added} موظف برواتبهم الأساسية. عدّل الحوافز/الخصومات عند الحاجة.`
-        : 'ℹ️ كل الموظفين مضافون مسبقاً لهذه الدورة.');
-    } catch (e) {
-      setCommMsg('⚠️ ' + e.message);
-    } finally { setFillLoading(false); }
-  }, [run, entries, upsertEntry]);
-
   const runTotal = calcRunTotal(entries);
+  // Net totals grouped by currency (employees may be paid in TRY/SYP/USD)
+  const totalsByCurrency = entries.reduce((acc, e) => {
+    const c = e.currency || run?.currency || 'USD';
+    acc[c] = (acc[c] || 0) + calcNetSalary(e);
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -365,18 +345,15 @@ export function PayrollDashboard() {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                    <ActionBtn onClick={handleAutoFillEmployees} disabled={fillLoading} variant="teal">
-                      {fillLoading ? '⏳…' : '👥 ملء الموظفين تلقائياً'}
+                    <ActionBtn onClick={handleRunEngine} disabled={engineRunning} variant="green">
+                      {engineRunning
+                        ? `⏳ ${engineProgress ? `${engineProgress.done}/${engineProgress.total}` : '…'}`
+                        : '⚡ تشغيل الدورة (حساب شامل)'}
                     </ActionBtn>
                   )}
                   {entries.length > 0 && (
                     <ActionBtn onClick={() => printRunReport(entries, run)} variant="blue">
                       🖨️ طباعة التقرير
-                    </ActionBtn>
-                  )}
-                  {isAdmin && entries.length > 0 && (
-                    <ActionBtn onClick={handleAutoCommission} disabled={commLoading} variant="green">
-                      {commLoading ? '⏳…' : '💰 احتساب العمولات'}
                     </ActionBtn>
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
@@ -403,13 +380,18 @@ export function PayrollDashboard() {
                   <div className="text-3xl">👤</div>
                   <p>لا توجد إدخالات في هذه الدورة</p>
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                    <button onClick={handleAutoFillEmployees} disabled={fillLoading}
+                    <button onClick={handleRunEngine} disabled={engineRunning}
                       className="mt-2 px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
-                      {fillLoading ? '⏳ جارٍ الملء…' : '👥 ملء كل الموظفين برواتبهم'}
+                      {engineRunning
+                        ? `⏳ ${engineProgress ? `${engineProgress.done}/${engineProgress.total}` : 'جارٍ الحساب…'}`
+                        : '⚡ تشغيل الدورة — حساب كل الموظفين تلقائياً'}
                     </button>
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                    <p className="text-[11px] text-muted mt-1">يحضر رواتبهم الأساسية من ملفاتهم — عيّنها من «المستخدمون»</p>
+                    <p className="text-[11px] text-muted mt-1">
+                      يحسب الأساسي + البدلات + عمولة المبيعات − الغياب − السلف لكل موظف بعملته.
+                      عيّن الرواتب والعمولة من «المستخدمون».
+                    </p>
                   )}
                 </div>
               ) : (
@@ -421,7 +403,8 @@ export function PayrollDashboard() {
                         <th className="py-2.5 px-4 text-center font-semibold">العمل</th>
                         <th className="py-2.5 px-4 text-center font-semibold">غياب</th>
                         <th className="py-2.5 px-4 text-center font-semibold">الأساسي</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">مكافأة</th>
+                        <th className="py-2.5 px-4 text-center font-semibold">البدلات</th>
+                        <th className="py-2.5 px-4 text-center font-semibold">العمولة</th>
                         <th className="py-2.5 px-4 text-center font-semibold">خصومات</th>
                         <th className="py-2.5 px-4 text-center font-semibold">الصافي</th>
                         <th className="py-2.5 px-4 text-center font-semibold">إجراء</th>
@@ -436,14 +419,19 @@ export function PayrollDashboard() {
                           canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
                           onEdit={openEditEntry}
                           onDelete={deleteEntry}
+                          onStatement={openStatement}
                         />
                       ))}
                     </tbody>
                     <tfoot>
                       <tr className="bg-surface-alt/60 border-t border-border/40 font-bold">
-                        <td className="py-3 px-4 text-right text-xs text-muted" colSpan={6}>الإجمالي</td>
-                        <td className="py-3 px-4 text-center text-teal font-extrabold text-sm tabular-nums">
-                          {formatCurrency(runTotal)}
+                        <td className="py-3 px-4 text-right text-xs text-muted" colSpan={7}>الإجمالي (لكل عملة)</td>
+                        <td className="py-3 px-4 text-center text-teal font-extrabold text-sm tabular-nums whitespace-nowrap">
+                          {Object.keys(totalsByCurrency).length === 0
+                            ? formatCurrency(0)
+                            : Object.entries(totalsByCurrency).map(([c, v]) => (
+                                <div key={c}>{formatCurrency(v, c)}</div>
+                              ))}
                         </td>
                         {isAdmin && run.status === PAYROLL_STATUS.DRAFT && <td />}
                       </tr>
@@ -576,10 +564,13 @@ export function PayrollDashboard() {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { key: 'base_salary_usd',       label: 'الراتب الأساسي ($)' },
-              { key: 'bonus_usd',              label: 'مكافأة ($)' },
-              { key: 'deductions_usd',         label: 'خصومات ($)' },
-              { key: 'advance_deduction_usd',  label: 'سلفة ($)' },
+              { key: 'base_salary_usd',       label: 'الراتب الأساسي' },
+              { key: 'allowances_usd',         label: 'البدلات' },
+              { key: 'commission_usd',         label: 'عمولة المبيعات' },
+              { key: 'bonus_usd',              label: 'مكافأة يدوية' },
+              { key: 'absence_deduction_usd',  label: 'خصم الغياب' },
+              { key: 'deductions_usd',         label: 'خصومات أخرى' },
+              { key: 'advance_deduction_usd',  label: 'خصم السلفة' },
               { key: 'absent_days',            label: 'أيام غياب' },
               { key: 'working_days',           label: 'أيام عمل' },
             ].map(({ key, label }) => (
@@ -608,16 +599,74 @@ export function PayrollDashboard() {
           <div className="bg-teal/10 rounded-xl px-4 py-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-teal">الراتب الصافي</span>
             <span className="text-lg font-extrabold text-teal tabular-nums">
-              ${(
-                Number(entryForm.base_salary_usd ?? 0) +
-                Number(entryForm.bonus_usd ?? 0) -
-                Number(entryForm.deductions_usd ?? 0) -
-                Number(entryForm.advance_deduction_usd ?? 0)
-              ).toFixed(2)}
+              {formatCurrency(calcNetSalary(entryForm), entryForm.currency || 'USD')}
             </span>
           </div>
         </Modal>
       )}
+      {/* ── Sales Statement Modal (كشف حركة المبيعات) ────────── */}
+      {statementFor && (
+        <Modal
+          title={`كشف حركة المبيعات — ${statementFor.employee_name}`}
+          onClose={() => setStatementFor(null)}
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-muted">
+              الطلبات المحصّلة لـ<span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> —
+              الأساس الذي حُسبت عليه العمولة ({Number(statementFor.commission_pct ?? 0)}%).
+            </p>
+
+            {statementLoading ? (
+              <div className="py-8 text-center text-muted text-sm">جار التحميل…</div>
+            ) : statementData?.error ? (
+              <p className="text-sm text-red-500">{statementData.error}</p>
+            ) : (statementData?.orders?.length ?? 0) === 0 ? (
+              <div className="py-8 text-center text-muted text-sm">
+                لا توجد طلبات محصّلة مطابقة لهذا الموظف في هذا الشهر.
+                <p className="text-[11px] mt-1">تأكّد أن «اسم البائع» في الطلبات يطابق اسم الموظف — أو عيّن «اسم بديل» له.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'عدد الطلبات', value: statementData.count },
+                    { label: 'إجمالي المبيعات', value: formatCurrency(statementData.total, statementFor.currency) },
+                    { label: 'العمولة', value: formatCurrency((statementData.total * Number(statementFor.commission_pct ?? 0)) / 100, statementFor.currency) },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="text-center bg-surface-alt rounded-xl py-2">
+                      <div className="text-sm font-extrabold text-text tabular-nums">{value}</div>
+                      <div className="text-[10px] text-muted">{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="overflow-x-auto max-h-64 overflow-y-auto border border-border/40 rounded-xl">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-surface-alt text-muted">
+                      <tr>
+                        <th className="py-2 px-2 text-right font-semibold">الكود</th>
+                        <th className="py-2 px-2 text-right font-semibold">التاريخ</th>
+                        <th className="py-2 px-2 text-right font-semibold">العميل</th>
+                        <th className="py-2 px-2 text-center font-semibold">المبلغ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statementData.orders.map((o, i) => (
+                        <tr key={o.order_id || i} className="border-t border-border/30">
+                          <td className="py-1.5 px-2 text-right font-mono text-[11px]">{o.order_id || '—'}</td>
+                          <td className="py-1.5 px-2 text-right text-muted">{String(o.order_date || '').slice(0, 10)}</td>
+                          <td className="py-1.5 px-2 text-right truncate max-w-[120px]">{o.customer_name || '—'}</td>
+                          <td className="py-1.5 px-2 text-center tabular-nums">{formatCurrency(o.amount, o.currency || statementFor.currency)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
     </div>
   );
 }

@@ -1,17 +1,23 @@
 // =============================================================
-// EntryRow — single payroll entry row (theme-aware)
+// EntryRow — single payroll entry row (theme-aware, native currency)
 // =============================================================
-import { formatCurrency, calcNetSalary } from '../types/payroll.types.js';
+import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
 import { printPayslip } from '../utils/printPayslip.js';
 
-export function EntryRow({ entry, run, onEdit, onDelete, canEdit }) {
+export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit }) {
+  const cur = entry.currency || run?.currency || 'USD';
   const net = calcNetSalary(entry);
-  const totalDeductions = Number(entry.deductions_usd ?? 0) + Number(entry.advance_deduction_usd ?? 0);
+  const totalDeductions = calcTotalDeductions(entry);
+  const allowances = Number(entry.allowances_usd ?? 0) + Number(entry.bonus_usd ?? 0);
+  const commission = Number(entry.commission_usd ?? 0);
 
   return (
     <tr className="border-b border-border/40 hover:bg-surface-alt/50 transition-colors">
       <td className="py-3 px-4 text-sm font-semibold text-text text-right whitespace-nowrap">
         {entry.employee_name}
+        {entry.source === 'auto' && (
+          <span className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-teal/10 text-teal font-bold align-middle">تلقائي</span>
+        )}
       </td>
       <td className="py-3 px-4 text-sm text-muted text-center">
         {entry.working_days ?? '—'}
@@ -24,22 +30,35 @@ export function EntryRow({ entry, run, onEdit, onDelete, canEdit }) {
         )}
       </td>
       <td className="py-3 px-4 text-sm text-center text-text tabular-nums">
-        {formatCurrency(entry.base_salary_usd, 'USD')}
+        {formatCurrency(entry.base_salary_usd, cur)}
       </td>
       <td className="py-3 px-4 text-sm text-center tabular-nums">
-        {(entry.bonus_usd ?? 0) > 0
-          ? <span className="text-green-fg font-semibold">+{formatCurrency(entry.bonus_usd, 'USD')}</span>
+        {allowances > 0
+          ? <span className="text-green-fg font-semibold">+{formatCurrency(allowances, cur)}</span>
           : <span className="text-muted">—</span>}
+      </td>
+      <td className="py-3 px-4 text-sm text-center tabular-nums">
+        {commission > 0 ? (
+          <button
+            onClick={() => onStatement?.(entry)}
+            title="كشف حركة المبيعات"
+            className="text-teal font-semibold hover:underline decoration-dotted"
+          >
+            +{formatCurrency(commission, cur)}
+          </button>
+        ) : (
+          <span className="text-muted">—</span>
+        )}
       </td>
       <td className="py-3 px-4 text-sm text-center tabular-nums">
         {totalDeductions > 0
-          ? <span className="text-red-fg font-semibold">-{formatCurrency(totalDeductions, 'USD')}</span>
+          ? <span className="text-red-fg font-semibold">-{formatCurrency(totalDeductions, cur)}</span>
           : <span className="text-muted">—</span>}
       </td>
       <td className="py-3 px-4 text-sm font-extrabold text-center text-teal tabular-nums">
-        {formatCurrency(net, 'USD')}
+        {formatCurrency(net, cur)}
       </td>
-      {/* Print button — always visible */}
+      {/* Actions */}
       <td className="py-3 px-4 text-center">
         <div className="flex items-center justify-center gap-1.5">
           <button

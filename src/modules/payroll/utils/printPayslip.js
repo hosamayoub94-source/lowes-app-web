@@ -5,6 +5,7 @@
 // =============================================================
 
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
+import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
 
 const MONTHS_AR = [
   'يناير','فبراير','مارس','أبريل','مايو','يونيو',
@@ -12,8 +13,8 @@ const MONTHS_AR = [
 ];
 const sealSrc = () => (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
 
-function fmt(n) {
-  return `$${Number(n ?? 0).toFixed(2)}`;
+function fmt(n, cur = 'USD') {
+  return formatCurrency(n, cur);
 }
 
 /**
@@ -22,12 +23,8 @@ function fmt(n) {
  * @param {object} run    — payroll run (period_year, period_month, status)
  */
 export function printPayslip(entry, run) {
-  const net = (
-    Number(entry.base_salary_usd ?? 0) +
-    Number(entry.bonus_usd ?? 0) -
-    Number(entry.deductions_usd ?? 0) -
-    Number(entry.advance_deduction_usd ?? 0)
-  );
+  const cur = entry.currency || run?.currency || 'USD';
+  const net = calcNetSalary(entry);
   const month = MONTHS_AR[(run?.period_month ?? 1) - 1];
   const year  = run?.period_year ?? new Date().getFullYear();
   const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory');
@@ -256,25 +253,43 @@ export function printPayslip(entry, run) {
     <tr>
       <td>الراتب الأساسي</td>
       <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">${fmt(entry.base_salary_usd)}</span></td>
+      <td><span class="positive">${fmt(entry.base_salary_usd, cur)}</span></td>
     </tr>
+    ${Number(entry.allowances_usd ?? 0) > 0 ? `
+    <tr>
+      <td>البدلات (سكن + مواصلات)</td>
+      <td><span class="positive">إضافة</span></td>
+      <td><span class="positive">+${fmt(entry.allowances_usd, cur)}</span></td>
+    </tr>` : ''}
+    ${Number(entry.commission_usd ?? 0) > 0 ? `
+    <tr>
+      <td>عمولة المبيعات (${Number(entry.commission_pct ?? 0)}% على ${fmt(entry.sales_total_usd, cur)})</td>
+      <td><span class="positive">إضافة</span></td>
+      <td><span class="positive">+${fmt(entry.commission_usd, cur)}</span></td>
+    </tr>` : ''}
     ${Number(entry.bonus_usd ?? 0) > 0 ? `
     <tr>
       <td>مكافأة</td>
       <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">+${fmt(entry.bonus_usd)}</span></td>
+      <td><span class="positive">+${fmt(entry.bonus_usd, cur)}</span></td>
     </tr>` : ''}
-    ${Number(entry.deductions_usd ?? 0) > 0 ? `
+    ${Number(entry.absence_deduction_usd ?? 0) > 0 ? `
     <tr>
       <td>خصم الغياب (${entry.absent_days ?? 0} يوم)</td>
       <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.deductions_usd)}</span></td>
+      <td><span class="negative">-${fmt(entry.absence_deduction_usd, cur)}</span></td>
+    </tr>` : ''}
+    ${Number(entry.deductions_usd ?? 0) > 0 ? `
+    <tr>
+      <td>خصومات أخرى</td>
+      <td><span class="negative">خصم</span></td>
+      <td><span class="negative">-${fmt(entry.deductions_usd, cur)}</span></td>
     </tr>` : ''}
     ${Number(entry.advance_deduction_usd ?? 0) > 0 ? `
     <tr>
       <td>خصم السلفة</td>
       <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.advance_deduction_usd)}</span></td>
+      <td><span class="negative">-${fmt(entry.advance_deduction_usd, cur)}</span></td>
     </tr>` : ''}
     ${entry.notes ? `
     <tr>
@@ -286,7 +301,7 @@ export function printPayslip(entry, run) {
 <!-- Net salary -->
 <div class="net-row">
   <span class="label">💰 الراتب الصافي</span>
-  <span class="amount">${fmt(net)}</span>
+  <span class="amount">${fmt(net, cur)}</span>
 </div>
 
 <!-- Attendance summary -->
@@ -348,21 +363,27 @@ export function printRunReport(entries, run) {
   const month = MONTHS_AR[(run?.period_month ?? 1) - 1];
   const year  = run?.period_year ?? new Date().getFullYear();
   const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory');
-  const total  = entries.reduce((s, e) =>
-    s + Number(e.base_salary_usd ?? 0) + Number(e.bonus_usd ?? 0)
-      - Number(e.deductions_usd ?? 0) - Number(e.advance_deduction_usd ?? 0), 0);
+  // Net totals grouped by currency (employees may be paid in TRY/SYP/USD)
+  const totalsByCur = entries.reduce((acc, e) => {
+    const c = e.currency || run?.currency || 'USD';
+    acc[c] = (acc[c] || 0) + calcNetSalary(e);
+    return acc;
+  }, {});
+  const totalStr = Object.entries(totalsByCur).map(([c, v]) => fmt(v, c)).join(' · ');
 
   const rows = entries.map(e => {
-    const net = Number(e.base_salary_usd ?? 0) + Number(e.bonus_usd ?? 0)
-              - Number(e.deductions_usd ?? 0) - Number(e.advance_deduction_usd ?? 0);
+    const c = e.currency || run?.currency || 'USD';
+    const net = calcNetSalary(e);
+    const additions = Number(e.allowances_usd ?? 0) + Number(e.commission_usd ?? 0) + Number(e.bonus_usd ?? 0);
+    const deductions = calcTotalDeductions(e);
     return `<tr>
       <td>${e.employee_name ?? '—'}</td>
       <td class="center">${e.working_days ?? '—'}</td>
       <td class="center" style="color:${(e.absent_days ?? 0) > 0 ? '#dc2626' : '#9ca3af'}">${e.absent_days ?? 0}</td>
-      <td class="right">$${Number(e.base_salary_usd ?? 0).toFixed(2)}</td>
-      <td class="right" style="color:#059669">$${Number(e.bonus_usd ?? 0).toFixed(2)}</td>
-      <td class="right" style="color:#dc2626">$${(Number(e.deductions_usd ?? 0) + Number(e.advance_deduction_usd ?? 0)).toFixed(2)}</td>
-      <td class="right" style="font-weight:700;color:#111827">$${net.toFixed(2)}</td>
+      <td class="right">${fmt(e.base_salary_usd, c)}</td>
+      <td class="right" style="color:#059669">${fmt(additions, c)}</td>
+      <td class="right" style="color:#dc2626">${fmt(deductions, c)}</td>
+      <td class="right" style="font-weight:700;color:#111827">${fmt(net, c)}</td>
     </tr>`;
   }).join('');
 
@@ -394,14 +415,14 @@ export function printRunReport(entries, run) {
     <th class="center">أيام الدوام</th>
     <th class="center">غياب</th>
     <th class="right">الأساسي</th>
-    <th class="right">مكافأة</th>
+    <th class="right">إضافات</th>
     <th class="right">خصومات</th>
     <th class="right">الصافي</th>
   </tr></thead>
   <tbody>${rows}</tbody>
   <tfoot><tr class="total-row">
-    <td colspan="6">الإجمالي الكلي</td>
-    <td class="right">$${total.toFixed(2)}</td>
+    <td colspan="6">الإجمالي الكلي (لكل عملة)</td>
+    <td class="right">${totalStr}</td>
   </tr></tfoot>
 </table>
 <div class="footer">${COMPANY.legalName} — وثيقة سرية للاستخدام الداخلي فقط</div>

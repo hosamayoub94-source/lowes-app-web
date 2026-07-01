@@ -57,13 +57,30 @@ export const PAYROLL_REALTIME_INTERVAL_MS = 30_000;
 
 /**
  * Calculate net salary from a payroll entry.
+ *
+ * Backward compatible: pre-engine entries have allowances/commission/
+ * absence columns = 0, so this reduces to the old
+ * (base + bonus − deductions − advance) exactly.
+ *
+ *   net = base + allowances + commission + bonus
+ *       − deductions − absence − advance
  */
 export function calcNetSalary(entry) {
-  const base = Number(entry.base_salary_usd ?? 0);
-  const bonus = Number(entry.bonus_usd ?? 0);
+  const base       = Number(entry.base_salary_usd ?? 0);
+  const allowances = Number(entry.allowances_usd ?? 0);
+  const commission = Number(entry.commission_usd ?? 0);
+  const bonus      = Number(entry.bonus_usd ?? 0);
   const deductions = Number(entry.deductions_usd ?? 0);
-  const advance = Number(entry.advance_deduction_usd ?? 0);
-  return base + bonus - deductions - advance;
+  const absence    = Number(entry.absence_deduction_usd ?? 0);
+  const advance    = Number(entry.advance_deduction_usd ?? 0);
+  return base + allowances + commission + bonus - deductions - absence - advance;
+}
+
+/** Total deductions (absence + other manual + advance) for display. */
+export function calcTotalDeductions(entry) {
+  return Number(entry.deductions_usd ?? 0)
+    + Number(entry.absence_deduction_usd ?? 0)
+    + Number(entry.advance_deduction_usd ?? 0);
 }
 
 /**

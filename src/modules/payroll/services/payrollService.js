@@ -161,19 +161,28 @@ export async function fetchPayrollEntries(runId) {
 
 export async function upsertPayrollEntry(entry) {
   if (USE_MOCK) {
-    const idx = _mockEntries.findIndex(e => e.id === entry.id);
+    // Match by id, or by (run_id, employee_id) so the engine is idempotent
+    const idx = entry.id
+      ? _mockEntries.findIndex(e => e.id === entry.id)
+      : _mockEntries.findIndex(e => e.run_id === entry.run_id && e.employee_id === entry.employee_id);
     if (idx >= 0) {
       _mockEntries[idx] = { ..._mockEntries[idx], ...entry };
       return _mockEntries[idx];
     }
-    const row = { id: `entry-${Date.now()}`, ...entry, created_at: new Date().toISOString() };
+    const row = { id: `entry-${Date.now()}-${Math.round(Math.random()*1e4)}`, ...entry, created_at: new Date().toISOString() };
     _mockEntries.push(row);
     return row;
   }
   const { supabase } = await import('@services/supabase');
   // Strip join-computed fields — they are not stored columns in payroll_entries
   const { employee_name, role_type, profiles, ...dbEntry } = entry;
-  const { data, error } = await supabase.from('payroll_entries').upsert(dbEntry).select().single();
+  // Upsert on the (run_id, employee_id) unique key so re-running the engine
+  // updates the existing row instead of failing on the unique constraint.
+  const { data, error } = await supabase
+    .from('payroll_entries')
+    .upsert(dbEntry, { onConflict: 'run_id,employee_id' })
+    .select()
+    .single();
   if (error) throw new Error(error.message);
   // Re-attach display fields so the store/UI keeps the employee name after save
   return { ...data, employee_name: employee_name ?? '', role_type: role_type ?? '' };
