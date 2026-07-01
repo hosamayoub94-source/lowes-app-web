@@ -1,29 +1,34 @@
 // =============================================================
 // Payroll Engine — one-click monthly payroll computation
 //
-// Computes, for each active employee IN THEIR NATIVE CURRENCY:
+// Computes, for each active employee (salaries standardized to USD):
 //   net = base + allowances + sales commission
 //       − absence deduction − approved advances − manual deductions
 //
-// Data sources (the live, authoritative ones — see
-// docs/payroll-engine-blueprint.md):
-//   • salary/commission%  → profiles (base_salary_usd, housing/transport
-//                            allowance, commission_pct, salary_currency)
-//   • monthly sales       → orders (handler_name = seller, amount, currency,
-//                            status, order_date)  — collected orders only
-//   • absence             → attendance_records (via attendanceLink.js)
-//   • approved advances   → employee_requests (repay this month)
+// Data sources (the live, authoritative ones — verified against prod,
+// see docs/payroll-engine-blueprint.md):
+//   • base / allowances / commission%  → employee_salary_settings
+//        (base_salary, internet_allowance, food_allowance,
+//         sales_commission_pct, currency)  — joined to active profiles
+//   • monthly sales   → orders (handler_name = seller, amount, currency,
+//                        status, order_date) — collected orders only,
+//                        ALL currencies converted to USD via exchange_rates
+//   • absence         → attendance_records (via attendanceLink.js)
+//   • approved advances → employee_requests (repay this month), → USD
 //
-// All amounts stay in the employee's currency; no cross-currency mixing.
+// Owner decisions (2026-07-01): salary source = employee_salary_settings ·
+// commission = pct × (sales converted to USD) · pct per employee.
 // =============================================================
 
 import { supabase } from '@services/supabase';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from './attendanceLink.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
-// commission is earned on collected/delivered sales, never on returns
-// or cancellations. Easy to extend if the company changes the policy.
+// commission is earned on collected/delivered sales, never on returns.
 export const COMMISSIONABLE_STATUSES = ['delivered', 'settled'];
+
+// Entry currency — salaries are standardized to USD (owner decision).
+export const PAYROLL_CURRENCY = 'USD';
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -48,14 +53,54 @@ function employeeNames(emp) {
     .filter(Boolean);
 }
 
+// ── Exchange rates ────────────────────────────────────────────
+
+/**
+ * Build a { currency → rate-to-USD } map from the exchange_rates table.
+ * Prefers a direct X→USD row; falls back to 1 / (USD→X); USD is 1.
+ */
+export function buildRateToUsd(rates) {
+  const direct = {}, inverse = {};
+  for (const r of (rates || [])) {
+    if (r.to_cur === 'USD') direct[r.from_cur] = Number(r.rate);
+    if (r.from_cur === 'USD') inverse[r.to_cur] = Number(r.rate);
+  }
+  const map = { USD: 1 };
+  for (const cur of new Set([...Object.keys(direct), ...Object.keys(inverse)])) {
+    if (cur === 'USD') continue;
+    if (direct[cur] > 0) map[cur] = direct[cur];
+    else if (inverse[cur] > 0) map[cur] = 1 / inverse[cur];
+  }
+  return map;
+}
+
+export async function fetchExchangeRateMap() {
+  const { data, error } = await supabase
+    .from('exchange_rates')
+    .select('from_cur, to_cur, rate')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  // dedupe: first (newest) per pair wins
+  const seen = new Set(), latest = [];
+  for (const r of (data || [])) {
+    const k = `${r.from_cur}->${r.to_cur}`;
+    if (!seen.has(k)) { seen.add(k); latest.push(r); }
+  }
+  return buildRateToUsd(latest);
+}
+
+/** Convert an amount in `currency` to USD using the rate map (missing → 0, flagged). */
+function toUsd(amount, currency, rateMap) {
+  const rate = rateMap[currency];
+  if (!(rate > 0)) return { usd: 0, missing: currency !== 'USD' };
+  return { usd: Number(amount) * rate, missing: false };
+}
+
 // ── Sales aggregation ─────────────────────────────────────────
 
 /**
  * One query for the whole month's collected orders, grouped by
- * (normalized handler name → currency → totals). Used by the run so we
- * hit `orders` once instead of once-per-employee.
- *
- * @returns {Promise<Map<string, Record<string,{total:number,count:number}>>>}
+ * (normalized handler name → currency → totals). One `orders` hit per run.
  */
 export async function fetchMonthlySalesIndex(year, month) {
   const { from, to } = monthBounds(year, month);
@@ -84,52 +129,58 @@ export async function fetchMonthlySalesIndex(year, month) {
   return index;
 }
 
-/** Read one employee's collected sales for a month from a prebuilt index. */
-export function salesFromIndex(index, emp, currency) {
-  let total = 0, count = 0;
+/**
+ * Employee's collected sales for a month, converted to USD across ALL
+ * currencies, from a prebuilt index + rate map.
+ */
+export function salesUsdFromIndex(index, emp, rateMap) {
+  let usd = 0, count = 0, missingRate = false;
   for (const name of employeeNames(emp)) {
     const bucket = index.get(name);
-    const slot = bucket?.[currency];
-    if (slot) { total += slot.total; count += slot.count; }
+    if (!bucket) continue;
+    for (const [cur, slot] of Object.entries(bucket)) {
+      const { usd: v, missing } = toUsd(slot.total, cur, rateMap);
+      usd += v; count += slot.count;
+      if (missing) missingRate = true;
+    }
   }
-  return { total, count };
+  return { usd: Math.round(usd * 100) / 100, count, missingRate };
 }
 
 /**
  * Detailed per-employee sales statement (for the "كشف حركة المبيعات" modal).
- * Returns the actual orders that fed the commission so the owner can verify.
+ * Returns the actual collected orders (all currencies) with USD value, so
+ * the owner can verify what fed the commission.
  */
-export async function fetchEmployeeSalesStatement(emp, year, month, currency) {
+export async function fetchEmployeeSalesStatement(emp, year, month) {
   const { from, to } = monthBounds(year, month);
   const names = employeeNames(emp);
-  if (names.length === 0) return { orders: [], total: 0, count: 0 };
+  if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market')
-    .gte('order_date', from)
-    .lt('order_date', to)
-    .in('status', COMMISSIONABLE_STATUSES)
-    .order('order_date', { ascending: true });
+  const [ordersRes, rateMap] = await Promise.all([
+    supabase.from('orders')
+      .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market')
+      .gte('order_date', from).lt('order_date', to)
+      .in('status', COMMISSIONABLE_STATUSES)
+      .order('order_date', { ascending: true }),
+    fetchExchangeRateMap(),
+  ]);
+  if (ordersRes.error) throw new Error(ordersRes.error.message);
 
-  if (error) throw new Error(error.message);
-
-  const orders = (data || []).filter(o => {
-    if (currency && (o.currency || 'USD') !== currency) return false;
-    return names.includes(normalizeName(o.handler_name));
-  });
-  const total = orders.reduce((s, o) => s + (Number(o.amount) || 0), 0);
-  return { orders, total, count: orders.length };
+  const orders = (ordersRes.data || [])
+    .filter(o => names.includes(normalizeName(o.handler_name)))
+    .map(o => ({ ...o, usd_value: toUsd(o.amount, o.currency || 'USD', rateMap).usd }));
+  const totalUsd = Math.round(orders.reduce((s, o) => s + o.usd_value, 0) * 100) / 100;
+  return { orders, totalUsd, count: orders.length };
 }
 
 // ── Advances ──────────────────────────────────────────────────
 
 /**
- * Sum approved advances that are scheduled to be repaid this month,
- * in the employee's currency. Using repay_month/repay_year prevents
- * re-deducting the same advance across multiple runs.
+ * Sum approved advances scheduled to be repaid this month, converted to USD.
+ * repay_month/repay_year prevents re-deducting across runs.
  */
-export async function fetchAdvanceRepayment(employeeId, year, month, currency) {
+export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap) {
   const { data, error } = await supabase
     .from('employee_requests')
     .select('advance_amount, advance_currency, repay_month, repay_year, status, request_type')
@@ -139,54 +190,66 @@ export async function fetchAdvanceRepayment(employeeId, year, month, currency) {
     .eq('repay_year', year)
     .eq('repay_month', month);
 
-  if (error) return { amount: 0, mismatch: false }; // non-fatal
-  let amount = 0, mismatch = false;
+  if (error) return { usd: 0, missingRate: false };
+  let usd = 0, missingRate = false;
   for (const r of (data || [])) {
-    if ((r.advance_currency || 'USD') === currency) amount += Number(r.advance_amount) || 0;
-    else mismatch = true; // different currency — flagged, not silently mixed
+    const { usd: v, missing } = toUsd(r.advance_amount, r.advance_currency || 'USD', rateMap);
+    usd += v;
+    if (missing) missingRate = true;
   }
-  return { amount, mismatch };
+  return { usd: Math.round(usd * 100) / 100, missingRate };
 }
 
 // ── Per-employee computation ──────────────────────────────────
 
 /**
- * Compute a full payroll entry for one employee. Pure-ish: it does its
- * own attendance + advance lookups, but takes sales from a prebuilt index.
+ * Compute a full payroll entry for one employee.
+ * @param {object} opts.emp       active profile row (id, employee_name, seller_alias, role_type)
+ * @param {object} opts.settings  employee_salary_settings row (or null)
+ * @param {Map}    opts.salesIndex prebuilt month sales index
+ * @param {object} opts.rateMap   currency→USD map
  */
-export async function computeEmployeeEntry({ emp, runId, year, month, salesIndex }) {
-  const currency = emp.salary_currency || 'USD';
-  const base       = Number(emp.base_salary_usd) || 0;
-  const allowances = (Number(emp.housing_allowance_usd) || 0) +
-                     (Number(emp.transport_allowance_usd) || 0);
-  const commPct    = Number(emp.commission_pct) || 0;
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap }) {
+  const base       = Number(settings?.base_salary) || 0;
+  const allowances = (Number(settings?.internet_allowance) || 0) +
+                     (Number(settings?.food_allowance) || 0);
+  const commPct    = Number(settings?.sales_commission_pct) || 0;
 
-  // Sales & commission (in the employee's currency)
-  const { total: salesTotal, count: salesCount } = salesFromIndex(salesIndex, emp, currency);
-  const commission = Math.round((salesTotal * commPct) / 100 * 100) / 100;
+  // Sales (all currencies → USD) & commission
+  const { usd: salesUsd, count: salesCount, missingRate: salesMissing } =
+    salesUsdFromIndex(salesIndex, emp, rateMap);
+  const commission = Math.round((salesUsd * commPct) / 100 * 100) / 100;
 
-  // Attendance → absence deduction
-  let workingDays = 26, absentDays = 0, absenceDeduction = 0, attError = null;
+  // Attendance → absence deduction.
+  // SAFETY: only deduct when there is a real attendance signal (presentDays>0).
+  // If a month has no attendance records at all, treating everyone as absent
+  // would wrongly wipe out full salaries — so we deduct 0 and flag it instead.
+  let workingDays = 26, absentDays = 0, absenceDeduction = 0, attError = null, noAttData = false;
   try {
     const att = await fetchMonthlyAttendanceSummary(emp.id, year, month);
     workingDays = att.workingDays || workingDays;
-    absentDays  = att.absentDays  || 0;
     attError    = att.error || null;
-    absenceDeduction = calcAbsenceDeduction(base, workingDays, absentDays);
+    if ((att.presentDays || 0) > 0) {
+      absentDays = att.absentDays || 0;
+      absenceDeduction = calcAbsenceDeduction(base, workingDays, absentDays);
+    } else {
+      noAttData = true; // no attendance signal → do not deduct
+    }
   } catch (e) {
     attError = e?.message || 'attendance error';
   }
 
-  // Approved advances due this month
-  const { amount: advance, mismatch: advMismatch } =
-    await fetchAdvanceRepayment(emp.id, year, month, currency);
+  // Approved advances due this month (→ USD)
+  const { usd: advance, missingRate: advMissing } =
+    await fetchAdvanceRepaymentUsd(emp.id, year, month, rateMap);
 
-  const net = base + allowances + commission
-            - absenceDeduction - advance;
+  const net = base + allowances + commission - absenceDeduction - advance;
 
   const notes = [
+    !settings ? '⚠️ لا يوجد إعداد راتب' : null,
+    noAttData ? 'ℹ️ لا بيانات حضور (بلا خصم غياب)' : null,
     attError ? '⚠️ الحضور غير مؤكد' : null,
-    advMismatch ? '⚠️ سلفة بعملة مختلفة (غير مخصومة)' : null,
+    (salesMissing || advMissing) ? '⚠️ سعر صرف ناقص' : null,
   ].filter(Boolean).join(' · ') || null;
 
   return {
@@ -194,15 +257,15 @@ export async function computeEmployeeEntry({ emp, runId, year, month, salesIndex
     employee_id: emp.id,
     employee_name: emp.employee_name,
     role_type: emp.role_type,
-    currency,
+    currency: PAYROLL_CURRENCY,
     base_salary_usd: base,
     allowances_usd: allowances,
-    bonus_usd: 0,                       // manual bonus (admin can add)
+    bonus_usd: 0,
     commission_usd: commission,
     commission_pct: commPct,
-    sales_total_usd: salesTotal,
+    sales_total_usd: salesUsd,
     sales_orders_count: salesCount,
-    deductions_usd: 0,                  // other manual deductions
+    deductions_usd: 0,
     absence_deduction_usd: absenceDeduction,
     advance_deduction_usd: advance,
     working_days: workingDays,
@@ -218,36 +281,41 @@ export async function computeEmployeeEntry({ emp, runId, year, month, salesIndex
 
 /**
  * Compute & upsert entries for every active employee in one shot.
- * Idempotent thanks to UNIQUE(run_id, employee_id) — re-running a run
- * updates the auto rows instead of duplicating.
+ * Idempotent via UNIQUE(run_id, employee_id).
  *
- * @param {object}   opts
- * @param {string}   opts.runId
- * @param {number}   opts.year
- * @param {number}   opts.month
- * @param {Function} [opts.onProgress]  (done, total) => void
- * @param {Set<string>} [opts.skipEmployeeIds]  entries edited manually — keep as-is
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds }) {
   const errors = [];
 
-  // 1. Active employees with their pay config
+  // 1. Active employees (id, name, alias, role)
   const { data: emps, error: empErr } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, is_active, salary_currency, seller_alias, ' +
-            'base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct')
+    .select('id, employee_name, role_type, is_active, seller_alias')
     .eq('is_active', true)
     .order('employee_name');
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);
 
-  // 2. One sales query for the whole month
-  let salesIndex = new Map();
-  try {
-    salesIndex = await fetchMonthlySalesIndex(year, month);
-  } catch (e) {
-    errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0');
+  // 2. Salary settings for those employees → keyed by employee_id
+  const settingsById = new Map();
+  {
+    const { data: settings, error: sErr } = await supabase
+      .from('employee_salary_settings')
+      .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active');
+    if (sErr) errors.push('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
+    for (const s of (settings || [])) {
+      // keep the active/most-relevant row per employee
+      if (!settingsById.has(s.employee_id) || s.is_active) settingsById.set(s.employee_id, s);
+    }
   }
+
+  // 3. Exchange rates + one sales query for the month
+  let rateMap = { USD: 1 };
+  let salesIndex = new Map();
+  try { rateMap = await fetchExchangeRateMap(); }
+  catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
+  try { salesIndex = await fetchMonthlySalesIndex(year, month); }
+  catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
 
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
@@ -259,7 +327,10 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   for (const emp of (emps || [])) {
     if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
     try {
-      const entry = await computeEmployeeEntry({ emp, runId, year, month, salesIndex });
+      const entry = await computeEmployeeEntry({
+        emp, settings: settingsById.get(emp.id) || null,
+        runId, year, month, salesIndex, rateMap,
+      });
       const saved = await upsertPayrollEntry(entry);
       entries.push(saved);
     } catch (e) {

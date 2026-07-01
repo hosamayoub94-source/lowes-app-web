@@ -165,12 +165,12 @@ export function PayrollDashboard() {
     setStatementLoading(true);
     try {
       const data = await fetchEmployeeSalesStatement(
-        { id: entry.employee_id, employee_name: entry.employee_name, salary_currency: entry.currency },
-        run.period_year, run.period_month, entry.currency || 'USD',
+        { id: entry.employee_id, employee_name: entry.employee_name },
+        run.period_year, run.period_month,
       );
       setStatementData(data);
     } catch (e) {
-      setStatementData({ orders: [], total: 0, count: 0, error: e?.message || String(e) });
+      setStatementData({ orders: [], totalUsd: 0, count: 0, error: e?.message || String(e) });
     } finally {
       setStatementLoading(false);
     }
@@ -613,7 +613,7 @@ export function PayrollDashboard() {
           <div className="space-y-3">
             <p className="text-xs text-muted">
               الطلبات المحصّلة لـ<span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> —
-              الأساس الذي حُسبت عليه العمولة ({Number(statementFor.commission_pct ?? 0)}%).
+              محوّلة للدولار، الأساس الذي حُسبت عليه العمولة ({Number(statementFor.commission_pct ?? 0)}%).
             </p>
 
             {statementLoading ? (
@@ -630,8 +630,8 @@ export function PayrollDashboard() {
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: 'عدد الطلبات', value: statementData.count },
-                    { label: 'إجمالي المبيعات', value: formatCurrency(statementData.total, statementFor.currency) },
-                    { label: 'العمولة', value: formatCurrency((statementData.total * Number(statementFor.commission_pct ?? 0)) / 100, statementFor.currency) },
+                    { label: 'المبيعات ($)', value: formatCurrency(statementData.totalUsd, 'USD') },
+                    { label: 'العمولة ($)', value: formatCurrency((statementData.totalUsd * Number(statementFor.commission_pct ?? 0)) / 100, 'USD') },
                   ].map(({ label, value }) => (
                     <div key={label} className="text-center bg-surface-alt rounded-xl py-2">
                       <div className="text-sm font-extrabold text-text tabular-nums">{value}</div>
@@ -647,6 +647,7 @@ export function PayrollDashboard() {
                         <th className="py-2 px-2 text-right font-semibold">التاريخ</th>
                         <th className="py-2 px-2 text-right font-semibold">العميل</th>
                         <th className="py-2 px-2 text-center font-semibold">المبلغ</th>
+                        <th className="py-2 px-2 text-center font-semibold">≈ $</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -654,8 +655,9 @@ export function PayrollDashboard() {
                         <tr key={o.order_id || i} className="border-t border-border/30">
                           <td className="py-1.5 px-2 text-right font-mono text-[11px]">{o.order_id || '—'}</td>
                           <td className="py-1.5 px-2 text-right text-muted">{String(o.order_date || '').slice(0, 10)}</td>
-                          <td className="py-1.5 px-2 text-right truncate max-w-[120px]">{o.customer_name || '—'}</td>
-                          <td className="py-1.5 px-2 text-center tabular-nums">{formatCurrency(o.amount, o.currency || statementFor.currency)}</td>
+                          <td className="py-1.5 px-2 text-right truncate max-w-[110px]">{o.customer_name || '—'}</td>
+                          <td className="py-1.5 px-2 text-center tabular-nums">{formatCurrency(o.amount, o.currency || 'USD')}</td>
+                          <td className="py-1.5 px-2 text-center tabular-nums text-muted">{formatCurrency(o.usd_value, 'USD')}</td>
                         </tr>
                       ))}
                     </tbody>
