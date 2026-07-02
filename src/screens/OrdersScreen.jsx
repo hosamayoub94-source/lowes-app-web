@@ -23,6 +23,8 @@ import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatu
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
+import LabelPrintModal from '@components/feature/LabelPrintModal';
+import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
 
 // ── Google Sheet dual-write ──────────────────────────────────
@@ -2774,6 +2776,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return { done, failed };
   };
 
+  // طباعة بوليصات الشحن (سوريا: تجهيز · تركيا: تحضير الموتور)
+  const [labelsOpen, setLabelsOpen] = useState(false);
+
   // تصدير ملف يورتيتشي (Excel) لطلبات تركيا الجاهزة للشحن → رفع دفعة وحدة.
   const [exportingYurtici, setExportingYurtici] = useState(false);
   const exportYurticiExcel = async () => {
@@ -3220,6 +3225,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
               🧰
             </button>
           )}
+          {(isManager || isFulfillment) && !viewArchive && (
+            <button onClick={() => setLabelsOpen(true)}
+              className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-[#fdfaf2] border-[#C9A646]/50 text-[#8a6d1f] hover:bg-[#faf3df] transition"
+              title={`طباعة بوليصات الشحن — سوريا: في التجهيز · تركيا: تحضير الموتور (${orders.filter(labelEligible).length} جاهز)`}>
+              🖨️ بوليصات{orders.filter(labelEligible).length ? ` (${orders.filter(labelEligible).length})` : ''}
+            </button>
+          )}
           {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
             <button onClick={exportYurticiExcel} disabled={exportingYurtici}
               className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40"
@@ -3511,6 +3523,16 @@ export default function OrdersScreen({ forcedMarket = null }) {
       {/* Invoice Modal */}
       {invoice && (
         <InvoiceModal order={invoice} onClose={() => setInvoice(null)} />
+      )}
+
+      {/* Label Print Modal — بوليصات الشحن */}
+      {labelsOpen && (
+        <LabelPrintModal
+          open={labelsOpen}
+          onClose={() => setLabelsOpen(false)}
+          orders={orders}
+          market={lockedMarket || market}
+        />
       )}
     </div>
   );

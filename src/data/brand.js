@@ -34,6 +34,11 @@ export const COMPANY = {
   whatsapp: '+90 551 817 77 98',
   phoneAlt: '+90 850 762 8131',
   instagram: '@lowes.profesyonel.tr',
+  // الصفحة الجديدة (سكين كير) — تُستخدم بالـQR على بوليصات الشحن
+  instagramSkincare:    '@lowes.skincare',
+  instagramSkincareUrl: 'https://www.instagram.com/lowes.skincare',
+  // خدمة العملاء لكل سوق (تظهر على البوليصة)
+  customerService: { syria: '0931471996', turkey: '+90 551 817 77 98' },
 };
 
 // ── الألوان الرسمية (Color Palette) — غير قابلة للتغيير ──────
