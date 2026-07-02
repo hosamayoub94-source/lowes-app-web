@@ -16,12 +16,18 @@
 //   • absence         → attendance_records (via attendanceLink.js)
 //   • approved advances → employee_requests (repay this month), → USD
 //
-// Owner decisions (2026-07-01): salary source = employee_salary_settings ·
-// commission = pct × (sales converted to USD) · pct per employee.
+// Owner decisions (2026-07-01): salary source = employee_salary_settings.
+// Owner decisions (2026-07-02):
+//   • commission = فوق التارجت فقط — نفس قواعد commission_rules التي يعدّلها
+//     الأدمن من شاشة الطلبات (تركيا: 65k TRY ثم above_target_pct على الفائض +
+//     شرائح مسبق الدفع · سوريا: 1000$ ثم above_target_pct على الفائض).
+//   • الغياب لا يُخصم تلقائياً — «سجّلهم كلهم حضور»؛ الأدمن يحدد أيام الغياب
+//     يدوياً من ✏️ (سجلات الحضور تُعرض كمرجع فقط).
+//   • الرواجع/غير المستلَم: لا أتمتة — أرقام يدوية يحددها الأدمن (خصومات/عمولة).
 // =============================================================
 
 import { supabase } from '@services/supabase';
-import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from './attendanceLink.js';
+import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -108,22 +114,34 @@ export async function fetchMonthlySalesIndex(year, month) {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('handler_name, amount, currency, status')
+    .select('handler_name, amount, currency, status, market, payment_method')
     .gte('order_date', from)
     .lt('order_date', to)
     .in('status', COMMISSIONABLE_STATUSES);
 
   if (error) throw new Error(error.message);
 
+  const isPrepaid = (pm) => {
+    const p = String(pm || '');
+    return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
+  };
+
   for (const o of (data || [])) {
     const key = normalizeName(o.handler_name);
     if (!key) continue;
     const cur = o.currency || 'USD';
-    const bucket = index.get(key) || {};
-    const slot = bucket[cur] || { total: 0, count: 0 };
+    const bucket = index.get(key) || { byCur: {}, prepaidTry: 0, syriaByCur: {} };
+    const slot = bucket.byCur[cur] || { total: 0, count: 0 };
     slot.total += Number(o.amount) || 0;
     slot.count += 1;
-    bucket[cur] = slot;
+    bucket.byCur[cur] = slot;
+    // لشرائح مسبق الدفع التركية (نفس منطق محفظة البائع بشاشة الطلبات)
+    if (cur === 'TRY' && isPrepaid(o.payment_method)) bucket.prepaidTry += Number(o.amount) || 0;
+    // مبيعات سوريا لكل عملة (تارجت سوريا بالدولار المحوَّل)
+    if (o.market === 'syria') {
+      const s = bucket.syriaByCur[cur] || 0;
+      bucket.syriaByCur[cur] = s + (Number(o.amount) || 0);
+    }
     index.set(key, bucket);
   }
   return index;
@@ -138,13 +156,95 @@ export function salesUsdFromIndex(index, emp, rateMap) {
   for (const name of employeeNames(emp)) {
     const bucket = index.get(name);
     if (!bucket) continue;
-    for (const [cur, slot] of Object.entries(bucket)) {
+    for (const [cur, slot] of Object.entries(bucket.byCur || {})) {
       const { usd: v, missing } = toUsd(slot.total, cur, rateMap);
       usd += v; count += slot.count;
       if (missing) missingRate = true;
     }
   }
   return { usd: Math.round(usd * 100) / 100, count, missingRate };
+}
+
+// ── Commission rules (نفس جدول شاشة الطلبات — الأدمن يعدّله من هناك) ──
+
+export const DEFAULT_RULES = {
+  turkey: { monthly_target_try: 65000, above_target_pct: 5, prepaid_target_try: 0, prepaid_tier1_pct: 0, prepaid_tier2_pct: 0 },
+  syria:  { monthly_target_usd: 1000,  above_target_pct: 0 },
+};
+
+export async function fetchCommissionRules() {
+  const { data, error } = await supabase.from('commission_rules').select('*');
+  if (error) throw new Error(error.message);
+  const map = { ...DEFAULT_RULES };
+  for (const r of (data || [])) {
+    if (r.id === 'turkey' || r.id === 'syria') map[r.id] = { ...map[r.id], ...r };
+  }
+  return map;
+}
+
+/**
+ * عمولة «فوق التارجت» لموظف — مطابقة لمنطق محفظة البائع (commissionBreakdown):
+ *   تركيا (TRY): فوق monthly_target_try → above_target_pct على الفائض
+ *                + شرائح مسبق الدفع (prepaid_target_try / tier1 / tier2).
+ *   سوريا (USD محوَّل): فوق monthly_target_usd → above_target_pct على الفائض.
+ * تُعاد القيمة بالدولار (عملة كشف الرواتب) + تفصيل نصي للملاحظات.
+ */
+export function commissionFromIndex(index, emp, rules, rateMap) {
+  let tryTotal = 0, prepaidTry = 0, syriaUsd = 0, missingRate = false;
+  for (const name of employeeNames(emp)) {
+    const bucket = index.get(name);
+    if (!bucket) continue;
+    tryTotal   += bucket.byCur?.TRY?.total || 0;
+    prepaidTry += bucket.prepaidTry || 0;
+    for (const [cur, total] of Object.entries(bucket.syriaByCur || {})) {
+      const { usd: v, missing } = toUsd(total, cur, rateMap);
+      syriaUsd += v;
+      if (missing) missingRate = true;
+    }
+  }
+
+  const parts = [];
+  let commissionUsd = 0, pctUsed = 0;
+
+  // تركيا — بالليرة ثم تحويل للدولار
+  const tr = rules?.turkey || DEFAULT_RULES.turkey;
+  const trTarget = Number(tr.monthly_target_try) || 0;
+  const trPct    = Number(tr.above_target_pct) || 0;
+  const aboveTry = Math.max(0, tryTotal - trTarget) * trPct / 100;
+  const ppTarget = Number(tr.prepaid_target_try) || 0;
+  const reachedPrepaid = ppTarget > 0 && prepaidTry >= ppTarget;
+  const tier1 = reachedPrepaid ? ppTarget * (Number(tr.prepaid_tier1_pct) || 0) / 100 : 0;
+  const tier2 = reachedPrepaid ? Math.max(0, prepaidTry - ppTarget) * (Number(tr.prepaid_tier2_pct) || 0) / 100 : 0;
+  const commTry = aboveTry + tier1 + tier2;
+  if (commTry > 0) {
+    const { usd, missing } = toUsd(commTry, 'TRY', rateMap);
+    commissionUsd += usd;
+    if (missing) missingRate = true;
+    pctUsed = trPct;
+    parts.push(`تركيا: مبيعات ₺${Math.round(tryTotal).toLocaleString('en-US')} − تارجت ₺${trTarget.toLocaleString('en-US')} → ${trPct}% = ₺${Math.round(commTry).toLocaleString('en-US')}`);
+  } else if (tryTotal > 0) {
+    parts.push(`تركيا: ₺${Math.round(tryTotal).toLocaleString('en-US')} دون التارجت (₺${trTarget.toLocaleString('en-US')}) — لا عمولة`);
+  }
+
+  // سوريا — بالدولار المحوَّل
+  const sy = rules?.syria || DEFAULT_RULES.syria;
+  const syTarget = Number(sy.monthly_target_usd) || 0;
+  const syPct    = Number(sy.above_target_pct) || 0;
+  const aboveUsd = Math.max(0, syriaUsd - syTarget) * syPct / 100;
+  if (aboveUsd > 0) {
+    commissionUsd += aboveUsd;
+    pctUsed = pctUsed || syPct;
+    parts.push(`سوريا: مبيعات $${Math.round(syriaUsd)} − تارجت $${syTarget} → ${syPct}% = $${Math.round(aboveUsd * 100) / 100}`);
+  } else if (syriaUsd > 0) {
+    parts.push(`سوريا: $${Math.round(syriaUsd)} دون التارجت ($${syTarget}) — لا عمولة`);
+  }
+
+  return {
+    commissionUsd: Math.round(commissionUsd * 100) / 100,
+    pctUsed,
+    detail: parts.join(' · ') || null,
+    missingRate,
+  };
 }
 
 /**
@@ -209,35 +309,41 @@ export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap)
  * @param {Map}    opts.salesIndex prebuilt month sales index
  * @param {object} opts.rateMap   currency→USD map
  */
-export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap }) {
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, rules }) {
   const base       = Number(settings?.base_salary) || 0;
   const allowances = (Number(settings?.internet_allowance) || 0) +
                      (Number(settings?.food_allowance) || 0);
-  const commPct    = Number(settings?.sales_commission_pct) || 0;
 
-  // Sales (all currencies → USD) & commission
+  // Sales (all currencies → USD) — للعرض/الكشف
   const { usd: salesUsd, count: salesCount, missingRate: salesMissing } =
     salesUsdFromIndex(salesIndex, emp, rateMap);
-  const commission = Math.round((salesUsd * commPct) / 100 * 100) / 100;
 
-  // Attendance → absence deduction.
-  // SAFETY: only deduct when there is a real attendance signal (presentDays>0).
-  // If a month has no attendance records at all, treating everyone as absent
-  // would wrongly wipe out full salaries — so we deduct 0 and flag it instead.
-  let workingDays = 26, absentDays = 0, absenceDeduction = 0, attError = null, noAttData = false;
+  // العمولة = فوق التارجت فقط (قرار المالك 2026-07-02) — نفس قواعد
+  // commission_rules التي يعدّلها الأدمن من شاشة الطلبات. لو تعذّر جلب
+  // القواعد نرجع للنسبة الثابتة القديمة من إعدادات الموظف.
+  let commission = 0, commPct = 0, commDetail = null, commMissing = false;
+  if (rules) {
+    const c = commissionFromIndex(salesIndex, emp, rules, rateMap);
+    commission = c.commissionUsd;
+    commPct    = c.pctUsed;
+    commDetail = c.detail;
+    commMissing = c.missingRate;
+  } else {
+    commPct    = Number(settings?.sales_commission_pct) || 0;
+    commission = Math.round((salesUsd * commPct) / 100 * 100) / 100;
+  }
+
+  // الحضور — مرجع فقط، بلا خصم تلقائي (قرار المالك 2026-07-02:
+  // «سجّلهم كلهم حضور — الغياب يدوي، الأدمن يحدد الأرقام» من ✏️).
+  let workingDays = 26, attRef = null;
   try {
     const att = await fetchMonthlyAttendanceSummary(emp.id, year, month);
     workingDays = att.workingDays || workingDays;
-    attError    = att.error || null;
     if ((att.presentDays || 0) > 0) {
-      absentDays = att.absentDays || 0;
-      absenceDeduction = calcAbsenceDeduction(base, workingDays, absentDays);
-    } else {
-      noAttData = true; // no attendance signal → do not deduct
+      attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم`;
     }
-  } catch (e) {
-    attError = e?.message || 'attendance error';
-  }
+  } catch { /* مرجع فقط — لا يوقف الحساب */ }
+  const absentDays = 0, absenceDeduction = 0;
 
   // Approved advances due this month (→ USD)
   const { usd: advance, missingRate: advMissing } =
@@ -247,9 +353,9 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
   const notes = [
     !settings ? '⚠️ لا يوجد إعداد راتب' : null,
-    noAttData ? 'ℹ️ لا بيانات حضور (بلا خصم غياب)' : null,
-    attError ? '⚠️ الحضور غير مؤكد' : null,
-    (salesMissing || advMissing) ? '⚠️ سعر صرف ناقص' : null,
+    commDetail,
+    attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️',
+    (salesMissing || advMissing || commMissing) ? '⚠️ سعر صرف ناقص' : null,
   ].filter(Boolean).join(' · ') || null;
 
   return {
@@ -309,13 +415,16 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     }
   }
 
-  // 3. Exchange rates + one sales query for the month
+  // 3. Exchange rates + one sales query for the month + قواعد العمولة
   let rateMap = { USD: 1 };
   let salesIndex = new Map();
+  let rules = null;
   try { rateMap = await fetchExchangeRateMap(); }
   catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
   try { salesIndex = await fetchMonthlySalesIndex(year, month); }
   catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
+  try { rules = await fetchCommissionRules(); }
+  catch (e) { errors.push('تعذّر جلب قواعد العمولة (fallback للنسبة الثابتة): ' + (e?.message || e)); }
 
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
@@ -329,7 +438,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     try {
       const entry = await computeEmployeeEntry({
         emp, settings: settingsById.get(emp.id) || null,
-        runId, year, month, salesIndex, rateMap,
+        runId, year, month, salesIndex, rateMap, rules,
       });
       const saved = await upsertPayrollEntry(entry);
       entries.push(saved);

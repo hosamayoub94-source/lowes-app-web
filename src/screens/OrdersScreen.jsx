@@ -3158,8 +3158,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
   return (
     <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      {/* Header — عمودي على الموبايل ليظهر كل الأزرار (تلتف على أسطر) */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-text">
             {isFulfillment ? '📦 طلبات التجهيز'
@@ -3175,7 +3175,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
               : `${stats.total} طلب · ${stats.pending} وارد · ${stats.shipped} في الشحن`}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2 shrink-0 sm:justify-end">
           {isManager && (
             <button onClick={() => setViewArchive(v => !v)}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewArchive ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}

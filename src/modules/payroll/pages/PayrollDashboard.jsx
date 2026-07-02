@@ -389,8 +389,8 @@ export function PayrollDashboard() {
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
                     <p className="text-[11px] text-muted mt-1">
-                      يحسب الأساسي + البدلات + عمولة المبيعات − الغياب − السلف لكل موظف بعملته.
-                      عيّن الرواتب والعمولة من «المستخدمون».
+                      يحسب الأساسي + البدلات + عمولة <b>فوق التارجت</b> (قواعد العمولات بشاشة الطلبات: تركيا ₺65k ثم 5%) − السلف.
+                      الغياب والرواجع <b>يدويّان</b> — عدّلهما لكل موظف من ✏️.
                     </p>
                   )}
                 </div>
@@ -613,7 +613,7 @@ export function PayrollDashboard() {
           <div className="space-y-3">
             <p className="text-xs text-muted">
               الطلبات المحصّلة لـ<span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> —
-              محوّلة للدولار، الأساس الذي حُسبت عليه العمولة ({Number(statementFor.commission_pct ?? 0)}%).
+              العمولة تُحسب على <b>ما فوق التارجت فقط</b> (قواعد العمولات من شاشة الطلبات — مثلاً تركيا: فوق ₺65,000 → {Number(statementFor.commission_pct ?? 0) || 5}%).
             </p>
 
             {statementLoading ? (
@@ -631,7 +631,7 @@ export function PayrollDashboard() {
                   {[
                     { label: 'عدد الطلبات', value: statementData.count },
                     { label: 'المبيعات ($)', value: formatCurrency(statementData.totalUsd, 'USD') },
-                    { label: 'العمولة ($)', value: formatCurrency((statementData.totalUsd * Number(statementFor.commission_pct ?? 0)) / 100, 'USD') },
+                    { label: 'العمولة ($)', value: formatCurrency(Number(statementFor.commission_usd) || 0, 'USD') },
                   ].map(({ label, value }) => (
                     <div key={label} className="text-center bg-surface-alt rounded-xl py-2">
                       <div className="text-sm font-extrabold text-text tabular-nums">{value}</div>
