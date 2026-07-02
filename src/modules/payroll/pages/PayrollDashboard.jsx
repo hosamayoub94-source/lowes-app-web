@@ -258,6 +258,10 @@ export function PayrollDashboard() {
     return acc;
   }, {});
 
+  // ⚠️ موظفون بلا راتب أساسي مُدخل (base=0) — يحصلون على صفر بصمت.
+  // نُبرزهم بوضوح قبل الاعتماد لمنع دفع/تسجيل ناقص (تدقيق 2026-07-02).
+  const zeroSalaryEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) === 0);
+
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
 
@@ -368,6 +372,19 @@ export function PayrollDashboard() {
                   )}
                 </div>
               </div>
+
+              {/* ⚠️ تنبيه: موظفون بلا راتب أساسي مُدخل (يُحتسب لهم صفر) */}
+              {!loadingEntries && zeroSalaryEntries.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-bold text-amber-700">
+                    ⚠️ {zeroSalaryEntries.length} موظف بلا راتب أساسي مُدخل — سيُحتسب لهم <b>صفر</b>
+                  </p>
+                  <p className="text-[11px] text-amber-700/80 mt-0.5">
+                    عيّن رواتبهم من «الإعدادات → رواتب الموظفين» قبل الاعتماد:
+                    <span className="font-semibold"> {zeroSalaryEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{zeroSalaryEntries.length > 6 ? ' …' : ''}</span>
+                  </p>
+                </div>
+              )}
 
               {/* Entries */}
               {loadingEntries ? (

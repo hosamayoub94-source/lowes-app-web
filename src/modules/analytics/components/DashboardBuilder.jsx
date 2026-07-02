@@ -116,8 +116,9 @@ function DashboardBuilder({ editable = false, style = {} }) {
 
       {/* Widget grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {visibleWidgets.map((widget) => {
-          const id = widget.id ?? widget.sort_order;
+        {visibleWidgets.map((widget, idx) => {
+          // مفتاح مستقر دائماً — يتراجع للفهرس لو غاب id/sort_order (يمنع تحذير React key)
+          const id = widget.id ?? widget.sort_order ?? `w-${idx}`;
           return (
             <div
               key={id}
