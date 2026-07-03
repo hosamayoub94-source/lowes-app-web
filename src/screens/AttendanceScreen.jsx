@@ -98,7 +98,7 @@ const ABSENCE_REASONS = [
 ];
 
 // ── Absence reason modal ───────────────────────────────────────
-function AbsenceReasonModal({ slash, userName, existingReason, onSave, onClose }) {
+function AbsenceReasonModal({ slash, userName, team, existingReason, onSave, onClose }) {
   const [selected, setSelected] = useState(existingReason ?? '');
   const [note,     setNote]     = useState('');
   const [saving,   setSaving]   = useState(false);
@@ -116,6 +116,7 @@ function AbsenceReasonModal({ slash, userName, existingReason, onSave, onClose }
         type:          'absent',
         time_in:       '00:00',
         note:          reason,
+        team:          team ?? null,
         method:        'manual',
         recorded_at:   nowHHMM(),
         status:        '❌ غائب',
@@ -167,7 +168,7 @@ function AbsenceReasonModal({ slash, userName, existingReason, onSave, onClose }
 }
 
 // ── Day badge in weekly strip ──────────────────────────────────
-function DayBadge({ dayRec, slash, userName, onReasonSaved }) {
+function DayBadge({ dayRec, slash, userName, team, onReasonSaved }) {
   const today     = todaySlash();
   const isToday   = slash === today;
   const isFuture  = slash > today;
@@ -198,7 +199,7 @@ function DayBadge({ dayRec, slash, userName, onReasonSaved }) {
       </div>
       {showModal && (
         <AbsenceReasonModal
-          slash={slash} userName={userName}
+          slash={slash} userName={userName} team={team}
           existingReason={hasAbsReason}
           onSave={() => { setShowModal(false); onReasonSaved?.(); }}
           onClose={() => setShowModal(false)}
@@ -504,9 +505,10 @@ export default function AttendanceScreen() {
       const { error: insErr } = await supabase.from('attendance').insert({
         employee_name: userName,
         date:          dateVal,
-        day:           dayName,   // REQUIRED (NOT NULL) — was missing → checkout failed
+        day:           dayName,
         type:          'out',
-        time_in:       now,   // DB uses time_in for out-rows too
+        time_in:       now,
+        team:          team ?? null,
         method:        'app',
         recorded_at:   now,
         note:          note.trim() || null,
@@ -836,7 +838,7 @@ export default function AttendanceScreen() {
         <div className="grid grid-cols-7 gap-1">
           {days.map(slash => (
             <DayBadge key={slash} dayRec={week[slash]} slash={slash}
-              userName={userName} onReasonSaved={loadData} />
+              userName={userName} team={team} onReasonSaved={loadData} />
           ))}
         </div>
 

@@ -63,10 +63,13 @@ async function runCheck(posterName) {
 
     // ── 🎂 عيد ميلاد ───────────────────────────────────────
     if (sameMonthDay(p.birthday, today) && !alreadyPosted(name)) {
+      const bBody = `الفريق بأكمله يهنئ ${name} بعيد ميلادها/ه السعيد 🎉\nكل عام وأنت بخير، تمنياتنا لك بالصحة والسعادة والنجاح دائماً 💙`;
       toPost.push({
         emoji:      '🎂',
         title:      `🎂 عيد ميلاد سعيد ${name}!`,
-        body:       `الفريق بأكمله يهنئ ${name} بعيد ميلادها/ه السعيد 🎉\nكل عام وأنت بخير، تمنياتنا لك بالصحة والسعادة والنجاح دائماً 💙`,
+        body:       bBody,
+        message:    bBody,
+        is_active:  true,
         created_by: 'النظام',
         is_pinned:  true,
       });
@@ -77,10 +80,13 @@ async function runCheck(posterName) {
       const years = yearsAgo(p.join_date, today);
       if (years < 1) continue; // السنة الأولى ما تنشر ذكرى
       const yearsLabel = years === 1 ? 'سنة كاملة' : `${years} سنوات`;
+      const aBody = `اليوم يمر ${yearsLabel} على انضمام ${name} لعائلة Lowe's Professional!\nشكراً على كل جهودك وعطاءك المستمر — أنت ركيزة الفريق 💪✨`;
       toPost.push({
         emoji:      '🏆',
         title:      `🏆 ذكرى تعيين ${name} — ${yearsLabel}!`,
-        body:       `اليوم يمر ${yearsLabel} على انضمام ${name} لعائلة Lowe's Professional!\nشكراً على كل جهودك وعطاءك المستمر — أنت ركيزة الفريق 💪✨`,
+        body:       aBody,
+        message:    aBody,
+        is_active:  true,
         created_by: 'النظام',
         is_pinned:  false,
       });

@@ -18,7 +18,7 @@ export default function SocialTeamScreen() {
   const [adding, setAdding]   = useState(false);
   const [name, setName]       = useState('');
   const [title, setTitle]     = useState('');
-  const [pin, setPin]         = useState('1234');
+  const [pin, setPin]         = useState('');
   const [busy, setBusy]       = useState(false);
 
   const load = useCallback(async () => {

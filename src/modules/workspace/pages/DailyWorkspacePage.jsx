@@ -29,7 +29,7 @@ const Skeleton = memo(function Skeleton({ rows = 3 }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="h-4 bg-gray-100 rounded"
+          className="h-4 bg-surface-alt rounded"
           style={{ width: i === 0 ? '75%' : i % 2 === 0 ? '90%' : '100%' }}
         />
       ))}
@@ -44,12 +44,12 @@ const Widget = memo(function Widget({ id, title, icon, children, noPad = false, 
   const handleToggle = useCallback(() => toggleWidget(id), [id, toggleWidget]);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
+    <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden transition-shadow hover:shadow-md">
       <button
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-alt transition-colors"
       >
-        <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+        <span className="flex items-center gap-2 text-sm font-semibold text-text">
           <span className="text-base">{icon}</span>
           <span>{title}</span>
           {badge != null && badge > 0 && (
@@ -58,7 +58,7 @@ const Widget = memo(function Widget({ id, title, icon, children, noPad = false, 
             </span>
           )}
         </span>
-        <span className="text-gray-300 text-xs" style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', display: 'inline-block', transition: 'transform 0.2s' }}>
+        <span className="text-muted text-xs" style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', display: 'inline-block', transition: 'transform 0.2s' }}>
           ▲
         </span>
       </button>
@@ -74,9 +74,9 @@ const Widget = memo(function Widget({ id, title, icon, children, noPad = false, 
 // ── Stats pill ─────────────────────────────────────────────────
 const StatPill = memo(function StatPill({ value, label, colorClass }) {
   return (
-    <div className="flex-1 bg-white rounded-xl px-3 py-2.5 text-center shadow-sm border border-gray-100">
+    <div className="flex-1 bg-surface rounded-xl px-3 py-2.5 text-center shadow-sm border border-border">
       <p className={`text-xl font-bold leading-none ${colorClass}`}>{value}</p>
-      <p className="text-xs text-gray-400 mt-1 leading-tight">{label}</p>
+      <p className="text-xs text-muted mt-1 leading-tight">{label}</p>
     </div>
   );
 });
@@ -117,8 +117,8 @@ export function DailyWorkspacePage() {
     : isCheckedIn && !isCheckedOut
       ? { label: 'حاضر',      color: 'text-green-600',  bg: 'bg-green-50',  dot: '🟢' }
       : isCheckedOut
-        ? { label: 'منصرف',   color: 'text-gray-500',   bg: 'bg-gray-50',   dot: '⚪' }
-        : { label: 'لم تسجل', color: 'text-red-500',    bg: 'bg-red-50',    dot: '🔴' };
+        ? { label: 'منصرف',   color: 'text-muted',       bg: 'bg-surface-alt', dot: '⚪' }
+        : { label: 'لم تسجل', color: 'text-red-500',    bg: 'bg-red-50',      dot: '🔴' };
 
   const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مرحباً' : 'مساء الخير';
@@ -131,10 +131,10 @@ export function DailyWorkspacePage() {
         {/* ── Header ────────────────────────────────────────────── */}
         <div className="flex items-start justify-between pt-1">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-gray-800 truncate">
+            <h1 className="text-lg font-bold text-text truncate">
               👋 {greeting}، {user.name ?? 'موظف'}
             </h1>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">{today}</p>
+            <p className="text-xs text-muted mt-0.5 truncate">{today}</p>
             <span className={`inline-flex items-center gap-1 text-xs mt-1.5 font-medium px-2 py-0.5 rounded-full ${attStatus.bg} ${attStatus.color}`}>
               {attStatus.dot} {attStatus.label}
             </span>
@@ -148,7 +148,7 @@ export function DailyWorkspacePage() {
               className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 ${
                 isFocusMode
                   ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-surface-alt text-muted hover:bg-surface-alt/80'
               }`}
             >
               🎯
@@ -163,7 +163,7 @@ export function DailyWorkspacePage() {
             <button
               onClick={() => openDrawer(null)}
               title="نقاشات الفريق"
-              className="relative flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              className="relative flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-alt text-muted hover:bg-surface-alt/80 transition-colors"
             >
               💬
               {collaborationUnread > 0 && (
@@ -177,10 +177,10 @@ export function DailyWorkspacePage() {
             <button
               onClick={openCommandPalette}
               title="Ctrl+K"
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-alt text-muted hover:bg-surface-alt/80 transition-colors"
             >
               🔍
-              <kbd className="hidden sm:inline text-xs text-gray-400">⌘K</kbd>
+              <kbd className="hidden sm:inline text-xs text-muted">⌘K</kbd>
             </button>
           </div>
         </div>
@@ -248,7 +248,7 @@ export function DailyWorkspacePage() {
           <StatPill
             value={unreadCount}
             label="إشعارات"
-            colorClass={unreadCount > 0 ? 'text-blue-500' : 'text-gray-400'}
+            colorClass={unreadCount > 0 ? 'text-blue-500' : 'text-muted'}
           />
         </div>
 
@@ -270,19 +270,19 @@ export function DailyWorkspacePage() {
         </Widget>
 
         {/* ── Keyboard hint bar (desktop) ───────────────────────── */}
-        <p className="hidden sm:block text-center text-xs text-gray-300 pb-2 select-none">
-          <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-400">Ctrl+K</kbd> بحث
+        <p className="hidden sm:block text-center text-xs text-muted/50 pb-2 select-none">
+          <kbd className="bg-surface-alt px-1.5 py-0.5 rounded text-muted">Ctrl+K</kbd> بحث
           &nbsp;·&nbsp;
-          <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-400">F</kbd> تركيز
+          <kbd className="bg-surface-alt px-1.5 py-0.5 rounded text-muted">F</kbd> تركيز
           &nbsp;·&nbsp;
-          <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-400">G→H/T/A</kbd> تنقل
+          <kbd className="bg-surface-alt px-1.5 py-0.5 rounded text-muted">G→H/T/A</kbd> تنقل
         </p>
 
       </div>
 
       {/* ── Sticky Mobile Bottom Navigation ────────────────────── */}
       <div
-        className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-2"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur-sm border-t border-border px-4 py-2"
         dir="rtl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}
       >
@@ -297,7 +297,7 @@ export function DailyWorkspacePage() {
 
           <button
             onClick={openCommandPalette}
-            className="flex flex-col items-center gap-0.5 p-2 text-gray-500"
+            className="flex flex-col items-center gap-0.5 p-2 text-muted"
           >
             <span className="text-xl">🔍</span>
             <span className="text-xs">بحث</span>
@@ -310,7 +310,7 @@ export function DailyWorkspacePage() {
 
           <button
             onClick={() => navigate(ROUTES.TASKS)}
-            className="relative flex flex-col items-center gap-0.5 p-2 text-gray-500"
+            className="relative flex flex-col items-center gap-0.5 p-2 text-muted"
           >
             {overdueTasks.length > 0 && (
               <span className="absolute top-1 right-0.5 bg-red-500 text-white text-xs rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none font-bold">
@@ -323,7 +323,7 @@ export function DailyWorkspacePage() {
 
           <button
             onClick={toggleFocusMode}
-            className={`flex flex-col items-center gap-0.5 p-2 ${isFocusMode ? 'text-red-600' : 'text-gray-500'}`}
+            className={`flex flex-col items-center gap-0.5 p-2 ${isFocusMode ? 'text-red-600' : 'text-muted'}`}
           >
             <span className="text-xl">🎯</span>
             <span className="text-xs">تركيز</span>

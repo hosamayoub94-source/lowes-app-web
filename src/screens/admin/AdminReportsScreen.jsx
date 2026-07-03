@@ -205,7 +205,7 @@ function KPICard({ icon, label, value, sub, tone='teal' }) {
   );
 }
 
-function AttendanceChart({ data }) {
+function AttendanceChart({ data = [] }) {
   const max = Math.max(...data.map(d => d.pct), 1);
   return (
     <div className="flex items-end justify-between gap-2 h-36 pt-2">
@@ -234,7 +234,7 @@ function AttendanceChart({ data }) {
   );
 }
 
-function TasksChart({ data }) {
+function TasksChart({ data = [] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
     <div className="space-y-3">
@@ -261,7 +261,7 @@ function TasksChart({ data }) {
   );
 }
 
-function CRMDonut({ data }) {
+function CRMDonut({ data = [] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   let cursor = 0;
   const segments = data.map(d => {

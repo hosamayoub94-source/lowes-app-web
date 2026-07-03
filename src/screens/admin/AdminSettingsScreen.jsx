@@ -162,6 +162,7 @@ function AnnouncementsTab() {
         title:        title.trim(),
         body:         body.trim(),
         message:      body.trim(),
+        is_active:    true,
         is_pinned:    isPinned,
         is_emergency: isEmergency,
         created_by:   'الإدارة',

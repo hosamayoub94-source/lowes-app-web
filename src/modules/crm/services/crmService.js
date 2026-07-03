@@ -221,7 +221,8 @@ export async function convertLeadToCustomer(leadId, { pipelineId, stageId, dealT
 
   // Real: use a Supabase RPC or multi-step transaction
   const { supabase } = await import('@services/supabase');
-  const lead = await supabase.from('leads').select('*').eq('id', leadId).single().then(r => r.data);
+  const { data: lead, error: le } = await supabase.from('leads').select('*').eq('id', leadId).single();
+  if (le || !lead) throw new Error(le?.message ?? 'Lead not found');
 
   const { data: customer, error: ce } = await supabase.from('customers')
     .insert({ company_name: lead.company_name ?? lead.title, assigned_to: lead.assigned_to, owner_id: lead.owner_id })
@@ -343,7 +344,7 @@ export async function updateDealStage(dealId, stageId, { userId, note } = {}) {
     return _getMock().deals[idx];
   }
   const { supabase } = await import('@services/supabase');
-  const stage = await supabase.from('pipeline_stages').select('*').eq('id', stageId).single().then(r => r.data);
+  const { data: stage } = await supabase.from('pipeline_stages').select('*').eq('id', stageId).single();
   const changes = {
     stage_id:   stageId,
     probability: stage?.probability,
