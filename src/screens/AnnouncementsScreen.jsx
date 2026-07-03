@@ -150,9 +150,13 @@ function CreateModal({ open, onClose, onCreate, authorName }) {
       const expires_at = form.is_emergency && form.expires_hours
         ? new Date(Date.now() + Number(form.expires_hours) * 3600000).toISOString()
         : null;
+      const bodyText = form.body.trim();
       const { error: err } = await supabase.from('announcements').insert({
         title:        form.title.trim(),
-        body:         form.body.trim(),
+        body:         bodyText,
+        // عمود legacy `message` بالجدول NOT NULL — نكتبه (نسخة من body) كي لا يفشل الإدراج
+        message:      bodyText,
+        is_active:    true,
         emoji:        form.is_emergency ? '🚨' : form.emoji,
         created_by:   authorName,
         is_pinned:    false,
