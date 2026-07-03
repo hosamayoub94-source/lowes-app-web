@@ -87,6 +87,7 @@ function RequestRow({ req }) {
 const EMPTY_FORM = { leave_type: 'annual', leave_from: '', leave_to: '', reason: '' };
 
 function NewRequestModal({ open, onClose, onSubmitted, userId, userName, remaining }) {
+  const { team: userTeam } = useAuth();
   const [form,   setForm]   = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState(null);
@@ -108,6 +109,7 @@ function NewRequestModal({ open, onClose, onSubmitted, userId, userName, remaini
       const { error } = await supabase.from('leave_requests').insert({
         employee_id:   userId,
         employee_name: userName,
+        team:          userTeam || 'غير محدد',   // عمود NOT NULL — بدونه يفشل الإدراج
         type:          form.leave_type,
         start_date:    form.leave_from,
         end_date:      form.leave_to,

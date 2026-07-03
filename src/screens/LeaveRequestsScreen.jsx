@@ -187,7 +187,7 @@ function ApprovalCard({ req, onDecide, deciding }) {
 
 // ══════════════════════════════════════════════════════════════
 export default function LeaveRequestsScreen() {
-  const { id: userId, name: userName, role } = useAuth();
+  const { id: userId, name: userName, role, team: userTeam } = useAuth();
   const isManager = MANAGER_ROLES.includes(role);
 
   // Tabs
@@ -273,6 +273,7 @@ export default function LeaveRequestsScreen() {
       const { error } = await supabase.from('leave_requests').insert({
         employee_id:   userId,
         employee_name: userName,
+        team:          userTeam || 'غير محدد',   // عمود NOT NULL — بدونه يفشل الإدراج
         type,
         start_date:    start,
         end_date:      end,
