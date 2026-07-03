@@ -624,6 +624,75 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [cFrom, setCFrom] = useState('');
   const [cTo, setCTo]     = useState('');
 
+  // ── الأرشيف للفترة المختارة: الطلبات المؤرشفة لا تظهر بالاستعلام الرئيسي
+  // لذا نجلبها مستقلاً حتى تظهر الأشهر الماضية بعد أرشفتها ──────────────
+  const [archivedForPeriod, setArchivedForPeriod] = useState([]);
+  useEffect(() => {
+    supabase
+      .from('orders')
+      .select('*')
+      .eq('archived', true)
+      .eq('status', 'delivered')
+      .is('deleted_at', null)
+      .gte('order_date', periodStart)
+      .lte('order_date', periodEnd + 'T23:59:59')
+      .then(({ data }) => setArchivedForPeriod(data || []));
+  }, [periodStart, periodEnd]);
+
+  // دمج الطلبات الحية مع المؤرشفة للفترة (بلا تكرار)
+  const allForPeriod = useMemo(() => {
+    const archivedIds = new Set(archivedForPeriod.map(o => o.id));
+    return [...orders.filter(o => !archivedIds.has(o.id)), ...archivedForPeriod];
+  }, [orders, archivedForPeriod]);
+
+  // ── السجل الشهري: 6 أشهر × كل موظف ──────────────────────────────────
+  const [showRecords, setShowRecords] = useState(false);
+  const [recordsRaw,  setRecordsRaw]  = useState(null);
+  const [loadingRec,  setLoadingRec]  = useState(false);
+  useEffect(() => {
+    if (!showRecords || recordsRaw) return;
+    setLoadingRec(true);
+    const d = new Date(); d.setMonth(d.getMonth() - 5); d.setDate(1);
+    const since = d.toISOString().slice(0, 10);
+    Promise.all([
+      supabase.from('orders').select('id,handler_name,order_date,amount,currency,market,items')
+        .eq('status', 'delivered').is('deleted_at', null)
+        .or('archived.is.null,archived.eq.false').gte('order_date', since),
+      supabase.from('orders').select('id,handler_name,order_date,amount,currency,market,items')
+        .eq('status', 'delivered').is('deleted_at', null)
+        .eq('archived', true).gte('order_date', since),
+    ]).then(([r1, r2]) => {
+      setRecordsRaw([...(r1.data || []), ...(r2.data || [])]);
+      setLoadingRec(false);
+    });
+  }, [showRecords, recordsRaw]);
+
+  // بناء جدول الموظف × الشهر
+  const recordsTable = useMemo(() => {
+    if (!recordsRaw) return null;
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const md = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}`);
+    }
+    const empMap = {};
+    recordsRaw.forEach(o => {
+      const name = canonicalSeller(o.handler_name) || 'غير محدد';
+      const mon  = (o.order_date || '').slice(0, 7);
+      if (!months.includes(mon)) return;
+      if (!empMap[name]) empMap[name] = { name, byMonth: {}, total: 0, totalOrders: 0 };
+      if (!empMap[name].byMonth[mon]) empMap[name].byMonth[mon] = { usd: 0, cnt: 0 };
+      const usdVal = orderUsd(o, prices, rates);
+      empMap[name].byMonth[mon].usd   += usdVal;
+      empMap[name].byMonth[mon].cnt   += 1;
+      empMap[name].total              += usdVal;
+      empMap[name].totalOrders        += 1;
+    });
+    const employees = Object.values(empMap).sort((a, b) => b.total - a.total);
+    return { months, employees };
+  }, [recordsRaw, prices, rates]);
+
   // last 12 months for the dropdown
   const monthOptions = useMemo(() => {
     const arr = []; const d = new Date();
@@ -651,13 +720,13 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     return { periodStart: start, periodEnd: end, periodLabel: label };
   }, [periodMode, selMonth, cFrom, cTo]);
 
-  // Filter: delivered within the selected period (compare on the date part)
-  const delivered = useMemo(() => orders.filter(o => {
-    if (o.status !== 'delivered' || o.archived === true) return false;
+  // Filter: delivered within the selected period — includes archived orders fetched above
+  const delivered = useMemo(() => allForPeriod.filter(o => {
+    if (o.status !== 'delivered') return false;
     if (brand !== 'all' && (o.brand || 'lowes').toLowerCase() !== brand) return false;
     const od = (o.order_date || '').slice(0, 10);
     return od && od >= periodStart && od <= periodEnd;
-  }), [orders, brand, periodStart, periodEnd]);
+  }), [allForPeriod, brand, periodStart, periodEnd]);
 
   // Group by employee, with USD-equivalent total + dominant market
   const byEmployee = useMemo(() => {
@@ -803,37 +872,127 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     finally { setExporting(false); }
   };
 
+  // months display names
+  const MONTHS_AR_MONTHLY = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const monthLabel = (ym) => {
+    const [y, m] = ym.split('-').map(Number);
+    return `${MONTHS_AR_MONTHLY[m - 1]} ${y}`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-gradient-to-br from-navy/10 to-teal/5 border border-navy/20 rounded-2xl p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-extrabold text-text text-base">📦 تسليمات {periodLabel}</h2>
-            <p className="text-xs text-muted mt-0.5">{delivered.length} طلب مسلّم · {byEmployee.length} موظف</p>
+            <h2 className="font-extrabold text-text text-base">
+              {showRecords ? '📊 سجل الموظفين — 6 أشهر' : `📦 تسليمات ${periodLabel}`}
+            </h2>
+            <p className="text-xs text-muted mt-0.5">
+              {showRecords
+                ? `${recordsTable?.employees?.length ?? 0} موظف · ${(recordsTable?.months ?? []).length} أشهر`
+                : `${delivered.length} طلب مسلّم · ${byEmployee.length} موظف`}
+            </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {isManager && (
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button onClick={() => { setShowRecords(v => !v); }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition
+                ${showRecords ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}>
+              📊 سجل الموظفين
+            </button>
+            {!showRecords && isManager && (
               <button onClick={syncPrices} disabled={syncingPrices}
                 title="تحديث أسعار الدولار الأساسية من جدول الأسعار"
                 className="px-3 py-2 rounded-xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal/40 transition disabled:opacity-40">
                 {syncingPrices ? '…' : '🔄 مزامنة الأسعار'}
               </button>
             )}
-            {delivered.length > 0 && (
+            {!showRecords && delivered.length > 0 && (
               <button onClick={exportExcel} disabled={exporting}
                 className="px-3 py-2 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition disabled:opacity-40">
                 {exporting ? '…' : '⬇️ تصدير Excel'}
               </button>
             )}
-            {isManager && archiveEligible.length > 0 && (
+            {!showRecords && isManager && archiveEligible.length > 0 && (
               <button onClick={() => onArchive(archiveEligible.map(o => o.id))} disabled={archiving}
                 className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40">
-                {archiving ? '…' : `🗄️ أرشفة (${archiveEligible.length})`}
+                {archiving ? '…' : `🗄️ أرشفة هذا الشهر (${archiveEligible.length})`}
               </button>
             )}
           </div>
         </div>
+
+        {/* ── السجل الشهري الكامل: موظف × شهر ── */}
+        {showRecords && (
+          <div className="mt-4">
+            {loadingRec ? (
+              <div className="text-center py-8 text-muted text-sm">⏳ جارٍ تحميل السجل…</div>
+            ) : !recordsTable ? null : recordsTable.employees.length === 0 ? (
+              <div className="text-center py-8 text-muted text-sm">لا بيانات تسليمات في الـ6 أشهر الماضية</div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-navy/20">
+                <table className="w-full text-xs" dir="rtl">
+                  <thead>
+                    <tr className="bg-navy/10 border-b border-navy/20">
+                      <th className="py-2 px-3 text-start font-bold text-text whitespace-nowrap">الموظف</th>
+                      {recordsTable.months.map(m => (
+                        <th key={m} className="py-2 px-2 text-center font-bold text-text whitespace-nowrap">{monthLabel(m)}</th>
+                      ))}
+                      <th className="py-2 px-3 text-center font-bold text-teal whitespace-nowrap">الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recordsTable.employees.map((emp, i) => (
+                      <tr key={emp.name} className={`border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt/40'}`}>
+                        <td className="py-2 px-3 font-bold text-text whitespace-nowrap">{emp.name}</td>
+                        {recordsTable.months.map(m => {
+                          const cell = emp.byMonth[m];
+                          return (
+                            <td key={m} className="py-2 px-2 text-center">
+                              {cell ? (
+                                <div>
+                                  <p className="font-bold text-text">${Math.round(cell.usd).toLocaleString('en-US')}</p>
+                                  <p className="text-[10px] text-muted">{cell.cnt} طلب</p>
+                                </div>
+                              ) : (
+                                <span className="text-muted/40">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-3 text-center">
+                          <p className="font-black text-teal">${Math.round(emp.total).toLocaleString('en-US')}</p>
+                          <p className="text-[10px] text-muted">{emp.totalOrders} طلب</p>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* إجمالي الأعمدة */}
+                    <tr className="bg-navy/5 border-t-2 border-navy/20 font-bold">
+                      <td className="py-2 px-3 text-text text-xs font-extrabold">الإجمالي</td>
+                      {recordsTable.months.map(m => {
+                        const total = recordsTable.employees.reduce((s, e) => s + (e.byMonth[m]?.usd || 0), 0);
+                        const cnt   = recordsTable.employees.reduce((s, e) => s + (e.byMonth[m]?.cnt || 0), 0);
+                        return (
+                          <td key={m} className="py-2 px-2 text-center">
+                            {total > 0 ? (
+                              <div>
+                                <p className="font-black text-teal">${Math.round(total).toLocaleString('en-US')}</p>
+                                <p className="text-[10px] text-muted">{cnt} طلب</p>
+                              </div>
+                            ) : <span className="text-muted/40">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2 px-3 text-center">
+                        <p className="font-black text-teal">${Math.round(recordsTable.employees.reduce((s,e)=>s+e.total,0)).toLocaleString('en-US')}</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Grand totals */}
         {Object.keys(grandTotals).length > 0 && (
@@ -913,6 +1072,9 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           )}
         </div>
       )}
+
+      {/* Period + brand + leaderboard (hidden in records mode) */}
+      {!showRecords && <>
 
       {/* Period selector */}
       <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
@@ -997,6 +1159,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           isMe={emp.name === userName}
         />
       ))}
+
+      </>}
     </div>
   );
 }
@@ -3028,16 +3192,17 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return r;
   }, []);
 
-  // Monthly archive: flag delivered orders older than 30 days as archived.
+  // Monthly archive: flag all delivered orders from previous months (before this month).
   const [archiving, setArchiving] = useState(false);
   const archiveOldDelivered = async () => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const eligible = orders.filter(o =>
       o.status === 'delivered' && o.archived !== true &&
-      o.order_date && new Date(o.order_date) < cutoff
+      o.order_date && o.order_date.slice(0, 10) < monthStart
     );
-    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة أقدم من شهر لأرشفتها.'); return; }
-    if (!window.confirm(`أرشفة ${eligible.length} طلب مسلّم (أقدم من شهر)؟ تختفي من القائمة وتبقى في سجل العملاء.`)) return;
+    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة من أشهر سابقة لأرشفتها.'); return; }
+    if (!window.confirm(`أرشفة ${eligible.length} طلب مسلّم من الأشهر السابقة؟ تختفي من القائمة وتبقى في الأرشيف وسجل العملاء.`)) return;
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
