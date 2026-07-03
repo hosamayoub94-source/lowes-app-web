@@ -186,6 +186,7 @@ export function PayrollDashboard() {
         entryForm.employee_id,
         run.period_year,
         run.period_month,
+        entryForm.employee_name,
       );
       setAttResult(summary);
       if (!summary.error) {

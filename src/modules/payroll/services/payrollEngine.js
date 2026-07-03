@@ -337,10 +337,12 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   // «سجّلهم كلهم حضور — الغياب يدوي، الأدمن يحدد الأرقام» من ✏️).
   let workingDays = 26, attRef = null;
   try {
-    const att = await fetchMonthlyAttendanceSummary(emp.id, year, month);
+    const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
     workingDays = att.workingDays || workingDays;
     if ((att.presentDays || 0) > 0) {
-      attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم`;
+      const leaveNote = att.leaveDays ? ` (+${att.leaveDays} إجازة)` : '';
+      attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم${leaveNote}` +
+               (att.absentDays ? ` · غياب ${att.absentDays}` : '');
     }
   } catch { /* مرجع فقط — لا يوقف الحساب */ }
   const absentDays = 0, absenceDeduction = 0;
