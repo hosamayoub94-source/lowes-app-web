@@ -5,6 +5,13 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يوليو 2026)
 
+### 🗓️ جلسة 3 يوليو 2026 (ج) — تدقيق RLS شامل: عنقود CRM مقفول + إصلاح زر الصفقة ✅ (الكود منشور · SQL للمالك)
+مسح شامل لكل الجداول (153) بمقارنة anon مقابل service_role كشف **عنقوداً ثانياً من قفل RLS** (نفس جذر C1) يحجب **شاشة `/crm` بالكامل** عن مستخدمي الـPIN: `pipelines`(0/1) · `pipeline_stages`(0/6) · `leads`(0/4) · `customers`(0/12) (+ deals/followups نفس السياسة).
+- **✅ بُغ مرافق مُصلَح ومنشور:** زرّا «+ صفقة جديدة» كانا يمرّران `createDeal` **بلا `pipeline_id`** (FK إلزامي) → صفر صفقات إطلاقاً. `crmService.createDeal` صار يملأ pipeline_id+stage_id من الخط الافتراضي، ورسالة واضحة لو لا خط مبيعات.
+- **⏳ SQL للمالك:** `supabase/rls_crm_lockout_fix_20260703.sql` (يفكّ قفل عنقود CRM، آمن/idempotent، من SQL Editor). بعد تطبيقه: الـCRM يمتلئ + إنشاء الصفقات يعمل كامل.
+- **إيجابيات كاذبة استُبعدت** (لا داعي للقلق): `orders`/`profiles`/`employees` (الأبب يقرأها؛ ERR من count/column-grants)، `order_code_counters` (محمي بالتصميم)، `accounting_entries_bak_0006` (نسخة احتياطية للحذف)، mlm/badges/online_stores/rep_level (0 مراجع بالكود).
+- **DDL المتراكم للمالك (SQL Editor):** ① `rls_manual_session_fix_20260702.sql` (طُبِّق — C1 ✅) · ② `rls_crm_lockout_fix_20260703.sql` (CRM، جديد) · ③ `orders_indexes_20260703.sql` (أداء) · + ملء رواتب الـ12. مرجع: `[[rls-manual-session-lockouts]]`.
+
 ### 🗓️ جلسة 3 يوليو 2026 (ب) — إصلاح نشر الإعلانات + توحيد مصدر الحضور ✅ منشور على main
 تنفيذ مباشر بصفة المالك (بلا تخريب/فقدان بيانات على إنتاج ~30 مستخدماً):
 - **✅ نشر الإعلان كان يفشل:** جدول `announcements` فيه عمود legacy **`message` بقيد NOT NULL**، والكود لم يكن يكتبه → الإدراج يُرفض. الإصلاح: `CreateModal` صار يكتب `message` (نسخة من body) + `is_active:true` (`AnnouncementsScreen.jsx`). لم أُدرج صفّاً تجريبياً على الإنتاج (المُصنِّف منع ذلك بحق) — التشخيص بالأدلة: الصفّان الوحيدان قديمان وفيهما message. **التحقّق النهائي = نشرك إعلاناً حقيقياً الآن.**
