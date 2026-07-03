@@ -10,6 +10,7 @@ import {
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
   sellerVariants, canonicalSeller, exportMetaCSV, getSellerAliases,
+  listCustomerMonths, monthRange,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { STATUSES } from '@data/orderStatus';
@@ -310,6 +311,97 @@ function CustomerModal({ c, sellerName, onClose }) {
   );
 }
 
+const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function monthLabel(key) {
+  const [y, m] = String(key).split('-').map(Number);
+  return `${MONTHS_AR[(m || 1) - 1]} ${y}`;
+}
+
+// أرشيف العملاء مجمّعاً حسب شهر آخر تسليم — «تسليمات شهر كذا» (يستثني الشهر الحالي).
+function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
+  const [months, setMonths]   = useState(null);   // [{month,count}]
+  const [error, setError]     = useState(null);
+  const [openMonth, setOpen]  = useState(null);
+  const [cache, setCache]     = useState({});      // month → customers[]
+  const [loadingMonth, setLoadingMonth] = useState(null);
+
+  useEffect(() => {
+    setMonths(null); setError(null); setOpen(null); setCache({});
+    listCustomerMonths({ market, brand, sellerNames })
+      .then(setMonths)
+      .catch(e => setError(e.message));
+  }, [market, brand, sellerNames]);
+
+  const toggle = async (mk) => {
+    if (openMonth === mk) { setOpen(null); return; }
+    setOpen(mk);
+    if (!cache[mk]) {
+      setLoadingMonth(mk);
+      try {
+        const { start, end } = monthRange(mk);
+        const data = await listCustomers({
+          market, brand, sellerNames, sort: 'recent',
+          monthStart: start, monthEnd: end, limit: 2000,
+        });
+        setCache(p => ({ ...p, [mk]: data }));
+      } catch (e) { setCache(p => ({ ...p, [mk]: [] })); setError(e.message); }
+      finally { setLoadingMonth(null); }
+    }
+  };
+
+  if (error) return (
+    <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm">{error}</div>
+  );
+  if (months === null) return (
+    <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 bg-surface-alt animate-pulse rounded-2xl" />)}</div>
+  );
+  if (months.length === 0) return (
+    <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
+      <p className="text-4xl mb-3">🗂️</p>
+      <p className="text-sm font-bold">لا أشهر مكتملة للأرشفة بعد</p>
+      <p className="text-xs mt-1">الشهر الحالي غير المكتمل لا يُؤرشف.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {months.map(({ month, count }) => {
+        const isOpen = openMonth === month;
+        const custs  = cache[month];
+        return (
+          <div key={month} className="border border-border rounded-2xl overflow-hidden bg-surface">
+            <button onClick={() => toggle(month)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-alt transition text-right">
+              <span className="flex items-center gap-2 font-bold text-text text-sm">
+                <span className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+                📦 تسليمات شهر {monthLabel(month)}
+              </span>
+              <span className="text-xs font-bold text-teal bg-teal/10 rounded-lg px-2 py-0.5 tabular-nums shrink-0">
+                {count.toLocaleString('en-US')} عميل
+              </span>
+            </button>
+            {isOpen && (
+              <div className="p-3 border-t border-border/40 bg-surface-alt/30">
+                {loadingMonth === month ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1,2,3].map(i => <div key={i} className="h-28 bg-surface-alt animate-pulse rounded-2xl" />)}
+                  </div>
+                ) : (custs && custs.length > 0) ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {custs.map(c => <CustomerCard key={c.phone_key} c={c} onOpen={onOpen} />)}
+                  </div>
+                ) : (
+                  <p className="text-center py-6 text-muted text-xs">لا عملاء في هذا الشهر.</p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CustomerCard({ c, onOpen }) {
   const mkt = custMarket(c);
   const totals = [];
@@ -370,6 +462,7 @@ export default function CustomersScreen() {
   const [totalCount, setTotalCount] = useState(null); // true section total
   const [exporting, setExporting] = useState(false);
   const [partnerNames, setPartnerNames] = useState([]);
+  const [archive, setArchive]   = useState(false);    // الأرشيف الشهري
 
   // Load accepted shift partners
   useEffect(() => {
@@ -429,13 +522,24 @@ export default function CustomersScreen() {
 
   return (
     <div className="space-y-4 pb-24" dir="rtl">
-      <div>
-        <h1 className="text-xl font-extrabold text-text">⭐ العملاء والأرشيف</h1>
-        <p className="text-xs text-muted mt-0.5">
-          {totalCount != null ? `${totalCount.toLocaleString('en-US')} عميل في القسم` : `${stats.total} عميل`}
-          {totalCount != null && totalCount > rows.length && ` · معروض ${stats.total} (ابحث للوصول للبقية)`}
-          {' · '}{stats.due} للمتابعة · {stats.vip} VIP
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold text-text">⭐ العملاء والأرشيف</h1>
+          <p className="text-xs text-muted mt-0.5">
+            {archive
+              ? 'الأرشيف الشهري — العملاء حسب شهر آخر تسليم (الشهر الحالي غير المكتمل مستثنى)'
+              : <>
+                  {totalCount != null ? `${totalCount.toLocaleString('en-US')} عميل في القسم` : `${stats.total} عميل`}
+                  {totalCount != null && totalCount > rows.length && ` · معروض ${stats.total} (ابحث للوصول للبقية)`}
+                  {' · '}{stats.due} للمتابعة · {stats.vip} VIP
+                </>}
+          </p>
+        </div>
+        <button onClick={() => setArchive(v => !v)}
+          className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition shrink-0 ${archive ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}
+          title="عرض العملاء مؤرشفين حسب الشهر">
+          {archive ? '← العملاء' : '🗄️ الأرشيف الشهري'}
+        </button>
       </div>
 
       {/* Section tabs */}
@@ -478,6 +582,15 @@ export default function CustomersScreen() {
         </div>
       )}
 
+      {/* Monthly archive view */}
+      {archive ? (
+        <MonthlyArchive
+          market={sec.market} brand={sec.brand}
+          sellerNames={mineOnly ? myNames : null}
+          onOpen={setSelected}
+        />
+      ) : (
+      <>
       {/* Search + filters */}
       <div className="flex gap-2 flex-wrap items-center">
         <input value={search} onChange={e => setSearch(e.target.value)}
@@ -519,6 +632,8 @@ export default function CustomersScreen() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {displayed.map(c => <CustomerCard key={c.phone_key} c={c} onOpen={setSelected} />)}
         </div>
+      )}
+      </>
       )}
 
       {selected && <CustomerModal c={selected} sellerName={userName} onClose={() => setSelected(null)} />}

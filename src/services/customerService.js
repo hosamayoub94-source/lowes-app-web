@@ -134,7 +134,7 @@ const SORTS = {
   name:   { col: 'name',         asc: true  },
 };
 
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100 } = {}) {
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null } = {}) {
   const s = SORTS[sort] || SORTS.orders;
   let q = supabase
     .from('customer_stats')
@@ -142,6 +142,9 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
     .order(s.col, { ascending: s.asc, nullsFirst: false })
     .limit(limit);
   if (vipOnly) q = q.gte('stars', 1);
+  // أرشيف شهري: قصر النتائج على عملاء آخر طلبهم ضمن الشهر [monthStart, monthEnd)
+  if (monthStart) q = q.gte('last_order', monthStart);
+  if (monthEnd)   q = q.lt('last_order', monthEnd);
   // «my customers» — match any of the name variants server-side (archive uses
   // short names, profiles use full names), so ALL their customers are returned.
   if (sellerNames && sellerNames.length) {
@@ -161,6 +164,52 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
   const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
+}
+
+// ── الأرشيف الشهري ────────────────────────────────────────────
+// يجمّع العملاء في «دلاء» حسب شهر آخر طلب (تسليم) — لعرض «تسليمات شهر كذا».
+// يستثني الشهر الحالي (غير المكتمل) والعملاء بلا تاريخ. خفيف: يجلب عمود
+// last_order فقط ويجمّع في العميل.
+export async function listCustomerMonths({ market = null, brand = null, sellerNames = null } = {}) {
+  let q = supabase
+    .from('customer_stats')
+    .select('last_order')
+    .not('last_order', 'is', null)
+    .order('last_order', { ascending: false })
+    .limit(20000);
+  if (market) q = q.contains('markets', [market]);
+  if (brand)  q = q.contains('brands', [brand]);
+  if (sellerNames && sellerNames.length) {
+    q = q.or(sellerNames.map((n) => `sellers.cs.{"${String(n).replace(/"/g, '')}"}`).join(','));
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+
+  // الشهر الحالي (محلي) — يُستثنى لأنه غير مكتمل
+  const now = new Date();
+  const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const buckets = new Map(); // 'YYYY-MM' → count
+  for (const r of (data || [])) {
+    const key = String(r.last_order || '').slice(0, 7); // YYYY-MM
+    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+    if (key === curKey) continue;          // استثنِ الشهر الحالي
+    if (key > curKey) continue;            // استثنِ تواريخ مستقبلية خاطئة
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))   // الأحدث أولاً
+    .map(([month, count]) => ({ month, count }));
+}
+
+// حدود شهر [start, nextMonthStart) بصيغة YYYY-MM-DD من مفتاح 'YYYY-MM'.
+export function monthRange(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const start = `${y}-${String(m).padStart(2, '0')}-01`;
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const end = `${ny}-${String(nm).padStart(2, '0')}-01`;
+  return { start, end };
 }
 
 // True total count for a section (server-side, no row fetch).
