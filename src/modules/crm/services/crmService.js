@@ -285,7 +285,29 @@ export async function createDeal(payload) {
     return deal;
   }
   const { supabase } = await import('@services/supabase');
-  const { data, error } = await supabase.from('deals').insert(payload).select().single();
+  // pipeline_id و stage_id إلزاميان (FK NOT NULL). أزرار «+ صفقة جديدة»
+  // كانت تمرّر الطلب بلا pipeline_id (وأحياناً بلا stage_id) → الإدراج يفشل
+  // (كان صفر صفقات إطلاقاً). نملأ الناقص من الخط الافتراضي وأول مرحلة.
+  let { pipeline_id, stage_id } = payload;
+  if (!pipeline_id || !stage_id) {
+    try {
+      if (!pipeline_id) {
+        const { data: p } = await supabase.from('pipelines')
+          .select('id').eq('is_active', true).order('created_at').limit(1);
+        pipeline_id = p?.[0]?.id ?? pipeline_id;
+      }
+      if (pipeline_id && !stage_id) {
+        const { data: st } = await supabase.from('pipeline_stages')
+          .select('id').eq('pipeline_id', pipeline_id).order('position').limit(1);
+        stage_id = st?.[0]?.id ?? stage_id;
+      }
+    } catch { /* best-effort — نترك الخطأ يظهر أدناه إن بقي ناقصاً */ }
+  }
+  if (!pipeline_id || !stage_id) {
+    throw new Error('تعذّر إنشاء الصفقة: لا يوجد خط مبيعات/مرحلة. أنشئ خط مبيعات ومراحله أولاً.');
+  }
+  const { data, error } = await supabase.from('deals')
+    .insert({ ...payload, pipeline_id, stage_id }).select().single();
   if (error) throw error;
   return data;
 }
