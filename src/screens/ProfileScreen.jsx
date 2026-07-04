@@ -300,7 +300,8 @@ export default function ProfileScreen() {
       const { data, error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
       if (error) throw error;
       const { data: u } = supabase.storage.from('avatars').getPublicUrl(data.path);
-      await supabase.from('profiles').update({ avatar_url: u.publicUrl }).eq('id', id);
+      const { error: updErr } = await supabase.from('profiles').update({ avatar_url: u.publicUrl }).eq('id', id);
+      if (updErr) throw updErr; // لا نُظهر صورة «محفوظة» محلياً إن فشل حفظها فعلاً
       setProfile(p => ({ ...p, avatar_url: u.publicUrl }));
     } catch (e) { alert('فشل رفع الصورة: ' + e.message); }
     finally { setUploading(false); e.target.value = ''; }

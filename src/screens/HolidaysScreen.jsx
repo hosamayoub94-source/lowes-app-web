@@ -232,6 +232,7 @@ export default function HolidaysScreen() {
   const year = new Date().getFullYear();
 
   const [requests,  setRequests]  = useState([]);
+  const [usedAnnual, setUsedAnnual] = useState(0);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -250,6 +251,18 @@ export default function HolidaysScreen() {
 
       if (dbErr) throw new Error(dbErr.message);
       setRequests(data || []);
+
+      // رصيد السنة يُحسب من استعلام مخصّص (لا من قائمة الـ50 الأخيرة، وإلا
+      // يخطئ الرصيد لمن لديه >50 طلباً).
+      const { data: annualData } = await supabase
+        .from('leave_requests')
+        .select('days')
+        .eq('employee_id', userId)
+        .eq('type', 'annual')
+        .eq('status', 'approved')
+        .gte('start_date', `${year}-01-01`)
+        .lte('start_date', `${year}-12-31`);
+      setUsedAnnual((annualData || []).reduce((s, r) => s + (r.days || 0), 0));
     } catch (e) {
       setError(e?.message || 'تعذّر تحميل البيانات');
     } finally {
@@ -260,11 +273,7 @@ export default function HolidaysScreen() {
   useEffect(() => { load(); }, [load]);
 
   // ── Derived stats ──────────────────────────────────────────
-  const usedAnnual = requests
-    .filter(r => r.type === 'annual' && r.status === 'approved' &&
-                 new Date(r.start_date).getFullYear() === year)
-    .reduce((s, r) => s + (r.days || 0), 0);
-
+  // usedAnnual يأتي من استعلام السنة المخصّص (لا من قائمة الـ50).
   const remaining   = ANNUAL_ALLOWANCE - usedAnnual;
   const pendingCnt  = requests.filter(r => r.status === 'pending').length;
   const rejectedCnt = requests.filter(r => r.status === 'rejected').length;

@@ -168,10 +168,17 @@ async function fetchReportData(period) {
 
   // attLogs is already filtered to the selected range (gte/lte in the query above)
   // and keyed by employee_name (real schema)
+  // نعدّ أيام الحضور الفريدة (اسم|تاريخ) — لا كل تسجيل، وإلا تسجيلات
+  // متعددة باليوم ترفع النسبة فوق 100% (كان يخفيها clamp لاحقاً).
   const attByEmp = {};
+  const attSeen  = new Set();
   for (const l of (attLogs || [])) {
-    if (l.date >= fromSlash)
+    if (l.date >= fromSlash) {
+      const k = `${l.employee_name}|${l.date}`;
+      if (attSeen.has(k)) continue;
+      attSeen.add(k);
       attByEmp[l.employee_name] = (attByEmp[l.employee_name] || 0) + 1;
+    }
   }
 
   const maxTasks = Math.max(1, ...Object.values(tasksByEmp));

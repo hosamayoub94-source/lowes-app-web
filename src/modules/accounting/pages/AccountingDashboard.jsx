@@ -54,6 +54,11 @@ const EMPTY_FORM = {
 };
 
 // ── Invoice printer ────────────────────────────────────────────────────────────
+// نص حرّ يُحقن في HTML الطباعة — يجب تهريبه لمنع XSS (وصف يحوي <script> مثلاً).
+const escHtml = (s) => String(s ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 function printInvoice(entries, kpis, dateRange) {
   const now = new Date().toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric' });
   const from = dateRange.from || '—';
@@ -61,13 +66,13 @@ function printInvoice(entries, kpis, dateRange) {
 
   const rows = entries.map(e => `
     <tr>
-      <td>${e.entry_date}</td>
-      <td>${ENTRY_TYPE_LABELS[e.entry_type] ?? e.entry_type}</td>
-      <td>${e.category || '—'}</td>
-      <td>${e.description}</td>
-      <td>${PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method}</td>
+      <td>${escHtml(e.entry_date)}</td>
+      <td>${escHtml(ENTRY_TYPE_LABELS[e.entry_type] ?? e.entry_type)}</td>
+      <td>${escHtml(e.category || '—')}</td>
+      <td>${escHtml(e.description)}</td>
+      <td>${escHtml(PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method)}</td>
       <td style="color:${e.entry_type==='income'?'#16a34a':'#dc2626'}">
-        ${e.entry_type==='income'?'+':'-'}$${Number(e.amount_usd).toFixed(2)}
+        ${e.entry_type==='income'?'+':'-'}$${Number(e.amount_usd||0).toFixed(2)}
       </td>
       ${Number(e.amount_try) ? `<td>${Number(e.amount_try).toFixed(0)} ₺</td>` : '<td>—</td>'}
       ${Number(e.amount_syp) ? `<td>${Number(e.amount_syp).toLocaleString()} ل.س</td>` : '<td>—</td>'}

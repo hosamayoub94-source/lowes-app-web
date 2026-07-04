@@ -748,7 +748,8 @@ function TasksPage() {
   // Apply the active tab on top of the store's search/status filters.
   const scopedTasks = useMemo(() => {
     if (!activeTab || activeTab === 'all') return filteredTasks;
-    if (activeTab === 'mine') return filteredTasks.filter((t) => t.assigned_to?.id === userId);
+    // assigned_to قد يكون كائناً {id} أو نصّ id مباشرة — نطابق الحالتين.
+    if (activeTab === 'mine') return filteredTasks.filter((t) => (t.assigned_to?.id ?? t.assigned_to) === userId);
     if (activeTab === 'team') return filteredTasks.filter((t) => t.team && t.team === viewerTeam);
     if (activeTab.startsWith('project:')) {
       const pid = activeTab.slice('project:'.length);
@@ -760,7 +761,7 @@ function TasksPage() {
   const tabsWithCounts = useMemo(() => tabDefs.map((t) => {
     let count;
     if (t.key === 'all') count = filteredTasks.length;
-    else if (t.key === 'mine') count = filteredTasks.filter((x) => x.assigned_to?.id === userId).length;
+    else if (t.key === 'mine') count = filteredTasks.filter((x) => (x.assigned_to?.id ?? x.assigned_to) === userId).length;
     else if (t.key === 'team') count = filteredTasks.filter((x) => x.team && x.team === viewerTeam).length;
     else if (t.key.startsWith('project:')) {
       const pid = t.key.slice('project:'.length);

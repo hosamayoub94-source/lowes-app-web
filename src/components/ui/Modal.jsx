@@ -28,8 +28,25 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
+    const dialog = dialogRef.current;
+    // احفظ العنصر المركّز حالياً لاستعادته عند الإغلاق.
+    const prevFocus = document.activeElement;
+    const FOCUSABLE = 'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])';
+    const focusables = () => Array.from(dialog?.querySelectorAll(FOCUSABLE) || [])
+      .filter((el) => el.offsetParent !== null);
+    // ركّز أول عنصر داخل النافذة (أو النافذة نفسها).
+    const first = focusables()[0];
+    (first || dialog)?.focus?.();
+
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') { onClose?.(); return; }
+      if (e.key !== 'Tab') return;
+      // حصر التركيز داخل النافذة (focus trap).
+      const els = focusables();
+      if (els.length === 0) { e.preventDefault(); return; }
+      const firstEl = els[0], lastEl = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -37,6 +54,8 @@ export function Modal({
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      // استعادة التركيز للعنصر الذي فتح النافذة.
+      if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
     };
   }, [open, onClose]);
 
@@ -55,8 +74,9 @@ export function Modal({
       />
       <div
         ref={dialogRef}
+        tabIndex={-1}
         className={cn(
-          'relative w-full bg-surface text-text rounded-2xl shadow-soft border border-border',
+          'relative w-full bg-surface text-text rounded-2xl shadow-soft border border-border outline-none',
           'max-h-[90vh] overflow-hidden flex flex-col animate-slideUp',
           SIZES[size] || SIZES.md,
           className,
