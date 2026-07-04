@@ -27,6 +27,7 @@
 // =============================================================
 
 import { supabase } from '@services/supabase';
+import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
@@ -112,14 +113,13 @@ export async function fetchMonthlySalesIndex(year, month) {
   const { from, to } = monthBounds(year, month);
   const index = new Map();
 
-  const { data, error } = await supabase
+  // على دفعات — شهر بحجم >1000 طلب محصّل يُبتر صامتاً فتنقص العمولات/الرواتب.
+  const data = await fetchAllRows(() => supabase
     .from('orders')
     .select('handler_name, amount, currency, status, market, payment_method')
     .gte('order_date', from)
     .lt('order_date', to)
-    .in('status', COMMISSIONABLE_STATUSES);
-
-  if (error) throw new Error(error.message);
+    .in('status', COMMISSIONABLE_STATUSES));
 
   const isPrepaid = (pm) => {
     const p = String(pm || '');
@@ -257,17 +257,16 @@ export async function fetchEmployeeSalesStatement(emp, year, month) {
   const names = employeeNames(emp);
   if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
 
-  const [ordersRes, rateMap] = await Promise.all([
-    supabase.from('orders')
+  const [ordersData, rateMap] = await Promise.all([
+    fetchAllRows(() => supabase.from('orders')
       .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market')
       .gte('order_date', from).lt('order_date', to)
       .in('status', COMMISSIONABLE_STATUSES)
-      .order('order_date', { ascending: true }),
+      .order('order_date', { ascending: true })),
     fetchExchangeRateMap(),
   ]);
-  if (ordersRes.error) throw new Error(ordersRes.error.message);
 
-  const orders = (ordersRes.data || [])
+  const orders = (ordersData || [])
     .filter(o => names.includes(normalizeName(o.handler_name)))
     .map(o => ({ ...o, usd_value: toUsd(o.amount, o.currency || 'USD', rateMap).usd }));
   const totalUsd = Math.round(orders.reduce((s, o) => s + o.usd_value, 0) * 100) / 100;

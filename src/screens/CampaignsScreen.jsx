@@ -13,6 +13,7 @@
 //         campaign_ads (FK→campaigns), ad_daily_logs (FK→campaigns)
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
+import { fetchAllRows }            from '@utils/fetchAllRows';
 import { Hero }                    from '@components/ui/Hero';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { StatCard }                from '@components/ui/StatCard';
@@ -327,10 +328,11 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
     // المصدر الفعلي: report_ad_results (مرتبط بـdaily_reports عبر report_id).
     const [adsRes, rarRes] = await Promise.allSettled([
       supabase.from('campaign_ads').select('*').eq('campaign_id', campaign.id).order('sort_order'),
-      supabase.from('report_ad_results').select('report_id, ad_id, messages, confirmations').eq('campaign_id', campaign.id),
+      // على دفعات — نتائج الإعلانات تتراكم يومياً وتتجاوز 1000 صف فتُبتر الأرقام.
+      fetchAllRows(() => supabase.from('report_ad_results').select('report_id, ad_id, messages, confirmations').eq('campaign_id', campaign.id)),
     ]);
     if (adsRes.status === 'fulfilled' && !adsRes.value.error) setAds(adsRes.value.data || []);
-    const rar = (rarRes.status === 'fulfilled' && !rarRes.value.error) ? rarRes.value.data || [] : [];
+    const rar = (rarRes.status === 'fulfilled') ? rarRes.value || [] : [];
     const reportIds = [...new Set(rar.map(r => r.report_id).filter(Boolean))];
     const repMap = {};
     if (reportIds.length) {
@@ -441,10 +443,10 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
               {tab === 'log' && (
                 <div className="space-y-2">
                   {!isAssigned && !canManage && <p className="text-xs text-amber-fg bg-amber-bg border border-amber/30 rounded-xl px-3 py-2 mb-2">لست مكلّفاً بهذه الحملة.</p>}
-                  {logs.length === 0 ? <EmptyState description="لا توجد تسجيلات بعد" /> : logs.slice(0, 50).map(l => {
+                  {logs.length === 0 ? <EmptyState description="لا توجد تسجيلات بعد" /> : logs.slice(0, 50).map((l, i) => {
                     const ad = ads.find(a => a.id === l.ad_id);
                     return (
-                      <div key={l.id} className="p-3 rounded-xl border border-border">
+                      <div key={`${l.ad_id}-${l.log_date}-${i}`} className="p-3 rounded-xl border border-border">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-semibold text-text">{ad?.ad_name || 'إعلان'}</span>
                           <span className="text-[10px] text-muted">{fmtDate(l.log_date)}</span>
@@ -452,9 +454,8 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
                         <div className="flex gap-3 text-[11px] text-muted">
                           <span>💬 <b className="text-text">{fmtNum(l.messages)}</b></span>
                           <span>🛒 <b className="text-teal">{fmtNum(l.purchases)}</b></span>
-                          {canManage && <span className="mr-auto">👤 {l.employee_name}</span>}
+                          {canManage && <span className="ms-auto">👤 {l.employee_name}</span>}
                         </div>
-                        {l.note && <p className="text-[11px] text-muted mt-1 leading-relaxed">📌 {l.note}</p>}
                       </div>
                     );
                   })}
@@ -676,7 +677,8 @@ export default function CampaignsScreen() {
       const [cmpRes, adsRes, rarRes, empRes, drRes] = await Promise.allSettled([
         supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('campaign_ads').select('id,campaign_id'),
-        supabase.from('report_ad_results').select('campaign_id,messages,confirmations'),
+        // على دفعات — نتائج الإعلانات تتراكم يومياً وتتجاوز 1000 صف.
+        fetchAllRows(() => supabase.from('report_ad_results').select('campaign_id,messages,confirmations')),
         supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name'),
         supabase.from('daily_reports').select('employee_name').eq('report_date', today),
       ]);
@@ -684,7 +686,7 @@ export default function CampaignsScreen() {
       let cmps = [];
       if (cmpRes.status === 'fulfilled' && !cmpRes.value.error) cmps = cmpRes.value.data || [];
       const ads  = (adsRes.status === 'fulfilled' && !adsRes.value.error) ? adsRes.value.data || [] : [];
-      const rar  = (rarRes.status === 'fulfilled' && !rarRes.value.error) ? rarRes.value.data || [] : [];
+      const rar  = (rarRes.status === 'fulfilled') ? rarRes.value || [] : [];
       const reportedToday = new Set(((drRes.status === 'fulfilled' && !drRes.value.error) ? drRes.value.data || [] : []).map(r => r.employee_name));
       if (empRes.status === 'fulfilled' && !empRes.value.error) setEmployees(empRes.value.data || []);
 

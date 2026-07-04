@@ -26,6 +26,7 @@ import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
+import { fetchAllRows } from '@utils/fetchAllRows';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -579,20 +580,6 @@ function ProductValuesSection({ delivered, canEdit }) {
 
 // ── Monthly Deliveries Tab ────────────────────────────────────
 
-// PostgREST يحدّ كل استجابة بـ1000 صف — نجلب على دفعات حتى ننتهي من كل الصفوف.
-// (سجل الموظفين قد يتجاوز 4000 طلب مؤرشف، فبدون هذا تُبتر الأرقام صامتاً.)
-async function fetchAllRows(buildQuery) {
-  const PAGE = 1000;
-  const out = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await buildQuery().range(from, from + PAGE - 1);
-    if (error || !data?.length) break;
-    out.push(...data);
-    if (data.length < PAGE) break;
-  }
-  return out;
-}
-
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
   const [brand, setBrand] = useState('all');
   const [showSettings, setShowSettings] = useState(false);
@@ -651,7 +638,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       .is('deleted_at', null)
       .gte('order_date', periodStart)
       .lte('order_date', periodEnd + 'T23:59:59')
-    ).then((rows) => { if (!cancelled) setArchivedForPeriod(rows); });
+    ).then((rows) => { if (!cancelled) setArchivedForPeriod(rows); })
+     .catch(() => { if (!cancelled) setArchivedForPeriod([]); });
     return () => { cancelled = true; };
   }, [periodStart, periodEnd]);
 
@@ -680,7 +668,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     ]).then(([live, arch]) => {
       setRecordsRaw([...live, ...arch]);
       setLoadingRec(false);
-    });
+    }).catch(() => { setRecordsRaw([]); setLoadingRec(false); });
   }, [showRecords, recordsRaw]);
 
   // بناء جدول الموظف × الشهر
@@ -2786,10 +2774,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const refreshStatuses = useCallback(async () => {
     if (viewArchive) return;
     try {
-      const { data } = await supabase
+      // على دفعات — بدونها تتوقف مزامنة حالات الطلبات بعد الصف 1000 صامتاً.
+      const data = await fetchAllRows(() => supabase
         .from('orders')
         .select('id, status, tracking_number, deleted_at')
-        .or('archived.is.null,archived.eq.false');
+        .or('archived.is.null,archived.eq.false'));
       if (!data) return;
       const byId = new Map(data.map(o => [o.id, o]));
       setOrders(prev => prev
@@ -2823,7 +2812,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم لهذا الشهر؟ ستختفي من القائمة وتبقى في الأرشيف.`)) return;
     setArchiving(true);
     try {
-      await supabase.from('orders').update({ archived: true }).in('id', ids);
+      const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids);
+      if (error) throw error;
       await load();
       setViewMonthly(false);
     } catch (e) { window.alert('تعذّر: ' + e.message); }
@@ -2886,7 +2876,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const handleStatusChange = async (id, newStatus) => {
     const order = orders.find(o => o.id === id);
     const fromStatus = order?.status;
-    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    // لا نُكمِل التأثيرات الجانبية (محاسبة/مخزون/إشعار) إن لم تُحفظ الحالة فعلاً.
+    const { error: stErr } = await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    if (stErr) { window.alert('تعذّر تحديث الحالة: ' + stErr.message); return; }
     // الخط الزمني: سجّل التغيير (من→إلى · مَن · المصدر app · الوقت)
     recordStatusChange({ orderId: id, from: fromStatus, to: newStatus, by: userName, source: 'app' });
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
@@ -2913,7 +2905,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
           const amt = order.payment_status === 'partial' && Number(order.paid_amount) > 0
             ? Number(order.paid_amount) : Number(order.amount);
           // Map to a specific treasury wallet by currency + method.
-          const isBank = order.payment_method === 'bank';
+          // ملاحظة: payment_method قيم عربية/مسمّاة (تحويل بنكي/Papara/تحويل/Sham
+          // Cash…) — لا القيمة الحرفية 'bank'. نطابق بنمط وإلا كل تحصيل بنكي يذهب
+          // خطأً لخزينة الكاش.
+          const isBank = /بنك|bank|حوال|تحويل|papara|kredi|sham/i.test(order.payment_method || '');
           const wallet = cur === 'USD' ? (isBank ? 'bank_usd' : 'cash_usd')
                        : cur === 'TRY' ? (isBank ? 'bank_try' : 'cash_try')
                        : 'cash_syp';
@@ -3227,7 +3222,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
-      await supabase.from('orders').update({ archived: true }).in('id', ids);
+      const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids);
+      if (error) throw error;
       await load();
     } catch (e) { window.alert('تعذّر: ' + e.message); }
     finally { setArchiving(false); }

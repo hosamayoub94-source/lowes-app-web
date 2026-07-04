@@ -10,6 +10,11 @@
 //   الربح الصافي للصنف = (ربح الوحدة × الوحدات المُباعة) − (التكلفة × المرتجعات)
 // =============================================================
 import { supabase } from './supabase';
+import { fetchAllRows } from '@utils/fetchAllRows';
+
+// المرتجعات الحقيقية (يخسر فيها الصنف تكلفته). الملغي/المحذوف ليس مرتجعاً.
+const RETURN_STATUSES = ['not_received', 'returning', 'returned'];
+const CANCELLED_STATUSES = ['cancelled'];
 
 function monthStartISO() {
   const d = new Date();
@@ -20,28 +25,34 @@ const norm = (s) => String(s || '').trim().toLowerCase();
 export async function loadProfitability({ since } = {}) {
   const from = since || monthStartISO();
 
-  const [ordersRes, econRes] = await Promise.all([
-    supabase.from('orders').select('status, items, order_date').gte('order_date', from + 'T00:00:00'),
+  const [orders, econRes] = await Promise.all([
+    // على دفعات + استثناء المحذوف (soft-delete يحمل status='cancelled' فيُحسب
+    // خطأً كمرتجع). جدول orders ضخم (30k+) فبدون الدفعات تُبتر البيانات.
+    fetchAllRows(() => supabase.from('orders')
+      .select('status, items, order_date')
+      .is('deleted_at', null)
+      .gte('order_date', from + 'T00:00:00')),
     supabase.from('product_economics').select('*'),
   ]);
 
-  const orders = ordersRes.data ?? [];
   const econRows = econRes.data ?? [];
   const econByName = {};
   econRows.forEach(e => { econByName[norm(e.item_name)] = e; });
 
-  // Aggregate units sold (non-cancelled) + returned units (cancelled) per item name
+  // Aggregate units sold + returned units (المرتجع الحقيقي فقط) per item name.
+  // الملغي يُتخطّى (لم يُباع ولا يُرجَع).
   const agg = {}; // key: display name
   for (const o of orders) {
     if (!Array.isArray(o.items)) continue;
-    const cancelled = o.status === 'cancelled';
+    if (CANCELLED_STATUSES.includes(o.status)) continue;
+    const returned = RETURN_STATUSES.includes(o.status);
     for (const it of o.items) {
       const name = (it.name || '').trim();
       if (!name) continue;
       const key = norm(name);
       if (!agg[key]) agg[key] = { name, units: 0, returns: 0 };
       const qty = Number(it.qty || 1);
-      if (cancelled) agg[key].returns += qty;
+      if (returned) agg[key].returns += qty;
       else agg[key].units += qty;
     }
   }

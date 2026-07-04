@@ -32,11 +32,12 @@ import {
   useTrashFile,
 } from '../hooks/useFiles';
 import { VIEW_MODE, formatFileSize } from '../types/files.types';
-
-// Demo: replace with real auth context
-const DEMO_USER = { id: 'user_current', name: 'أنت' };
+import { useAuth } from '@hooks/useAuth';
 
 export default function FileManagerDashboard() {
+  const { id: authId, name: authName } = useAuth();
+  // المستخدم الفعلي (كان مربوطاً بمستخدم وهمي 'user_current' فيتشارك الجميع ملفاته).
+  const DEMO_USER = { id: authId || 'anon', name: authName || 'أنت' };
   useFileInit(DEMO_USER.id);
 
   const viewMode         = useViewMode();

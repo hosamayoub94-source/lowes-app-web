@@ -504,15 +504,16 @@ function SalesTargetWidget({ isAdmin, monthSales }) {
 
   const save = async () => {
     const val = Number(input);
-    if (!val || isNaN(val)) return;
+    if (!val || isNaN(val)) { window.alert('أدخل هدفاً رقمياً صحيحاً.'); return; }
     setSaving(true);
     const row = { year, month, target_usd: val, achieved_usd: monthSales ?? 0, updated_at: new Date().toISOString() };
-    const { data } = target?.id
+    const { data, error } = target?.id
       ? await supabase.from('sales_targets').update(row).eq('id', target.id).select().single()
       : await supabase.from('sales_targets').insert(row).select().single();
+    setSaving(false);
+    if (error) { window.alert('تعذّر حفظ الهدف: ' + error.message); return; }
     setTarget(data);
     setEditing(false);
-    setSaving(false);
   };
 
   const achieved = Number(target?.achieved_usd ?? monthSales ?? 0);
