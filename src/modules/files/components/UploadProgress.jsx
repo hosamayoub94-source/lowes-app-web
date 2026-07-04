@@ -26,12 +26,12 @@ function ClearButton() {
         // Refresh uploadJobs in store
         useFileStore.setState({ uploadJobs: [] });
       }}
+      className="text-teal"
       style={{
         background: 'none',
         border:     'none',
         cursor:     'pointer',
         fontSize:   '0.78rem',
-        color:      'var(--color-primary, #3b82f6)',
         padding:    '0',
       }}
     >
@@ -71,7 +71,7 @@ export default function UploadProgress({ compact = false, className = '' }) {
         alignItems:     'center',
         marginBottom:   '8px',
       }}>
-        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--color-text-primary, #1e293b)' }}>
+        <span className="text-text" style={{ fontWeight: 600, fontSize: '0.88rem' }}>
           {hasActive ? `جاري الرفع (${active.length})` : 'قائمة الرفع'}
         </span>
         <ClearButton />
@@ -92,9 +92,7 @@ function JobRow({ job, compact }) {
   const color    = STATUS_COLOR[job.status] ?? '#94a3b8';
 
   return (
-    <div style={{
-      background:   'var(--color-surface, #f8fafc)',
-      border:       '1px solid var(--color-border, #e2e8f0)',
+    <div className="bg-surface-alt border border-border" style={{
       borderRadius: '8px',
       padding:      compact ? '8px 12px' : '10px 14px',
     }}>
@@ -103,21 +101,20 @@ function JobRow({ job, compact }) {
         <span style={{ fontSize: '1rem' }}>{_fileIcon(job.file?.type)}</span>
 
         {!compact && (
-          <span style={{
+          <span className="text-text" style={{
             flex:         1,
             fontSize:     '0.84rem',
             fontWeight:   500,
             overflow:     'hidden',
             textOverflow: 'ellipsis',
             whiteSpace:   'nowrap',
-            color:        'var(--color-text-primary, #1e293b)',
           }}>
             {job.file?.name ?? 'ملف غير معروف'}
           </span>
         )}
 
         {!compact && job.file?.size > 0 && (
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)', flexShrink: 0 }}>
+          <span className="text-muted" style={{ fontSize: '0.75rem', flexShrink: 0 }}>
             {formatFileSize(job.file.size)}
           </span>
         )}
@@ -160,7 +157,7 @@ function JobRow({ job, compact }) {
       {isActive && (
         <div style={{
           height:       '4px',
-          background:   'var(--color-border, #e2e8f0)',
+          background:   'rgb(var(--color-border) / 0.4)',
           borderRadius: '2px',
           overflow:     'hidden',
         }}>

@@ -20,15 +20,13 @@ function KPIAlertCard({ title = 'تنبيهات المؤشرات', style = {} })
   const alerts = useAlerts();
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>
+        <span className="text-muted" style={{ fontSize: 13, fontWeight: 500 }}>
           {title}
         </span>
         {alerts.length > 0 && (
@@ -55,7 +53,7 @@ function KPIAlertCard({ title = 'تنبيهات المؤشرات', style = {} })
           color: '#22c55e',
         }}>
           <span style={{ fontSize: 24 }}>✅</span>
-          <span style={{ fontSize: 13, color: '#64748b' }}>جميع المؤشرات في الحدود الطبيعية</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>جميع المؤشرات في الحدود الطبيعية</span>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -76,7 +74,7 @@ function KPIAlertCard({ title = 'تنبيهات المؤشرات', style = {} })
                   <div style={{ fontSize: 12, fontWeight: 600, color }}>
                     {KPI_LABELS[alert.metric] ?? alert.metric}
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                  <div className="text-muted" style={{ fontSize: 11, marginTop: 1 }}>
                     القيمة الحالية: {formatKPI(alert.metric, alert.value)}
                   </div>
                 </div>

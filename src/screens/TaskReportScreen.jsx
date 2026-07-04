@@ -89,7 +89,6 @@ export default function TaskReportScreen() {
   const [stats, setStats]         = useState({ total: 0, done: 0, late: 0, cancelled: 0 });
   const [empRows, setEmpRows]     = useState([]);
   const [overdue, setOverdue]     = useState([]);
-  const [profiles, setProfiles]   = useState({});
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
 
@@ -115,7 +114,6 @@ export default function TaskReportScreen() {
       if (taskRes.status === 'fulfilled') tasks = taskRes.value || [];
       if (profRes.status === 'fulfilled') {
         (profRes.value || []).forEach(p => { profs[p.id] = p; });
-        setProfiles(profs);
       }
 
       const now = new Date();

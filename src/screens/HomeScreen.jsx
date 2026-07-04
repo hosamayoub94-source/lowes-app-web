@@ -911,7 +911,7 @@ export default function HomeScreen() {
   const cc = useChartColors();
 
   // KPIs
-  const [kpi, setKpi]         = useState({ tasks: '—', notifs: '—', leave: '—', sales: '—' });
+  const [kpi, setKpi]         = useState({ tasks: '—', notifs: '—', leave: '—' });
   const [kpiLoaded, setKpiLoaded] = useState(false);
 
   // Charts

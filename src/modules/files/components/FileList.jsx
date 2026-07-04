@@ -63,7 +63,7 @@ export default function FileList({ userId, className = '' }) {
 
   if (loading && files.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted, #94a3b8)' }}>
+      <div className="text-muted" style={{ textAlign: 'center', padding: '48px' }}>
         جاري التحميل…
       </div>
     );
@@ -73,7 +73,7 @@ export default function FileList({ userId, className = '' }) {
     return (
       <div style={{ textAlign: 'center', padding: '48px', direction: 'rtl' }}>
         <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📂</div>
-        <p style={{ margin: 0, fontWeight: 600, color: 'var(--color-text-primary, #1e293b)' }}>
+        <p className="text-text" style={{ margin: 0, fontWeight: 600 }}>
           لا توجد ملفات
         </p>
       </div>
@@ -88,7 +88,7 @@ export default function FileList({ userId, className = '' }) {
         fontSize:        '0.85rem',
       }}>
         <thead>
-          <tr style={{ borderBottom: '2px solid var(--color-border, #e2e8f0)' }}>
+          <tr className="border-b border-border" style={{ borderBottomWidth: '2px' }}>
             {/* Select-all */}
             <th style={{ width: '32px', padding: '10px 8px', textAlign: 'center' }}>
               <input
@@ -167,9 +167,9 @@ function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOp
 
   return (
     <tr
+      className="border-b border-border"
       style={{
-        borderBottom: '1px solid var(--color-border, #e2e8f0)',
-        background:   selected ? 'var(--color-primary-subtle, #eff6ff)' : 'transparent',
+        background:   selected ? 'rgb(var(--color-teal) / 0.1)' : 'transparent',
         transition:   'background 0.1s',
       }}
     >
@@ -192,12 +192,11 @@ function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOp
           <span style={{ fontSize: '1.2rem', color: accentColor, flexShrink: 0 }}>
             {FILE_TYPE_ICON[file.file_type] ?? '📎'}
           </span>
-          <span style={{
+          <span className="text-text" style={{
             overflow:     'hidden',
             textOverflow: 'ellipsis',
             whiteSpace:   'nowrap',
             fontWeight:   500,
-            color:        'var(--color-text-primary, #1e293b)',
           }}>
             {file.name}
           </span>
@@ -205,7 +204,7 @@ function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOp
       </td>
 
       {/* Type */}
-      <td style={{ padding: '10px 8px', color: 'var(--color-text-muted, #94a3b8)' }}>
+      <td className="text-muted" style={{ padding: '10px 8px' }}>
         <span style={{
           fontSize:     '0.75rem',
           fontWeight:   600,
@@ -219,12 +218,12 @@ function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOp
       </td>
 
       {/* Size */}
-      <td style={{ padding: '10px 8px', color: 'var(--color-text-muted, #94a3b8)', whiteSpace: 'nowrap' }}>
+      <td className="text-muted" style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
         {formatFileSize(file.size_bytes)}
       </td>
 
       {/* Date */}
-      <td style={{ padding: '10px 8px', color: 'var(--color-text-muted, #94a3b8)', whiteSpace: 'nowrap' }}>
+      <td className="text-muted" style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
         {dateStr}
       </td>
 
@@ -233,12 +232,12 @@ function FileRow({ file, selected, onToggleSelect, onPreview, onMenuOpen, menuOp
         <button
           onClick={onMenuOpen}
           aria-label="خيارات"
+          className="text-muted"
           style={{
             background: 'none',
             border:     'none',
             cursor:     'pointer',
             fontSize:   '1.1rem',
-            color:      'var(--color-text-muted, #94a3b8)',
             padding:    '2px 6px',
           }}
         >
@@ -263,7 +262,7 @@ function _th(width) {
     padding:     '10px 8px',
     textAlign:   'right',
     fontWeight:  600,
-    color:       'var(--color-text-secondary, #475569)',
+    color:       'rgb(var(--color-muted))',
     cursor:      'pointer',
     userSelect:  'none',
     whiteSpace:  'nowrap',

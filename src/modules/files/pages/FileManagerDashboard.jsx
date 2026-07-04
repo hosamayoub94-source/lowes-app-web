@@ -76,33 +76,29 @@ export default function FileManagerDashboard() {
   }
 
   return (
-    <div dir="rtl" style={{
+    <div dir="rtl" className="bg-surface-alt" style={{
       display:    'flex',
       flexDirection: 'column',
       minHeight:  '100vh',
-      background: 'var(--color-bg-page, #f1f5f9)',
     }}>
 
       {/* ── Page header ────────────────────────────────────── */}
-      <header style={{
-        background:   'var(--color-bg, #ffffff)',
-        borderBottom: '1px solid var(--color-border, #e2e8f0)',
+      <header className="bg-surface border-b border-border" style={{
         padding:      '16px 24px',
         display:      'flex',
         alignItems:   'center',
         justifyContent: 'space-between',
         flexShrink:   0,
       }}>
-        <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary, #1e293b)' }}>
+        <h1 className="text-text" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
           إدارة الملفات
         </h1>
 
         {/* Upload button */}
         <button
           onClick={() => setUploaderOpen((v) => !v)}
+          className="bg-teal text-white"
           style={{
-            background:   'var(--color-primary, #3b82f6)',
-            color:        '#fff',
             border:       'none',
             borderRadius: '8px',
             padding:      '9px 20px',
@@ -122,11 +118,9 @@ export default function FileManagerDashboard() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* ── Sidebar ────────────────────────────────────────── */}
-        <aside style={{
+        <aside className="bg-surface border-l border-border" style={{
           width:        '220px',
           flexShrink:   0,
-          background:   'var(--color-bg, #ffffff)',
-          borderLeft:   '1px solid var(--color-border, #e2e8f0)',
           padding:      '16px 12px',
           display:      'flex',
           flexDirection:'column',
@@ -137,17 +131,15 @@ export default function FileManagerDashboard() {
 
           {/* Storage gauge */}
           {storageStats && (
-            <div style={{
+            <div className="border-t border-border" style={{
               marginTop:    'auto',
               paddingTop:   '16px',
-              borderTop:    '1px solid var(--color-border, #e2e8f0)',
             }}>
-              <p style={{ margin: '0 0 6px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary, #475569)' }}>
+              <p className="text-muted" style={{ margin: '0 0 6px', fontSize: '0.75rem', fontWeight: 600 }}>
                 التخزين
               </p>
-              <div style={{
+              <div className="bg-surface-alt" style={{
                 height:       '6px',
-                background:   'var(--color-border, #e2e8f0)',
                 borderRadius: '3px',
                 overflow:     'hidden',
                 marginBottom: '4px',
@@ -159,12 +151,12 @@ export default function FileManagerDashboard() {
                     ? '#ef4444'
                     : storagePercent >= 70
                       ? '#f59e0b'
-                      : 'var(--color-primary, #3b82f6)',
+                      : 'rgb(var(--color-teal))',
                   borderRadius: '3px',
                   transition: 'width 0.3s',
                 }} />
               </div>
-              <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+              <p className="text-muted" style={{ margin: 0, fontSize: '0.72rem' }}>
                 {formatFileSize(storageStats.totalBytes)} / {formatFileSize(storageStats.quotaBytes)} ({storagePercent}%)
               </p>
             </div>
@@ -200,7 +192,7 @@ export default function FileManagerDashboard() {
               </button>
               {breadcrumb.map((crumb, i) => (
                 <React.Fragment key={crumb.id}>
-                  <span style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: '0.8rem' }}>›</span>
+                  <span className="text-muted" style={{ fontSize: '0.8rem' }}>›</span>
                   <button
                     onClick={() => setCurrentFolder(crumb.id)}
                     style={_breadBtn(i === breadcrumb.length - 1)}
@@ -213,11 +205,10 @@ export default function FileManagerDashboard() {
 
             {/* Search */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <span style={{
+              <span className="text-muted" style={{
                 position: 'absolute',
                 top: '50%', right: '10px',
                 transform: 'translateY(-50%)',
-                color: 'var(--color-text-muted, #94a3b8)',
                 fontSize: '0.9rem',
                 pointerEvents: 'none',
               }}>🔍</span>
@@ -226,24 +217,21 @@ export default function FileManagerDashboard() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="بحث في الملفات…"
+                className="border border-border bg-surface text-text"
                 style={{
-                  border:       '1px solid var(--color-border, #e2e8f0)',
                   borderRadius: '8px',
                   padding:      '7px 32px 7px 12px',
                   fontSize:     '0.83rem',
                   outline:      'none',
                   width:        '200px',
                   direction:    'rtl',
-                  background:   'var(--color-bg, #ffffff)',
-                  color:        'var(--color-text-primary, #1e293b)',
                 }}
               />
             </div>
 
             {/* View toggle */}
-            <div style={{
+            <div className="border border-border" style={{
               display:      'flex',
-              border:       '1px solid var(--color-border, #e2e8f0)',
               borderRadius: '8px',
               overflow:     'hidden',
               flexShrink:   0,
@@ -256,9 +244,9 @@ export default function FileManagerDashboard() {
                   key={mode}
                   onClick={() => setViewMode(mode)}
                   title={label}
+                  className={viewMode === mode ? 'bg-teal/10 text-teal' : 'text-muted'}
                   style={{
-                    background:  viewMode === mode ? 'var(--color-primary-subtle, #eff6ff)' : 'transparent',
-                    color:       viewMode === mode ? 'var(--color-primary, #3b82f6)' : 'var(--color-text-muted, #94a3b8)',
+                    background:  viewMode === mode ? undefined : 'transparent',
                     border:      'none',
                     padding:     '7px 12px',
                     cursor:      'pointer',
@@ -275,9 +263,8 @@ export default function FileManagerDashboard() {
             {hasSelection && (
               <button
                 onClick={handleBulkTrash}
+                className="bg-red-bg text-red-fg"
                 style={{
-                  background:   '#fee2e2',
-                  color:        '#ef4444',
                   border:       'none',
                   borderRadius: '8px',
                   padding:      '7px 14px',
@@ -302,9 +289,7 @@ export default function FileManagerDashboard() {
 
       {/* ── Upload progress footer ───────────────────────────── */}
       {(uploadJobs.length > 0) && (
-        <footer style={{
-          background:   'var(--color-bg, #ffffff)',
-          borderTop:    '1px solid var(--color-border, #e2e8f0)',
+        <footer className="bg-surface border-t border-border" style={{
           padding:      '12px 24px',
           flexShrink:   0,
           maxHeight:    '220px',
@@ -325,8 +310,8 @@ function _breadBtn(active) {
     fontSize:    '0.83rem',
     fontWeight:  active ? 700 : 400,
     color:       active
-      ? 'var(--color-text-primary, #1e293b)'
-      : 'var(--color-primary, #3b82f6)',
+      ? 'rgb(var(--color-text))'
+      : 'rgb(var(--color-teal))',
     padding:     '2px 4px',
   };
 }

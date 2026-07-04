@@ -61,19 +61,17 @@ function HeatmapWidget({ metric, title, style = {} }) {
   }
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500, marginBottom: 12 }}>
+      <div className="text-muted" style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
         {title ?? `خريطة حرارة — ${KPI_LABELS[metric] ?? metric}`}
       </div>
 
       {grid.length === 0 ? (
-        <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+        <div className="text-muted" style={{ fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
           لا توجد بيانات
         </div>
       ) : (
@@ -81,7 +79,7 @@ function HeatmapWidget({ metric, title, style = {} }) {
           {/* Day labels */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 4, paddingRight: 0 }}>
             {DAYS_AR.map((d, i) => (
-              <div key={i} style={{ width: 20, textAlign: 'center', fontSize: 10, color: '#64748b' }}>{d}</div>
+              <div key={i} className="text-muted" style={{ width: 20, textAlign: 'center', fontSize: 10 }}>{d}</div>
             ))}
           </div>
 
@@ -109,7 +107,7 @@ function HeatmapWidget({ metric, title, style = {} }) {
 
           {/* Legend */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
-            <span style={{ fontSize: 10, color: '#64748b' }}>أقل</span>
+            <span className="text-muted" style={{ fontSize: 10 }}>أقل</span>
             {[0.1, 0.3, 0.5, 0.7, 0.9].map((t, i) => (
               <div key={i} style={{
                 width: 14,
@@ -118,7 +116,7 @@ function HeatmapWidget({ metric, title, style = {} }) {
                 background: cellColor(t * maxVal),
               }} />
             ))}
-            <span style={{ fontSize: 10, color: '#64748b' }}>أكثر</span>
+            <span className="text-muted" style={{ fontSize: 10 }}>أكثر</span>
           </div>
         </div>
       )}

@@ -35,7 +35,7 @@ export default function FileGrid({ userId, className = '' }) {
 
   if (loading && files.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted, #94a3b8)' }}>
+      <div className="text-muted" style={{ textAlign: 'center', padding: '48px' }}>
         جاري التحميل…
       </div>
     );
@@ -45,10 +45,10 @@ export default function FileGrid({ userId, className = '' }) {
     return (
       <div style={{ textAlign: 'center', padding: '48px', direction: 'rtl' }}>
         <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📂</div>
-        <p style={{ margin: 0, fontWeight: 600, color: 'var(--color-text-primary, #1e293b)' }}>
+        <p className="text-text" style={{ margin: 0, fontWeight: 600 }}>
           لا توجد ملفات
         </p>
-        <p style={{ margin: '4px 0 0', fontSize: '0.83rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+        <p className="text-muted" style={{ margin: '4px 0 0', fontSize: '0.83rem' }}>
           ارفع ملفات لتظهر هنا
         </p>
       </div>
@@ -97,9 +97,9 @@ function FileCard({ file, selected, onToggleSelect, onPreview, userId }) {
       style={{
         position:     'relative',
         background:   selected
-          ? 'var(--color-primary-subtle, #eff6ff)'
-          : 'var(--color-surface, #f8fafc)',
-        border:       `2px solid ${selected ? 'var(--color-primary, #3b82f6)' : 'var(--color-border, #e2e8f0)'}`,
+          ? 'rgb(var(--color-teal) / 0.1)'
+          : 'rgb(var(--color-surface-alt))',
+        border:       `2px solid ${selected ? 'rgb(var(--color-teal))' : 'rgb(var(--color-border))'}`,
         borderRadius: '12px',
         padding:      '16px 12px 12px',
         cursor:       'pointer',
@@ -119,8 +119,8 @@ function FileCard({ file, selected, onToggleSelect, onPreview, userId }) {
           width:        '18px',
           height:       '18px',
           borderRadius: '4px',
-          border:       `2px solid ${selected ? 'var(--color-primary, #3b82f6)' : 'var(--color-border, #e2e8f0)'}`,
-          background:   selected ? 'var(--color-primary, #3b82f6)' : '#fff',
+          border:       `2px solid ${selected ? 'rgb(var(--color-teal))' : 'rgb(var(--color-border))'}`,
+          background:   selected ? 'rgb(var(--color-teal))' : 'rgb(var(--color-surface))',
           display:      'flex',
           alignItems:   'center',
           justifyContent:'center',
@@ -145,7 +145,7 @@ function FileCard({ file, selected, onToggleSelect, onPreview, userId }) {
           alignItems:'center',
           justifyContent:'center',
           borderRadius: '4px',
-          color:     'var(--color-text-muted, #94a3b8)',
+          color:     'rgb(var(--color-muted))',
           fontSize:  '14px',
         }}
       >
@@ -162,11 +162,10 @@ function FileCard({ file, selected, onToggleSelect, onPreview, userId }) {
       </div>
 
       {/* Name */}
-      <p style={{
+      <p className="text-text" style={{
         margin:       0,
         fontSize:     '0.8rem',
         fontWeight:   600,
-        color:        'var(--color-text-primary, #1e293b)',
         overflow:     'hidden',
         textOverflow: 'ellipsis',
         whiteSpace:   'nowrap',
@@ -176,10 +175,9 @@ function FileCard({ file, selected, onToggleSelect, onPreview, userId }) {
       </p>
 
       {/* Size */}
-      <p style={{
+      <p className="text-muted" style={{
         margin:   '3px 0 0',
         fontSize: '0.72rem',
-        color:    'var(--color-text-muted, #94a3b8)',
       }}>
         {formatFileSize(file.size_bytes)}
       </p>

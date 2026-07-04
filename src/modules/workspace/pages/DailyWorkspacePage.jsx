@@ -289,6 +289,7 @@ export function DailyWorkspacePage() {
         <div className="flex items-center justify-around max-w-sm mx-auto">
 
           <button
+            onClick={() => navigate('/')}
             className="flex flex-col items-center gap-0.5 p-2 text-indigo-600"
           >
             <span className="text-xl">🏠</span>

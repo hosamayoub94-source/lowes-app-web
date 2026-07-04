@@ -11,6 +11,7 @@
  *   6. Customer profile modal
  */
 import React, { useState } from 'react';
+import { useAuth } from '@hooks/useAuth';
 import { cn } from '@utils/classNames';
 import { Button } from '@components/ui/Button';
 import { Spinner } from '@components/ui/Loading';
@@ -98,7 +99,10 @@ function ViewTabs({ active, onChange, leadsCount }) {
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
-export default function CRMDashboard({ userId }) {
+export default function CRMDashboard({ userId: userIdProp }) {
+  // الراوتر لا يمرّر userId — نأخذه من الجلسة (كان undefined فتنكسر بيانات المالك).
+  const { id: authId } = useAuth();
+  const userId = userIdProp ?? authId;
   const { initialized } = useCRMBootstrap(userId);
 
   const { stages, dealsMap, kpis, moveDeal, isLoading: boardLoading } = usePipelineBoard();

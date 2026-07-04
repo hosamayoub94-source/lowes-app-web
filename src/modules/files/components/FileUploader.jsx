@@ -119,12 +119,12 @@ export default function FileUploader({
 
   // ── Styles ────────────────────────────────────────────────
   const borderColor = dragging
-    ? 'var(--color-primary, #3b82f6)'
-    : 'var(--color-border, #e2e8f0)';
+    ? 'rgb(var(--color-teal))'
+    : 'rgb(var(--color-border))';
 
   const bgColor = dragging
-    ? 'var(--color-primary-subtle, #eff6ff)'
-    : 'var(--color-surface, #f8fafc)';
+    ? 'rgb(var(--color-teal) / 0.1)'
+    : 'rgb(var(--color-surface-alt))';
 
   return (
     <div className={className} style={{ direction: 'rtl' }}>
@@ -165,11 +165,10 @@ export default function FileUploader({
         </div>
 
         {/* Label */}
-        <p style={{
+        <p className="text-text" style={{
           margin:    0,
           fontSize:  '1rem',
           fontWeight: 600,
-          color:     'var(--color-text-primary, #1e293b)',
         }}>
           {uploading
             ? 'جاري الرفع…'
@@ -178,10 +177,9 @@ export default function FileUploader({
               : 'اسحب الملفات أو انقر للاختيار'}
         </p>
 
-        <p style={{
+        <p className="text-muted" style={{
           margin:    '4px 0 0',
           fontSize:  '0.8rem',
-          color:     'var(--color-text-muted, #94a3b8)',
         }}>
           الحد الأقصى لكل ملف: {formatFileSize(MAX_FILE_SIZE_BYTES)}
         </p>

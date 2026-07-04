@@ -76,7 +76,7 @@ export default function FolderTree({ className = '' }) {
       />
 
       {/* New folder form */}
-      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
+      <div className="border-t border-border" style={{ marginTop: '12px', paddingTop: '12px' }}>
         {creating ? (
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', padding: '2px 0' }}>
             <input
@@ -86,9 +86,9 @@ export default function FolderTree({ className = '' }) {
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
               placeholder="اسم المجلد"
               autoFocus
+              className="border border-teal"
               style={{
                 flex:         1,
-                border:       '1px solid var(--color-primary, #3b82f6)',
                 borderRadius: '6px',
                 padding:      '5px 8px',
                 fontSize:     '0.82rem',
@@ -99,23 +99,23 @@ export default function FolderTree({ className = '' }) {
             <button
               onClick={handleCreate}
               disabled={loading || !newName.trim()}
-              style={_actionBtn('var(--color-primary, #3b82f6)', '#fff')}
+              style={_actionBtn('rgb(var(--color-teal))', '#fff')}
             >
               {loading ? '…' : '✓'}
             </button>
-            <button onClick={() => setCreating(false)} style={_actionBtn('#e2e8f0', '#475569')}>
+            <button onClick={() => setCreating(false)} style={_actionBtn('rgb(var(--color-surface-alt))', 'rgb(var(--color-muted))')}>
               ✕
             </button>
           </div>
         ) : (
           <button
             onClick={() => setCreating(true)}
+            className="text-teal"
             style={{
               background:  'none',
               border:      'none',
               cursor:      'pointer',
               fontSize:    '0.82rem',
-              color:       'var(--color-primary, #3b82f6)',
               padding:     '4px 0',
               display:     'flex',
               alignItems:  'center',
@@ -145,7 +145,7 @@ function FolderNode({ node, currentFolderId, setCurrentFolder, depth }) {
           style={{
             background: 'none', border: 'none', cursor: hasChildren ? 'pointer' : 'default',
             padding: '0 2px', fontSize: '0.7rem',
-            color: hasChildren ? 'var(--color-text-muted, #94a3b8)' : 'transparent',
+            color: hasChildren ? 'rgb(var(--color-muted))' : 'transparent',
             flexShrink: 0,
           }}
         >
@@ -194,7 +194,7 @@ function FolderItem({ label, icon, folderId, currentFolderId, onClick, accentCol
         alignItems:  'center',
         gap:         '8px',
         width:       '100%',
-        background:  active ? 'var(--color-primary-subtle, #eff6ff)' : 'none',
+        background:  active ? 'rgb(var(--color-teal) / 0.1)' : 'none',
         border:      'none',
         borderRadius:'8px',
         padding:     '7px 10px',
@@ -202,10 +202,10 @@ function FolderItem({ label, icon, folderId, currentFolderId, onClick, accentCol
         fontSize:    '0.85rem',
         fontWeight:  active ? 700 : 400,
         color:       muted
-          ? 'var(--color-text-muted, #94a3b8)'
+          ? 'rgb(var(--color-muted))'
           : active
-            ? 'var(--color-primary, #3b82f6)'
-            : 'var(--color-text-primary, #1e293b)',
+            ? 'rgb(var(--color-teal))'
+            : 'rgb(var(--color-text))',
         textAlign:   'right',
         direction:   'rtl',
         transition:  'background 0.1s',

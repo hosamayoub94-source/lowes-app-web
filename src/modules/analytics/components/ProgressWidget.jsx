@@ -9,9 +9,8 @@ import { KPI_LABELS, KPI_COLORS, KPI_THRESHOLDS, formatKPI, getKPIStatus, KPI_ST
 function ProgressBar({ value, max, color }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
-    <div style={{
+    <div className="bg-surface-alt" style={{
       height: 6,
-      background: '#334155',
       borderRadius: 999,
       overflow: 'hidden',
     }}>
@@ -33,14 +32,12 @@ function ProgressWidget({ metrics = [], title = 'تقدم المؤشرات', sty
   const kpis = useKPIs();
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500, marginBottom: 14 }}>
+      <div className="text-muted" style={{ fontSize: 13, fontWeight: 500, marginBottom: 14 }}>
         {title}
       </div>
 
@@ -55,7 +52,7 @@ function ProgressWidget({ metrics = [], title = 'تقدم المؤشرات', sty
           return (
             <div key={metric}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary, #94a3b8)' }}>
+                <span className="text-muted" style={{ fontSize: 12 }}>
                   {KPI_LABELS[metric] ?? metric}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color }}>

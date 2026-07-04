@@ -9,21 +9,25 @@ import DashboardBuilder from '../components/DashboardBuilder';
 import FilterBar        from '../components/FilterBar';
 import KPIAlertCard     from '../components/KPIAlertCard';
 import useAnalyticsStore from '../store/useAnalyticsStore';
+import { useAuth } from '@hooks/useAuth';
 
 const BTN = ({ label, onClick, color = '#3b82f6', disabled }) => (
   <button
     onClick={onClick}
     disabled={disabled}
+    className={disabled ? 'bg-surface-alt text-muted' : ''}
     style={{
       padding: '6px 14px', borderRadius: 8, border: 'none',
-      background: disabled ? '#334155' : color, color: '#fff',
+      background: disabled ? undefined : color, color: disabled ? undefined : '#fff',
       fontSize: 12, fontWeight: 500, cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.7 : 1,
     }}
   >{label}</button>
 );
 
-function ExecutiveDashboard({ userId }) {
+function ExecutiveDashboard({ userId: userIdProp }) {
+  const { id: authId } = useAuth();
+  const userId = userIdProp ?? authId;
   useAnalyticsBootstrap(userId);
   const lastUpdated  = useLastUpdated();
   const isLoading    = useIsAnalyticsLoading();
@@ -35,9 +39,9 @@ function ExecutiveDashboard({ userId }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'rgb(var(--color-navy))', margin: 0 }}>📊 لوحة القيادة التنفيذية</h1>
+          <h1 className="text-text" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📊 لوحة القيادة التنفيذية</h1>
           {lastUpdated && (
-            <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>
+            <p className="text-muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
               آخر تحديث: {new Date(lastUpdated).toLocaleTimeString('ar-SA')}
             </p>
           )}
@@ -58,7 +62,7 @@ function ExecutiveDashboard({ userId }) {
       {isLoading && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
           {[1,2,3,4].map((i) => (
-            <div key={i} style={{ flex: 1, height: 120, borderRadius: 12, background: '#1e293b', animation: 'pulse 1.5s infinite' }} />
+            <div key={i} className="bg-surface-alt" style={{ flex: 1, height: 120, borderRadius: 12, animation: 'pulse 1.5s infinite' }} />
           ))}
         </div>
       )}

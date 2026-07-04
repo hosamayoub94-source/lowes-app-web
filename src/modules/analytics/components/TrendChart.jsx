@@ -14,16 +14,16 @@ const LazyChart = lazy(() =>
       return (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.15)" />
             <XAxis
               dataKey="date"
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tick={{ fill: 'rgb(var(--color-muted))', fontSize: 11 }}
               tickFormatter={(d) => d?.slice(5)}  // MM-DD
             />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} width={38} />
+            <YAxis tick={{ fill: 'rgb(var(--color-muted))', fontSize: 11 }} width={38} />
             <Tooltip
-              contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-              labelStyle={{ color: '#94a3b8', fontSize: 12 }}
+              contentStyle={{ background: 'rgb(var(--color-surface))', border: '1px solid rgb(var(--color-border) / 0.15)', borderRadius: 8, color: 'rgb(var(--color-text))' }}
+              labelStyle={{ color: 'rgb(var(--color-muted))', fontSize: 12 }}
               formatter={(val) => [formatKPI(metric, val), KPI_LABELS[metric] ?? metric]}
             />
             <Line
@@ -47,28 +47,26 @@ function TrendChart({ metric, title, style = {} }) {
   const color   = KPI_COLORS[metric] ?? '#3b82f6';
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500, marginBottom: 12 }}>
+      <div className="text-muted" style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
         {title ?? KPI_LABELS[metric] ?? metric}
       </div>
 
       {loading ? (
-        <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+        <div className="text-muted" style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           جارٍ التحميل…
         </div>
       ) : data.length === 0 ? (
-        <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+        <div className="text-muted" style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
           لا توجد بيانات
         </div>
       ) : (
         <Suspense fallback={
-          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+          <div className="text-muted" style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             جارٍ تحميل الرسم البياني…
           </div>
         }>

@@ -29,7 +29,7 @@ function resolveWidget(widget) {
     case WIDGET_TYPE.PROGRESS:      return <ProgressWidget metrics={config.metrics ?? []} {...shared} />;
     case WIDGET_TYPE.KPI_ALERT:     return <KPIAlertCard {...shared} />;
     default:
-      return <div style={{ padding: 16, color: '#64748b', fontSize: 12 }}>نوع widget غير معروف: {widget_type}</div>;
+      return <div className="text-muted" style={{ padding: 16, fontSize: 12 }}>نوع widget غير معروف: {widget_type}</div>;
   }
 }
 
@@ -84,9 +84,9 @@ function DashboardBuilder({ editable = false, style = {} }) {
             style={{
               padding: '6px 14px',
               borderRadius: 8,
-              border: editMode ? '1.5px solid #3b82f6' : '1px solid #334155',
+              border: editMode ? '1.5px solid #3b82f6' : '1px solid rgb(var(--color-border) / 0.15)',
               background: editMode ? '#3b82f622' : 'transparent',
-              color: editMode ? '#3b82f6' : '#94a3b8',
+              color: editMode ? '#3b82f6' : 'rgb(var(--color-muted))',
               fontSize: 12,
               cursor: 'pointer',
             }}

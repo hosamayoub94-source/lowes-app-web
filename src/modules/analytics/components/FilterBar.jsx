@@ -35,9 +35,9 @@ function FilterBar({ style = {} }) {
             borderRadius: 999,
             fontSize: 12,
             fontWeight: 500,
-            border: filters.preset === preset ? '1.5px solid #3b82f6' : '1.5px solid #334155',
+            border: filters.preset === preset ? '1.5px solid #3b82f6' : '1.5px solid rgb(var(--color-border) / 0.15)',
             background: filters.preset === preset ? '#3b82f622' : 'transparent',
-            color: filters.preset === preset ? '#3b82f6' : '#94a3b8',
+            color: filters.preset === preset ? '#3b82f6' : 'rgb(var(--color-muted))',
             cursor: 'pointer',
             transition: 'all 0.15s',
           }}
@@ -54,7 +54,7 @@ function FilterBar({ style = {} }) {
           onChange={(e) => setDateRange(e.target.value, filters.to)}
           style={_inputStyle}
         />
-        <span style={{ color: '#64748b', fontSize: 12 }}>—</span>
+        <span className="text-muted" style={{ fontSize: 12 }}>—</span>
         <input
           type="date"
           value={filters.to ?? ''}
@@ -66,13 +66,12 @@ function FilterBar({ style = {} }) {
       {/* Reset */}
       <button
         onClick={reset}
+        className="border border-border text-muted"
         style={{
           padding: '5px 10px',
           borderRadius: 6,
           fontSize: 12,
-          border: '1px solid #334155',
           background: 'transparent',
-          color: '#64748b',
           cursor: 'pointer',
           marginRight: 'auto',
         }}
@@ -86,9 +85,9 @@ function FilterBar({ style = {} }) {
 const _inputStyle = {
   padding: '4px 8px',
   borderRadius: 6,
-  border: '1px solid #334155',
-  background: '#0f172a',
-  color: '#e2e8f0',
+  border: '1px solid rgb(var(--color-border) / 0.15)',
+  background: 'rgb(var(--color-surface-alt))',
+  color: 'rgb(var(--color-text))',
   fontSize: 12,
   outline: 'none',
 };

@@ -19,8 +19,7 @@ function StatCard({ metric, title, icon, style = {} }) {
   const trendIcon    = TREND_ICONS[trend.direction] ?? '→';
 
   return (
-    <div style={{
-      background: 'rgb(var(--color-surface, 255 255 255))',
+    <div className="bg-surface" style={{
       border: `1px solid ${borderColor}33`,
       borderTop: `3px solid ${borderColor}`,
       borderRadius: 12,
@@ -33,7 +32,7 @@ function StatCard({ metric, title, icon, style = {} }) {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: 'rgb(var(--color-text-muted, 107 114 128))', fontWeight: 500 }}>
+        <span className="text-muted" style={{ fontSize: 13, fontWeight: 500 }}>
           {title ?? KPI_LABELS[metric] ?? metric}
         </span>
         {icon && <span style={{ fontSize: 18 }}>{icon}</span>}

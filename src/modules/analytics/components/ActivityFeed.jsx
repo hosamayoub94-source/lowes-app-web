@@ -32,19 +32,17 @@ function ActivityFeed({ title = 'النشاط الأخير', limit = 8, style = 
   const items    = (activity ?? []).slice(0, limit);
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500, marginBottom: 12 }}>
+      <div className="text-muted" style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
         {title}
       </div>
 
       {items.length === 0 ? (
-        <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+        <div className="text-muted" style={{ fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
           لا يوجد نشاط حديث
         </div>
       ) : (
@@ -58,7 +56,7 @@ function ActivityFeed({ title = 'النشاط الأخير', limit = 8, style = 
                 alignItems: 'flex-start',
                 gap: 10,
                 padding: '8px 0',
-                borderBottom: idx < items.length - 1 ? '1px solid #1e293b88' : 'none',
+                borderBottom: idx < items.length - 1 ? '1px solid rgb(var(--color-border) / 0.1)' : 'none',
               }}>
                 {/* Icon dot */}
                 <div style={{
@@ -79,12 +77,12 @@ function ActivityFeed({ title = 'النشاط الأخير', limit = 8, style = 
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text, #e2e8f0)', lineHeight: 1.4 }}>
+                  <div className="text-text" style={{ fontSize: 13, lineHeight: 1.4 }}>
                     <strong style={{ color }}>{item.user}</strong>
                     {' '}
                     {item.message}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
                     {item.time ? _timeAgo(item.time) : ''}
                   </div>
                 </div>

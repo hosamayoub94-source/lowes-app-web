@@ -27,12 +27,12 @@ const LazyDonut = lazy(() =>
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+              contentStyle={{ background: 'rgb(var(--color-surface))', border: '1px solid rgb(var(--color-border) / 0.15)', borderRadius: 8, color: 'rgb(var(--color-text))' }}
               formatter={(val, name) => [val, name]}
             />
             <Legend
               formatter={(value) => (
-                <span style={{ color: '#94a3b8', fontSize: 11 }}>{value}</span>
+                <span style={{ color: 'rgb(var(--color-muted))', fontSize: 11 }}>{value}</span>
               )}
             />
           </PieChart>
@@ -58,24 +58,22 @@ function DonutChart({ metrics = [], title, style = {} }) {
     .filter((s) => s.value > 0);
 
   return (
-    <div style={{
-      background: 'var(--surface, #1e293b)',
-      border: '1px solid #334155',
+    <div className="bg-surface border border-border" style={{
       borderRadius: 12,
       padding: '16px 20px',
       ...style,
     }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', fontWeight: 500, marginBottom: 8 }}>
+      <div className="text-muted" style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
         {title ?? 'توزيع المقاييس'}
       </div>
 
       {segments.length === 0 ? (
-        <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+        <div className="text-muted" style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
           لا توجد بيانات
         </div>
       ) : (
         <Suspense fallback={
-          <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+          <div className="text-muted" style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             جارٍ التحميل…
           </div>
         }>

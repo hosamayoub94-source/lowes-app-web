@@ -74,13 +74,13 @@ export default function FilePreview({ file, onClose, open = true }) {
         role="dialog"
         aria-modal="true"
         aria-label={`معاينة: ${file.name}`}
+        className="bg-surface"
         style={{
           position:     'fixed',
           top:          '50%',
           left:         '50%',
           transform:    'translate(-50%, -50%)',
           zIndex:       1001,
-          background:   'var(--color-bg, #ffffff)',
           borderRadius: '16px',
           boxShadow:    '0 20px 60px rgba(0,0,0,0.25)',
           width:        'min(90vw, 900px)',
@@ -92,21 +92,20 @@ export default function FilePreview({ file, onClose, open = true }) {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="border-b border-border" style={{
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'space-between',
           padding:        '14px 20px',
-          borderBottom:   '1px solid var(--color-border, #e2e8f0)',
           flexShrink:     0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>{FILE_TYPE_ICON[file.file_type] ?? '📎'}</span>
             <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary, #1e293b)' }}>
+              <p className="text-text" style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>
                 {file.name}
               </p>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+              <p className="text-muted" style={{ margin: 0, fontSize: '0.75rem' }}>
                 {FILE_TYPE_LABELS[file.file_type] ?? 'ملف'} · {formatFileSize(file.size_bytes)}
               </p>
             </div>
@@ -115,12 +114,12 @@ export default function FilePreview({ file, onClose, open = true }) {
           <button
             onClick={onClose}
             aria-label="إغلاق المعاينة"
+            className="text-muted"
             style={{
               background:   'none',
               border:       'none',
               cursor:       'pointer',
               fontSize:     '1.25rem',
-              color:        'var(--color-text-muted, #94a3b8)',
               padding:      '4px',
               lineHeight:   1,
             }}
@@ -196,10 +195,10 @@ function FallbackState({ file, url }) {
   return (
     <div style={{ textAlign: 'center', padding: '24px' }}>
       <div style={{ fontSize: '3rem', marginBottom: '12px' }}>{FILE_TYPE_ICON[file.file_type] ?? '📎'}</div>
-      <p style={{ margin: '0 0 4px', fontWeight: 600, color: 'var(--color-text-primary, #1e293b)' }}>
+      <p className="text-text" style={{ margin: '0 0 4px', fontWeight: 600 }}>
         {file.name}
       </p>
-      <p style={{ margin: '0 0 16px', fontSize: '0.82rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+      <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.82rem' }}>
         لا تتوفر معاينة لهذا النوع من الملفات
       </p>
       {url && (
@@ -208,11 +207,10 @@ function FallbackState({ file, url }) {
           download={file.name}
           target="_blank"
           rel="noreferrer"
+          className="bg-teal text-white"
           style={{
             display:      'inline-block',
             padding:      '8px 20px',
-            background:   'var(--color-primary, #3b82f6)',
-            color:        '#fff',
             borderRadius: '8px',
             textDecoration: 'none',
             fontSize:     '0.88rem',
@@ -230,10 +228,10 @@ function TooBigState({ file, url }) {
   return (
     <div style={{ textAlign: 'center', padding: '24px' }}>
       <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📦</div>
-      <p style={{ margin: '0 0 4px', fontWeight: 600, color: 'var(--color-text-primary, #1e293b)' }}>
+      <p className="text-text" style={{ margin: '0 0 4px', fontWeight: 600 }}>
         الملف كبير جداً للمعاينة
       </p>
-      <p style={{ margin: '0 0 16px', fontSize: '0.82rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+      <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.82rem' }}>
         الحجم: {formatFileSize(file.size_bytes)} — الحد الأقصى للمعاينة: {formatFileSize(MAX_PREVIEW_SIZE_BYTES)}
       </p>
       {url && (
@@ -242,11 +240,10 @@ function TooBigState({ file, url }) {
           download={file.name}
           target="_blank"
           rel="noreferrer"
+          className="bg-teal text-white"
           style={{
             display:      'inline-block',
             padding:      '8px 20px',
-            background:   'var(--color-primary, #3b82f6)',
-            color:        '#fff',
             borderRadius: '8px',
             textDecoration: 'none',
             fontSize:     '0.88rem',
@@ -265,13 +262,12 @@ function ErrorState({ message, onRetry }) {
     <div style={{ textAlign: 'center', padding: '24px' }}>
       <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>⚠️</div>
       <p style={{ margin: '0 0 12px', color: '#ef4444', fontWeight: 600 }}>فشل تحميل المعاينة</p>
-      <p style={{ margin: '0 0 16px', fontSize: '0.82rem', color: 'var(--color-text-muted, #94a3b8)' }}>{message}</p>
+      <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.82rem' }}>{message}</p>
       <button
         onClick={onRetry}
+        className="bg-teal text-white"
         style={{
           padding:      '8px 20px',
-          background:   'var(--color-primary, #3b82f6)',
-          color:        '#fff',
           border:       'none',
           borderRadius: '8px',
           cursor:       'pointer',
@@ -290,8 +286,8 @@ function Spinner() {
       <div style={{
         width:       '36px',
         height:      '36px',
-        border:      '4px solid var(--color-border, #e2e8f0)',
-        borderTop:   '4px solid var(--color-primary, #3b82f6)',
+        border:      '4px solid rgb(var(--color-border))',
+        borderTop:   '4px solid rgb(var(--color-teal))',
         borderRadius:'50%',
         animation:   'spin 0.8s linear infinite',
         margin:      '0 auto',

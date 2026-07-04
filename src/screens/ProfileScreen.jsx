@@ -859,7 +859,6 @@ export default function ProfileScreen() {
             { min: 50,  icon: '⭐', label: 'نجم' },
             { min: 0,   icon: '🌱', label: 'مبتدئ' },
           ].map(lvl => {
-            const isActive = totalPoints >= lvl.min && (lvl.min === 0 || true);
             const isPassed = totalPoints >= lvl.min;
             return (
               <div key={lvl.label}

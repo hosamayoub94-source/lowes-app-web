@@ -140,10 +140,9 @@ export default function FileActionsMenu({
     <div
       ref={menuRef}
       role="menu"
+      className="bg-surface border border-border"
       style={{
         position:     'absolute',
-        background:   'var(--color-bg, #ffffff)',
-        border:       '1px solid var(--color-border, #e2e8f0)',
         borderRadius: '10px',
         boxShadow:    '0 8px 24px rgba(0,0,0,0.12)',
         minWidth:     '170px',
@@ -165,9 +164,9 @@ export default function FileActionsMenu({
               if (e.key === 'Escape') setRenaming(false);
             }}
             autoFocus
+            className="border border-teal"
             style={{
               width:        '100%',
-              border:       '1px solid var(--color-primary, #3b82f6)',
               borderRadius: '6px',
               padding:      '5px 8px',
               fontSize:     '0.82rem',
@@ -177,10 +176,10 @@ export default function FileActionsMenu({
             }}
           />
           <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-            <button onClick={handleRenameSubmit} disabled={busy} style={_btn('var(--color-primary, #3b82f6)', '#fff')}>
+            <button onClick={handleRenameSubmit} disabled={busy} style={_btn('rgb(var(--color-teal))', '#fff')}>
               حفظ
             </button>
-            <button onClick={() => setRenaming(false)} style={_btn('#e2e8f0', '#475569')}>
+            <button onClick={() => setRenaming(false)} style={_btn('rgb(var(--color-surface-alt))', 'rgb(var(--color-muted))')}>
               إلغاء
             </button>
           </div>
@@ -247,12 +246,12 @@ function MenuItem({ icon, label, onClick, disabled = false, danger = false }) {
         padding:     '7px 10px',
         cursor:      disabled ? 'not-allowed' : 'pointer',
         fontSize:    '0.83rem',
-        color:       danger ? '#ef4444' : 'var(--color-text-primary, #1e293b)',
+        color:       danger ? 'rgb(var(--color-red-fg))' : 'rgb(var(--color-text))',
         opacity:     disabled ? 0.5 : 1,
         textAlign:   'right',
         direction:   'rtl',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#fef2f2' : 'var(--color-surface, #f8fafc)'; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = danger ? 'rgb(var(--color-red-bg))' : 'rgb(var(--color-surface-alt))'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
     >
       <span style={{ flexShrink: 0 }}>{icon}</span>
