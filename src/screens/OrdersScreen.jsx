@@ -579,6 +579,20 @@ function ProductValuesSection({ delivered, canEdit }) {
 
 // ── Monthly Deliveries Tab ────────────────────────────────────
 
+// PostgREST يحدّ كل استجابة بـ1000 صف — نجلب على دفعات حتى ننتهي من كل الصفوف.
+// (سجل الموظفين قد يتجاوز 4000 طلب مؤرشف، فبدون هذا تُبتر الأرقام صامتاً.)
+async function fetchAllRows(buildQuery) {
+  const PAGE = 1000;
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE - 1);
+    if (error || !data?.length) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
   const [brand, setBrand] = useState('all');
   const [showSettings, setShowSettings] = useState(false);
@@ -628,7 +642,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   // لذا نجلبها مستقلاً حتى تظهر الأشهر الماضية بعد أرشفتها ──────────────
   const [archivedForPeriod, setArchivedForPeriod] = useState([]);
   useEffect(() => {
-    supabase
+    let cancelled = false;
+    fetchAllRows(() => supabase
       .from('orders')
       .select('*')
       .eq('archived', true)
@@ -636,7 +651,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       .is('deleted_at', null)
       .gte('order_date', periodStart)
       .lte('order_date', periodEnd + 'T23:59:59')
-      .then(({ data }) => setArchivedForPeriod(data || []));
+    ).then((rows) => { if (!cancelled) setArchivedForPeriod(rows); });
+    return () => { cancelled = true; };
   }, [periodStart, periodEnd]);
 
   // دمج الطلبات الحية مع المؤرشفة للفترة (بلا تكرار)
@@ -654,15 +670,15 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setLoadingRec(true);
     const d = new Date(); d.setMonth(d.getMonth() - 5); d.setDate(1);
     const since = d.toISOString().slice(0, 10);
+    const base = () => supabase.from('orders')
+      .select('id,handler_name,order_date,amount,currency,market,items')
+      .eq('status', 'delivered').is('deleted_at', null).gte('order_date', since);
+    // نجلب المؤرشف والحيّ على دفعات (المؤرشف وحده قد يتجاوز 4000 صف).
     Promise.all([
-      supabase.from('orders').select('id,handler_name,order_date,amount,currency,market,items')
-        .eq('status', 'delivered').is('deleted_at', null)
-        .or('archived.is.null,archived.eq.false').gte('order_date', since),
-      supabase.from('orders').select('id,handler_name,order_date,amount,currency,market,items')
-        .eq('status', 'delivered').is('deleted_at', null)
-        .eq('archived', true).gte('order_date', since),
-    ]).then(([r1, r2]) => {
-      setRecordsRaw([...(r1.data || []), ...(r2.data || [])]);
+      fetchAllRows(() => base().or('archived.is.null,archived.eq.false')),
+      fetchAllRows(() => base().eq('archived', true)),
+    ]).then(([live, arch]) => {
+      setRecordsRaw([...live, ...arch]);
       setLoadingRec(false);
     });
   }, [showRecords, recordsRaw]);
@@ -2816,21 +2832,25 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      let q = supabase.from('orders').select('*').is('deleted_at', null).order('order_date', { ascending: false });
-      if (viewArchive) {
-        // Archive view: search the whole archive server-side (not just a page).
-        q = q.eq('archived', true);
-        const s = search.trim();
-        if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
-        q = q.limit(500);
-      } else {
-        q = q.or('archived.is.null,archived.eq.false');
-      }
       // Everyone (employees included) sees BOTH teams' orders so cross-team
       // selling works; the market tabs below let them narrow to تركيا/سوريا.
       // Edits/permissions are handled per-card, not by hiding rows here.
-      const { data } = await q;
-      setOrders(data ?? []);
+      if (viewArchive) {
+        // Archive view: search the whole archive server-side (not just a page).
+        let q = supabase.from('orders').select('*').is('deleted_at', null)
+          .order('order_date', { ascending: false }).eq('archived', true);
+        const s = search.trim();
+        if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
+        const { data } = await q.limit(500);
+        setOrders(data ?? []);
+      } else {
+        // النشطة: نجلب على دفعات — بدون هذا يبترها PostgREST عند 1000 صف صامتاً
+        // (تنمو المجموعة النشطة، والأرشفة الشهرية تبقيها صغيرة لكن ليست مضمونة).
+        const rows = await fetchAllRows(() => supabase.from('orders').select('*')
+          .is('deleted_at', null).or('archived.is.null,archived.eq.false')
+          .order('order_date', { ascending: false }));
+        setOrders(rows);
+      }
     } catch {}
     finally { setLoading(false); }
   }, [viewArchive, search]);

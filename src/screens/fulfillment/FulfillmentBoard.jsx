@@ -6,6 +6,8 @@
 // =============================================================
 import { useState, useMemo } from 'react';
 import { STATUSES } from '@data/orderStatus';
+import { labelEligible, openLabelsPrint } from '@services/labelPrint';
+import { printShippingLabel } from '@utils/printShippingLabel';
 
 // الحالات التي تعني «الطلب على طاولة المجهّز»
 const ACTIONABLE = ['pending', 'preparing', 'motor_prep'];
@@ -161,11 +163,20 @@ function PrepCard({ o, checked, onCheck, onAdvance, busy, accessible }) {
         <ProductList items={o.items} accessible={accessible} />
         {o.notes && <p className={`text-muted mt-1 ${accessible ? 'text-sm mt-2' : 'text-[10px] line-clamp-1'}`}>📝 {o.notes}</p>}
       </div>
-      <button onClick={() => onAdvance(o)} disabled={busy}
-        className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
-          o.status === 'pending' ? 'bg-amber-fg/10 text-amber-fg hover:bg-amber-fg/20' : 'bg-teal text-navy hover:bg-teal/90'}`}>
-        {actionLabel(o)}
-      </button>
+      <div className="shrink-0 flex flex-col gap-1.5">
+        <button onClick={() => onAdvance(o)} disabled={busy}
+          className={`px-3 py-2 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
+            o.status === 'pending' ? 'bg-amber-fg/10 text-amber-fg hover:bg-amber-fg/20' : 'bg-teal text-navy hover:bg-teal/90'}`}>
+          {actionLabel(o)}
+        </button>
+        {labelEligible(o) && (
+          <button onClick={() => printShippingLabel(o)}
+            title="طباعة بوليصة الشحن لهذا الطلب"
+            className="px-3 py-1.5 rounded-xl bg-[#fdfaf2] border border-[#C9A646]/50 text-[#8a6d1f] text-xs font-bold hover:bg-[#faf3df] transition">
+            🖨️ بوليصة
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -193,6 +204,8 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
       || (o.items || []).some(it => String(it.name || '').toLowerCase().includes(search.toLowerCase())))
   ), [orders, market, search]);
 
+  // الطلبات الجاهزة لطباعة بوليصة الشحن (سوريا: في التجهيز · تركيا: تحضير الموتور)
+  const labelReady   = useMemo(() => queue.filter(labelEligible), [queue]);
   const todayCount   = useMemo(() => queue.filter(o => ageDays(o) === 0).length, [queue]);
   const backlog      = useMemo(() => queue.filter(o => ageDays(o) >= 1), [queue]);
   const oldestAge    = useMemo(() => backlog.reduce((m, o) => Math.max(m, ageDays(o)), 0), [backlog]);
@@ -266,10 +279,18 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
               className={`px-3 py-2 rounded-xl text-xs font-bold transition ${accessible ? 'bg-teal text-navy' : 'bg-white/15 text-white hover:bg-white/25'}`}>
               👁️ {accessible ? 'واضح ✓' : 'عرض واضح'}
             </button>
+            {labelReady.length > 0 && (
+              <button onClick={() => openLabelsPrint(labelReady)}
+                title="طباعة بوليصات الشحن للطلبات الجاهزة (سوريا: في التجهيز · تركيا: تحضير الموتور) — A4، 8 بوليصات بالصفحة"
+                className="px-3 py-2 rounded-xl bg-[#C9A646] text-white text-xs font-extrabold hover:bg-[#b8963d] transition shadow-sm">
+                🖨️ بوليصات ({labelReady.length})
+              </button>
+            )}
             {queue.length > 0 && (
               <button onClick={() => printPrepList(groups, marketLabel, accessible)}
+                title="طباعة قائمة التجهيز (المنتجات المطلوب تحضيرها)"
                 className="px-3 py-2 rounded-xl bg-white/15 text-white text-xs font-bold hover:bg-white/25 transition">
-                🖨️ طباعة
+                📋 قائمة التجهيز
               </button>
             )}
             {canExit && (
