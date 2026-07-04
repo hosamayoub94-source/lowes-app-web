@@ -237,10 +237,11 @@ export function openLabelsPrint(orders) {
 }
 
 // ── الأهلية: أي الطلبات تُطبع لها بوليصة؟ ─────────────────────
-// سوريا: «في التجهيز» · تركيا: «تحضير الموتور» فقط (يورتيتشي لها بوليصتها).
+// سوريا: «وارد جديد» فقط (تُطبع البوليصة فور وصول الطلب) · تركيا: «تحضير
+// الموتور» فقط (يورتيتشي لها بوليصتها).
 export function labelEligible(o) {
   if (!o || o.archived === true || o.deleted_at) return false;
-  if (o.market === 'syria')  return o.status === 'preparing';
+  if (o.market === 'syria')  return o.status === 'pending';
   if (o.market === 'turkey') return o.status === 'motor_prep';
   return false;
 }

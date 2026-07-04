@@ -204,7 +204,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
       || (o.items || []).some(it => String(it.name || '').toLowerCase().includes(search.toLowerCase())))
   ), [orders, market, search]);
 
-  // الطلبات الجاهزة لطباعة بوليصة الشحن (سوريا: في التجهيز · تركيا: تحضير الموتور)
+  // الطلبات الجاهزة لطباعة بوليصة الشحن (سوريا: وارد جديد · تركيا: تحضير الموتور)
   const labelReady   = useMemo(() => queue.filter(labelEligible), [queue]);
   const todayCount   = useMemo(() => queue.filter(o => ageDays(o) === 0).length, [queue]);
   const backlog      = useMemo(() => queue.filter(o => ageDays(o) >= 1), [queue]);
@@ -281,7 +281,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
             </button>
             {labelReady.length > 0 && (
               <button onClick={() => openLabelsPrint(labelReady)}
-                title="طباعة بوليصات الشحن للطلبات الجاهزة (سوريا: في التجهيز · تركيا: تحضير الموتور) — A4، 8 بوليصات بالصفحة"
+                title="طباعة بوليصات الشحن للطلبات الجاهزة (سوريا: وارد جديد · تركيا: تحضير الموتور) — A4، 8 بوليصات بالصفحة"
                 className="px-3 py-2 rounded-xl bg-[#C9A646] text-white text-xs font-extrabold hover:bg-[#b8963d] transition shadow-sm">
                 🖨️ بوليصات ({labelReady.length})
               </button>

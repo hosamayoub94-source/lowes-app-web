@@ -3413,7 +3413,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           {(isManager || isFulfillment) && !viewArchive && (
             <button onClick={() => setLabelsOpen(true)}
               className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-[#fdfaf2] border-[#C9A646]/50 text-[#8a6d1f] hover:bg-[#faf3df] transition"
-              title={`طباعة بوليصات الشحن — سوريا: في التجهيز · تركيا: تحضير الموتور (${orders.filter(labelEligible).length} جاهز)`}>
+              title={`طباعة بوليصات الشحن — سوريا: وارد جديد · تركيا: تحضير الموتور (${orders.filter(labelEligible).length} جاهز)`}>
               🖨️ بوليصات{orders.filter(labelEligible).length ? ` (${orders.filter(labelEligible).length})` : ''}
             </button>
           )}

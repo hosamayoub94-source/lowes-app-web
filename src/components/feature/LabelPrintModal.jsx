@@ -1,6 +1,6 @@
 // =============================================================
 // LabelPrintModal — اختيار الطلبات وطباعة بوليصات الشحن (A4×8).
-// سوريا: «في التجهيز» · تركيا: «تحضير الموتور» فقط.
+// سوريا: «وارد جديد» · تركيا: «تحضير الموتور» فقط.
 // =============================================================
 import { useMemo, useState } from 'react';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from '@components/ui/Modal';
@@ -27,7 +27,7 @@ export default function LabelPrintModal({ open, onClose, orders, market }) {
   });
 
   const groups = [
-    { key: 'syria',  title: '🇸🇾 سوريا — في التجهيز',      list: eligible.filter(o => o.market === 'syria') },
+    { key: 'syria',  title: '🇸🇾 سوريا — وارد جديد 📥',     list: eligible.filter(o => o.market === 'syria') },
     { key: 'turkey', title: '🇹🇷 تركيا — تحضير الموتور 🏍️', list: eligible.filter(o => o.market === 'turkey') },
   ].filter(g => g.list.length);
 
@@ -42,7 +42,7 @@ export default function LabelPrintModal({ open, onClose, orders, market }) {
         {!eligible.length && (
           <div className="text-center py-8 text-muted text-sm">
             لا توجد طلبات جاهزة للطباعة حالياً.
-            <p className="text-xs mt-1">سوريا: حالة «في التجهيز 📦» · تركيا: حالة «تحضير الموتور 🛠️»</p>
+            <p className="text-xs mt-1">سوريا: حالة «وارد جديد 📥» · تركيا: حالة «تحضير الموتور 🛠️»</p>
           </div>
         )}
         {groups.map(g => (
