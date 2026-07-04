@@ -18,6 +18,7 @@ import { homeBlocksForRole } from '@data/homeLayout';
 import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
+import { fetchAllRows } from '@utils/fetchAllRows';
 
 // ── Daily motivation quotes ─────────────────────────────────────
 const MOTIVATIONS = [
@@ -287,13 +288,14 @@ function AttendanceCard({ name, team }) {
     setSaving(true);
     const now = nowHHMM();
     const dateVal = todaySlash();
-    await supabase.from('attendance').insert({
+    const { error } = await supabase.from('attendance').insert({
       employee_name: name, team: team ?? null,
       date: dateVal, day: arabicDay(),
       type: 'in', time_in: now, time_out: null,
       hours: 0, status: '✅ حاضر', recorded_at: now,
       delay_minutes: 0, was_late: false, method: 'app',
     });
+    if (error) { window.alert('تعذّر تسجيل الدخول: ' + error.message); setSaving(false); return; }
     await load();
     setSaving(false);
   };
@@ -306,13 +308,14 @@ function AttendanceCard({ name, team }) {
     const [hi,mi] = (att.checkIn).split(':').map(Number);
     const [ho,mo] = now.split(':').map(Number);
     let mins = (ho*60+mo)-(hi*60+mi); if(mins<0) mins+=1440;
-    await supabase.from('attendance').insert({
+    const { error } = await supabase.from('attendance').insert({
       employee_name: name, team: team ?? null,
       date: dateVal, day: arabicDay(),
       type: 'out', time_in: now, time_out: now,
       hours: +(mins/60).toFixed(2), status: '🚪 خروج',
       recorded_at: now, delay_minutes: 0, was_late: false, method: 'app',
     });
+    if (error) { window.alert('تعذّر تسجيل الخروج: ' + error.message); setSaving(false); return; }
     await load();
     setSaving(false);
   };
@@ -521,8 +524,8 @@ function CelebrationBanner() {
 
   useEffect(() => {
     const today = new Date();
-    supabase.from('profiles').select('employee_name,birthday,hire_date').eq('is_active', true)
-      .then(({ data }) => {
+    fetchAllRows(() => supabase.from('profiles').select('employee_name,birthday,hire_date').eq('is_active', true))
+      .then((data) => {
         const found = [];
         (data ?? []).forEach(p => {
           if (sameMonthDay(p.birthday, today))
@@ -583,11 +586,11 @@ function MiniLeaderboard() {
   useEffect(() => {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
     Promise.allSettled([
-      supabase.from('profiles').select('employee_name,avatar_url').eq('is_active', true),
-      supabase.from('task_points').select('employee_name,points').gte('created_at', monthStart+'T00:00:00'),
+      fetchAllRows(() => supabase.from('profiles').select('employee_name,avatar_url').eq('is_active', true)),
+      fetchAllRows(() => supabase.from('task_points').select('employee_name,points').gte('created_at', monthStart+'T00:00:00')),
     ]).then(([profRes, ptsRes]) => {
-      const profiles = profRes.value?.data ?? [];
-      const pts      = ptsRes.value?.data  ?? [];
+      const profiles = profRes.value ?? [];
+      const pts      = ptsRes.value  ?? [];
       const map = {};
       pts.forEach(r => { map[r.employee_name] = (map[r.employee_name]||0) + r.points; });
       const board = profiles
@@ -786,11 +789,11 @@ function TodayTeamStatus() {
     const dateSlash = todaySlash();
     Promise.allSettled([
       // NOTE: column is role_type (not role) + only active employees
-      supabase.from('profiles').select('id,employee_name,role_type,team,is_active').eq('is_active', true).order('employee_name'),
-      supabase.from('attendance').select('employee_name,time_in').eq('type','in').eq('date',dateSlash),
+      fetchAllRows(() => supabase.from('profiles').select('id,employee_name,role_type,team,is_active').eq('is_active', true).order('employee_name')),
+      fetchAllRows(() => supabase.from('attendance').select('employee_name,time_in').eq('type','in').eq('date',dateSlash)),
     ]).then(([pRes, aRes]) => {
-      const profiles = (pRes.value?.data ?? []).map(p => ({ ...p, role: p.role_type }));
-      const checkedIn = new Map((aRes.value?.data ?? []).map(r => [r.employee_name, r.time_in]));
+      const profiles = (pRes.value ?? []).map(p => ({ ...p, role: p.role_type }));
+      const checkedIn = new Map((aRes.value ?? []).map(r => [r.employee_name, r.time_in]));
       const present = [], absent = [];
       profiles.forEach(p => {
         if (!p.employee_name) return;
@@ -938,11 +941,11 @@ export default function HomeScreen() {
       userId ? supabase.from('leave_requests').select('days').eq('employee_id',userId).eq('type','annual').eq('status','approved').gte('start_date',year+'-01-01').lte('start_date',year+'-12-31')
              : Promise.resolve({data:[]}),
       // Attendance chart — attendance table uses 'YYYY/MM/DD' date format
-      supabase.from('attendance').select('date,employee_name').eq('type','in')
-        .gte('date',monthFrom.replace(/-/g,'/')).lte('date',today.replace(/-/g,'/')),
+      fetchAllRows(() => supabase.from('attendance').select('date,employee_name').eq('type','in')
+        .gte('date',monthFrom.replace(/-/g,'/')).lte('date',today.replace(/-/g,'/'))),
       // Sales chart (managers)
-      isManager ? supabase.from('daily_sales_reports').select('report_date,total_sales_usd').gte('report_date',monthFrom).lte('report_date',today)
-                : Promise.resolve({data:[]}),
+      isManager ? fetchAllRows(() => supabase.from('daily_sales_reports').select('report_date,total_sales_usd').gte('report_date',monthFrom).lte('report_date',today))
+                : Promise.resolve([]),
     ]).then(([tRes, nRes, lRes, aRes, sRes]) => {
       // KPIs
       const tasks  = tRes.value?.count  ?? '—';
@@ -957,7 +960,7 @@ export default function HomeScreen() {
       // Attendance chart (unique attendees per day)
       // r.date is 'YYYY/MM/DD' — convert to ISO 'YYYY-MM-DD' for key lookup
       const attByDay = {}; days.forEach(d => { attByDay[d] = new Set(); });
-      (aRes.value?.data??[]).forEach(r => {
+      (aRes.value??[]).forEach(r => {
         const isoDate = r.date?.replace(/\//g, '-');
         if(attByDay[isoDate]) attByDay[isoDate].add(r.employee_name);
       });
@@ -965,7 +968,7 @@ export default function HomeScreen() {
 
       // Sales chart
       const salesByDay = {}; days.forEach(d => { salesByDay[d] = 0; });
-      (sRes.value?.data??[]).forEach(r => {
+      (sRes.value??[]).forEach(r => {
         if (salesByDay[r.report_date] !== undefined) salesByDay[r.report_date] += Number(r.total_sales_usd)||0;
       });
       setSalesChart(days.map(d => ({ day: dayLabel(d), sales: Math.round(salesByDay[d]) })));

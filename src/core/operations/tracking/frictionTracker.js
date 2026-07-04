@@ -55,37 +55,53 @@ export function setFrictionPage(page) {
 }
 
 // ── Rage click detection ───────────────────────────────────────
+// معالج نقر مُسمّى (لا مجهول) حتى نقدر نزيله عند الإيقاف — وإلا يتراكم مع كل
+// تسجيل دخول/خروج (تسريب مستمعين).
+let _clickHandler = null;
+
+function _onDocumentClick(e) {
+  const target = _getTargetLabel(e.target);
+  const now    = Date.now();
+
+  _clickHistory.push({ target, ts: now });
+
+  // Keep window
+  const recent = _clickHistory.filter((c) => now - c.ts < RAGE_CLICK_WINDOW_MS);
+  _clickHistory.length = 0;
+  _clickHistory.push(...recent);
+
+  // Count clicks on same target
+  const sameTarget = recent.filter((c) => c.target === target);
+  if (sameTarget.length >= RAGE_CLICK_THRESHOLD) {
+    _recordFriction('rage_click', { target, count: sameTarget.length });
+  }
+
+  // Dead zone detection: click with no reaction (no navigation, no state change)
+  const hasHandler = !!(
+    e.target.onclick ||
+    e.target.closest('button, a, [role="button"], [tabindex]') ||
+    e.target.closest('form')
+  );
+  if (!hasHandler && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+    _recordFriction('dead_zone_click', { target, tagName: e.target.tagName });
+  }
+}
+
 function _attachDOMListeners() {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || _clickHandler) return; // idempotent
+  _clickHandler = _onDocumentClick;
+  document.addEventListener('click', _clickHandler, { passive: true });
+}
 
-  document.addEventListener('click', (e) => {
-    const target = _getTargetLabel(e.target);
-    const now    = Date.now();
-
-    _clickHistory.push({ target, ts: now });
-
-    // Keep window
-    const recent = _clickHistory.filter((c) => now - c.ts < RAGE_CLICK_WINDOW_MS);
-    _clickHistory.length = 0;
-    _clickHistory.push(...recent);
-
-    // Count clicks on same target
-    const sameTarget = recent.filter((c) => c.target === target);
-    if (sameTarget.length >= RAGE_CLICK_THRESHOLD) {
-      _recordFriction('rage_click', { target, count: sameTarget.length });
-    }
-
-    // Dead zone detection: click with no reaction (no navigation, no state change)
-    // We approximate by checking if there's a meaningful handler
-    const hasHandler = !!(
-      e.target.onclick ||
-      e.target.closest('button, a, [role="button"], [tabindex]') ||
-      e.target.closest('form')
-    );
-    if (!hasHandler && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
-      _recordFriction('dead_zone_click', { target, tagName: e.target.tagName });
-    }
-  }, { passive: true });
+// إيقاف المتتبّع وإزالة المستمعين (يُستدعى عند تسجيل الخروج).
+export function shutdownFrictionTracker() {
+  if (typeof document !== 'undefined' && _clickHandler) {
+    document.removeEventListener('click', _clickHandler);
+  }
+  _clickHandler = null;
+  _userId = null;
+  _clickHistory.length = 0;
+  log.info('Friction tracker shut down');
 }
 
 function _getTargetLabel(el) {

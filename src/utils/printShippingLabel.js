@@ -7,6 +7,7 @@
 // printShippingLabel(order)     → يفتح نافذة ويطبع.
 // =============================================================
 import { BRAND, COMPANY, BRAND_ASSETS } from '@data/brand';
+import { isPrepaidMethod } from '@utils/payment';
 
 const esc = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -14,11 +15,8 @@ const esc = (s) => String(s ?? '')
 
 const sealSrc = () => (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
 
-// COD حين لا يكون الدفع مسبقاً/بنكياً (نفس منطق create-yurtici-shipment).
-const isPrepaid = (o) => {
-  const p = String(o?.payment_method || '');
-  return p.includes('مسبق') || p.includes('bank') || p.includes('بنك') || p.includes('حوالة') || /kredi|kart/i.test(p);
-};
+// COD حين لا يكون الدفع مسبقاً/بنكياً (موحّد بـ @utils/payment).
+const isPrepaid = (o) => isPrepaidMethod(o?.payment_method);
 
 const fmtAmount = (n, cur) => {
   const v = Number(n || 0);

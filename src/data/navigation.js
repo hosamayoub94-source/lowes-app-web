@@ -132,8 +132,13 @@ export function bottomTabsForRole(role, permSet = null, userMarket = null) {
   if (!role) return [];
   // «orders» في الشريط السفلي = ماكنة سوق المستخدم (سوريا/تركيا).
   const ordersId = `orders-${userMarket === 'syria' ? 'syria' : 'turkey'}`;
-  const ids = (ROLE_BOTTOM_TABS[role] || []).map(id => id === 'orders' ? ordersId : id);
   const all = navItemsForRole(role, permSet);
   const byId = Object.fromEntries(all.map(i => [i.id, i]));
-  return ids.map(id => byId[id]).filter(Boolean);
+  const curated = ROLE_BOTTOM_TABS[role];
+  if (curated) {
+    return curated.map(id => id === 'orders' ? ordersId : id).map(id => byId[id]).filter(Boolean);
+  }
+  // الأدوار الإدارية (محاسب/موارد بشرية/مخزون/تسويق) بلا تبويبات مُنسَّقة —
+  // كان الشريط السفلي يظهر فارغاً. نرجع أول 5 عناصر متاحة لدورها بدل الفراغ.
+  return all.slice(0, 5);
 }

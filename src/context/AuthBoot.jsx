@@ -19,7 +19,7 @@ import {
 import { useAuthStore } from '@stores/authStore';
 import { LoadingScreen } from '@components/ui/Loading';
 import { initUsageTracker, shutdownUsageTracker } from '@/core/operations/tracking/usageTracker';
-import { initFrictionTracker }                    from '@/core/operations/tracking/frictionTracker';
+import { initFrictionTracker, shutdownFrictionTracker } from '@/core/operations/tracking/frictionTracker';
 
 export function AuthBoot({ children }) {
   const ready        = useAuthStore((s) => s.ready);
@@ -74,6 +74,7 @@ export function AuthBoot({ children }) {
     const unsubscribe = onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         shutdownUsageTracker();
+        shutdownFrictionTracker();
         setSupaSession(null, null);
         return;
       }

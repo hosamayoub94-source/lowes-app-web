@@ -157,11 +157,10 @@ export default function AdminProductsScreen() {
       (Number(form.price_usd) !== Number(existing.price_usd ?? 0) ||
        Number(form.discount_pct) !== Number(existing.discount_pct ?? 0));
 
-    if (existing?.id) {
-      await supabase.from('products').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('products').insert({ ...payload, created_at: new Date().toISOString() });
-    }
+    const { error: saveErr } = existing?.id
+      ? await supabase.from('products').update(payload).eq('id', existing.id)
+      : await supabase.from('products').insert({ ...payload, created_at: new Date().toISOString() });
+    if (saveErr) { window.alert('تعذّر حفظ المنتج: ' + saveErr.message); return; }
 
     // Notify sales team on price/discount change
     if (priceChanged) {

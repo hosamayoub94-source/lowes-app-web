@@ -9,6 +9,7 @@ import { StatCard }                from '@components/ui/StatCard';
 import { EmptyState }              from '@components/ui/EmptyState';
 import { useAuth }                 from '@hooks/useAuth';
 import { supabase }                from '@services/supabase';
+import { fetchAllRows }            from '@utils/fetchAllRows';
 
 // ── Helpers ────────────────────────────────────────────────────
 function monthOptions() {
@@ -101,19 +102,19 @@ export default function TaskReportScreen() {
                      .toISOString().slice(0, 10);
 
       const [taskRes, profRes] = await Promise.allSettled([
-        supabase
+        fetchAllRows(() => supabase
           .from('tasks')
           .select('id, title, status, assigned_to, due_date, created_at')
           .gte('created_at', from + 'T00:00:00')
-          .lte('created_at', to + 'T23:59:59'),
-        supabase.from('profiles').select('id, employee_name, team'),
+          .lte('created_at', to + 'T23:59:59')),
+        fetchAllRows(() => supabase.from('profiles').select('id, employee_name, team')),
       ]);
 
       let tasks = [];
       let profs = {};
-      if (taskRes.status === 'fulfilled' && !taskRes.value.error) tasks = taskRes.value.data || [];
-      if (profRes.status === 'fulfilled' && !profRes.value.error) {
-        (profRes.value.data || []).forEach(p => { profs[p.id] = p; });
+      if (taskRes.status === 'fulfilled') tasks = taskRes.value || [];
+      if (profRes.status === 'fulfilled') {
+        (profRes.value || []).forEach(p => { profs[p.id] = p; });
         setProfiles(profs);
       }
 

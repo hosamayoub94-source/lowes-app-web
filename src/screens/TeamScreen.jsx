@@ -9,6 +9,7 @@ import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { EmptyState } from '@components/ui/EmptyState';
 import { Spinner } from '@components/ui/Loading';
 import { supabase } from '@services/supabase';
+import { fetchAllRows } from '@utils/fetchAllRows';
 import { ROLE_LABELS } from '@data/teams';
 import EmployeeProfileModal from '@components/ui/EmployeeProfileModal';
 import ShiftScheduleScreen from '@screens/ShiftScheduleScreen';
@@ -17,13 +18,11 @@ import ShiftScheduleScreen from '@screens/ShiftScheduleScreen';
 
 /** Fetch all active profiles (flat list, grouping done client-side). */
 async function fetchAllProfiles() {
-  const { data, error } = await supabase
+  return await fetchAllRows(() => supabase
     .from('profiles')
     .select('id, employee_name, role_type, team, avatar_url')
     .eq('is_active', true)
-    .order('employee_name');
-  if (error) throw error;
-  return data || [];
+    .order('employee_name'));
 }
 
 // ── Group helper ──────────────────────────────────────────────

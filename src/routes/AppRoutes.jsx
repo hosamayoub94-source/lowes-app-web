@@ -360,9 +360,8 @@ export function AppRoutes() {
           </Route>
         </Route>
 
-        {/* Catch-all */}
-        <Route path={ROUTES.NOT_FOUND} element={<NotFoundScreen />} />
-        <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
+        {/* Catch-all — شاشة 404 (كان يوجد مسار «*» مكرّر يعيد للرئيسية فيُلغيها). */}
+        <Route path="*" element={<NotFoundScreen />} />
       </Routes>
     </Suspense>
   );

@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
+import { fetchAllRows } from '@utils/fetchAllRows';
 import { ROLE_LABELS } from '@data/teams';
 
 // SQL للمايغريشن (يظهر فقط إذا الأعمدة لسا غير مُضافة)
@@ -46,11 +47,13 @@ async function fetchResigned() {
 // يجمع مبيعات/طلبات كل موظف من جدول orders حسب handler_name (دفعة واحدة).
 async function fetchSalesByHandler(names) {
   if (!names.length) return {};
-  const { data, error } = await supabase
-    .from('orders')
-    .select('handler_name,amount,currency,status')
-    .in('handler_name', names);
-  if (error) return {};
+  let data;
+  try {
+    data = await fetchAllRows(() => supabase
+      .from('orders')
+      .select('handler_name,amount,currency,status')
+      .in('handler_name', names));
+  } catch { return {}; }
   const map = {};
   for (const o of (data ?? [])) {
     const k = o.handler_name;

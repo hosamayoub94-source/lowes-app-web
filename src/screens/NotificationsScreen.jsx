@@ -226,7 +226,12 @@ export default function NotificationsScreen() {
 
   const handleDelete = useCallback((id) => {
     setDeleted(p => new Set([...p, id]));
-    supabase.from('notifications').delete().eq('id', id).catch(() => {});
+    supabase.from('notifications').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        window.alert('تعذّر حذف الإشعار: ' + error.message);
+        setDeleted(p => { const n = new Set(p); n.delete(id); return n; });
+      }
+    });
   }, []);
 
   // Filter by tab (excluding deleted)

@@ -89,7 +89,9 @@ export default function AdminFaceEnrollScreen() {
   };
 
   const clearDescriptor = async (profile) => {
-    await supabase.from('profiles').update({ face_descriptor: null }).eq('id', profile.id).catch(() => {});
+    if (!window.confirm('حذف بصمة الوجه لهذا الموظف؟')) return;
+    const { error } = await supabase.from('profiles').update({ face_descriptor: null }).eq('id', profile.id);
+    if (error) { window.alert('تعذّر حذف بصمة الوجه: ' + error.message); return; }
     setProfiles(ps => ps.map(p => p.id === profile.id ? { ...p, face_descriptor: null } : p));
     if (selected?.id === profile.id) setSelected(s => ({ ...s, face_descriptor: null }));
     setStatus({ type: 'info', msg: `تم إلغاء التحقق من الوجه لـ ${profile.employee_name}` });

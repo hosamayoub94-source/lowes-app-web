@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { cn }   from '@utils/classNames';
 import { Card } from '@components/ui/Card';
+import { fetchAllRows } from '@utils/fetchAllRows';
 
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
                    'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -47,12 +48,12 @@ async function fetchReportData(period) {
   const toSlash   = to.replace(/-/g, '/');
   const fromSlash = from.replace(/-/g, '/');
 
-  const { data: attLogs = [] } = await supabase
+  const attLogs = await fetchAllRows(() => supabase
     .from('attendance')
     .select('employee_name, date')
     .eq('type', 'in')           // count each day once via the 'in' row
     .gte('date', chartFrom)
-    .lte('date', toSlash);
+    .lte('date', toSlash));
 
   // Build per-month attendance map (last 6 months)
   const now = new Date();
@@ -91,9 +92,9 @@ async function fetchReportData(period) {
     : 0;
 
   // 3. Tasks by status
-  const { data: tasks = [] } = await supabase
+  const tasks = await fetchAllRows(() => supabase
     .from('tasks')
-    .select('status, due_date');
+    .select('status, due_date'));
 
   const today = new Date().toISOString().slice(0, 10);
   let completed = 0, in_progress = 0, pending = 0, overdue = 0;
@@ -112,11 +113,11 @@ async function fetchReportData(period) {
   const totalTasks = completed + in_progress + pending + overdue;
 
   // 4. Sales in period
-  const { data: salesRows = [] } = await supabase
+  const salesRows = await fetchAllRows(() => supabase
     .from('daily_sales_reports')
     .select('total_sales_usd')
     .gte('report_date', from)
-    .lte('report_date', to);
+    .lte('report_date', to));
 
   const totalSales = (salesRows || []).reduce((s, r) => s + Number(r.total_sales_usd || 0), 0);
 
@@ -152,10 +153,10 @@ async function fetchReportData(period) {
     .select('id, employee_name, name, team')
     .limit(30);
 
-  const { data: assignedTasks = [] } = await supabase
+  const assignedTasks = await fetchAllRows(() => supabase
     .from('tasks')
     .select('assigned_to, status')
-    .not('assigned_to', 'is', null);
+    .not('assigned_to', 'is', null));
 
   const tasksByEmp = {};
   const doneByEmp  = {};

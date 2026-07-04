@@ -4,6 +4,7 @@
 //         employee_salary_settings (per employee)
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
+import { fetchAllRows } from '@utils/fetchAllRows';
 
 const CURRENCIES = ['USD', 'TRY', 'SYP'];
 const PAIRS = [
@@ -21,11 +22,10 @@ async function getSupabase() {
 
 async function fetchLatestRates() {
   const sb = await getSupabase();
-  const { data, error } = await sb
+  const data = await fetchAllRows(() => sb
     .from('exchange_rates')
     .select('id, from_cur, to_cur, rate, created_at')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+    .order('created_at', { ascending: false }));
   // Keep only latest rate per pair
   const seen = new Set();
   const latest = [];
@@ -178,7 +178,8 @@ function AnnouncementsTab() {
   const handleDelete = async (id) => {
     if (!window.confirm('حذف هذا الإعلان؟')) return;
     const sb = await getSupabase();
-    await sb.from('announcements').delete().eq('id', id);
+    const { error } = await sb.from('announcements').delete().eq('id', id);
+    if (error) { window.alert('تعذّر حذف الإعلان: ' + error.message); return; }
     setAnnouncements(a => a.filter(x => x.id !== id));
   };
 

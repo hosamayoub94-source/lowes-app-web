@@ -27,6 +27,7 @@ import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { isBankMethod } from '@utils/payment';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -81,7 +82,7 @@ async function notifySellerStatusChange(order, newStatus, actorName) {
 // STATUSES + قوائم الحالات per-market تُستورد من @data/orderStatus.
 
 // ── Commission helpers ────────────────────────────────────────
-const CURRENCY_SYMBOLS = { TRY: '₺', SYP: '£', USD: '$' };
+const CURRENCY_SYMBOLS = { TRY: '₺', SYP: 'ل.س', USD: '$' };
 const THIS_MONTH = new Date().toISOString().slice(0, 7); // '2026-06'
 
 // Convert any order amount to USD using admin-set rates (units per 1 USD).
@@ -2904,11 +2905,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
           // Amount actually collected: partial → paid_amount, otherwise full.
           const amt = order.payment_status === 'partial' && Number(order.paid_amount) > 0
             ? Number(order.paid_amount) : Number(order.amount);
-          // Map to a specific treasury wallet by currency + method.
-          // ملاحظة: payment_method قيم عربية/مسمّاة (تحويل بنكي/Papara/تحويل/Sham
-          // Cash…) — لا القيمة الحرفية 'bank'. نطابق بنمط وإلا كل تحصيل بنكي يذهب
-          // خطأً لخزينة الكاش.
-          const isBank = /بنك|bank|حوال|تحويل|papara|kredi|sham/i.test(order.payment_method || '');
+          // توجيه لخزينة محددة بحسب العملة + الطريقة. isBankMethod موحّد بـ
+          // @utils/payment (payment_method قيم مسمّاة لا 'bank' الحرفية).
+          const isBank = isBankMethod(order.payment_method);
           const wallet = cur === 'USD' ? (isBank ? 'bank_usd' : 'cash_usd')
                        : cur === 'TRY' ? (isBank ? 'bank_try' : 'cash_try')
                        : 'cash_syp';

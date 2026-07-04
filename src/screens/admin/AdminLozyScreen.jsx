@@ -42,7 +42,8 @@ export default function AdminLozyScreen() {
   const toggleActive = async (row) => {
     setBusy(row.id);
     try {
-      await supabase.from('lozy_knowledge').update({ is_active: !row.is_active }).eq('id', row.id);
+      const { error } = await supabase.from('lozy_knowledge').update({ is_active: !row.is_active }).eq('id', row.id);
+      if (error) { window.alert('تعذّر التحديث: ' + error.message); return; }
       setFacts(p => p.map(r => r.id === row.id ? { ...r, is_active: !r.is_active } : r));
     } finally { setBusy(null); }
   };
@@ -51,7 +52,8 @@ export default function AdminLozyScreen() {
     if (!confirm('حذف هذه المعلومة نهائياً من ذاكرة لوزي؟')) return;
     setBusy(id);
     try {
-      await supabase.from('lozy_knowledge').delete().eq('id', id);
+      const { error } = await supabase.from('lozy_knowledge').delete().eq('id', id);
+      if (error) { window.alert('تعذّر الحذف: ' + error.message); return; }
       setFacts(p => p.filter(r => r.id !== id));
     } finally { setBusy(null); }
   };

@@ -43,7 +43,8 @@ export default function AdminGuidesScreen() {
 
   const del = async (key) => {
     if (!confirm('حذف الدليل نهائياً؟')) return;
-    await supabase.from('app_guides').delete().eq('key', key);
+    const { error } = await supabase.from('app_guides').delete().eq('key', key);
+    if (error) { window.alert('تعذّر حذف الدليل: ' + error.message); return; }
     invalidateGuides(); load();
   };
 

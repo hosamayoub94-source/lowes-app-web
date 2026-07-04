@@ -109,7 +109,7 @@ function AbsenceReasonModal({ slash, userName, team, existingReason, onSave, onC
     try {
       const dayName = arabicDaySlash(slash);
       const reason  = note.trim() ? `${selected} — ${note.trim()}` : selected;
-      await supabase.from('attendance').insert({
+      const { error } = await supabase.from('attendance').insert({
         employee_name: userName,
         date:          slash,
         day:           dayName,
@@ -121,8 +121,9 @@ function AbsenceReasonModal({ slash, userName, team, existingReason, onSave, onC
         recorded_at:   nowHHMM(),
         status:        '❌ غائب',
       });
+      if (error) { window.alert('تعذّر حفظ سبب الغياب: ' + error.message); return; }
       onSave();
-    } catch { /* silent */ }
+    } catch (e) { window.alert('تعذّر حفظ سبب الغياب: ' + (e?.message || e)); }
     finally { setSaving(false); }
   };
 

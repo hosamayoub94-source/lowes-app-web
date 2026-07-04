@@ -54,7 +54,10 @@ function AddReportModal({ onSave, onClose }) {
     if (!form.client_name || !form.product_name) return;
     setSaving(true);
     try {
-      await supabase.from('mystery_shopper').insert({
+      // Default violation direction based on the actual price comparison:
+      // found > listed → أعلى (price_higher)، وإلا price_lower.
+      const priceDir = Number(form.found_price) > Number(form.listed_price) ? 'price_higher' : 'price_lower';
+      const { error } = await supabase.from('mystery_shopper').insert({
         client_name:    form.client_name,
         client_city:    form.client_city || null,
         client_type:    form.client_type,
@@ -64,9 +67,10 @@ function AddReportModal({ onSave, onClose }) {
         listed_price:   form.listed_price ? Number(form.listed_price) : null,
         found_price:    form.found_price  ? Number(form.found_price)  : null,
         price_ok:       !!priceOk,
-        violation_type: priceOk ? null : (form.violation_type || 'price_lower'),
+        violation_type: priceOk ? null : (form.violation_type || priceDir),
         notes:          form.notes || null,
       });
+      if (error) { window.alert('تعذّر حفظ التقرير: ' + error.message); return; }
       onSave(); onClose();
     } catch (e) { alert('خطأ: ' + e.message); }
     finally { setSaving(false); }
