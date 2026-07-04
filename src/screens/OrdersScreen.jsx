@@ -626,6 +626,21 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [cFrom, setCFrom] = useState('');
   const [cTo, setCTo]     = useState('');
 
+  // resolve the active period into [start, end] date strings (YYYY-MM-DD) + label
+  // (يجب أن يُعرّف قبل أي useEffect/useMemo يستخدمه — وإلا TDZ crash).
+  const { periodStart, periodEnd, periodLabel } = useMemo(() => {
+    if (periodMode === 'custom' && cFrom && cTo) {
+      const lo = cFrom <= cTo ? cFrom : cTo, hi = cFrom <= cTo ? cTo : cFrom;
+      return { periodStart: lo, periodEnd: hi, periodLabel: `من ${lo} إلى ${hi}` };
+    }
+    const [y, m] = selMonth.split('-').map(Number);
+    const start = `${selMonth}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = `${selMonth}-${String(lastDay).padStart(2, '0')}`;
+    const label = new Date(y, m - 1, 1).toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
+    return { periodStart: start, periodEnd: end, periodLabel: label };
+  }, [periodMode, selMonth, cFrom, cTo]);
+
   // ── الأرشيف للفترة المختارة: الطلبات المؤرشفة لا تظهر بالاستعلام الرئيسي
   // لذا نجلبها مستقلاً حتى تظهر الأشهر الماضية بعد أرشفتها ──────────────
   const [archivedForPeriod, setArchivedForPeriod] = useState([]);
@@ -710,20 +725,6 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     }
     return arr;
   }, []);
-
-  // resolve the active period into [start, end] date strings (YYYY-MM-DD) + label
-  const { periodStart, periodEnd, periodLabel } = useMemo(() => {
-    if (periodMode === 'custom' && cFrom && cTo) {
-      const lo = cFrom <= cTo ? cFrom : cTo, hi = cFrom <= cTo ? cTo : cFrom;
-      return { periodStart: lo, periodEnd: hi, periodLabel: `من ${lo} إلى ${hi}` };
-    }
-    const [y, m] = selMonth.split('-').map(Number);
-    const start = `${selMonth}-01`;
-    const lastDay = new Date(y, m, 0).getDate();
-    const end = `${selMonth}-${String(lastDay).padStart(2, '0')}`;
-    const label = new Date(y, m - 1, 1).toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
-    return { periodStart: start, periodEnd: end, periodLabel: label };
-  }, [periodMode, selMonth, cFrom, cTo]);
 
   // Filter: delivered within the selected period — includes archived orders fetched above
   const delivered = useMemo(() => allForPeriod.filter(o => {
