@@ -1853,8 +1853,9 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         )
       )}
 
-      {/* طباعة البوليصة من التطبيق (سوريا/تركيا) — بوليصة شحن عربية RTL قابلة للطباعة. */}
-      {(order.market === 'turkey' || order.market === 'syria') && (
+      {/* طباعة البوليصة من التطبيق — سوريا: «وارد جديد» فقط (طلب المالك، لا
+          تُطبع لطلبات الانتظار/المتابعة) · تركيا: أي حالة (لإعادة الطباعة). */}
+      {(order.market === 'turkey' || (order.market === 'syria' && order.status === 'pending')) && (
         <button
           onClick={() => printShippingLabel(order)}
           title="طباعة بوليصة الشحن (للطباعة أو الحفظ PDF)"
