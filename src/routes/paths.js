@@ -76,10 +76,12 @@ export const ROUTES = {
   ADMIN_FACE_ENROLL: '/admin/face-enroll',
 
   // Manager executive board + Social content studio
-  MANAGER_BOARD: '/manager-board',
-  SOCIAL_STUDIO: '/social-studio',
-  SOCIAL_TEAM:   '/social-team',
-  PROFITABILITY: '/profitability',
+  MANAGER_BOARD:   '/manager-board',
+  SOCIAL_STUDIO:   '/social-studio',
+  SOCIAL_TEAM:     '/social-team',
+  SOCIAL_CALENDAR: '/social-calendar',
+  PROMPT_STUDIO:   '/prompt-studio',
+  PROFITABILITY:   '/profitability',
 
   // Orders — ماكنتان منفصلتان (سوريا / تركيا) + /orders يحوّل لسوق المستخدم
   ORDERS: '/orders',

@@ -5,6 +5,55 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يوليو 2026)
 
+### 🗓️ جلسة 5 يوليو 2026 — بوليصة + سوشال (كلودين) + استوديو البرومبت ✅ build ✓
+
+#### ما أُنجز (كود على main، build أخضر):
+
+**🖨️ بوليصة الشحن:**
+- QR: حجم 13.5mm → **20mm** (أوضح وأسهل مسحاً)
+- خط اسم العميل: 12pt → **13pt**
+- خط مبلغ التحصيل: 11pt/800 → **13pt/900** (أكثر بروزاً)
+- padding: 2.5mm 3.5mm 2mm → **3mm 4mm 2.5mm**
+- خط الفاصل فوق الدفع: رمادي → **ذهبي** `#c9a646`
+- **جديد:** عمود `delivery_cost` في orders — عند ملئه لسوريا تظهر في البوليصة:
+  - 📦 قيمة البضاعة: X ل.س
+  - 🚚 رسوم التوصيل: Y ل.س
+  - 💳 التحصيل على العميل: X+Y ل.س
+
+**📱 السوشال ميديا (كلودين + تقوية الدور):**
+- **تقويم المحتوى جديد** — شاشة `/social-calendar` (أسبوعية، 7 أيام × 5 منصات، إضافة/عرض/حذف بوستات)
+- `SOCIAL_MANAGER` homeArchetype صار **'social'** (منفصل عن 'media'/MEDIA_BUYER) — لا `campaignsLink` في هوم
+- Bottom tabs SOCIAL_MANAGER: `social-studio` · `social-calendar` · `tasks` · `performance` (بدلاً من campaigns/customers)
+- Default tab في TasksPage: SOCIAL_MANAGER يفتح على **'فريقي'** تلقائياً (لا 'الكل')
+- Nav items جديدة: `social-calendar` · `prompt-studio` (ظاهرة لـ A/M/SOC/MB/MKT)
+
+**✨ استوديو البرومبت جديد** — شاشة `/prompt-studio`:
+- **تبويب 1 — برومبتات البراند:** 26 منتج رسمي (بشرة/شعر/جسم) بوضعَي منتج+مودل، نسخ، تعليم ✓ (بـlocalStorage)، شريط تقدم
+- **تبويب 2 — مولّد سريع:** منتقي المنتج + نمط (منتج/مودل/مشهد) + نسبة (1:1/4:5/9:16) → برومبت فوري
+- **تبويب 3 — طلب مخصص:** AI يولّد برومبت مخصص عبر `social-content` Edge Function
+
+**كلودين:** تُضاف من AdminUsersScreen (بدون كود) — الدور `social_manager`، الفريق Social Media.
+
+#### SQL يحتاجه المالك (SQL Editor):
+```
+1. migration_v6_patch.sql          ← موجود في المشروع (HR tables + quiz fix)
+2. migration_v9_social_calendar.sql ← جديد (social_posts + orders.delivery_cost)
+```
+
+#### الملفات المعدّلة:
+- `src/services/labelPrint.js` — بوليصة كاملة
+- `src/data/homeLayout.js` — archetype 'social' منفصل
+- `src/data/navigation.js` — social-calendar + prompt-studio + bottom tabs SOC
+- `src/routes/paths.js` — SOCIAL_CALENDAR + PROMPT_STUDIO
+- `src/routes/AppRoutes.jsx` — مسارَي شاشتَين جديدتَين
+- `src/modules/tasks/pages/TasksPage.jsx` — default tab fix
+- **جديد:** `src/screens/SocialCalendarScreen.jsx`
+- **جديد:** `src/screens/PromptStudioScreen.jsx`
+- **جديد:** `src/data/brandPrompts.js` (26 منتج × برومبتَين)
+- **جديد:** `migration_v9_social_calendar.sql`
+
+---
+
 ### 🗓️ جلسة 4 يوليو 2026 — أرشفة شهرية للطلبات + سجل الموظفين + تابات هيا ✅ build ✓
 
 #### ما أُنجز (كود على main، build أخضر):

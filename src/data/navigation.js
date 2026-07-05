@@ -80,8 +80,10 @@ export const NAV_ITEMS = [
   { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
 
   // ── Social
-  { id: 'social-team',   label: 'فريق السوشال',    icon: '🌐', path: '/social-team',   roles: [A, M, SOC],     group: 'social' },
-  { id: 'social-studio', label: 'استوديو السوشال', icon: '🌸', path: '/social-studio', roles: [A, M, SOC, MB], group: 'social' },
+  { id: 'social-team',     label: 'فريق السوشال',      icon: '🌐', path: '/social-team',     roles: [A, M, SOC],          group: 'social' },
+  { id: 'social-studio',   label: 'استوديو السوشال',   icon: '🌸', path: '/social-studio',   roles: [A, M, SOC, MB],      group: 'social' },
+  { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social' },
+  { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social' },
 
   // ── Admin / finance
   { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'admin', perm: P.VIEW_FINANCE },
@@ -125,7 +127,7 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.ADMIN]:          ['workspace', 'orders', 'customers', 'manager-board', 'admin'],
   [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
   [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'media-buyer', 'daily-report', 'customers'],
-  [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'campaigns', 'customers', 'performance'],
+  [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'social-calendar', 'tasks', 'performance'],
 };
 
 export function bottomTabsForRole(role, permSet = null, userMarket = null) {

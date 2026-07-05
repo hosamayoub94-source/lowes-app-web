@@ -709,7 +709,8 @@ function TasksPage() {
   const [activeTab, setActiveTab] = useState(null); // resolved by effect below
   const userPickedTab = useRef(false);
   const handleTabChange = useCallback((k) => { userPickedTab.current = true; setActiveTab(k); }, []);
-  const userId = useAuthStore((s) => s.session?.id);
+  const userId   = useAuthStore((s) => s.session?.id);
+  const userRole = useAuthStore((s) => s.session?.role || s.session?.role_type || '');
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
 
@@ -733,17 +734,19 @@ function TasksPage() {
   }, [myProjects, viewerTeam, viewerCanSeeAll]);
 
   // Default tab: once projects load, land project members on their project
-  // (don't scatter) — until the user manually picks a tab. Management with
-  // no project → الكل; plain employee → مهامي.
+  // (don't scatter) — until the user manually picks a tab. Social managers
+  // default to their team tab; management with no project → الكل; employee → مهامي.
   useEffect(() => {
     if (userPickedTab.current) return;
     if (loading) return; // wait for myProjects to load before deciding
     const firstProject = (myProjects || [])[0];
+    const isSocialFocused = userRole === 'social_manager' && !!viewerTeam;
     const preferred = firstProject ? `project:${firstProject.id}`
+      : isSocialFocused ? 'team'
       : viewerCanSeeAll ? 'all'
       : 'mine';
     if (preferred !== activeTab) setActiveTab(preferred);
-  }, [loading, myProjects, viewerCanSeeAll]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myProjects, viewerCanSeeAll, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply the active tab on top of the store's search/status filters.
   const scopedTasks = useMemo(() => {

@@ -56,6 +56,11 @@ function codAmount(o) {
   return total;
 }
 
+// رسوم التوصيل السورية (0 إذا لم يُعبأ الحقل).
+function deliveryCost(o) {
+  return o.market === 'syria' ? Math.max(0, Number(o.delivery_cost || 0)) : 0;
+}
+
 function addressLine(o) {
   const parts = [o.city, o.district, o.sy_neighborhood, o.address]
     .map(p => String(p || '').trim()).filter(Boolean);
@@ -64,15 +69,33 @@ function addressLine(o) {
 }
 
 function labelHTML(o, idx, total, dateStr) {
-  const name    = esc(o.customer_name || '—');
-  const phone   = esc(o.phone_1 || o.phone_2 || o.wa_number || '—');
-  const wa      = esc(o.wa_number || o.phone_1 || '—');
-  const addr    = esc(addressLine(o) || '—');
-  const company = esc(o.shipping_company || (o.market === 'turkey' ? 'توصيل الموتور' : 'شركة الشحن'));
-  const cod     = codAmount(o);
-  const prepaid = cod <= 0;
-  const msg     = pickStable(MESSAGES, o.order_id || o.id);
-  const csPhone = o.market === 'turkey' ? COMPANY.whatsapp : COMPANY.customerService.syria;
+  const name     = esc(o.customer_name || '—');
+  const phone    = esc(o.phone_1 || o.phone_2 || o.wa_number || '—');
+  const wa       = esc(o.wa_number || o.phone_1 || '—');
+  const addr     = esc(addressLine(o) || '—');
+  const company  = esc(o.shipping_company || (o.market === 'turkey' ? 'توصيل الموتور' : 'شركة الشحن'));
+  const cod      = codAmount(o);
+  const delCost  = deliveryCost(o);
+  const prepaid  = cod <= 0;
+  const hasDel   = delCost > 0;
+  const msg      = pickStable(MESSAGES, o.order_id || o.id);
+  const csPhone  = o.market === 'turkey' ? COMPANY.whatsapp : COMPANY.customerService.syria;
+
+  const paySection = hasDel ? `
+    <div class="pay pay-detailed">
+      <div class="pay-breakdown">
+        <span class="breakdown-row">📦 قيمة البضاعة: <b>${fmtAmount(cod, o.currency)}</b></span>
+        <span class="breakdown-row">🚚 رسوم التوصيل: <b>${fmtAmount(delCost, o.currency)}</b></span>
+      </div>
+      <div class="pay-total">
+        <span class="fee">💳 التحصيل على العميل</span>
+        <span class="amount">💰 ${fmtAmount(cod + delCost, o.currency)}</span>
+      </div>
+    </div>` : `
+    <div class="pay">
+      <span class="fee">${prepaid ? '✅ مدفوع مسبقاً — الشحن على المرسل' : '💳 التحصيل على العميل'}</span>
+      <span class="amount">💰 ${prepaid ? fmtAmount(0, o.currency) : fmtAmount(cod, o.currency)}</span>
+    </div>`;
 
   return `
   <div class="label">
@@ -99,10 +122,7 @@ function labelHTML(o, idx, total, dateStr) {
 
     <div class="msg">🎀 <b>${esc(firstName(o.customer_name))}</b> 🤍 ${esc(msg)} — <span class="sig">Lowe's Professional</span></div>
 
-    <div class="pay">
-      <span class="fee">${prepaid ? '✅ مدفوع مسبقاً — أجرة الشحن على المرسل' : '💳 التحصيل على العميل'}</span>
-      <span class="amount">💰 ${prepaid ? fmtAmount(0, o.currency) : fmtAmount(cod, o.currency)}</span>
-    </div>
+    ${paySection}
 
     <div class="foot">
       <div class="qr">${igQrSvg}</div>
@@ -157,7 +177,7 @@ export function buildLabelsHTML(orders) {
   .label {
     font-family:'Tajawal',sans-serif; color:#000;
     border:0.4mm dashed #b9b0a0;
-    padding:2.5mm 3.5mm 2mm;
+    padding:3mm 4mm 2.5mm;
     display:flex; flex-direction:column; overflow:hidden;
     font-size:9.2pt; line-height:1.38;
   }
@@ -171,7 +191,7 @@ export function buildLabelsHTML(orders) {
   .gold-rule { height:0.5mm; background:linear-gradient(90deg, transparent, ${BRAND_COLORS.gold}, transparent); margin:1mm 0 1.2mm; }
 
   /* ── بيانات العميل ── */
-  .cust { font-family:'El Messiri',sans-serif; font-weight:700; font-size:12pt; text-align:center; }
+  .cust { font-family:'El Messiri',sans-serif; font-weight:700; font-size:13pt; text-align:center; }
   .row { text-align:center; }
   .phones { font-size:9.5pt; font-weight:700; }
   .phones .sep { color:${BRAND_COLORS.gold}; margin:0 1.5mm; }
@@ -197,15 +217,23 @@ export function buildLabelsHTML(orders) {
   /* ── الدفع ── */
   .pay {
     display:flex; align-items:center; justify-content:space-between;
-    border-top:0.25mm solid #e5dfd2; border-bottom:0.25mm solid #e5dfd2;
-    padding:0.8mm 1mm; margin-top:auto;
+    border-top:0.3mm solid #c9a646; border-bottom:0.3mm solid #c9a646;
+    padding:1mm 1mm; margin-top:auto; gap:2mm;
   }
+  .pay-detailed {
+    display:flex; flex-direction:column; gap:0.5mm;
+    border-top:0.3mm solid #c9a646; border-bottom:0.3mm solid #c9a646;
+    padding:1mm 1mm; margin-top:auto;
+  }
+  .pay-breakdown { display:flex; flex-direction:column; gap:0.2mm; }
+  .breakdown-row { font-size:7.8pt; color:#374151; }
+  .pay-total { display:flex; align-items:center; justify-content:space-between; margin-top:0.4mm; }
   .fee { font-size:8.4pt; font-weight:700; }
-  .amount { font-size:11pt; font-weight:800; direction:ltr; }
+  .amount { font-size:13pt; font-weight:900; direction:ltr; color:#000; }
 
   /* ── التذييل: QR + تواصل ── */
   .foot { display:flex; align-items:center; gap:2.5mm; margin-top:1mm; }
-  .qr { width:13.5mm; height:13.5mm; flex-shrink:0; }
+  .qr { width:20mm; height:20mm; flex-shrink:0; }
   .qr svg { width:100%; height:100%; display:block; }
   .foot-txt { flex:1; min-width:0; }
   .ig { font-size:7.4pt; font-weight:700; }
