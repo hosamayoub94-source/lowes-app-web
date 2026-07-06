@@ -1,6 +1,7 @@
 // =============================================================
 // SocialCalendarScreen — تقويم محتوى السوشال ميديا
 // عرضان: أسبوعي (grid) ومنصة (قائمة تفصيلية بكل المحتوى)
+// تحسينات: بحث + تنبيه تعارض + pagination لتجاوز حد 1000 صف
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@services/supabase';
@@ -59,6 +60,25 @@ function fmtDate(iso) {
   return d.toLocaleDateString('ar-SA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// ─── fetchAllPlatformPosts — يتجاوز حد 1000 صف ───────────────
+async function fetchAllPlatformPosts(platform) {
+  const PAGE = 500;
+  let all = [], from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('social_posts')
+      .select('*')
+      .eq('platform', platform)
+      .order('post_date', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 // ─── AddPostModal ─────────────────────────────────────────────
 function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) {
   const session = useAuthStore((s) => s.session);
@@ -68,6 +88,7 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
   });
   const [saving, setSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [conflict, setConflict] = useState([]);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
@@ -79,8 +100,22 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
   }, [open]);
 
   useEffect(() => {
-    if (open) setForm((p) => ({ ...p, post_date: defaultDate || p.post_date, platform: defaultPlatform || p.platform }));
+    if (open) {
+      setForm((p) => ({ ...p, post_date: defaultDate || p.post_date, platform: defaultPlatform || p.platform }));
+      setConflict([]);
+    }
   }, [open, defaultDate, defaultPlatform]);
+
+  // تنبيه تعارض: نفس الموظف + نفس اليوم
+  useEffect(() => {
+    if (!form.post_date || !form.assigned_to) { setConflict([]); return; }
+    supabase
+      .from('social_posts')
+      .select('platform, content_type, status')
+      .eq('post_date', form.post_date)
+      .eq('assigned_to', form.assigned_to)
+      .then(({ data }) => setConflict(data || []));
+  }, [form.post_date, form.assigned_to]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -132,6 +167,19 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
               <option value="">— اختر موظف —</option>
               {employees.map(e => <option key={e.id} value={e.employee_name}>{e.employee_name}</option>)}
             </select>
+            {/* ── تنبيه تعارض ── */}
+            {conflict.length > 0 && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-xs mt-1">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span>
+                  <b>{form.assigned_to}</b> لديه/ها {conflict.length} بوست{conflict.length > 1 ? 'ات' : ''} بنفس التاريخ:{' '}
+                  {conflict.map(c => {
+                    const pl = PLATFORMS.find(p => p.key === c.platform);
+                    return `${pl?.icon || ''} ${pl?.label || c.platform}`;
+                  }).join(' · ')}
+                </span>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted">الكابشن / الوصف <span className="font-normal text-muted/70">(اختياري)</span></label>
@@ -160,11 +208,13 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [conflict, setConflict] = useState([]);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
     if (post) setForm({ status: post.status, assigned_to: post.assigned_to || '', caption: post.caption || '', notes: post.notes || '' });
     setEditing(false);
+    setConflict([]);
   }, [post]);
 
   useEffect(() => {
@@ -174,6 +224,18 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
         if (data) setEmployees(data.filter(e => e.employee_name).sort((a,b) => a.employee_name.localeCompare(b.employee_name,'ar')));
       });
   }, [open, editing]);
+
+  // تنبيه تعارض في وضع التعديل
+  useEffect(() => {
+    if (!editing || !post?.post_date || !form.assigned_to) { setConflict([]); return; }
+    supabase
+      .from('social_posts')
+      .select('platform, content_type, status')
+      .eq('post_date', post.post_date)
+      .eq('assigned_to', form.assigned_to)
+      .neq('id', post.id)
+      .then(({ data }) => setConflict(data || []));
+  }, [editing, post?.post_date, post?.id, form.assigned_to]);
 
   if (!post) return null;
   const cfg = STATUS_CFG[post.status] || STATUS_CFG.draft;
@@ -223,6 +285,15 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
                 </select>
               </div>
             </div>
+            {conflict.length > 0 && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-xs">
+                <span className="shrink-0">⚠️</span>
+                <span>
+                  <b>{form.assigned_to}</b> لديه/ها {conflict.length} بوست آخر في نفس اليوم:{' '}
+                  {conflict.map(c => PLATFORMS.find(p => p.key === c.platform)?.icon || '').join(' ')}
+                </span>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">الكابشن</label>
               <textarea rows={3} value={form.caption} onChange={e => set('caption', e.target.value)} className={cn(INPUT_CLS,'resize-none text-xs')} />
@@ -287,27 +358,27 @@ function PostRow({ post, onClick }) {
       onClick={() => onClick?.(post)}
       className="flex items-center gap-3 py-3 px-3 hover:bg-surface-alt/60 cursor-pointer rounded-xl transition-colors group"
     >
-      {/* Status */}
       <span className={cn('shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-bold min-w-[56px] text-center', cfg.color)}>{cfg.label}</span>
-      {/* Date */}
       <span className="shrink-0 text-xs text-muted w-28 truncate" dir="ltr">{fmtDate(post.post_date)}</span>
-      {/* Type */}
       <span className="shrink-0 text-xs text-muted w-20">{ct?.label || post.content_type || '—'}</span>
-      {/* Caption */}
       <span className="flex-1 text-sm text-text truncate min-w-0">{post.caption || <span className="text-muted/50">بدون كابشن</span>}</span>
-      {/* Assigned */}
       <span className="shrink-0 text-xs text-teal font-semibold w-24 truncate text-end">{post.assigned_to || '—'}</span>
-      {/* Notes */}
       {post.notes && <span className="shrink-0 text-xs text-muted max-w-[140px] truncate hidden sm:block">{post.notes}</span>}
-      {/* Edit hint */}
       <span className="shrink-0 text-[10px] text-muted/30 group-hover:text-teal/50 transition">تفاصيل ›</span>
     </div>
   );
 }
 
 // ─── PlatformListView ─────────────────────────────────────────
-function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilter, onAdd, onSelectPost }) {
-  const filtered = statusFilter ? posts.filter(p => p.status === statusFilter) : posts;
+function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilter, searchTerm, onSearch, onAdd, onSelectPost }) {
+  const q = searchTerm.trim().toLowerCase();
+  const filtered = posts
+    .filter(p => !statusFilter || p.status === statusFilter)
+    .filter(p => !q ||
+      (p.caption     || '').toLowerCase().includes(q) ||
+      (p.assigned_to || '').toLowerCase().includes(q) ||
+      (p.notes       || '').toLowerCase().includes(q)
+    );
 
   const stats = Object.keys(STATUS_CFG).reduce((acc, k) => {
     acc[k] = posts.filter(p => p.status === k).length;
@@ -315,7 +386,22 @@ function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilt
   }, {});
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Search bar */}
+      <div className="relative">
+        <span className="absolute inset-y-0 start-3 flex items-center text-muted text-sm pointer-events-none">🔍</span>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={e => onSearch(e.target.value)}
+          placeholder="بحث في الكابشن، الموظف، الملاحظات..."
+          className="w-full rounded-xl border border-border bg-surface-alt ps-9 pe-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40"
+        />
+        {searchTerm && (
+          <button onClick={() => onSearch('')} className="absolute inset-y-0 end-3 flex items-center text-muted hover:text-text text-lg">×</button>
+        )}
+      </div>
+
       {/* Stats + filter bar */}
       <div className="flex items-center gap-2 flex-wrap justify-between">
         <div className="flex items-center gap-2 flex-wrap">
@@ -325,7 +411,7 @@ function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilt
               !statusFilter ? 'bg-navy text-white border-navy' : 'bg-surface border-border text-muted hover:border-teal/40'
             )}
           >
-            الكل ({posts.length})
+            الكل ({posts.length}{q ? ` · يظهر ${filtered.length}` : ''})
           </button>
           {Object.entries(STATUS_CFG).map(([k, v]) => stats[k] > 0 && (
             <button key={k}
@@ -351,13 +437,21 @@ function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilt
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted gap-2">
-          <span className="text-3xl">{platform?.icon || '📋'}</span>
-          <p className="text-sm">{statusFilter ? `لا يوجد محتوى بحالة "${STATUS_CFG[statusFilter]?.label}"` : `لا يوجد محتوى مسجّل لـ ${platform?.label}`}</p>
-          <button onClick={onAdd} className="mt-2 text-teal text-sm font-semibold hover:underline">+ أضف أول بوست</button>
+          <span className="text-3xl">{q ? '🔍' : platform?.icon || '📋'}</span>
+          <p className="text-sm">
+            {q
+              ? `لا توجد نتائج لـ "${searchTerm}"`
+              : statusFilter
+                ? `لا يوجد محتوى بحالة "${STATUS_CFG[statusFilter]?.label}"`
+                : `لا يوجد محتوى مسجّل لـ ${platform?.label}`}
+          </p>
+          {!q && !statusFilter && (
+            <button onClick={onAdd} className="mt-2 text-teal text-sm font-semibold hover:underline">+ أضف أول بوست</button>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-border overflow-hidden">
-          {/* Header row */}
+          {/* Header */}
           <div className="flex items-center gap-3 px-3 py-2 bg-surface-alt/80 border-b border-border text-[11px] font-bold text-muted">
             <span className="min-w-[56px]">الحالة</span>
             <span className="w-28">التاريخ</span>
@@ -367,7 +461,6 @@ function PlatformListView({ platform, posts, loading, statusFilter, onStatusFilt
             <span className="hidden sm:block max-w-[140px]">ملاحظات</span>
             <span className="w-12" />
           </div>
-          {/* Rows */}
           <div className="divide-y divide-border/50">
             {filtered.map(post => (
               <PostRow key={post.id} post={post} onClick={onSelectPost} />
@@ -389,7 +482,6 @@ function WeeklyGrid({ days, posts, onAddPost, onSelectPost }) {
   return (
     <div className="overflow-x-auto -mx-4 px-4">
       <div className="min-w-[700px]">
-        {/* Day headers */}
         <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(7,1fr)' }}>
           <div />
           {days.map((d, i) => {
@@ -402,7 +494,6 @@ function WeeklyGrid({ days, posts, onAddPost, onSelectPost }) {
             );
           })}
         </div>
-        {/* Platform rows */}
         {PLATFORMS.map(pl => (
           <div key={pl.key} className="grid gap-1 mt-1.5" style={{ gridTemplateColumns: '80px repeat(7,1fr)' }}>
             <div className="flex items-center gap-1.5 px-1 py-2">
@@ -440,9 +531,10 @@ export default function SocialCalendarScreen() {
   const [weekLoading, setWeekLoading] = useState(false);
 
   // Platform view
-  const [platPosts, setPlatPosts]   = useState([]);
+  const [platPosts, setPlatPosts]     = useState([]);
   const [platLoading, setPlatLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchTerm, setSearchTerm]   = useState('');
 
   // Modals
   const [addModal, setAddModal]       = useState({ open: false, date: '', platform: '' });
@@ -465,15 +557,11 @@ export default function SocialCalendarScreen() {
     setWeekLoading(false);
   }, [weekStart, weekEnd]);
 
-  // ── Load platform posts ──
+  // ── Load platform posts (يتجاوز حد 1000 صف) ──
   const loadPlatform = useCallback(async (platform) => {
     setPlatLoading(true);
-    const { data } = await supabase
-      .from('social_posts')
-      .select('*')
-      .eq('platform', platform)
-      .order('post_date', { ascending: false });
-    setPlatPosts(data || []);
+    const all = await fetchAllPlatformPosts(platform);
+    setPlatPosts(all);
     setPlatLoading(false);
   }, []);
 
@@ -490,9 +578,9 @@ export default function SocialCalendarScreen() {
   const handleTabChange = (key) => {
     setTab(key);
     setStatusFilter('');
+    setSearchTerm('');
   };
 
-  // Stats for header
   const allPosts = tab === 'week' ? weekPosts : platPosts;
   const totalByStatus = Object.keys(STATUS_CFG).reduce((acc, k) => {
     acc[k] = allPosts.filter(p => p.status === k).length;
@@ -529,7 +617,6 @@ export default function SocialCalendarScreen() {
 
       {/* ── Tab Bar ── */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-border">
-        {/* Week tab */}
         <button
           onClick={() => handleTabChange('week')}
           className={cn('shrink-0 px-4 py-2 rounded-xl text-sm font-bold transition border',
@@ -540,7 +627,6 @@ export default function SocialCalendarScreen() {
         >
           📅 أسبوعي
         </button>
-        {/* Platform tabs */}
         {PLATFORMS.map(pl => {
           const count = (tab === pl.key ? platPosts : []).length;
           return (
@@ -566,7 +652,6 @@ export default function SocialCalendarScreen() {
       {/* ── Week View ── */}
       {tab === 'week' && (
         <>
-          {/* Week navigator */}
           <div className="flex items-center gap-3">
             <button onClick={() => { const d = new Date(anchor); d.setDate(d.getDate()-7); setAnchor(d); }}
               className="w-9 h-9 rounded-xl bg-surface border border-border grid place-items-center text-muted hover:text-text hover:border-teal/40 transition">‹</button>
@@ -600,6 +685,8 @@ export default function SocialCalendarScreen() {
           loading={platLoading}
           statusFilter={statusFilter}
           onStatusFilter={setStatusFilter}
+          searchTerm={searchTerm}
+          onSearch={setSearchTerm}
           onAdd={() => setAddModal({ open: true, date: isoDate(new Date()), platform: tab })}
           onSelectPost={(post) => setDetailModal({ open: true, post })}
         />
