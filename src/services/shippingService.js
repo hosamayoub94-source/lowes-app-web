@@ -25,7 +25,7 @@ export async function fetchShippingChannels() {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('accounting_channels')
-    .select('id, name_ar, kind, is_active, sort_order')
+    .select('id, name_ar, kind, is_active, sort_order, market')
     .eq('kind', 'shipping')
     .eq('is_active', true)
     .order('sort_order');

@@ -27,9 +27,12 @@ const KINDS = [
 ];
 const KIND_LABEL = Object.fromEntries(KINDS.map(({ k, l }) => [k, l]));
 
+const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', both: '🌍 الاثنان' };
+
 const BLANK = {
   name_ar: '', kind: 'shipping', currency: '', is_active: true,
   allows_income: true, allows_expense: true, book: 'operational', sort_order: 100, icon: '🚚',
+  market: 'syria',
 };
 
 export default function AdminChannelsScreen() {
@@ -53,6 +56,8 @@ export default function AdminChannelsScreen() {
       book:           edit.book || BOOK.OPERATIONAL,
       sort_order:     Number(edit.sort_order) || 100,
       icon:           edit.icon || null,
+      // حقل السوق: يُحفظ فقط لشركات الشحن (يؤثر على قائمة الشحن في نموذج الطلب)
+      market:         edit.kind === 'shipping' ? (edit.market || null) : null,
     };
     try {
       if (edit.id) await updateChannel(edit.id, data);
@@ -93,6 +98,7 @@ export default function AdminChannelsScreen() {
           <span className="text-sm text-text">
             {c.icon || '📌'} {c.name_ar}
             <span className="text-muted text-xs"> · {KIND_LABEL[c.kind] || c.kind}
+              {c.kind === 'shipping' && c.market ? ` · ${MARKET_LABEL[c.market] || c.market}` : ''}
               {c.allows_income ? ' · 🟢وارد' : ''}{c.allows_expense ? ' · 🔴صادر' : ''}
               {c.currency ? ` · ${c.currency}` : ''}
               {!c.is_active ? ' · ⏸ مسكّرة' : ''}
@@ -102,7 +108,7 @@ export default function AdminChannelsScreen() {
             <button onClick={() => toggleActive(c)} className="text-xs font-bold text-amber-600">
               {c.is_active ? 'تسكير' : 'فتح'}
             </button>
-            <button onClick={() => setEdit({ ...c, currency: c.currency || '' })} className="text-xs text-teal-700 font-bold">تعديل</button>
+            <button onClick={() => setEdit({ ...c, currency: c.currency || '', market: c.market || '' })} className="text-xs text-teal-700 font-bold">تعديل</button>
             <button onClick={() => del(c)} className="text-xs text-red-600 font-bold">حذف</button>
           </span>
         </div>
@@ -140,6 +146,17 @@ export default function AdminChannelsScreen() {
                 </select>
               </div>
             </div>
+            {/* السوق: يظهر فقط لشركات الشحن — يحدد في أي نموذج طلب تظهر */}
+            {edit.kind === 'shipping' && (
+              <div>
+                <label className="text-xs text-muted">السوق (لشركات الشحن):</label>
+                <select className={INP} value={edit.market || ''} onChange={e => setEdit({ ...edit, market: e.target.value })}>
+                  <option value="syria">🇸🇾 سوريا فقط</option>
+                  <option value="turkey">🇹🇷 تركيا فقط</option>
+                  <option value="both">🌍 الاثنان</option>
+                </select>
+              </div>
+            )}
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="text-xs text-muted">الكتاب:</label>

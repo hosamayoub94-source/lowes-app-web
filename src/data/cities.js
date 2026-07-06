@@ -24,7 +24,7 @@ export const ISTANBUL_MOTOR_DISTRICTS = [
 ];
 
 // Shipping carriers per market.
-export const SYRIA_SHIPPING  = ['شركة الكرم', 'قدموس', 'مسارات', 'إيزلا', 'توصيل جرمانا', 'توصيل ميتور', 'أخرى'];
+export const SYRIA_SHIPPING  = ['شركة الكرم', 'قدموس', 'مسارات', 'إيزلا', 'توصيل جرمانا', 'توصيل ميتور', 'بابل', 'أخرى'];
 export const TURKEY_SHIPPING = [
   'Yurtiçi Kargo', 'Aras Kargo', 'Sürat Kargo', 'PTT Kargo', 'MNG Kargo',
   'توصيل خاص 🚗', 'توصيل الموتور 🏍️',

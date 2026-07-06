@@ -1843,6 +1843,16 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         )
       )}
 
+      {/* سوريا: زر «تم التجهيز ← في النقل» للطلبات في حالة التجهيز */}
+      {canAdvance && order.market === 'syria' && order.status === 'preparing' && (
+        <button
+          onClick={() => handleSetStatus('shipped')}
+          disabled={changing}
+          className="w-full py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+          {changing ? '⏳ جارٍ التحديث…' : '✅ تم التجهيز ← في النقل 🚚'}
+        </button>
+      )}
+
       {/* طباعة البوليصة من التطبيق — سوريا: «وارد جديد» فقط (طلب المالك، لا
           تُطبع لطلبات الانتظار/المتابعة) · تركيا: أي حالة (لإعادة الطباعة). */}
       {(order.market === 'turkey' || (order.market === 'syria' && order.status === 'pending')) && (
