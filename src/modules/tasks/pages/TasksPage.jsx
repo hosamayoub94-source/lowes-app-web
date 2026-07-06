@@ -54,12 +54,19 @@ const TASK_TYPES = [
   { value: 'other',              label: '📌 أخرى' },
 ];
 
+// القيم تطابق عمود team في جدول profiles بالـ DB
 const TEAM_OPTIONS = [
   { value: '',       label: '— كل التيمات —' },
-  { value: 'social', label: '📱 تيم السوشال ميديا' },
-  { value: 'sales',  label: '💼 تيم المبيعات' },
-  { value: 'ops',    label: '⚙️ تيم العمليات' },
+  { value: 'ميديا',  label: '📱 تيم السوشال ميديا' },
+  { value: 'سوريا',  label: '🇸🇾 تيم سوريا' },
+  { value: 'تركيا',  label: '🇹🇷 تيم تركيا' },
 ];
+
+const TEAM_DISPLAY = {
+  'ميديا':  { icon: '📱', label: 'سوشال' },
+  'سوريا':  { icon: '🇸🇾', label: 'سوريا' },
+  'تركيا':  { icon: '🇹🇷', label: 'تركيا' },
+};
 
 const EMPTY_FORM = {
   title: '', description: '', priority: 'medium',
@@ -448,7 +455,7 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
         )}
         {task.team && (
           <span className="text-[10px] bg-teal/10 text-teal px-2 py-0.5 rounded-full">
-            {task.team === 'social' ? '📱' : task.team === 'sales' ? '💼' : '⚙️'} {task.team === 'social' ? 'سوشال' : task.team === 'sales' ? 'مبيعات' : 'عمليات'}
+            {TEAM_DISPLAY[task.team]?.icon ?? '⚙️'} {TEAM_DISPLAY[task.team]?.label ?? task.team}
           </span>
         )}
         {task.due_date && (
