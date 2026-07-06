@@ -55,9 +55,28 @@ function weekDates(anchor) {
 
 function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) {
   const session = useAuthStore((s) => s.session);
-  const [form, setForm] = useState({ post_date: defaultDate || '', platform: defaultPlatform || 'instagram', content_type: 'post', status: 'draft', caption: '', notes: '' });
+  const [form, setForm] = useState({ post_date: defaultDate || '', platform: defaultPlatform || 'instagram', content_type: 'post', status: 'draft', caption: '', assigned_to: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [employees, setEmployees] = useState([]);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  // تحميل الموظفين عند فتح المودال
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('profiles')
+      .select('id, employee_name')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data) {
+          setEmployees(
+            data
+              .filter((e) => e.employee_name)
+              .sort((a, b) => a.employee_name.localeCompare(b.employee_name, 'ar'))
+          );
+        }
+      });
+  }, [open]);
 
   useEffect(() => {
     if (open) setForm((p) => ({ ...p, post_date: defaultDate || p.post_date, platform: defaultPlatform || p.platform }));
@@ -106,6 +125,15 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
                 {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">معيّن لـ <span className="font-normal text-muted/70">(اختياري)</span></label>
+            <select value={form.assigned_to} onChange={(e) => set('assigned_to', e.target.value)} className={INPUT_CLS}>
+              <option value="">— اختر موظف —</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.employee_name}>{e.employee_name}</option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted">الكابشن / الوصف <span className="font-normal text-muted/70">(اختياري)</span></label>
