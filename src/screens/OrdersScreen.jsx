@@ -380,9 +380,11 @@ const isCodOrder = (o) => {
   return !(p.includes('مسبق') || p.includes('bank') || p.includes('بنك') || p.includes('حوالة') || /kredi|kart/i.test(p));
 };
 function yurticiRow(o) {
-  const cod = isCodOrder(o);
+  // إذا كان الطلب مدفوعاً مسبقاً (payment_status=paid) لا نطلب من يورتيشي التحصيل
+  // حتى لو كانت طريقة الدفع "دفع عند الباب" — المال وصلنا، العميل لا يدفع مرة ثانية.
+  const cod = isCodOrder(o) && o.payment_status !== 'paid';
   const phone = String(o.phone_1 || o.wa_number || '').replace(/\D/g, '');
-  // الإجمالي COD = المتبقّي للجزئي وإلا المبلغ. غير COD → فارغ.
+  // المبلغ المراد تحصيله: جزئي → المتبقّي، كامل غير مدفوع → الكامل، غير COD → فارغ.
   const codAmount = cod
     ? (o.payment_status === 'partial' && Number(o.paid_amount) > 0 ? Math.max(0, Number(o.amount) - Number(o.paid_amount)) : Number(o.amount || 0))
     : '';
@@ -2922,9 +2924,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (order) syncOrderStock({ ...order, status: newStatus }, userName);
 
     // ── Auto accounting entry when delivered (idempotent) ─────────
-    // Records the cash collected on delivery as income, tied to the order via
-    // reference_no so re-delivering / toggling status never double-counts.
-    if (newStatus === 'delivered' && order && Number(order.amount) > 0) {
+    // Records income on delivery ONLY for non-COD orders or already-paid COD.
+    // COD unpaid = الفلوس لسا مع السائق/يورتيشي → لا نسجّل دخلاً الآن.
+    // نسجّل فقط: مدفوع مسبق (prepaid) أو COD مدفوع جزئياً/كلياً قبل التسليم.
+    const _skipCodAccounting = isCodOrder(order) && order.payment_status === 'unpaid';
+    if (newStatus === 'delivered' && order && Number(order.amount) > 0 && !_skipCodAccounting) {
       try {
         const cur     = (order.currency || 'SYP').toUpperCase();
         const orderNum = order.order_id || order.order_number || order.id?.slice(0, 8) || '—';
