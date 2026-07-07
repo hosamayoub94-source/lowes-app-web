@@ -36,6 +36,35 @@ const STATUS_CFG = {
   published: { label: 'نُشر ✓',  color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
 };
 
+const STATUS_STEPS = ['draft', 'approved', 'scheduled', 'published'];
+
+function StatusProgress({ status }) {
+  const cur = STATUS_STEPS.indexOf(status);
+  const pct = cur >= 0 ? Math.round(((cur + 1) / STATUS_STEPS.length) * 100) : 0;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between text-[11px] text-muted font-semibold">
+        <span>التقدم</span>
+        <span>{pct}%</span>
+      </div>
+      <div className="flex gap-1.5">
+        {STATUS_STEPS.map((s, i) => {
+          const cfg = STATUS_CFG[s];
+          const done = i <= cur;
+          return (
+            <div key={s} className="flex-1 space-y-1">
+              <div className={cn('h-2 rounded-full transition-all', done ? cfg.dot : 'bg-border')} />
+              <div className={cn('text-[9px] text-center truncate font-semibold', done ? 'text-text' : 'text-muted/40')}>
+                {cfg.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const INPUT_CLS = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 const SELECT_CLS = INPUT_CLS;
 
@@ -85,6 +114,7 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
   const [form, setForm] = useState({
     post_date: defaultDate || '', platform: defaultPlatform || 'instagram',
     content_type: 'post', status: 'draft', caption: '', assigned_to: '', notes: '',
+    due_date: '',
   });
   const [saving, setSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -93,7 +123,11 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('profiles').select('id, employee_name').eq('is_active', true)
+    // تيم السوشال ميديا فقط: social_manager أو team = ميديا
+    supabase.from('profiles')
+      .select('id, employee_name, role_type, team')
+      .eq('is_active', true)
+      .or('role_type.eq.social_manager,team.eq.ميديا')
       .then(({ data }) => {
         if (data) setEmployees(data.filter(e => e.employee_name).sort((a,b) => a.employee_name.localeCompare(b.employee_name, 'ar')));
       });
@@ -162,7 +196,14 @@ function AddPostModal({ open, onClose, defaultDate, defaultPlatform, onSaved }) 
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted">معيّن لـ <span className="font-normal text-muted/70">(اختياري)</span></label>
+            <label className="text-xs font-semibold text-muted">تاريخ الانجاز <span className="font-normal text-muted/70">(الموعد النهائي للعمل)</span></label>
+            <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} className={INPUT_CLS} />
+            {form.due_date && form.post_date && form.due_date > form.post_date && (
+              <p className="text-xs text-red-600">⚠️ تاريخ الانجاز بعد تاريخ النشر!</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">معيّن لـ <span className="font-normal text-muted/70">(تيم السوشال)</span></label>
             <select value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)} className={SELECT_CLS}>
               <option value="">— اختر موظف —</option>
               {employees.map(e => <option key={e.id} value={e.employee_name}>{e.employee_name}</option>)}
@@ -212,14 +253,17 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    if (post) setForm({ status: post.status, assigned_to: post.assigned_to || '', caption: post.caption || '', notes: post.notes || '' });
+    if (post) setForm({ status: post.status, assigned_to: post.assigned_to || '', caption: post.caption || '', notes: post.notes || '', due_date: post.due_date || '' });
     setEditing(false);
     setConflict([]);
   }, [post]);
 
   useEffect(() => {
     if (!open || !editing) return;
-    supabase.from('profiles').select('id, employee_name').eq('is_active', true)
+    supabase.from('profiles')
+      .select('id, employee_name, role_type, team')
+      .eq('is_active', true)
+      .or('role_type.eq.social_manager,team.eq.ميديا')
       .then(({ data }) => {
         if (data) setEmployees(data.filter(e => e.employee_name).sort((a,b) => a.employee_name.localeCompare(b.employee_name,'ar')));
       });
@@ -268,6 +312,9 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
           <span className="text-muted text-xs" dir="ltr">{fmtDate(post.post_date)}</span>
         </div>
 
+        {/* شريط التقدم — دائماً ظاهر */}
+        <StatusProgress status={editing ? form.status : post.status} />
+
         {editing ? (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -295,6 +342,10 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
               </div>
             )}
             <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted">تاريخ الانجاز</label>
+              <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} className={cn(INPUT_CLS,'text-xs')} />
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">الكابشن</label>
               <textarea rows={3} value={form.caption} onChange={e => set('caption', e.target.value)} className={cn(INPUT_CLS,'resize-none text-xs')} />
             </div>
@@ -307,8 +358,18 @@ function PostDetailModal({ post, open, onClose, onDelete, onUpdate }) {
           <>
             {post.caption && <p className="text-text bg-surface-alt rounded-xl p-3 text-sm leading-relaxed">{post.caption}</p>}
             {post.notes   && <p className="text-muted text-xs">{post.notes}</p>}
-            {post.assigned_to && <p className="text-xs text-teal font-semibold">معيّن لـ: {post.assigned_to}</p>}
-            {post.created_by  && <p className="text-xs text-muted">أُضيف بواسطة: {post.created_by}</p>}
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {post.assigned_to && <p className="text-xs text-teal font-semibold">معيّن لـ: {post.assigned_to}</p>}
+              {post.due_date && (() => {
+                const overdue = post.due_date < new Date().toISOString().slice(0,10) && post.status !== 'published';
+                return (
+                  <p className={`text-xs font-semibold ${overdue ? 'text-red-600' : 'text-muted'}`}>
+                    ⏰ موعد الانجاز: {fmtDate(post.due_date)}{overdue ? ' — متأخر!' : ''}
+                  </p>
+                );
+              })()}
+            </div>
+            {post.created_by && <p className="text-xs text-muted">أُضيف بواسطة: {post.created_by}</p>}
           </>
         )}
       </ModalBody>
@@ -345,6 +406,7 @@ function PostChip({ post, onClick }) {
         {ct?.label?.split(' ')[0]} <span className="truncate">{post.caption?.slice(0,25) || post.content_type}</span>
       </div>
       {post.assigned_to && <div className="text-[10px] opacity-70 truncate">← {post.assigned_to}</div>}
+      {post.due_date && <div className="text-[9px] opacity-60 truncate">⏰ {post.due_date}</div>}
     </button>
   );
 }

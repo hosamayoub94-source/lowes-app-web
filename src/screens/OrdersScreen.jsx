@@ -395,8 +395,8 @@ function yurticiRow(o) {
     'Telefon Cep': phone,
     'E-Mail Adresi': '',
     'Vergi No': '',
-    'Kargo Türü (*)': 'K',            // standart
-    'Ödeme Tipi (*)': 'G',            // Gönderici ödemeli (الشحن على لويز)
+    'Kargo Türü (*)': 'K',
+    'Ödeme Tipi (*)': o.shipping_payer === 'customer' ? 'A' : 'G',
     'İrsaliye Numarası': o.order_id || '',
     'Referans Numarası': o.order_id || '',
     'Adet (*)': 1,                    // طرد واحد لكل طلب (قرار المالك)
@@ -1397,6 +1397,7 @@ const EMPTY_FORM = {
   amount: '', currency: 'TRY',
   payment_method: 'دفع عند الباب 💵', payment_status: 'unpaid', paid_amount: '',
   shipping_company: 'Yurtiçi Kargo', pickup_type: 'استلام من المركز', tracking_number: '',
+  shipping_payer: 'company',
 };
 
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 placeholder:text-muted/50';
@@ -1986,6 +1987,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     shipping_company: order.shipping_company ?? 'Yurtiçi Kargo',
     pickup_type:      order.pickup_type      ?? 'استلام من المركز',
     tracking_number:  order.tracking_number  ?? '',
+    shipping_payer:   order.shipping_payer   ?? 'company',
     // Repopulate the structured address parts from the saved address string so
     // editing a Turkey order shows Mahalle/Sokak/No/Daire (was: always blanked).
     ...(order.market === 'turkey' ? parseTurkishAddress(order.address) : { mahalle: '', sokak: '', bno: '', daire: '' }),
@@ -2433,6 +2435,24 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
                 <select value={form.pickup_type} onChange={e => set('pickup_type', e.target.value)} className={INP}>
                   {PICKUP_TYPES.map(p => <option key={p}>{p}</option>)}
                 </select>
+              </div>
+            </div>
+            {/* أجور الشحن — من يدفع تكلفة الشحنة */}
+            <div>
+              <label className={LBL}>أجور الشحن</label>
+              <div className="flex gap-2">
+                {[
+                  { val: 'company',  label: '🏢 على الشركة' },
+                  { val: 'customer', label: '👤 على العميل' },
+                ].map(({ val, label }) => (
+                  <button key={val} type="button" onClick={() => set('shipping_payer', val)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+                      ${form.shipping_payer === val
+                        ? val === 'company' ? 'border-teal bg-teal/10 text-teal' : 'border-amber bg-amber/10 text-amber-fg'
+                        : 'border-border text-muted hover:border-teal/30'}`}>
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             {form.market === 'turkey' && (
@@ -2985,7 +3005,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setExportingYurtici(true);
     try {
       const XLSX = await import('xlsx');
-      const rows = ship.map(yurticiRow);
+      const rows = ship.map((o, idx) => ({ ...yurticiRow(o), 'Fatura Numarası': String(idx + 1) }));
       const ws = XLSX.utils.json_to_sheet(rows, { header: YURTICI_HEADERS });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CargoImportTemplate');
