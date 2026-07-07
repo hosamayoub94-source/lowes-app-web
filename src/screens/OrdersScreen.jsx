@@ -811,8 +811,15 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const RANK_ICONS = ['🥇', '🥈', '🥉'];
   const BRAND_COLORS = { lowes: 'border-teal/40 bg-teal/5', strong: 'border-amber/40 bg-amber/5' };
 
-  // Archive eligible: delivered this month by managers
-  const archiveEligible = useMemo(() => delivered.filter(o => !o.archived), [delivered]);
+  // أرشفة للشهر السابق فقط — الشهر الحالي يبقى مرئياً حتى يُغلَق.
+  const currentMonthPrefix = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const archiveEligible = useMemo(() =>
+    delivered.filter(o => !o.archived && String(o.order_date || '').slice(0, 7) < currentMonthPrefix),
+    [delivered, currentMonthPrefix]
+  );
 
   // ── Excel export for the accountant: summary + products + employees ──
   const [exporting, setExporting] = useState(false);
@@ -924,7 +931,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             {!showRecords && isManager && archiveEligible.length > 0 && (
               <button onClick={() => onArchive(archiveEligible.map(o => o.id))} disabled={archiving}
                 className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40">
-                {archiving ? '…' : `🗄️ أرشفة هذا الشهر (${archiveEligible.length})`}
+                {archiving ? '…' : `🗄️ أرشفة الأشهر السابقة (${archiveEligible.length})`}
               </button>
             )}
           </div>
@@ -2843,7 +2850,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // Archive a batch of order IDs (month-end)
   const handleMonthArchive = async (ids) => {
     if (!ids.length) return;
-    if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم لهذا الشهر؟ ستختفي من القائمة وتبقى في الأرشيف.`)) return;
+    if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم من الأشهر السابقة؟ طلبات الشهر الحالي لن تُؤرشَف. ستختفي من القائمة وتبقى في الأرشيف.`)) return;
     setArchiving(true);
     try {
       const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids);
@@ -2911,11 +2918,17 @@ export default function OrdersScreen({ forcedMarket = null }) {
     const order = orders.find(o => o.id === id);
     const fromStatus = order?.status;
     // لا نُكمِل التأثيرات الجانبية (محاسبة/مخزون/إشعار) إن لم تُحفظ الحالة فعلاً.
-    const { error: stErr } = await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    // updated_at → وقت تغيير الحالة؛ يظهر بالكرت ويُمرَّر للجدول عبر edge fn.
+    const statusChangedAt = new Date().toISOString();
+    const { error: stErr } = await supabase.from('orders').update({
+      status: newStatus,
+      updated_at: statusChangedAt,
+      updated_by: userName,
+    }).eq('id', id);
     if (stErr) { window.alert('تعذّر تحديث الحالة: ' + stErr.message); return; }
     // الخط الزمني: سجّل التغيير (من→إلى · مَن · المصدر app · الوقت)
     recordStatusChange({ orderId: id, from: fromStatus, to: newStatus, by: userName, source: 'app' });
-    setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus, updated_at: statusChangedAt, updated_by: userName } : o));
     // Re-sync to the sheet so status/tracking changes update the existing row
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
