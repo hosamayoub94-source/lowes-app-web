@@ -3037,6 +3037,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // واحدة بالتطبيق. المصدر المضمون لرقم التتبّع (SOAP لا يرجّعه — مُختبَر حيّاً).
   const [importingReport, setImportingReport] = useState(false);
   const reportFileRef = useRef(null);
+  const [importingLabels, setImportingLabels] = useState(false);
+  const labelPdfRef = useRef(null);
   const importYurticiReport = async (file) => {
     if (!file) return;
     setImportingReport(true);
@@ -3067,6 +3069,46 @@ export default function OrdersScreen({ forcedMarket = null }) {
     } finally {
       setImportingReport(false);
       if (reportFileRef.current) reportFileRef.current.value = '';
+    }
+  };
+
+  // رفع PDF بوالص يورتيتشي → ربط كل طلب بـGÖ → track-yurtici يسحب التتبّع تلقائياً.
+  const importYurticiLabels = async (file) => {
+    if (!file) return;
+    setImportingLabels(true);
+    const pend = toast.info?.('⏳ جاري قراءة البوالص…', { duration: 20000 });
+    try {
+      const { parsePdfLabels } = await import('@services/yurticiLabelImport');
+      const { pairs, warnings } = await parsePdfLabels(file);
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      if (!pairs.length) {
+        toast.error?.(warnings[0] || '⚠️ لم أجد بوالص في هذا الملف. تأكّد أنه PDF بوالص يورتيتشي.', { duration: 9000 });
+        return;
+      }
+      const ambiguous = pairs.filter((p) => p.ambiguous);
+      let msg = `وجدت ${pairs.length} بوليصة`;
+      if (ambiguous.length) msg += ` (${ambiguous.length} تحتاج مراجعة — İrsaliye≠REF.NO)`;
+      if (!window.confirm(`${msg}.\nربط أرقام GÖ بالطلبات؟`)) return;
+      const clean = pairs.filter((p) => !p.ambiguous);
+      if (!clean.length) { toast.info?.('لا بوالص غير متعارضة — راجع البوالص يدوياً.'); return; }
+      const { data, error } = await supabase.functions.invoke('import-yurtici-labels', { body: { labels: clean } });
+      if (error) throw error;
+      if (!data?.ok) { toast.error?.(`⚠️ تعذّر: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      const parts = [];
+      if (data.set)       parts.push(`رُبط ${data.set}`);
+      if (data.unchanged) parts.push(`موجود مسبقاً ${data.unchanged}`);
+      if (data.conflict)  parts.push(`تعارض ${data.conflict}`);
+      let ok = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${data.total} بوليصة`;
+      if (data.unmatched?.length) ok += ` · لم يُعثر على: ${data.unmatched.slice(0, 8).join('، ')}${data.unmatched.length > 8 ? '…' : ''}`;
+      toast.success?.(ok, { duration: 12000 });
+      if (ambiguous.length) toast.info?.(`⚠️ ${ambiguous.length} بوليصة متعارضة لم تُربَط — راجعها يدوياً.`, { duration: 10000 });
+      load();
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّرت قراءة البوالص: ' + (e?.message || e), { duration: 9000 });
+    } finally {
+      setImportingLabels(false);
+      if (labelPdfRef.current) labelPdfRef.current.value = '';
     }
   };
 
@@ -3476,6 +3518,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
                 className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition disabled:opacity-40"
                 title="رفع تقرير يورتيتشي (results.xlsx) لتعبئة أرقام التتبّع تلقائياً">
                 {importingReport ? '…' : '📊 تتبّع'}
+              </button>
+              <input ref={labelPdfRef} type="file" accept=".pdf,application/pdf" className="hidden"
+                onChange={(e) => importYurticiLabels(e.target.files?.[0])} />
+              <button onClick={() => labelPdfRef.current?.click()} disabled={importingLabels}
+                className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 transition disabled:opacity-40"
+                title="رفع PDF بوالص يورتيتشي لربط أرقام GÖ بالطلبات تلقائياً (يُفعّل التتبّع)">
+                {importingLabels ? '…' : '📋 بوالص'}
               </button>
             </>
           )}
