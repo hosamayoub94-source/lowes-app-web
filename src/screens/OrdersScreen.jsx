@@ -3091,15 +3091,28 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (!window.confirm(`${msg}.\nربط أرقام GÖ بالطلبات؟`)) return;
       const clean = pairs.filter((p) => !p.ambiguous);
       if (!clean.length) { toast.info?.('لا بوالص غير متعارضة — راجع البوالص يدوياً.'); return; }
-      const { data, error } = await supabase.functions.invoke('import-yurtici-labels', { body: { labels: clean } });
-      if (error) throw error;
-      if (!data?.ok) { toast.error?.(`⚠️ تعذّر: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      // كتابة مباشرة عبر Supabase REST (بدون Edge Function)
+      let set = 0, unchanged = 0, unmatched = [];
+      for (const { orderId, go } of clean) {
+        const { data: rows, error: selErr } = await supabase
+          .from('orders')
+          .select('id, yurtici_cargo_key')
+          .eq('order_id', orderId)
+          .limit(1);
+        if (selErr || !rows?.length) { unmatched.push(orderId); continue; }
+        if (rows[0].yurtici_cargo_key) { unchanged++; continue; }
+        const { error: upErr } = await supabase
+          .from('orders')
+          .update({ yurtici_cargo_key: go, shipping_company: 'Yurtiçi Kargo', updated_at: new Date().toISOString() })
+          .eq('id', rows[0].id)
+          .is('yurtici_cargo_key', null);
+        if (upErr) { unmatched.push(orderId); } else { set++; }
+      }
       const parts = [];
-      if (data.set)       parts.push(`رُبط ${data.set}`);
-      if (data.unchanged) parts.push(`موجود مسبقاً ${data.unchanged}`);
-      if (data.conflict)  parts.push(`تعارض ${data.conflict}`);
-      let ok = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${data.total} بوليصة`;
-      if (data.unmatched?.length) ok += ` · لم يُعثر على: ${data.unmatched.slice(0, 8).join('، ')}${data.unmatched.length > 8 ? '…' : ''}`;
+      if (set)       parts.push(`رُبط ${set}`);
+      if (unchanged) parts.push(`موجود مسبقاً ${unchanged}`);
+      let ok = `✅ ${parts.join(' · ') || 'تمّت المعالجة'} من ${clean.length} بوليصة`;
+      if (unmatched.length) ok += ` · لم يُعثر على: ${unmatched.slice(0, 8).join('، ')}${unmatched.length > 8 ? '…' : ''}`;
       toast.success?.(ok, { duration: 12000 });
       if (ambiguous.length) toast.info?.(`⚠️ ${ambiguous.length} بوليصة متعارضة لم تُربَط — راجعها يدوياً.`, { duration: 10000 });
       load();
