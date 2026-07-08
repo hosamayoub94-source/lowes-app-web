@@ -2895,6 +2895,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // «لحالها» عند فتح الشاشة فوراً) ثم أعد التحميل. track-yurtici يتتبّع الاثنين
   // (SOAP بالـcargoKey + API العام برقم التتبّع).
   const _ytTracked = useRef(false);
+  const _ytIntervalRef = useRef(null);
   useEffect(() => {
     if (_ytTracked.current || loading) return;
     const trackable = orders.some(o =>
@@ -2903,10 +2904,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
       !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
     if (!trackable) return;
     _ytTracked.current = true;
-    supabase.functions.invoke('track-yurtici', { body: { manual: true } })
+    const doTrack = () => supabase.functions.invoke('track-yurtici', { body: { manual: true } })
       .then(({ data }) => { if (data?.updated > 0) load(); })
       .catch(() => {});
+    doTrack();
+    _ytIntervalRef.current = setInterval(doTrack, 3 * 60 * 1000);
   }, [orders, loading, load]);
+  useEffect(() => () => { if (_ytIntervalRef.current) clearInterval(_ytIntervalRef.current); }, []);
 
   // ── لا مزامنة تلقائية بالخلفية (قرار المالك) ──────────────────
   // المزامنة التطبيق→الجدول تصير فقط عند فعل صريح: إنشاء/تعديل طلب
@@ -3039,6 +3043,21 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const reportFileRef = useRef(null);
   const [importingLabels, setImportingLabels] = useState(false);
   const labelPdfRef = useRef(null);
+  const [trackingNow, setTrackingNow] = useState(false);
+  const handleManualTrack = async () => {
+    setTrackingNow(true);
+    const pend = toast.info?.('⏳ جاري التتبّع…', { duration: 20000 });
+    try {
+      const { data, error } = await supabase.functions.invoke('track-yurtici', { body: { manual: true } });
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      if (error) throw error;
+      if (data?.updated > 0) { toast.success?.(`✅ تحدّث ${data.updated} طلب`, { duration: 6000 }); load(); }
+      else toast.info?.(`لا تغييرات — تحقّق من ${data?.checked ?? 0} طلب`, { duration: 4000 });
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّر التتبّع: ' + (e?.message || e), { duration: 7000 });
+    } finally { setTrackingNow(false); }
+  };
   const importYurticiReport = async (file) => {
     if (!file) return;
     setImportingReport(true);
@@ -3527,10 +3546,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
             <>
               <input ref={reportFileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
                 onChange={(e) => importYurticiReport(e.target.files?.[0])} />
-              <button onClick={() => reportFileRef.current?.click()} disabled={importingReport}
+              <button onClick={handleManualTrack} disabled={trackingNow}
                 className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition disabled:opacity-40"
-                title="رفع تقرير يورتيتشي (results.xlsx) لتعبئة أرقام التتبّع تلقائياً">
-                {importingReport ? '…' : '📊 تتبّع'}
+                title="تحديث حالات يورتيتشي الآن (تلقائي كل 3 دقائق)">
+                {trackingNow ? '⏳…' : '📊 تتبّع'}
               </button>
               <input ref={labelPdfRef} type="file" accept=".pdf,application/pdf" className="hidden"
                 onChange={(e) => importYurticiLabels(e.target.files?.[0])} />
