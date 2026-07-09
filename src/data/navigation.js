@@ -32,9 +32,10 @@ export const NAV_GROUPS = {
   hr:        'الفريق والموارد',
   reports:   'التحليلات والتقارير',
   social:    'السوشال',
+  finance:   'المالية',
   admin:     'الإدارة',
 };
-export const GROUP_ORDER = ['core', 'sales', 'inventory', 'self', 'hr', 'reports', 'social', 'admin'];
+export const GROUP_ORDER = ['core', 'sales', 'inventory', 'self', 'hr', 'reports', 'social', 'finance', 'admin'];
 
 export const NAV_ITEMS = [
   // ── Daily basics (everyone) — first items feed the mobile bottom bar
@@ -85,15 +86,17 @@ export const NAV_ITEMS = [
   { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social' },
   { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social' },
 
-  // ── Admin / finance
-  { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'admin', perm: P.VIEW_FINANCE },
-  { id: 'ledger',         label: 'المالية العامة',  icon: '🏦', path: '/ledger',     roles: [A],            group: 'admin' }, // الحساب المركزي — أدمن فقط
+  // ── Finance (فصل المالية عن إدارة النظام)
+  { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'finance', perm: P.VIEW_FINANCE },
+  { id: 'ledger',         label: 'المالية العامة',  icon: '🏦', path: '/ledger',     roles: [A],            group: 'finance' }, // الحساب المركزي — أدمن فقط
+  { id: 'admin-channels', label: 'قنوات المحاسبة', icon: '🔀', path: '/admin/channels', roles: [A, M, ACC], group: 'finance', perm: P.VIEW_FINANCE },
+
+  // ── Admin / system
+  { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
+  { id: 'admin-projects', label: 'المشاريع والفرق', icon: '🗂️', path: '/admin/projects', roles: [A], group: 'admin' },
+  { id: 'admin-guides',   label: 'إدارة الأدلة',  icon: '📖', path: '/admin/guides', roles: [A, M],   group: 'admin', perm: P.MANAGE_GUIDES },
   { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
-  { id: 'admin',          label: 'الإدارة',      icon: '⚙️', path: '/admin',      roles: [A],        group: 'admin' },
-  { id: 'admin-guides',   label: 'إدارة الأدلة',  icon: '📖', path: '/admin/guides', roles: [A, M],   group: 'admin', perm: P.MANAGE_GUIDES },
-  { id: 'admin-channels', label: 'قنوات المحاسبة', icon: '🔀', path: '/admin/channels', roles: [A, M, ACC], group: 'admin', perm: P.VIEW_FINANCE },
-  { id: 'admin-projects', label: 'المشاريع والفرق', icon: '🗂️', path: '/admin/projects', roles: [A], group: 'admin' },
 ];
 
 // An item is visible if the role sees it by default, OR the user has been
@@ -128,6 +131,11 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.SALES_MANAGER]:  ['workspace', 'orders', 'customers', 'sales', 'manager-board'],
   [ROLES.MEDIA_BUYER]:    ['workspace', 'campaigns', 'media-buyer', 'daily-report', 'customers'],
   [ROLES.SOCIAL_MANAGER]: ['workspace', 'social-studio', 'social-calendar', 'tasks', 'performance'],
+  // المناصب الإدارية — تبويبات منسّقة بدل «أول 5 عناصر» العشوائية
+  [ROLES.ACCOUNTANT]:        ['workspace', 'accounting', 'admin-channels', 'tasks', 'attendance'],
+  [ROLES.HR_MANAGER]:        ['workspace', 'team', 'requests', 'attendance', 'tasks'],
+  [ROLES.WAREHOUSE_MANAGER]: ['workspace', 'tasks', 'customers', 'team', 'attendance'],
+  [ROLES.MARKETING_MANAGER]: ['workspace', 'social-calendar', 'prompt-studio', 'media-buyer', 'tasks'],
 };
 
 export function bottomTabsForRole(role, permSet = null, userMarket = null) {
@@ -138,7 +146,16 @@ export function bottomTabsForRole(role, permSet = null, userMarket = null) {
   const byId = Object.fromEntries(all.map(i => [i.id, i]));
   const curated = ROLE_BOTTOM_TABS[role];
   if (curated) {
-    return curated.map(id => id === 'orders' ? ordersId : id).map(id => byId[id]).filter(Boolean);
+    const tabs = curated.map(id => id === 'orders' ? ordersId : id).map(id => byId[id]).filter(Boolean);
+    // لو سقط عنصر (غير مرئي للدور/الصلاحية) نكمّل حتى 5 من باقي المتاح.
+    if (tabs.length < 5) {
+      const have = new Set(tabs.map(t => t.id));
+      for (const item of all) {
+        if (tabs.length >= 5) break;
+        if (!have.has(item.id)) { tabs.push(item); have.add(item.id); }
+      }
+    }
+    return tabs.slice(0, 5);
   }
   // الأدوار الإدارية (محاسب/موارد بشرية/مخزون/تسويق) بلا تبويبات مُنسَّقة —
   // كان الشريط السفلي يظهر فارغاً. نرجع أول 5 عناصر متاحة لدورها بدل الفراغ.

@@ -14,6 +14,10 @@ export function homeArchetype(role) {
     case ROLES.SALES_MANAGER:       return 'sales_manager';
     case ROLES.SOCIAL_MANAGER:      return 'social';
     case ROLES.MEDIA_BUYER:         return 'media';
+    case ROLES.ACCOUNTANT:          return 'accountant';
+    case ROLES.HR_MANAGER:          return 'hr';
+    case ROLES.MARKETING_MANAGER:   return 'marketing';
+    case ROLES.WAREHOUSE_MANAGER:
     case 'storage':                 return 'storage';
     default:                        return 'seller';
   }
@@ -27,6 +31,9 @@ export const HOME_LAYOUT = {
   media:         ['attendance', 'myTasks', 'campaignsLink', 'announcement', 'training'],
   social:        ['attendance', 'myTasks', 'announcement', 'training'],
   storage:       ['attendance', 'myTasks', 'lowStock', 'announcement'],
+  accountant:    ['attendance', 'myTasks', 'currency', 'announcement'],
+  hr:            ['attendance', 'myTasks', 'teamStatus', 'attendanceChart', 'announcement'],
+  marketing:     ['attendance', 'myTasks', 'campaignsLink', 'announcement', 'training'],
 };
 
 export function homeBlocksForRole(role) {

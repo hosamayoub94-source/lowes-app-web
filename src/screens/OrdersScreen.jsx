@@ -2746,6 +2746,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const [viewMonthly,    setViewMonthly]   = useState(false);   // «تسليمات الشهر» toggle
   const [viewWallet,     setViewWallet]    = useState(false);   // «محفظتي» toggle
   const [viewDeleted,    setViewDeleted]   = useState(false);   // «المحذوفة» toggle (managers)
+  const [moreOpen,       setMoreOpen]      = useState(false);   // قائمة «⋯ المزيد» بالهيدر
   const [deletedOrders,  setDeletedOrders] = useState([]);
   const [deletedLoading, setDeletedLoading]= useState(false);
   const [refreshing,     setRefreshing]    = useState(false);   // manual tracking refresh
@@ -3458,6 +3459,46 @@ export default function OrdersScreen({ forcedMarket = null }) {
     );
   }
 
+  // ── قائمة «⋯ المزيد» بالهيدر — نفس الأزرار السابقة بنفس شروطها، منظمة بأقسام ──
+  const isTurkeyMkt = market === 'turkey' || lockedMarket === 'turkey';
+  const closeMore = (fn) => () => { setMoreOpen(false); fn(); };
+  const moreSections = [
+    {
+      title: 'العروض',
+      items: [
+        isManager && { key: 'archive', label: viewArchive ? '← الطلبات النشطة' : '🗄️ الأرشيف', active: viewArchive,
+          onClick: closeMore(() => setViewArchive(v => !v)) },
+        isManager && !viewArchive && { key: 'deleted', label: '🗑 المحذوفة (استرجاع)', active: viewDeleted,
+          onClick: closeMore(() => { setViewDeleted(v => !v); setViewTracking(false); setViewMonthly(false); setViewWallet(false); }) },
+        !isFulfillment && !isStorage && !viewArchive && { key: 'wallet', label: '💼 محفظتي', active: viewWallet,
+          onClick: closeMore(() => { setViewWallet(v => !v); setViewTracking(false); setViewMonthly(false); }) },
+        !isFulfillment && !isStorage && !viewArchive && { key: 'tracking', label: '📡 تتبع الشحنات', active: viewTracking,
+          onClick: closeMore(() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }) },
+        isManager && !viewArchive && { key: 'monthly', label: '📦 تسليمات الشهر', active: viewMonthly,
+          onClick: closeMore(() => { setViewMonthly(v => !v); setViewTracking(false); setViewWallet(false); }) },
+      ].filter(Boolean),
+    },
+    (isManager || isFulfillment) && !viewArchive && isTurkeyMkt && {
+      title: 'يورتيتشي',
+      items: [
+        { key: 'yurtici-excel', label: exportingYurtici ? '… جارٍ التوليد' : '📤 توليد ملف Excel', disabled: exportingYurtici,
+          onClick: closeMore(exportYurticiExcel) },
+        { key: 'yurtici-track', label: trackingNow ? '⏳ جارٍ التحديث…' : '📊 تحديث التتبّع الآن', disabled: trackingNow,
+          onClick: closeMore(handleManualTrack) },
+        { key: 'yurtici-labels', label: importingLabels ? '… جارٍ الرفع' : '📋 رفع بوالص PDF', disabled: importingLabels,
+          onClick: closeMore(() => labelPdfRef.current?.click()) },
+      ],
+    },
+    {
+      title: 'إجراءات',
+      items: [
+        isManager && !viewArchive && { key: 'archive-old', label: archiving ? '… جارٍ الأرشفة' : '🗄️ أرشفة الأشهر السابقة', disabled: archiving,
+          onClick: closeMore(archiveOldDelivered) },
+      ].filter(Boolean),
+    },
+  ].filter(s => s && s.items.length > 0);
+  const anySecondaryView = viewArchive || viewDeleted || viewWallet || viewTracking || viewMonthly;
+
   return (
     <div className="space-y-4 pb-24 sm:pb-8" dir="rtl">
 
@@ -3479,53 +3520,28 @@ export default function OrdersScreen({ forcedMarket = null }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0 sm:justify-end">
-          {isManager && (
-            <button onClick={() => setViewArchive(v => !v)}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewArchive ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
-              title="عرض الطلبات المؤرشفة">
-              {viewArchive ? '← الطلبات النشطة' : '🗄️ الأرشيف'}
-            </button>
+          {/* مخفيان — تستعملهما قائمة «المزيد» (تقرير/بوالص يورتيتشي) */}
+          {(isManager || isFulfillment) && !viewArchive && isTurkeyMkt && (
+            <>
+              <input ref={reportFileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
+                onChange={(e) => importYurticiReport(e.target.files?.[0])} />
+              <input ref={labelPdfRef} type="file" accept=".pdf,application/pdf" className="hidden"
+                onChange={(e) => importYurticiLabels(e.target.files?.[0])} />
+            </>
           )}
-          {isManager && !viewArchive && (
-            <button onClick={() => { setViewDeleted(v => !v); setViewTracking(false); setViewMonthly(false); setViewWallet(false); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewDeleted ? 'bg-red-fg text-white border-red-fg' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
-              title="الطلبات المحذوفة (استرجاع)">
-              🗑 المحذوفة
-            </button>
-          )}
-          {isManager && !viewArchive && (
-            <button onClick={archiveOldDelivered} disabled={archiving}
-              className="px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition disabled:opacity-40"
-              title="أرشفة الطلبات المسلّمة الأقدم من شهر">
-              {archiving ? '…' : '🗄️ أرشفة'}
-            </button>
-          )}
-          {!isFulfillment && !isStorage && !viewArchive && (
-            <button onClick={() => { setViewWallet(v => !v); setViewTracking(false); setViewMonthly(false); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewWallet ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
-              title="محفظتي">
-              💼
-            </button>
-          )}
-          {!isFulfillment && !isStorage && !viewArchive && (
-            <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-teal text-navy border-teal' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
-              title="تتبع الشحنات">
-              📡
-            </button>
-          )}
-          {isManager && !viewArchive && (
-            <button onClick={() => { setViewMonthly(v => !v); setViewTracking(false); setViewWallet(false); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewMonthly ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
-              title="تسليمات الشهر">
-              📦
+          {/* زر رجوع سريع عند تفعيل أي عرض ثانوي من قائمة المزيد */}
+          {anySecondaryView && (
+            <button onClick={() => { setViewArchive(false); setViewDeleted(false); setViewWallet(false); setViewTracking(false); setViewMonthly(false); }}
+              className="px-3 py-2.5 rounded-xl bg-navy text-white text-sm font-bold border border-navy hover:bg-navy/90 transition"
+              title="الرجوع لقائمة الطلبات النشطة">
+              ← رجوع للطلبات
             </button>
           )}
           {(isManager || isFulfillment) && !viewArchive && (
             <button onClick={() => setViewFulfill(true)}
               className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-surface-alt border-border text-muted hover:text-text transition"
               title="لوحة التجهيز اليومية">
-              🧰
+              🧰 التجهيز
             </button>
           )}
           {(isManager || isFulfillment) && !viewArchive && (
@@ -3535,30 +3551,33 @@ export default function OrdersScreen({ forcedMarket = null }) {
               🖨️ بوليصات{orders.filter(labelEligible).length ? ` (${orders.filter(labelEligible).length})` : ''}
             </button>
           )}
-          {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
-            <button onClick={exportYurticiExcel} disabled={exportingYurtici}
-              className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40"
-              title="توليد ملف يورتيتشي (Excel) لرفعه دفعة وحدة">
-              {exportingYurtici ? '…' : '📤 يورتيتشي'}
-            </button>
-          )}
-          {(isManager || isFulfillment) && !viewArchive && (market === 'turkey' || lockedMarket === 'turkey') && (
-            <>
-              <input ref={reportFileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
-                onChange={(e) => importYurticiReport(e.target.files?.[0])} />
-              <button onClick={handleManualTrack} disabled={trackingNow}
-                className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition disabled:opacity-40"
-                title="تحديث حالات يورتيتشي الآن (تلقائي كل 3 دقائق)">
-                {trackingNow ? '⏳…' : '📊 تتبّع'}
+          {moreSections.length > 0 && (
+            <div className="relative">
+              <button onClick={() => setMoreOpen(v => !v)}
+                className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${moreOpen || anySecondaryView ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+                title="أدوات إضافية">
+                ⋯ المزيد
               </button>
-              <input ref={labelPdfRef} type="file" accept=".pdf,application/pdf" className="hidden"
-                onChange={(e) => importYurticiLabels(e.target.files?.[0])} />
-              <button onClick={() => labelPdfRef.current?.click()} disabled={importingLabels}
-                className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 transition disabled:opacity-40"
-                title="رفع PDF بوالص يورتيتشي لربط أرقام GÖ بالطلبات تلقائياً (يُفعّل التتبّع)">
-                {importingLabels ? '…' : '📋 بوالص'}
-              </button>
-            </>
+              {moreOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                  <div className="absolute end-0 mt-2 w-60 max-w-[85vw] z-50 bg-surface border border-border rounded-xl shadow-xl p-1.5 text-right">
+                    {moreSections.map((section, si) => (
+                      <div key={section.title} className={si > 0 ? 'mt-1 pt-1 border-t border-border' : ''}>
+                        <p className="px-3 py-1 text-[11px] font-bold text-muted">{section.title}</p>
+                        {section.items.map((item) => (
+                          <button key={item.key} onClick={item.onClick} disabled={item.disabled}
+                            className={`w-full text-right px-3 py-2 rounded-lg text-sm font-bold transition disabled:opacity-40
+                              ${item.active ? 'bg-navy text-white' : 'text-text hover:bg-surface-alt'}`}>
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           {!isFulfillment && !viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
