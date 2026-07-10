@@ -3398,6 +3398,23 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return true;
   }), [orders, market, brandFilter, status, search, myOrders, myNames, sellerFilter, dateFrom, dateTo]);
 
+  // ── تحميل تدريجي للعرض: نرسم 30 بطاقة ونزيد عند الاقتراب من الأسفل ──
+  // (الجلب من القاعدة كما هو — هذا يقصّ الرسم فقط لتخفيف الموبايل)
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMoreRef = useRef(null);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); },
+    [market, brandFilter, status, search, myOrders, sellerFilter, dateFrom, dateTo, viewArchive]);
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE);
+    }, { rootMargin: '600px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [filtered.length, visibleCount]);
+
   // قائمة البائعين الفريدة من الطلبات الحالية
   const sellerOptions = useMemo(() =>
     [...new Set(orders.map(o => canonicalSeller(o.handler_name)).filter(Boolean))].sort()
@@ -3818,7 +3835,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
         </div>
       ) : !viewTracking && !viewMonthly && !viewDeleted ? (
         <div className="space-y-3">
-          {filtered.map(o => (
+          {filtered.slice(0, visibleCount).map(o => (
             <OrderCard key={o.id} order={o}
               canAdvance={canAdvanceOrder(o)}
               onStatusChange={handleStatusChange}
@@ -3829,6 +3846,14 @@ export default function OrdersScreen({ forcedMarket = null }) {
               onCreateShipment={handleCreateShipment}
               canDelete={canDeleteOrder(o)} />
           ))}
+          {filtered.length > visibleCount && (
+            <div ref={loadMoreRef} className="text-center py-4">
+              <button onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                className="px-4 py-2 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition">
+                عرض المزيد ({filtered.length - visibleCount} متبقٍ)
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 

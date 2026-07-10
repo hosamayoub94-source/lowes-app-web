@@ -12,6 +12,7 @@
 3. **تابات سفلية منسّقة للأدوار الإدارية الأربعة** (كانت عشوائية «أول 5»): محاسب (workspace/accounting/admin-channels/tasks/attendance) · HR (workspace/team/requests/attendance/tasks) · مخازن (workspace/tasks/customers/team/attendance) · تسويق (workspace/social-calendar/prompt-studio/media-buyer/tasks). + fallback يكمّل حتى 5 لو سقط عنصر بالصلاحيات.
 4. **تخطيط هوم للأدوار الإدارية** (`homeLayout.js`): accountant (currency) · hr (teamStatus+attendanceChart) · marketing (campaignsLink) · warehouse→storage (lowStock).
 **تحقّق:** `npm run build` ✅ · حيّاً بالمتصفح: قائمة المزيد تفتح/تعمل (أرشيف toggle + رجوع) بتركيا وسوريا (سوريا بلا يورتيتشي) · السايدبار «المالية» ظاهرة · `bottomTabsForRole` لكل الأدوار الـ10 يرجع 5 عناصر صحيحة · صفر أخطاء console. **لم يُمَس:** فلاتر الحالات الـ15، منطق الطلبات/المزامنة، الصلاحيات.
+5. **(تكملة بنفس الجلسة) تحميل تدريجي لقائمة الطلبات:** الصفحة كانت ترسم كل الطلبات دفعة واحدة (~99,000px). صار يُرسم **30 بطاقة** وتزيد 30 تلقائياً عند الاقتراب من الأسفل (IntersectionObserver بهامش 600px) + زر «عرض المزيد (N متبقٍ)» احتياطي. يُعاد الضبط لـ30 عند تغيير أي فلتر/بحث/أرشيف. **الجلب من القاعدة لم يتغيّر** — قصّ رسم فقط (state `visibleCount` + `loadMoreRef` في `OrdersScreen.jsx`). تحقّق حيّ: الارتفاع 99k→~29k، التمرير يحمّل +30، الزر يعمل، تغيير الفلتر يضبط لـ30، صفر أخطاء.
 
 ### 🗓️ جلسة 5 يوليو 2026 — بوليصة + سوشال (كلودين) + استوديو البرومبت ✅ build ✓
 
