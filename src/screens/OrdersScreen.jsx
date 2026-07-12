@@ -3500,7 +3500,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
       items: [
         { key: 'yurtici-excel', label: exportingYurtici ? '… جارٍ التوليد' : '📤 توليد ملف Excel', disabled: exportingYurtici,
           onClick: closeMore(exportYurticiExcel) },
-        { key: 'yurtici-track', label: trackingNow ? '⏳ جارٍ التحديث…' : '📊 تحديث التتبّع الآن', disabled: trackingNow,
+        { key: 'yurtici-report', label: importingReport ? '… جارٍ الرفع' : '📊 رفع تقرير التتبّع (results.xlsx)', disabled: importingReport,
+          onClick: closeMore(() => reportFileRef.current?.click()) },
+        { key: 'yurtici-track', label: trackingNow ? '⏳ جارٍ التحديث…' : '🔄 تحديث التتبّع الآن', disabled: trackingNow,
           onClick: closeMore(handleManualTrack) },
         { key: 'yurtici-labels', label: importingLabels ? '… جارٍ الرفع' : '📋 رفع بوالص PDF', disabled: importingLabels,
           onClick: closeMore(() => labelPdfRef.current?.click()) },
