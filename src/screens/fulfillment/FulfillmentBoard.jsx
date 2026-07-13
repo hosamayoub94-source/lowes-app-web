@@ -280,7 +280,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
               👁️ {accessible ? 'واضح ✓' : 'عرض واضح'}
             </button>
             {labelReady.length > 0 && (
-              <button onClick={() => openLabelsPrint(labelReady)}
+              <button onClick={() => openLabelsPrint(labelReady).catch(console.error)}
                 title="طباعة بوليصات الشحن للطلبات الجاهزة (سوريا: وارد جديد · تركيا: تحضير الموتور) — A4، 8 بوليصات بالصفحة"
                 className="px-3 py-2 rounded-xl bg-[#C9A646] text-white text-xs font-extrabold hover:bg-[#b8963d] transition shadow-sm">
                 🖨️ بوليصات ({labelReady.length})

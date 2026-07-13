@@ -92,7 +92,7 @@ export default function LabelPrintModal({ open, onClose, orders, market }) {
           className="px-4 py-2.5 rounded-xl bg-surface-alt border border-border text-muted text-sm font-bold hover:text-text transition">
           إغلاق
         </button>
-        <button onClick={() => { openLabelsPrint(picked); onClose?.(); }} disabled={!picked.length}
+        <button onClick={() => openLabelsPrint(picked).then(() => onClose?.())} disabled={!picked.length}
           className="px-5 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
           🖨️ طباعة {picked.length ? `(${picked.length})` : ''}
         </button>

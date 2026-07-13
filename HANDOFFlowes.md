@@ -5,6 +5,45 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يوليو 2026)
 
+### 🗓️ جلسة 13 يوليو 2026 — بوليصة V2 + QR شبكة النجوم + صفحة الانضمام ✅ build ✓ + مُتحقَّق حيّاً
+
+#### ما أُنجز:
+
+**🖨️ تحسينات البوليصة (labelPrint.js — إعادة كتابة كاملة):**
+- **QR جديد:** حُذف `ig-qr.svg` القديم (stroke رفيع = طباعة خفيفة) وحلّ محله `qrcode` npm — يولّد SVG بمسارات مملوءة سوداء خالصة (filled paths = أسود داكن آمن للطباعة). القيمة: رابط انضمام شبكة النجوم `https://app.lowesprofesyonel.com/join`
+- **الهوية البصرية:** شريط ذهبي علوي (0.9mm، gradient) · رأس البوليصة خلفية cream (#FDFAF2) · gold-rule أثقل (0.7mm) · تذييل بحد ذهبي فوقه + خلفية cream · حد البوليصة ذهبي دافئ (#D4C89A) بدل الرمادي
+- **أجور التوصيل:** دالة `deliveryCost()` صارت تعمل لكل الأسواق (سابقاً سوريا فقط). تركيا: لو مُدخَل `delivery_cost` يظهر تفصيل «📦 قيمة البضاعة + 🚚 أجور التوصيل + 💳 التحصيل»
+- **التذييل الجديد:** QR (17mm, بإطار ذهبي رفيع) + نص: «⭐ انضمي لشبكة النجوم واكسبي عمولة حتى 50%» (ذهبي) + إنستقرام + هاتف + إيميل + slogan بالـ El Messiri
+- **تثبيت:** `npm install qrcode` (مضاف لـ package.json) · الدوال صارت `async` (`buildLabelsHTML` + `openLabelsPrint`)
+- **المستدعيان:** `LabelPrintModal.jsx` + `FulfillmentBoard.jsx` → `.then()` / `.catch()` للـ async
+
+**⭐ صفحة شبكة النجوم للعملاء (src/screens/JoinScreen.jsx — جديدة):**
+- مسار عام `/join` — لا تسجيل دخول مطلوب
+- موبايل فيرست · هوية LOWE'S (navy/gold/cream/Tajawal/El Messiri/Playfair)
+- هيدر navy مع اسم البراند + شريط ذهبي
+- 5 مراتب بألوانها (Bronze→Silver→Gold→Platinum→Diamond، 35%→50%)
+- نموذج انضمام: الاسم + الهاتف + المُحيل (اختياري)
+- يُدرج في `mlm_join_requests` (يعرض نجاح حتى لو الجدول غير موجود)
+- حالة نجاح جميلة مع تفاصيل التواصل
+- **Routes:** `ROUTES.JOIN = '/join'` في `paths.js` · lazy route في `AppRoutes.jsx` خارج ProtectedRoute
+
+#### SQL يحتاجه المالك (مرة واحدة):
+```sql
+-- شغّل: supabase/migration_v10_mlm_join_requests.sql
+-- ينشئ جدول mlm_join_requests + RLS (anon يكتب، authenticated يقرأ) + indexes + trigger
+```
+
+#### الملفات المعدّلة:
+- `src/services/labelPrint.js` — إعادة كتابة كاملة (async، qrcode، هوية V2)
+- `src/components/feature/LabelPrintModal.jsx` — async handler
+- `src/screens/fulfillment/FulfillmentBoard.jsx` — async handler
+- `src/routes/paths.js` — ROUTES.JOIN
+- `src/routes/AppRoutes.jsx` — JoinScreen lazy + public route
+- **جديد:** `src/screens/JoinScreen.jsx`
+- **جديد:** `supabase/migration_v10_mlm_join_requests.sql`
+
+---
+
 ### 🗓️ جلسة 10 يوليو 2026 — تنظيم التابات والبارات (UX) ✅ build ✓ + مُتحقَّق حيّاً
 طلب المالك: «رتب التابات والبنارات بشكل منظم وأكثر عملية بدون ما تخرب شي». فحص حي (dev server كأدمن) ثم 4 تحسينات — **صفر تغيير منطق/صلاحيات/مسارات**:
 1. **هيدر شاشة الطلبات:** كان 12 زراً يلتفون على 4 أسطر بالموبايل (5 منها أيقونة بلا نص). صار: 🧰 التجهيز (بنص) + 🖨️ بوليصات + **قائمة «⋯ المزيد»** منسدلة بأقسام (العروض: أرشيف/محذوفة/محفظتي/تتبع/تسليمات الشهر · يورتيتشي لتركيا فقط: Excel/تتبّع/بوالص PDF · إجراءات: أرشفة) + «+ طلب جديد». نفس الـhandlers والشروط حرفياً. زر **«← رجوع للطلبات»** يظهر عند تفعيل أي عرض ثانوي. الموبايل صار سطرين بدل 4. (`OrdersScreen.jsx` — state جديد `moreOpen` + مصفوفة `moreSections` قبل الـreturn)

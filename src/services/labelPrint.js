@@ -1,11 +1,14 @@
 // =============================================================
 // labelPrint — طباعة بوليصات الشحن (A4 = 8 بوليصات، 2×4)
 // هوية LOWE'S الرسمية: أبيض مسيطر · نص أسود · ذهبي #C9A646.
-// بلا تبعيات: window.open + window.print.
+// بلا تبعيات شبكية: window.open + window.print.
+// QR: مولَّد برمجياً (qrcode) → حبر أسود خالص، آمن للطباعة.
 // =============================================================
 
+import QRCode from 'qrcode';
 import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
-import igQrSvg from '../assets/ig-qr.svg?raw';
+
+const JOIN_URL = 'https://app.lowesprofesyonel.com/join';
 
 // رسائل شخصية — ثابتة حسب رقم الطلب (إعادة الطباعة = نفس الرسالة)
 const MESSAGES = [
@@ -52,8 +55,9 @@ function codAmount(o) {
   return total;
 }
 
+// أجور التوصيل — تعمل لكل الأسواق إذا مُدخَلة
 function deliveryCost(o) {
-  return o.market === 'syria' ? Math.max(0, Number(o.delivery_cost || 0)) : 0;
+  return Math.max(0, Number(o.delivery_cost || 0));
 }
 
 function addressLine(o) {
@@ -65,7 +69,7 @@ function addressLine(o) {
 // ────────────────────────────────────────────────────────────────
 //  labelHTML — HTML لبوليصة واحدة
 // ────────────────────────────────────────────────────────────────
-function labelHTML(o, idx, total, dateStr) {
+function labelHTML(o, idx, total, dateStr, joinQrDataUrl) {
   const name    = esc(o.customer_name || '—');
   const rawPhone = o.phone_1 || o.phone_2 || o.wa_number || '';
   const rawWa    = o.wa_number || o.phone_1 || '';
@@ -89,9 +93,9 @@ function labelHTML(o, idx, total, dateStr) {
   const paySection = hasDel ? `
     <div class="pay pay-d">
       <div class="pay-sub">
-        <span>📦 <b>${fmtAmount(cod, o.currency)}</b></span>
+        <span>📦 قيمة البضاعة: <b>${fmtAmount(cod, o.currency)}</b></span>
         <span class="pay-plus">+</span>
-        <span>🚚 <b>${fmtAmount(delCost, o.currency)}</b></span>
+        <span>🚚 أجور التوصيل: <b>${fmtAmount(delCost, o.currency)}</b></span>
       </div>
       <div class="pay-main">
         <span class="fee">💳 التحصيل على العميل</span>
@@ -133,12 +137,13 @@ function labelHTML(o, idx, total, dateStr) {
   <!-- الدفع — ثابت دائماً -->
   ${paySection}
 
-  <!-- التذييل — ثابت دائماً -->
+  <!-- التذييل — QR شبكة النجوم + تواصل -->
   <div class="foot">
-    <div class="qr">${igQrSvg}</div>
+    <div class="qr"><img src="${joinQrDataUrl}" alt="QR شبكة النجوم" /></div>
     <div class="foot-txt">
-      <div class="ig">📸 @lowes.skincare — تابعينا على إنستقرام 💛</div>
-      <div class="cs">📞 ${esc(csPhone)} · 📧 ${esc(COMPANY.email)}</div>
+      <div class="star-cta">⭐ انضمي لشبكة النجوم واكسبي عمولة حتى 50%</div>
+      <div class="ig">📸 ${esc(COMPANY.instagramSkincare)} · 📞 ${esc(csPhone)}</div>
+      <div class="cs">📧 ${esc(COMPANY.email)}</div>
       <div class="slogan">${esc(BRAND.sloganAr)}</div>
     </div>
   </div>
@@ -149,7 +154,15 @@ function labelHTML(o, idx, total, dateStr) {
 // ────────────────────────────────────────────────────────────────
 //  buildLabelsHTML — مستند HTML كامل (صفحات A4 / 8 بوليصات/ورقة)
 // ────────────────────────────────────────────────────────────────
-export function buildLabelsHTML(orders) {
+export async function buildLabelsHTML(orders) {
+  // توليد QR شبكة النجوم — PNG عبر canvas (مربعات مملوءة = أسود داكن خالص للطباعة)
+  const joinQrDataUrl = await QRCode.toDataURL(JOIN_URL, {
+    width: 220,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+    color: { dark: '#000000', light: '#ffffff' },
+  });
+
   const now = new Date();
   const dateStr = `${now.toLocaleDateString('en-CA')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   const total = orders.length;
@@ -160,7 +173,7 @@ export function buildLabelsHTML(orders) {
   let globalIdx = 0;
   const sheets = pages.map((page) => `
     <section class="sheet">
-      ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr)).join('')}
+      ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl)).join('')}
     </section>`).join('');
 
   return `<!DOCTYPE html>
@@ -192,21 +205,29 @@ html,body { background:#e8e8e8; }
 }
 
 /* ═══════════════════════════════════════
-   البوليصة — height:100% ضروري لملء
-   خلية الـ grid بالضبط
+   البوليصة — height:100% لملء الـ grid
    ═══════════════════════════════════════ */
 .label {
   height:100%;
   font-family:'Tajawal',sans-serif;
   color:#0f1f3d;
-  border:.35mm dashed #c8c0b4;
-  padding:2.8mm 3.8mm 2mm;
+  border:.3mm solid #D4C89A;
+  padding:2.5mm 3.5mm 2mm;
   display:flex;
   flex-direction:column;
   overflow:hidden;
   font-size:8.5pt;
   line-height:1.32;
   background:#fff;
+  position:relative;
+}
+/* شريط ذهبي علوي رفيع (هوية البراند) */
+.label::before {
+  content:'';
+  position:absolute;
+  top:0; right:0; left:0;
+  height:.9mm;
+  background:linear-gradient(90deg,transparent 0%,${BRAND_COLORS.gold} 15%,${BRAND_COLORS.gold} 85%,transparent 100%);
 }
 
 /* ── رأس البوليصة (ثابت) ── */
@@ -215,38 +236,42 @@ html,body { background:#e8e8e8; }
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
+  padding-top:.8mm;
+  background:#FDFAF2;
+  margin:-2.5mm -3.5mm 0;
+  padding:1.5mm 3.5mm 1mm;
 }
 .wordmark { text-align:center; flex:1; }
 .wm-main {
   font-family:'Playfair Display',serif;
   font-weight:600;
-  font-size:12pt;
-  letter-spacing:.2em;
+  font-size:12.5pt;
+  letter-spacing:.22em;
   display:block;
   color:#0f1f3d;
 }
 .wm-sub {
   font-family:'Playfair Display',serif;
   font-size:5.8pt;
-  letter-spacing:.34em;
-  color:#9ca3af;
+  letter-spacing:.36em;
+  color:#b8a060;
   display:block;
-  margin-top:-.3mm;
+  margin-top:-.2mm;
 }
 .counter,.date {
   font-size:6pt;
   color:#adb5bd;
   direction:ltr;
   white-space:nowrap;
-  padding-top:.6mm;
+  padding-top:.4mm;
 }
 
 /* ── الخط الذهبي ── */
 .gold-rule {
   flex-shrink:0;
-  height:.45mm;
-  background:linear-gradient(90deg,transparent 0%,${BRAND_COLORS.gold} 20%,${BRAND_COLORS.gold} 80%,transparent 100%);
-  margin:1.5mm 0 1mm;
+  height:.7mm;
+  background:linear-gradient(90deg,transparent 0%,${BRAND_COLORS.gold} 15%,${BRAND_COLORS.gold} 85%,transparent 100%);
+  margin:.8mm 0;
 }
 
 /* ── جسم البوليصة — flex:1 يمتص المساحة ── */
@@ -329,14 +354,14 @@ html,body { background:#e8e8e8; }
   display:flex;
   align-items:center;
   justify-content:space-between;
-  border:.3mm solid ${BRAND_COLORS.gold};
+  border:.35mm solid ${BRAND_COLORS.gold};
   border-radius:2mm;
   padding:1mm 2.5mm;
   margin-top:.6mm;
   background:#fdfaf2;
   gap:2mm;
 }
-/* سوريا: تفصيل بضاعة + توصيل */
+/* تفصيل البضاعة + التوصيل */
 .pay.pay-d {
   flex-direction:column;
   gap:.3mm;
@@ -375,39 +400,51 @@ html,body { background:#e8e8e8; }
   direction:ltr;
 }
 
-/* ── تذييل: QR + تواصل (ثابت — لا يختفي) ── */
+/* ── تذييل: QR شبكة النجوم + تواصل ── */
 .foot {
   flex-shrink:0;
   display:flex;
   align-items:center;
   gap:2mm;
   margin-top:.8mm;
-  padding-top:.7mm;
-  border-top:.2mm solid #e5e7eb;
+  padding-top:.8mm;
+  border-top:.35mm solid ${BRAND_COLORS.gold};
+  background:#FDFAF2;
+  margin-left:-3.5mm; margin-right:-3.5mm; margin-bottom:-2mm;
+  padding:1mm 3.5mm 1.5mm;
 }
-.qr { width:15mm; height:15mm; flex-shrink:0; }
-.qr svg { width:100%; height:100%; display:block; }
+.qr { width:17mm; height:17mm; flex-shrink:0; border:.25mm solid #e8dab5; border-radius:1mm; padding:.3mm; background:#fff; }
+.qr img { width:100%; height:100%; display:block; image-rendering:crisp-edges; }
 .foot-txt { flex:1; min-width:0; }
-.ig { font-size:7pt; font-weight:700; color:#0f1f3d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cs { font-size:6.5pt; color:#4b5563; margin-top:.2mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.slogan { font-family:'El Messiri',sans-serif; font-size:6.5pt; color:#9ca3af; margin-top:.2mm; }
+.star-cta {
+  font-size:7pt;
+  font-weight:800;
+  color:${BRAND_COLORS.gold};
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  margin-bottom:.3mm;
+}
+.ig { font-size:6.5pt; font-weight:700; color:#0f1f3d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cs { font-size:6pt; color:#4b5563; margin-top:.2mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.slogan { font-family:'El Messiri',sans-serif; font-size:6pt; color:#b8a060; margin-top:.2mm; font-style:italic; }
 </style>
 </head>
 <body>
 ${sheets}
 <script>
-  // انتظر تحميل الخطوط — 800ms كافية حتى مع بطء الشبكة
+  // انتظر تحميل الخطوط ثم اطبع
   (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve())
-    .then(function(){ setTimeout(function(){ window.print(); }, 800); });
+    .then(function(){ setTimeout(function(){ window.print(); }, 900); });
 </script>
 </body>
 </html>`;
 }
 
-/** افتح نافذة الطباعة. */
-export function openLabelsPrint(orders) {
+/** افتح نافذة الطباعة (async). */
+export async function openLabelsPrint(orders) {
   if (!orders?.length) return;
-  const html = buildLabelsHTML(orders);
+  const html = await buildLabelsHTML(orders);
   const w = window.open('', '_blank', 'width=940,height=1120');
   if (!w) return;
   w.document.open();

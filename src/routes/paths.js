@@ -96,6 +96,9 @@ export const ROUTES = {
 
   // الهيكل الإداري
   MANAGEMENT: '/management',
+
+  // شبكة النجوم — صفحة عامة للعملاء (لا تسجيل دخول)
+  JOIN: '/join',
 };
 
 export default ROUTES;
