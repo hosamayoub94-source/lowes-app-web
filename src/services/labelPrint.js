@@ -9,6 +9,7 @@ import QRCode from 'qrcode';
 import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
 
 const JOIN_URL = 'https://app.lowesprofesyonel.com/join';
+const IG_URL   = 'https://www.instagram.com/lowes.skincare';
 
 // رسائل شخصية — ثابتة حسب رقم الطلب (إعادة الطباعة = نفس الرسالة)
 const MESSAGES = [
@@ -69,7 +70,7 @@ function addressLine(o) {
 // ────────────────────────────────────────────────────────────────
 //  labelHTML — HTML لبوليصة واحدة
 // ────────────────────────────────────────────────────────────────
-function labelHTML(o, idx, total, dateStr, joinQrDataUrl) {
+function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
   const name    = esc(o.customer_name || '—');
   const rawPhone = o.phone_1 || o.phone_2 || o.wa_number || '';
   const rawWa    = o.wa_number || o.phone_1 || '';
@@ -89,22 +90,28 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl) {
     ? `<span class="sep">·</span><span>💬 ${esc(rawWa)}</span>`
     : '';
 
-  // ── قسم الدفع ──
+  // ── قسم الدفع — أجور التوصيل تظهر دائماً ──
   const paySection = hasDel ? `
     <div class="pay pay-d">
       <div class="pay-sub">
-        <span>📦 قيمة البضاعة: <b>${fmtAmount(cod, o.currency)}</b></span>
+        <span>📦 بضاعة: <b>${fmtAmount(cod, o.currency)}</b></span>
         <span class="pay-plus">+</span>
-        <span>🚚 أجور التوصيل: <b>${fmtAmount(delCost, o.currency)}</b></span>
+        <span>🚚 توصيل: <b>${fmtAmount(delCost, o.currency)}</b>
+          <span class="bearer bearer-cust">على العميل</span></span>
       </div>
       <div class="pay-main">
         <span class="fee">💳 التحصيل على العميل</span>
         <span class="amount">${fmtAmount(cod + delCost, o.currency)}</span>
       </div>
     </div>` : `
-    <div class="pay">
-      <span class="fee">${prepaid ? '✅ مدفوع مسبقاً — الشحن على المرسل' : '💳 التحصيل على العميل'}</span>
-      <span class="${prepaid ? 'paid-mark' : 'amount'}">${prepaid ? 'مدفوع ✓' : fmtAmount(cod, o.currency)}</span>
+    <div class="pay pay-d">
+      <div class="pay-sub">
+        <span>🚚 أجور التوصيل: <span class="bearer bearer-send">على المرسل ✓</span></span>
+      </div>
+      <div class="pay-main">
+        <span class="fee">${prepaid ? '✅ مدفوع مسبقاً' : '💳 التحصيل على العميل'}</span>
+        <span class="${prepaid ? 'paid-mark' : 'amount'}">${prepaid ? 'مدفوع ✓' : fmtAmount(cod, o.currency)}</span>
+      </div>
     </div>`;
 
   return `
@@ -137,9 +144,12 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl) {
   <!-- الدفع — ثابت دائماً -->
   ${paySection}
 
-  <!-- التذييل — QR شبكة النجوم + تواصل -->
+  <!-- التذييل — QR انستا + QR شبكة النجوم + تواصل -->
   <div class="foot">
-    <div class="qr"><img src="${joinQrDataUrl}" alt="QR شبكة النجوم" /></div>
+    <div class="qrs">
+      <div class="qr-item"><img src="${igQrDataUrl}" alt="انستغرام" /><div class="qr-lbl">📸 تابعي</div></div>
+      <div class="qr-item"><img src="${joinQrDataUrl}" alt="شبكة النجوم" /><div class="qr-lbl">⭐ انضمي</div></div>
+    </div>
     <div class="foot-txt">
       <div class="star-cta">⭐ انضمي لشبكة النجوم واكسبي عمولة حتى 50%</div>
       <div class="ig">📸 ${esc(COMPANY.instagramSkincare)} · 📞 ${esc(csPhone)}</div>
@@ -155,13 +165,12 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl) {
 //  buildLabelsHTML — مستند HTML كامل (صفحات A4 / 8 بوليصات/ورقة)
 // ────────────────────────────────────────────────────────────────
 export async function buildLabelsHTML(orders) {
-  // توليد QR شبكة النجوم — PNG عبر canvas (مربعات مملوءة = أسود داكن خالص للطباعة)
-  const joinQrDataUrl = await QRCode.toDataURL(JOIN_URL, {
-    width: 220,
-    margin: 2,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#000000', light: '#ffffff' },
-  });
+  const qrOpts = { width: 200, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } };
+  // توليد QR انستا + شبكة النجوم — PNG عبر canvas (مربعات مملوءة للطباعة)
+  const [igQrDataUrl, joinQrDataUrl] = await Promise.all([
+    QRCode.toDataURL(IG_URL,   qrOpts),
+    QRCode.toDataURL(JOIN_URL, qrOpts),
+  ]);
 
   const now = new Date();
   const dateStr = `${now.toLocaleDateString('en-CA')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
@@ -173,7 +182,7 @@ export async function buildLabelsHTML(orders) {
   let globalIdx = 0;
   const sheets = pages.map((page) => `
     <section class="sheet">
-      ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl)).join('')}
+      ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('')}
     </section>`).join('');
 
   return `<!DOCTYPE html>
@@ -399,6 +408,9 @@ html,body { background:#e8e8e8; }
   color:#059669;
   direction:ltr;
 }
+.bearer { font-size:6.5pt; font-weight:700; border-radius:1mm; padding:.1mm 1.2mm; margin-right:1mm; }
+.bearer-cust { background:#fef3c7; color:#92400e; }
+.bearer-send { background:#d1fae5; color:#065f46; }
 
 /* ── تذييل: QR شبكة النجوم + تواصل ── */
 .foot {
@@ -413,8 +425,10 @@ html,body { background:#e8e8e8; }
   margin-left:-3.5mm; margin-right:-3.5mm; margin-bottom:-2mm;
   padding:1mm 3.5mm 1.5mm;
 }
-.qr { width:17mm; height:17mm; flex-shrink:0; border:.25mm solid #e8dab5; border-radius:1mm; padding:.3mm; background:#fff; }
-.qr img { width:100%; height:100%; display:block; image-rendering:crisp-edges; }
+.qrs { display:flex; gap:1.5mm; flex-shrink:0; align-items:flex-start; }
+.qr-item { display:flex; flex-direction:column; align-items:center; gap:.5mm; }
+.qr-item img { width:13mm; height:13mm; display:block; image-rendering:crisp-edges; border:.25mm solid #e8dab5; border-radius:1mm; padding:.3mm; background:#fff; }
+.qr-lbl { font-size:4.8pt; color:#6b7280; text-align:center; white-space:nowrap; }
 .foot-txt { flex:1; min-width:0; }
 .star-cta {
   font-size:7pt;
