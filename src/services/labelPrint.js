@@ -144,18 +144,16 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
   <!-- الدفع — ثابت دائماً -->
   ${paySection}
 
-  <!-- التذييل — QR انستا + QR شبكة النجوم + تواصل -->
+  <!-- التذييل — QR انستا يمين · نص وسط · QR شبكة النجوم يسار -->
   <div class="foot">
-    <div class="qrs">
-      <div class="qr-item"><img src="${igQrDataUrl}" alt="انستغرام" /><div class="qr-lbl">📸 تابعي</div></div>
-      <div class="qr-item"><img src="${joinQrDataUrl}" alt="شبكة النجوم" /><div class="qr-lbl">⭐ انضمي</div></div>
-    </div>
+    <div class="qr-item"><img src="${igQrDataUrl}" alt="انستغرام" /><div class="qr-lbl">📸 تابعي</div></div>
     <div class="foot-txt">
       <div class="star-cta">⭐ انضمي لشبكة النجوم واكسبي عمولة حتى 50%</div>
       <div class="ig">📸 ${esc(COMPANY.instagramSkincare)} · 📞 ${esc(csPhone)}</div>
       <div class="cs">📧 ${esc(COMPANY.email)}</div>
       <div class="slogan">${esc(BRAND.sloganAr)}</div>
     </div>
+    <div class="qr-item"><img src="${joinQrDataUrl}" alt="شبكة النجوم" /><div class="qr-lbl">⭐ انضمي</div></div>
   </div>
 
 </div>`;
@@ -425,8 +423,7 @@ html,body { background:#e8e8e8; }
   margin-left:-3.5mm; margin-right:-3.5mm; margin-bottom:-2mm;
   padding:1mm 3.5mm 1.5mm;
 }
-.qrs { display:flex; gap:1.5mm; flex-shrink:0; align-items:flex-start; }
-.qr-item { display:flex; flex-direction:column; align-items:center; gap:.5mm; }
+.qr-item { flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:.5mm; }
 .qr-item img { width:13mm; height:13mm; display:block; image-rendering:crisp-edges; border:.25mm solid #e8dab5; border-radius:1mm; padding:.3mm; background:#fff; }
 .qr-lbl { font-size:4.8pt; color:#6b7280; text-align:center; white-space:nowrap; }
 .foot-txt { flex:1; min-width:0; }
