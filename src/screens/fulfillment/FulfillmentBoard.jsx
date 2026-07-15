@@ -161,7 +161,12 @@ function PrepCard({ o, checked, onCheck, onAdvance, busy, accessible }) {
         </p>
         {/* المنتجات — جوهر عمل المجهّز */}
         <ProductList items={o.items} accessible={accessible} />
-        {o.notes && <p className={`text-muted mt-1 ${accessible ? 'text-sm mt-2' : 'text-[10px] line-clamp-1'}`}>📝 {o.notes}</p>}
+        {o.notes && (
+          <div className={`mt-2 rounded-xl border border-amber/40 bg-amber-bg px-2.5 py-1.5 ${accessible ? 'text-sm' : 'text-xs'}`}>
+            <span className="font-extrabold text-amber-fg">⚠️ ملاحظة: </span>
+            <span className="text-text">{o.notes}</span>
+          </div>
+        )}
       </div>
       <div className="shrink-0 flex flex-col gap-1.5">
         <button onClick={() => onAdvance(o)} disabled={busy}

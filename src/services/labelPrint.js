@@ -106,7 +106,7 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     </div>` : `
     <div class="pay pay-d">
       <div class="pay-sub">
-        <span>🚚 أجور التوصيل: <span class="bearer bearer-send">على المرسل ✓</span></span>
+        <span>🚚 أجور التوصيل: <span class="bearer ${prepaid ? 'bearer-send' : 'bearer-cust'}">${prepaid ? 'على المرسل ✓' : 'على المستلم'}</span></span>
       </div>
       <div class="pay-main">
         <span class="fee">${prepaid ? '✅ مدفوع مسبقاً' : '💳 التحصيل على العميل'}</span>

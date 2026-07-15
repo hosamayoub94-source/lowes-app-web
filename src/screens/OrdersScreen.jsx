@@ -1407,6 +1407,7 @@ const EMPTY_FORM = {
   payment_method: 'دفع عند الباب 💵', payment_status: 'unpaid', paid_amount: '',
   shipping_company: 'Yurtiçi Kargo', pickup_type: 'استلام من المركز', tracking_number: '',
   shipping_payer: 'company',
+  delivery_cost: '',
 };
 
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 placeholder:text-muted/50';
@@ -1812,9 +1813,21 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
       {/* Bottom row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {order.amount > 0 && (
-            <span className="text-xs font-bold text-text">{order.amount} {order.currency}</span>
-          )}
+          {(() => {
+            const base = Number(order.amount || 0);
+            const del  = Number(order.delivery_cost || 0);
+            const paid = Number(order.paid_amount  || 0);
+            const cod  = order.payment_status === 'paid'    ? 0
+                       : order.payment_status === 'partial' ? Math.max(0, base - paid) + del
+                       : base + del;
+            if (cod <= 0) return null;
+            return (
+              <span className="text-xs font-bold text-text">
+                {cod.toLocaleString('en-US')} {order.currency}
+                {del > 0 && <span className="text-[10px] text-muted font-normal"> (شامل التوصيل)</span>}
+              </span>
+            );
+          })()}
           <PaymentBadge
             status={order.payment_status}
             amount={order.amount}
@@ -2158,9 +2171,10 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
       : new Date().toISOString();
     const payload = {
       ...form,
-      amount:      form.amount      ? Number(form.amount)      : null,
-      paid_amount: form.paid_amount ? Number(form.paid_amount) : null,
-      order_date:  orderDateIso,
+      amount:        form.amount        ? Number(form.amount)        : null,
+      paid_amount:   form.paid_amount   ? Number(form.paid_amount)   : null,
+      delivery_cost: form.delivery_cost ? Number(form.delivery_cost) : 0,
+      order_date:    orderDateIso,
       // أسقط الصفوف بلا اسم، ثم ادمج المنتجات المكرّرة (اسم متطابق بعد التطبيع)
       // بجمع الكمية — صفّان «Cream ×1» يصيران «Cream ×2» (يحتفظ بأول تهجئة/ترتيب).
       items:       Object.values(
@@ -2427,6 +2441,23 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
                   </div>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Delivery cost */}
+          <div className="bg-surface-alt border border-border rounded-xl p-3 space-y-2">
+            <label className={LBL}>🚚 أجور التوصيل (اتركه فارغاً إن كان مجانياً)</label>
+            <div className="flex gap-2 items-center">
+              <input type="number" inputMode="decimal" value={form.delivery_cost}
+                onChange={e => set('delivery_cost', e.target.value)}
+                className={`${INP} flex-1`} placeholder="0"
+                style={{ direction: 'ltr', textAlign: 'right' }} />
+              <span className="text-xs text-muted shrink-0">{form.currency}</span>
+            </div>
+            {Number(form.delivery_cost) > 0 && Number(form.amount) > 0 && (
+              <p className="text-[11px] text-teal font-bold">
+                💳 إجمالي التحصيل على العميل: {(Number(form.amount) + Number(form.delivery_cost)).toLocaleString('en-US')} {form.currency}
+              </p>
             )}
           </div>
 
@@ -2753,6 +2784,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
   const [sellerFilter,  setSellerFilter]  = useState('');      // فلتر اسم البائع
+  const [shipFilter,    setShipFilter]    = useState('');      // فلتر شركة الشحن
   const [dateFrom,      setDateFrom]      = useState('');      // فلتر من تاريخ
   const [dateTo,        setDateTo]        = useState('');      // فلتر إلى تاريخ
 
@@ -3381,6 +3413,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (brandFilter !== 'all' && (o.brand || 'lowes').toLowerCase() !== brandFilter) return false;
     if (status !== 'all' && o.status !== status) return false;
     if (sellerFilter && canonicalSeller(o.handler_name) !== sellerFilter) return false;
+    if (shipFilter && o.shipping_company !== shipFilter) return false;
     if (dateFrom) {
       const oDate = (o.order_date || o.created_at || '').slice(0, 10);
       if (oDate < dateFrom) return false;
@@ -3404,7 +3437,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMoreRef = useRef(null);
   useEffect(() => { setVisibleCount(PAGE_SIZE); },
-    [market, brandFilter, status, search, myOrders, sellerFilter, dateFrom, dateTo, viewArchive]);
+    [market, brandFilter, status, search, myOrders, sellerFilter, shipFilter, dateFrom, dateTo, viewArchive]);
   useEffect(() => {
     const el = loadMoreRef.current;
     if (!el) return;
@@ -3419,6 +3452,18 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const sellerOptions = useMemo(() =>
     [...new Set(orders.map(o => canonicalSeller(o.handler_name)).filter(Boolean))].sort()
   , [orders]);
+
+  // شركات الشحن مرتبة تنازلياً بعدد الطلبات
+  const shipOptions = useMemo(() => {
+    const counts = {};
+    orders.forEach(o => {
+      if (!o.shipping_company) return;
+      counts[o.shipping_company] = (counts[o.shipping_company] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([co, n]) => ({ co, n }));
+  }, [orders]);
 
   const stats = useMemo(() => {
     // إحصاءات مقصورة على سوق الماكنة الحالية (وعلى البراند لتركيا).
@@ -3759,6 +3804,26 @@ export default function OrdersScreen({ forcedMarket = null }) {
       {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 بحث بالاسم أو رقم الطلب أو الهاتف..."
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />}
+
+      {/* فلتر شركة الشحن — شرائح مرتبة بالعدد */}
+      {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && shipOptions.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            onClick={() => setShipFilter('')}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition
+              ${!shipFilter ? 'bg-navy text-white border-navy' : 'bg-surface border-border text-muted hover:border-teal/40'}`}>
+            الكل
+          </button>
+          {shipOptions.map(({ co, n }) => (
+            <button key={co}
+              onClick={() => setShipFilter(f => f === co ? '' : co)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition
+                ${shipFilter === co ? 'bg-teal text-navy border-teal' : 'bg-surface border-border text-muted hover:border-teal/40'}`}>
+              🚚 {co} <span className="opacity-70">({n})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* فلتر البائع + المدة */}
       {!viewTracking && !viewMonthly && !viewWallet && !viewDeleted && isManager && (
