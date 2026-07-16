@@ -3046,15 +3046,24 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // تصدير ملف يورتيتشي (Excel) لطلبات تركيا الجاهزة للشحن → رفع دفعة وحدة.
   const [exportingYurtici, setExportingYurtici] = useState(false);
   const exportYurticiExcel = async () => {
-    const ship = orders.filter(o =>
-      o.market === 'turkey' && o.archived !== true && !o.deleted_at &&
-      !o.yurtici_cargo_key &&  // لا تُعِد طلباً له شحنة يورتيتشي مُنشأة (يمنع تكرار الشحنة في الرفع)
+    const base = orders.filter(o => o.market === 'turkey' && o.archived !== true && !o.deleted_at);
+    const ship = base.filter(o =>
+      !o.yurtici_cargo_key &&
       ['pending', 'preparing', 'ready'].includes(o.status) &&
-      // استثنِ التوصيل بالموتور صراحةً (قد يكون shipping_company فارغاً) — يورتيتشي فقط
-      !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '') &&
-      (!o.shipping_company || /yurti[çc]i/i.test(o.shipping_company || ''))
+      !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '')
     );
-    if (!ship.length) { toast.info?.('لا توجد طلبات تركيا جاهزة للشحن (وارد/تجهيز/جاهز).'); return; }
+    if (!ship.length) {
+      const hasCargo   = base.filter(o => o.yurtici_cargo_key && ['pending','preparing','ready'].includes(o.status)).length;
+      const badStatus  = base.filter(o => !['pending','preparing','ready'].includes(o.status) && !o.yurtici_cargo_key).length;
+      const isMotor    = base.filter(o => /موتور|motor/i.test(o.shipping_company || '') || /موتور|motor/i.test(o.pickup_type || '')).length;
+      const parts = [];
+      if (base.length === 0) parts.push('لا يوجد طلبات تركيا نشطة');
+      if (hasCargo)  parts.push(`${hasCargo} لها cargo key مسبقاً`);
+      if (badStatus) parts.push(`${badStatus} بحالة مختلفة (شُحنت/وصلت)`);
+      if (isMotor)   parts.push(`${isMotor} موتور`);
+      toast.info?.(`لا يوجد طلب قابل للتصدير${parts.length ? ': ' + parts.join(' · ') : ''}`);
+      return;
+    }
     if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
     setExportingYurtici(true);
     try {
