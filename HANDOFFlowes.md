@@ -5,6 +5,93 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يوليو 2026)
 
+### 🗓️ جلسة 16 يوليو 2026 — إصلاح 7 مشاكل (الطلبات + الدوام + المزامنة) ✅ build ✓
+
+#### ما أُنجز:
+
+**📋 مشكلة 1 — المستحق (عمود K) لا يظهر في الجدول:**
+- كانت `remaining` تُحسب بدون `delivery_cost`. الصحيح: إضافتها فقط لو `shipping_payer === 'customer'`
+- الملف: `supabase/functions/sync-order-to-sheet/index.ts`
+- Formula: `_remaining = amount + _delivery - paid_amount` (حيث `_delivery = 0` لو الشركة تدفع)
+- ⚠️ **تحتاج نشر:** `npx supabase functions deploy sync-order-to-sheet --no-verify-jwt`
+
+**⏰ مشكلة 2 — الدوام بعد 12 بالليل يحسب يوم جديد:**
+- `doCheckIn` صار يخصم يوماً لو الساعة < 6 صباحاً (cutoff السادسة فجراً)
+- الملف: `src/screens/AttendanceScreen.jsx` (دالة `doCheckIn`)
+
+**🌟 مشكلة 3 — إضافة العطلة الأسبوعية:**
+- أضيف `weekly_off` لـ `ABSENCE_REASONS` · `type: 'weekly_off'` + `status: '🌟 عطلة أسبوعية'` في DB
+- `DayBadge` يعرض مريح أصفر 🌟 مع نص «عطلة»
+- الملف: `src/screens/AttendanceScreen.jsx`
+
+**📝 مشكلة 4 — الملاحظات لا تظهر مع الطلب:**
+- `OrderCard` صار يعرض `order.notes` في صندوق amber بارز مع أيقونة 📝
+- الملف: `src/screens/OrdersScreen.jsx` (component `OrderCard`)
+
+**📦 مشكلة 5 — أجور الشحن منفصلة عن الطلب:**
+- COD في `OrderCard` صار يضيف `delivery_cost` فقط لو `shipping_payer === 'customer'`
+- payrollEngine لم يتغير (كان صحيحاً — يستخدم `amount` فقط)
+- الملف: `src/screens/OrdersScreen.jsx` (حساب `del` في COD)
+
+**🚚 مشكلة 6 — اظهار الشحن في البوليصة:**
+- `deliveryCost()` في `labelPrint.js` يعيد 0 لو `shipping_payer !== 'customer'`
+- قسم الدفع يعرض «🚚 أجور الشحن: على الشركة ✓ (amount)» عند الاقتضاء
+- الملف: `src/services/labelPrint.js`
+
+**🔄 مشكلة 7 — تغيير الحالات بين الجدول والتطبيق:**
+- كانت المزامنة المقيّدة (throttle) تُعلّم الطلب بـ«فشل sync» بدلاً من تجاهل التقييد بهدوء
+- الإصلاح: `throttled` → `{ ok: true, skipped: 'throttled' }` بدل `{ ok: false, error: 'throttled' }`
+- الملف: `supabase/functions/sync-order-to-sheet/index.ts`
+- ⚠️ **تحتاج نشر** (نفس أمر المشكلة 1 أعلاه)
+- ملاحظة: sheet→app يعمل عبر edge fn `sheet-to-app` لكن يحتاج Google Apps Script `onEdit` trigger
+
+#### ⏳ خطوات تحتاجها أنت:
+```bash
+# 1. نشر الـ edge function (مرة واحدة):
+cd "C:\Users\acer\Desktop\لويز ملفات\لويز\lowes app\lowes-app-web"
+npx supabase login   # يفتح متصفح للتوثيق
+npx supabase functions deploy sync-order-to-sheet --no-verify-jwt
+
+# 2. إضافة Apps Script onEdit لـ sheet→app sync (اختياري):
+#    في Google Sheets → Extensions → Apps Script → أضف onEdit trigger
+#    يستدعي: POST https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sheet-to-app
+```
+
+#### الملفات المعدّلة:
+- `src/screens/OrdersScreen.jsx` — Fix 4 (notes) + Fix 5 (COD shipping_payer)
+- `src/screens/AttendanceScreen.jsx` — Fix 2 (midnight) + Fix 3 (weekly_off)
+- `src/services/labelPrint.js` — Fix 6 (shipping label payer)
+- `supabase/functions/sync-order-to-sheet/index.ts` — Fix 1 (remaining) + Fix 7 (throttle)
+
+#### مُتحقَّق:
+- `npm run build` ✅ بدون أخطاء
+
+---
+
+### 🗓️ جلسة 15 يوليو 2026 — إصلاح البوليصة + delivery_cost + فلتر شحن + notes التجهيز ✅ push ✓
+
+#### ما أُنجز (commit 567bbff — منشور على main):
+- **🖨️ إصلاح أجور التوصيل:** كانت البوليصة تعرض «على المرسل ✓» لكل الطلبات. الصحيح: تحصيل على العميل (cod>0) → **«على المستلم»**، مدفوع مسبقاً → **«على المرسل ✓»** (`labelPrint.js:109`)
+- **🚚 حقل delivery_cost بفورم الطلب:** حقل عددي جديد + معاينة إجمالي التحصيل فوراً. يُحفظ في payload. `EMPTY_FORM` يبدأ بـ `delivery_cost: ''`
+- **📊 بطاقة الطلب (OrderCard):** يعرض إجمالي COD = `amount + delivery_cost` مع تنبيه «(شامل التوصيل)»
+- **🔍 فلتر شركة الشحن:** شرائح أفقية مرتّبة بعدد الطلبات تنازلياً، تُعيد visibleCount لـ30 عند تغييرها
+- **⚠️ ملاحظات التجهيز (FulfillmentBoard):** صندوق amber بارز بدل نص خفيف
+
+#### ⏳ SQL يحتاجك أنت (SQL Editor) — لم يُطبَّق بعد:
+```sql
+-- 1. إصلاح CRM (شاشة /crm فارغة لكل المستخدمين):
+--    supabase/rls_crm_lockout_fix_20260703.sql  (DO $$ block — آمن/idempotent)
+
+-- 2. فهارس أداء (شغّل كل سطر منفرداً — CONCURRENTLY):
+--    supabase/orders_indexes_20260703.sql
+```
+
+#### مُتحقَّق:
+- `migration_v10_mlm_join_requests.sql` ✅ مطبّق مسبقاً (policy already exists)
+- `npm run build` ✅ · push → main ✅
+
+---
+
 ### 🗓️ جلسة 13 يوليو 2026 — بوليصة V2 + QR شبكة النجوم + صفحة الانضمام ✅ build ✓ + مُتحقَّق حيّاً
 
 #### ما أُنجز:

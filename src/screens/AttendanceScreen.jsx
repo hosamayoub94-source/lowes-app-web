@@ -90,11 +90,12 @@ function minutesSinceCheckIn(timeIn) {
 
 // ── Absence reason options ────────────────────────────────────
 const ABSENCE_REASONS = [
-  { key: 'sick',       label: 'مرض',          icon: '🤒' },
-  { key: 'vacation',   label: 'إجازة',         icon: '🏖️' },
-  { key: 'permission', label: 'إذن مسبق',      icon: '📋' },
-  { key: 'emergency',  label: 'ظرف طارئ',     icon: '🆘' },
-  { key: 'other',      label: 'سبب آخر',       icon: '📌' },
+  { key: 'weekly_off', label: 'عطلة أسبوعية',  icon: '🌟' },
+  { key: 'sick',       label: 'مرض',            icon: '🤒' },
+  { key: 'vacation',   label: 'إجازة',           icon: '🏖️' },
+  { key: 'permission', label: 'إذن مسبق',        icon: '📋' },
+  { key: 'emergency',  label: 'ظرف طارئ',       icon: '🆘' },
+  { key: 'other',      label: 'سبب آخر',         icon: '📌' },
 ];
 
 // ── Absence reason modal ───────────────────────────────────────
@@ -107,19 +108,20 @@ function AbsenceReasonModal({ slash, userName, team, existingReason, onSave, onC
     if (!selected) return;
     setSaving(true);
     try {
-      const dayName = arabicDaySlash(slash);
-      const reason  = note.trim() ? `${selected} — ${note.trim()}` : selected;
+      const dayName   = arabicDaySlash(slash);
+      const reason    = note.trim() ? `${selected} — ${note.trim()}` : selected;
+      const isWeekOff = selected === 'weekly_off';
       const { error } = await supabase.from('attendance').insert({
         employee_name: userName,
         date:          slash,
         day:           dayName,
-        type:          'absent',
+        type:          isWeekOff ? 'weekly_off' : 'absent',
         time_in:       '00:00',
         note:          reason,
         team:          team ?? null,
         method:        'manual',
         recorded_at:   nowHHMM(),
-        status:        '❌ غائب',
+        status:        isWeekOff ? '🌟 عطلة أسبوعية' : '❌ غائب',
       });
       if (error) { window.alert('تعذّر حفظ سبب الغياب: ' + error.message); return; }
       onSave();
@@ -183,20 +185,24 @@ function DayBadge({ dayRec, slash, userName, team, onReasonSaved }) {
     </div>
   );
 
-  const checkIn     = dayRec?.checkIn;
-  const checkOut    = dayRec?.checkOut;
-  const complete    = !!(checkIn && checkOut);
+  const checkIn      = dayRec?.checkIn;
+  const checkOut     = dayRec?.checkOut;
+  const complete     = !!(checkIn && checkOut);
   const hasAbsReason = dayRec?.absReason;
+  const isWeeklyOff  = dayRec?.weeklyOff;
 
   if (!checkIn) return (
     <>
       <div
-        onClick={() => isPast && !hasAbsReason && setShowModal(true)}
+        onClick={() => isPast && !hasAbsReason && !isWeeklyOff && setShowModal(true)}
         className={`flex flex-col items-center gap-1 p-2 rounded-xl border cursor-pointer transition
-          ${isToday ? 'border-teal/30 bg-teal/5' : hasAbsReason ? 'border-purple-200 bg-purple-50' : 'border-border/50 bg-surface-alt/50 hover:border-red-300'}`}>
-        <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : 'text-muted'}`}>{dayLabelSlash(slash)}</span>
-        <span className="text-lg">{isToday ? '⏳' : hasAbsReason ? '📝' : '❌'}</span>
-        <span className="text-[9px] text-muted/60">{isToday ? 'الآن' : hasAbsReason ? 'مبرر' : 'غياب'}</span>
+          ${isToday ? 'border-teal/30 bg-teal/5'
+          : isWeeklyOff ? 'border-yellow-300 bg-yellow-50'
+          : hasAbsReason ? 'border-purple-200 bg-purple-50'
+          : 'border-border/50 bg-surface-alt/50 hover:border-red-300'}`}>
+        <span className={`text-[10px] font-bold ${isToday ? 'text-teal' : isWeeklyOff ? 'text-yellow-700' : 'text-muted'}`}>{dayLabelSlash(slash)}</span>
+        <span className="text-lg">{isToday ? '⏳' : isWeeklyOff ? '🌟' : hasAbsReason ? '📝' : '❌'}</span>
+        <span className="text-[9px] text-muted/60">{isToday ? 'الآن' : isWeeklyOff ? 'عطلة' : hasAbsReason ? 'مبرر' : 'غياب'}</span>
       </div>
       {showModal && (
         <AbsenceReasonModal
@@ -426,6 +432,9 @@ export default function AttendanceScreen() {
           }
         } else if (r.type === 'absent') {
           map[key].absReason = r.note ?? 'مسجّل';
+        } else if (r.type === 'weekly_off') {
+          map[key].weeklyOff = true;
+          map[key].absReason = r.note ?? 'عطلة أسبوعية';
         }
       });
 
@@ -469,7 +478,10 @@ export default function AttendanceScreen() {
     setCameraMode(null);
     setSaving(true); setError(null);
     const now      = nowHHMM();
-    const dateVal  = todaySlash();
+    // الوردية الليلية: الساعات 00:00-05:59 تُنسب ليوم أمس لا اليوم الجديد
+    // (يوم العمل يبدأ عند الساعة 6 صباحاً — تحت ذلك = تتمة ليلة الأمس)
+    const hour     = new Date().getHours();
+    const dateVal  = hour < 6 ? slashDate(1) : todaySlash();
     const dayName  = arabicDaySlash(dateVal);
     try {
       const { error: insErr } = await supabase.from('attendance').insert({

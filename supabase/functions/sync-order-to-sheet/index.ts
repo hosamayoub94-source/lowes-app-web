@@ -89,7 +89,8 @@ Deno.serve(async (req: Request) => {
     if (o.last_synced_at) {
       const age = Date.now() - new Date(o.last_synced_at).getTime();
       if (age >= 0 && age < COOLDOWN_MS) {
-        return json({ ok: false, error: 'throttled', retryAfterMs: COOLDOWN_MS - age }, 200);
+        // throttled = تمّت المزامنة مؤخراً (لا فشل) — نعيد ok:true حتى لا يُعلَّم الطلب بـ«فشل»
+        return json({ ok: true, skipped: 'throttled', retryAfterMs: COOLDOWN_MS - age }, 200);
       }
     }
     await supabase.from('orders')
@@ -150,6 +151,8 @@ Deno.serve(async (req: Request) => {
           pickup_type:      trPickup(o.pickup_type),
           shipping_company: o.shipping_company,
           notes:            o.notes,
+          delivery_cost:    Number(o.delivery_cost || 0),
+          shipping_payer:   o.shipping_payer || 'company',
           items:            Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
         },
       };
@@ -178,10 +181,11 @@ Deno.serve(async (req: Request) => {
       return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     };
 
-    // الدفع الجزئي: المتبقّي للتحصيل + المدفوع الآن (للأعمدة K / O في الجدول)
-    const _total = Number(o.amount || 0);
-    const _paid  = Number(o.paid_amount || 0);
-    const _remaining = Math.max(0, _total - _paid);
+    // المتبقّي للتحصيل: قيمة الطلب + أجور الشحن (إن كانت على العميل) - المدفوع
+    const _total    = Number(o.amount || 0);
+    const _paid     = Number(o.paid_amount || 0);
+    const _delivery = o.shipping_payer === 'customer' ? Number(o.delivery_cost || 0) : 0;
+    const _remaining = Math.max(0, _total + _delivery - _paid);
 
     // أكواد فريق سوريا الإنجليزية (الدروب-داون بالجدول) — نكتبها بدل المفتاح الخام
     // ليتوحّد العمود مع تعديلات الفريق (توحيد المسميات، قرار المالك 11 يونيو).
@@ -211,6 +215,8 @@ Deno.serve(async (req: Request) => {
         paymentStatus:  o.payment_status,
         paidAmount:     _paid,
         remaining:      o.payment_status === 'paid' ? 0 : _remaining,
+        deliveryCost:   _delivery,
+        shippingPayer:  o.shipping_payer || 'company',
         // أسماء المنتجات بالإنجليزي القياسي — توافق معادلات الجرد والأرشيف بالجدول
         items:          Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
       },

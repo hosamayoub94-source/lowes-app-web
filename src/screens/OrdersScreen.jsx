@@ -1810,12 +1810,21 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         {moreItems > 0 && <span className="text-teal font-semibold"> +{moreItems} أخرى</span>}
       </p>
 
+      {/* ملاحظات الطلب */}
+      {order.notes && order.notes.trim() && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          <span className="text-sm shrink-0 mt-0.5">📝</span>
+          <p className="text-[11px] text-amber-800 leading-relaxed font-medium">{order.notes}</p>
+        </div>
+      )}
+
       {/* Bottom row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {(() => {
             const base = Number(order.amount || 0);
-            const del  = Number(order.delivery_cost || 0);
+            // أجور الشحن تُضاف للتحصيل فقط إذا كانت "على العميل"
+            const del  = order.shipping_payer === 'customer' ? Number(order.delivery_cost || 0) : 0;
             const paid = Number(order.paid_amount  || 0);
             const cod  = order.payment_status === 'paid'    ? 0
                        : order.payment_status === 'partial' ? Math.max(0, base - paid) + del

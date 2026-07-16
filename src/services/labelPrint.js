@@ -56,8 +56,9 @@ function codAmount(o) {
   return total;
 }
 
-// أجور التوصيل — تعمل لكل الأسواق إذا مُدخَلة
+// أجور التوصيل — تُضاف للتحصيل فقط إذا كانت على العميل
 function deliveryCost(o) {
+  if (o.shipping_payer !== 'customer') return 0;
   return Math.max(0, Number(o.delivery_cost || 0));
 }
 
@@ -90,7 +91,12 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     ? `<span class="sep">·</span><span>💬 ${esc(rawWa)}</span>`
     : '';
 
-  // ── قسم الدفع — أجور التوصيل تظهر دائماً ──
+  // من يدفع الشحن — نحدده من shipping_payer بالطلب
+  const shipPayer     = o.shipping_payer || 'company'; // default: company
+  const rawDelCost    = Number(o.delivery_cost || 0);
+  const companyPaysShip = shipPayer === 'company' && rawDelCost > 0;
+
+  // ── قسم الدفع ──
   const paySection = hasDel ? `
     <div class="pay pay-d">
       <div class="pay-sub">
@@ -106,7 +112,10 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     </div>` : `
     <div class="pay pay-d">
       <div class="pay-sub">
-        <span>🚚 أجور التوصيل: <span class="bearer ${prepaid ? 'bearer-send' : 'bearer-cust'}">${prepaid ? 'على المرسل ✓' : 'على المستلم'}</span></span>
+        ${companyPaysShip
+          ? `<span>🚚 أجور الشحن: <span class="bearer bearer-send">على الشركة ✓ (${fmtAmount(rawDelCost, o.currency)})</span></span>`
+          : `<span>🚚 أجور التوصيل: <span class="bearer ${prepaid ? 'bearer-send' : 'bearer-cust'}">${prepaid ? 'على المرسل ✓' : 'على المستلم'}</span></span>`
+        }
       </div>
       <div class="pay-main">
         <span class="fee">${prepaid ? '✅ مدفوع مسبقاً' : '💳 التحصيل على العميل'}</span>
