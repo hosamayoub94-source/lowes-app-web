@@ -12,7 +12,7 @@ import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { useAuth }  from '@hooks/useAuth';
 import { useTheme } from '@hooks/useTheme';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@services/supabase';
+import { supabase, supabaseAnon } from '@services/supabase';
 import { ROLES }    from '@data/teams';
 import { homeBlocksForRole } from '@data/homeLayout';
 import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
@@ -644,7 +644,7 @@ function MyTargetCard({ name }) {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     Promise.allSettled([
       supabase.from('product_economics').select('item_name, sale_price_usd'),
-      supabase.from('orders').select('items, amount, currency, market, status, created_at, handler_name')
+      supabaseAnon.from('orders').select('items, amount, currency, market, status, created_at, handler_name')
         .eq('handler_name', name).eq('status', 'delivered').gte('created_at', monthStart + 'T00:00:00'),
     ]).then(([pRes, oRes]) => {
       const prices = {};

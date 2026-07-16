@@ -5,7 +5,7 @@
 // مصدر الحقيقة (المالك): الحالة + رقم التتبع يفوزان من الجدول/شركة الشحن؛
 // بيانات العميل + الأصناف تفوز من التطبيق. هذه الخدمة تكتب من جهة التطبيق فقط.
 // =============================================================
-import { supabase } from './supabase';
+import { supabase, supabaseAnon } from './supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -19,7 +19,7 @@ export const isSyncable = (o) => o && SYNCABLE_MARKETS.includes(o.market) && o.a
 export async function syncToSheet(orderId, { markPending = false } = {}) {
   if (!orderId) return { ok: false, error: 'no order id' };
   if (markPending) {
-    await supabase.from('orders').update({ sync_status: 'pending' }).eq('id', orderId).then(() => {}, () => {});
+    await supabaseAnon.from('orders').update({ sync_status: 'pending' }).eq('id', orderId).then(() => {}, () => {});
   }
   let ok = false, errText = null, action = null, row = null, skipped = null, itemsSent = null, itemsWritten = null, droppedItems = null;
   try {
@@ -48,7 +48,7 @@ export async function syncToSheet(orderId, { markPending = false } = {}) {
     ? { sync_status: 'synced', sheet_synced: true, sync_error: null, last_synced_at: new Date().toISOString() }
     : { sync_status: 'failed', sync_error: errText };
   await supabase.rpc('increment_order_sync_attempts', { p_order_id: orderId }).then(() => {}, () => {});
-  await supabase.from('orders').update(patch).eq('id', orderId).then(() => {}, () => {});
+  await supabaseAnon.from('orders').update(patch).eq('id', orderId).then(() => {}, () => {});
   return { ok, error: errText, action, row, skipped, itemsSent, itemsWritten, droppedItems };
 }
 
@@ -104,7 +104,7 @@ export async function getStatusHistory(orderId) {
 // ── الحذف الناعم ──────────────────────────────────────────────
 // يوسم الطلب deleted_at بدل حذف الصف (آمن للمزامنة الثنائية).
 export async function softDeleteOrder(order, by) {
-  const { error } = await supabase.from('orders')
+  const { error } = await supabaseAnon.from('orders')
     .update({ deleted_at: new Date().toISOString(), deleted_by: by || null, status: 'cancelled' })
     .eq('id', order.id);
   if (error) throw new Error(error.message);
@@ -115,7 +115,7 @@ export async function softDeleteOrder(order, by) {
 
 // استرجاع طلب محذوف (للمدير): يصفّر deleted_at ويعيد المزامنة.
 export async function restoreOrder(order, by) {
-  const { error } = await supabase.from('orders')
+  const { error } = await supabaseAnon.from('orders')
     .update({ deleted_at: null, deleted_by: null, updated_by: by || null, updated_at: new Date().toISOString() })
     .eq('id', order.id);
   if (error) throw new Error(error.message);
@@ -124,7 +124,7 @@ export async function restoreOrder(order, by) {
 
 // قائمة الطلبات المحذوفة (soft-deleted) — للمدير.
 export async function listDeleted({ limit = 200 } = {}) {
-  const { data } = await supabase.from('orders')
+  const { data } = await supabaseAnon.from('orders')
     .select('*')
     .not('deleted_at', 'is', null)
     .order('deleted_at', { ascending: false })
@@ -138,7 +138,7 @@ export async function findDuplicates({ phone, items = [], market, withinMinutes 
   const digits = String(phone || '').replace(/\D/g, '');
   if (digits.length < 6) return [];
   const since = new Date(Date.now() - withinMinutes * 60000).toISOString();
-  let q = supabase.from('orders')
+  let q = supabaseAnon.from('orders')
     .select('id, order_id, customer_name, items, created_at, handler_name, phone_1, wa_number')
     .gte('created_at', since)
     .is('deleted_at', null);

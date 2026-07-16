@@ -9,7 +9,7 @@
 //   ربح الوحدة = السعر − التكلفة − الإعلان − الشحن
 //   الربح الصافي للصنف = (ربح الوحدة × الوحدات المُباعة) − (التكلفة × المرتجعات)
 // =============================================================
-import { supabase } from './supabase';
+import { supabase, supabaseAnon } from './supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 
 // المرتجعات الحقيقية (يخسر فيها الصنف تكلفته). الملغي/المحذوف ليس مرتجعاً.
@@ -28,7 +28,7 @@ export async function loadProfitability({ since } = {}) {
   const [orders, econRes] = await Promise.all([
     // على دفعات + استثناء المحذوف (soft-delete يحمل status='cancelled' فيُحسب
     // خطأً كمرتجع). جدول orders ضخم (30k+) فبدون الدفعات تُبتر البيانات.
-    fetchAllRows(() => supabase.from('orders')
+    fetchAllRows(() => supabaseAnon.from('orders')
       .select('status, items, order_date')
       .is('deleted_at', null)
       .gte('order_date', from + 'T00:00:00')),

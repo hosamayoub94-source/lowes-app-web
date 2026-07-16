@@ -26,7 +26,7 @@
 //   • الرواجع/غير المستلَم: لا أتمتة — أرقام يدوية يحددها الأدمن (خصومات/عمولة).
 // =============================================================
 
-import { supabase } from '@services/supabase';
+import { supabase, supabaseAnon } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 
@@ -258,7 +258,7 @@ export async function fetchEmployeeSalesStatement(emp, year, month) {
   if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
 
   const [ordersData, rateMap] = await Promise.all([
-    fetchAllRows(() => supabase.from('orders')
+    fetchAllRows(() => supabaseAnon.from('orders')
       .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market')
       .gte('order_date', from).lt('order_date', to)
       .in('status', COMMISSIONABLE_STATUSES)

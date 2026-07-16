@@ -10,7 +10,7 @@
 //   • profiles          → active headcount
 //   • sales_targets     → monthly target (if defined)
 // =============================================================
-import { supabase } from './supabase';
+import { supabase, supabaseAnon } from './supabase';
 
 // ── Date helpers ──────────────────────────────────────────────
 function todaySlash() {
@@ -180,7 +180,7 @@ async function fetchCommissions() {
   const monthStart = monthStartISO();
 
   const [ordRes, profRes] = await Promise.all([
-    supabase.from('orders')
+    supabaseAnon.from('orders')
       .select('handler_name, amount, currency, order_date')
       .eq('status', 'delivered')
       .gte('order_date', monthStart + 'T00:00:00'),
@@ -226,7 +226,7 @@ async function fetchCommissions() {
 const RETURN_STATUSES = ['not_received', 'returning', 'returned'];
 async function fetchReturnsReport() {
   const monthStart = monthStartISO();
-  const { data } = await supabase.from('orders')
+  const { data } = await supabaseAnon.from('orders')
     .select('handler_name, amount, currency, status, order_date')
     .in('status', ['delivered', 'settled', ...RETURN_STATUSES])
     .gte('order_date', monthStart + 'T00:00:00');

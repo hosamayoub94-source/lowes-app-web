@@ -9,7 +9,7 @@ import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { StatCard }  from '@components/ui/StatCard';
 import { Button }    from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
-import { supabase }  from '@services/supabase';
+import { supabase, supabaseAnon } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
@@ -551,7 +551,7 @@ function CategorySalesPanel() {
     (async () => {
       setRows(null);
       const monthStart = new Date().toISOString().slice(0, 7) + '-01';
-      let oq = supabase.from('orders')
+      let oq = supabaseAnon.from('orders')
         .select('items, order_date, archived')
         .eq('market', 'syria').eq('status', 'delivered');
       if (period === 'month') oq = oq.gte('order_date', monthStart + 'T00:00:00');

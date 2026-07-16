@@ -2886,7 +2886,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم من الأشهر السابقة؟ طلبات الشهر الحالي لن تُؤرشَف. ستختفي من القائمة وتبقى في الأرشيف.`)) return;
     setArchiving(true);
     try {
-      const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids);
+      const { error } = await supabaseAnon.from('orders').update({ archived: true }).in('id', ids);
       if (error) throw error;
       await load();
       setViewMonthly(false);
@@ -2956,7 +2956,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // لا نُكمِل التأثيرات الجانبية (محاسبة/مخزون/إشعار) إن لم تُحفظ الحالة فعلاً.
     // updated_at → وقت تغيير الحالة؛ يظهر بالكرت ويُمرَّر للجدول عبر edge fn.
     const statusChangedAt = new Date().toISOString();
-    const { error: stErr } = await supabase.from('orders').update({
+    const { error: stErr } = await supabaseAnon.from('orders').update({
       status: newStatus,
       updated_at: statusChangedAt,
       updated_by: userName,
@@ -3024,7 +3024,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     for (const o of list) {
       const next = nextFor(o);
       try {
-        await supabase.from('orders').update({ status: next }).eq('id', o.id);
+        await supabaseAnon.from('orders').update({ status: next }).eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
         syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
         setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
@@ -3162,7 +3162,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           .limit(1);
         if (selErr || !rows?.length) { unmatched.push(orderId); continue; }
         if (rows[0].yurtici_cargo_key) { unchanged++; continue; }
-        const { error: upErr } = await supabase
+        const { error: upErr } = await supabaseAnon
           .from('orders')
           .update({ yurtici_cargo_key: go, shipping_company: 'Yurtiçi Kargo', updated_at: new Date().toISOString() })
           .eq('id', rows[0].id)
@@ -3264,7 +3264,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
     let savedId = existingId;
     if (existingId) {
-      const { error } = await supabase.from('orders')
+      const { error } = await supabaseAnon.from('orders')
         .update({ ...form, updated_at: new Date().toISOString(), updated_by: userName })
         .eq('id', existingId);
       if (error) throw new Error(error.message);
@@ -3273,7 +3273,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // (market+brand) عند ترك order_id فارغاً — لا عشوائية ولا تضارب ولا سباق.
       const payload = { ...form, created_by: userName };
       delete payload.order_id; // اتركه للتريغر ليولّد TL-/TS-/SL-/SS- التسلسلي
-      const { data, error } = await supabase.from('orders')
+      const { data, error } = await supabaseAnon.from('orders')
         .insert(payload)
         .select('id, order_id').single();
       if (error) throw new Error(error.message);
@@ -3385,7 +3385,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
-      const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids);
+      const { error } = await supabaseAnon.from('orders').update({ archived: true }).in('id', ids);
       if (error) throw error;
       await load();
     } catch (e) { window.alert('تعذّر: ' + e.message); }
