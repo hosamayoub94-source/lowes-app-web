@@ -2914,9 +2914,18 @@ export default function OrdersScreen({ forcedMarket = null }) {
         const rows = await fetchAllRows(() => supabase.from('orders').select('*')
           .is('deleted_at', null).or('archived.is.null,archived.eq.false')
           .order('order_date', { ascending: false }));
+        // تشخيص RLS — ظهور 0 أو عدد قليل يعني policy مقيّدة على authenticated role
+        const { data: { session: _s } } = await supabase.auth.getSession().catch(() => ({ data: {} }));
+        const _st = _s ? (_s.manual ? 'manual(anon)' : 'supabase-auth') : 'none';
+        const _tr = rows.filter(r => r.market === 'turkey').length;
+        const _tp = rows.filter(r => r.market === 'turkey' && r.status === 'preparing').length;
+        console.log(`[Orders] session=${_st} total=${rows.length} turkey=${_tr} turkey-preparing=${_tp}`);
+        if (rows.length < 50) {
+          console.warn('[Orders] ⚠️ قليل جداً — على الأرجح RLS مقيّد على authenticated. راجع سكريبت الإصلاح في HANDOFF.');
+        }
         setOrders(rows);
       }
-    } catch {}
+    } catch (e) { console.error('[Orders] load error:', e); }
     finally { setLoading(false); }
   }, [viewArchive, search]);
 
