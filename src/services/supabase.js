@@ -27,5 +27,13 @@ export const supabase = createClient(url || 'http://localhost', anonKey || 'anon
   auth: { persistSession: true, autoRefreshToken: true },
 });
 
+// Session-less client — always uses the anon/publishable key, never attaches
+// a user JWT. Required for tables where the `authenticated` RLS policy is more
+// restrictive than `anon` (e.g. orders table restricted to own rows). Use this
+// client for SELECT-only queries where all users should see all rows.
+export const supabaseAnon = createClient(url || 'http://localhost', anonKey || 'anon', {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 // Storage bucket helper — matches legacy upload path.
 export const AVATAR_BUCKET = 'avatars';

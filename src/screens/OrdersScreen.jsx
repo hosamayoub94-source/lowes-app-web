@@ -5,7 +5,7 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '@services/supabase';
+import { supabase, supabaseAnon } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
@@ -648,7 +648,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [archivedForPeriod, setArchivedForPeriod] = useState([]);
   useEffect(() => {
     let cancelled = false;
-    fetchAllRows(() => supabase
+    fetchAllRows(() => supabaseAnon
       .from('orders')
       .select('*')
       .eq('archived', true)
@@ -676,7 +676,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setLoadingRec(true);
     const d = new Date(); d.setMonth(d.getMonth() - 5); d.setDate(1);
     const since = d.toISOString().slice(0, 10);
-    const base = () => supabase.from('orders')
+    const base = () => supabaseAnon.from('orders')
       .select('id,handler_name,order_date,amount,currency,market,items')
       .eq('status', 'delivered').is('deleted_at', null).gte('order_date', since);
     // نجلب المؤرشف والحيّ على دفعات (المؤرشف وحده قد يتجاوز 4000 صف).
@@ -2849,7 +2849,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (viewArchive) return;
     try {
       // على دفعات — بدونها تتوقف مزامنة حالات الطلبات بعد الصف 1000 صامتاً.
-      const data = await fetchAllRows(() => supabase
+      const data = await fetchAllRows(() => supabaseAnon
         .from('orders')
         .select('id, status, tracking_number, deleted_at')
         .or('archived.is.null,archived.eq.false'));
@@ -2901,28 +2901,18 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // selling works; the market tabs below let them narrow to تركيا/سوريا.
       // Edits/permissions are handled per-card, not by hiding rows here.
       if (viewArchive) {
-        // Archive view: search the whole archive server-side (not just a page).
-        let q = supabase.from('orders').select('*').is('deleted_at', null)
+        // Archive view — supabaseAnon bypasses authenticated-role RLS restriction.
+        let q = supabaseAnon.from('orders').select('*').is('deleted_at', null)
           .order('order_date', { ascending: false }).eq('archived', true);
         const s = search.trim();
         if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
         const { data } = await q.limit(500);
         setOrders(data ?? []);
       } else {
-        // النشطة: نجلب على دفعات — بدون هذا يبترها PostgREST عند 1000 صف صامتاً
-        // (تنمو المجموعة النشطة، والأرشفة الشهرية تبقيها صغيرة لكن ليست مضمونة).
-        const rows = await fetchAllRows(() => supabase.from('orders').select('*')
+        // النشطة: نجلب على دفعات — supabaseAnon يتجاوز قيود RLS على authenticated role.
+        const rows = await fetchAllRows(() => supabaseAnon.from('orders').select('*')
           .is('deleted_at', null).or('archived.is.null,archived.eq.false')
           .order('order_date', { ascending: false }));
-        // تشخيص RLS — ظهور 0 أو عدد قليل يعني policy مقيّدة على authenticated role
-        const { data: { session: _s } } = await supabase.auth.getSession().catch(() => ({ data: {} }));
-        const _st = _s ? (_s.manual ? 'manual(anon)' : 'supabase-auth') : 'none';
-        const _tr = rows.filter(r => r.market === 'turkey').length;
-        const _tp = rows.filter(r => r.market === 'turkey' && r.status === 'preparing').length;
-        console.log(`[Orders] session=${_st} total=${rows.length} turkey=${_tr} turkey-preparing=${_tp}`);
-        if (rows.length < 50) {
-          console.warn('[Orders] ⚠️ قليل جداً — على الأرجح RLS مقيّد على authenticated. راجع سكريبت الإصلاح في HANDOFF.');
-        }
         setOrders(rows);
       }
     } catch (e) { console.error('[Orders] load error:', e); }
@@ -3165,7 +3155,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // كتابة مباشرة عبر Supabase REST (بدون Edge Function)
       let set = 0, unchanged = 0, unmatched = [];
       for (const { orderId, go } of clean) {
-        const { data: rows, error: selErr } = await supabase
+        const { data: rows, error: selErr } = await supabaseAnon
           .from('orders')
           .select('id, yurtici_cargo_key')
           .eq('order_id', orderId)
