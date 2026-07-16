@@ -3048,23 +3048,22 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const exportYurticiExcel = async () => {
     const base = orders.filter(o => o.market === 'turkey' && o.archived !== true && !o.deleted_at);
     const ship = base.filter(o =>
-      !o.yurtici_cargo_key &&
       ['pending', 'preparing', 'ready'].includes(o.status) &&
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '')
     );
     if (!ship.length) {
-      const hasCargo   = base.filter(o => o.yurtici_cargo_key && ['pending','preparing','ready'].includes(o.status)).length;
-      const badStatus  = base.filter(o => !['pending','preparing','ready'].includes(o.status) && !o.yurtici_cargo_key).length;
-      const isMotor    = base.filter(o => /موتور|motor/i.test(o.shipping_company || '') || /موتور|motor/i.test(o.pickup_type || '')).length;
+      const badStatus = base.filter(o => !['pending','preparing','ready'].includes(o.status)).length;
+      const isMotor   = base.filter(o => /موتور|motor/i.test(o.shipping_company || '') || /موتور|motor/i.test(o.pickup_type || '')).length;
       const parts = [];
       if (base.length === 0) parts.push('لا يوجد طلبات تركيا نشطة');
-      if (hasCargo)  parts.push(`${hasCargo} لها cargo key مسبقاً`);
-      if (badStatus) parts.push(`${badStatus} بحالة مختلفة (شُحنت/وصلت)`);
+      if (badStatus) parts.push(`${badStatus} بحالة أخرى (شُحنت/وصلت)`);
       if (isMotor)   parts.push(`${isMotor} موتور`);
       toast.info?.(`لا يوجد طلب قابل للتصدير${parts.length ? ': ' + parts.join(' · ') : ''}`);
       return;
     }
-    if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».`)) return;
+    const withKey = ship.filter(o => o.yurtici_cargo_key).length;
+    const warn = withKey ? `\n⚠️ ${withKey} منها لها cargo key مسبقاً — لو رفعتها مرة ثانية ستُنشئ شحنة مكررة.` : '';
+    if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».${warn}`)) return;
     setExportingYurtici(true);
     try {
       const XLSX = await import('xlsx');
