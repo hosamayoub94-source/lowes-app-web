@@ -3052,13 +3052,15 @@ export default function OrdersScreen({ forcedMarket = null }) {
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '')
     );
     if (!ship.length) {
-      const badStatus = base.filter(o => !['pending','preparing','ready'].includes(o.status)).length;
       const isMotor   = base.filter(o => /موتور|motor/i.test(o.shipping_company || '') || /موتور|motor/i.test(o.pickup_type || '')).length;
+      const statusList = base.length
+        ? base.map(o => `${o.order_id || o.id}: ${o.status}`).join(' | ')
+        : 'لا يوجد';
       const parts = [];
       if (base.length === 0) parts.push('لا يوجد طلبات تركيا نشطة');
-      if (badStatus) parts.push(`${badStatus} بحالة أخرى (شُحنت/وصلت)`);
-      if (isMotor)   parts.push(`${isMotor} موتور`);
-      toast.info?.(`لا يوجد طلب قابل للتصدير${parts.length ? ': ' + parts.join(' · ') : ''}`);
+      else parts.push(`حالاتها: ${statusList}`);
+      if (isMotor) parts.push(`${isMotor} موتور مستثنى`);
+      toast.info?.(`لا يوجد طلب تجهيز قابل للتصدير · ${parts.join(' · ')}`, { duration: 12000 });
       return;
     }
     const withKey = ship.filter(o => o.yurtici_cargo_key).length;
