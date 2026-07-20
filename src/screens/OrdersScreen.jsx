@@ -1457,6 +1457,22 @@ function InvoiceModal({ order, onClose }) {
   const ref = useRef(null);
   const [generating, setGenerating] = useState(false);
   const [msg, setMsg] = useState('');
+  const [igQrDataUrl, setIgQrDataUrl] = useState('');
+
+  useEffect(() => {
+    import('qrcode').then(m => {
+      const QRCode = m.default || m;
+      QRCode.toDataURL(COMPANY.instagramSkincareUrl, {
+        width: 120, margin: 1, errorCorrectionLevel: 'M',
+        color: { dark: '#000000', light: '#ffffff' },
+      }).then(url => setIgQrDataUrl(url)).catch(() => {});
+    }).catch(() => {});
+  }, []);
+
+  const deliveryCostNum = Number(order.delivery_cost || 0);
+  const customerPaysShipping = order.shipping_payer === 'customer' && deliveryCostNum > 0;
+  const companyPaysShipping  = order.shipping_payer === 'company'  && deliveryCostNum > 0;
+  const totalAmount = Number(order.amount || 0) + (customerPaysShipping ? deliveryCostNum : 0);
 
   const paymentText =
     order.payment_status === 'paid'    ? 'مدفوع بالكامل ✓' :
@@ -1581,15 +1597,44 @@ function InvoiceModal({ order, onClose }) {
             ))}
           </div>
 
+          {/* Delivery cost / shipping payer */}
+          {(customerPaysShipping || companyPaysShipping) && (
+            <div style={{
+              background: '#f0fdf4', borderRadius: '8px', padding: '8px 10px',
+              border: '1px solid #bbf7d0', marginBottom: '8px', fontSize: '10px', color: '#374151',
+            }}>
+              {customerPaysShipping ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    <span>📦 قيمة البضاعة</span>
+                    <span style={{ fontWeight:'800' }}>{Number(order.amount).toLocaleString()} {order.currency}</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    <span>🚚 أجور التوصيل <span style={{ fontSize:'8px', background:'#fef3c7', color:'#92400e', padding:'1px 4px', borderRadius:'4px', fontWeight:'700' }}>على العميل</span></span>
+                    <span style={{ fontWeight:'800' }}>+{deliveryCostNum.toLocaleString()} {order.currency}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                  <span>🚚 أجور التوصيل</span>
+                  <span style={{ background:'#d1fae5', color:'#065f46', padding:'1px 6px', borderRadius:'4px', fontWeight:'800', fontSize:'9px' }}>على الشركة ✓</span>
+                  <span style={{ marginRight:'auto', fontWeight:'700' }}>{deliveryCostNum.toLocaleString()} {order.currency}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Total — المجموع */}
           {order.amount > 0 && (
             <div style={{
               background: BRAND_COLORS.cream, borderRadius: '8px', padding: '10px', border:`1px solid ${BRAND_COLORS.gold}`,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px',
             }}>
-              <span style={{ fontSize: '12px', fontWeight: '800' }}>المجموع</span>
+              <span style={{ fontSize: '12px', fontWeight: '800' }}>
+                {customerPaysShipping ? '💳 التحصيل على العميل' : 'المجموع'}
+              </span>
               <span style={{ fontSize: '19px', fontWeight: '900', color: BRAND_COLORS.black }}>
-                {Number(order.amount).toLocaleString()} <span style={{ fontSize: '12px', color:BRAND_COLORS.gold }}>{order.currency}</span>
+                {totalAmount.toLocaleString()} <span style={{ fontSize: '12px', color:BRAND_COLORS.gold }}>{order.currency}</span>
               </span>
             </div>
           )}
@@ -1620,9 +1665,34 @@ function InvoiceModal({ order, onClose }) {
               style={{ width:'66px', height:'66px', objectFit:'contain', opacity:0.92 }} />
           </div>
 
+          {/* Instagram follow CTA + QR */}
+          <div style={{
+            borderTop: `1.5px solid ${BRAND_COLORS.gold}`, marginTop: '12px', paddingTop: '10px',
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            {igQrDataUrl && (
+              <div style={{ flexShrink:0, textAlign:'center' }}>
+                <img src={igQrDataUrl} alt="Instagram"
+                  style={{ width:'52px', height:'52px', border:`1px solid ${BRAND_COLORS.gold}`, borderRadius:'6px', padding:'2px', background:'#fff' }} />
+                <div style={{ fontSize:'7px', color:BRAND_COLORS.gold, fontWeight:'700', marginTop:'2px' }}>📸 تابعينا</div>
+              </div>
+            )}
+            <div style={{ flex:1, fontSize:'8px', color:'#6B5D4F', lineHeight:1.6 }}>
+              <div style={{ fontWeight:'800', color:BRAND_COLORS.black, fontSize:'9px', marginBottom:'2px' }}>
+                ⭐ تابعينا على انستغرام
+              </div>
+              <div style={{ fontWeight:'700', color:'#7c3aed', fontSize:'9px' }}>
+                {COMPANY.instagramSkincare}
+              </div>
+              <div style={{ marginTop:'3px', fontSize:'7.5px' }}>
+                للعروض الحصرية والمنتجات الجديدة — نحن ننتظرك!
+              </div>
+            </div>
+          </div>
+
           {/* Company legal footer */}
           <div style={{
-            borderTop: `1.5px solid ${BRAND_COLORS.gold}`, marginTop: '12px', paddingTop: '8px',
+            borderTop: `1px dashed #e5d9b6`, marginTop: '10px', paddingTop: '7px',
             textAlign:'center', fontSize: '8px', color: '#6B5D4F', lineHeight:1.5,
           }}>
             <div style={{ fontWeight:'700', color:BRAND_COLORS.black, fontSize:'8.5px' }}>{COMPANY.legalName}</div>

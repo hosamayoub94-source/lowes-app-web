@@ -94,7 +94,7 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
   // من يدفع الشحن — نحدده من shipping_payer بالطلب
   const shipPayer     = o.shipping_payer || 'company'; // default: company
   const rawDelCost    = Number(o.delivery_cost || 0);
-  const companyPaysShip = shipPayer === 'company' && rawDelCost > 0;
+  const companyPaysShip = shipPayer === 'company';
 
   // ── قسم الدفع ──
   const paySection = hasDel ? `
@@ -113,7 +113,7 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     <div class="pay pay-d">
       <div class="pay-sub">
         ${companyPaysShip
-          ? `<span>🚚 أجور الشحن: <span class="bearer bearer-send">على الشركة ✓ (${fmtAmount(rawDelCost, o.currency)})</span></span>`
+          ? `<span>🚚 أجور الشحن: <span class="bearer bearer-send">على الشركة ✓${rawDelCost > 0 ? ` (${fmtAmount(rawDelCost, o.currency)})` : ''}</span></span>`
           : `<span>🚚 أجور التوصيل: <span class="bearer ${prepaid ? 'bearer-send' : 'bearer-cust'}">${prepaid ? 'على المرسل ✓' : 'على المستلم'}</span></span>`
         }
       </div>
