@@ -3,7 +3,7 @@
 // Table: products (id, name, sku, category, quantity, price_usd,
 //                  price_try, min_stock, description, is_active)
 // =============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Hero }      from '@components/ui/Hero';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { StatCard }  from '@components/ui/StatCard';
@@ -298,20 +298,53 @@ function ProductCard({ p, onEdit, onMovements, onStock, canManage, warehouses = 
 // ── Main screen ────────────────────────────────────────────────
 // ── Movement statement (كشف حركة) for one product ──────────────
 const MOVE_LBL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع' };
+const MARKET_FILTERS = [['all', '🌍 الكل'], ['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا']];
 function MovementModal({ product, onClose }) {
-  const [moves, setMoves] = useState(null);
-  const [whNames, setWhNames] = useState({});
+  const [moves, setMoves]   = useState(null);
+  const [whMeta, setWhMeta] = useState({}); // id -> { name, market }
+  const [marketFilter, setMarketFilter] = useState('all'); // all | syria | turkey
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo]     = useState('');
+
   useEffect(() => {
     (async () => {
       const [mv, wh] = await Promise.all([
-        supabase.from('wh_movements').select('*').eq('product_id', product.id).order('created_at', { ascending: false }).limit(60),
-        supabase.from('wh_warehouses').select('id, name'),
+        supabase.from('wh_movements').select('*').eq('product_id', product.id).order('created_at', { ascending: false }).limit(500),
+        supabase.from('wh_warehouses').select('id, name, market'),
       ]);
-      const names = {}; (wh.data || []).forEach(w => { names[w.id] = w.name; });
-      setWhNames(names);
+      const meta = {}; (wh.data || []).forEach(w => { meta[w.id] = { name: w.name, market: w.market || 'syria' }; });
+      setWhMeta(meta);
       setMoves(mv.data || []);
     })();
   }, [product.id]);
+
+  const filtered = useMemo(() => {
+    if (!moves) return null;
+    return moves.filter(m => {
+      if (dateFrom && m.created_at < dateFrom + 'T00:00:00') return false;
+      if (dateTo   && m.created_at > dateTo   + 'T23:59:59') return false;
+      if (marketFilter !== 'all') {
+        const fromMk = m.from_warehouse_id ? whMeta[m.from_warehouse_id]?.market : null;
+        const toMk   = m.to_warehouse_id   ? whMeta[m.to_warehouse_id]?.market   : null;
+        if (fromMk !== marketFilter && toMk !== marketFilter) return false;
+      }
+      return true;
+    });
+  }, [moves, marketFilter, dateFrom, dateTo, whMeta]);
+
+  // ملخّص الفترة المفلترة: كم خرج فعلياً (حجز طلبات) وكم رجع (إرجاع) — «جرد حقيقي».
+  const summary = useMemo(() => {
+    if (!filtered) return null;
+    let out = 0, back = 0;
+    for (const m of filtered) {
+      if (m.type === 'reserve') out  += Number(m.quantity || 0);
+      if (m.type === 'release') back += Number(m.quantity || 0);
+    }
+    return { out, back, net: out - back };
+  }, [filtered]);
+
+  const hasFilter = marketFilter !== 'all' || dateFrom || dateTo;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm" dir="rtl"
       onClick={e => e.target === e.currentTarget && onClose()}>
@@ -320,14 +353,45 @@ function MovementModal({ product, onClose }) {
           <div><h3 className="font-bold text-text">📜 كشف حركة</h3><p className="text-xs text-muted mt-0.5">{product.name}</p></div>
           <button onClick={onClose} className="text-muted hover:text-text text-xl">✕</button>
         </div>
+
+        {/* فلاتر: المخزن (السوق) + الفترة */}
+        <div className="px-3 pt-3 space-y-2 shrink-0 border-b border-border pb-3">
+          <div className="flex gap-1.5">
+            {MARKET_FILTERS.map(([k, l]) => (
+              <button key={k} onClick={() => setMarketFilter(k)}
+                className={'px-2.5 py-1 rounded-lg text-[11px] font-bold transition ' + (marketFilter === k ? 'bg-teal text-navy' : 'bg-surface-alt text-muted hover:text-text')}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="flex-1 min-w-0 border border-border rounded-lg px-2 py-1 text-[11px] bg-surface-alt text-text" />
+            <span className="text-[10px] text-muted shrink-0">إلى</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="flex-1 min-w-0 border border-border rounded-lg px-2 py-1 text-[11px] bg-surface-alt text-text" />
+            {hasFilter && (
+              <button onClick={() => { setMarketFilter('all'); setDateFrom(''); setDateTo(''); }}
+                className="shrink-0 text-[11px] text-muted hover:text-red-fg px-1.5">✕ مسح</button>
+            )}
+          </div>
+          {summary && hasFilter && (
+            <div className="flex items-center gap-3 text-[11px] px-1">
+              <span className="text-red-fg font-bold">🛒 خرج: {summary.out}</span>
+              <span className="text-green-fg font-bold">↩️ رجع: {summary.back}</span>
+              <span className="text-muted">الصافي: <b className="text-text">{summary.net}</b></span>
+            </div>
+          )}
+        </div>
+
         <div className="overflow-y-auto flex-1 p-3 space-y-1">
-          {moves === null ? <p className="text-sm text-muted text-center py-6 animate-pulse">…</p>
-            : moves.length === 0 ? <p className="text-sm text-muted text-center py-6">لا حركة لهذا المنتج</p>
-            : moves.map(m => (
+          {filtered === null ? <p className="text-sm text-muted text-center py-6 animate-pulse">…</p>
+            : filtered.length === 0 ? <p className="text-sm text-muted text-center py-6">{hasFilter ? 'لا حركة ضمن هذا الفلتر' : 'لا حركة لهذا المنتج'}</p>
+            : filtered.map(m => (
               <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs border-b border-border/40">
                 <span className="text-text">{MOVE_LBL[m.type] || m.type} · <b className="tabular-nums">{m.quantity}</b></span>
                 <span className="text-muted truncate text-[11px]">
-                  {m.from_warehouse_id ? (whNames[m.from_warehouse_id] || '—') : ''}{m.to_warehouse_id ? ' → ' + (whNames[m.to_warehouse_id] || '—') : ''}
+                  {m.from_warehouse_id ? (whMeta[m.from_warehouse_id]?.name || '—') : ''}{m.to_warehouse_id ? ' → ' + (whMeta[m.to_warehouse_id]?.name || '—') : ''}
                   {' · '}{new Date(m.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')}
                 </span>
               </div>

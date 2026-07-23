@@ -265,7 +265,12 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CAMPAIGNS}
             element={
-              <ProtectedRoute roles={SALES_ROLES} perm={P.MANAGE_CAMPAIGNS}>
+              // موظف عادي مُسنَد كعضو بحملة (campaigns.members) لازم يدخل الشاشة
+              // ليشوف إعلاناتها ويسجّل — CampaignsScreen نفسها تُظهر له وضع
+              // "عرض فقط" (حملاته المُسنَدة، بلا تكلفة/إدارة). بدون هذا كان
+              // يُرمى لصفحة الهوم فوراً حتى لو مُسنَداً — هذا هو سبب "ما عم
+              // يقدر يعمل شي بتقرير الحملات".
+              <ProtectedRoute roles={[...SALES_ROLES, ROLES.EMPLOYEE]} perm={P.MANAGE_CAMPAIGNS}>
                 <CampaignsScreen />
               </ProtectedRoute>
             }

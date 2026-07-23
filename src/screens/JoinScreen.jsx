@@ -5,6 +5,7 @@
 // =============================================================
 import { useState } from 'react';
 import { supabase } from '@services/supabase';
+import { COMPANY } from '@data/brand';
 
 const TIERS = [
   { name: 'برونزي',  nameEn: 'Bronze',   pct: 35, icon: '🥉', color: '#CD7F32', desc: 'البداية الذهبية' },
@@ -232,7 +233,7 @@ export default function JoinScreen() {
             <div style={{ background: '#fff', border: `1.5px solid #E8DDB5`, borderRadius: 16, padding: '16px 20px', marginBottom: 20 }}>
               <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>تواصلي معنا مباشرة</div>
               <div style={{ fontWeight: 700, color: NAVY, fontSize: 15 }}>📞 +90 551 817 77 98</div>
-              <div style={{ fontSize: 13, color: '#4B5563', marginTop: 4 }}>📸 @lowes.skincare</div>
+              <div style={{ fontSize: 13, color: '#4B5563', marginTop: 4 }}>📸 {COMPANY.instagramSkincare}</div>
             </div>
             <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${GOLD},transparent)`, margin: '16px 0' }} />
             <div style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>

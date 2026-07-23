@@ -7,9 +7,10 @@
 
 import QRCode from 'qrcode';
 import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
+import { supabase } from './supabase';
 
 const JOIN_URL = 'https://app.lowesprofesyonel.com/join';
-const IG_URL   = 'https://www.instagram.com/lowes.skincare';
+const IG_URL   = COMPANY.instagramSkincareUrl;
 
 // رسائل شخصية — ثابتة حسب رقم الطلب (إعادة الطباعة = نفس الرسالة)
 const MESSAGES = [
@@ -66,6 +67,67 @@ function addressLine(o) {
   const parts = [o.city, o.district, o.sy_neighborhood, o.address]
     .map((p) => String(p || '').trim()).filter(Boolean);
   return [...new Set(parts)].join(' – ');
+}
+
+// ────────────────────────────────────────────────────────────────
+//  جرد إغلاق اليوم — تُطبع صفحة جرد بعد البوليصات + تُحفَظ يومياً
+//  (inventory_daily_log) لمراقبة المخزون عبر الزمن. best-effort:
+//  لا تُفشِل الطباعة إن كان الجدول غير موجود بعد (SQL لم يُطبَّق).
+// ────────────────────────────────────────────────────────────────
+const MARKET_LBL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
+
+async function getInventorySnapshot(market) {
+  try {
+    const [prodRes, whRes, stockRes] = await Promise.all([
+      supabase.from('products').select('id, name, sku').eq('is_active', true).order('name'),
+      supabase.from('wh_warehouses').select('id, market').eq('is_active', true),
+      supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
+    ]);
+    const whIds = new Set((whRes.data || []).filter((w) => w.market === market).map((w) => w.id));
+    const qtyByProduct = {};
+    for (const s of stockRes.data || []) {
+      if (!whIds.has(s.warehouse_id)) continue;
+      qtyByProduct[s.product_id] = (qtyByProduct[s.product_id] || 0) + Number(s.quantity || 0);
+    }
+    return (prodRes.data || []).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: qtyByProduct[p.id] || 0 }));
+  } catch {
+    return [];
+  }
+}
+
+// يحفظ لقطة اليوم (upsert — طباعات متعددة بنفس اليوم تُحدّث نفس الصف، لا تكرار).
+async function saveDailySnapshot(market, rows) {
+  if (!rows?.length) return;
+  try {
+    const logDate = new Date().toISOString().slice(0, 10);
+    const payload = rows.map((r) => ({ log_date: logDate, market, product_id: r.id, quantity: r.qty }));
+    await supabase.from('inventory_daily_log').upsert(payload, { onConflict: 'log_date,market,product_id' });
+  } catch {
+    // الجدول قد لا يكون موجوداً بعد (SQL لم يُطبَّق) — لا نُفشِل الطباعة لأجله.
+  }
+}
+
+// صفحة جرد مطبوعة لسوق واحد: عمودان × N صف — مضغوطة لتناسب A4 واحدة.
+function inventoryReportHTML(market, rows, dateStr) {
+  const total = rows.reduce((s, r) => s + r.qty, 0);
+  const half = Math.ceil(rows.length / 2);
+  const col1 = rows.slice(0, half);
+  const col2 = rows.slice(half);
+  const rowHTML = (r) => `<div class="rep-row ${r.qty <= 0 ? 'rep-zero' : ''}"><span class="rep-name">${esc(r.name)}</span><span class="rep-qty">${r.qty}</span></div>`;
+  return `
+<section class="report-sheet">
+  <div class="report-head">
+    <div class="wordmark"><span class="wm-main">L O W E ' S</span><span class="wm-sub">p r o f e s s i o n a l</span></div>
+    <div class="report-title">📋 جرد إغلاق اليوم — ${MARKET_LBL[market] || market}</div>
+    <div class="report-meta">${dateStr} · ${rows.length} صنف · إجمالي ${total} قطعة</div>
+  </div>
+  <div class="gold-rule"></div>
+  <div class="report-cols">
+    <div class="report-col">${col1.map(rowHTML).join('')}</div>
+    <div class="report-col">${col2.map(rowHTML).join('')}</div>
+  </div>
+  <p class="report-note">هذه اللقطة تُحفَظ تلقائياً (جدول inventory_daily_log) لمقارنة الجرد يوماً بيوم.</p>
+</section>`;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -191,6 +253,12 @@ export async function buildLabelsHTML(orders) {
     <section class="sheet">
       ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('')}
     </section>`).join('');
+
+  // ── جرد إغلاق اليوم — صفحة/صفحتان في آخر المستند + حفظ اللقطة (best-effort) ──
+  const markets = [...new Set(orders.map((o) => o.market).filter((m) => m === 'syria' || m === 'turkey'))];
+  const snapshots = await Promise.all(markets.map((m) => getInventorySnapshot(m)));
+  await Promise.all(markets.map((m, i) => saveDailySnapshot(m, snapshots[i])));
+  const reportSheets = markets.map((m, i) => inventoryReportHTML(m, snapshots[i], dateStr)).join('');
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -448,10 +516,37 @@ html,body { background:#e8e8e8; }
 .ig { font-size:6.5pt; font-weight:700; color:#0f1f3d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cs { font-size:6pt; color:#4b5563; margin-top:.2mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .slogan { font-family:'El Messiri',sans-serif; font-size:6pt; color:#b8a060; margin-top:.2mm; font-style:italic; }
+
+/* ── صفحة جرد إغلاق اليوم ── */
+.report-sheet {
+  width:210mm; min-height:297mm;
+  background:#fff;
+  margin:0 auto 8mm;
+  padding:12mm 14mm;
+  page-break-after:always;
+  font-family:'Tajawal',sans-serif;
+  color:#0f1f3d;
+  direction:rtl;
+}
+.report-head { text-align:center; }
+.report-title { font-family:'El Messiri',sans-serif; font-weight:700; font-size:14pt; margin-top:3mm; }
+.report-meta { font-size:9pt; color:#6b7280; margin-top:1mm; }
+.report-cols { display:flex; gap:8mm; margin-top:6mm; }
+.report-col { flex:1; }
+.rep-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.6mm 0; border-bottom:.2mm solid #eee; font-size:9pt;
+}
+.rep-name { flex:1; }
+.rep-qty { font-weight:800; tabular-nums:1; direction:ltr; }
+.rep-zero .rep-qty { color:#dc2626; }
+.report-note { text-align:center; font-size:7.5pt; color:#9ca3af; margin-top:8mm; }
+@media print { .report-sheet { margin:0; } }
 </style>
 </head>
 <body>
 ${sheets}
+${reportSheets}
 <script>
   // انتظر تحميل الخطوط ثم اطبع
   (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve())
