@@ -70,37 +70,46 @@ function addressLine(o) {
 }
 
 // ────────────────────────────────────────────────────────────────
-//  جرد إغلاق اليوم — تُطبع صفحة جرد بعد البوليصات + تُحفَظ يومياً
-//  (inventory_daily_log) لمراقبة المخزون عبر الزمن. best-effort:
+//  جرد إغلاق اليوم — تقرير المنتجات التي «طلعت فعلاً» ضمن دفعة
+//  البوليصات المطبوعة (لا مخزون المستودع الحالي). يُجمَّع من
+//  حقل orders.items لكل طلب مطبوع، ثم يُحفَظ كسجل خروج يومي
+//  (inventory_daily_log) لمراقبة الحركة عبر الزمن. best-effort:
 //  لا تُفشِل الطباعة إن كان الجدول غير موجود بعد (SQL لم يُطبَّق).
 // ────────────────────────────────────────────────────────────────
 const MARKET_LBL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
 
-async function getInventorySnapshot(market) {
-  try {
-    const [prodRes, whRes, stockRes] = await Promise.all([
-      supabase.from('products').select('id, name, sku').eq('is_active', true).order('name'),
-      supabase.from('wh_warehouses').select('id, market').eq('is_active', true),
-      supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
-    ]);
-    const whIds = new Set((whRes.data || []).filter((w) => w.market === market).map((w) => w.id));
-    const qtyByProduct = {};
-    for (const s of stockRes.data || []) {
-      if (!whIds.has(s.warehouse_id)) continue;
-      qtyByProduct[s.product_id] = (qtyByProduct[s.product_id] || 0) + Number(s.quantity || 0);
-    }
-    return (prodRes.data || []).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: qtyByProduct[p.id] || 0 }));
-  } catch {
-    return [];
+const normName = (s) => String(s || '').trim().toLowerCase();
+
+// يجمّع أصناف/كميات الطلبات المطبوعة فعلياً لسوق واحد (ما طلع، لا ما تبقّى بالمخزن).
+function getShippedProducts(orders, market) {
+  const agg = {};
+  for (const o of orders) {
+    if (o.market !== market) continue;
+    (o.items || []).forEach((it) => {
+      const name = String(it.name || '').trim();
+      if (!name) return;
+      const k = normName(name);
+      if (!agg[k]) agg[k] = { key: k, name, qty: 0 };
+      agg[k].qty += Number(it.qty || 1);
+    });
   }
+  return Object.values(agg).sort((a, b) => b.qty - a.qty);
 }
 
 // يحفظ لقطة اليوم (upsert — طباعات متعددة بنفس اليوم تُحدّث نفس الصف، لا تكرار).
+// ملاحظة: quantity هنا تمثّل عدد القطع «الخارجة» بهذه الدفعة (وليست رصيداً متبقياً).
+// inventory_daily_log.product_id هو FK حقيقي لـ products.id (uuid) — لذا نطابق
+// اسم الصنف بالمنتج الفعلي قبل الحفظ؛ أي صنف بلا تطابق (اسم غير موجود بالكتالوج) يُتجاهَل بصمت.
 async function saveDailySnapshot(market, rows) {
   if (!rows?.length) return;
   try {
+    const { data: products } = await supabase.from('products').select('id, name');
+    const idByName = new Map((products || []).map((p) => [normName(p.name), p.id]));
     const logDate = new Date().toISOString().slice(0, 10);
-    const payload = rows.map((r) => ({ log_date: logDate, market, product_id: r.id, quantity: r.qty }));
+    const payload = rows
+      .map((r) => ({ log_date: logDate, market, product_id: idByName.get(r.key), quantity: r.qty }))
+      .filter((r) => r.product_id);
+    if (!payload.length) return;
     await supabase.from('inventory_daily_log').upsert(payload, { onConflict: 'log_date,market,product_id' });
   } catch {
     // الجدول قد لا يكون موجوداً بعد (SQL لم يُطبَّق) — لا نُفشِل الطباعة لأجله.
@@ -108,25 +117,25 @@ async function saveDailySnapshot(market, rows) {
 }
 
 // صفحة جرد مطبوعة لسوق واحد: عمودان × N صف — مضغوطة لتناسب A4 واحدة.
-function inventoryReportHTML(market, rows, dateStr) {
+function inventoryReportHTML(market, rows, dateStr, orderCount) {
   const total = rows.reduce((s, r) => s + r.qty, 0);
   const half = Math.ceil(rows.length / 2);
   const col1 = rows.slice(0, half);
   const col2 = rows.slice(half);
-  const rowHTML = (r) => `<div class="rep-row ${r.qty <= 0 ? 'rep-zero' : ''}"><span class="rep-name">${esc(r.name)}</span><span class="rep-qty">${r.qty}</span></div>`;
+  const rowHTML = (r) => `<div class="rep-row"><span class="rep-name">${esc(r.name)}</span><span class="rep-qty">${r.qty}</span></div>`;
   return `
 <section class="report-sheet">
   <div class="report-head">
     <div class="wordmark"><span class="wm-main">L O W E ' S</span><span class="wm-sub">p r o f e s s i o n a l</span></div>
-    <div class="report-title">📋 جرد إغلاق اليوم — ${MARKET_LBL[market] || market}</div>
-    <div class="report-meta">${dateStr} · ${rows.length} صنف · إجمالي ${total} قطعة</div>
+    <div class="report-title">📋 المنتجات الخارجة اليوم — ${MARKET_LBL[market] || market}</div>
+    <div class="report-meta">${dateStr} · ${orderCount} طلب مطبوع · ${rows.length} صنف · إجمالي ${total} قطعة خارجة</div>
   </div>
   <div class="gold-rule"></div>
   <div class="report-cols">
     <div class="report-col">${col1.map(rowHTML).join('')}</div>
     <div class="report-col">${col2.map(rowHTML).join('')}</div>
   </div>
-  <p class="report-note">هذه اللقطة تُحفَظ تلقائياً (جدول inventory_daily_log) لمقارنة الجرد يوماً بيوم.</p>
+  <p class="report-note">تُحسب من طلبات هذه الدفعة المطبوعة فقط (ما طلع فعلياً)، وتُحفَظ تلقائياً (جدول inventory_daily_log) لمقارنة الحركة يوماً بيوم.</p>
 </section>`;
 }
 
@@ -248,17 +257,28 @@ export async function buildLabelsHTML(orders) {
   const pages = [];
   for (let i = 0; i < orders.length; i += 8) pages.push(orders.slice(i, i + 8));
 
+  // آخر ورقة قد تحوي أقل من 8 بوليصات — بدل تركها أعلى الورقة مع فراغ كبير
+  // أسفلها، تُدفَع للأسفل (خانات فارغة أولاً) بحيث تكون آخر البوليصات هي
+  // آخر ما يظهر على الورقة، لا مبعثرة أعلاها.
   let globalIdx = 0;
-  const sheets = pages.map((page) => `
+  const sheets = pages.map((page, pageIdx) => {
+    const isLast = pageIdx === pages.length - 1;
+    const blanks = isLast ? 8 - page.length : 0;
+    const fillers = Array.from({ length: blanks }, () => '<div class="label-empty"></div>').join('');
+    const labels = page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('');
+    return `
     <section class="sheet">
-      ${page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('')}
-    </section>`).join('');
+      ${fillers}${labels}
+    </section>`;
+  }).join('');
 
-  // ── جرد إغلاق اليوم — صفحة/صفحتان في آخر المستند + حفظ اللقطة (best-effort) ──
+  // ── المنتجات الخارجة اليوم — صفحة/صفحتان في آخر المستند + حفظ اللقطة (best-effort) ──
   const markets = [...new Set(orders.map((o) => o.market).filter((m) => m === 'syria' || m === 'turkey'))];
-  const snapshots = await Promise.all(markets.map((m) => getInventorySnapshot(m)));
-  await Promise.all(markets.map((m, i) => saveDailySnapshot(m, snapshots[i])));
-  const reportSheets = markets.map((m, i) => inventoryReportHTML(m, snapshots[i], dateStr)).join('');
+  const shippedByMarket = markets.map((m) => getShippedProducts(orders, m));
+  await Promise.all(markets.map((m, i) => saveDailySnapshot(m, shippedByMarket[i])));
+  const reportSheets = markets
+    .map((m, i) => inventoryReportHTML(m, shippedByMarket[i], dateStr, orders.filter((o) => o.market === m).length))
+    .join('');
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -287,6 +307,9 @@ html,body { background:#e8e8e8; }
   html,body { background:#fff; }
   .sheet { margin:0; box-shadow:none; }
 }
+
+/* خانة فارغة (آخر ورقة غير مكتملة) — بلا حدود ولا محتوى */
+.label-empty { height:100%; }
 
 /* ═══════════════════════════════════════
    البوليصة — height:100% لملء الـ grid
@@ -539,7 +562,6 @@ html,body { background:#e8e8e8; }
 }
 .rep-name { flex:1; }
 .rep-qty { font-weight:800; tabular-nums:1; direction:ltr; }
-.rep-zero .rep-qty { color:#dc2626; }
 .report-note { text-align:center; font-size:7.5pt; color:#9ca3af; margin-top:8mm; }
 @media print { .report-sheet { margin:0; } }
 </style>
