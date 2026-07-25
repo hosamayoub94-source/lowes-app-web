@@ -744,15 +744,19 @@ function TasksPage() {
   }, [myProjects, viewerTeam, viewerCanSeeAll]);
 
   // Default tab: once projects load, land project members on their project
-  // (don't scatter) — until the user manually picks a tab. Social managers
-  // default to their team tab; management with no project → الكل; employee → مهامي.
+  // (don't scatter) — until the user manually picks a tab. Team-scoped
+  // managers (social/sales/media-buyer) default to their team tab now that
+  // VIEW_ALL_TASKS means "all of my team" not "all teams" (فصل صارم بين
+  // السوشال والمبيعات، 2026-07-26); management with no project → الكل;
+  // employee → مهامي.
+  const TEAM_FOCUSED_ROLES = ['social_manager', 'sales_manager', 'media_buyer'];
   useEffect(() => {
     if (userPickedTab.current) return;
     if (loading) return; // wait for myProjects to load before deciding
     const firstProject = (myProjects || [])[0];
-    const isSocialFocused = userRole === 'social_manager' && !!viewerTeam;
+    const isTeamFocused = TEAM_FOCUSED_ROLES.includes(userRole) && !!viewerTeam;
     const preferred = firstProject ? `project:${firstProject.id}`
-      : isSocialFocused ? 'team'
+      : isTeamFocused ? 'team'
       : viewerCanSeeAll ? 'all'
       : 'mine';
     if (preferred !== activeTab) setActiveTab(preferred);

@@ -56,6 +56,7 @@ export const NAV_ITEMS = [
   { id: 'management',   label: 'الهيكل الإداري', icon: '🏢', path: '/management', roles: [A, M, SM, ...MGMT], group: 'hr' },
 
   // ── Sales / management
+  { id: 'sales-hub',      label: 'مساحة المبيعات',  icon: '💼', path: '/sales-hub',    roles: [A, M, SM],     group: 'sales' },
   { id: 'sales',         label: 'تقارير المبيعات', icon: '📈', path: '/sales',        roles: [A, M, SM, MB], group: 'sales', perm: P.VIEW_ANALYTICS },
   { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB, SOC, E], group: 'sales', perm: P.MANAGE_CAMPAIGNS },
   { id: 'daily-report',  label: 'تقريري اليومي',    icon: '🧾', path: '/daily-report', roles: [E, M, A, SM, MB, SOC], group: 'sales' },
@@ -81,7 +82,8 @@ export const NAV_ITEMS = [
   { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
 
   // ── Social
-  { id: 'social-team',     label: 'فريق السوشال',      icon: '🌐', path: '/social-team',     roles: [A, M, SOC],          group: 'social' },
+  { id: 'social-hub',      label: 'مساحة السوشال',     icon: '🌐', path: '/social-hub',      roles: [A, M, SOC, MB],      group: 'social' },
+  { id: 'social-team',     label: 'إدارة فريق السوشال', icon: '🧑‍🤝‍🧑', path: '/social-team',     roles: [A, M, SOC],          group: 'social' },
   { id: 'social-studio',   label: 'استوديو السوشال',   icon: '🌸', path: '/social-studio',   roles: [A, M, SOC, MB],      group: 'social' },
   { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social' },
   { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social' },

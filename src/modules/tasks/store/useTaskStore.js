@@ -25,12 +25,21 @@ import { resolvePermissions, PERMISSIONS } from '@data/permissions';
 import { ROLES } from '@data/teams';
 import { listMyProjects } from '../services/projectService';
 
+// أدوار الإدارة العليا فقط تشوف كل الفرق مخلوطة معاً (تدقيق/إشراف عام).
+// مدراء الفرق (مبيعات/سوشال/ميديا باير) صار عندهم VIEW_ALL_TASKS بمعنى
+// "كل مهام فريقهم" لا "كل مهام كل الفرق" — فصل صارم بين تيم السوشال
+// وتيم المبيعات (طلب المالك 2026-07-26). لو حساب مدير فريق بلا team
+// مضبوط بالـprofile (بيانات ناقصة) نرجع للسلوك القديم الآمن (يشوف الكل)
+// بدل ما يفضى له كل شي فجأة.
+const ORG_WIDE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
+
 /**
  * Resolve the current viewer's visibility scope for tasks.
  * Returns { viewerId, viewAll, isAdmin, team, projectIds, projects }.
- *   • viewAll  — VIEW_ALL_TASKS (management) → sees all non-sensitive.
+ *   • viewAll  — sees every team's tasks (org-wide admin/manager only).
  *   • isAdmin  — admin role → also sees sensitive tasks.
- *   • team / projectIds — widen visibility to the viewer's team + projects.
+ *   • team / projectIds — widen visibility to the viewer's team + projects
+ *     (team-scoped managers rely on `team` to see their whole team's tasks).
  * Auth is read lazily to avoid a circular import.
  */
 async function resolveViewer() {
@@ -38,7 +47,9 @@ async function resolveViewer() {
     const { useAuthStore } = await import('@stores/authStore');
     const session = useAuthStore.getState().session ?? null;
     if (!session?.id) return { viewerId: null, viewAll: true, isAdmin: false, team: null, projectIds: [], projects: [] };
-    const viewAll = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
+    const hasViewAllPerm = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
+    const isOrgWideRole = ORG_WIDE_ROLES.includes(session.role);
+    const viewAll = hasViewAllPerm && (isOrgWideRole || !session.team);
     const isAdmin = session.role === ROLES.ADMIN;
     const projects = await listMyProjects(session.id).catch(() => []);
     return {

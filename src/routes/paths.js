@@ -83,6 +83,10 @@ export const ROUTES = {
   PROMPT_STUDIO:   '/prompt-studio',
   PROFITABILITY:   '/profitability',
 
+  // مساحات عمل مستقلة لكل تيم — أدواته + مهامه النشطة في مكان واحد
+  SOCIAL_HUB: '/social-hub',
+  SALES_HUB:  '/sales-hub',
+
   // Orders — ماكنتان منفصلتان (سوريا / تركيا) + /orders يحوّل لسوق المستخدم
   ORDERS: '/orders',
   ORDERS_SYRIA: '/orders/syria',
