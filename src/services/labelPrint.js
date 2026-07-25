@@ -139,6 +139,31 @@ function inventoryReportHTML(market, rows, dateStr, orderCount) {
 </section>`;
 }
 
+// ارتفاع صف بوليصات واحد داخل الشبكة (297مم ÷ 4 صفوف).
+const SHEET_ROW_MM = 74.25;
+
+// نسخة مضغوطة من التقرير تُدمَج داخل الخانات الفارغة لآخر ورقة بوليصات
+// (بدل صفحة منفصلة) — توفيراً للورق عندما تكون الورقة الأخيرة غير مكتملة.
+// rowSpan = عدد صفوف الشبكة (من أصل 4) التي يشغلها هذا الجزء.
+function mergedReportHTML(market, rows, dateStr, orderCount, rowSpan) {
+  const total = rows.reduce((s, r) => s + r.qty, 0);
+  const half = Math.ceil(rows.length / 2);
+  const col1 = rows.slice(0, half);
+  const col2 = rows.slice(half);
+  const rowHTML = (r) => `<div class="rm-row"><span class="rm-name">${esc(r.name)}</span><span class="rm-qty">${r.qty}</span></div>`;
+  return `
+<div class="report-merge" style="grid-row:1 / span ${rowSpan};">
+  <div class="rm-head">
+    <div class="rm-title">📋 المنتجات الخارجة اليوم — ${MARKET_LBL[market] || market}</div>
+    <div class="rm-meta">${dateStr} · ${orderCount} طلب مطبوع · ${rows.length} صنف · إجمالي ${total} قطعة خارجة</div>
+  </div>
+  <div class="rm-cols">
+    <div class="rm-col">${col1.map(rowHTML).join('')}</div>
+    <div class="rm-col">${col2.map(rowHTML).join('')}</div>
+  </div>
+</div>`;
+}
+
 // ────────────────────────────────────────────────────────────────
 //  labelHTML — HTML لبوليصة واحدة
 // ────────────────────────────────────────────────────────────────
@@ -256,28 +281,50 @@ export async function buildLabelsHTML(orders) {
 
   const pages = [];
   for (let i = 0; i < orders.length; i += 8) pages.push(orders.slice(i, i + 8));
+  const lastPage = pages[pages.length - 1] || [];
+  const blankCells = pages.length ? 8 - lastPage.length : 0;
+  const blankRows = Math.floor(blankCells / 2); // صفوف فارغة كاملة (صفّان لكل صف)
+  const oddBlank = blankCells % 2;               // خانة مفردة متبقية إن وُجدت
 
-  // آخر ورقة قد تحوي أقل من 8 بوليصات — بدل تركها أعلى الورقة مع فراغ كبير
-  // أسفلها، تُدفَع للأسفل (خانات فارغة أولاً) بحيث تكون آخر البوليصات هي
-  // آخر ما يظهر على الورقة، لا مبعثرة أعلاها.
-  let globalIdx = 0;
-  const sheets = pages.map((page, pageIdx) => {
-    const isLast = pageIdx === pages.length - 1;
-    const blanks = isLast ? 8 - page.length : 0;
-    const fillers = Array.from({ length: blanks }, () => '<div class="label-empty"></div>').join('');
-    const labels = page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('');
-    return `
-    <section class="sheet">
-      ${fillers}${labels}
-    </section>`;
-  }).join('');
-
-  // ── المنتجات الخارجة اليوم — صفحة/صفحتان في آخر المستند + حفظ اللقطة (best-effort) ──
+  // ── المنتجات الخارجة اليوم — تُحسب أولاً لمعرفة إن كانت تسع بالفراغ المتبقي ──
   const markets = [...new Set(orders.map((o) => o.market).filter((m) => m === 'syria' || m === 'turkey'))];
   const shippedByMarket = markets.map((m) => getShippedProducts(orders, m));
   await Promise.all(markets.map((m, i) => saveDailySnapshot(m, shippedByMarket[i])));
+
+  // دمج التقرير داخل الخانات الفارغة لآخر ورقة بوليصات بدل صفحة منفصلة —
+  // فقط لو الورقة الأخيرة ناقصة (صفّ فارغ كامل على الأقل)، سوق واحد بالدفعة
+  // (أضمن للـ fit)، والمحتوى يسع تقديرياً بالمساحة المتاحة. غير ذلك: صفحة منفصلة كالسابق.
+  const RM_ROW_H = 4.8, RM_HEAD_H = 15;
+  let mergeMarket = null;
+  if (blankRows >= 1 && markets.length === 1 && shippedByMarket[0].length) {
+    const usableMm = blankRows * SHEET_ROW_MM - RM_HEAD_H;
+    const capacity = Math.floor(usableMm / RM_ROW_H) * 2; // عمودان
+    if (shippedByMarket[0].length <= capacity) mergeMarket = markets[0];
+  }
+
+  // آخر ورقة قد تحوي أقل من 8 بوليصات — بدل تركها أعلى الورقة مع فراغ كبير
+  // أسفلها، تُدفَع للأسفل (خانات فارغة أولاً، أو تقرير مدموج إن أمكن) بحيث
+  // تكون آخر البوليصات هي آخر ما يظهر على الورقة، لا مبعثرة أعلاها.
+  let globalIdx = 0;
+  const sheets = pages.map((page, pageIdx) => {
+    const isLast = pageIdx === pages.length - 1;
+    const mergeBlock = (isLast && mergeMarket)
+      ? mergedReportHTML(mergeMarket, shippedByMarket[0], dateStr, orders.filter((o) => o.market === mergeMarket).length, blankRows)
+      : '';
+    const fillerCount = isLast ? (mergeMarket ? oddBlank : blankCells) : 0;
+    const fillers = Array.from({ length: fillerCount }, () => '<div class="label-empty"></div>').join('');
+    const labels = page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('');
+    return `
+    <section class="sheet">
+      ${mergeBlock}${fillers}${labels}
+    </section>`;
+  }).join('');
+
+  // ما تبقّى من تقارير الأسواق التي لم تُدمَج (صفحة/صفحتان منفصلة في آخر المستند).
   const reportSheets = markets
-    .map((m, i) => inventoryReportHTML(m, shippedByMarket[i], dateStr, orders.filter((o) => o.market === m).length))
+    .map((m, i) => ({ m, i }))
+    .filter(({ m }) => m !== mergeMarket)
+    .map(({ m, i }) => inventoryReportHTML(m, shippedByMarket[i], dateStr, orders.filter((o) => o.market === m).length))
     .join('');
 
   return `<!DOCTYPE html>
@@ -310,6 +357,33 @@ html,body { background:#e8e8e8; }
 
 /* خانة فارغة (آخر ورقة غير مكتملة) — بلا حدود ولا محتوى */
 .label-empty { height:100%; }
+
+/* تقرير المنتجات الخارجة مدموج داخل خانات فارغة بآخر ورقة بوليصات */
+.report-merge {
+  grid-column:1 / -1;
+  height:100%;
+  border:.3mm solid ${BRAND_COLORS.gold};
+  border-radius:1.5mm;
+  background:#fff;
+  padding:2mm 5mm;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  font-family:'Tajawal',sans-serif;
+  color:#0f1f3d;
+  direction:rtl;
+}
+.rm-head { text-align:center; flex-shrink:0; }
+.rm-title { font-family:'El Messiri',sans-serif; font-weight:700; font-size:10.5pt; }
+.rm-meta { font-size:7.5pt; color:#6b7280; margin-top:.6mm; }
+.rm-cols { display:flex; gap:6mm; margin-top:2mm; flex:1; min-height:0; overflow:hidden; }
+.rm-col { flex:1; }
+.rm-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.9mm 0; border-bottom:.2mm solid #eee; font-size:7.6pt;
+}
+.rm-name { flex:1; }
+.rm-qty { font-weight:800; direction:ltr; }
 
 /* ═══════════════════════════════════════
    البوليصة — height:100% لملء الـ grid
