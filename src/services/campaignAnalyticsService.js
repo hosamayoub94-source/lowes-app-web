@@ -198,7 +198,7 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     for (let i = 0; i < reportIds.length; i += 200) chunks.push(reportIds.slice(i, i + 200));
     const parts = await Promise.all(chunks.map(ch =>
       supabase.from('report_ad_results')
-        .select('report_id, campaign_id, ad_id, messages, confirmations, amount_try, amount_syp, amount_usd, currency, star_rating')
+        .select('report_id, campaign_id, ad_id, messages, confirmations, amount_try, amount_syp, amount_usd, currency, star_rating, notes')
         .in('report_id', ch)));
     results = parts.flatMap(p => p.data ?? []);
   }
@@ -386,9 +386,25 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   for (const cur of ['try', 'syp', 'usd']) if (spendByCur[cur] > 0) roasByCur[cur] = +(((totals.sales[cur] || 0) / spendByCur[cur])).toFixed(2);
   const spendSummary = { byCur: spendByCur, any: anySpend, roasByCur, source: meta.hasData ? 'meta' : (anySpend ? 'manual' : 'none') };
 
+  // ── ملاحظات الموظفين على الإعلانات — كانت تُكتَب ولا تصل لهذه اللوحة إطلاقاً
+  // (report_ad_results.notes لم تكن تُقرَأ هنا). الأحدث أولاً.
+  const recentNotes = results
+    .filter(r => (r.notes || '').trim())
+    .map(r => ({
+      id: `${r.report_id}_${r.ad_id || r.campaign_id}`,
+      employee: reportById[r.report_id]?.employee_name || '—',
+      date: reportById[r.report_id]?.report_date || null,
+      campaign: campById[r.campaign_id]?.name || '—',
+      ad: r.ad_id ? (adById[r.ad_id]?.ad_name || null) : null,
+      star: r.star_rating || null,
+      notes: r.notes.trim(),
+    }))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 30);
+
   return {
     range: { from: fromD, to: toD },
-    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary,
+    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary, recentNotes,
     filters: {
       campaigns: campaigns.filter(c => c.is_active !== false).map(c => ({ id: c.id, name: c.name })),
       teams: [...new Set(campaigns.map(c => c.team).filter(Boolean))],

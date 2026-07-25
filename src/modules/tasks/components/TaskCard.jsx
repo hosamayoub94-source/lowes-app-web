@@ -11,7 +11,7 @@ import { Avatar } from '@components/ui/Avatar';
 import { ProgressBar } from '@components/ui/ProgressBar';
 import { STATUS_META, PRIORITY_META, PLATFORM_META, TASK_TYPE_META, progressTone } from '../types/task.types';
 import { useCountdown } from '../hooks/useCountdown';
-import { shortDate, effectiveStatus } from '../utils/taskUtils';
+import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
 
 // ── Sub-components ────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ export const TaskCard = memo(function TaskCard({
 
   if (!task) return null;
 
-  const { title, description, priority, progress, due_date, assigned_to, comments_count, seen, tags, platform, task_type } = task;
+  const { title, description, priority, progress, due_date, created_at, assigned_to, comments_count, seen, tags, platform, task_type } = task;
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[priority] || null;
   const platformMeta = platform ? PLATFORM_META[platform] : null;
@@ -158,6 +158,11 @@ export const TaskCard = memo(function TaskCard({
                 </>
               ) : (
                 <span className="text-xs text-muted italic">غير مُعيَّن</span>
+              )}
+              {created_at && (
+                <span className="text-[10px] text-muted/60 shrink-0 whitespace-nowrap">
+                  · أُنشئت {timeAgo(created_at)}
+                </span>
               )}
             </div>
 

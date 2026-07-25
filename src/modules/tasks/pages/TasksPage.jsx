@@ -20,7 +20,7 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskStatsBar } from '../components/TaskStatsBar';
 import { TaskFilters } from '../components/TaskFilters';
 import { TaskDetailsDrawer } from '../components/TaskDetailsDrawer';
-import { countActiveFilters } from '../utils/taskUtils';
+import { countActiveFilters, effectiveStatus } from '../utils/taskUtils';
 
 // ── Create task modal ─────────────────────────────────────────────
 
@@ -731,12 +731,15 @@ function TasksPage() {
     return p;
   }, [userId, loadTasks]);
 
-  // Build the tab list: مهامي · [each project] · فريقي · الكل(للإدارة)
+  // Build the tab list: مهامي · [each project] · فريقي · الكل(للإدارة) · ✅ مكتملة
+  // المهام المكتملة لها تبويب مستقل دائماً — تُستبعَد من باقي التبويبات
+  // (مهامي/فريقي/الكل/مشروع) حتى تبقى الواجهة الافتراضية للمهام النشطة فقط.
   const tabDefs = useMemo(() => {
     const t = [{ key: 'mine', label: 'مهامي', icon: '👤' }];
     (myProjects || []).forEach((p) => t.push({ key: `project:${p.id}`, label: p.name, icon: p.icon || '📁' }));
     if (viewerTeam) t.push({ key: 'team', label: 'فريقي', icon: '👥' });
     if (viewerCanSeeAll) t.push({ key: 'all', label: 'الكل', icon: '🗂️' });
+    t.push({ key: 'completed', label: 'مكتملة', icon: '✅' });
     return t;
   }, [myProjects, viewerTeam, viewerCanSeeAll]);
 
@@ -756,26 +759,31 @@ function TasksPage() {
   }, [loading, myProjects, viewerCanSeeAll, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply the active tab on top of the store's search/status filters.
+  // «مكتملة» تبويب مستقل يعرض المهام المكتملة فقط؛ كل تبويب آخر يستبعدها
+  // حتى تبقى الواجهة الافتراضية للمهام النشطة (طلب المالك).
   const scopedTasks = useMemo(() => {
-    if (!activeTab || activeTab === 'all') return filteredTasks;
+    if (activeTab === 'completed') return filteredTasks.filter((t) => effectiveStatus(t) === 'completed');
+    let list;
+    if (!activeTab || activeTab === 'all') list = filteredTasks;
     // assigned_to قد يكون كائناً {id} أو نصّ id مباشرة — نطابق الحالتين.
-    if (activeTab === 'mine') return filteredTasks.filter((t) => (t.assigned_to?.id ?? t.assigned_to) === userId);
-    if (activeTab === 'team') return filteredTasks.filter((t) => t.team && t.team === viewerTeam);
-    if (activeTab.startsWith('project:')) {
+    else if (activeTab === 'mine') list = filteredTasks.filter((t) => (t.assigned_to?.id ?? t.assigned_to) === userId);
+    else if (activeTab === 'team') list = filteredTasks.filter((t) => t.team && t.team === viewerTeam);
+    else if (activeTab.startsWith('project:')) {
       const pid = activeTab.slice('project:'.length);
-      return filteredTasks.filter((t) => t.project_id === pid);
-    }
-    return filteredTasks;
+      list = filteredTasks.filter((t) => t.project_id === pid);
+    } else list = filteredTasks;
+    return list.filter((t) => effectiveStatus(t) !== 'completed');
   }, [activeTab, filteredTasks, userId, viewerTeam]);
 
   const tabsWithCounts = useMemo(() => tabDefs.map((t) => {
     let count;
-    if (t.key === 'all') count = filteredTasks.length;
-    else if (t.key === 'mine') count = filteredTasks.filter((x) => (x.assigned_to?.id ?? x.assigned_to) === userId).length;
-    else if (t.key === 'team') count = filteredTasks.filter((x) => x.team && x.team === viewerTeam).length;
+    if (t.key === 'completed') count = filteredTasks.filter((x) => effectiveStatus(x) === 'completed').length;
+    else if (t.key === 'all') count = filteredTasks.filter((x) => effectiveStatus(x) !== 'completed').length;
+    else if (t.key === 'mine') count = filteredTasks.filter((x) => (x.assigned_to?.id ?? x.assigned_to) === userId && effectiveStatus(x) !== 'completed').length;
+    else if (t.key === 'team') count = filteredTasks.filter((x) => x.team && x.team === viewerTeam && effectiveStatus(x) !== 'completed').length;
     else if (t.key.startsWith('project:')) {
       const pid = t.key.slice('project:'.length);
-      count = filteredTasks.filter((x) => x.project_id === pid).length;
+      count = filteredTasks.filter((x) => x.project_id === pid && effectiveStatus(x) !== 'completed').length;
     }
     return { ...t, badge: count || null };
   }), [tabDefs, filteredTasks, userId, viewerTeam]);

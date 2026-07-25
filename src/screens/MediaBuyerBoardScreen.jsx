@@ -199,6 +199,29 @@ export default function MediaBuyerBoardScreen() {
             </div>
           </Card>
 
+          {/* ملاحظات الموظفين على الإعلانات */}
+          <Card padding="md">
+            <CardTitle className="text-sm mb-2">📝 ملاحظات الموظفين</CardTitle>
+            {(data.recentNotes || []).length === 0 ? (
+              <p className="py-3 text-xs text-muted text-center">لا ملاحظات في هذه الفترة.</p>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {data.recentNotes.map(n => (
+                  <div key={n.id} className="py-2 text-xs space-y-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-text">{n.employee}
+                        {n.star ? <span className="text-amber-fg"> ★{n.star}</span> : null}
+                        <span className="text-muted font-normal"> · {n.ad || n.campaign}</span>
+                      </span>
+                      <span className="text-muted shrink-0">{n.date}</span>
+                    </div>
+                    <p className="text-text leading-relaxed">{n.notes}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
           {/* الموظفون */}
           <Card padding="md">
             <CardTitle className="text-sm mb-2">👥 أداء الموظفين</CardTitle>

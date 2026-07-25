@@ -108,22 +108,11 @@ export const TaskFilters = memo(function TaskFilters({
       <div className="flex items-center gap-2 flex-wrap">
         <QuickChip
           active={filters.overdueOnly}
-          onClick={() => {
-            onToggleFilter('overdueOnly');
-            if (!filters.overdueOnly) onSetFilter('completedOnly', false);
-          }}
+          onClick={() => onToggleFilter('overdueOnly')}
         >
           🔥 متأخرة فقط
         </QuickChip>
-        <QuickChip
-          active={filters.completedOnly}
-          onClick={() => {
-            onToggleFilter('completedOnly');
-            if (!filters.completedOnly) onSetFilter('overdueOnly', false);
-          }}
-        >
-          ✅ مكتملة فقط
-        </QuickChip>
+        {/* المهام المكتملة لها تبويب مستقل بالأعلى («✅ مكتملة») — لا حاجة لشريحة هنا. */}
         {/* Status quick chips */}
         {['in_progress', 'pending'].map((s) => (
           <QuickChip
