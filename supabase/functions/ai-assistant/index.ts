@@ -24,6 +24,93 @@ function formatGuidesForPrompt(guides: { title: string; icon?: string; why?: str
   }).join('\n\n');
 }
 
+// ── كتالوج حي من الموقع الرسمي (lowesprofesyonel.com) ──────────
+// مصدر أدق وأحدث من نسخة مكتوبة بالكود (كانت 33 منتج ثابت — الموقع الفعلي
+// عنده 26 منتج حالياً بمواصفات محدَّثة). نجيبه وقت الطلب مع fallback للنسخة
+// الثابتة تحت لو الموقع واقع أو تغيّرت بنيته. ⚠️ الأسعار المعروضة بالموقع
+// أعلى من أسعارنا الداخلية الفعلية — لا تُستورَد ولا تُستخدَم إطلاقاً.
+const CATALOG_FALLBACK = `### خط البشرة:
+- **غسول الوجه (Facial Cleanser Gel)** 250ml | مكونات: هيالورونيك، سيراميد، صبار، خيار | الاستخدام: صباح ومساء | تجنب العينين
+- **كريم المرطب (Intense Repair Moisturizer)** 50ml | زبدة الشيا، هيالورونيك، بانثينول، كاليندولا | مرتين يومياً للبشرة الجافة
+- **سيروم الريتينول (Retinol Serum 1%)** 30ml | ريتينول 1%، سيراميد، نياسيناميد | **مساءً فقط. ممنوع للحوامل**
+- **سيروم البقع (Dark Spot Corrector)** 30ml | Alpha-Arbutin 2%، نياسيناميد، Glutathione | مرتين يومياً + واقي شمس
+- **تونر الوجه (Pore Tightening Toner)** 250ml | Glycolic Acid، Salicylic Acid | 2-3 مرات أسبوعياً ليلاً فقط
+- **جل مقشّر (Facial Peeling Gel)** 100ml | فيتامين C، سنتيلا آسياتيكا | مرة-مرتين أسبوعياً
+- **واقي الشمس الزهري (Pink Sunscreen SPF50+)** 75ml | Calamine، هيالورونيك، Glutathione | قبل الشمس بـ15 دقيقة
+- **واقي الشمس البرتقالي (Orange Sunscreen SPF50+)** 75ml | أكاسيد حديدية، هيالورونيك | SPF50+
+- **سيروم الترطيب (Intensive Hydration Serum)** 30ml | هيالورونيك، بانثينول، سنتيلا | مرتين يومياً
+- **سيروم الكولاجين (Collagen Serum)** 30ml | كولاجين متحلل، هيالورونيك | مرتين يومياً
+- **سيروم الحبوب (Anti-Acne Serum)** 30ml | Salicylic Acid، نياسيناميد | مرتين على مناطق الحبوب
+- **غسول البشرة الدهنية (Oily Skin Cleanser)** 250ml | للبشرة الدهنية | صباح ومساء
+- **سيروم الهالات (Eye Circle Serum)** 15ml | فيتامين K، هيالورونيك | حول العين فقط، لا داخلها
+- **ماسك الكولاجين (Collagen Mask)** | كولاجين، مضادات أكسدة | 15-20 دقيقة أسبوعياً
+- **كريم الريتينال شوت (Retinal Shot)** | **ريتينال أقوى من الريتينول. ممنوع للحوامل. مساء فقط. ابدأ مرة/أسبوع**
+- **كريم بكج الرز (Rice Milk Spot Cream)** 50ml | ماء الأرز، Alpha-Arbutin، نياسيناميد | مرتين يومياً
+
+### خط الشعر:
+- **شامبو روزماري (Rosemary Shampoo)** 250ml | روزماري، كيراتين، كولاجين، بيوتين | يومي
+- **زيت روزماري الشعر (Rosemary Hair Oil)** 50ml | 20+ زيت طبيعي (جوجوبا، أرجان، حبة سوداء...) | يصلح للرموش والحواجب أيضاً
+- **ماء الروزماري النقي (Pure Rosemary Water)** 100ml | **Rosmarinus Officinalis فقط — 100% طبيعي** | رشّ بدون شطف
+- **سيروم الدقن (Beard Serum)** 30ml | جوجوبا، كافيين، Formononetin | **للرجال فقط** | 30-60 دقيقة ثم شطف
+
+### خط الجسم:
+- **سكراب الجسم بالفراولة (Strawberry Body Scrub)** 275g | ملح الصخر، جلسرين | على بشرة مبللة 5 دقائق
+- **زيت المساج (Massage Oil)** 150ml | زيوت طبيعية، عطر فراولة | لا يحتاج شطف
+- **جل شد الجسم (Body Firming Gel)** 250ml | كافيين، فلفل حار، زيت أفوكادو | مرتين يومياً
+- **كريم التبييض (Skin Whitening Cream)** 50ml | نياسيناميد، Kojic Acid، Alpha-Arbutin، Glutathione، Tranexamic Acid | مرتين يومياً
+- **كريم إزالة الشعر (Hair Removal Cream)** 100ml | Calcium Thioglycolate | **7-9 دقائق فقط. لا على الوجه أو المناطق الحساسة**
+- **سيروم الصدر (Breast Firming Serum)** 30ml | Kigelia Africana، Capryloyl Glycine | مرتين يومياً، لا يُغسل
+- **كريم الصدر (Breast Care Cream)** 50ml | Kigelia Africana، Menthol | مرتين يومياً
+- **كريم القدمين (Foot Care Cream)** | مرطبات مكثفة | ليلاً مع قفازات
+- **تونر الجسم (Body Toner)** | شد وترطيب | بعد الاستحمام`;
+
+const CAT_LABELS: Record<string, string> = {
+  cleanse: 'تنظيف وتونر', serum: 'سيرومات', cream: 'كريمات وماسكات',
+  sun: 'واقيات الشمس', body: 'الجسم', hair: 'الشعر',
+};
+
+async function fetchLiveCatalog(): Promise<string | null> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch('https://lowesprofesyonel.com/products-data.js', { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const code = await res.text();
+    // sandbox بسيط: الموقع ملكنا وموثوق، بس منعزله عن الـscope الخارجي احتياطاً.
+    const sandbox: any = {};
+    const run = new Function('window', code + '\nreturn { products: window.LOWES_PRODUCTS, catMeta: window.LOWES_CAT_META, ingFn: window.LOWES_ING_FN, strong: window.LOWES_STRONG, skin: window.LOWES_SKIN, pairs: window.LOWES_PAIRS };');
+    const { products, catMeta, ingFn, strong, skin, pairs } = run(sandbox) ?? {};
+    if (!Array.isArray(products) || !products.length) return null;
+
+    const byId: Record<string, any> = {};
+    for (const p of products) byId[p.id] = p;
+    const strongSet = new Set(strong ?? []);
+    const byCat: Record<string, any[]> = {};
+    for (const p of products) (byCat[p.cat] ??= []).push(p);
+
+    const lines: string[] = [];
+    for (const cat of Object.keys(CAT_LABELS)) {
+      const list = byCat[cat];
+      if (!list?.length) continue;
+      lines.push(`### ${CAT_LABELS[cat] ?? cat}:`);
+      for (const p of list) {
+        const meta = catMeta?.[cat] ?? {};
+        const time = p.timeAr ?? meta.timeAr ?? '';
+        const freq = p.freqAr ?? meta.freqAr ?? '';
+        const skinType = skin?.[p.id]?.ar ? ` | مناسب لـ: ${skin[p.id].ar}` : '';
+        const caution = strongSet.has(p.id) ? ' ⚠️ **مكوّن قوي — ابدئي بالتدريج، ممنوع بالحمل/الرضاعة، مع واقي شمس إلزامي**' : '';
+        const pairIds: string[] = pairs?.[p.id] ?? [];
+        const pairNames = pairIds.map(id => byId[id]?.ar).filter(Boolean);
+        const pairTxt = pairNames.length ? ` | 🔗 يُستكمل جيداً مع: ${pairNames.join('، ')}` : '';
+        lines.push(`- **${p.ar}** (${p.en}) ${p.size ?? ''} | مكونات: ${(p.ing ?? []).join('، ')} | ${p.ben ?? ''} | ${time}${freq ? ' — ' + freq : ''}${skinType}${caution}${pairTxt}`);
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trim() || null;
+  } catch { return null; }
+}
+
 function buildSystemPrompt(ctx: {
   userName: string;
   userRole: string;
@@ -34,6 +121,7 @@ function buildSystemPrompt(ctx: {
   kpi: any;
   learnedFacts: { fact: string; taught_by?: string }[];
   appGuides: { title: string; icon?: string; why?: string; steps?: string[] }[];
+  catalogText: string | null;
 }) {
   const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -75,42 +163,11 @@ ${ctx.kpi ? `${ctx.kpi.total_score}/100 — ${ctx.kpi.level}` : 'غير محدد
 
 ---
 
-## كتالوج منتجات لويز (33 منتج)
+## كتالوج منتجات لويز
+> يُجلَب حياً من الموقع الرسمي (lowesprofesyonel.com) عند كل رسالة — دايماً محدَّث. لو الموقع غير متاح مؤقتاً، هاي نسخة احتياطية.
+> ⚠️ **قاعدة حاسمة عن السعر:** لا تذكري أي سعر منتج إطلاقاً ولو سُئلتِ مباشرة — أسعار الموقع العامة **أعلى من أسعارنا الداخلية الفعلية** وغير موثوقة كمرجع تسعير. وجّهي أي سؤال عن السعر لقائمة الأسعار الداخلية أو المدير مباشرة.
 
-### خط البشرة:
-- **غسول الوجه (Facial Cleanser Gel)** 250ml | مكونات: هيالورونيك، سيراميد، صبار، خيار | الاستخدام: صباح ومساء | تجنب العينين
-- **كريم المرطب (Intense Repair Moisturizer)** 50ml | زبدة الشيا، هيالورونيك، بانثينول، كاليندولا | مرتين يومياً للبشرة الجافة
-- **سيروم الريتينول (Retinol Serum 1%)** 30ml | ريتينول 1%، سيراميد، نياسيناميد | **مساءً فقط. ممنوع للحوامل**
-- **سيروم البقع (Dark Spot Corrector)** 30ml | Alpha-Arbutin 2%، نياسيناميد، Glutathione | مرتين يومياً + واقي شمس
-- **تونر الوجه (Pore Tightening Toner)** 250ml | Glycolic Acid، Salicylic Acid | 2-3 مرات أسبوعياً ليلاً فقط
-- **جل مقشّر (Facial Peeling Gel)** 100ml | فيتامين C، سنتيلا آسياتيكا | مرة-مرتين أسبوعياً
-- **واقي الشمس الزهري (Pink Sunscreen SPF50+)** 75ml | Calamine، هيالورونيك، Glutathione | قبل الشمس بـ15 دقيقة
-- **واقي الشمس البرتقالي (Orange Sunscreen SPF50+)** 75ml | أكاسيد حديدية، هيالورونيك | SPF50+
-- **سيروم الترطيب (Intensive Hydration Serum)** 30ml | هيالورونيك، بانثينول، سنتيلا | مرتين يومياً
-- **سيروم الكولاجين (Collagen Serum)** 30ml | كولاجين متحلل، هيالورونيك | مرتين يومياً
-- **سيروم الحبوب (Anti-Acne Serum)** 30ml | Salicylic Acid، نياسيناميد | مرتين على مناطق الحبوب
-- **غسول البشرة الدهنية (Oily Skin Cleanser)** 250ml | للبشرة الدهنية | صباح ومساء
-- **سيروم الهالات (Eye Circle Serum)** 15ml | فيتامين K، هيالورونيك | حول العين فقط، لا داخلها
-- **ماسك الكولاجين (Collagen Mask)** | كولاجين، مضادات أكسدة | 15-20 دقيقة أسبوعياً
-- **كريم الريتينال شوت (Retinal Shot)** | **ريتينال أقوى من الريتينول. ممنوع للحوامل. مساء فقط. ابدأ مرة/أسبوع**
-- **كريم بكج الرز (Rice Milk Spot Cream)** 50ml | ماء الأرز، Alpha-Arbutin، نياسيناميد | مرتين يومياً
-
-### خط الشعر:
-- **شامبو روزماري (Rosemary Shampoo)** 250ml | روزماري، كيراتين، كولاجين، بيوتين | يومي
-- **زيت روزماري الشعر (Rosemary Hair Oil)** 50ml | 20+ زيت طبيعي (جوجوبا، أرجان، حبة سوداء...) | يصلح للرموش والحواجب أيضاً
-- **ماء الروزماري النقي (Pure Rosemary Water)** 100ml | **Rosmarinus Officinalis فقط — 100% طبيعي** | رشّ بدون شطف
-- **سيروم الدقن (Beard Serum)** 30ml | جوجوبا، كافيين، Formononetin | **للرجال فقط** | 30-60 دقيقة ثم شطف
-
-### خط الجسم:
-- **سكراب الجسم بالفراولة (Strawberry Body Scrub)** 275g | ملح الصخر، جلسرين | على بشرة مبللة 5 دقائق
-- **زيت المساج (Massage Oil)** 150ml | زيوت طبيعية، عطر فراولة | لا يحتاج شطف
-- **جل شد الجسم (Body Firming Gel)** 250ml | كافيين، فلفل حار، زيت أفوكادو | مرتين يومياً
-- **كريم التبييض (Skin Whitening Cream)** 50ml | نياسيناميد، Kojic Acid، Alpha-Arbutin، Glutathione، Tranexamic Acid | مرتين يومياً
-- **كريم إزالة الشعر (Hair Removal Cream)** 100ml | Calcium Thioglycolate | **7-9 دقائق فقط. لا على الوجه أو المناطق الحساسة**
-- **سيروم الصدر (Breast Firming Serum)** 30ml | Kigelia Africana، Capryloyl Glycine | مرتين يومياً، لا يُغسل
-- **كريم الصدر (Breast Care Cream)** 50ml | Kigelia Africana، Menthol | مرتين يومياً
-- **كريم القدمين (Foot Care Cream)** | مرطبات مكثفة | ليلاً مع قفازات
-- **تونر الجسم (Body Toner)** | شد وترطيب | بعد الاستحمام
+${ctx.catalogText ?? CATALOG_FALLBACK}
 
 ---
 
@@ -510,7 +567,7 @@ Deno.serve(async (req: Request) => {
     const today = new Date();
     const dateSlash = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
 
-    const [tasksRes, attRes, lbRes, kpiRes, knowRes, guidesRes] = await Promise.allSettled([
+    const [tasksRes, attRes, lbRes, kpiRes, knowRes, guidesRes, catalogRes] = await Promise.allSettled([
       supabase.from('tasks').select('title,status,due_date')
         .or(userId ? `assignee_id.eq.${userId},assigned_to.eq.${userId}` : `assigned_to.eq.${userId}`)
         .not('status', 'in', '("done","completed","cancelled")')
@@ -535,6 +592,9 @@ Deno.serve(async (req: Request) => {
       // App usage guides — single source feeding Lozy's how-to knowledge
       supabase.from('app_guides').select('title,icon,why,steps')
         .eq('is_published', true).order('sort_order', { ascending: true }),
+
+      // كتالوج حي من الموقع الرسمي (بدون سعر) — fallback ثابت لو فشل
+      fetchLiveCatalog(),
     ]);
 
     const tasks       = tasksRes.status === 'fulfilled' ? (tasksRes.value.data ?? []) : [];
@@ -543,6 +603,7 @@ Deno.serve(async (req: Request) => {
     const kpi         = kpiRes.status === 'fulfilled'   ? kpiRes.value.data           : null;
     const learnedFacts = knowRes.status === 'fulfilled' ? (knowRes.value.data ?? [])  : [];
     const appGuides    = guidesRes.status === 'fulfilled' ? (guidesRes.value.data ?? []) : [];
+    const catalogText  = catalogRes.status === 'fulfilled' ? catalogRes.value : null;
 
     const inRow  = attRows.find((r: any) => r.type === 'in');
     const outRow = attRows.find((r: any) => r.type === 'out');
@@ -564,7 +625,7 @@ Deno.serve(async (req: Request) => {
     const perms = resolvePerms(userRole, extraPermissions ?? [], deniedPermissions ?? []);
     const ctx = { userId, userName, role: userRole, perms };
 
-    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts, appGuides })
+    const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts, appGuides, catalogText })
       + `\n\n## 🛠️ تنفيذ الأوامر — قاعدة حاسمة (أهم شي)
 أنتِ الآن **منفِّذة فعلية** (agent) ولستِ مجرد محادِثة. عندك أدوات تنفّذ كشوفات وتقارير وإنشاء مهام وإعلانات.
 
