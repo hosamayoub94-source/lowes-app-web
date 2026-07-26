@@ -265,6 +265,18 @@ function normalizeTurkishPhone(raw) {
   return `+90${d}`;
 }
 
+// أرقام سوريا المحلية: 0 + 9 أرقام (0912345678) — كود الدولة +963.
+function normalizeSyrianPhone(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length < 7) return null;
+  if (d.startsWith('963') && d.length >= 12) return `+${d}`;
+  if (d.startsWith('0') && d.length === 10) return `+963${d.slice(1)}`;
+  if (d.length === 9 && d.startsWith('9')) return `+963${d}`;
+  return `+963${d}`;
+}
+
+const PHONE_NORMALIZERS = { turkey: normalizeTurkishPhone, syria: normalizeSyrianPhone };
+
 function triggerCSVDownload(phones, filename) {
   const csv = 'phone\n' + phones.join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -274,14 +286,15 @@ function triggerCSVDownload(phones, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export async function exportMetaCSV({ vipOnly = false } = {}) {
+export async function exportMetaCSV({ vipOnly = false, market = 'turkey' } = {}) {
+  const normalize = PHONE_NORMALIZERS[market] || normalizeTurkishPhone;
   const all = [];
   let offset = 0;
   let hasMore = true;
   while (hasMore) {
     let q = supabase.from('customer_stats')
       .select('phone_key')
-      .contains('markets', ['turkey'])
+      .contains('markets', [market])
       .range(offset, offset + 999);
     if (vipOnly) q = q.gte('orders_count', 2);
     const { data } = await q;
@@ -292,11 +305,11 @@ export async function exportMetaCSV({ vipOnly = false } = {}) {
     hasMore = true;
   }
   const phones = all
-    .map(r => normalizeTurkishPhone(r.phone_key))
+    .map(r => normalize(r.phone_key))
     .filter(p => p && p.length >= 13);
   const label = vipOnly ? 'VIP' : 'full';
   const date = new Date().toISOString().slice(0, 10);
-  triggerCSVDownload(phones, `lowes_meta_turkey_${label}_${date}.csv`);
+  triggerCSVDownload(phones, `lowes_meta_${market}_${label}_${date}.csv`);
   return phones.length;
 }
 
