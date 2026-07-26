@@ -448,6 +448,9 @@ function CustomerCard({ c, onOpen }) {
 export default function CustomersScreen() {
   const { name: userName, role } = useAuth();
   const isAdmin = role === 'admin';
+  // تصدير Meta Ads: الإدارة (أدمن/مدير) + الميديا باير — كلهم بحاجته لرفع الأرقام
+  // كـCustom Audience وبناء حملات استهداف. كان محصوراً بـ'admin' فقط سابقاً.
+  const canExportMeta = role === 'admin' || role === 'manager' || role === 'media_buyer';
 
   const [section, setSection]   = useState('syria');
   const [rows, setRows]         = useState([]);
@@ -553,8 +556,8 @@ export default function CustomersScreen() {
         ))}
       </div>
 
-      {/* Meta export — admin + turkey section only */}
-      {isAdmin && section === 'turkey' && (
+      {/* Meta export — الإدارة + الميديا باير، قسم تركيا فقط (الأرقام تركية) */}
+      {canExportMeta && section === 'turkey' && (
         <div className="flex gap-2 items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2">
           <span className="text-xs font-bold text-blue-700 dark:text-blue-300 flex-1">📊 تصدير Meta Ads</span>
           <button
