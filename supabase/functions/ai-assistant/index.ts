@@ -209,8 +209,9 @@ function resolvePerms(role: string, extra: string[] = [], denied: string[] = [])
 // Tool definitions (Claude tool-use schema). Each carries a `perm`:
 //   null = everyone, or a PERMS key required. Special 'own' handled inline.
 const TOOLS = [
-  { perm: null, name:'get_my_summary', description:'ملخّص الموظف نفسه: حضوره اليوم، مهامه المفتوحة، رصيد إجازته، نتيجة KPI. للمستخدم عن نفسه.',
-    input_schema:{ type:'object', properties:{}, required:[] } },
+  // ملاحظة: ما في أداة get_my_summary — حضور/مهام/إجازة/KPI الموظف الحالي أصلاً
+  // مُضمَّنة بالبرومبت بقسم "بيانات الموظف الحية" بكل رسالة، فأداة منفصلة لنفس
+  // البيانات كانت تُغري النموذج يستدعيها بشكل انعكاسي بدل ما يجاوب عالسؤال الفعلي.
   { perm: null, name:'list_team', description:'قائمة الفريق/الموظفين النشطين مع المسمى الوظيفي والدور والفريق. فلتر اختياري حسب الفريق.',
     input_schema:{ type:'object', properties:{ team:{type:'string', description:'سوريا/تركيا/ميديا/إدارة (اختياري)'} }, required:[] } },
   { perm: PERMS.VIEW_ALL_ATTENDANCE, name:'get_attendance_report', description:'الحضور والغياب — كشف الدوام: كم موظف حضر ومن غاب ومن تأخّر في يوم. الكلمات المفتاحية: حضور، غياب، تأخّر، دوام، مين حضر، كم حضر.',
@@ -252,6 +253,37 @@ function toolsForUser(perms: Set<string>) {
     .map(t => ({ name:t.name, description:t.description, input_schema:t.input_schema }));
 }
 
+// ── Keyword gate ──────────────────────────────────────────────────────────
+// المشكلة: مجرّد وجود tools بالطلب كان يُغري النموذج يستدعي أداة بشكل انعكاسي
+// (get_my_summary/list_team...) حتى لأسئلة عادية عن منتج/استشارة ما إلها أي
+// علاقة بأي أداة — تعليمات النص وحدها بالبرومبت ما كانت كافية لمنع هالسلوك
+// (اختُبر مباشرة: نفس السؤال يرجّع نتيجة أداة غير ذات صلة رغم تعليمات صريحة
+// "بلا أداة إطلاقاً"). الحل الأوثق: لا نُرسل tools للنموذج أصلاً إلا لو رسالة
+// المستخدم فعلياً تحوي كلمة مفتاحية تخص أداة — هيك النموذج فيزيائياً ما
+// بيقدر يستدعي أداة غير موجودة بالطلب.
+const TOOL_KEYWORDS: Record<string, string[]> = {
+  list_team: ['قائمة الفريق', 'اعضاء الفريق', 'أعضاء الفريق', 'مين موجود بالفريق', 'موظفين الفريق', 'اسماء الفريق', 'أسماء الفريق'],
+  get_attendance_report: ['حضور', 'غياب', 'غايب', 'تأخر', 'تأخير', 'دوام', 'حضر', 'غاب'],
+  get_sales_report: ['مبيعات', 'كم بعنا', 'الايراد', 'الإيراد', 'تأكيدات', 'كم بعت'],
+  get_orders: ['الطلبات', 'كشف طلبات', 'طلبيات'],
+  get_tasks: ['مهام الفريق', 'مهام الموظف', 'شو مهام'],
+  create_task: ['اضف مهمة', 'أضف مهمة', 'انشئ مهمة', 'أنشئ مهمة', 'سوي مهمة', 'أسند مهمة', 'اسند مهمة'],
+  create_tasks_bulk: ['خطة عمل', 'قسم مهام', 'قسّم مهام', 'وزع مهام', 'وزّع مهام', 'جدول مهام', 'خطط لي'],
+  update_task_status: ['حدث حالة', 'حدّث حالة', 'خلصت مهمة', 'انجزت مهمة', 'أنجزت مهمة'],
+  create_announcement: ['انشر اعلان', 'انشر إعلان', 'اعمل تعميم', 'اعلان للفريق', 'إعلان للفريق'],
+  get_pending_requests: ['طلبات معلقة', 'اجازات معلقة', 'إجازات معلقة', 'سلف معلقة', 'موافقات معلقة'],
+  approve_request: ['وافق على', 'الموافقة على', 'وافقي على'],
+  update_order_status: ['حالة الطلب', 'غير حالة الطلب', 'غيّر حالة الطلب'],
+  get_accounting_summary: ['الرصيد', 'دفتر الحسابات', 'الميزانية', 'ربح وخسارة', 'رصيد الشركة'],
+  get_accounting_entries: ['قيود المحاسبة', 'قيود الحسابات', 'كشف مصاريف', 'كشف الدخل'],
+  create_accounting_entry: ['اضف مصروف', 'أضف مصروف', 'سجل دخل', 'سجّل دخل', 'سجل مصروف', 'سجّل مصروف', 'قيد جديد', 'سجل قيد', 'سجّل قيد'],
+};
+
+function toolsMatchingMessage(allTools: { name: string }[], text: string) {
+  const t = (text || '').toLowerCase();
+  return allTools.filter(tool => (TOOL_KEYWORDS[tool.name] || []).some(kw => t.includes(kw.toLowerCase())));
+}
+
 // Execute one tool with permission enforcement. Returns a string result.
 async function runTool(supabase: any, name: string, input: any, ctx: { userId:string; userName:string; role:string; perms:Set<string> }): Promise<string> {
   const tool = TOOLS.find(t => t.name === name);
@@ -265,14 +297,6 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
 
   try {
     switch (name) {
-      case 'get_my_summary': {
-        const ds = slash(new Date());
-        const [att, tk] = await Promise.all([
-          supabase.from('attendance').select('type,time_in').eq('employee_name', ctx.userName).eq('date', ds),
-          supabase.from('tasks').select('title,status,due_date').or(`assignee_id.eq.${ctx.userId},assigned_to.eq.${ctx.userId}`).not('status','in','("done","completed","cancelled")').limit(15),
-        ]);
-        return JSON.stringify({ attendance: att.data ?? [], openTasks: tk.data ?? [] });
-      }
       case 'list_team': {
         let q = supabase.from('profiles').select('employee_name,job_title,role_type,team').eq('is_active', true).order('team');
         if (input.team) q = q.eq('team', input.team);
@@ -527,17 +551,21 @@ Deno.serve(async (req: Request) => {
     const systemPrompt = buildSystemPrompt({ userName, userRole, isManager, tasks, attendance, leaveBalance, kpi, learnedFacts, appGuides })
       + `\n\n## 🛠️ تنفيذ الأوامر — قاعدة حاسمة (أهم شي)
 أنتِ الآن **منفِّذة فعلية** (agent) ولستِ مجرد محادِثة. عندك أدوات تنفّذ كشوفات وتقارير وإنشاء مهام وإعلانات.
-- إذا طلب المستخدم أي بيان أو إجراء تغطيه أداة → **استدعي الأداة فوراً** ثم اعرضي النتيجة مرتّبة بالعربي.
+
+**⚠️ القاعدة الافتراضية: بلا أداة إطلاقاً.** الأصل إنك تجاوبي مباشرة من معرفتك الثابتة (الكتالوج، الأدلة، العمولات، هوية البراند، أسلوب الاستشارة) بدون أي استدعاء أداة. الأدوات فقط لبيانات حيّة **ما تقدرين تعرفيها من نفسك** (كشف حضور الفريق كامل، تقارير مبيعات، طلبات، حسابات، إنشاء/تعديل مهمة أو إعلان). **أي سؤال عن منتج، استشارة عميلة، استخدام التطبيق، أو عمولات → جاوبيه مباشرة، صفر أدوات.**
+- إذا طلب المستخدم صراحةً بياناً حياً أو إجراءً تغطيه أداة → **استدعي الأداة فوراً** ثم اعرضي النتيجة مرتّبة بالعربي.
+- حضور/مهام/إجازة/KPI الموظف الحالي **أصلاً موجودة معك** بقسم "بيانات الموظف الحية" أعلى البرومبت — استخدميها مباشرة من هناك، ما في أداة منفصلة لهاد ولا داعي تدوري عنها.
+- **list_team تحديداً:** لا تستدعيها إلا لو طُلبت قائمة الفريق/الموظفين صراحةً. **ممنوع استدعاؤها تلقائياً كافتتاحية أو "تحقّق سريع" قبل أي سؤال آخر.**
 - **لا تسألي أسئلة توضيحية** إلا للضرورة القصوى. استخدمي القيم الافتراضية المعقولة: التاريخ = اليوم، الفريق = الكل، الفترة = الشهر. مثال: "كم حضر اليوم؟" → نفّذي get_attendance_report مباشرةً (اليوم، كل الفِرق).
 - أدواتك المتاحة محدودة بصلاحية المستخدم. إذا طلب إجراءً إدارياً (إنشاء/تعديل/حذف مهمة، إعلان، كشف حضور/مبيعات...) و**لا تملكين أداةً له** → قولي له بوضوح ولطف: «هذا الإجراء يحتاج صلاحية أعلى (مدير/أدمن) وما بقدر أنفّذه إلك» — **وتوقّفي**. لا تشغّلي أداة غير ذات صلة (مثل قائمة الفريق) كبديل أو تعويض.
 - **التخطيط والجدولة:** إذا طلب المستخدم خطة عمل أو تقسيم مشروع/هدف إلى خطوات، أو توزيع عدّة مهام على موظفين، أو جدولة مهام بمواعيد → خطّطي الخطوات ثم نفّذي **create_tasks_bulk** دفعة واحدة (مع due_date كموعد/تذكير وassignee_name عند توفّره). لا تنشئي المهام واحدة واحدة إن كانت خطة.
-- لا تستخدمي list_team إلا إذا طُلبت قائمة الفريق/الموظفين صراحةً.
 - لا تختلقي أرقاماً — فقط ما ترجعه الأدوات. صلاحية المستخدم الحالي: ${userRole}.
 - بعد التنفيذ، تكلّمي بطبيعتك الودّية لكن اعرضي الأرقام بدقة.`;
 
     // ── Agent loop: Claude tool-use with permission-gated execution ──
     const convo: any[] = messages.map((m: any) => ({ role: m.role, content: m.content }));
-    const toolDefs = toolsForUser(perms);
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');
+    const toolDefs = toolsMatchingMessage(toolsForUser(perms), lastUserMsg?.content ?? '');
     let reply = 'عذراً، لم أستطع المعالجة.';
 
     for (let iter = 0; iter < 5; iter++) {
@@ -554,7 +582,10 @@ Deno.serve(async (req: Request) => {
           // Prompt caching: البرومبت الضخم (الكتالوج + الأدلّة + الأدوات) ثابت ويتكرّر
           // كل رسالة وكل لفّة من حلقة الوكيل (×5). تخزينه يقصّ تكلفة الإدخال المتكرّر ~90%.
           system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-          tools:      toolDefs,
+          // بوابة الكلمات المفتاحية أعلاه (toolsMatchingMessage) هي الحارس الحقيقي:
+          // لو ما في كلمة مفتاحية بالسؤال، toolDefs فاضية والنموذج فيزيائياً ما
+          // بيقدر يستدعي أي أداة (تعليمات النص وحدها ما كانت كافية لمنع هالسلوك).
+          ...(toolDefs.length ? { tools: toolDefs } : {}),
           messages:   convo,
         }),
       });
