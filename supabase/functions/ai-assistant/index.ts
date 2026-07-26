@@ -549,7 +549,7 @@ Deno.serve(async (req: Request) => {
           'content-type':      'application/json',
         },
         body: JSON.stringify({
-          model:      'claude-sonnet-4-6',
+          model:      'claude-sonnet-4-5',
           max_tokens: 1500,
           // Prompt caching: البرومبت الضخم (الكتالوج + الأدلّة + الأدوات) ثابت ويتكرّر
           // كل رسالة وكل لفّة من حلقة الوكيل (×5). تخزينه يقصّ تكلفة الإدخال المتكرّر ~90%.

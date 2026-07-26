@@ -159,7 +159,7 @@ ${KNOWLEDGE_NOTES}
 [{"question":"...","option_a":"...","option_b":"...","option_c":"...","option_d":"...","correct_answer":"a","explanation":"..."},{...}]`;
 
   const reqBody: any = {
-    model:      'claude-sonnet-4-6',
+    model:      'claude-sonnet-4-5',
     max_tokens: 2048,
     system,
     messages:   [{ role: 'user', content: `أنشئ سؤالين تدريبيين جديدين (أساسي + متقدّم) في مجال "${meta.label}". نوّع المواضيع كل مرة. اليوم: ${new Date().toISOString().slice(0,10)}.` }],

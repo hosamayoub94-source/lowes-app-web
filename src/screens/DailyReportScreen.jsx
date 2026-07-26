@@ -274,7 +274,7 @@ export default function DailyReportScreen() {
 
           {msg && <p className={'text-sm rounded-xl px-3 py-2 ' + (msg.type === 'ok' ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg')}>{msg.text}</p>}
 
-          <div className="fixed bottom-0 inset-x-0 p-3 bg-surface/95 backdrop-blur border-t border-border sm:static sm:bg-transparent sm:border-0 sm:p-0 z-30">
+          <div className="fixed bottom-20 sm:bottom-0 inset-x-0 p-3 bg-surface/95 backdrop-blur border-t border-border sm:static sm:bg-transparent sm:border-0 sm:p-0 z-40">
             <div className="max-w-3xl mx-auto">
               <Button variant="teal" className="w-full" onClick={save} disabled={saving}>
                 {saving ? '⏳ جاري الحفظ…' : '💾 حفظ تقرير اليوم'}
