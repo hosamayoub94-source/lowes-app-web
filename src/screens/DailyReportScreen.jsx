@@ -119,7 +119,9 @@ export default function DailyReportScreen() {
     setSaving(true); setMsg(null);
     try {
       const header = {
-        employee_name: userName, team: team || null, report_date: date,
+        // daily_reports.team عمود NOT NULL بقاعدة البيانات — أي مستخدم بلا
+        // team بملفه (مثلاً أدمن) كان يُسقِط الحفظ بالكامل بخطأ صامت الظاهر.
+        employee_name: userName, team: team || 'عام', report_date: date,
         total_messages: totals.messages, total_confirmations: totals.confirmations,
         total_sales_try: totals.sales.TRY, total_sales_syp: totals.sales.SYP, total_sales_usd: totals.sales.USD,
         old_customer_count: Number(other.oldCount) || 0,
