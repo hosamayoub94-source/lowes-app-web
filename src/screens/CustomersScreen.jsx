@@ -556,16 +556,20 @@ export default function CustomersScreen() {
         ))}
       </div>
 
-      {/* Meta export — الإدارة + الميديا باير، سوريا وتركيا كلاهما */}
-      {canExportMeta && (section === 'turkey' || section === 'syria') && (
+      {/* Meta export — الإدارة + الميديا باير. سوريا/تركيا حسب market، سترونغ
+          حسب brand (عملاؤها بتركيا فعلياً رغم أنها بلا market مضبوط بالقسم). */}
+      {canExportMeta && (section === 'turkey' || section === 'syria' || section === 'strong') && (
         <div className="flex gap-2 items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2">
           <span className="text-xs font-bold text-blue-700 dark:text-blue-300 flex-1">📊 تصدير Meta Ads ({sec.label})</span>
           <button
             disabled={exporting}
             onClick={async () => {
               setExporting(true);
-              try { const n = await exportMetaCSV({ vipOnly: false, market: sec.market }); alert(`✅ تم تصدير ${n.toLocaleString()} رقم (الكامل)`); }
-              catch { alert('خطأ في التصدير'); }
+              try {
+                const params = section === 'strong' ? { brand: 'strong', country: 'turkey' } : { market: sec.market };
+                const n = await exportMetaCSV({ vipOnly: false, ...params });
+                alert(`✅ تم تصدير ${n.toLocaleString()} رقم (الكامل)`);
+              } catch { alert('خطأ في التصدير'); }
               finally { setExporting(false); }
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition">
@@ -575,8 +579,11 @@ export default function CustomersScreen() {
             disabled={exporting}
             onClick={async () => {
               setExporting(true);
-              try { const n = await exportMetaCSV({ vipOnly: true, market: sec.market }); alert(`✅ تم تصدير ${n.toLocaleString()} رقم (VIP)`); }
-              catch { alert('خطأ في التصدير'); }
+              try {
+                const params = section === 'strong' ? { brand: 'strong', country: 'turkey' } : { market: sec.market };
+                const n = await exportMetaCSV({ vipOnly: true, ...params });
+                alert(`✅ تم تصدير ${n.toLocaleString()} رقم (VIP)`);
+              } catch { alert('خطأ في التصدير'); }
               finally { setExporting(false); }
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition">
