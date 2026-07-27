@@ -226,6 +226,10 @@ export function AIAssistantWidget() {
   const saveTimer = useRef(null);
 
   // ── Load memory from DB ──────────────────────────────────────
+  // رسائل الكوتش الاستباقي (lozy-kpi-coach، تُضاف مباشرة بالـDB بدون تفاعل
+  // المستخدم) تُعلَّم بـ{proactive:true, coachDate}. لو آخر رسالة كوتش ولسا
+  // ما شافها المستخدم (مقارنة بـlocalStorage) → تظهر كـ"غير مقروءة".
+  const seenCoachKey = userId ? `lozy_seen_coach_${userId}` : null;
   useEffect(() => {
     if (!userId || memLoaded) return;
     setMemLoaded(true);
@@ -238,10 +242,15 @@ export function AIAssistantWidget() {
           .maybeSingle();
         if (data?.messages?.length > 1) {
           setMessages(data.messages);
+          const last = data.messages[data.messages.length - 1];
+          if (last?.proactive && last?.coachDate) {
+            const seen = seenCoachKey ? localStorage.getItem(seenCoachKey) : null;
+            if (seen !== last.coachDate) setUnread(1);
+          }
         }
       } catch { /* silent */ }
     })();
-  }, [userId, memLoaded]);
+  }, [userId, memLoaded, seenCoachKey]);
 
   // ── Save memory to DB (debounced 2s) ─────────────────────────
   const saveMemory = useCallback((msgs) => {
@@ -267,8 +276,13 @@ export function AIAssistantWidget() {
   useEffect(() => {
     if (open) {
       setUnread(0);
+      const last = messages[messages.length - 1];
+      if (last?.proactive && last?.coachDate && seenCoachKey) {
+        localStorage.setItem(seenCoachKey, last.coachDate);
+      }
       setTimeout(() => inputRef.current?.focus(), 150);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // ── Send message ──────────────────────────────────────────────
