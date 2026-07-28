@@ -17,11 +17,12 @@
  * يحدّث عمود التاريخ + بحث + طباعة (لا doPost). هذا الملف مرجع تقريبي؛
  * مصدر الحقيقة هو المشروع المستقل.
  *
- * بخصوص «تكرار الطلبات الملغاة»: الـ doPost الحيّ يرجع {ok,duplicate:true,row}
- * عند وجود Order ID مسبقاً ولا يُلحق صفاً → **لا تكرار** (الجدول فُحص: 0 معرّف
- * مكرر). بق التكرار غير قابل لإعادة الإنتاج الآن (معالَج حيّاً). تنبيه للأولوية 2:
- * عند الوجود المسبق يتخطّى التحديث، فلا تنعكس تغييرات الحالة من التطبيق للجدول
- * (متوافق مع تصميم «الحالة مملوكة للجدول/شركة الشحن»).
+ * بخصوص «تكرار الطلبات»: الـ doPost عند وجود Order ID مسبقاً يُحدّث بمكانه لا
+ * يُلحق صفاً جديداً. قرار المالك 29 يوليو 2026: التطبيق والجدول مصدر واحد
+ * متزامن — أي تغيير حالة (يدوي أو من شركة الشحن، بما فيها تم التسليم/تسوية/
+ * راجع) يُكتب بعمود الحالة عند التحديث أيضاً (كان يُستثنى قبلاً). الحارس ضد
+ * التكرار: لو الطلب سبق ونُقل يدوياً لتاب «Delivered Orders» (لم يعد بالتاب
+ * النشط)، doPost لا يُلحقه من جديد — يتأكد من غيابه بتاب Delivered Orders أولاً.
  *
  * النشر:
  *  Extensions → Apps Script → الصق هذا الكود → احفظ →
@@ -99,6 +100,24 @@ function doPost(e) {
     var cOrderId = col('orderid', 'orderİd');
     if (!cOrderId) return _json({ ok: false, error: 'no_order_id_column' });
 
+    // 🛡️ حارس التكرار (قرار المالك 29 يوليو 2026): من الآن كل تغيير حالة (حتى
+    // تم التسليم/تسوية/راجع) يُدفَع من التطبيق. لكن لو الفريق سبق ونقل صفّ هذا
+    // الطلب يدوياً (قصّ/لصق) لتاب «Delivered Orders»، فالصف لم يعد موجوداً هنا —
+    // فلا تُلحقه من جديد (هذا بالضبط بگ التكرار الذي أُصلح 11 يونيو). فقط أكّد
+    // النجاح دون أي كتابة؛ تاب Delivered Orders هو مصدر الحقيقة لهذا الطلب الآن.
+    var deliveredSheet = null;
+    ss.getSheets().forEach(function (s) { if (!deliveredSheet && s.getName().indexOf('Delivered Orders') >= 0) deliveredSheet = s; });
+    var inDeliveredTab = false;
+    if (deliveredSheet && o.orderId) {
+      var dLastRow = deliveredSheet.getLastRow();
+      if (dLastRow >= 8) {
+        var dIds = deliveredSheet.getRange(8, 13, dLastRow - 7, 1).getValues(); // العمود M = Order ID
+        for (var di = 0; di < dIds.length; di++) {
+          if (String(dIds[di][0]).trim() === String(o.orderId).trim() && String(o.orderId).trim()) { inDeliveredTab = true; break; }
+        }
+      }
+    }
+
     // upsert حسب Order ID (تحديث إذا موجود، إضافة إذا جديد)
     var existingVals = sh.getRange(HEADER_ROW + 1, cOrderId, Math.max(1, sh.getLastRow() - HEADER_ROW), 1).getValues();
     var existingRow = 0;
@@ -115,6 +134,11 @@ function doPost(e) {
     for (var li = existingVals.length - 1; li >= 0; li--) {
       if (String(existingVals[li][0]).trim() !== '') { lastDataIdx = li; break; }
     }
+    if (!existingRow && inDeliveredTab) {
+      // الصف انتقل فعلاً لتاب التسليمات — لا تُلحقه بالتاب النشط.
+      return _json({ ok: true, skipped: 'in_delivered_tab' });
+    }
+
     var row = existingRow || (HEADER_ROW + 1 + lastDataIdx + 1); // تحديث أو إضافة بعد آخر طلب حقيقي
     var rowVals = new Array(lastCol).fill('');
 
@@ -177,13 +201,13 @@ function doPost(e) {
 
     if (existingRow) {
       _relaxRow(sh, existingRow, lastCol); // امنع فشل «رفض» المنسدلة (قاعدة المالك)
-      // تحديث بمكانه — اكتب فقط الأعمدة التي يملكها التطبيق (احفظ التعديلات اليدوية).
-      // ⚠️ قرار المالك (11 يونيو 2026): الحالة مملوكة للجدول/الفريق — التحديث من
-      // التطبيق يكتب بيانات العميل + الأصناف + الدفع، لكن **لا يدهس عمود الحالة**
-      // (لا col('status') هنا). إنشاء طلب جديد (append) ما يزال يكتب الحالة الابتدائية.
+      // تحديث بمكانه — يشمل عمود الحالة الآن (قرار المالك 29 يوليو 2026: التطبيق
+      // والجدول مصدر واحد متزامن لأي تغيير حالة؛ يُلغي قرار 11 يونيو «الحالة
+      // مملوكة للجدول فقط»). حارس التكرار أعلاه (inDeliveredTab) يمنع إعادة
+      // إلحاق طلب انتقل فعلاً لتاب Delivered Orders.
       var APP_OWNED_SY = [col('name'), col('number'), col('wanumber','wa'), col('city'), col('address'),
                           cOrderId, col('salesperson'), col('note'),
-                          col('shippingmethod','shipping'), col('payment')];
+                          col('shippingmethod','shipping'), col('payment'), col('status')];
       var colCurrency = [_colToNum(COL_SYP), _colToNum(COL_USD), _colToNum(COL_TRY)];
       // أعمدة الدفع الجزئي (K المتبقّي + O ملاحظة الدفع) تُكتب فقط عند وجود دفع جزئي
       var colPartial = isPartial ? [_colToNum(COL_REMAINING), _colToNum(COL_PAYNOTE)] : [];

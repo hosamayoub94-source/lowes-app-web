@@ -132,6 +132,28 @@ function doPost(e) {
         }
       }
     }
+    // 🛡️ حارس التكرار (قرار المالك 29 يوليو 2026): إزالة استثناء الطلبات المنتهية
+    // بالـedge fn تعني أن migrateDeliveredTR (ترحيل ليلي تلقائي للمُسلَّمات لتاب
+    // «تسليمات لويز/سترونغ» + حذف من التاب النشط) لم يعد محمياً من عودة doPost
+    // لإلحاق الصفّ من جديد. فقبل الإلحاق: تأكّد إن الطلب مو أصلاً بتاب التسليمات
+    // الموافق لهذا البراند.
+    var deliveredName = DELIVERED_SHEET_FOR[SHEET_FOR[brand] || 'LOWES_TR'];
+    var deliveredSh = deliveredName ? ss.getSheetByName(deliveredName) : null;
+    if (deliveredSh && order.order_id) {
+      var dLastRow = deliveredSh.getLastRow();
+      if (dLastRow >= 2) {
+        var dHeaders = deliveredSh.getRange(1, 1, 1, deliveredSh.getLastColumn()).getValues()[0];
+        var dIdCol = -1;
+        for (var dc = 0; dc < dHeaders.length; dc++) { if (String(dHeaders[dc]).trim() === 'كود الطلب') { dIdCol = dc; break; } }
+        if (dIdCol >= 0) {
+          var dIds = deliveredSh.getRange(2, dIdCol + 1, dLastRow - 1, 1).getValues();
+          for (var di = 0; di < dIds.length; di++) {
+            if (String(dIds[di][0]).trim() === String(order.order_id).trim()) return _json({ ok: true, skipped: 'in_delivered_tab' });
+          }
+        }
+      }
+    }
+
     // Insert right after the last row that has an order_id (not at sheet bottom)
     var idColNum = (idCol != null ? idCol : 0) + 1; // 1-indexed
     var totalRows = sh.getLastRow();
@@ -529,8 +551,9 @@ function createReconcileTrigger() {
 // ── البند ٢: ترحيل المسلَّمات تلقائياً لتاب التسليمات (يومياً) ──
 // ينقل صفوف «تم التسليم ✅» من STRONG_TR/LOWES_TR إلى تابات التسليمات الموافقة،
 // ويحذفها من المصدر. idempotent: dedup بكود الطلب + حذف الصفوف من الأسفل للأعلى.
-// آمن ضد العودة: edge fn (sync-order-to-sheet) يتخطّى الطلبات المنتهية
-// (terminal_no_readd) فلا يُعيد doPost إلحاقها بعد النقل.
+// آمن ضد العودة (منذ 29 يوليو 2026): الحارس داخل doPost نفسه أعلاه يتحقق من
+// تاب التسليمات الموافق قبل أي إلحاق — لا اعتماد على تخطٍّ بجهة الـedge fn بعد
+// الآن (أُلغي هناك ليصير التطبيق/الجدول مصدراً واحداً متزامناً لكل الحالات).
 function _fitRow(arr, w) {
   var out = (arr || []).slice(0, w);
   while (out.length < w) out.push('');
