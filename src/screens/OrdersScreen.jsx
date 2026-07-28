@@ -3084,13 +3084,21 @@ export default function OrdersScreen({ forcedMarket = null }) {
       o.market === 'syria' && /بابل|babel/i.test(o.shipping_company || '') &&
       o.tracking_number && String(o.tracking_number).trim() !== '' &&
       !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
-    if (!trackable && !babelTrackable) return;
+    // PTT Kargo (تركيا): نفس النمط عبر track-ptt
+    const pttTrackable = orders.some(o =>
+      o.market === 'turkey' && /ptt/i.test(o.shipping_company || '') &&
+      o.tracking_number && String(o.tracking_number).trim() !== '' &&
+      !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
+    if (!trackable && !babelTrackable && !pttTrackable) return;
     _ytTracked.current = true;
     const doTrack = () => {
       if (trackable) supabase.functions.invoke('track-yurtici', { body: { manual: true } })
         .then(({ data }) => { if (data?.updated > 0) load(); })
         .catch(() => {});
       if (babelTrackable) supabase.functions.invoke('track-babel', { body: { manual: true } })
+        .then(({ data }) => { if (data?.updated > 0) load(); })
+        .catch(() => {});
+      if (pttTrackable) supabase.functions.invoke('track-ptt', { body: { manual: true } })
         .then(({ data }) => { if (data?.updated > 0) load(); })
         .catch(() => {});
     };
