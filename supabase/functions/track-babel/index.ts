@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
   // المسار الجماعي: طلبات سوريا مع شركة بابل ورقم تتبّع وغير منتهية.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, status, handler_name, customer_name, shipping_company')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name, shipping_company, sheet_synced')
     .eq('market', 'syria')
     .ilike('shipping_company', '%بابل%')
     .not('tracking_number', 'is', null)
@@ -143,7 +143,9 @@ Deno.serve(async (req) => {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'بابل اكسبرس', source: 'babel',
       }).then(() => {}, () => {});
       await notifySeller(supabase, o, newStatus);
-      await syncSheet(o.id);
+      // 🛡️ لا تدفع للجدول طلباً نهائياً لم يُزامَن معه أصلاً من قبل — بگ حقيقي
+      // 29 يوليو 2026 (طلبات قديمة تُلحَق كصفوف «جديدة» وهمية). راجع track-ptt.
+      if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);
     } catch { /* skip this shipment */ }
   }
 

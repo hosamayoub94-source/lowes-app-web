@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
   // المسار الجماعي: طلبات تركيا مع شركة PTT ورقم تتبّع وغير منتهية.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, status, handler_name, customer_name, shipping_company')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name, shipping_company, sheet_synced')
     .eq('market', 'turkey')
     .ilike('shipping_company', '%PTT%')
     .not('tracking_number', 'is', null)
@@ -136,7 +136,11 @@ Deno.serve(async (req) => {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'PTT Kargo', source: 'ptt',
       }).then(() => {}, () => {});
       await notifySeller(supabase, o, newStatus);
-      await syncSheet(o.id);
+      // 🛡️ لا تدفع للجدول طلباً نهائياً (تسليم/تسوية/راجع) لم يُزامَن معه أصلاً
+      // من قبل — بگ حقيقي 29 يوليو 2026: طلبات قديمة (سبقت الجدول الحالي أو
+      // غادرته) كانت تُلحَق كصفوف «جديدة» وهمية بمجرد وصول تحديث تتبّع تلقائي.
+      // sheet_synced=true يعني الطلب فعلاً موجود بالجدول ويستحق التحديث.
+      if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);
     } catch { /* skip this shipment */ }
   }
 

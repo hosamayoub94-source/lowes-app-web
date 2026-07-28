@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
   // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية → تتبّع SOAP.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name')
+    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name, sheet_synced')
     .eq('market', 'turkey')
     .not('yurtici_cargo_key', 'is', null)
     .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
@@ -178,7 +178,9 @@ Deno.serve(async (req) => {
         }).then(() => {}, () => {});
         await notifySeller(supabase, o, newStatus);
       }
-      await syncSheet(o.id);
+      // 🛡️ لا تدفع للجدول طلباً تحوّل لحالة نهائية ولم يُزامَن معه أصلاً من قبل —
+      // بگ حقيقي 29 يوليو 2026 (طلبات قديمة تُلحَق كصفوف «جديدة» وهمية).
+      if (!(patch.status && TERMINAL.includes(patch.status) && !o.sheet_synced)) await syncSheet(o.id);
     }
   }
 
@@ -188,7 +190,7 @@ Deno.serve(async (req) => {
   // Apps Script (كلاهما idempotent) — هذا المسار يخدم «التحديث الفوري عند فتح الشاشة».
   const { data: pub } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, status, handler_name, customer_name')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name, sheet_synced')
     .eq('market', 'turkey')
     .is('yurtici_cargo_key', null)
     .not('tracking_number', 'is', null)
@@ -214,7 +216,7 @@ Deno.serve(async (req) => {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
       }).then(() => {}, () => {});
       await notifySeller(supabase, o, newStatus);
-      await syncSheet(o.id);
+      if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);
     } catch { /* skip this shipment */ }
   }
 
