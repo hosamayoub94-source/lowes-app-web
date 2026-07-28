@@ -138,6 +138,15 @@ function doPost(e) {
       // الصف انتقل فعلاً لتاب التسليمات — لا تُلحقه بالتاب النشط.
       return _json({ ok: true, skipped: 'in_delivered_tab' });
     }
+    // 🛡️ حارس إضافي (بگ اكتُشف 29 يوليو 2026 بعد النشر): طلب قديم خالص (لم يعد
+    // موجوداً بالتاب النشط ولا حتى بتاب التسليمات — غادر الجدول كلياً منذ مدة)
+    // يصله تحديث حالة نهائية من تتبّع تلقائي بالخلفية (PTT/يورتيتشي/بابل) —
+    // لا يجوز إلحاقه كصف «جديد» يوهم الفريق بأنه طلب طازج تم تسليمه فوراً.
+    // التحديث النهائي يُدفَع فقط لو الصف ما زال موجوداً فعلاً (existingRow).
+    var TERMINAL_KEYS = { delivered: 1, settled: 1, returned: 1 };
+    if (!existingRow && TERMINAL_KEYS[o.statusKey]) {
+      return _json({ ok: true, skipped: 'terminal_not_in_sheet' });
+    }
 
     var row = existingRow || (HEADER_ROW + 1 + lastDataIdx + 1); // تحديث أو إضافة بعد آخر طلب حقيقي
     var rowVals = new Array(lastCol).fill('');

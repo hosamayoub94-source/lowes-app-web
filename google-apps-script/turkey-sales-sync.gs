@@ -153,6 +153,12 @@ function doPost(e) {
         }
       }
     }
+    // 🛡️ حارس إضافي (بگ اكتُشف 29 يوليو 2026 بعد النشر): طلبات قديمة خالص (سبقت
+    // إعداد هذا الجدول أو غادرته منذ مدة) وصلها تحديث حالة نهائي من تتبّع تلقائي
+    // بالخلفية (PTT/يورتيتشي) فأُلحقت كصفوف «جديدة» وهمية بالتاب النشط. من الآن:
+    // حالة نهائية + لا وجود بالتاب النشط أصلاً = تخطٍّ صامت، لا إلحاق أبداً.
+    var TERMINAL_KEYS = { delivered: 1, settled: 1, returned: 1 };
+    if (TERMINAL_KEYS[order.status]) return _json({ ok: true, skipped: 'terminal_not_in_sheet' });
 
     // Insert right after the last row that has an order_id (not at sheet bottom)
     var idColNum = (idCol != null ? idCol : 0) + 1; // 1-indexed

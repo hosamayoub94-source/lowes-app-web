@@ -208,6 +208,10 @@ Deno.serve(async (req: Request) => {
         amount:         o.amount,
         currency:       o.currency,            // SYP / USD / TRY
         status:         SYRIA_TEAM_CODE[o.status] ?? o.status,
+        // مفتاح الحالة الخام (غير مترجم) — يستخدمه doPost فقط لحارس عدم إلحاق
+        // طلب نهائي (تسليم/تسوية/راجع) غير موجود بالتاب أصلاً كصف جديد
+        // (طلبات قديمة تصلها تحديثات تتبّع تلقائية بعد أن غادرت الجدول تماماً).
+        statusKey:      o.status,
         salesperson:    o.handler_name,
         note:           o.notes,
         shippingMethod: o.shipping_company,
