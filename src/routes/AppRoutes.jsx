@@ -125,9 +125,23 @@ export function AppRoutes() {
           <Route index element={<HomeScreen />} />
           <Route path={ROUTES.ATTENDANCE} element={<AttendanceScreen />} />
           <Route path={ROUTES.TASKS}      element={<TasksScreen />}      />
-          <Route path={ROUTES.CRM}        element={<CRMDashboard />}        />
+          <Route
+            path={ROUTES.CRM}
+            element={
+              <ProtectedRoute roles={MANAGEMENT}>
+                <CRMDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path={ROUTES.FILES}      element={<FileManagerDashboard />} />
-          <Route path={ROUTES.ANALYTICS}  element={<ExecutiveDashboard />}   />
+          <Route
+            path={ROUTES.ANALYTICS}
+            element={
+              <ProtectedRoute roles={MANAGEMENT} perm={P.VIEW_ANALYTICS}>
+                <ExecutiveDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path={ROUTES.WORKSPACE}  element={<DailyWorkspacePage />}   />
           <Route path={ROUTES.TEAM}       element={<TeamScreen />}           />
           <Route path={ROUTES.HOLIDAYS}   element={<HolidaysScreen />}   />
