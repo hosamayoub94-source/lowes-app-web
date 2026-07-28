@@ -1192,7 +1192,8 @@ const TRACKING_STAGE_KEYS = TRACKING_STAGES.map(s => s.key);
 // ── Tracking Tab ──────────────────────────────────────────────
 function TrackingTab({ orders }) {
   const trackable = useMemo(() =>
-    orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' && o.market === 'turkey')
+    orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' &&
+                       (o.market === 'turkey' || (o.market === 'syria' && /بابل|babel/i.test(o.shipping_company || ''))))
           .sort((a, b) => {
             // Sort by stage index ascending (earlier stages first)
             const ai = TRACKING_STAGE_KEYS.indexOf(a.status);
@@ -1313,7 +1314,7 @@ function teamToMarket(team) {
   return null;
 }
 
-const SYRIA_COMPANIES  = ['شركة الكرم', 'سامتاك', 'ضد الدفع', 'واصل', 'أخرى'];
+const SYRIA_COMPANIES  = ['بابل اكسبرس', 'شركة الكرم', 'سامتاك', 'ضد الدفع', 'واصل', 'أخرى'];
 const TURKEY_COMPANIES = ['yurtiçi', 'Aras', 'ptt', 'توصيل الموتور', 'أخرى'];
 const CURRENCIES       = ['TRY', 'SYP', 'USD'];
 const PICKUP_TYPES     = ['استلام من المركز', 'عنوان المنزل', 'عنوان العمل'];
@@ -1334,6 +1335,8 @@ function waLink(phone, market) {
 }
 function trackingLink(company, number) {
   if (!number) return null;
+  // بابل اكسبرس (سوريا): صفحة تتبّع عامة — نطابق أي صيغة للاسم
+  if (/بابل|babel/i.test(company || '')) return `https://www.babel-express.com/track?awb=${encodeURIComponent(number)}`;
   const fn = company ? TRACKING_URLS[company] : null;
   if (fn) return fn(number);
   // Universal fallback for any company with a tracking number
@@ -3013,11 +3016,21 @@ export default function OrdersScreen({ forcedMarket = null }) {
       o.market === 'turkey' &&
       (o.yurtici_cargo_key || (o.tracking_number && String(o.tracking_number).trim() !== '')) &&
       !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
-    if (!trackable) return;
+    // بابل اكسبرس (سوريا): نفس نمط التحديث-عند-الفتح عبر track-babel
+    const babelTrackable = orders.some(o =>
+      o.market === 'syria' && /بابل|babel/i.test(o.shipping_company || '') &&
+      o.tracking_number && String(o.tracking_number).trim() !== '' &&
+      !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
+    if (!trackable && !babelTrackable) return;
     _ytTracked.current = true;
-    const doTrack = () => supabase.functions.invoke('track-yurtici', { body: { manual: true } })
-      .then(({ data }) => { if (data?.updated > 0) load(); })
-      .catch(() => {});
+    const doTrack = () => {
+      if (trackable) supabase.functions.invoke('track-yurtici', { body: { manual: true } })
+        .then(({ data }) => { if (data?.updated > 0) load(); })
+        .catch(() => {});
+      if (babelTrackable) supabase.functions.invoke('track-babel', { body: { manual: true } })
+        .then(({ data }) => { if (data?.updated > 0) load(); })
+        .catch(() => {});
+    };
     doTrack();
     _ytIntervalRef.current = setInterval(doTrack, 3 * 60 * 1000);
   }, [orders, loading, load]);
