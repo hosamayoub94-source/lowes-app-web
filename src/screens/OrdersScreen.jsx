@@ -3570,6 +3570,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
     finally { setRetryingAll(false); }
   };
 
+  // نطاق السوق الحالي وحده (بلا فلاتر الحالة/البحث) — يغذّي تبويب التتبّع الذي
+  // يُخفي أدوات فلترة الحالة/البحث أصلاً. بدونه كانت شحنات تركيا (Yurtiçi) تظهر
+  // مختلطة بشحنات سوريا (بابل) لأن `orders` الخام يحوي السوقين معاً دائماً.
+  const marketOrders = useMemo(() => orders.filter(o => market === 'all' || o.market === market), [orders, market]);
+
   const filtered = useMemo(() => orders.filter(o => {
     if (myOrders && !myNames.has(o.handler_name)) return false;
     if (market !== 'all' && o.market !== market) return false;
@@ -4045,9 +4050,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
         </div>
       )}
 
-      {/* Tracking Tab */}
+      {/* Tracking Tab — نطاق السوق الحالي فقط (سوريا/تركيا)، لا يختلط السوقان */}
       {viewTracking && (
-        <TrackingTab orders={orders} />
+        <TrackingTab orders={marketOrders} />
       )}
 
       {/* List */}
