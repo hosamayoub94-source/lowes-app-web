@@ -64,7 +64,9 @@ export default function AdminGuidesScreen() {
         <div key={g.key} className="flex items-center justify-between bg-surface border border-border/60 rounded-xl px-3 py-2">
           <span className="text-sm text-text">
             {g.icon} {g.title}
-            <span className="text-muted text-xs"> · {NAV_GROUPS[g.section_key] || g.section_key}
+            <span className="text-muted text-xs">
+              {/* NAV_GROUPS['core'] عمداً '' (بلا عنوان بالسايدبار) — لا نطبع المفتاح الخام لو الاسم فاضي */}
+              {(NAV_GROUPS[g.section_key] ?? g.section_key) ? ` · ${NAV_GROUPS[g.section_key] ?? g.section_key}` : ''}
               {g.permission ? ` · 🔒 ${g.permission}` : ' · 👁 للجميع'}
               {!g.is_published ? ' · ⏸ مخفي' : ''}
             </span>

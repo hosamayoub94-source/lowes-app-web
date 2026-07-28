@@ -31,7 +31,7 @@ export function groupGuidesBySection(guides = [], { order = [], labels = {} } = 
   });
   return keys.map((key) => ({
     key,
-    label: labels[key] || key,
+    label: labels[key] ?? key,
     items: guides.filter((g) => (g.section_key || 'core') === key),
   }));
 }

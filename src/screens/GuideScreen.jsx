@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePermissions } from '@hooks/usePermissions';
 import { fetchGuides, guidesForUser, groupGuidesBySection } from '@services/guidesService';
+import { NAV_GROUPS, GROUP_ORDER } from '@data/navigation';
 
 function GuideCard({ g }) {
   const [open, setOpen] = useState(false);
@@ -54,7 +55,7 @@ export default function GuideScreen() {
       ? mine.filter(g =>
           (g.title + ' ' + (g.why || '') + ' ' + (Array.isArray(g.steps) ? g.steps.join(' ') : '')).includes(term))
       : mine;
-    return groupGuidesBySection(filtered);
+    return groupGuidesBySection(filtered, { order: GROUP_ORDER, labels: NAV_GROUPS });
   }, [guides, permSet, q]);
 
   return (
@@ -71,7 +72,9 @@ export default function GuideScreen() {
       )}
       {sections.map(sec => (
         <div key={sec.key} className="bg-surface border border-border/60 rounded-2xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-surface-alt font-bold text-sm text-text">{sec.label}</div>
+          {sec.label && (
+            <div className="px-4 py-2.5 bg-surface-alt font-bold text-sm text-text">{sec.label}</div>
+          )}
           <div className="divide-y divide-border/40">
             {sec.items.map(g => <GuideCard key={g.key} g={g} />)}
           </div>
