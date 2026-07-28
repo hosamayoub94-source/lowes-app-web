@@ -115,6 +115,48 @@ export default function CRMDashboard({ userId: userIdProp }) {
   const [activeView, setActiveView] = useState('kanban');
   const [showCustomerModal, setShowCustomerModal] = useState(false);
 
+  // ── Quick-add (صفقة/عميل محتمل جديد) — كانت الأزرار تنشئ سجل فاضي بعنوان
+  // ثابت "صفقة جديدة"/"عميل محتمل جديد" بدون أي مُدخَل من المستخدم، وما في
+  // طريقة بعدها لتسمية السجل أو ربطه بعميل (النقر عليه ما يفتح شي إلا لو
+  // customer_id موجود، وهو أصلاً مو موجود بسجل فاضي) — فكان يضل معلّق بلا
+  // اسم للأبد. صرنا نطلب الاسم فعلياً وقت الإنشاء.
+  const [quickAdd, setQuickAdd]     = useState(null); // { type: 'deal'|'lead', stageId? }
+  const [qaTitle, setQaTitle]       = useState('');
+  const [qaContact, setQaContact]   = useState('');
+  const [qaPhone, setQaPhone]       = useState('');
+  const [qaValue, setQaValue]       = useState('');
+  const [qaSaving, setQaSaving]     = useState(false);
+
+  const closeQuickAdd = () => {
+    setQuickAdd(null); setQaTitle(''); setQaContact(''); setQaPhone(''); setQaValue(''); setQaSaving(false);
+  };
+
+  const submitQuickAdd = async () => {
+    const title = qaTitle.trim();
+    if (!title || qaSaving) return;
+    setQaSaving(true);
+    try {
+      const value = Number(qaValue) || 0;
+      if (quickAdd.type === 'deal') {
+        await createDeal({
+          title, value,
+          ...(quickAdd.stageId ? { stage_id: quickAdd.stageId } : {}),
+          ...(qaContact.trim() ? { contact_name: qaContact.trim() } : {}),
+          ...(qaPhone.trim()   ? { contact_phone: qaPhone.trim() } : {}),
+        });
+      } else {
+        await createLead({
+          title, estimated_value: value,
+          ...(qaContact.trim() ? { contact_name: qaContact.trim() } : {}),
+          ...(qaPhone.trim()   ? { contact_phone: qaPhone.trim() } : {}),
+        });
+      }
+      closeQuickAdd();
+    } catch {
+      setQaSaving(false);
+    }
+  };
+
   /* ── Loading gate ── */
   if (!initialized && boardLoading) {
     return (
@@ -138,7 +180,7 @@ export default function CRMDashboard({ userId: userIdProp }) {
         <Button
           variant="teal"
           size="md"
-          onClick={() => createDeal({ title: 'صفقة جديدة', value: 0 })}
+          onClick={() => setQuickAdd({ type: 'deal' })}
         >
           + صفقة جديدة
         </Button>
@@ -232,7 +274,7 @@ export default function CRMDashboard({ userId: userIdProp }) {
                 setShowCustomerModal(true);
               }
             }}
-            onCreateDeal={stageId => createDeal({ title: 'صفقة جديدة', stage_id: stageId, value: 0 })}
+            onCreateDeal={stageId => setQuickAdd({ type: 'deal', stageId })}
             isLoading={boardLoading}
           />
         )}
@@ -243,7 +285,7 @@ export default function CRMDashboard({ userId: userIdProp }) {
             <Button
               variant="teal"
               size="sm"
-              onClick={() => createLead({ title: 'عميل محتمل جديد', estimated_value: 0 })}
+              onClick={() => setQuickAdd({ type: 'lead' })}
             >
               + إضافة عميل محتمل
             </Button>
@@ -295,6 +337,68 @@ export default function CRMDashboard({ userId: userIdProp }) {
                 selectCustomer(null);
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick-add modal (صفقة/عميل محتمل جديد) ── */}
+      {quickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl w-full max-w-md shadow-modal p-5 space-y-4">
+            <h2 className="text-lg font-extrabold text-text">
+              {quickAdd.type === 'deal' ? '🚀 صفقة جديدة' : '👤 عميل محتمل جديد'}
+            </h2>
+
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-xs font-semibold text-muted block mb-1">
+                  {quickAdd.type === 'deal' ? 'عنوان الصفقة *' : 'اسم العميل المحتمل *'}
+                </span>
+                <input
+                  autoFocus
+                  value={qaTitle}
+                  onChange={e => setQaTitle(e.target.value)}
+                  placeholder={quickAdd.type === 'deal' ? 'مثال: توريد منتجات لصالون X' : 'اسم الشخص أو الجهة'}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-muted block mb-1">اسم جهة الاتصال (اختياري)</span>
+                <input
+                  value={qaContact}
+                  onChange={e => setQaContact(e.target.value)}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-muted block mb-1">رقم الهاتف (اختياري)</span>
+                  <input
+                    value={qaPhone}
+                    onChange={e => setQaPhone(e.target.value)}
+                    style={{ direction: 'ltr' }}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-muted block mb-1">القيمة المتوقعة (اختياري)</span>
+                  <input
+                    type="number" min="0"
+                    value={qaValue}
+                    onChange={e => setQaValue(e.target.value)}
+                    style={{ direction: 'ltr' }}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="teal" className="flex-1" disabled={!qaTitle.trim() || qaSaving} onClick={submitQuickAdd}>
+                {qaSaving ? 'جارِ الحفظ…' : 'إنشاء'}
+              </Button>
+              <Button variant="ghost" onClick={closeQuickAdd}>إلغاء</Button>
+            </div>
           </div>
         </div>
       )}
