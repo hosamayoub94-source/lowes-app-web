@@ -485,7 +485,7 @@ export default function PerformanceScreen() {
     try {
       if (isAdmin) {
         const [{ data: emps }, { data: kpis }] = await Promise.all([
-          supabase.from('profiles').select('id,employee_name,role,team').eq('is_active', true).order('employee_name'),
+          supabase.from('profiles').select('id,employee_name,role_type,team').eq('is_active', true).order('employee_name'),
           supabase.from('employee_kpis').select('*').eq('year', year).eq('month', month),
         ]);
         setEmployees(emps ?? []);
