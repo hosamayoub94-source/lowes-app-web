@@ -1189,8 +1189,60 @@ const TRACKING_STAGES = [
 ];
 const TRACKING_STAGE_KEYS = TRACKING_STAGES.map(s => s.key);
 
+// ── Babel timeline modal ─────────────────────────────────────
+// مسار الشحنة داخل التطبيق (بابل اكسبرس): يستدعي track-babel {awb} ويعرض
+// الخط الزمني الكامل (تاريخ/وقت/حدث) بدون مغادرة التطبيق.
+function BabelTimelineModal({ order, onClose }) {
+  const [state, setState] = useState({ loading: true, data: null, error: null });
+  useEffect(() => {
+    let alive = true;
+    supabase.functions.invoke('track-babel', { body: { awb: order.tracking_number } })
+      .then(({ data, error }) => { if (alive) setState({ loading: false, data: error ? null : data, error: error?.message || (data?.ok ? null : 'لم يتم العثور على الشحنة') }); })
+      .catch(e => { if (alive) setState({ loading: false, data: null, error: e.message }); });
+    return () => { alive = false; };
+  }, [order]);
+  const tl = state.data?.timeline || [];
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-bold text-text">📍 مسار الشحنة — {order.customer_name || ''}</p>
+            <p className="text-xs text-muted font-mono">{order.tracking_number} · بابل اكسبرس</p>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-text text-xl px-2">✕</button>
+        </div>
+        {state.loading && <p className="text-sm text-muted text-center py-6">جارٍ جلب المسار من بابل…</p>}
+        {state.error && !state.loading && <p className="text-sm text-red-500 text-center py-6">{state.error}</p>}
+        {!state.loading && !state.error && (
+          <>
+            <div className="bg-surface-alt rounded-xl px-3 py-2 text-sm font-bold text-text">
+              الحالة عند بابل: {state.data?.raw || '—'}
+            </div>
+            <ol className="space-y-3">
+              {tl.map((e, i) => (
+                <li key={i} className="flex gap-3 items-start">
+                  <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${i === tl.length - 1 ? 'bg-teal' : 'bg-border'}`} />
+                  <div>
+                    <p className="text-sm text-text font-medium">{e.text}</p>
+                    <p className="text-[11px] text-muted tabular-nums">{e.date} · {e.time}</p>
+                  </div>
+                </li>
+              ))}
+              {tl.length === 0 && <p className="text-xs text-muted">لا أحداث بعد.</p>}
+            </ol>
+            <a href={`https://www.babel-express.com/track?awb=${encodeURIComponent(order.tracking_number)}`} target="_blank" rel="noreferrer"
+              className="block text-center text-xs text-teal font-bold pt-1">فتح صفحة بابل ↗</a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Tracking Tab ──────────────────────────────────────────────
 function TrackingTab({ orders }) {
+  const [babelModal, setBabelModal] = useState(null);
   const trackable = useMemo(() =>
     orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' &&
                        (o.market === 'turkey' || (o.market === 'syria' && /بابل|babel/i.test(o.shipping_company || ''))))
@@ -1281,17 +1333,28 @@ function TrackingTab({ orders }) {
                   <p className="text-[10px] text-muted">رقم التتبع</p>
                   <p className="text-sm font-bold text-text font-mono">{o.tracking_number}</p>
                 </div>
-                {tUrl && (
-                  <a href={tUrl} target="_blank" rel="noreferrer"
-                    className="shrink-0 px-3 py-1.5 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
-                    🚚 تتبع
-                  </a>
-                )}
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {/* بابل اكسبرس: مسار الشحنة داخل التطبيق (بدون مغادرته) */}
+                  {/بابل|babel/i.test(o.shipping_company || '') && (
+                    <button onClick={() => setBabelModal(o)}
+                      className="px-3 py-1.5 rounded-xl bg-navy text-cream text-xs font-bold hover:opacity-90 transition">
+                      📍 مسار
+                    </button>
+                  )}
+                  {tUrl && (
+                    <a href={tUrl} target="_blank" rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
+                      🚚 تتبع
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {babelModal && <BabelTimelineModal order={babelModal} onClose={() => setBabelModal(null)} />}
     </div>
   );
 }
