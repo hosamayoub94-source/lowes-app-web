@@ -5,15 +5,40 @@
 // ويحترم حالات الفريق (RETURN_GUARD) ويسجّل order_status_history + إشعار للبائع.
 // اكتُشفت الصفحة العامة حيّاً 29 يوليو 2026 (لا تحتاج تسجيل دخول رغم أن /api/customer/*
 // محمي بجلسة — /track/<id> منفصلة ومفتوحة، تعرض «مراحل الطرد» كخط زمني كامل).
+//
+// مرحلة إضافية «ربط تلقائي» (auto-link، بلا كتابة عند الكرم — قراءة فقط، مثل استيراد
+// بوالص يورتيتشي): طلبات سوريا/الكرم بلا tracking_number تُطابَق تلقائياً بلوحة عميل
+// الكرم المحمية بجلسة (KARAM_EMAIL/KARAM_PASSWORD) عبر فلتر receiver_phone — يقبل
+// نفس صيغة phone_1 المخزّنة عندنا مباشرة («0935383830»، تحقّقتُ حيّاً 29 يوليو 2026).
+// تطابق واحد فقط → يُملأ tracking_number؛ صفر أو أكثر من تطابق → يُترك للفريق يدوياً
+// (تفادي ربط خاطئ يؤثر على تسوية COD).
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
+const KARAM_EMAIL    = Deno.env.get('KARAM_EMAIL');
+const KARAM_PASSWORD = Deno.env.get('KARAM_PASSWORD');
+const KARAM_UA = 'Mozilla/5.0 (compatible; LowesTracker/1.0)';
 
 const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
 // حالات يملكها الفريق: لا يدوسها التتبّع التلقائي (يمنع ترفرف مُسلَّم ↔ راجع).
 const RETURN_GUARD = ['returning', 'returned', 'not_received', 'cancelled', 'settled'];
+
+// حدّ أقصى للطلبات غير المربوطة بكل استدعاء — كل بحث هاتف يجلب صفحة HTML كاملة
+// (حتى ~500 كيلوبايت)، ومعالجة عدد كبير دفعة واحدة ضربت حدّ موارد Supabase حيّاً
+// 29 يوليو 2026 (WORKER_RESOURCE_LIMIT مع 20 طلباً). الباقي يُلتقط بالاستدعاء التالي
+// (يدوي أو الاستطلاع كل 3 دقائق من الشاشة).
+const AUTO_LINK_BATCH = 6;
+const POLL_BATCH = 15;
+const FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try { return await fetch(url, { ...init, signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -47,9 +72,12 @@ function mapKaram(raw: string): string | null {
 // badges[0] هو الحالة الحالية. يعمل على الـHTML الخام مباشرة (بلا تنظيف وسوم مسبق)
 // لأن بعض الوسوم بمصدر الصفحة تمتد لعدة أسطر.
 async function fetchKaram(trackingNumber: string): Promise<{ raw: string; timeline: { date: string; time: string; text: string }[] } | null> {
-  const res = await fetch(`https://newpost.mrkaram.com/track/${encodeURIComponent(trackingNumber)}`, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LowesTracker/1.0)' },
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`https://newpost.mrkaram.com/track/${encodeURIComponent(trackingNumber)}`, {
+      headers: { 'User-Agent': KARAM_UA },
+    });
+  } catch { return null; }
   if (res.status === 404) return null;
   if (!res.ok) return null;
   const html = await res.text();
@@ -65,6 +93,60 @@ async function fetchKaram(trackingNumber: string): Promise<{ raw: string; timeli
 
   const timeline = badges.map((text, i) => ({ text, date: dates[i]?.date || '', time: dates[i]?.time || '' }));
   return { raw: badges[0], timeline };
+}
+
+// يسجّل دخول إلى لوحة عميل الكرم (جلسة Laravel: CSRF token من صفحة GET ثم POST
+// نموذج). يُرجع سطر Cookie جاهز للاستخدام، أو null لو فشل تسجيل الدخول.
+async function karamLogin(): Promise<string | null> {
+  if (!KARAM_EMAIL || !KARAM_PASSWORD) return null;
+  try {
+    const loginPageRes = await fetchWithTimeout('https://newpost.mrkaram.com/api/customer/login', { headers: { 'User-Agent': KARAM_UA } });
+    const html = await loginPageRes.text();
+    const token = html.match(/name="_token" value="([^"]+)"/)?.[1];
+    if (!token) return null;
+    const cookies1 = (loginPageRes.headers as any).getSetCookie?.() ?? [];
+
+    const form = new URLSearchParams({ _token: token, email: KARAM_EMAIL, password: KARAM_PASSWORD });
+    const loginRes = await fetchWithTimeout('https://newpost.mrkaram.com/api/customer-fun/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies1.map((c: string) => c.split(';')[0]).join('; '),
+        'Referer': 'https://newpost.mrkaram.com/api/customer/login',
+        'User-Agent': KARAM_UA,
+      },
+      body: form.toString(),
+      redirect: 'manual',
+    });
+    const location = loginRes.headers.get('location') || '';
+    if (location.includes('/login')) return null; // فشل: رجوع لصفحة الدخول
+    const cookies2 = (loginRes.headers as any).getSetCookie?.() ?? [];
+
+    const merged = new Map<string, string>();
+    for (const c of [...cookies1, ...cookies2]) {
+      const eq = c.indexOf('=');
+      if (eq === -1) continue;
+      merged.set(c.slice(0, eq).trim(), c.slice(eq + 1).split(';')[0]);
+    }
+    return [...merged.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  } catch { return null; }
+}
+
+// يبحث عن طرود الكرم برقم هاتف المستلم (نفس صيغة phone_1 عندنا: «0935383830»).
+// يُرجع كل النتائج المطابقة (رقم التتبع + تاريخ الإنشاء + الحالة الحالية).
+async function karamSearchByPhone(cookie: string, phone: string): Promise<{ trackingNumber: string; createdDate: string; status: string }[]> {
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`https://newpost.mrkaram.com/api/customer/parcels?receiver_phone=${encodeURIComponent(phone)}`, {
+      headers: { Cookie: cookie, 'User-Agent': KARAM_UA },
+    });
+  } catch { return []; }
+  if (!res.ok) return [];
+  const html = await res.text();
+  const nums     = [...html.matchAll(/text-lime-400">#(\d+)/g)].map(m => m[1]);
+  const dates    = [...html.matchAll(/text-\[10px\] text-gray-500">([\d-]+)<\/div>/g)].map(m => m[1]);
+  const statuses = [...html.matchAll(/text-xs font-black text-\w+-\d+ bg-\w+-\d+ px-2 py-0\.5 rounded-md">\s*([^<]+)/g)].map(m => m[1].trim());
+  return nums.map((n, i) => ({ trackingNumber: n, createdDate: dates[i] || '', status: statuses[i] || '' }));
 }
 
 async function notifySeller(supabase: any, order: any, newStatus: string) {
@@ -113,6 +195,71 @@ Deno.serve(async (req) => {
     return json({ ok: true, raw: info.raw, mapped: mapKaram(info.raw), timeline: info.timeline });
   }
 
+  // وضع تصحيح: يختبر تسجيل الدخول + بحث هاتف واحد مباشرة بلا لمس قاعدة البيانات.
+  if (body?.debugPhone) {
+    const cookie = await karamLogin();
+    if (!cookie) return json({ ok: false, error: 'login_failed' });
+    const matches = await karamSearchByPhone(cookie, String(body.debugPhone));
+    return json({ ok: true, matches });
+  }
+
+  // وضع تصحيح: تسجيل دخول واحد ثم عدّة عمليات بحث متسلسلة بنفس الجلسة (لعزل مشكلة
+  // إعادة استخدام الكوكي عبر طلبات متتالية).
+  if (Array.isArray(body?.debugPhones)) {
+    const t0 = Date.now();
+    const cookie = await karamLogin();
+    const loginMs = Date.now() - t0;
+    if (!cookie) return json({ ok: false, error: 'login_failed', loginMs });
+    const out: any[] = [];
+    for (const p of body.debugPhones) {
+      const t1 = Date.now();
+      const matches = await karamSearchByPhone(cookie, String(p));
+      out.push({ phone: p, ms: Date.now() - t1, count: matches.length });
+    }
+    return json({ ok: true, loginMs, out });
+  }
+
+  let linked = 0;
+  const linkResults: any[] = [];
+
+  // مرحلة الربط التلقائي: طلبات سوريا/الكرم بلا رقم تتبّع، بمطابقة رقم هاتف المستلم
+  // بلوحة عميل الكرم. قراءة فقط — لا تُنشئ أو تُعدّل شيئاً عند الكرم.
+  const { data: unlinked, error: unlinkedErr } = await supabase
+    .from('orders')
+    .select('id, order_id, phone_1, wa_number, status, shipping_company')
+    .eq('market', 'syria')
+    .ilike('shipping_company', '%كرم%')
+    .or('tracking_number.is.null,tracking_number.eq.')
+    .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
+    .or('archived.is.null,archived.eq.false')
+    .is('deleted_at', null);
+
+  if (body?.debugCount) {
+    return json({ ok: true, unlinkedCount: unlinked?.length ?? 0, unlinkedErr: unlinkedErr?.message ?? null, sample: (unlinked ?? []).slice(0, 5) });
+  }
+
+  if (unlinked && unlinked.length > 0) {
+    const cookie = await karamLogin();
+    if (cookie) {
+      for (const o of unlinked.slice(0, AUTO_LINK_BATCH)) {
+        try {
+          const phone = String(o.phone_1 || o.wa_number || '').trim();
+          if (!phone) continue;
+          const matches = await karamSearchByPhone(cookie, phone);
+          if (matches.length !== 1) { linkResults.push({ order: o.order_id, note: matches.length === 0 ? 'no_match' : 'ambiguous', count: matches.length }); continue; }
+          const { error: linkErr } = await supabase.from('orders')
+            .update({ tracking_number: matches[0].trackingNumber, updated_by: 'الكرم-ربط-تلقائي', updated_at: new Date().toISOString() })
+            .eq('id', o.id).is('deleted_at', null);
+          if (linkErr) continue;
+          linked++;
+          linkResults.push({ order: o.order_id, note: 'linked', trackingNumber: matches[0].trackingNumber, karamStatus: matches[0].status });
+        } catch { /* skip this order */ }
+      }
+    } else {
+      linkResults.push({ note: 'login_failed_or_secrets_missing' });
+    }
+  }
+
   // المسار الجماعي: طلبات سوريا مع شركة الكرم ورقم تتبّع وغير منتهية.
   const { data: orders } = await supabase
     .from('orders')
@@ -127,7 +274,8 @@ Deno.serve(async (req) => {
 
   let updated = 0;
   const results: any[] = [];
-  for (const o of (orders ?? [])) {
+  // حدّ أقصى بكل استدعاء — نفس سبب AUTO_LINK_BATCH (كل استعلام صفحة HTML كاملة).
+  for (const o of (orders ?? []).slice(0, POLL_BATCH)) {
     try {
       const info = await fetchKaram(String(o.tracking_number).trim());
       if (!info) { results.push({ order: o.order_id, note: 'not_found' }); continue; }
@@ -150,5 +298,5 @@ Deno.serve(async (req) => {
     } catch { /* skip this shipment */ }
   }
 
-  return json({ ok: true, checked: orders?.length ?? 0, updated, results });
+  return json({ ok: true, linked, linkResults, checked: orders?.length ?? 0, updated, results });
 });
