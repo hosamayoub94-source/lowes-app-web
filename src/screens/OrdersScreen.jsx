@@ -1189,18 +1189,19 @@ const TRACKING_STAGES = [
 ];
 const TRACKING_STAGE_KEYS = TRACKING_STAGES.map(s => s.key);
 
-// ── Babel timeline modal ─────────────────────────────────────
-// مسار الشحنة داخل التطبيق (بابل اكسبرس): يستدعي track-babel {awb} ويعرض
-// الخط الزمني الكامل (تاريخ/وقت/حدث) بدون مغادرة التطبيق.
-function BabelTimelineModal({ order, onClose }) {
+// ── Shipment timeline modal ──────────────────────────────────
+// مسار الشحنة داخل التطبيق (بابل اكسبرس / شركة الكرم): يستدعي edge fn التتبّع
+// ويعرض الخط الزمني الكامل (تاريخ/وقت/حدث) بدون مغادرة التطبيق.
+// newestFirst: بابل يُرجع الخط الزمني الأقدم-أولاً، الكرم يُرجعه الأحدث-أولاً.
+function ShipmentTimelineModal({ order, onClose, fn, paramKey, companyLabel, publicUrl, newestFirst }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
   useEffect(() => {
     let alive = true;
-    supabase.functions.invoke('track-babel', { body: { awb: order.tracking_number } })
+    supabase.functions.invoke(fn, { body: { [paramKey]: order.tracking_number } })
       .then(({ data, error }) => { if (alive) setState({ loading: false, data: error ? null : data, error: error?.message || (data?.ok ? null : 'لم يتم العثور على الشحنة') }); })
       .catch(e => { if (alive) setState({ loading: false, data: null, error: e.message }); });
     return () => { alive = false; };
-  }, [order]);
+  }, [order, fn, paramKey]);
   const tl = state.data?.timeline || [];
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1208,21 +1209,21 @@ function BabelTimelineModal({ order, onClose }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-bold text-text">📍 مسار الشحنة — {order.customer_name || ''}</p>
-            <p className="text-xs text-muted font-mono">{order.tracking_number} · بابل اكسبرس</p>
+            <p className="text-xs text-muted font-mono">{order.tracking_number} · {companyLabel}</p>
           </div>
           <button onClick={onClose} className="text-muted hover:text-text text-xl px-2">✕</button>
         </div>
-        {state.loading && <p className="text-sm text-muted text-center py-6">جارٍ جلب المسار من بابل…</p>}
+        {state.loading && <p className="text-sm text-muted text-center py-6">جارٍ جلب المسار من {companyLabel}…</p>}
         {state.error && !state.loading && <p className="text-sm text-red-500 text-center py-6">{state.error}</p>}
         {!state.loading && !state.error && (
           <>
             <div className="bg-surface-alt rounded-xl px-3 py-2 text-sm font-bold text-text">
-              الحالة عند بابل: {state.data?.raw || '—'}
+              الحالة عند {companyLabel}: {state.data?.raw || '—'}
             </div>
             <ol className="space-y-3">
               {tl.map((e, i) => (
                 <li key={i} className="flex gap-3 items-start">
-                  <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${i === tl.length - 1 ? 'bg-teal' : 'bg-border'}`} />
+                  <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${(newestFirst ? i === 0 : i === tl.length - 1) ? 'bg-teal' : 'bg-border'}`} />
                   <div>
                     <p className="text-sm text-text font-medium">{e.text}</p>
                     <p className="text-[11px] text-muted tabular-nums">{e.date} · {e.time}</p>
@@ -1231,8 +1232,10 @@ function BabelTimelineModal({ order, onClose }) {
               ))}
               {tl.length === 0 && <p className="text-xs text-muted">لا أحداث بعد.</p>}
             </ol>
-            <a href={`https://www.babel-express.com/track?awb=${encodeURIComponent(order.tracking_number)}`} target="_blank" rel="noreferrer"
-              className="block text-center text-xs text-teal font-bold pt-1">فتح صفحة بابل ↗</a>
+            {publicUrl && (
+              <a href={publicUrl(order.tracking_number)} target="_blank" rel="noreferrer"
+                className="block text-center text-xs text-teal font-bold pt-1">فتح صفحة {companyLabel} ↗</a>
+            )}
           </>
         )}
       </div>
@@ -1243,9 +1246,10 @@ function BabelTimelineModal({ order, onClose }) {
 // ── Tracking Tab ──────────────────────────────────────────────
 function TrackingTab({ orders }) {
   const [babelModal, setBabelModal] = useState(null);
+  const [karamModal, setKaramModal] = useState(null);
   const trackable = useMemo(() =>
     orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' &&
-                       (o.market === 'turkey' || (o.market === 'syria' && /بابل|babel/i.test(o.shipping_company || ''))))
+                       (o.market === 'turkey' || (o.market === 'syria' && /بابل|babel|كرم/i.test(o.shipping_company || ''))))
           .sort((a, b) => {
             // Sort by stage index ascending (earlier stages first)
             const ai = TRACKING_STAGE_KEYS.indexOf(a.status);
@@ -1341,6 +1345,12 @@ function TrackingTab({ orders }) {
                       📍 مسار
                     </button>
                   )}
+                  {/كرم/i.test(o.shipping_company || '') && (
+                    <button onClick={() => setKaramModal(o)}
+                      className="px-3 py-1.5 rounded-xl bg-navy text-cream text-xs font-bold hover:opacity-90 transition">
+                      📍 مسار
+                    </button>
+                  )}
                   {tUrl && (
                     <a href={tUrl} target="_blank" rel="noreferrer"
                       className="px-3 py-1.5 rounded-xl bg-teal text-navy text-xs font-bold hover:bg-teal/90 transition flex items-center gap-1">
@@ -1354,7 +1364,16 @@ function TrackingTab({ orders }) {
         })}
       </div>
 
-      {babelModal && <BabelTimelineModal order={babelModal} onClose={() => setBabelModal(null)} />}
+      {babelModal && (
+        <ShipmentTimelineModal order={babelModal} onClose={() => setBabelModal(null)}
+          fn="track-babel" paramKey="awb" companyLabel="بابل اكسبرس"
+          publicUrl={(n) => `https://www.babel-express.com/track?awb=${encodeURIComponent(n)}`} />
+      )}
+      {karamModal && (
+        <ShipmentTimelineModal order={karamModal} onClose={() => setKaramModal(null)}
+          fn="track-karam" paramKey="trackingNumber" companyLabel="شركة الكرم" newestFirst
+          publicUrl={(n) => `https://newpost.mrkaram.com/track/${encodeURIComponent(n)}`} />
+      )}
     </div>
   );
 }
@@ -1400,6 +1419,8 @@ function trackingLink(company, number) {
   if (!number) return null;
   // بابل اكسبرس (سوريا): صفحة تتبّع عامة — نطابق أي صيغة للاسم
   if (/بابل|babel/i.test(company || '')) return `https://www.babel-express.com/track?awb=${encodeURIComponent(number)}`;
+  // شركة الكرم (سوريا): صفحة تتبّع عامة بلا تسجيل دخول
+  if (/كرم/i.test(company || '')) return `https://newpost.mrkaram.com/track/${encodeURIComponent(number)}`;
   const fn = company ? TRACKING_URLS[company] : null;
   if (fn) return fn(number);
   // Universal fallback for any company with a tracking number
@@ -3089,7 +3110,12 @@ export default function OrdersScreen({ forcedMarket = null }) {
       o.market === 'turkey' && /ptt/i.test(o.shipping_company || '') &&
       o.tracking_number && String(o.tracking_number).trim() !== '' &&
       !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
-    if (!trackable && !babelTrackable && !pttTrackable) return;
+    // شركة الكرم (سوريا): نفس النمط عبر track-karam
+    const karamTrackable = orders.some(o =>
+      o.market === 'syria' && /كرم/i.test(o.shipping_company || '') &&
+      o.tracking_number && String(o.tracking_number).trim() !== '' &&
+      !['delivered', 'returned', 'cancelled', 'settled'].includes(o.status));
+    if (!trackable && !babelTrackable && !pttTrackable && !karamTrackable) return;
     _ytTracked.current = true;
     const doTrack = () => {
       if (trackable) supabase.functions.invoke('track-yurtici', { body: { manual: true } })
@@ -3099,6 +3125,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
         .then(({ data }) => { if (data?.updated > 0) load(); })
         .catch(() => {});
       if (pttTrackable) supabase.functions.invoke('track-ptt', { body: { manual: true } })
+        .then(({ data }) => { if (data?.updated > 0) load(); })
+        .catch(() => {});
+      if (karamTrackable) supabase.functions.invoke('track-karam', { body: { manual: true } })
         .then(({ data }) => { if (data?.updated > 0) load(); })
         .catch(() => {});
     };
