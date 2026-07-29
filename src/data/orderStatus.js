@@ -30,8 +30,10 @@ export const ALL_STATUS_KEYS = Object.keys(STATUSES);
 // تركيا = مسار شركات الشحن (مركز/شحن/في الطريق). سوريا = مسار محلي (موتور).
 // تركيا (طلب المالك): مطابقة لقائمة الجدول بالضبط وبترتيبها.
 const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_center','shipped','returning','prepaid','waiting','special_delivery','motor_prep','settled','cancelled','motor'];
-// سوريا (طلب المالك): فقط 7 حالات — جديد·تجهيز·شحن·تم التسليم·انتظار·تسوية·ملغي.
-const SYRIA_STATUSES  = ['pending','preparing','shipped','delivered','waiting','settled','cancelled'];
+// سوريا: أضيفت at_center/on_way (29 يوليو 2026) — حالتا تتبّع شركات الشحن
+// (بابل اكسبرس، شركة الكرم) صارتا رسميتين بدل ما تبقيا مكتوبتين تلقائياً فقط
+// بلا وجود بقائمة السوق (لم يقدر الفريق يختارهما يدوياً قبل هذا).
+const SYRIA_STATUSES  = ['pending','preparing','shipped','at_center','on_way','delivered','waiting','settled','cancelled'];
 
 export const STATUS_KEYS_BY_MARKET = { turkey: TURKEY_STATUSES, syria: SYRIA_STATUSES };
 
@@ -42,7 +44,7 @@ export function statusKeysForMarket(market) {
 
 // خطوط التقدّم (شريط المراحل) لكل سوق — مسار خطّي فقط.
 const TURKEY_STAGES = ['preparing','at_center','shipped','on_way','delivered'];
-const SYRIA_STAGES  = ['pending','preparing','shipped','delivered'];
+const SYRIA_STAGES  = ['pending','preparing','shipped','at_center','on_way','delivered'];
 export const STAGES_BY_MARKET = { turkey: TURKEY_STAGES, syria: SYRIA_STAGES };
 
 export function stagesForMarket(market) {

@@ -1247,6 +1247,8 @@ function ShipmentTimelineModal({ order, onClose, fn, paramKey, companyLabel, pub
 function TrackingTab({ orders }) {
   const [babelModal, setBabelModal] = useState(null);
   const [karamModal, setKaramModal] = useState(null);
+  // اضغط بطاقة مرحلة (أو بانر «تم التسليم») لتصفية القائمة لتلك المرحلة فقط.
+  const [stageFilter, setStageFilter] = useState(null);
   const trackable = useMemo(() =>
     orders.filter(o => o.tracking_number && o.tracking_number.trim() !== '' &&
                        (o.market === 'turkey' || (o.market === 'syria' && /بابل|babel|كرم/i.test(o.shipping_company || ''))))
@@ -1264,6 +1266,15 @@ function TrackingTab({ orders }) {
     return c;
   }, [trackable]);
 
+  // «تم التسليم» مطويّة افتراضياً ببانر بدل بطاقات كاملة — القائمة الافتراضية
+  // تعرض فقط الشحنات الجارية. الضغط على أي بطاقة مرحلة أو بانر التسليم يصفّي.
+  const visible = useMemo(() => {
+    if (stageFilter) return trackable.filter(o => o.status === stageFilter);
+    return trackable.filter(o => o.status !== 'delivered');
+  }, [trackable, stageFilter]);
+
+  const toggleStage = (key) => setStageFilter(f => f === key ? null : key);
+
   if (trackable.length === 0) {
     return (
       <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
@@ -1276,23 +1287,45 @@ function TrackingTab({ orders }) {
 
   return (
     <div className="space-y-4">
-      {/* Stage summary bar */}
+      {/* Stage summary bar — كل بطاقة زر تصفية */}
       <div className="grid grid-cols-4 gap-2">
         {TRACKING_STAGES.map(s => (
-          <div key={s.key} className={`rounded-2xl p-3 text-center ${STATUSES[s.key]?.bg || 'bg-surface-alt'}`}>
+          <button key={s.key} onClick={() => toggleStage(s.key)}
+            className={`rounded-2xl p-3 text-center transition ${STATUSES[s.key]?.bg || 'bg-surface-alt'}
+              ${stageFilter === s.key ? 'ring-2 ring-teal ring-offset-1' : 'hover:opacity-80'}`}>
             <p className="text-lg">{s.icon}</p>
             <p className={`text-xl font-extrabold tabular-nums ${STATUSES[s.key]?.text || 'text-muted'}`}>{stageCount[s.key] || 0}</p>
             <p className="text-[10px] text-muted font-medium">{s.label}</p>
-          </div>
+          </button>
         ))}
       </div>
+
+      {/* بانر «تم التسليم» — مطويّة عن القائمة الرئيسية، اضغط للعرض/الإخفاء */}
+      {stageCount.delivered > 0 && (
+        <button onClick={() => toggleStage('delivered')}
+          className={`w-full bg-green-bg border border-green/30 rounded-2xl px-4 py-3 flex items-center gap-3 transition
+            ${stageFilter === 'delivered' ? 'ring-2 ring-teal' : 'hover:opacity-90'}`}>
+          <span className="text-2xl">✅</span>
+          <div className="flex-1 text-right min-w-0">
+            <p className="text-sm font-bold text-green-fg">{stageCount.delivered} طلب تم تسليمه</p>
+            <p className="text-xs text-muted">{stageFilter === 'delivered' ? 'اضغط للإخفاء' : 'اضغط للعرض'}</p>
+          </div>
+        </button>
+      )}
+      {stageFilter && stageFilter !== 'delivered' && (
+        <button onClick={() => setStageFilter(null)}
+          className="text-xs font-bold text-teal hover:underline px-1">✕ إلغاء التصفية — عرض كل الشحنات الجارية</button>
+      )}
 
       {/* تتبّع يورتيتشي مُلغى (قرار المالك) — الحالات تُغيَّر يدوياً فقط.
           هذا التبويب صار عرضاً فقط: أرقام التتبّع + المراحل + رابط شركة الشحن. */}
 
       {/* Tracking cards */}
+      {visible.length === 0 && (
+        <p className="text-center text-sm text-muted py-8">لا شحنات جارية حالياً 🎉</p>
+      )}
       <div className="space-y-3">
-        {trackable.map(o => {
+        {visible.map(o => {
           const stageIdx = TRACKING_STAGE_KEYS.indexOf(o.status);
           const tUrl = trackingLink(o.shipping_company, o.tracking_number);
           const st = STATUSES[o.status];
