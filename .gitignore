@@ -35,3 +35,15 @@ dist-ssr
 # Supabase CLI temp
 supabase/.temp
 supabase/.branches
+
+# babel-autosync — استثناء بيانات Chrome المحلية وملف الـ log
+scripts/babel-autosync/chrome-profile/
+scripts/babel-autosync/sync.log
+scripts/babel-autosync/node_modules/
+
+# ملفات مؤقتة وتجريبية
+_trial*.txt
+_trial*.mjs
+
+# ������ ����� (Excel)
+scripts/data/
