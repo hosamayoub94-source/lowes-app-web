@@ -75,6 +75,9 @@ export const ROUTES = {
   // Face verification enrollment
   ADMIN_FACE_ENROLL: '/admin/face-enroll',
 
+  // WhatsApp conversations (shared official number, wired 1 Aug 2026)
+  ADMIN_WHATSAPP: '/admin/whatsapp',
+
   // Manager executive board + Social content studio
   MANAGER_BOARD:   '/manager-board',
   SOCIAL_STUDIO:   '/social-studio',

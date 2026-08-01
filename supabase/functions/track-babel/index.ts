@@ -5,6 +5,7 @@
 // ويحترم حالات الفريق (RETURN_GUARD) ويسجّل order_status_history + إشعار للبائع.
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -115,7 +116,7 @@ Deno.serve(async (req) => {
   // المسار الجماعي: طلبات سوريا مع شركة بابل ورقم تتبّع وغير منتهية.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, status, handler_name, customer_name, shipping_company, sheet_synced')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name, phone_1, shipping_company, sheet_synced')
     .eq('market', 'syria')
     .ilike('shipping_company', '%بابل%')
     .not('tracking_number', 'is', null)
@@ -143,6 +144,7 @@ Deno.serve(async (req) => {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'بابل اكسبرس', source: 'babel',
       }).then(() => {}, () => {});
       await notifySeller(supabase, o, newStatus);
+      await notifyWhatsAppStatus(o, newStatus, 'syria');
       // 🛡️ لا تدفع للجدول طلباً نهائياً لم يُزامَن معه أصلاً من قبل — بگ حقيقي
       // 29 يوليو 2026 (طلبات قديمة تُلحَق كصفوف «جديدة» وهمية). راجع track-ptt.
       if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);

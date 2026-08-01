@@ -22,6 +22,7 @@ import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
+import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
@@ -3194,6 +3195,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
+    // إشعار واتساب للعميل بصوت البراند (best-effort، لا يوقف باقي التأثيرات الجانبية)
+    if (order) notifyOrderStatusWhatsApp(order, newStatus);
     // مُصلِّح المخزون: يخصم عند «في التجهيز» فما فوق، يسترد عند الانتظار/الرجوع/الإلغاء
     if (order) syncOrderStock({ ...order, status: newStatus }, userName);
 
@@ -3258,6 +3261,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           if (!r.ok && !r.skipped) failed++;
         }
         notifySellerStatusChange(o, next, userName);
+        notifyOrderStatusWhatsApp(o, next);
       } catch { failed++; }
       done++; onProgress?.(done, list.length);
     }

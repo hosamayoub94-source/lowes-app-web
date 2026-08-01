@@ -5,6 +5,22 @@
 
 ## 🚨 للمحادثة الجديدة — اقرأ هذا أولاً (يوليو 2026)
 
+### 🆕 تحديث 1 أغسطس 2026 (مساءً) — قوالب Meta قيد المراجعة (خطأ 63016)
+
+اختبار حي بعد الجلسة أدناه أظهر أن الرسائل (سواء تلقائية من التتبّع أو يدوية من `OrdersScreen.jsx`) **لن تصل فعلياً للعميل بعد** — Twilio Monitor Logs رجّع `error 63016 "Outside messaging window. For WhatsApp, use a Message Template instead"` وحالة الرسالة "Undelivered"، رغم إن الكود هنا وبـ`lowes-classic` أصلاً يستخدم `contentSid`/`ContentVariables` (Message Template) وليس نص حر. **السبب:** القوالب السبعة (`TEMPLATE_SID` بـ`notifyWhatsAppStatus.ts`/`whatsappService.js`) أُنشئت بـTwilio Content Template Builder لكنها **لسا Pending عند مراجعة Meta** — قالب غير معتمَد يُعامَل مثل نص حر ويُرفض بنفس سياسة نافذة الـ24 ساعة. **لا حاجة لأي تعديل كود إضافي هون** — فور ما توافق Meta (عادة <48 ساعة)، نفس الكود المنشور يشتغل تلقائياً. تحقّق من الحالة بـ[Content Template Builder](https://console.twilio.com/us1/develop/sms/content-template-builder) قبل اعتبار الميزة جاهزة لعملاء حقيقيين.
+
+### 🗓️ جلسة 1 أغسطس 2026 — إشعارات واتساب تلقائية لحالة الشحن + شاشة محادثات ✅ منشور (تحديث لاحق: القالب اليدوي أُضيف أيضاً — راجع أعلاه بخصوص حالة الموافقة)
+
+**القرار المعماري:** لا Twilio/Meta جديد بهالمشروع — الجلسة السابقة (`send-whatsapp` عبر Meta Cloud API على رقم `908507627032`) بقيت معطّلة كما هي (secrets غير مضبوطة، الرقم محظور جزئياً). بدل إصلاحها، استُخدم رقم لوويز الرسمي الجديد **المُفعَّل فعلياً بمشروع Supabase آخر** (`kesoqnwyydycuyifqfhl` / lowes-classic، رقم Twilio `+13204416777`) — استدعاء HTTP مباشر بمفتاح anon عام (غير سرّي)، بلا تكرار أي بنية تحتية.
+
+**التنفيذ:**
+- `supabase/functions/_shared/notifyWhatsAppStatus.ts` (جديد) — helper مشترك، 7 قوالب حالة (shipped/at_center/on_way/delivered/cancelled/not_received/returning)، تطبيع هاتف محلي→دولي حسب `market` (سوريا +963 / تركيا +90).
+- مربوط بالـ4 دوال تتبّع الشحن (`track-babel`, `track-karam`, `track-ptt`, `track-yurtici`) — استدعاء واحد بعد كل `order_status_history` insert ناجح. أُضيف `phone_1` لكل استعلامات `select` الأربعة (كان ناقصاً).
+- **تحديث لاحق نفس اليوم:** التحديث اليدوي لحالة الطلب من `OrdersScreen.jsx` (`handleStatusChange`/`advanceBatch`) رُبط أيضاً بنفس دالة `notifyOrderStatusWhatsApp` — عمداً **باستثناء** مسار الحذف/الإلغاء الناعم (`handleDelete`). كلا المسارين (تلقائي ويدوي) يستخدمان الآن Message Templates وليس نص حر — راجع تحديث "قوالب Meta قيد المراجعة" بأعلى الملف بخصوص حالة التفعيل الفعلية.
+- شاشة جديدة **"محادثات واتساب"** (`src/screens/admin/AdminWhatsAppScreen.jsx` + `src/services/whatsappService.js`) — تقرأ/تكتب مباشرة على جدول `whatsapp_messages` بمشروع `kesoqnwyydycuyifqfhl` عبر `fetch` (لا `supabase.functions.invoke`، لأنه مشروع مختلف). Route: `/admin/whatsapp`، صلاحية admin+manager.
+- **مُختبَر حياً:** رسالة تجريبية أُرسلت واستُقبلت بنجاح قبل النشر. Build نجح، منشور على production (`lowes-app-web.vercel.app`).
+- الرقم السوري/التركي القديم `908507627032` — راجع `[[whatsapp-business-official]]` بذاكرة Claude: غير قابل للاستخدام نهائياً لأي منصة واتساب بزنس رسمية (SMS/مكالمات مقفولة كلياً).
+
 ### 🗓️ جلسة 29 يوليو 2026 (5) — تصفية تبويب التتبّع بالضغط + at_center/on_way رسميتان بسوريا
 
 **طلب المالك:** (1) الضغط على بطاقة مرحلة بتبويب «تتبّع الشحنات» (استُلم/في المركز/في الطريق/تم التسليم) يصفّي القائمة لتلك المرحلة، والطلبات المُسلَّمة تُطوى ببانر أخضر بدل بطاقات كاملة. (2) الحالتان الجديدتان (`at_center`/`on_way`) اللي بدأ `track-babel`/`track-karam` يكتبونها لطلبات سوريا تصيران رسميتين بالنظام، بأسمائهن الإنكليزية الصحيحة.

@@ -85,6 +85,7 @@ const GuideScreen              = lazy(() => import(/* webpackChunkName: "guide" 
 const BrandScreen              = lazy(() => import(/* webpackChunkName: "brand"              */ '@screens/BrandScreen'));
 const AdminGuidesScreen        = lazy(() => import(/* webpackChunkName: "admin-guides"       */ '@screens/admin/AdminGuidesScreen'));
 const AdminChannelsScreen      = lazy(() => import(/* webpackChunkName: "admin-channels"     */ '@screens/admin/AdminChannelsScreen'));
+const AdminWhatsAppScreen      = lazy(() => import(/* webpackChunkName: "admin-whatsapp"      */ '@screens/admin/AdminWhatsAppScreen'));
 const AdminProjectsScreen      = lazy(() => import(/* webpackChunkName: "admin-projects"     */ '@screens/admin/AdminProjectsScreen'));
 const JoinScreen               = lazy(() => import(/* webpackChunkName: "join"              */ '@screens/JoinScreen'));
 
@@ -165,6 +166,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]} perm={P.VIEW_FINANCE}>
                 <AdminChannelsScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.ADMIN_WHATSAPP}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+                <AdminWhatsAppScreen />
               </ProtectedRoute>
             }
           />

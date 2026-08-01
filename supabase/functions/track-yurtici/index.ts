@@ -4,6 +4,7 @@
 // يُستدعى يدوياً {manual:true} أو من cron (بلا جسم) — كلاهما يعمل الآن.
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;   // SB_SECRET_KEY أولاً، وإلا الـservice_role المُحقَن
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
   // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية → تتبّع SOAP.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name, sheet_synced')
+    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name, phone_1, sheet_synced')
     .eq('market', 'turkey')
     .not('yurtici_cargo_key', 'is', null)
     .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
@@ -177,6 +178,7 @@ Deno.serve(async (req) => {
           order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
         }).then(() => {}, () => {});
         await notifySeller(supabase, o, newStatus);
+        await notifyWhatsAppStatus(o, newStatus, 'turkey');
       }
       // 🛡️ لا تدفع للجدول طلباً تحوّل لحالة نهائية ولم يُزامَن معه أصلاً من قبل —
       // بگ حقيقي 29 يوليو 2026 (طلبات قديمة تُلحَق كصفوف «جديدة» وهمية).
@@ -190,7 +192,7 @@ Deno.serve(async (req) => {
   // Apps Script (كلاهما idempotent) — هذا المسار يخدم «التحديث الفوري عند فتح الشاشة».
   const { data: pub } = await supabase
     .from('orders')
-    .select('id, order_id, tracking_number, status, handler_name, customer_name, sheet_synced')
+    .select('id, order_id, tracking_number, status, handler_name, customer_name, phone_1, sheet_synced')
     .eq('market', 'turkey')
     .is('yurtici_cargo_key', null)
     .not('tracking_number', 'is', null)
@@ -216,6 +218,7 @@ Deno.serve(async (req) => {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
       }).then(() => {}, () => {});
       await notifySeller(supabase, o, newStatus);
+      await notifyWhatsAppStatus(o, newStatus, 'turkey');
       if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);
     } catch { /* skip this shipment */ }
   }
