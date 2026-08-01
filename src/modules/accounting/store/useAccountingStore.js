@@ -6,15 +6,15 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
   ACCOUNTING_REALTIME_INTERVAL_MS,
-  calcLedgerBalance,
-  totalByType,
   ENTRY_TYPE,
+  convertToUsd,
 } from '../types/accounting.types.js';
 
 const INITIAL_STATE = {
   entries:    [],
   categories: [],
   channels:   [],
+  rates:      {},   // { TRY: units-per-USD, SYP: units-per-USD } — لتوحيد KPIs/التوزيع بالدولار
   filters: { type: null, from: null, to: null, category: null },
   loading: { entries: false, action: false, categories: false },
   error: null,
@@ -30,8 +30,24 @@ const useAccountingStore = create()(
     async init(userId) {
       if (get()._initialized && get()._userId === userId) return;
       set({ _userId: userId, _initialized: true, error: null });
-      await Promise.all([get().loadEntries(), get().loadCategories(), get().loadChannels()]);
+      await Promise.all([get().loadEntries(), get().loadCategories(), get().loadChannels(), get().loadRates()]);
       get()._startRealtime();
+    },
+
+    // أسعار الصرف — نفس منطق بناء rateMap بـChannelPnL.jsx (أحدث سطر
+    // مباشر USD→X)، لكن مركزي هون ليستفيد منه getLedgerKPIs/getEntriesByCategory.
+    async loadRates() {
+      try {
+        const { fetchExchangeRates } = await import('../services/accountingService.js');
+        const rows = await fetchExchangeRates();
+        const m = {};
+        for (const r of (rows || [])) {
+          if (r.from_currency === 'USD' && r.to_currency && m[r.to_currency] === undefined) {
+            m[r.to_currency] = Number(r.rate) || 0;
+          }
+        }
+        set({ rates: m });
+      } catch { /* يبقى {} — التحويل يرجع 0 بدل ما يكسر الشاشة */ }
     },
 
     teardown() {
@@ -227,23 +243,54 @@ const useAccountingStore = create()(
     // ── Computed ───────────────────────────────────────────────────────────
 
     getLedgerKPIs() {
+      // ⚠️ totalByType يجمع amount_usd فقط — القيود المسجَّلة بالليرة/الليرة
+      // السورية (amount_try/amount_syp) كانت تختفي كلياً من هالبطاقات وأي
+      // تقرير يعتمد عليها (تقرير الطباعة بـAccountingDashboard.jsx كان
+      // يتوقع أصلاً income_try/income_syp وما كانت موجودة). صار كل نوع
+      // يُجمَع بكل عملة على حدة (بلا تحويل — نفس النمط الصحيح المستخدم
+      // بكروت الـKPI الرئيسية بالشاشة).
       const { entries } = get();
-      const income   = totalByType(entries, ENTRY_TYPE.INCOME);
-      const expense  = totalByType(entries, ENTRY_TYPE.EXPENSE);
-      const advance  = totalByType(entries, ENTRY_TYPE.ADVANCE);
-      const salary   = totalByType(entries, ENTRY_TYPE.SALARY);
-      const balance  = income - expense - salary;
-      return { income, expense, advance, salary, balance, total: entries.length };
+      const sumCur = (type, field) => entries
+        .filter(e => e.entry_type === type)
+        .reduce((s, e) => s + Number(e[field] ?? 0), 0);
+      const income = sumCur(ENTRY_TYPE.INCOME, 'amount_usd');
+      const income_try = sumCur(ENTRY_TYPE.INCOME, 'amount_try');
+      const income_syp = sumCur(ENTRY_TYPE.INCOME, 'amount_syp');
+      const expense = sumCur(ENTRY_TYPE.EXPENSE, 'amount_usd');
+      const expense_try = sumCur(ENTRY_TYPE.EXPENSE, 'amount_try');
+      const expense_syp = sumCur(ENTRY_TYPE.EXPENSE, 'amount_syp');
+      const advance = sumCur(ENTRY_TYPE.ADVANCE, 'amount_usd');
+      const advance_try = sumCur(ENTRY_TYPE.ADVANCE, 'amount_try');
+      const advance_syp = sumCur(ENTRY_TYPE.ADVANCE, 'amount_syp');
+      const salary = sumCur(ENTRY_TYPE.SALARY, 'amount_usd');
+      const salary_try = sumCur(ENTRY_TYPE.SALARY, 'amount_try');
+      const salary_syp = sumCur(ENTRY_TYPE.SALARY, 'amount_syp');
+      const balance = income - expense - salary;
+      const balance_try = income_try - expense_try - salary_try;
+      const balance_syp = income_syp - expense_syp - salary_syp;
+      return {
+        income, income_try, income_syp,
+        expense, expense_try, expense_syp,
+        advance, advance_try, advance_syp,
+        salary, salary_try, salary_syp,
+        balance, balance_try, balance_syp,
+        total: entries.length,
+      };
     },
 
     getEntriesByCategory() {
-      const { entries } = get();
+      // ترتيب/عرض الشريط الجانبي يحتاج رقماً واحداً قابلاً للمقارنة، فيُحوَّل
+      // كل مبلغ لمعادله بالدولار عبر rates (بخلاف كروت الـKPI اللي تعرض كل
+      // عملة لحالها) — بدون هالتحويل أي تصنيف TRY/SYP-فقط كان يظهر total:0.
+      const { entries, rates } = get();
       const map = {};
       entries.forEach(e => {
         if (e.entry_type === ENTRY_TYPE.TRANSFER) return;
         const key = e.category || 'غير مصنف';
         if (!map[key]) map[key] = { label: key, total: 0, count: 0 };
-        map[key].total += Number(e.amount_usd ?? 0);
+        map[key].total += Number(e.amount_usd ?? 0)
+          + convertToUsd(e.amount_try, 'TRY', rates)
+          + convertToUsd(e.amount_syp, 'SYP', rates);
         map[key].count += 1;
       });
       return Object.values(map).sort((a, b) => b.total - a.total);

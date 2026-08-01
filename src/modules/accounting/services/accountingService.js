@@ -251,13 +251,25 @@ export async function deleteChannel(id) {
 }
 
 // ── Exchange rates (للإجمالي الموحّد بالدولار في تقرير القنوات) ─────────────────
+// ⚠️ أعمدة الجدول الفعلية هي from_cur/to_cur/rate/created_at (لا
+// from_currency/to_currency/effective_date) — الاستعلام القديم كان يفشل
+// بالكامل (PGRST 42703: column does not exist) فيرجع rateMap فارغاً
+// دائماً بصمت (مُلتقَط بـ.catch فارغ بمستهلِكيه)، فتبقى كل تحويلات
+// TRY/SYP→USD صفراً. تأكّد حياً 2026-08-02.
 export async function fetchExchangeRates() {
   if (USE_MOCK) return [
     { from_currency: 'USD', to_currency: 'TRY', rate: 32.5,  effective_date: '2026-05-01' },
     { from_currency: 'USD', to_currency: 'SYP', rate: 13000, effective_date: '2026-05-01' },
   ];
   const { supabase } = await import('@services/supabase');
-  const { data, error } = await supabase.from('exchange_rates').select('*').order('effective_date', { ascending: false });
+  const { data, error } = await supabase.from('exchange_rates').select('*').order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
-  return data;
+  // توحيد أسماء الأعمدة لصيغة from_currency/to_currency/effective_date
+  // اللي يتوقعها كل مستهلكي الدالة (ChannelPnL...)، فوق الأعمدة الحقيقية.
+  return (data || []).map(r => ({
+    ...r,
+    from_currency: r.from_currency ?? r.from_cur,
+    to_currency:   r.to_currency   ?? r.to_cur,
+    effective_date: r.effective_date ?? r.created_at,
+  }));
 }
