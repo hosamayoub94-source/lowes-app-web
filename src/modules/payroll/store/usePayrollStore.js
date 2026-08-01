@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal } from '../types/payroll.types.js';
+import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS } from '../types/payroll.types.js';
 
 const INITIAL_STATE = {
   runs: [],
@@ -100,11 +100,20 @@ const usePayrollStore = create()(
     },
 
     async approveRun(id) {
-      return get().updateRun(id, { status: 'approved', approved_by: get()._userId });
+      // finalized_by/finalized_at هما الأعمدة المطابقة لحالة 'finalized'
+      // بقيد CHECK؛ approved_by يُملأ أيضاً لأنه موجود بالجدول فعلياً
+      // ومستخدَم بالعرض، لكنه ليس هو ما يحكم صلاحية قيمة status.
+      const userId = get()._userId;
+      return get().updateRun(id, {
+        status: PAYROLL_STATUS.APPROVED,
+        approved_by: userId,
+        finalized_by: userId,
+        finalized_at: new Date().toISOString(),
+      });
     },
 
     async markRunPaid(id) {
-      return get().updateRun(id, { status: 'paid', paid_at: new Date().toISOString() });
+      return get().updateRun(id, { status: PAYROLL_STATUS.PAID, paid_at: new Date().toISOString() });
     },
 
     async deleteRun(id) {
@@ -276,7 +285,7 @@ const usePayrollStore = create()(
     getRunKPIs() {
       const { runs, entries } = get();
       const totalPaid = runs.filter(r => r.status === 'paid').reduce((s, r) => s + Number(r.total_net_usd ?? 0), 0);
-      const totalPending = runs.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.total_net_usd ?? 0), 0);
+      const totalPending = runs.filter(r => r.status === PAYROLL_STATUS.APPROVED).reduce((s, r) => s + Number(r.total_net_usd ?? 0), 0);
       const currentRunTotal = calcRunTotal(entries);
       return {
         totalRuns: runs.length,

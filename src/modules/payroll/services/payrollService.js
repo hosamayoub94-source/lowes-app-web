@@ -11,7 +11,7 @@ let _mockRuns = [
   {
     id: 'run-1',
     period_year: 2026, period_month: 5,
-    status: 'approved', currency: 'USD',
+    status: 'finalized', currency: 'USD',
     total_net_usd: 4800, employee_count: 6,
     approved_by: null, paid_at: null,
     created_by: 'admin-1', created_at: '2026-05-01T10:00:00Z', updated_at: '2026-05-10T12:00:00Z',
@@ -124,8 +124,11 @@ export async function updatePayrollRun(id, data) {
     _mockRuns = _mockRuns.map(r => r.id === id ? { ...r, ...data, updated_at: new Date().toISOString() } : r);
     return _mockRuns.find(r => r.id === id);
   }
+  // ⚠️ payroll_runs ما فيه عمود updated_at (بعكس باقي جداول التطبيق) —
+  // إضافته هون كانت تفشّل كل عملية اعتماد/دفع/تعديل بخطأ PGRST204
+  // "Could not find the 'updated_at' column" (تأكّد حياً 2026-08-02).
   const { supabase } = await import('@services/supabase');
-  const { data: row, error } = await supabase.from('payroll_runs').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  const { data: row, error } = await supabase.from('payroll_runs').update(data).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return row;
 }

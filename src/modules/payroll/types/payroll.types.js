@@ -2,10 +2,16 @@
 // Payroll Module — Type definitions & constants
 // =============================================================
 
+// ⚠️ القيم هون لازم تطابق CHECK(status IN ('draft','finalized','paid'))
+// الفعلي على جدول payroll_runs بالإنتاج (تأكّد حياً 2026-08-02) — لا
+// 'approved'/'processing'/'cancelled' كما كان مكتوباً سابقاً، كانت
+// تُسقِط أي محاولة اعتماد دورة رواتب بخطأ 23514 (violates check
+// constraint) بصمت. مفتاح APPROVED يبقى بنفس الاسم بالكود (كل الواجهة
+// تشير له بـPAYROLL_STATUS.APPROVED)، بس قيمته الفعلية 'finalized'.
 export const PAYROLL_STATUS = {
   DRAFT:     'draft',
   PROCESSING: 'processing',
-  APPROVED:  'approved',
+  APPROVED:  'finalized',
   PAID:      'paid',
   CANCELLED: 'cancelled',
 };
