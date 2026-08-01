@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { loadManagerBoard } from '@services/managerBoardService';
 import { useAuth } from '@hooks/useAuth';
+import SyriaFlag from '@components/ui/SyriaFlag';
 import { targetForCurrency } from '@data/targets';
 import { supabase } from '@services/supabase';
 import { ROLES } from '@data/teams';
@@ -154,7 +155,7 @@ export default function ManagerBoardScreen() {
           ) : (
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">{fmt(salesValue.try)}</p><p className="text-[11px] text-white/70">TRY 🇹🇷</p></div>
-              <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">{fmt(salesValue.syp)}</p><p className="text-[11px] text-white/70">SYP 🇸🇾</p></div>
+              <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">{fmt(salesValue.syp)}</p><p className="text-[11px] text-white/70 flex items-center justify-center gap-1">SYP <SyriaFlag /></p></div>
               <div className="bg-white/10 rounded-xl p-3"><p className="text-xl font-black">${fmt(salesValue.usd)}</p><p className="text-[11px] text-white/70">USD</p></div>
             </div>
           )}

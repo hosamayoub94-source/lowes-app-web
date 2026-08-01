@@ -5,6 +5,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { bottomTabsForRole } from '@data/navigation';
+import NavIcon from '@components/ui/NavIcon';
 
 export function BottomNav() {
   const { role, order_market, team } = useAuth();
@@ -46,7 +47,7 @@ export function BottomNav() {
                         aria-hidden
                       />
                     )}
-                    <span className="relative text-[18px] leading-none z-10">{tab.icon}</span>
+                    <span className="relative text-[18px] leading-none z-10"><NavIcon icon={tab.icon} /></span>
                     <span className="relative text-[10px] font-bold z-10 truncate px-1">{tab.label}</span>
                   </>
                 )}

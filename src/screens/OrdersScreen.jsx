@@ -25,6 +25,7 @@ import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteO
 import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
 import { batchUpdateByIds } from '@utils/batchUpdate';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from '@components/ui/Modal';
+import SyriaFlag from '@components/ui/SyriaFlag';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
@@ -1959,7 +1960,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {order.order_id}</span>
+            <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : <SyriaFlag />} {order.order_id}</span>
             <StatusBadge status={order.status} />
           </div>
           <p className="text-sm font-bold text-text mt-1 truncate">{order.customer_name}</p>
@@ -2438,14 +2439,14 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
           {/* Market — مقفل في ماكنة السوق المخصّصة (سوريا/تركيا) */}
           {forcedMarket ? (
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-sm font-bold text-text">
-              <span>{form.market === 'turkey' ? '🇹🇷 طلب تركيا' : '🇸🇾 طلب سوريا'}</span>
+              <span className="flex items-center gap-1">{form.market === 'turkey' ? <>🇹🇷 طلب تركيا</> : <><SyriaFlag /> طلب سوريا</>}</span>
               <span className="text-[10px] text-muted font-normal">(مقفل على هذه الماكنة)</span>
             </div>
           ) : (
             <div className="flex gap-2">
-              {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: '🇸🇾' }].map(m => (
+              {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: <SyriaFlag /> }].map(m => (
                 <button key={m.key} onClick={() => handleMarketChange(m.key)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition flex items-center justify-center gap-1
                     ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
                   {m.flag} {m.label}
                 </button>
@@ -3848,9 +3849,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
       {/* Header — عمودي على الموبايل ليظهر كل الأزرار (تلتف على أسطر) */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-extrabold text-text">
+          <h1 className="text-xl font-extrabold text-text flex items-center gap-1.5">
             {isFulfillment ? '📦 طلبات التجهيز'
-              : lockedMarket === 'syria'  ? '🇸🇾 طلبات سوريا'
+              : lockedMarket === 'syria'  ? <><SyriaFlag /> طلبات سوريا</>
               : lockedMarket === 'turkey' ? "🇹🇷 طلبات تركيا — LOWE'S وسترونغ"
               : 'إدارة الطلبات'}
           </h1>
@@ -4030,12 +4031,12 @@ export default function OrdersScreen({ forcedMarket = null }) {
           {(() => {
             const mk = [
               { key: 'turkey', label: 'طلبات تركيا', icon: '🇹🇷' },
-              { key: 'syria',  label: 'طلبات سوريا', icon: '🇸🇾' },
+              { key: 'syria',  label: 'طلبات سوريا', icon: <SyriaFlag /> },
             ].sort((a, b) => (a.key === userMarket ? -1 : b.key === userMarket ? 1 : 0));
             return [...mk, { key: 'all', label: 'الكل', icon: '🌍' }];
           })().map(m => (
             <button key={m.key} onClick={() => setMarket(m.key)}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition
+              className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition flex items-center justify-center gap-1
                 ${market === m.key ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}>
               {m.icon} {m.label}
             </button>
@@ -4145,7 +4146,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           {deletedOrders.map(o => (
             <div key={o.id} className="bg-surface border border-red/20 rounded-2xl p-3 flex items-center justify-between gap-2 opacity-80">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-text truncate">{o.market === 'turkey' ? '🇹🇷' : '🇸🇾'} {o.customer_name || o.order_id}</p>
+                <p className="text-sm font-bold text-text truncate">{o.market === 'turkey' ? '🇹🇷' : <SyriaFlag />} {o.customer_name || o.order_id}</p>
                 <p className="text-[10px] text-muted">حُذف: {o.deleted_at ? new Date(o.deleted_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}{o.deleted_by ? ` · ${o.deleted_by}` : ''}</p>
               </div>
               <button onClick={() => handleRestore(o)}

@@ -82,11 +82,15 @@ export const NAV_ITEMS = [
   { id: 'mystery-shopper', label: 'Mystery Shopper', icon: '🕵️', path: '/mystery-shopper', roles: [A, M, SM], group: 'reports' },
 
   // ── Social
-  { id: 'social-hub',      label: 'مساحة السوشال',     icon: '🌐', path: '/social-hub',      roles: [A, M, SOC, MB],      group: 'social' },
+  // perm: P.MANAGE_CAMPAIGNS كمخرج ثانٍ — موظف role_type='employee' مُنِح
+  // manage_campaigns من شاشة المستخدمين (بدل تغيير دوره بالكامل) كان يبقى
+  // بدون هالشاشات لأنها كانت مقفولة بالدور فقط (roles) بلا مسار perm، عكس
+  // معظم عناصر القائمة التانية.
+  { id: 'social-hub',      label: 'مساحة السوشال',     icon: '🌐', path: '/social-hub',      roles: [A, M, SOC, MB],      group: 'social', perm: P.MANAGE_CAMPAIGNS },
   { id: 'social-team',     label: 'إدارة فريق السوشال', icon: '🧑‍🤝‍🧑', path: '/social-team',     roles: [A, M, SOC],          group: 'social' },
-  { id: 'social-studio',   label: 'استوديو السوشال',   icon: '🌸', path: '/social-studio',   roles: [A, M, SOC, MB],      group: 'social' },
-  { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social' },
-  { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social' },
+  { id: 'social-studio',   label: 'استوديو السوشال',   icon: '🌸', path: '/social-studio',   roles: [A, M, SOC, MB],      group: 'social', perm: P.MANAGE_CAMPAIGNS },
+  { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social', perm: P.MANAGE_CAMPAIGNS },
+  { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social', perm: P.MANAGE_CAMPAIGNS },
 
   // ── Finance (فصل المالية عن إدارة النظام)
   { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'finance', perm: P.VIEW_FINANCE },

@@ -250,7 +250,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.SOCIAL_STUDIO}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]} perm={P.MANAGE_CAMPAIGNS}>
                 <SocialStudioScreen />
               </ProtectedRoute>
             }
@@ -266,7 +266,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.SOCIAL_HUB}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER]} perm={P.MANAGE_CAMPAIGNS}>
                 <SocialHubScreen />
               </ProtectedRoute>
             }
@@ -282,7 +282,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.SOCIAL_CALENDAR}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]} perm={P.MANAGE_CAMPAIGNS}>
                 <SocialCalendarScreen />
               </ProtectedRoute>
             }
@@ -290,7 +290,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PROMPT_STUDIO}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]} perm={P.MANAGE_CAMPAIGNS}>
                 <PromptStudioScreen />
               </ProtectedRoute>
             }

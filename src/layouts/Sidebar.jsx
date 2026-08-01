@@ -10,6 +10,7 @@ import { usePermissions } from '@hooks/usePermissions';
 import { useFavorites } from '@hooks/useFavorites';
 import { groupedNavForRole } from '@data/navigation';
 import { Avatar } from '@components/ui/Avatar';
+import NavIcon from '@components/ui/NavIcon';
 import { ROLE_LABELS } from '@data/teams';
 
 export function Sidebar() {
@@ -95,7 +96,7 @@ export function Sidebar() {
                           ? { background: 'linear-gradient(135deg, rgb(var(--color-navy)) 0%, rgb(var(--color-teal)) 100%)' }
                           : {}}
                       >
-                        <span aria-hidden className="text-base w-5 text-center shrink-0">{item.icon}</span>
+                        <span aria-hidden className="text-base w-5 text-center shrink-0"><NavIcon icon={item.icon} /></span>
                         <span className="flex-1 truncate">{item.label}</span>
                       </NavLink>
                       <button

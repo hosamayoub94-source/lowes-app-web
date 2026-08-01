@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
+import SyriaFlag from '@components/ui/SyriaFlag';
 import { useAuth }  from '@hooks/useAuth';
 import { useTheme } from '@hooks/useTheme';
 import { Link, useNavigate } from 'react-router-dom';
@@ -111,7 +112,7 @@ function CurrencyWidget() {
         </div>
         {/* SYP */}
         <div className="text-center bg-surface-alt rounded-xl py-2.5 relative">
-          <div className="text-xs text-muted mb-0.5">🇸🇾 الليرة السورية</div>
+          <div className="text-xs text-muted mb-0.5 flex items-center justify-center gap-1"><SyriaFlag /> الليرة السورية</div>
           {editSyp ? (
             <div className="flex gap-1 px-2">
               <input

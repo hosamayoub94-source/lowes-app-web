@@ -20,6 +20,7 @@ import {
 import { patchTimerTracking, scheduleMaintenanceCleanup } from '@/core/maintenance';
 import { validateEnvironment } from '@/core/testing';
 import { bootProductionLayer } from '@/core/production';
+import { bootServiceWorkerAutoUpdate } from '@/core/swUpdate';
 import { supabase } from '@/services/supabase';
 
 import './styles/theme.css';
@@ -59,6 +60,7 @@ safeBoot('TimerTracking',       () => patchTimerTracking());
 safeBoot('WorkflowMetrics',     () => wireWorkflowMetricsToEventBus());
 safeBoot('PersistedMetrics',    () => { loadPersistedMetrics(); loadPersistedProductivityMetrics(); loadPersistedHeatmap(); });
 safeBoot('MaintenanceCleanup',  () => scheduleMaintenanceCleanup());
+safeBoot('SWAutoUpdate',        () => bootServiceWorkerAutoUpdate());
 
 // ── Mount ──────────────────────────────────────────────────────
 const root = document.getElementById('root');
