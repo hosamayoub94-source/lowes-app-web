@@ -102,7 +102,37 @@ export function RequestsDashboard() {
     resetForm();
   };
 
-  const handleApprove = (rid) => approveRequest(rid, '');
+  // موافقة على سلفة: لازم تحدَّد بأي شهر تُخصَم من الراتب — بدون هالحقلين
+  // (repay_month/repay_year) محرك الرواتب ما بيقدر يطابق السلفة بأي دورة
+  // فيبقى خصمها = صفر دايماً رغم إنها مسجَّلة كدين بدفتر الحسابات.
+  const now = new Date();
+  const [advanceApproval, setAdvanceApproval] = useState(null); // request | null
+  const [repayMonth, setRepayMonth] = useState(now.getMonth() + 1);
+  const [repayYear,  setRepayYear]  = useState(now.getFullYear());
+  const repayMonthOptions = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      arr.push({ month: d.getMonth() + 1, year: d.getFullYear(), label: d.toLocaleString('ar-SA', { month: 'long', year: 'numeric' }) });
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- "now" ثابت طوال عمر الشاشة، يكفي حساب الخيارات مرّة واحدة
+  }, []);
+
+  const handleApprove = (rid) => {
+    const req = requests.find(r => r.id === rid);
+    if (req?.request_type === REQUEST_TYPE.ADVANCE) {
+      setRepayMonth(now.getMonth() + 1);
+      setRepayYear(now.getFullYear());
+      setAdvanceApproval(req);
+      return;
+    }
+    approveRequest(rid, '');
+  };
+  const confirmAdvanceApproval = async () => {
+    await approveRequest(advanceApproval.id, '', { repayMonth, repayYear });
+    setAdvanceApproval(null);
+  };
   const handleReject  = (rid) => rejectRequest(rid, 'مرفوض من الإدارة');
 
   return (
@@ -310,6 +340,50 @@ export function RequestsDashboard() {
                 onClick={() => { setShowForm(false); resetForm(); }}
                 className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted hover:text-text hover:border-teal/40 transition"
               >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Advance Approval Modal — يحدد شهر الخصم من الراتب ── */}
+      {advanceApproval && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setAdvanceApproval(null)}
+        >
+          <div
+            className="bg-surface rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+              <h3 className="font-bold text-base text-text">💵 الموافقة على السلفة</h3>
+              <button onClick={() => setAdvanceApproval(null)}
+                className="w-8 h-8 rounded-full bg-surface-alt flex items-center justify-center text-muted hover:text-text transition">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-text">
+                {advanceApproval.employee_name} — {Number(advanceApproval.advance_amount).toLocaleString('ar-EG')} {advanceApproval.advance_currency}
+              </p>
+              <div>
+                <label className="text-xs font-semibold text-muted mb-1.5 block">تُخصَم من راتب شهر</label>
+                <select value={`${repayYear}-${repayMonth}`}
+                  onChange={e => { const [y, m] = e.target.value.split('-').map(Number); setRepayYear(y); setRepayMonth(m); }}
+                  className={INP}>
+                  {repayMonthOptions.map(o => (
+                    <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 px-5 py-4 border-t border-border/40">
+              <button onClick={confirmAdvanceApproval} disabled={loading.action}
+                className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition active:scale-95">
+                {loading.action ? '…جار الحفظ' : '✓ موافقة'}
+              </button>
+              <button onClick={() => setAdvanceApproval(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted hover:text-text hover:border-teal/40 transition">
                 إلغاء
               </button>
             </div>

@@ -102,11 +102,14 @@ export async function createRequest(data) {
   return row;
 }
 
-export async function decideRequest(id, { status, decisionNote, decidedBy }) {
+export async function decideRequest(id, { status, decisionNote, decidedBy, repayMonth, repayYear }) {
+  const extra = {};
+  if (repayMonth != null) extra.repay_month = repayMonth;
+  if (repayYear != null) extra.repay_year = repayYear;
   if (USE_MOCK) {
     _mockRequests = _mockRequests.map(r =>
       r.id === id
-        ? { ...r, status, decision_note: decisionNote ?? null, decided_by: decidedBy, updated_at: new Date().toISOString() }
+        ? { ...r, status, decision_note: decisionNote ?? null, decided_by: decidedBy, updated_at: new Date().toISOString(), ...extra }
         : r
     );
     return _mockRequests.find(r => r.id === id);
@@ -114,7 +117,7 @@ export async function decideRequest(id, { status, decisionNote, decidedBy }) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('employee_requests')
-    .update({ status, decision_note: decisionNote, decided_by: decidedBy, updated_at: new Date().toISOString() })
+    .update({ status, decision_note: decisionNote, decided_by: decidedBy, updated_at: new Date().toISOString(), ...extra })
     .eq('id', id)
     .select()
     .single();

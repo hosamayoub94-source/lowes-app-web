@@ -76,7 +76,7 @@ const useRequestsStore = create()(
       }
     },
 
-    async approveRequest(id, note = '') {
+    async approveRequest(id, note = '', extra = {}) {
       get()._setLoading('action', true);
       try {
         const { decideRequest } = await import('../services/requestsService.js');
@@ -84,6 +84,8 @@ const useRequestsStore = create()(
           status: 'approved',
           decisionNote: note,
           decidedBy: get()._userId,
+          repayMonth: extra.repayMonth,
+          repayYear: extra.repayYear,
         });
         set(s => ({ requests: s.requests.map(r => (r.id === id ? updated : r)) }));
         return updated;
