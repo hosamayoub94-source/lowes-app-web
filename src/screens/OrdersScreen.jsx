@@ -1417,6 +1417,9 @@ function TrackingTab({ orders }) {
 const RETURN_STATUSES   = ['not_received', 'returning', 'returned'];
 // Statuses that need the seller to chase the customer.
 const FOLLOWUP_STATUSES = ['waiting', 'not_received', 'returning'];
+// حالات نهائية بلا حاجة لأي متابعة إضافية (تسليم/تسوية/راجع نهائياً) —
+// آمنة للأرشفة ولإيقاف إعادة محاولة المزامنة عليها.
+const TERMINAL_SYNC = ['delivered', 'settled', 'returned'];
 // معرّفات فلتر خاصة تطابق مجموعة حالات (لا حالة واحدة) — تُستخدم من بانر
 // «راجع/بالانتظار» حتى يطابق عدد البطاقة المعروضة عدد الطلبات الظاهرة فعلاً
 // بالقائمة بعد الضغط (كان يفلتر بحالة واحدة فقط فتختفي أغلب الطلبات).
@@ -3619,7 +3622,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     const curPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const set = new Set();
     orders.forEach(o => {
-      if (o.status !== 'delivered' || o.archived === true) return;
+      if (!TERMINAL_SYNC.includes(o.status) || o.archived === true) return;
       const ym = (o.order_date || '').slice(0, 7);
       if (ym && ym < curPrefix) set.add(ym);
     });
@@ -3630,7 +3633,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   }, [orders]);
   const archiveMonthCount = useMemo(() => {
     if (!archiveMonth) return 0;
-    return orders.filter(o => o.status === 'delivered' && o.archived !== true
+    return orders.filter(o => TERMINAL_SYNC.includes(o.status) && o.archived !== true
       && (o.order_date || '').slice(0, 7) === archiveMonth).length;
   }, [orders, archiveMonth]);
   const openArchivePicker = () => {
@@ -3639,9 +3642,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
   };
   const archiveSelectedMonth = async () => {
     if (!archiveMonth) return;
-    const eligible = orders.filter(o => o.status === 'delivered' && o.archived !== true
+    const eligible = orders.filter(o => TERMINAL_SYNC.includes(o.status) && o.archived !== true
       && (o.order_date || '').slice(0, 7) === archiveMonth);
-    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة بهذا الشهر لأرشفتها.'); return; }
+    if (eligible.length === 0) { window.alert('لا توجد طلبات مؤهلة للأرشفة بهذا الشهر.'); return; }
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
@@ -3657,7 +3660,6 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // الطلبات الفاشلة المزامنة (للوحة المدير + زر إعادة جماعي). نستثني الحالات
   // النهائية (تسليم/تسوية/راجع): الـedge fn يتخطّاها (terminal_no_readd) فلا فائدة
   // من إعادة محاولتها، وإلا تبقى عالقة بالبانر للأبد كـ«فشل» رغم انتهائها.
-  const TERMINAL_SYNC = ['delivered', 'settled', 'returned'];
   const failedSync = useMemo(
     () => orders.filter(o => o.sync_status === 'failed' && o.archived !== true && !o.deleted_at
       && !TERMINAL_SYNC.includes(o.status) && (!lockedMarket || o.market === lockedMarket)),
@@ -4238,7 +4240,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
         <ModalHeader title="🗄️ أرشفة شهر سابق" onClose={() => setArchivePickerOpen(false)} />
         <ModalBody className="space-y-3">
           {archiveMonthOptions.length === 0 ? (
-            <p className="text-sm text-muted">لا توجد طلبات مسلّمة من أشهر سابقة لأرشفتها.</p>
+            <p className="text-sm text-muted">لا توجد طلبات (مسلّمة/مسوّاة/راجعة) من أشهر سابقة لأرشفتها.</p>
           ) : (
             <>
               <label className="text-xs font-bold text-muted">اختر الشهر</label>
@@ -4250,8 +4252,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
               </select>
               <p className="text-xs text-muted">
                 {archiveMonthCount > 0
-                  ? `${archiveMonthCount} طلب مسلّم بهذا الشهر — تختفي من القائمة النشطة وتبقى بالأرشيف وسجل العملاء.`
-                  : 'لا طلبات مسلّمة بهذا الشهر.'}
+                  ? `${archiveMonthCount} طلب (مسلّم/مسوّى/راجع) بهذا الشهر — تختفي من القائمة النشطة وتبقى بالأرشيف وسجل العملاء. الحالات النشطة (بالانتظار/لم يستلم/راجع بالطريق) تبقى ظاهرة لحد ما تُحسم.`
+                  : 'لا طلبات مؤهلة بهذا الشهر.'}
               </p>
             </>
           )}

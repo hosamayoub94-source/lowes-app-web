@@ -364,6 +364,25 @@ export default function ProfileScreen() {
     } catch { /* تجاهل */ }
   };
 
+  // إنهاء شراكة قائمة أو سحب طلب مُرسَل — يحذف السطر بالكامل (لا "حالة منتهية"
+  // بقاعدة البيانات) حتى يقدر الطرفان يعملوا شراكة جديدة لاحقاً (مع بعض أو مع
+  // غيرهم) بلا تعارض مع قيد UNIQUE(requester, partner).
+  const [endingPartnerId, setEndingPartnerId] = useState(null);
+  const endPartnership = async (requestId, partnerName, isPending) => {
+    if (!window.confirm(isPending
+      ? `سحب طلب الشراكة المُرسَل لـ${partnerName}؟`
+      : `إنهاء الشراكة مع ${partnerName}؟ طلباته/طلباتك ما بتنعرض بعدها بمحفظة الطرف التاني.`)) return;
+    setEndingPartnerId(requestId);
+    try {
+      await supabase.from('shift_partners').delete().eq('id', requestId);
+      await loadPartners();
+    } catch (e) {
+      window.alert('تعذّر: ' + e.message);
+    } finally {
+      setEndingPartnerId(null);
+    }
+  };
+
   // ── Derived partner lists ──────────────────────────────────
   const acceptedPartners  = partners.filter(r => r.status === 'accepted');
   const incomingRequests  = partners.filter(r => r.partner === name && r.status === 'pending');
@@ -585,6 +604,11 @@ export default function ProfileScreen() {
                       {r.note && <p className="text-[10px] text-muted truncate">{r.note}</p>}
                     </div>
                     <span className="text-xs text-emerald-600 font-bold bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">✅ شريك</span>
+                    <button onClick={() => endPartnership(r.id, partnerName, false)} disabled={endingPartnerId === r.id}
+                      title="إنهاء الشراكة"
+                      className="text-[11px] font-bold text-red-fg hover:bg-red-bg px-2 py-1.5 rounded-xl transition disabled:opacity-40 shrink-0">
+                      {endingPartnerId === r.id ? '…' : '✕ إنهاء'}
+                    </button>
                   </div>
                 );
               })}
@@ -630,6 +654,10 @@ export default function ProfileScreen() {
                   <AvatarChip name={r.partner} size={20} />
                   {r.partner}
                   <span className="text-[10px] text-amber-500">⏳</span>
+                  <button onClick={() => endPartnership(r.id, r.partner, true)} disabled={endingPartnerId === r.id}
+                    title="سحب الطلب" className="text-red-fg hover:opacity-70 transition disabled:opacity-40 ms-0.5">
+                    {endingPartnerId === r.id ? '…' : '✕'}
+                  </button>
                 </span>
               ))}
             </div>
