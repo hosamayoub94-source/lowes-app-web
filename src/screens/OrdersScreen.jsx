@@ -24,6 +24,7 @@ import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
 import { batchUpdateByIds } from '@utils/batchUpdate';
+import Modal, { ModalHeader, ModalBody, ModalFooter } from '@components/ui/Modal';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
@@ -1416,6 +1417,13 @@ function TrackingTab({ orders }) {
 const RETURN_STATUSES   = ['not_received', 'returning', 'returned'];
 // Statuses that need the seller to chase the customer.
 const FOLLOWUP_STATUSES = ['waiting', 'not_received', 'returning'];
+// معرّفات فلتر خاصة تطابق مجموعة حالات (لا حالة واحدة) — تُستخدم من بانر
+// «راجع/بالانتظار» حتى يطابق عدد البطاقة المعروضة عدد الطلبات الظاهرة فعلاً
+// بالقائمة بعد الضغط (كان يفلتر بحالة واحدة فقط فتختفي أغلب الطلبات).
+const STATUS_FILTER_GROUPS = {
+  __group_returned: RETURN_STATUSES,
+  __group_waiting:  FOLLOWUP_STATUSES,
+};
 // Returning/cancelling puts reserved stock back to the source warehouse.
 const RELEASE_STATUSES  = ['returning', 'returned', 'cancelled'];
 
@@ -3600,21 +3608,45 @@ export default function OrdersScreen({ forcedMarket = null }) {
     return r;
   }, []);
 
-  // Monthly archive: flag all delivered orders from previous months (before this month).
+  // أرشفة شهر واحد محدَّد فقط (يختاره المدير) — لا "كل الأشهر السابقة" دفعة
+  // واحدة، حتى يقدر يقفل شهر ورا شهر ويتحقق من كل واحد لحاله.
   const [archiving, setArchiving] = useState(false);
-  const archiveOldDelivered = async () => {
+  const [archivePickerOpen, setArchivePickerOpen] = useState(false);
+  const [archiveMonth, setArchiveMonth] = useState('');
+  const MONTHS_AR_ARCHIVE = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const archiveMonthOptions = useMemo(() => {
     const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const eligible = orders.filter(o =>
-      o.status === 'delivered' && o.archived !== true &&
-      o.order_date && o.order_date.slice(0, 10) < monthStart
-    );
-    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة من أشهر سابقة لأرشفتها.'); return; }
-    if (!window.confirm(`أرشفة ${eligible.length} طلب مسلّم من الأشهر السابقة؟ تختفي من القائمة وتبقى في الأرشيف وسجل العملاء.`)) return;
+    const curPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const set = new Set();
+    orders.forEach(o => {
+      if (o.status !== 'delivered' || o.archived === true) return;
+      const ym = (o.order_date || '').slice(0, 7);
+      if (ym && ym < curPrefix) set.add(ym);
+    });
+    return [...set].sort().reverse().map(ym => {
+      const [y, m] = ym.split('-').map(Number);
+      return { value: ym, label: `${MONTHS_AR_ARCHIVE[m - 1]} ${y}` };
+    });
+  }, [orders]);
+  const archiveMonthCount = useMemo(() => {
+    if (!archiveMonth) return 0;
+    return orders.filter(o => o.status === 'delivered' && o.archived !== true
+      && (o.order_date || '').slice(0, 7) === archiveMonth).length;
+  }, [orders, archiveMonth]);
+  const openArchivePicker = () => {
+    setArchiveMonth(archiveMonthOptions[0]?.value || '');
+    setArchivePickerOpen(true);
+  };
+  const archiveSelectedMonth = async () => {
+    if (!archiveMonth) return;
+    const eligible = orders.filter(o => o.status === 'delivered' && o.archived !== true
+      && (o.order_date || '').slice(0, 7) === archiveMonth);
+    if (eligible.length === 0) { window.alert('لا توجد طلبات مسلّمة بهذا الشهر لأرشفتها.'); return; }
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
       await batchUpdateByIds(supabaseAnon, 'orders', ids, { archived: true });
+      setArchivePickerOpen(false);
       await load();
     } catch (e) { window.alert('تعذّر: ' + e.message); }
     finally { setArchiving(false); }
@@ -3653,7 +3685,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (market !== 'all' && o.market !== market) return false;
     // فلتر البراند (تركيا: LOWES vs سترونغ)
     if (brandFilter !== 'all' && (o.brand || 'lowes').toLowerCase() !== brandFilter) return false;
-    if (status !== 'all' && o.status !== status) return false;
+    if (status !== 'all') {
+      const group = STATUS_FILTER_GROUPS[status];
+      if (group ? !group.includes(o.status) : o.status !== status) return false;
+    }
     if (sellerFilter && canonicalSeller(o.handler_name) !== sellerFilter) return false;
     if (shipFilter && o.shipping_company !== shipFilter) return false;
     if (dateFrom) {
@@ -3798,8 +3833,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     {
       title: 'إجراءات',
       items: [
-        isManager && !viewArchive && { key: 'archive-old', label: archiving ? '… جارٍ الأرشفة' : '🗄️ أرشفة الأشهر السابقة', disabled: archiving,
-          onClick: closeMore(archiveOldDelivered) },
+        isManager && !viewArchive && { key: 'archive-old', label: '🗄️ أرشفة شهر سابق', disabled: archiving,
+          onClick: closeMore(openArchivePicker) },
       ].filter(Boolean),
     },
   ].filter(s => s && s.items.length > 0);
@@ -3943,11 +3978,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
           </div>
           <div className="flex gap-1.5 shrink-0">
             {stats.returned > 0 && (
-              <button onClick={() => setStatus('returned')}
+              <button onClick={() => setStatus('__group_returned')}
                 className="px-2.5 py-1.5 rounded-xl bg-red-fg/10 text-red-fg text-xs font-bold hover:opacity-80 transition">الرواجع</button>
             )}
             {stats.waiting > 0 && (
-              <button onClick={() => setStatus('waiting')}
+              <button onClick={() => setStatus('__group_waiting')}
                 className="px-2.5 py-1.5 rounded-xl bg-amber-fg/10 text-amber-fg text-xs font-bold hover:opacity-80 transition">الانتظار</button>
             )}
           </div>
@@ -4197,6 +4232,41 @@ export default function OrdersScreen({ forcedMarket = null }) {
           market={lockedMarket || market}
         />
       )}
+
+      {/* Archive-a-single-month picker */}
+      <Modal open={archivePickerOpen} onClose={() => setArchivePickerOpen(false)} size="sm">
+        <ModalHeader title="🗄️ أرشفة شهر سابق" onClose={() => setArchivePickerOpen(false)} />
+        <ModalBody className="space-y-3">
+          {archiveMonthOptions.length === 0 ? (
+            <p className="text-sm text-muted">لا توجد طلبات مسلّمة من أشهر سابقة لأرشفتها.</p>
+          ) : (
+            <>
+              <label className="text-xs font-bold text-muted">اختر الشهر</label>
+              <select value={archiveMonth} onChange={e => setArchiveMonth(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30">
+                {archiveMonthOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted">
+                {archiveMonthCount > 0
+                  ? `${archiveMonthCount} طلب مسلّم بهذا الشهر — تختفي من القائمة النشطة وتبقى بالأرشيف وسجل العملاء.`
+                  : 'لا طلبات مسلّمة بهذا الشهر.'}
+              </p>
+            </>
+          )}
+        </ModalBody>
+        {archiveMonthOptions.length > 0 && (
+          <ModalFooter>
+            <button onClick={() => setArchivePickerOpen(false)}
+              className="px-4 py-2 rounded-xl text-sm font-bold text-muted hover:text-text transition">إلغاء</button>
+            <button onClick={archiveSelectedMonth} disabled={archiving || archiveMonthCount === 0}
+              className="px-4 py-2 rounded-xl bg-navy text-white text-sm font-bold hover:bg-navy/90 transition disabled:opacity-40">
+              {archiving ? '… جارٍ الأرشفة' : `أرشفة ${archiveMonthCount} طلب`}
+            </button>
+          </ModalFooter>
+        )}
+      </Modal>
     </div>
   );
 }
