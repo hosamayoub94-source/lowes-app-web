@@ -23,6 +23,7 @@ import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatu
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
+import { batchUpdateByIds } from '@utils/batchUpdate';
 import FulfillmentBoard from './fulfillment/FulfillmentBoard';
 import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
@@ -3086,8 +3087,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم من الأشهر السابقة؟ طلبات الشهر الحالي لن تُؤرشَف. ستختفي من القائمة وتبقى في الأرشيف.`)) return;
     setArchiving(true);
     try {
-      const { error } = await supabaseAnon.from('orders').update({ archived: true }).in('id', ids);
-      if (error) throw error;
+      await batchUpdateByIds(supabaseAnon, 'orders', ids, { archived: true });
       await load();
       setViewMonthly(false);
     } catch (e) { window.alert('تعذّر: ' + e.message); }
@@ -3614,8 +3614,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
-      const { error } = await supabaseAnon.from('orders').update({ archived: true }).in('id', ids);
-      if (error) throw error;
+      await batchUpdateByIds(supabaseAnon, 'orders', ids, { archived: true });
       await load();
     } catch (e) { window.alert('تعذّر: ' + e.message); }
     finally { setArchiving(false); }
