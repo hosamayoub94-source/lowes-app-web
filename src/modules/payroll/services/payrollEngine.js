@@ -67,16 +67,23 @@ function employeeNames(emp) {
  * Prefers a direct X→USD row; falls back to 1 / (USD→X); USD is 1.
  */
 export function buildRateToUsd(rates) {
-  const direct = {}, inverse = {};
-  for (const r of (rates || [])) {
-    if (r.to_cur === 'USD') direct[r.from_cur] = Number(r.rate);
-    if (r.from_cur === 'USD') inverse[r.to_cur] = Number(r.rate);
-  }
+  // `rates` وصل مرتَّباً الأحدث أولاً (fetchExchangeRateMap). لو وجد للعملة
+  // نفسها سطر مباشر (X→USD) وسطر معاكس (USD→X)، لازم يُختار الأحدث منهم —
+  // لا "المباشر" دائماً بشكل أعمى. بدون هالفحص: سطر مباشر قديم (مثال ₺/$
+  // من مايو) كان يتغلّب على سعر معاكس أحدث (يوليو) بفارق ~30%، فيحسب
+  // الراتب بسعر صرف باهت حتى لو التحويل نفسه صحيح.
+  const direct = {}, inverse = {}, directIdx = {}, inverseIdx = {};
+  (rates || []).forEach((r, i) => {
+    if (r.to_cur === 'USD' && !(r.from_cur in direct)) { direct[r.from_cur] = Number(r.rate); directIdx[r.from_cur] = i; }
+    if (r.from_cur === 'USD' && !(r.to_cur in inverse)) { inverse[r.to_cur] = Number(r.rate); inverseIdx[r.to_cur] = i; }
+  });
   const map = { USD: 1 };
   for (const cur of new Set([...Object.keys(direct), ...Object.keys(inverse)])) {
     if (cur === 'USD') continue;
-    if (direct[cur] > 0) map[cur] = direct[cur];
-    else if (inverse[cur] > 0) map[cur] = 1 / inverse[cur];
+    const hasDirect = direct[cur] > 0, hasInverse = inverse[cur] > 0;
+    if (hasDirect && hasInverse) map[cur] = directIdx[cur] <= inverseIdx[cur] ? direct[cur] : 1 / inverse[cur];
+    else if (hasDirect) map[cur] = direct[cur];
+    else if (hasInverse) map[cur] = 1 / inverse[cur];
   }
   return map;
 }
@@ -309,9 +316,17 @@ export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap)
  * @param {object} opts.rateMap   currency→USD map
  */
 export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, rules }) {
-  const base       = Number(settings?.base_salary) || 0;
-  const allowances = (Number(settings?.internet_allowance) || 0) +
-                     (Number(settings?.food_allowance) || 0);
+  // الراتب الأساسي والبدلات مسجَّلة بعملة settings.currency (افتراضياً TRY
+  // بقاعدة البيانات، وقد تكون SYP) — يجب تحويلها للدولار قبل تخزينها كـ
+  // *_usd تماماً متل العمولة/السلف، وإلا يُعامَل الرقم الخام كأنه دولار
+  // فيتضخّم الراتب بعشرات/آلاف الأضعاف لأي موظف براتب TRY أو SYP.
+  const salaryCurrency = settings?.currency || 'USD';
+  const rawBase       = Number(settings?.base_salary) || 0;
+  const rawAllowances = (Number(settings?.internet_allowance) || 0) +
+                        (Number(settings?.food_allowance) || 0);
+  const { usd: base,       missing: baseMissing }      = toUsd(rawBase, salaryCurrency, rateMap);
+  const { usd: allowances, missing: allowancesMissing } = toUsd(rawAllowances, salaryCurrency, rateMap);
+  const salaryMissing = (rawBase > 0 && baseMissing) || (rawAllowances > 0 && allowancesMissing);
 
   // Sales (all currencies → USD) — للعرض/الكشف
   const { usd: salesUsd, count: salesCount, missingRate: salesMissing } =
@@ -356,7 +371,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     !settings ? '⚠️ لا يوجد إعداد راتب' : null,
     commDetail,
     attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️',
-    (salesMissing || advMissing || commMissing) ? '⚠️ سعر صرف ناقص' : null,
+    (salesMissing || advMissing || commMissing || salaryMissing) ? '⚠️ سعر صرف ناقص' : null,
   ].filter(Boolean).join(' · ') || null;
 
   return {
