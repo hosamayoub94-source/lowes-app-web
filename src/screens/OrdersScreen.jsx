@@ -3814,8 +3814,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
           onClick: closeMore(() => { setViewDeleted(v => !v); setViewTracking(false); setViewMonthly(false); setViewWallet(false); }) },
         !isFulfillment && !isStorage && !viewArchive && { key: 'wallet', label: '💼 محفظتي', active: viewWallet,
           onClick: closeMore(() => { setViewWallet(v => !v); setViewTracking(false); setViewMonthly(false); }) },
-        !isFulfillment && !isStorage && !viewArchive && { key: 'tracking', label: '📡 تتبع الشحنات', active: viewTracking,
-          onClick: closeMore(() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }) },
+        // تتبّع الشحنات صار زراً أساسياً بالهيدر (كل البائعين يحتاجونه يومياً،
+        // كان مدفوناً هون بقائمة «المزيد» ولا أحد يلاقيه — طلب الفريق).
         isManager && !viewArchive && { key: 'monthly', label: '📦 تسليمات الشهر', active: viewMonthly,
           onClick: closeMore(() => { setViewMonthly(v => !v); setViewTracking(false); setViewWallet(false); }) },
       ].filter(Boolean),
@@ -3888,6 +3888,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
               🧰 التجهيز
             </button>
           )}
+          {!isFulfillment && !isStorage && !viewArchive && (
+            <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
+              title="تتبع شحنات طلباتك">
+              📡 تتبع الشحنات
+            </button>
+          )}
           {(isManager || isFulfillment) && !viewArchive && (
             <button onClick={() => setLabelsOpen(true)}
               className="px-3 py-2.5 rounded-xl text-sm font-bold border bg-[#fdfaf2] border-[#C9A646]/50 text-[#8a6d1f] hover:bg-[#faf3df] transition"
@@ -3923,7 +3930,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
               )}
             </div>
           )}
-          {!isFulfillment && !viewArchive && !viewTracking && (
+          {/* موظف التجهيز صار يقدر يدخل طلبات كمان (قرار المالك) — ما عاد
+              مقصور على مشاهدة/تجهيز طلبات غيره فقط. */}
+          {!viewArchive && !viewTracking && (
             <button onClick={() => setModal('new')}
               className="px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition shadow-sm flex items-center gap-2">
               + طلب جديد
