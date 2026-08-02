@@ -27,6 +27,10 @@ export const NOTIFICATION_TYPE = {
   // System
   SYSTEM_ALERT:       'system_alert',
   USER_MENTION:       'user_mention',
+  // Orders
+  ORDER_STATUS_CHANGED: 'order_status_changed',
+  ORDER_NEW:             'order_new',
+  ANNOUNCEMENT:           'announcement',
 };
 
 // ── Display metadata per type ─────────────────────────────────
@@ -48,6 +52,9 @@ export const TYPE_META = {
   role_changed:        { icon: '⚙️', label: 'تغيير صلاحية',       colorClass: 'text-red-fg     bg-red-bg'    },
   system_alert:        { icon: '🖥️', label: 'تنبيه النظام',       colorClass: 'text-text       bg-surface'   },
   user_mention:        { icon: '👤', label: 'تم ذكرك',            colorClass: 'text-blue-fg    bg-blue-bg'   },
+  order_status_changed: { icon: '📦', label: 'تغيّر حالة طلب',     colorClass: 'text-blue-fg    bg-blue-bg'   },
+  order_new:             { icon: '📥', label: 'طلب جديد',          colorClass: 'text-teal       bg-teal/10'   },
+  announcement:           { icon: '📢', label: 'إعلان',            colorClass: 'text-blue-fg    bg-blue-bg'   },
 };
 
 // ── Severity ──────────────────────────────────────────────────
@@ -76,6 +83,9 @@ export const TYPE_SEVERITY = {
   role_changed:        'critical',
   system_alert:        'info',
   user_mention:        'info',
+  order_status_changed: 'info',
+  order_new:             'info',
+  announcement:           'info',
 };
 
 /** Returns the severity for a given type (with optional override). */
@@ -123,7 +133,7 @@ export function resolveNotifRoute(notification) {
   if (base === '/orders') {
     const market = notification?.metadata?.market;
     const marketPath = market === 'syria' ? '/orders/syria' : market === 'turkey' ? '/orders/turkey' : '/orders';
-    const q = notification?.metadata?.order_code;
+    const q = notification?.metadata?.order_code ?? notification?.metadata?.order_id;
     return q ? `${marketPath}?q=${encodeURIComponent(q)}` : marketPath;
   }
   return base;

@@ -5,6 +5,8 @@
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { sendBulkNotifications } from '@modules/notifications/services/notificationService';
+import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 
 const CURRENCIES = ['USD', 'TRY', 'SYP'];
 const PAIRS = [
@@ -171,6 +173,22 @@ function AnnouncementsTab() {
       setTitle(''); setBody(''); setIsPinned(false); setIsEmergency(false);
       setMsg({ type: 'ok', text: '✅ تم نشر الإعلان بنجاح' });
       await load();
+
+      // إشعار جماعي — كان الإعلان يظهر بس لمن يفتح شاشة الإعلانات صدفة،
+      // بلا أي تنبيه فعلي بالجرس.
+      try {
+        const everyone = await fetchAllRows(() => sb.from('profiles').select('id').eq('is_active', true));
+        const ids = everyone.map(p => p.id);
+        if (ids.length) {
+          await sendBulkNotifications(ids, {
+            type:     NOTIFICATION_TYPE.ANNOUNCEMENT,
+            title:    `📢 ${title.trim()}`,
+            message:  body.trim(),
+            severity: isEmergency ? 'critical' : 'info',
+            skipDedup: true,
+          });
+        }
+      } catch { /* لا تُفشِل نشر الإعلان بسبب الإشعار */ }
     } catch (e) { setMsg({ type: 'err', text: e.message }); }
     finally { setSaving(false); }
   };

@@ -212,7 +212,7 @@ export const useTaskStore = create()(
             const commenterName = comment?.author?.name ?? 'أحد الزملاء';
             await sendNotification({
               userId:     recipientId,
-              type:       'task_comment',
+              type:       'task_commented', // يطابق NOTIFICATION_TYPE.TASK_COMMENTED — كان 'task_comment' فيفوت خريطة التوجيه/الأيقونة
               title:      `💬 تعليق جديد على مهمتك`,
               message:    `علّق ${commenterName} على: ${task?.title ?? 'مهمة'}`,
               entityType: 'task',

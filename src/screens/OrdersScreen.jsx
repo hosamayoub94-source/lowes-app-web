@@ -9,7 +9,7 @@ import { supabase, supabaseAnon } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
-import { sendNotification } from '@modules/notifications/services/notificationService';
+import { sendNotification, sendBulkNotifications } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { syncOrderStock } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress, parseTurkishAddress } from '@data/cities';
@@ -60,26 +60,48 @@ async function notifySellerStatusChange(order, newStatus, actorName) {
       // Lozy retention reminder after each delivery.
       await sendNotification({
         userId:     prof.id,
-        type:       NOTIFICATION_TYPE.SYSTEM_ALERT,
+        type:       NOTIFICATION_TYPE.ORDER_STATUS_CHANGED,
         title:      `💚 تم تسليم طلب ${cust}`,
         message:    `تواصل مع ${cust} بعد يوم-يومين: اطمئن على المنتج، أظهر اهتمامك، واقترح منتجاً مكمّلاً. عميل سعيد = بيع متكرر! تجده في «العملاء والأرشيف».`,
         entityType: 'order',
         entityId:   order.id,
-        metadata:   { order_id: order.order_id, status: newStatus, kind: 'followup' },
+        metadata:   { order_id: order.order_id, market: order.market, status: newStatus, kind: 'followup' },
       });
       return;
     }
 
     await sendNotification({
       userId:     prof.id,
-      type:       NOTIFICATION_TYPE.SYSTEM_ALERT,
+      type:       NOTIFICATION_TYPE.ORDER_STATUS_CHANGED,
       title:      `${meta?.icon ?? '📦'} طلبك ${order.order_id}: ${meta?.label ?? newStatus}`,
       message:    `${cust} — انتقل الطلب إلى مرحلة «${meta?.label ?? newStatus}».`,
       entityType: 'order',
       entityId:   order.id,
-      metadata:   { order_id: order.order_id, status: newStatus },
+      metadata:   { order_id: order.order_id, market: order.market, status: newStatus },
     });
   } catch { /* notifications are best-effort */ }
+}
+
+// موظفو التجهيز المخصَّصون لسوق الطلب (order_role='fulfillment' +
+// order_market مطابق) يستاهلوا يعرفوا فور وصول طلب جديد — قبلها ما كان
+// في أي تنبيه، بس اكتشاف الطلب لما يفتحوا الشاشة صدفة.
+async function notifyNewOrderToFulfillment(order) {
+  try {
+    if (!order?.market) return;
+    const { data: staff } = await supabase.from('profiles')
+      .select('id').eq('is_active', true)
+      .eq('order_role', 'fulfillment').eq('order_market', order.market);
+    const ids = (staff || []).map(p => p.id);
+    if (!ids.length) return;
+    await sendBulkNotifications(ids, {
+      type:       NOTIFICATION_TYPE.ORDER_NEW,
+      title:      `📥 طلب جديد ${order.order_id || ''}`,
+      message:    `${order.customer_name || 'عميل'} — ${order.market === 'turkey' ? 'تركيا' : 'سوريا'}`,
+      entityType: 'order',
+      entityId:   order.id,
+      metadata:   { order_id: order.order_id, market: order.market },
+    });
+  } catch { /* best-effort */ }
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -3527,6 +3549,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (error) throw new Error(error.message);
       savedId = data?.id;
       if (data?.order_id) form.order_id = data.order_id; // الكود المولّد (للعرض/المخزون/المزامنة)
+      notifyNewOrderToFulfillment({ ...form, id: savedId });
     }
     setModal(null);
     load();
