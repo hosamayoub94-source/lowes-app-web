@@ -88,7 +88,15 @@ export async function sendBulkCampaign(customers, contentSid, { delayMs = 2500, 
   let sent = 0, failed = 0;
   for (let i = 0; i < customers.length; i++) {
     const c = customers[i];
-    const phone = normalizeWaPhone(c.phone) || c.phone;
+    // ⚠️ الرقم مخزَّن محلياً (تركي بلا كود دولة، مثال: 5551108464) — لازم
+    // normalizeLocalPhone('turkey') مش normalizeWaPhone (يضيف + بس بلا 90).
+    const phone = normalizeLocalPhone(c.phone, 'turkey');
+    if (!phone) {
+      const result = { phone: c.phone, ok: false, error: 'رقم غير صالح' };
+      results.push(result); failed++;
+      onProgress?.(i + 1, customers.length, result);
+      continue;
+    }
     let result;
     try {
       const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
