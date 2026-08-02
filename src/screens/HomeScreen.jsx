@@ -643,14 +643,28 @@ function MyTargetCard({ name }) {
   useEffect(() => {
     if (!name) { setLoading(false); return; }
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    // ⚠️ كان يفلتر بـcreated_at (تاريخ إنشاء الطلب) بدل تاريخ التسليم
+    // الفعلي — طلب أُنشئ بشهر سابق وتسلَّم بهذا الشهر كان يختفي كلياً من
+    // هدف الشهر (يورّي $0 رغم تسليمات حقيقية). التسليم الفعلي يُحدَّد من
+    // order_status_history (to_status='delivered')، لا created_at/order_date.
     Promise.allSettled([
       supabase.from('product_economics').select('item_name, sale_price_usd'),
-      supabaseAnon.from('orders').select('items, amount, currency, market, status, created_at, handler_name')
-        .eq('handler_name', name).eq('status', 'delivered').gte('created_at', monthStart + 'T00:00:00'),
-    ]).then(([pRes, oRes]) => {
+      supabaseAnon.from('orders').select('id, items, amount, currency, market, status, handler_name')
+        .eq('handler_name', name).eq('status', 'delivered'),
+    ]).then(async ([pRes, oRes]) => {
       const prices = {};
       (pRes.value?.data ?? []).forEach(r => { prices[_norm(r.item_name)] = Number(r.sale_price_usd) || 0; });
-      const orders = oRes.value?.data ?? [];
+      const allDelivered = oRes.value?.data ?? [];
+      let orders = [];
+      if (allDelivered.length) {
+        const { data: hist } = await supabaseAnon.from('order_status_history')
+          .select('order_id')
+          .in('order_id', allDelivered.map(o => o.id))
+          .eq('to_status', 'delivered')
+          .gte('changed_at', monthStart + 'T00:00:00');
+        const deliveredThisMonth = new Set((hist ?? []).map(r => r.order_id));
+        orders = allDelivered.filter(o => deliveredThisMonth.has(o.id));
+      }
       let syriaUsd = 0, turkeyTry = 0, hasSyria = false, hasTurkey = false;
       orders.forEach(o => {
         const isTurkey = (o.market === 'turkey') || /try|تركي|₺/i.test(o.currency || '');
