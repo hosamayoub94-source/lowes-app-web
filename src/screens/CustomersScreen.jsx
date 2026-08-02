@@ -536,7 +536,9 @@ export default function CustomersScreen() {
 
   // الحملة الجماعية مسموحة فقط لقسم "لويز تركيا" — الاستبعاد الصريح لسوريا
   // (D-022) والحماية من خلط أسواق بقسمي "سترونغ"/"الكل".
-  const canCampaign = sec.market === 'turkey' && !archive;
+  // TEMPLATE_SID.promo مُعطَّل عمداً (قالب قديم فيه اسم "سارة" ثابت بلا
+  // متغيّر) — الزر يختفي تلقائياً لحد ما القالب البديل يوافَق عليه من Meta.
+  const canCampaign = sec.market === 'turkey' && !archive && !!TEMPLATE_SID.promo;
 
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
 
