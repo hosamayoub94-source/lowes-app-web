@@ -13,7 +13,7 @@
 // =============================================================
 import { supabase } from '@services/supabase';
 import { useAuthStore } from '@stores/authStore';
-import { resolveNotifSeverity } from '../types/notification.types';
+import { resolveNotifSeverity, resolveNotifRoute } from '../types/notification.types';
 
 // Resolve the current user's profile id. RLS is open (USING true) to support
 // the PIN/manual-session model, so EVERY read must filter by user_id at the
@@ -130,7 +130,7 @@ export async function sendNotification({
   }
 
   // Fire-and-forget push notification — runs in background, never blocks
-  sendPushToUser(userId, { title, message, url: `/?notif=${data?.id || ''}` });
+  sendPushToUser(userId, { title, message, url: resolveNotifRoute(row) });
 
   return data;
 }

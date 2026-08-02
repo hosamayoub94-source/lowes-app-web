@@ -6,30 +6,10 @@
 // • mark all read · delete · swipe-feel hover
 // =============================================================
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Link }              from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications }  from '@modules/notifications/hooks/useNotifications';
-import { getTypeMeta }       from '@modules/notifications/types/notification.types';
+import { getTypeMeta, resolveNotifRoute } from '@modules/notifications/types/notification.types';
 import { supabase }          from '@services/supabase';
-
-// ── Type → route map ───────────────────────────────────────────
-const TYPE_ROUTE = {
-  task_assigned:      '/tasks',
-  task_overdue:       '/tasks',
-  task_due_soon:      '/tasks',
-  task_completed:     '/tasks',
-  task_commented:     '/tasks',
-  task_status_change: '/tasks',
-  attendance_alert:   '/attendance',
-  absence_alert:      '/attendance',
-  vacation_approved:  '/requests',
-  payroll_alert:      '/ledger',
-  expense_alert:      '/ledger',
-  audit_critical:     '/admin',
-  login_failed_alert: '/admin',
-  role_changed:       '/admin',
-  system_alert:       '/',
-  user_mention:       '/chat',
-};
 
 // ── Tab config ─────────────────────────────────────────────────
 const TABS = [
@@ -81,10 +61,12 @@ const GROUP_ORDER = ['اليوم','أمس','هذا الأسبوع','هذا ال�
 function NotifItem({ notif, onRead, onDelete }) {
   const { icon, label, colorClass } = getTypeMeta(notif.type);
   const isUnread  = !notif.is_read;
-  const route     = TYPE_ROUTE[notif.type] ?? '/';
+  const route     = resolveNotifRoute(notif);
   const [gone, setGone] = useState(false);
+  const navigate = useNavigate();
 
   const handleRead = () => { if (isUnread) onRead?.(notif.id); };
+  const handleOpen = () => { handleRead(); navigate(route); };
   const handleDel  = async (e) => {
     e.stopPropagation();
     setGone(true);
@@ -94,8 +76,8 @@ function NotifItem({ notif, onRead, onDelete }) {
   if (gone) return null;
 
   return (
-    <div className={`group flex items-start gap-3 px-4 py-3 border-b border-border/40 last:border-0 transition-all duration-200 hover:bg-surface-alt/60 ${isUnread ? 'bg-teal/[0.03]' : 'opacity-80'}`}
-         onClick={handleRead}>
+    <div className={`group flex items-start gap-3 px-4 py-3 border-b border-border/40 last:border-0 transition-all duration-200 hover:bg-surface-alt/60 cursor-pointer ${isUnread ? 'bg-teal/[0.03]' : 'opacity-80'}`}
+         onClick={handleOpen}>
       {/* Icon */}
       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 ${colorClass}`}>
         {icon}
@@ -121,10 +103,9 @@ function NotifItem({ notif, onRead, onDelete }) {
         <div className="flex items-center gap-3 mt-1.5">
           <span className="text-[10px] text-muted/60">{timeAgo(notif.created_at)}</span>
           <span className="text-[10px] text-muted/50 px-1.5 py-0.5 bg-surface-alt rounded-full">{label}</span>
-          <Link to={route} onClick={handleRead}
-            className="text-[10px] text-teal font-semibold hover:underline ms-auto opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-teal font-semibold ms-auto opacity-0 group-hover:opacity-100 transition-opacity">
             فتح ←
-          </Link>
+          </span>
         </div>
       </div>
     </div>

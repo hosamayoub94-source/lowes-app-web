@@ -3011,6 +3011,13 @@ export default function OrdersScreen({ forcedMarket = null }) {
     }
   }, [location.state, navigate]);
 
+  // النقر على إشعار طلب (?q=<order_id>) يعبّي مربع البحث تلقائياً بدل ما
+  // يترك المستخدم يدوّر يدوياً بين عشرات الطلبات.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q');
+    if (q) setSearch(q);
+  }, [location.search]);
+
   // Load commission_pct for current seller
   useEffect(() => {
     if (!userName) return;

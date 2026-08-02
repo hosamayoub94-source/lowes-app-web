@@ -2,7 +2,8 @@
 // Notifications Module — NotificationItem
 // Single notification row (used in panel + toast).
 // =============================================================
-import { getTypeMeta } from '../types/notification.types';
+import { useNavigate } from 'react-router-dom';
+import { getTypeMeta, resolveNotifRoute } from '../types/notification.types';
 import { cn }          from '@utils/classNames';
 
 function timeAgo(dateStr) {
@@ -33,13 +34,17 @@ const SEVERITY_DOT = {
  * @param {object}   props.notification  — notification row from DB
  * @param {function} props.onRead        — called with notification.id
  * @param {boolean}  [props.compact]     — smaller padding for toast mode
+ * @param {function} [props.onNavigate]  — called right before navigating (e.g. to close a dropdown)
  */
-export function NotificationItem({ notification, onRead, compact = false }) {
-  const { icon, label, colorClass } = getTypeMeta(notification.type);
+export function NotificationItem({ notification, onRead, compact = false, onNavigate }) {
+  const { icon, colorClass } = getTypeMeta(notification.type);
   const isUnread = !notification.is_read;
+  const navigate = useNavigate();
 
   function handleClick() {
     if (isUnread) onRead?.(notification.id);
+    onNavigate?.();
+    navigate(resolveNotifRoute(notification));
   }
 
   return (

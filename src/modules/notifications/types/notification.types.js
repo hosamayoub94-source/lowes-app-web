@@ -87,3 +87,44 @@ export function resolveNotifSeverity(type, override = null) {
 export function getTypeMeta(type) {
   return TYPE_META[type] ?? { icon: '🔔', label: type, colorClass: 'text-text bg-surface' };
 }
+
+// ── Type → route (النقر على الإشعار يوديك عالمكان الصحيح، مو للرئيسية) ──
+// مصدر واحد يستخدمه NotificationItem (القائمة المنسدلة) وNotificationsScreen
+// (الصفحة الكاملة) معاً — كانا مختلفين سابقاً وأحدهما ما كان يستخدم أي تنقّل.
+export const TYPE_ROUTE = {
+  task_assigned:       '/tasks',
+  task_overdue:        '/tasks',
+  task_due_soon:       '/tasks',
+  task_completed:      '/tasks',
+  task_commented:      '/tasks',
+  task_status_change:  '/tasks',
+  attendance_alert:    '/attendance',
+  absence_alert:       '/attendance',
+  vacation_approved:   '/requests',
+  request_submitted:   '/requests',
+  payroll_alert:       '/ledger',
+  expense_alert:       '/ledger',
+  audit_critical:      '/admin',
+  login_failed_alert:  '/admin',
+  role_changed:        '/admin',
+  system_alert:        '/',
+  user_mention:        '/chat',
+  order_status_changed: '/orders',
+  order_new:            '/orders',
+  announcement:          '/announcements',
+};
+
+/**
+ * يحلّ رابط الإشعار — يفضّل السوق (سوريا/تركيا) من metadata لطلبات
+ * الأوردرات، وإلا يرجع الخريطة الثابتة فوق.
+ */
+export function resolveNotifRoute(notification) {
+  const base = TYPE_ROUTE[notification?.type] ?? '/';
+  if (base === '/orders') {
+    const market = notification?.metadata?.market;
+    const marketPath = market === 'syria' ? '/orders/syria' : market === 'turkey' ? '/orders/turkey' : '/orders';
+    const q = notification?.metadata?.order_code;
+    return q ? `${marketPath}?q=${encodeURIComponent(q)}` : marketPath;
+  }
+  return base;
+}

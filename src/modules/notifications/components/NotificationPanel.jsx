@@ -70,7 +70,7 @@ export function NotificationPanel({ onClose }) {
                 </p>
                 <div className="divide-y divide-border/50">
                   {unread.map((n) => (
-                    <NotificationItem key={n.id} notification={n} onRead={markAsRead} />
+                    <NotificationItem key={n.id} notification={n} onRead={markAsRead} onNavigate={onClose} />
                   ))}
                 </div>
               </div>
@@ -84,7 +84,7 @@ export function NotificationPanel({ onClose }) {
                 </p>
                 <div className="divide-y divide-border/50">
                   {read.map((n) => (
-                    <NotificationItem key={n.id} notification={n} onRead={markAsRead} />
+                    <NotificationItem key={n.id} notification={n} onRead={markAsRead} onNavigate={onClose} />
                   ))}
                 </div>
               </div>
