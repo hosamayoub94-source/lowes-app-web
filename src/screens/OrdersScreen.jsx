@@ -3921,7 +3921,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
               🧰 التجهيز
             </button>
           )}
-          {!isFulfillment && !isStorage && !viewArchive && (
+          {(isManager || (!isFulfillment && !isStorage)) && !viewArchive && (
             <button onClick={() => { setViewTracking(v => !v); setViewMonthly(false); setViewWallet(false); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition ${viewTracking ? 'bg-navy text-white border-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}
               title="تتبع شحنات طلباتك">
