@@ -60,7 +60,7 @@ export async function fetchRequests(filters = {}) {
   const { supabase } = await import('@services/supabase');
   let q = supabase
     .from('employee_requests')
-    .select('*, profiles(employee_name)')
+    .select('*, profiles!employee_requests_employee_id_fkey(employee_name)')
     .order('created_at', { ascending: false });
   if (filters.employeeId) q = q.eq('employee_id', filters.employeeId);
   if (filters.status)     q = q.eq('status', filters.status);
@@ -75,7 +75,7 @@ export async function fetchRequest(id) {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('employee_requests')
-    .select('*, profiles(employee_name)')
+    .select('*, profiles!employee_requests_employee_id_fkey(employee_name)')
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
