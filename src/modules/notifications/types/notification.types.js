@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPE = {
   ATTENDANCE_ALERT:   'attendance_alert',
   ABSENCE_ALERT:      'absence_alert',
   VACATION_APPROVED:  'vacation_approved',
+  REQUEST_SUBMITTED:  'request_submitted',
   // Accounting / Payroll
   PAYROLL_ALERT:      'payroll_alert',
   EXPENSE_ALERT:      'expense_alert',
@@ -39,6 +40,7 @@ export const TYPE_META = {
   attendance_alert:    { icon: '📅', label: 'تنبيه حضور',         colorClass: 'text-amber-fg   bg-amber-bg'  },
   absence_alert:       { icon: '🚫', label: 'غياب',               colorClass: 'text-red-fg     bg-red-bg'    },
   vacation_approved:   { icon: '🏖️', label: 'إجازة معتمدة',       colorClass: 'text-teal       bg-teal/10'   },
+  request_submitted:   { icon: '📝', label: 'طلب جديد',           colorClass: 'text-amber-fg   bg-amber-bg'  },
   payroll_alert:       { icon: '💰', label: 'تنبيه رواتب',        colorClass: 'text-amber-fg   bg-amber-bg'  },
   expense_alert:       { icon: '🧾', label: 'تنبيه مصروفات',      colorClass: 'text-amber-fg   bg-amber-bg'  },
   audit_critical:      { icon: '🔴', label: 'حدث حرج',            colorClass: 'text-red-fg     bg-red-bg'    },
@@ -66,6 +68,7 @@ export const TYPE_SEVERITY = {
   attendance_alert:    'warning',
   absence_alert:       'warning',
   vacation_approved:   'info',
+  request_submitted:   'warning',
   payroll_alert:       'warning',
   expense_alert:       'warning',
   audit_critical:      'critical',

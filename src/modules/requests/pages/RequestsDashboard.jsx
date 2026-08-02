@@ -19,6 +19,8 @@ import {
   LEAVE_TYPE_LABELS,
 } from '../types/requests.types.js';
 import { ROLES } from '@data/teams';
+import { supabase } from '@services/supabase';
+import { useNotificationTriggers } from '@modules/notifications/hooks/useNotificationTriggers';
 
 // ─── Tab definition ──────────────────────────────────────────
 const REQUEST_TABS = [
@@ -44,12 +46,13 @@ const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream
 
 // ─── Main component ───────────────────────────────────────────
 export function RequestsDashboard() {
-  const { id, role } = useAuth();
+  const { id, role, name } = useAuth();
   useRequestsBootstrap(id, role);
 
   const { requests, kpis, isLoading } = useRequestsDashboard();
   const { approveRequest, rejectRequest, cancelRequest, createRequest } = useRequestsActions();
   const loading = useRequestsLoading();
+  const { notifyRequestSubmitted } = useNotificationTriggers();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER || role === ROLES.SALES_MANAGER;
 
@@ -97,9 +100,29 @@ export function RequestsDashboard() {
         advance_currency: form.advance_currency,
       });
     }
-    await createRequest(payload);
+    const requestTypeLabel = REQUEST_TYPE_LABELS[form.request_type] || 'جديد';
+    const reason = form.reason;
+    const created = await createRequest(payload);
     setShowForm(false);
     resetForm();
+
+    // إشعار الإدارة — ما كان في أي تنبيه عند تقديم طلب (بگ حقيقي: طلبات
+    // تُقدَّم وتضيع لحد ما أدمن يفتح الشاشة بالصدفة ويلاقيها).
+    try {
+      const { data: reviewers } = await supabase.from('profiles')
+        .select('id').eq('is_active', true)
+        .in('role_type', [ROLES.ADMIN, ROLES.MANAGER, ROLES.HR_MANAGER]);
+      const adminIds = (reviewers ?? []).map(p => p.id);
+      if (adminIds.length) {
+        notifyRequestSubmitted({
+          requestId: created?.id,
+          employeeName: name,
+          requestTypeLabel,
+          reason,
+          adminIds,
+        });
+      }
+    } catch { /* لا تُفشِل تقديم الطلب بسبب التنبيه */ }
   };
 
   // موافقة على سلفة: لازم تحدَّد بأي شهر تُخصَم من الراتب — بدون هالحقلين

@@ -98,6 +98,23 @@ export function useNotificationTriggers() {
     [],
   );
 
+  // طلب جديد (إجازة/سلفة/إذن/أخرى) — ما كان في أي تنبيه للإدارة عند
+  // التقديم، فالطلبات تضيع إلا لو الأدمن فتح شاشة «الطلبات» يدوياً
+  // وبالصدفة. الموظف نفسه ما عنده أي مؤشر إنه وصل أو لأ (بگ حقيقي:
+  // رغد قدّمت نفس الطلب 3 مرات ظناً إنه ما انحفظ).
+  const notifyRequestSubmitted = useCallback(
+    ({ requestId, employeeName, requestTypeLabel, reason, adminIds = [] }) => {
+      sendBulkNotifications(adminIds, {
+        type:       NOTIFICATION_TYPE.REQUEST_SUBMITTED,
+        title:      `طلب ${requestTypeLabel} جديد`,
+        message:    `${employeeName}${reason ? ` — ${reason}` : ''}`,
+        entityType: ENTITY_TYPE.ATTENDANCE,
+        entityId:   requestId,
+      }).catch(() => {});
+    },
+    [],
+  );
+
   const notifyVacationApproved = useCallback(
     ({ employeeId, period }) => {
       sendNotification({
@@ -173,6 +190,7 @@ export function useNotificationTriggers() {
     notifyTaskCompleted,
     notifyTaskCommented,
     notifyAbsence,
+    notifyRequestSubmitted,
     notifyVacationApproved,
     notifyPayrollAlert,
     notifyAuditCritical,

@@ -90,6 +90,13 @@ export async function sendNotification({
   skipDedup    = false,
 }) {
   const row = {
+    // ⚠️ recipient عمود قديم (NOT NULL بلا default) بقي بجدول notifications
+    // الفعلي من نمط سابق (recipient نصّي/employee_name أو '__all__') — الكود
+    // الحالي كله مبني على user_id بدله، لكن أي insert بلا recipient كان
+    // يفشل بصمت (23502) عبر كل .catch(()=>{}) بالتطبيق. الإشعارات ما كانت
+    // تصل لأي حد فعلياً. تأكّد حياً 2026-08-02.
+    recipient:   userId,
+    kind:        type, // نفس ملاحظة recipient — kind عمود قديم NOT NULL بلا default
     user_id:     userId,
     type,
     title,
@@ -98,6 +105,7 @@ export async function sendNotification({
     entity_id:   entityId ? String(entityId) : null,
     severity:    resolveNotifSeverity(type, severity),
     metadata,
+    is_read:     false,
     dedup_key:   skipDedup ? null : buildDedupKey(userId, type, entityId || ''),
   };
 
@@ -139,6 +147,8 @@ export async function sendBulkNotifications(userIds, params) {
   if (!userIds?.length) return [];
 
   const rows = userIds.map((userId) => ({
+    recipient:   userId, // انظر ملاحظة recipient/kind بـsendNotification أعلاه
+    kind:        params.type,
     user_id:     userId,
     type:        params.type,
     title:       params.title,
@@ -147,6 +157,7 @@ export async function sendBulkNotifications(userIds, params) {
     entity_id:   params.entityId    ? String(params.entityId) : null,
     severity:    resolveNotifSeverity(params.type, params.severity ?? null),
     metadata:    params.metadata    ?? {},
+    is_read:     false,
     dedup_key:   buildDedupKey(userId, params.type, params.entityId || ''),
   }));
 
