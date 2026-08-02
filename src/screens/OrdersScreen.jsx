@@ -843,7 +843,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }, []);
   const archiveEligible = useMemo(() =>
-    delivered.filter(o => !o.archived && String(o.order_date || '').slice(0, 7) < currentMonthPrefix),
+    delivered.filter(o => !o.archived && String(o.updated_at || o.order_date || '').slice(0, 7) < currentMonthPrefix),
     [delivered, currentMonthPrefix]
   );
 
@@ -3654,7 +3654,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
     const set = new Set();
     orders.forEach(o => {
       if (!TERMINAL_SYNC.includes(o.status) || o.archived === true) return;
-      const ym = (o.order_date || '').slice(0, 7);
+      // نستخدم تاريخ آخر تحديث (فعلياً تاريخ التسليم/التسوية) لا تاريخ إنشاء
+      // الطلب، وإلا طلب اتنشأ آخر الشهر الماضي وتسلّم هالشهر بينأرشف تحت
+      // الشهر الغلط ويختفي من إحصائيات "هالشهر" الحيّة (شافها حسام فعلياً).
+      const ym = (o.updated_at || o.order_date || '').slice(0, 7);
       if (ym && ym < curPrefix) set.add(ym);
     });
     return [...set].sort().reverse().map(ym => {
@@ -3665,7 +3668,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const archiveMonthCount = useMemo(() => {
     if (!archiveMonth) return 0;
     return orders.filter(o => TERMINAL_SYNC.includes(o.status) && o.archived !== true
-      && (o.order_date || '').slice(0, 7) === archiveMonth).length;
+      && (o.updated_at || o.order_date || '').slice(0, 7) === archiveMonth).length;
   }, [orders, archiveMonth]);
   const openArchivePicker = () => {
     setArchiveMonth(archiveMonthOptions[0]?.value || '');
@@ -3674,7 +3677,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const archiveSelectedMonth = async () => {
     if (!archiveMonth) return;
     const eligible = orders.filter(o => TERMINAL_SYNC.includes(o.status) && o.archived !== true
-      && (o.order_date || '').slice(0, 7) === archiveMonth);
+      && (o.updated_at || o.order_date || '').slice(0, 7) === archiveMonth);
     if (eligible.length === 0) { window.alert('لا توجد طلبات مؤهلة للأرشفة بهذا الشهر.'); return; }
     setArchiving(true);
     try {
