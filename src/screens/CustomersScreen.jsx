@@ -17,6 +17,7 @@ import { STATUSES } from '@data/orderStatus';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
+import { sendBulkCampaign, TEMPLATE_SID } from '@services/whatsappService';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -402,7 +403,7 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
   );
 }
 
-function CustomerCard({ c, onOpen }) {
+function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect }) {
   const mkt = custMarket(c);
   const totals = [];
   if (Number(c.total_syp) > 0) totals.push(`${fmt(c.total_syp)} SYP`);
@@ -411,18 +412,27 @@ function CustomerCard({ c, onOpen }) {
   const wa = customerWaLink(c.phone, mkt);
   const idle = daysSince(c.last_order);
 
+  const handleClick = () => campaignMode ? onToggleSelect(c) : onOpen(c);
+
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4 space-y-2 cursor-pointer hover:border-teal/40 transition" onClick={() => onOpen(c)}>
+    <div className={`bg-surface border rounded-2xl p-4 space-y-2 cursor-pointer transition ${selected ? 'border-teal ring-2 ring-teal/30' : 'border-border hover:border-teal/40'}`} onClick={handleClick}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-bold text-text text-sm truncate">
-            {c.stars > 0 && <span className="me-1">{starLabel(c.stars)}</span>}{c.name || 'عميل'}
-          </p>
-          <p className="text-[11px] text-muted" dir="ltr">{c.phone}</p>
-          {c.city && <p className="text-[11px] text-muted">{c.city}</p>}
+        <div className="min-w-0 flex items-start gap-2">
+          {campaignMode && (
+            <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 ${selected ? 'bg-teal border-teal text-navy' : 'border-border'}`}>
+              {selected ? '✓' : ''}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="font-bold text-text text-sm truncate">
+              {c.stars > 0 && <span className="me-1">{starLabel(c.stars)}</span>}{c.name || 'عميل'}
+            </p>
+            <p className="text-[11px] text-muted" dir="ltr">{c.phone}</p>
+            {c.city && <p className="text-[11px] text-muted">{c.city}</p>}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {wa && (
+          {!campaignMode && wa && (
             <a href={wa} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
               className="w-9 h-9 rounded-xl bg-green-bg flex items-center justify-center text-green-fg hover:opacity-80 transition" title="واتساب">
               <WaIcon />
@@ -466,6 +476,13 @@ export default function CustomersScreen() {
   const [exporting, setExporting] = useState(false);
   const [partnerNames, setPartnerNames] = useState([]);
   const [archive, setArchive]   = useState(false);    // الأرشيف الشهري
+
+  // وضع الحملة الجماعية — بس لأسواق غير سوريا (واتساب الرسمي محظور كلياً على
+  // +963، خطأ Twilio 21408 — راجع 09_Decision_Register.md § D-022).
+  const [campaignMode, setCampaignMode] = useState(false);
+  const [selectedPhones, setSelectedPhones] = useState(() => new Set());
+  const [sendingCampaign, setSendingCampaign] = useState(false);
+  const [campaignProgress, setCampaignProgress] = useState(null); // {done,total,sent,failed}
 
   // Load accepted shift partners
   useEffect(() => {
@@ -517,6 +534,48 @@ export default function CustomersScreen() {
   // mineOnly is applied server-side; segment is a client-side refinement.
   const displayed = useMemo(() => rows.filter(c => inSegment(c, segment)), [rows, segment]);
 
+  // الحملة الجماعية مسموحة فقط لقسم "لويز تركيا" — الاستبعاد الصريح لسوريا
+  // (D-022) والحماية من خلط أسواق بقسمي "سترونغ"/"الكل".
+  const canCampaign = sec.market === 'turkey' && !archive;
+
+  useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
+
+  const toggleSelect = useCallback((c) => {
+    setSelectedPhones(prev => {
+      const next = new Set(prev);
+      next.has(c.phone_key) ? next.delete(c.phone_key) : next.add(c.phone_key);
+      return next;
+    });
+  }, []);
+
+  const selectedCustomers = useMemo(
+    () => displayed.filter(c => selectedPhones.has(c.phone_key)),
+    [displayed, selectedPhones],
+  );
+
+  const runCampaign = async () => {
+    if (!selectedCustomers.length || sendingCampaign) return;
+    if (!window.confirm(`بدك تبعت رسالة "كثافة الشعر" لـ${selectedCustomers.length} عميل عبر واتساب؟ ما في تراجع بعد الإرسال.`)) return;
+    setSendingCampaign(true);
+    setCampaignProgress({ done: 0, total: selectedCustomers.length, sent: 0, failed: 0 });
+    try {
+      const { sent, failed } = await sendBulkCampaign(selectedCustomers, TEMPLATE_SID.promo, {
+        delayMs: 2500,
+        onProgress: (done, total, result) => setCampaignProgress(p => ({
+          done, total,
+          sent: p.sent + (result.ok ? 1 : 0),
+          failed: p.failed + (result.ok ? 0 : 1),
+        })),
+      });
+      alert(`✅ انتهت الحملة — انبعت ${sent}، فشل ${failed}.`);
+      setSelectedPhones(new Set());
+    } catch (e) {
+      alert('خطأ بالحملة: ' + e.message);
+    } finally {
+      setSendingCampaign(false);
+    }
+  };
+
   const stats = useMemo(() => ({
     total: displayed.length,
     due: displayed.filter(r => daysSince(r.last_order) >= 30).length,
@@ -538,12 +597,27 @@ export default function CustomersScreen() {
                 </>}
           </p>
         </div>
-        <button onClick={() => setArchive(v => !v)}
-          className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition shrink-0 ${archive ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}
-          title="عرض العملاء مؤرشفين حسب الشهر">
-          {archive ? '← العملاء' : '🗄️ الأرشيف الشهري'}
-        </button>
+        <div className="flex gap-2 shrink-0">
+          {canCampaign && (
+            <button onClick={() => { setCampaignMode(v => !v); setSelectedPhones(new Set()); }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition ${campaignMode ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}
+              title="تحديد عملاء وإرسال حملة واتساب جماعية">
+              {campaignMode ? '✕ إلغاء التحديد' : '📢 وضع الحملة'}
+            </button>
+          )}
+          <button onClick={() => setArchive(v => !v)}
+            className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition ${archive ? 'border-navy bg-navy text-white' : 'border-border text-muted hover:border-navy/40'}`}
+            title="عرض العملاء مؤرشفين حسب الشهر">
+            {archive ? '← العملاء' : '🗄️ الأرشيف الشهري'}
+          </button>
+        </div>
       </div>
+
+      {campaignMode && (
+        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold">
+          📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.
+        </div>
+      )}
 
       {/* Section tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -640,10 +714,32 @@ export default function CustomersScreen() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {displayed.map(c => <CustomerCard key={c.phone_key} c={c} onOpen={setSelected} />)}
+          {displayed.map(c => (
+            <CustomerCard key={c.phone_key} c={c} onOpen={setSelected}
+              campaignMode={campaignMode} selected={selectedPhones.has(c.phone_key)} onToggleSelect={toggleSelect} />
+          ))}
         </div>
       )}
       </>
+      )}
+
+      {campaignMode && selectedCustomers.length > 0 && (
+        <div className="fixed bottom-16 sm:bottom-4 inset-x-4 z-40 max-w-lg mx-auto bg-navy text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
+          {sendingCampaign ? (
+            <span className="text-sm font-bold flex-1">
+              📤 عم يبعت... {campaignProgress?.done}/{campaignProgress?.total}
+              {' '}(✅ {campaignProgress?.sent} · ❌ {campaignProgress?.failed})
+            </span>
+          ) : (
+            <>
+              <span className="text-sm font-bold">{selectedCustomers.length} عميل محدد</span>
+              <button onClick={runCampaign}
+                className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:opacity-90 transition">
+                📢 إرسال الحملة
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       {selected && <CustomerModal c={selected} sellerName={userName} onClose={() => setSelected(null)} />}

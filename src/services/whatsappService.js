@@ -70,7 +70,46 @@ const TEMPLATE_SID = {
   cancelled: 'HXfdc8e012f3c36d9110ffd5b0efd49d52',
   not_received: 'HXf58a03f83c7adceeac99f32a6a26c29f',
   returning: 'HX1b3f03e35175ea655ed9d50930b9b228',
+  // قالب تسويقي (Marketing category) — موافَق عليه من Meta 2 أغسطس 2026
+  // (راجع 09_Decision_Register.md § D-016). لا متغيّرات ({{1}}/{{2}}) بمحتواه.
+  promo: 'HX097985042059f814bbb32c20bfe98baf',
 };
+
+export { TEMPLATE_SID };
+
+// إرسال حملة جماعية بقالب معتمَد (contentSid) لعدة أرقام — بمعدل محكوم (delayMs
+// بين كل رسالة) لحماية Quality Rating عند Meta. onProgress(i, total, result)
+// يُستدعى بعد كل محاولة. يرجع { sent, failed, results }.
+// ⚠️ استدعِ هاي الدالة فقط لأسواق غير سوريا — واتساب الرسمي محظور كلياً على
+// +963 (خطأ Twilio 21408، قيد منصّة على مستوى الحساب — راجع D-022). الفلترة
+// مسؤولية الطرف المستدعي (CustomersScreen يستبعد section === 'syria').
+export async function sendBulkCampaign(customers, contentSid, { delayMs = 2500, onProgress } = {}) {
+  const results = [];
+  let sent = 0, failed = 0;
+  for (let i = 0; i < customers.length; i++) {
+    const c = customers[i];
+    const phone = normalizeWaPhone(c.phone) || c.phone;
+    let result;
+    try {
+      const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
+        method: 'POST',
+        headers: WA_HEADERS,
+        body: JSON.stringify({ phone, contentSid, byUser: 'bulk-campaign' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'فشل الإرسال');
+      result = { phone, ok: true, sid: data.sid };
+      sent++;
+    } catch (e) {
+      result = { phone, ok: false, error: e.message };
+      failed++;
+    }
+    results.push(result);
+    onProgress?.(i + 1, customers.length, result);
+    if (i < customers.length - 1) await new Promise(r => setTimeout(r, delayMs));
+  }
+  return { sent, failed, results };
+}
 
 // يرسل إشعار واتساب على تغيّر حالة طلب — يُستدعى من شاشة الطلبات عند تحديث يدوي.
 // best-effort دائماً: ما بيرمي استثناء أبداً كي ما يوقف تحديث الحالة نفسه.
