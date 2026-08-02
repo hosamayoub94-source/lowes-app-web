@@ -633,9 +633,20 @@ function MiniLeaderboard() {
 }
 
 // ── My Target Card (seller) ──────────────────────────────────────
-// Monthly progress toward sales target, per market. Syria → $1000 (catalog
-// USD basis, offer-immune). Turkey → 65,000₺ (recorded TRY amounts).
-const _norm = s => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+// Monthly progress toward sales target, per market. Syria → $1000، تركيا →
+// 65,000₺ — كلاهما على قيمة التسليم الفعلية (المبلغ المحصَّل بالطلب)، مش
+// سعر كتالوج موحَّد لكل منتج. تغيير مقصود بطلب المالك 2 آب 2026: الموظفين
+// كانوا يقارنوا رقم البطاقة بمبلغ فاتورتهم الحقيقي فيلخبطهم اختلاف
+// المقياسين — رغم إنه بيفتح احتمال تضخيم الرقم بعرض/سعر أعلى على نفس
+// المنتج (تنازل واعٍ عن الحصانة ضد العروض لصالح رقم مفهوم للفريق).
+function toUsdRate(amount, currency, rates) {
+  const a = Number(amount || 0);
+  if (!a) return 0;
+  const cur = String(currency || 'SYP').toUpperCase();
+  if (cur === 'USD') return a;
+  if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
+  return a / (Number(rates?.syp_per_usd) || 14000);
+}
 function MyTargetCard({ name }) {
   const [data, setData] = useState(null); // { syria:{val,target}, turkey:{val,target} }
   const [loading, setLoading] = useState(true);
@@ -655,12 +666,11 @@ function MyTargetCard({ name }) {
     // واحد بلا حاجة لـ.in() بالمرة (يتجنّب أيضاً عطل طول الرابط اللي
     // صلّحناه بالأرشفة — بائعين عندهم مئات الطلبات المسلَّمة تاريخياً).
     Promise.allSettled([
-      supabase.from('product_economics').select('item_name, sale_price_usd'),
-      supabaseAnon.from('orders').select('items, amount, currency, market, status, handler_name')
+      supabase.from('commission_rules').select('try_per_usd, syp_per_usd').eq('id', 'turkey').maybeSingle(),
+      supabaseAnon.from('orders').select('amount, currency, market, status, handler_name')
         .eq('handler_name', name).eq('status', 'delivered').gte('updated_at', monthStart + 'T00:00:00'),
-    ]).then(([pRes, oRes]) => {
-      const prices = {};
-      (pRes.value?.data ?? []).forEach(r => { prices[_norm(r.item_name)] = Number(r.sale_price_usd) || 0; });
+    ]).then(([rRes, oRes]) => {
+      const rates = rRes.value?.data ?? {};
       const orders = oRes.value?.data ?? [];
       let syriaUsd = 0, turkeyTry = 0, hasSyria = false, hasTurkey = false;
       orders.forEach(o => {
@@ -670,9 +680,7 @@ function MyTargetCard({ name }) {
           turkeyTry += Number(o.amount) || 0;
         } else {
           hasSyria = true;
-          let v = 0;
-          (o.items || []).forEach(it => { const p = prices[_norm(it.name)]; if (p > 0) v += p * Number(it.qty || 1); });
-          syriaUsd += v;
+          syriaUsd += toUsdRate(o.amount, o.currency, rates);
         }
       });
       const out = {};
