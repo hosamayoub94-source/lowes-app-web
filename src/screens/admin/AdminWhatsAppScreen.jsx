@@ -60,7 +60,7 @@ export default function AdminWhatsAppScreen() {
 
   const send = async () => {
     const body = draft.trim();
-    if (!openPhone || !body) return;
+    if (!openPhone || !/^\+\d{6,15}$/.test(openPhone) || !body) return;
     setDraft('');
     setSending(true);
     try {
@@ -147,7 +147,12 @@ export default function AdminWhatsAppScreen() {
                     placeholder="اكتب رد…"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                        e.preventDefault();
+                        send();
+                      }
+                    }}
                     disabled={sending}
                   />
                   <button
