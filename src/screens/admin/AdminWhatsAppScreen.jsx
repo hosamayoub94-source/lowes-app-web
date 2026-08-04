@@ -7,7 +7,24 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
-import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, normalizeWaPhone, WA_LINES } from '@services/whatsappService';
+import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, normalizeWaPhone, formatWaBody, WA_LINES } from '@services/whatsappService';
+
+// واتساب (Meta) ما بيقبل صوت WhatsApp Voice Note شغّال إلا Ogg/Opus — أي
+// صيغة تانية (مثل webm الافتراضي بكروم) ممكن توصل الـTwilio API "queued"
+// بلا أي خطأ ظاهر، بس تنرفض بصمت من طرف واتساب ولا توصل العميل إطلاقاً.
+// نجرّب الصيغ المدعومة بالمتصفح بالترتيب الأفضل لواتساب أولاً.
+const VOICE_MIME_CANDIDATES = [
+  { mime: 'audio/ogg;codecs=opus', ext: 'ogg' },
+  { mime: 'audio/mp4', ext: 'mp4' },
+  { mime: 'audio/webm;codecs=opus', ext: 'webm' },
+  { mime: 'audio/webm', ext: 'webm' },
+];
+function pickVoiceMime() {
+  for (const c of VOICE_MIME_CANDIDATES) {
+    if (window.MediaRecorder?.isTypeSupported?.(c.mime)) return c;
+  }
+  return null;
+}
 
 export default function AdminWhatsAppScreen() {
   const { id: userId } = useAuth();
@@ -21,6 +38,7 @@ export default function AdminWhatsAppScreen() {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const imageInputRef = useRef(null);
+  const autoOpenedRef = useRef(false); // يفتح أول محادثة تلقائياً مرة وحدة بس — لا يعيد فتحها بعد ما يضغط المستخدم "رجوع"
 
   const load = useCallback(async () => {
     try {
@@ -50,10 +68,13 @@ export default function AdminWhatsAppScreen() {
   }, [lineMsgs]);
 
   useEffect(() => {
-    if (!openPhone && threads.length) setOpenPhone(threads[0].phone);
+    if (!autoOpenedRef.current && !openPhone && threads.length) {
+      autoOpenedRef.current = true;
+      setOpenPhone(threads[0].phone);
+    }
   }, [threads, openPhone]);
 
-  const switchLine = (l) => { setLine(l); setOpenPhone(''); };
+  const switchLine = (l) => { setLine(l); setOpenPhone(''); autoOpenedRef.current = false; };
 
   const thread = useMemo(
     () => (lineMsgs || [])
@@ -104,17 +125,24 @@ export default function AdminWhatsAppScreen() {
       recorderRef.current?.stop();
       return;
     }
+    const picked = pickVoiceMime();
+    if (!picked) {
+      toast.error('المتصفح ما بيدعم تسجيل صوت بصيغة يقبلها واتساب');
+      return;
+    }
+    if (picked.ext === 'webm') {
+      toast.error('⚠️ هالمتصفح ما بيدعم صيغة Ogg/Opus اللي يتطلبها واتساب — التسجيل ممكن يوصل "مُرسَل" بس ما يوصل العميل فعلياً. جرّب من Chrome على كمبيوتر إذا أمكن.');
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
-      const rec = new MediaRecorder(stream, { mimeType });
+      const rec = new MediaRecorder(stream, { mimeType: picked.mime });
       chunksRef.current = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        if (blob.size > 0) sendMedia(blob, mimeType.includes('webm') ? 'webm' : 'ogg');
+        const blob = new Blob(chunksRef.current, { type: picked.mime });
+        if (blob.size > 0) sendMedia(blob, picked.ext);
       };
       recorderRef.current = rec;
       rec.start();
@@ -150,8 +178,8 @@ export default function AdminWhatsAppScreen() {
 
       {messages !== null && (
         <div className="flex gap-3 items-start flex-wrap md:flex-nowrap">
-          {/* قائمة المحادثات */}
-          <div className="bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] overflow-y-auto">
+          {/* قائمة المحادثات — على الموبايل تختفي لما تكون محادثة مفتوحة (شاشة وحدة بالمرة، متل أي تطبيق شات) */}
+          <div className={`bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] overflow-y-auto ${openPhone ? 'hidden md:block' : 'block'}`}>
             {threads.length === 0 && (
               <div className="text-muted text-sm py-8 text-center">لا رسائل بعد</div>
             )}
@@ -163,17 +191,24 @@ export default function AdminWhatsAppScreen() {
               >
                 <div className="font-bold text-sm text-text">{t.phone}</div>
                 <div className="text-xs text-muted truncate">
-                  {t.direction === 'out' ? 'أنتم: ' : ''}{(t.body || '').slice(0, 40)}
+                  {t.direction === 'out' ? 'أنتم: ' : ''}
+                  {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
                 </div>
               </div>
             ))}
           </div>
 
           {/* المحادثة المفتوحة */}
-          <div className="bg-surface border border-border/60 rounded-xl flex-1 p-3 flex flex-col max-h-[70vh]">
+          <div className={`bg-surface border border-border/60 rounded-xl flex-1 p-3 flex-col max-h-[70vh] ${openPhone ? 'flex' : 'hidden md:flex'}`}>
             {!openPhone && <div className="text-muted text-sm py-8 text-center">👈 اختر محادثة</div>}
             {openPhone && (
               <>
+                <button
+                  onClick={() => setOpenPhone('')}
+                  className="md:hidden text-xs font-bold text-teal-700 mb-2 self-start"
+                >
+                  ‹ رجوع لكل المحادثات
+                </button>
                 <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2">
                   {thread.map(m => (
                     <div
@@ -193,7 +228,7 @@ export default function AdminWhatsAppScreen() {
                       {m.media_url && !(m.media_content_type || '').startsWith('audio/') && !(m.media_content_type || '').startsWith('image/') && (
                         <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-teal-700 block mb-1">📎 مرفق</a>
                       )}
-                      {m.body}
+                      {formatWaBody(m.body)}
                       <div className="text-[10px] opacity-70 mt-1">
                         {new Date(m.created_at).toLocaleString('ar')}
                         {m.direction === 'out' && m.status ? ` · ${m.status}` : ''}

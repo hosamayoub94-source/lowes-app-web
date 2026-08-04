@@ -100,6 +100,34 @@ const TEMPLATE_SID = {
 
 export { TEMPLATE_SID };
 
+// عرض ودّي لجسم رسالة قالب — الرسائل المُرسَلة بقالب فقط (contentSid بلا body،
+// أغلبها إشعارات حالة الطلب) تُخزَّن كـ"[template:HXxxx] {json}" خام غير
+// مقروء. هاي بترجم SID المعروف لاسم القالب + تعرض قيم {{1}}/{{2}} بشكل نظيف.
+const TEMPLATE_LABELS = {
+  [TEMPLATE_SID.shipped]: '📦 تم شحن الطلب',
+  [TEMPLATE_SID.at_center]: '🏢 الطلب وصل لمركز التوزيع',
+  [TEMPLATE_SID.on_way]: '🚚 الطلب بالطريق',
+  [TEMPLATE_SID.delivered]: '✅ تم تسليم الطلب',
+  [TEMPLATE_SID.cancelled]: '❌ تم إلغاء الطلب',
+  [TEMPLATE_SID.not_received]: '⚠️ العميل أفاد بعدم استلام الطلب',
+  [TEMPLATE_SID.returning]: '↩️ الطلب قيد الإرجاع',
+  [TEMPLATE_SID.promo]: '🌿 رسالة حملة كثافة الشعر (الروزماري)',
+};
+
+export function formatWaBody(body) {
+  if (!body) return '';
+  const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);
+  if (!m) return body;
+  const [, sid, varsJson] = m;
+  const label = TEMPLATE_LABELS[sid] || `قالب معتمَد (${sid.slice(0, 10)}…)`;
+  let vars = {};
+  try { vars = varsJson ? JSON.parse(varsJson) : {}; } catch { /* ignore */ }
+  const parts = [label];
+  if (vars['1']) parts.push(`العميل: ${vars['1']}`);
+  if (vars['2']) parts.push(`رقم الطلب: ${vars['2']}`);
+  return parts.join(' — ');
+}
+
 // إرسال حملة جماعية بقالب معتمَد (contentSid) لعدة أرقام — بمعدل محكوم (delayMs
 // بين كل رسالة) لحماية Quality Rating عند Meta. onProgress(i, total, result)
 // يُستدعى بعد كل محاولة. يرجع { sent, failed, results }.
