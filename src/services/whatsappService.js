@@ -25,15 +25,35 @@ export async function fetchWhatsAppMessages() {
 }
 
 // line: "main" (+13204416777، افتراضي) أو "campaign" (+16195144716، سارة/رودي) — راجع 09_Decision_Register.md § D-016
-export async function sendWhatsAppReply(phone, body, byUser, line = 'main') {
+// media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)
+export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {
   const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
     method: 'POST',
     headers: WA_HEADERS,
-    body: JSON.stringify({ phone, body, byUser, line }),
+    body: JSON.stringify({ phone, body: body || undefined, byUser, line, ...(media || {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر إرسال الرسالة');
   return data;
+}
+
+// يرفع ملف صوت/صورة (Blob) لـbucket عام ويرجع رابطه — تمهيداً لإرساله عبر sendWhatsAppReply.
+// الحد الأقصى العملي حسب واتساب: صوت ~16MB، صورة ~5MB.
+export async function uploadWhatsAppMedia(blob, ext) {
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-upload-media`, {
+    method: 'POST',
+    headers: WA_HEADERS,
+    body: JSON.stringify({ base64, contentType: blob.type, ext }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر رفع الملف');
+  return { mediaUrl: data.url, mediaContentType: data.contentType };
 }
 
 export const WA_LINES = {

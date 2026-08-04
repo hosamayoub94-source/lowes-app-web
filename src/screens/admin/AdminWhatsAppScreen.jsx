@@ -4,10 +4,10 @@
 //   يقرأ/يكتب على جدول whatsapp_messages بمشروع Supabase آخر — راجع
 //   src/services/whatsappService.js لتفاصيل الربط. محميّة admin/manager.
 // =============================================================
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
-import { fetchWhatsAppMessages, sendWhatsAppReply, normalizeWaPhone, WA_LINES } from '@services/whatsappService';
+import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, normalizeWaPhone, WA_LINES } from '@services/whatsappService';
 
 export default function AdminWhatsAppScreen() {
   const { id: userId } = useAuth();
@@ -17,6 +17,10 @@ export default function AdminWhatsAppScreen() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [line, setLine] = useState('main'); // "main" | "campaign" — راجع D-016
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const imageInputRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +74,53 @@ export default function AdminWhatsAppScreen() {
       toast.error(e.message);
     } finally {
       setSending(false);
+    }
+  };
+
+  const sendMedia = async (blob, ext) => {
+    if (!openPhone || !/^\+\d{6,15}$/.test(openPhone)) return;
+    setSending(true);
+    try {
+      const media = await uploadWhatsAppMedia(blob, ext);
+      await sendWhatsAppReply(openPhone, '', userId, line, media);
+      await load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const pickImage = () => imageInputRef.current?.click();
+  const onImageChosen = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    sendMedia(file, file.name.split('.').pop());
+  };
+
+  const toggleRecording = async () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const rec = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        if (blob.size > 0) sendMedia(blob, mimeType.includes('webm') ? 'webm' : 'ogg');
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch (e) {
+      toast.error('تعذّر الوصول للميكروفون: ' + e.message);
     }
   };
 
@@ -151,6 +202,25 @@ export default function AdminWhatsAppScreen() {
                   ))}
                 </div>
                 <div className="flex gap-2">
+                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={onImageChosen} />
+                  <button
+                    onClick={pickImage}
+                    disabled={sending || recording}
+                    title="إرسال صورة"
+                    className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
+                  >
+                    📷
+                  </button>
+                  <button
+                    onClick={toggleRecording}
+                    disabled={sending}
+                    title={recording ? 'إيقاف وإرسال التسجيل' : 'تسجيل رسالة صوتية'}
+                    className={`border rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50 ${
+                      recording ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-border/60'
+                    }`}
+                  >
+                    {recording ? '⏹️' : '🎙️'}
+                  </button>
                   <input
                     className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
                     placeholder="اكتب رد…"
@@ -162,11 +232,11 @@ export default function AdminWhatsAppScreen() {
                         send();
                       }
                     }}
-                    disabled={sending}
+                    disabled={sending || recording}
                   />
                   <button
                     onClick={send}
-                    disabled={sending || !draft.trim()}
+                    disabled={sending || recording || !draft.trim()}
                     className="bg-teal text-navy rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal/90 disabled:opacity-50"
                   >
                     {sending ? '…' : 'إرسال'}
