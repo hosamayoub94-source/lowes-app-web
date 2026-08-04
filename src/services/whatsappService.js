@@ -56,9 +56,25 @@ export async function uploadWhatsAppMedia(blob, ext) {
   return { mediaUrl: data.url, mediaContentType: data.contentType };
 }
 
+// خط "campaign" (+16195144716) مُزال مؤقتاً من الواجهة — الرقم لم يكتمل
+// تسجيله كـWhatsApp Sender فعلياً على Twilio (راجع 09_Decision_Register.md
+// § D-016، تصحيح 4-5 آب 2026)، فأي محاولة إرسال عليه تفشل بخطأ Twilio
+// "could not find a Channel". يُعاد لما يُسجَّل رقم فعلي.
+// يحذف كل تاريخ محادثة رقم مُعيَّن من عرضنا المحلي فقط (سجلات Twilio نفسها
+// تبقى، هذا فقط "حذف محادثة" متل أي تطبيق شات عادي).
+export async function deleteWhatsAppConversation(phone, toNumber) {
+  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
+    method: 'POST',
+    headers: WA_HEADERS,
+    body: JSON.stringify({ phone, toNumber }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر حذف المحادثة');
+  return data;
+}
+
 export const WA_LINES = {
   main: { number: '+13204416777', label: 'الرقم الرئيسي' },
-  campaign: { number: '+16195144716', label: 'خط الحملة (سارة/رودي)' },
 };
 
 export function normalizeWaPhone(raw) {

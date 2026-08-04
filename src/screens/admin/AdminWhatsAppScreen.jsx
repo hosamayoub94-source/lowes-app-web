@@ -7,7 +7,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
-import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, normalizeWaPhone, formatWaBody, WA_LINES } from '@services/whatsappService';
+import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, deleteWhatsAppConversation, normalizeWaPhone, formatWaBody, WA_LINES } from '@services/whatsappService';
+
+const MAIN_LINE = 'main'; // خط وحيد فعلياً حالياً — راجع WA_LINES
 
 // واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
 // invalid content error) — تأكَّد هذا حياً: حتى MediaRecorder بصيغة
@@ -40,13 +42,15 @@ export default function AdminWhatsAppScreen() {
   const [openPhone, setOpenPhone] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [line, setLine] = useState('main'); // "main" | "campaign" — راجع D-016
+  const line = MAIN_LINE; // خط وحيد فعلياً حالياً (خط الحملة مُزال — راجع D-016)
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef(null);
   const imageInputRef = useRef(null);
   const autoOpenedRef = useRef(false); // يفتح أول محادثة تلقائياً مرة وحدة بس — لا يعيد فتحها بعد ما يضغط المستخدم "رجوع"
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
+  const [search, setSearch] = useState('');
+  const [deletingPhone, setDeletingPhone] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -82,7 +86,11 @@ export default function AdminWhatsAppScreen() {
     }
   }, [threads, openPhone]);
 
-  const switchLine = (l) => { setLine(l); setOpenPhone(''); autoOpenedRef.current = false; };
+  const filteredThreads = useMemo(() => {
+    const q = search.trim().replace(/[^\d+]/g, '');
+    if (!q) return threads;
+    return threads.filter(t => t.phone.includes(q));
+  }, [threads, search]);
 
   const thread = useMemo(
     () => (lineMsgs || [])
@@ -168,6 +176,21 @@ export default function AdminWhatsAppScreen() {
     setNewChatPhone('');
   };
 
+  const deleteThread = async (phone, e) => {
+    e.stopPropagation(); // ما يفتح المحادثة عند الضغط على زر الحذف
+    if (!window.confirm(`حذف كل محادثة ${phone}؟ ما بينحذف من سجلات Twilio، بس بيختفي من هون.`)) return;
+    setDeletingPhone(phone);
+    try {
+      await deleteWhatsAppConversation(phone, WA_LINES[line].number);
+      if (openPhone === phone) setOpenPhone('');
+      await load();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setDeletingPhone('');
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
@@ -177,17 +200,9 @@ export default function AdminWhatsAppScreen() {
       <p className="text-xs text-muted">الرسائل الواردة والصادرة عبر أرقام لوويز الرسمية.</p>
 
       <div className="flex gap-2 items-center flex-wrap">
-        {Object.entries(WA_LINES).map(([key, l]) => (
-          <button
-            key={key}
-            onClick={() => switchLine(key)}
-            className={`text-xs font-bold rounded-lg px-3 py-1.5 border ${
-              line === key ? 'bg-teal text-navy border-teal' : 'bg-surface text-text border-border/60'
-            }`}
-          >
-            {l.label}
-          </button>
-        ))}
+        <span className="text-xs font-bold rounded-lg px-3 py-1.5 bg-teal/10 text-teal-700">
+          {WA_LINES[line].label} · {WA_LINES[line].number}
+        </span>
         <button
           onClick={() => setNewChatOpen(v => !v)}
           className="text-xs font-bold rounded-lg px-3 py-1.5 border border-border/60 bg-surface text-text"
@@ -220,23 +235,46 @@ export default function AdminWhatsAppScreen() {
       {messages !== null && (
         <div className="flex gap-3 items-start flex-wrap md:flex-nowrap">
           {/* قائمة المحادثات — على الموبايل تختفي لما تكون محادثة مفتوحة (شاشة وحدة بالمرة، متل أي تطبيق شات) */}
-          <div className={`bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] overflow-y-auto ${openPhone ? 'hidden md:block' : 'block'}`}>
-            {threads.length === 0 && (
-              <div className="text-muted text-sm py-8 text-center">لا رسائل بعد</div>
-            )}
-            {threads.map(t => (
-              <div
-                key={t.phone}
-                onClick={() => setOpenPhone(t.phone)}
-                className={`px-3 py-2 border-b border-border/40 cursor-pointer ${t.phone === openPhone ? 'bg-teal/10' : ''}`}
-              >
-                <div className="font-bold text-sm text-text">{t.phone}</div>
-                <div className="text-xs text-muted truncate">
-                  {t.direction === 'out' ? 'أنتم: ' : ''}
-                  {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
+          <div className={`bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] flex flex-col ${openPhone ? 'hidden md:flex' : 'flex'}`}>
+            <div className="p-2 border-b border-border/40 shrink-0">
+              <input
+                className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
+                placeholder="🔍 بحث برقم الهاتف…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                dir="ltr"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filteredThreads.length === 0 && (
+                <div className="text-muted text-sm py-8 text-center">
+                  {threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
                 </div>
-              </div>
-            ))}
+              )}
+              {filteredThreads.map(t => (
+                <div
+                  key={t.phone}
+                  onClick={() => setOpenPhone(t.phone)}
+                  className={`group px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2 ${t.phone === openPhone ? 'bg-teal/10' : ''}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-text" dir="ltr">{t.phone}</div>
+                    <div className="text-xs text-muted truncate">
+                      {t.direction === 'out' ? 'أنتم: ' : ''}
+                      {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => deleteThread(t.phone, e)}
+                    disabled={deletingPhone === t.phone}
+                    title="حذف المحادثة"
+                    className="text-muted hover:text-red-500 opacity-60 hover:opacity-100 text-sm shrink-0 disabled:opacity-30"
+                  >
+                    {deletingPhone === t.phone ? '…' : '🗑️'}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* المحادثة المفتوحة */}
@@ -244,12 +282,23 @@ export default function AdminWhatsAppScreen() {
             {!openPhone && <div className="text-muted text-sm py-8 text-center">👈 اختر محادثة</div>}
             {openPhone && (
               <>
-                <button
-                  onClick={() => setOpenPhone('')}
-                  className="md:hidden text-xs font-bold text-teal-700 mb-2 self-start"
-                >
-                  ‹ رجوع لكل المحادثات
-                </button>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-border/40 shrink-0">
+                  <button
+                    onClick={() => setOpenPhone('')}
+                    className="md:hidden text-xs font-bold text-teal-700"
+                  >
+                    ‹ رجوع
+                  </button>
+                  <div className="font-bold text-sm text-text hidden md:block" dir="ltr">{openPhone}</div>
+                  <button
+                    onClick={(e) => deleteThread(openPhone, e)}
+                    disabled={deletingPhone === openPhone}
+                    title="حذف المحادثة"
+                    className="text-muted hover:text-red-500 text-sm disabled:opacity-30"
+                  >
+                    {deletingPhone === openPhone ? '…' : '🗑️ حذف'}
+                  </button>
+                </div>
                 <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2">
                   {thread.map(m => (
                     <div
