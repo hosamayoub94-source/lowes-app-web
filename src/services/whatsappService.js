@@ -105,7 +105,10 @@ export async function sendBulkCampaign(customers, contentSid, { delayMs = 2500, 
       const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
         method: 'POST',
         headers: WA_HEADERS,
-        body: JSON.stringify({ phone, contentSid, byUser: 'bulk-campaign' }),
+        body: JSON.stringify({
+          phone, contentSid, byUser: 'bulk-campaign',
+          contentVariables: { '1': c.name || 'عميلتنا العزيزة' },
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || 'فشل الإرسال');
