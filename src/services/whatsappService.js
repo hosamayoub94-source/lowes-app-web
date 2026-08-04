@@ -70,11 +70,12 @@ const TEMPLATE_SID = {
   cancelled: 'HXfdc8e012f3c36d9110ffd5b0efd49d52',
   not_received: 'HXf58a03f83c7adceeac99f32a6a26c29f',
   returning: 'HX1b3f03e35175ea655ed9d50930b9b228',
-  // ⚠️ قالب تسويقي قديم مُعطَّل عمداً — اسم "سارة" مكتوب حرفياً بالمحتوى
-  // بدل متغيّر {{1}} (خطأ بالتقديم الأصلي لـMeta)، وبلا صورة ولا رابط.
-  // راجع 09_Decision_Register.md § D-016 قبل إعادة تفعيله. القالب البديل
-  // (صورة مجموعة الروزماري + خصم 30% + زر رابط) قيد التقديم لموافقة Meta.
-  // promo: 'HX097985042059f814bbb32c20bfe98baf',
+  // قالب تسويقي v2 (صورة مجموعة الروزماري + متغيّر {{1}} حقيقي + خصم 30%
+  // لأسبوع + زر رابط للموقع) — قُدِّم لموافقة Meta (Marketing) 4 أغسطس 2026.
+  // القالب القديم (اسم "سارة" ثابت بلا متغيّر) بقي معطَّلاً نهائياً — راجع
+  // 09_Decision_Register.md § D-016. لا تُرسِل بهذا الـSID قبل تأكيد
+  // "WhatsApp approval status: Approved" على Twilio Console.
+  promo: 'HX4d52ece94bded9cd1a0bc58d12d7cd0e',
 };
 
 export { TEMPLATE_SID };
