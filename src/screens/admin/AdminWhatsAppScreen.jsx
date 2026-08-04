@@ -133,6 +133,15 @@ export default function AdminWhatsAppScreen() {
                           : 'self-start bg-border/30 text-text'
                       }`}
                     >
+                      {m.media_url && (m.media_content_type || '').startsWith('audio/') && (
+                        <audio controls src={m.media_url} className="max-w-full mb-1" />
+                      )}
+                      {m.media_url && (m.media_content_type || '').startsWith('image/') && (
+                        <img src={m.media_url} alt="" className="max-w-full rounded-lg mb-1" />
+                      )}
+                      {m.media_url && !(m.media_content_type || '').startsWith('audio/') && !(m.media_content_type || '').startsWith('image/') && (
+                        <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-teal-700 block mb-1">📎 مرفق</a>
+                      )}
                       {m.body}
                       <div className="text-[10px] opacity-70 mt-1">
                         {new Date(m.created_at).toLocaleString('ar')}
