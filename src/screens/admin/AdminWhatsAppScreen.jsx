@@ -9,21 +9,28 @@ import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia, normalizeWaPhone, formatWaBody, WA_LINES } from '@services/whatsappService';
 
-// واتساب (Meta) ما بيقبل صوت WhatsApp Voice Note شغّال إلا Ogg/Opus — أي
-// صيغة تانية (مثل webm الافتراضي بكروم) ممكن توصل الـTwilio API "queued"
-// بلا أي خطأ ظاهر، بس تنرفض بصمت من طرف واتساب ولا توصل العميل إطلاقاً.
-// نجرّب الصيغ المدعومة بالمتصفح بالترتيب الأفضل لواتساب أولاً.
-const VOICE_MIME_CANDIDATES = [
-  { mime: 'audio/ogg;codecs=opus', ext: 'ogg' },
-  { mime: 'audio/mp4', ext: 'mp4' },
-  { mime: 'audio/webm;codecs=opus', ext: 'webm' },
-  { mime: 'audio/webm', ext: 'webm' },
-];
-function pickVoiceMime() {
-  for (const c of VOICE_MIME_CANDIDATES) {
-    if (window.MediaRecorder?.isTypeSupported?.(c.mime)) return c;
+// واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
+// invalid content error) — تأكَّد هذا حياً: حتى MediaRecorder بصيغة
+// audio/mp4 "الافتراضية" بكروم رجعت نفس الخطأ (الحاوية/الترميز الناتج مش
+// مطابق تماماً لما يتوقعه واتساب). المتصفح نفسه ما بيقدر يسجّل Ogg/Opus
+// حقيقي بشكل موثوق عبر MediaRecorder — لازم Encoder مخصَّص. نحمّل مكتبة
+// opus-recorder (WASM Opus encoder حقيقي، يطلع ملف .ogg سليم 100%) من CDN
+// عند أول استخدام بدل ما نضيفها كـdependency تحتاج build.
+const OPUS_RECORDER_JS = 'https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/recorder.min.js';
+const OPUS_ENCODER_WORKER = 'https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/encoderWorker.min.js';
+let opusRecorderPromise = null;
+function loadOpusRecorder() {
+  if (window.Recorder) return Promise.resolve(window.Recorder);
+  if (!opusRecorderPromise) {
+    opusRecorderPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = OPUS_RECORDER_JS;
+      s.onload = () => resolve(window.Recorder);
+      s.onerror = () => reject(new Error('تعذّر تحميل مكتبة تسجيل الصوت'));
+      document.head.appendChild(s);
+    });
   }
-  return null;
+  return opusRecorderPromise;
 }
 
 export default function AdminWhatsAppScreen() {
@@ -36,9 +43,10 @@ export default function AdminWhatsAppScreen() {
   const [line, setLine] = useState('main'); // "main" | "campaign" — راجع D-016
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
   const imageInputRef = useRef(null);
   const autoOpenedRef = useRef(false); // يفتح أول محادثة تلقائياً مرة وحدة بس — لا يعيد فتحها بعد ما يضغط المستخدم "رجوع"
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -125,31 +133,39 @@ export default function AdminWhatsAppScreen() {
       recorderRef.current?.stop();
       return;
     }
-    const picked = pickVoiceMime();
-    if (!picked) {
-      toast.error('المتصفح ما بيدعم تسجيل صوت بصيغة يقبلها واتساب');
-      return;
-    }
-    if (picked.ext === 'webm') {
-      toast.error('⚠️ هالمتصفح ما بيدعم صيغة Ogg/Opus اللي يتطلبها واتساب — التسجيل ممكن يوصل "مُرسَل" بس ما يوصل العميل فعلياً. جرّب من Chrome على كمبيوتر إذا أمكن.');
-    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream, { mimeType: picked.mime });
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
+      const Recorder = await loadOpusRecorder();
+      const rec = new Recorder({
+        encoderPath: OPUS_ENCODER_WORKER,
+        streamPages: false, // false = ملف .ogg واحد كامل عند stop()، لا Streaming
+        numberOfChannels: 1,
+        encoderSampleRate: 16000, // كافٍ لصوت بشري، حجم ملف أصغر
+      });
+      rec.onstart = () => setRecording(true);
+      rec.ondataavailable = (arrayBuffer) => {
         setRecording(false);
-        const blob = new Blob(chunksRef.current, { type: picked.mime });
-        if (blob.size > 0) sendMedia(blob, picked.ext);
+        const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
+        if (blob.size > 0) sendMedia(blob, 'ogg');
       };
       recorderRef.current = rec;
-      rec.start();
-      setRecording(true);
+      await rec.start();
     } catch (e) {
+      setRecording(false);
       toast.error('تعذّر الوصول للميكروفون: ' + e.message);
     }
+  };
+
+  const startNewChat = () => {
+    let p = newChatPhone.replace(/[^\d+]/g, '');
+    if (p.startsWith('00')) p = '+' + p.slice(2);
+    if (!p.startsWith('+')) p = '+' + p;
+    if (!/^\+\d{6,15}$/.test(p)) {
+      toast.error('رقم غير صالح — لازم يبدأ بكود الدولة (مثال: 905551234567)');
+      return;
+    }
+    setOpenPhone(p);
+    setNewChatOpen(false);
+    setNewChatPhone('');
   };
 
   return (
@@ -160,7 +176,7 @@ export default function AdminWhatsAppScreen() {
       </div>
       <p className="text-xs text-muted">الرسائل الواردة والصادرة عبر أرقام لوويز الرسمية.</p>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center flex-wrap">
         {Object.entries(WA_LINES).map(([key, l]) => (
           <button
             key={key}
@@ -172,7 +188,32 @@ export default function AdminWhatsAppScreen() {
             {l.label}
           </button>
         ))}
+        <button
+          onClick={() => setNewChatOpen(v => !v)}
+          className="text-xs font-bold rounded-lg px-3 py-1.5 border border-border/60 bg-surface text-text"
+        >
+          ＋ محادثة جديدة
+        </button>
       </div>
+
+      {newChatOpen && (
+        <div className="flex gap-2 bg-surface border border-border/60 rounded-xl p-2">
+          <input
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
+            placeholder="رقم بكود الدولة (مثال: 905551234567)"
+            value={newChatPhone}
+            onChange={(e) => setNewChatPhone(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') startNewChat(); }}
+            dir="ltr"
+          />
+          <button
+            onClick={startNewChat}
+            className="bg-teal text-navy rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal/90"
+          >
+            بدء
+          </button>
+        </div>
+      )}
 
       {messages === null && <div className="text-muted text-sm py-8 text-center">⏳ جارٍ التحميل…</div>}
 
