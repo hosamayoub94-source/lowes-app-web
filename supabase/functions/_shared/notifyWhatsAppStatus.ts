@@ -30,6 +30,14 @@ const TEMPLATE_SID: Record<string, string> = {
   returning: "HX1b3f03e35175ea655ed9d50930b9b228",
 };
 
+// ⏳ قالب "طلب فيديو فتح الطرد" — يُرسَل بعد رسالة التسليم مباشرة، نفس منطق
+// whatsappService.js (lowes-app-web) — راجعها لو عدّلت هون، النسختان لازم
+// تتزامنا. بلا أي ذكر لسياسة استرجاع (لا يوجد سياسة رسمية موثَّقة بعد —
+// طلب مالك 6 أغسطس 2026). SID قُدِّم لموافقة Meta 6 أغسطس 2026 (status:
+// received). **لا تُفعَّل قبل تأكيد الموافقة.**
+const UNBOXING_VIDEO_SID = "HX7a1399acb1734201f34faec6a8152559";
+const UNBOXING_VIDEO_READY = false;
+
 // يطبّع رقم الهاتف المحلي (سوري/تركي، غالباً يبدأ بصفر) لصيغة دولية +E.164.
 function normalizePhone(raw: string | null | undefined, market: string | null | undefined): string | null {
   if (!raw) return null;
@@ -62,6 +70,13 @@ export async function notifyWhatsAppStatus(order: OrderForWhatsApp, newStatus: s
       headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ phone, contentSid, contentVariables: { "1": name, "2": orderNo } }),
     });
+    if (newStatus === "delivered" && UNBOXING_VIDEO_READY) {
+      await fetch(WA_PROJECT_URL, {
+        method: "POST",
+        headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, contentSid: UNBOXING_VIDEO_SID, contentVariables: { "1": name, "2": orderNo } }),
+      });
+    }
   } catch {
     /* best-effort — لا نوقف تحديث الحالة الأصلي مهما حصل */
   }

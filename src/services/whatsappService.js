@@ -509,6 +509,36 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
   } catch {
     /* best-effort — لا نوقف تحديث الحالة الأصلي مهما حصل */
   }
+  if (newStatus === 'delivered') sendUnboxingVideoRequest(order);
+}
+
+// ⏳ قالب "طلب فيديو فتح الطرد" — يُرسَل بعد رسالة التسليم مباشرة. **بلا أي**
+// **ذكر لسياسة استرجاع محدَّدة** (لا يوجد سياسة رسمية موثَّقة وقت الكتابة —
+// طلب مالك صريح 6 أغسطس 2026: لا تُضَف معلومة غير موجودة) — فقط طلب توثيق
+// فتح الطرد بفيديو لحفظ حق العميل. قُدِّم لموافقة Meta 6 أغسطس 2026 (status:
+// received، SID: HX7a1399acb1734201f34faec6a8152559). **لا تُفعَّل قبل تأكيد**
+// **الموافقة** — بدّل UNBOXING_VIDEO_READY لـtrue فقط بعدها.
+const UNBOXING_VIDEO_SID = 'HX7a1399acb1734201f34faec6a8152559';
+const UNBOXING_VIDEO_READY = false;
+
+async function sendUnboxingVideoRequest(order) {
+  if (!UNBOXING_VIDEO_READY) return;
+  try {
+    const phone = normalizeLocalPhone(order?.phone_1, order?.market);
+    if (!phone) return;
+    const name = order?.customer_name || 'عميلنا العزيز';
+    const orderNo = String(order?.order_id ?? order?.id ?? '');
+    await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
+      method: 'POST',
+      headers: WA_HEADERS,
+      body: JSON.stringify({
+        phone, contentSid: UNBOXING_VIDEO_SID,
+        contentVariables: { '1': name, '2': orderNo },
+      }),
+    });
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ⏳ قالب "استلام الطلب" — تأكيد فوري عند إنشاء الطلب (مختلف عن إشعارات
