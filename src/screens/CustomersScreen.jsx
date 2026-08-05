@@ -159,6 +159,14 @@ function CustomerModal({ c, sellerName, onClose }) {
   const waSend  = customerWaLink(c.phone, mkt, msg);
   const waPlain = customerWaLink(c.phone, mkt);
 
+  // واتساب الاستهلاكي (wa.me) بيفتح تطبيق واتساب الشخصي عالموبايل — ما عنا
+  // API ولا webhook نقرأ منه أي شي (رد العميل يضل غير مرئي كلياً)، بس أقل
+  // شي نوثّق إنه تواصل صار أصلاً + شو كان نص الرسالة، بدل ما يضيع بلا أثر.
+  const logConsumerWaOutreach = (withMessage) => {
+    const note = withMessage ? `📱 واتساب: ${msg}` : '📱 فتح محادثة واتساب فارغة';
+    addNote(c.phone_key, note, sellerName).then(n => setNotes(p => [n, ...p])).catch(() => {});
+  };
+
   // زر "فتح شات واتساب الرسمي" — يفتح/يطالب بملكية المحادثة بشاشة
   // /admin/whatsapp (نفس الموظف يضل صاحبها بعدين). القناة الرسمية محظورة
   // كلياً على سوريا (D-022، خطأ Twilio 21408) — الزر يظهر بس لتركيا.
@@ -307,14 +315,14 @@ function CustomerModal({ c, sellerName, onClose }) {
             )}
             <div className="flex gap-2">
               {waSend && (
-                <a href={waSend} target="_blank" rel="noreferrer"
+                <a href={waSend} target="_blank" rel="noreferrer" onClick={() => logConsumerWaOutreach(true)}
                   className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition"
                   style={{ background: '#25D366' }}>
                   <WaIcon /> إرسال واتساب
                 </a>
               )}
               {waPlain && (
-                <a href={waPlain} target="_blank" rel="noreferrer"
+                <a href={waPlain} target="_blank" rel="noreferrer" onClick={() => logConsumerWaOutreach(false)}
                   className="px-4 py-2.5 rounded-xl bg-green-bg text-green-fg text-sm font-bold flex items-center justify-center hover:opacity-80 transition">
                   محادثة فارغة
                 </a>
