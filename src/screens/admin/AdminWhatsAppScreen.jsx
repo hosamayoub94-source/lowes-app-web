@@ -6,6 +6,7 @@
 //   محميّة admin/manager.
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES } from '@data/teams';
@@ -49,6 +50,7 @@ function normalizePhoneInput(raw) {
 
 export default function AdminWhatsAppScreen() {
   const { id: userId, name: userName, role } = useAuth();
+  const location = useLocation();
   const isManager = role === ROLES.ADMIN || role === ROLES.MANAGER; // يشوفوا كل المحادثات — الباقي يشوفوا بس محادثاتهم
   const toast = useToast();
   const [messages, setMessages] = useState(null); // null = لسا ما حمّل
@@ -83,9 +85,11 @@ export default function AdminWhatsAppScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // فتح محادثة جاي من مكان تاني بالتطبيق (زر "فتح شات واتساب" بشاشة العميل) —
-  // ?open=+905551234567 — يفتحها ويسجّل الموظف الحالي مالكاً لها لو ما كان
-  // فيها مالك أصلاً.
+  // فتح محادثة جاي من مكان تاني بالتطبيق (زر "فتح شات واتساب الرسمي" بشاشة
+  // العميل) — ?open=+905551234567 — يفتحها ويسجّل الموظف الحالي مالكاً لها
+  // لو ما كان فيها مالك أصلاً. لو وصلت رسالة "لوزي" الجاهزة معه (state.prefill
+  // — نفس الرسالة المكتوبة أصلاً لصندوق الواتساب العادي) بتتعبّى بصندوق الرد
+  // تلقائياً، بدل ما الموظف يعيد كتابتها من الصفر.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get('open');
     if (!p) return;
@@ -93,6 +97,7 @@ export default function AdminWhatsAppScreen() {
     if (/^\+\d{6,15}$/.test(norm)) {
       setOpenPhone(norm);
       autoOpenedRef.current = true;
+      if (location.state?.prefill) setDraft(location.state.prefill);
       claimWhatsAppConversation(norm, WA_LINES[MAIN_LINE].number, userId, userName).then(load).catch(() => {});
     }
     const url = new URL(window.location.href);

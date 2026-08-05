@@ -162,7 +162,9 @@ function CustomerModal({ c, sellerName, onClose }) {
     const digits = phoneKey(c.phone)?.replace(/^0+/, '');
     if (!digits) return;
     const full = digits.startsWith('90') ? digits : '90' + digits;
-    navigate(`/admin/whatsapp?open=${encodeURIComponent('+' + full)}`);
+    // بتاخد نفس رسالة "لوزي تكتب" (msg) اللي مكتوبة بالصندوق فوق — نفس الرسالة
+    // اللي كان لازم تُنسَخ يدوياً للواتساب العادي هلق تنفتح جاهزة بالرسمي.
+    navigate(`/admin/whatsapp?open=${encodeURIComponent('+' + full)}`, { state: { prefill: msg } });
   };
 
   return (
