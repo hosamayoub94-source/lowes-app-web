@@ -56,7 +56,26 @@ export async function claimWhatsAppConversation(phone, toNumber, ownerId, ownerN
   return res.json();
 }
 
-// line: "main" (+13204416777، افتراضي) أو "campaign" (+16195144716، سارة/رودي) — راجع 09_Decision_Register.md § D-016
+// إعادة تعيين مالك محادثة (أدمن/مدير فقط بالواجهة) — بعكس claimWhatsAppConversation
+// (يتجاهل التكرار)، هاي تفرض المالك الجديد فعلياً حتى لو المحادثة مملوكة
+// لحدا تاني. الحاجة الحقيقية: موظف عادي (مو أدمن) يفتح "+ محادثة جديدة"
+// برقم عنده مالك أصلاً فتنقفل بوجهه بلا أي طريقة تحويلها إله — اكتُشف
+// 5 أغسطس 2026 (ديانا حاولت تفتح محادثة hosam ayoub، انقفلت بوجهها).
+export async function setWhatsAppConversationOwner(phone, toNumber, ownerId, ownerName) {
+  const res = await fetch(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_conversation_owners?on_conflict=phone,to_number`,
+    {
+      method: 'POST',
+      headers: { ...WA_HEADERS, Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ phone, to_number: toNumber, owner_id: ownerId, owner_name: ownerName || null }),
+    },
+  );
+  if (!res.ok) throw new Error('تعذّر تحويل ملكية المحادثة');
+  return res.json();
+}
+
+// line: "main" (+13204416777، الرقم الوحيد الشغّال فعلياً حالياً) — الرقم
+// التاني ("campaign") لسا معطَّل عند Twilio (خطأ 63110)، راجع HANDOFF.
 // media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)
 export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {
   const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {

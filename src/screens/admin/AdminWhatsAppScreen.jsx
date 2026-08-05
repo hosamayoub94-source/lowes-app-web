@@ -13,11 +13,12 @@ import { ROLES } from '@data/teams';
 import {
   fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
-  fetchWhatsAppOwners, claimWhatsAppConversation,
+  fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
 } from '@services/whatsappService';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
+import { listActiveProfiles } from '@services/authService';
 
 const MAIN_LINE = 'main'; // خط وحيد فعلياً حالياً — راجع WA_LINES
 
@@ -162,6 +163,9 @@ export default function AdminWhatsAppScreen() {
   const [view, setView] = useState('chat'); // 'chat' | 'analytics'
   const [trackingOrder, setTrackingOrder] = useState(null); // آخر طلب حقيقي لصاحب المحادثة المفتوحة (لرسالة رابط التتبع)
   const [trackingBannerOpen, setTrackingBannerOpen] = useState(true);
+  const [employees, setEmployees] = useState([]); // لقائمة "تغيير المسؤول" — أدمن/مدير فقط
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
   const bottomRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -175,6 +179,13 @@ export default function AdminWhatsAppScreen() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // موظفين نشطين — لقائمة "تغيير المسؤول" (سبب الحاجة: موظف عادي فتح محادثة
+  // مملوكة لحدا تاني فانقفلت بوجهه بلا أي طريقة يحوّلها إله — 5 أغسطس 2026).
+  useEffect(() => {
+    if (!isManager) return;
+    listActiveProfiles().then(setEmployees).catch(() => {});
+  }, [isManager]);
 
   // فتح محادثة جاي من مكان تاني بالتطبيق (زر "فتح شات واتساب الرسمي" بشاشة
   // العميل) — ?open=+905551234567 — يفتحها ويسجّل الموظف الحالي مالكاً لها
@@ -266,6 +277,7 @@ export default function AdminWhatsAppScreen() {
 
   useEffect(() => {
     setTrackingBannerOpen(true);
+    setReassignOpen(false);
     if (!openPhone || !openIsTracking) { setTrackingOrder(null); return; }
     getLatestOrderForWaPhone(openPhone).then(setTrackingOrder).catch(() => setTrackingOrder(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,6 +436,21 @@ export default function AdminWhatsAppScreen() {
     }
   };
 
+  const reassignOwner = async (emp) => {
+    if (!openPhone) return;
+    setReassigning(true);
+    try {
+      await setWhatsAppConversationOwner(openPhone, WA_LINES[line].number, emp.id, emp.employee_name);
+      setReassignOpen(false);
+      await load();
+      toast.success(`صارت المحادثة عند ${emp.employee_name}`);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   const renderThreadRow = (t) => (
     <div
       key={t.phone}
@@ -556,7 +583,16 @@ export default function AdminWhatsAppScreen() {
                     ‹ رجوع
                   </button>
                   <div className="font-bold text-sm text-text hidden md:block" dir="ltr">{openPhone}</div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isManager && (
+                      <button
+                        onClick={() => setReassignOpen(v => !v)}
+                        title="تحويل هاي المحادثة لموظف/ة تانية"
+                        className="text-muted hover:text-teal-700 text-xs font-bold"
+                      >
+                        👤 {ownerByPhone[openPhone]?.owner_name ? `عند ${ownerByPhone[openPhone].owner_name} — تغيير` : 'بلا مسؤول — تعيين'}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setTransferOpen(v => !v); setTransferPhone(''); }}
                       title="نقل المحادثة لرقم آخر"
@@ -574,6 +610,26 @@ export default function AdminWhatsAppScreen() {
                     </button>
                   </div>
                 </div>
+
+                {reassignOpen && (
+                  <div className="flex flex-wrap gap-1.5 mb-2 bg-border/10 rounded-lg p-2 max-h-32 overflow-y-auto">
+                    {employees.length === 0 ? (
+                      <span className="text-xs text-muted">⏳ جارٍ تحميل الموظفين…</span>
+                    ) : employees.map(emp => (
+                      <button
+                        key={emp.id}
+                        onClick={() => reassignOwner(emp)}
+                        disabled={reassigning}
+                        className={`text-xs font-bold px-2 py-1 rounded-lg border transition disabled:opacity-40 ${
+                          ownerByPhone[openPhone]?.owner_id === emp.id
+                            ? 'border-teal bg-teal text-navy' : 'border-border/60 text-text hover:bg-teal/10'
+                        }`}
+                      >
+                        {emp.employee_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {transferOpen && (
                   <div className="flex gap-2 mb-2 bg-border/10 rounded-lg p-2">
