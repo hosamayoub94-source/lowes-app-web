@@ -5,6 +5,8 @@
 // lowes-classic. القيمتان تحت public anon key عام (غير سرّي)، لا Twilio secrets هون.
 // أُنشئ 1 أغسطس 2026.
 // =============================================================
+import { supabase } from './supabase';
+
 export const WA_PROJECT_URL = 'https://kesoqnwyydycuyifqfhl.supabase.co';
 const WA_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtlc29xbnd5eWR5Y3V5aWZxZmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjQzMDMsImV4cCI6MjA5NDUwMDMwM30.7muMlaq4MhWdJicSqzupLBZqTvaLbhWjieQuaQvCvBg';
@@ -239,7 +241,14 @@ export function formatWaBody(body) {
 // ⚠️ استدعِ هاي الدالة فقط لأسواق غير سوريا — واتساب الرسمي محظور كلياً على
 // +963 (خطأ Twilio 21408، قيد منصّة على مستوى الحساب — راجع D-022). الفلترة
 // مسؤولية الطرف المستدعي (CustomersScreen يستبعد section === 'syria').
-export async function sendBulkCampaign(customers, contentSid, { delayMs = 2500, onProgress } = {}) {
+//
+// campaignKey/campaignLabel: تُسجَّل كل محاولة (نجحت أو فشلت) بجدول
+// campaign_sends (مشروعنا الرئيسي، لا مشروع واتساب) — بدونه ما في طريقة
+// نعرف "مين استلم حملة كذا" لاحقاً ولا نستبعد المُرسَل لهم من حملة جاية
+// (اكتُشفت الفجوة 5 أغسطس 2026 لما المالك سأل "مين ارسلتلهم ومين لأ").
+export async function sendBulkCampaign(customers, contentSid, {
+  delayMs = 2500, onProgress, campaignKey = null, campaignLabel = null, sentBy = null,
+} = {}) {
   const results = [];
   let sent = 0, failed = 0;
   for (let i = 0; i < customers.length; i++) {
@@ -272,10 +281,43 @@ export async function sendBulkCampaign(customers, contentSid, { delayMs = 2500, 
       failed++;
     }
     results.push(result);
+    if (campaignKey) {
+      supabase.from('campaign_sends').insert({
+        campaign_key: campaignKey, campaign_label: campaignLabel, template_sid: contentSid,
+        phone_key: c.phone_key || null, customer_name: c.name || null, market: 'turkey',
+        sent_by: sentBy || null, status: result.ok ? 'sent' : 'failed',
+      }).then(() => {}, () => {}); // best-effort — لا يوقف الحملة لو فشل التسجيل
+    }
     onProgress?.(i + 1, customers.length, result);
     if (i < customers.length - 1) await new Promise(r => setTimeout(r, delayMs));
   }
   return { sent, failed, results };
+}
+
+// أرقام (phone_key) استلمت حملة معيّنة سابقاً — لفلترة "استبعد المُرسَل لهم"
+// ولوسم بطاقة العميل بشارة. status='sent' فقط (محاولة فاشلة لا تُعدّ استلاماً).
+export async function getCampaignSentPhones(campaignKey) {
+  if (!campaignKey) return new Set();
+  const { data } = await supabase
+    .from('campaign_sends')
+    .select('phone_key')
+    .eq('campaign_key', campaignKey)
+    .eq('status', 'sent');
+  return new Set((data ?? []).map(r => r.phone_key).filter(Boolean));
+}
+
+// سجل حملات مختصر (للوحة صغيرة) — عدد المُرسَل/الفاشل وآخر إرسال، حسب campaign_key.
+export async function getCampaignStats(campaignKey) {
+  if (!campaignKey) return { sent: 0, failed: 0, lastSentAt: null };
+  const { data } = await supabase
+    .from('campaign_sends')
+    .select('status, sent_at')
+    .eq('campaign_key', campaignKey);
+  const rows = data ?? [];
+  const sent = rows.filter(r => r.status === 'sent').length;
+  const failed = rows.filter(r => r.status === 'failed').length;
+  const lastSentAt = rows.reduce((max, r) => (!max || r.sent_at > max) ? r.sent_at : max, null);
+  return { sent, failed, lastSentAt };
 }
 
 // يرسل إشعار واتساب على تغيّر حالة طلب — يُستدعى من شاشة الطلبات عند تحديث يدوي.

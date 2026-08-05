@@ -17,7 +17,13 @@ import { STATUSES } from '@data/orderStatus';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { sendBulkCampaign, TEMPLATE_SID } from '@services/whatsappService';
+import { sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID } from '@services/whatsappService';
+
+// حملة "كثافة الشعر" الوحيدة الموجودة حالياً — مفتاح ثابت لتتبّعها بجدول
+// campaign_sends. لما تنضاف حملة تسويقية تانية (قالب تاني معتمَد)، هاد
+// المفتاح لازم يصير ديناميكي بدل ثابت.
+const CAMPAIGN_KEY = 'hair_density_promo_v2';
+const CAMPAIGN_LABEL = 'كثافة الشعر — خصم 30%';
 import { sessionCan, PERMISSIONS } from '@data/permissions';
 import {
   getOrCreateReferralCode, redeemReferralCode, referralInviteMessage,
@@ -553,7 +559,7 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
   );
 }
 
-function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect }) {
+function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect, alreadySent }) {
   const mkt = custMarket(c);
   const totals = [];
   if (Number(c.total_syp) > 0) totals.push(`${fmt(c.total_syp)} SYP`);
@@ -574,8 +580,11 @@ function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect }) {
             </span>
           )}
           <div className="min-w-0">
-            <p className="font-bold text-text text-sm truncate">
+            <p className="font-bold text-text text-sm truncate flex items-center gap-1.5">
               {c.stars > 0 && <span className="me-1">{starLabel(c.stars)}</span>}{c.name || 'عميل'}
+              {campaignMode && alreadySent && (
+                <span className="text-[9px] font-bold text-teal-700 bg-teal/10 border border-teal/30 rounded px-1 py-0.5 shrink-0">✅ استلم/ت الحملة</span>
+              )}
             </p>
             <p className="text-[11px] text-muted" dir="ltr">{c.phone}</p>
             {c.city && <p className="text-[11px] text-muted">{c.city}</p>}
@@ -634,6 +643,9 @@ export default function CustomersScreen() {
   const [selectedPhones, setSelectedPhones] = useState(() => new Set());
   const [sendingCampaign, setSendingCampaign] = useState(false);
   const [campaignProgress, setCampaignProgress] = useState(null); // {done,total,sent,failed}
+  const [sentPhones, setSentPhones] = useState(() => new Set()); // مين استلم حملة "كثافة الشعر" قبل هلق
+  const [campaignStats, setCampaignStats] = useState(null); // {sent, failed, lastSentAt}
+  const [excludeSent, setExcludeSent] = useState(true); // افتراضياً استبعد المُرسَل لهم — منع إزعاج نفس العميل مرتين
 
   // Load accepted shift partners
   useEffect(() => {
@@ -699,6 +711,15 @@ export default function CustomersScreen() {
 
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
 
+  // مين استلم حملة "كثافة الشعر" قبل هلق + إحصاءات سريعة — يُحمَّل مرة عند
+  // دخول قسم تركيا (لا يحتاج وضع الحملة مفعَّل)، ويُعاد تحميله بعد أي إرسال.
+  const loadCampaignData = useCallback(() => {
+    if (!canCampaign) { setSentPhones(new Set()); setCampaignStats(null); return; }
+    getCampaignSentPhones(CAMPAIGN_KEY).then(setSentPhones).catch(() => {});
+    getCampaignStats(CAMPAIGN_KEY).then(setCampaignStats).catch(() => {});
+  }, [canCampaign]);
+  useEffect(() => { loadCampaignData(); }, [loadCampaignData]);
+
   const toggleSelect = useCallback((c) => {
     setSelectedPhones(prev => {
       const next = new Set(prev);
@@ -712,13 +733,20 @@ export default function CustomersScreen() {
     [displayed, selectedPhones],
   );
 
+  // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent)
+  // حتى ما نزعج نفس العميل مرتين بنفس العرض. خارج وضع الحملة تبقى displayed كاملة.
+  const campaignVisible = useMemo(
+    () => (campaignMode && excludeSent) ? displayed.filter(c => !sentPhones.has(c.phone_key)) : displayed,
+    [displayed, campaignMode, excludeSent, sentPhones],
+  );
+
   // تحديد/إلغاء الكل ضمن التصفية الحالية (القسم + الفئة، مثلاً "💔 استرجاع") —
   // بدون هذا، حملة إعادة تنشيط لمئات العملاء الخاملين تعني ضغط كل بطاقة يدوياً
-  // (غير عملي). تعمل على displayed (المُصفّى بالفئة) لا rows الخام.
-  const allFilteredSelected = displayed.length > 0 && displayed.every(c => selectedPhones.has(c.phone_key));
+  // (غير عملي). تعمل على campaignVisible (بعد استبعاد المُرسَل لهم) لا rows الخام.
+  const allFilteredSelected = campaignVisible.length > 0 && campaignVisible.every(c => selectedPhones.has(c.phone_key));
   const toggleSelectAllFiltered = useCallback(() => {
-    setSelectedPhones(allFilteredSelected ? new Set() : new Set(displayed.map(c => c.phone_key)));
-  }, [displayed, allFilteredSelected]);
+    setSelectedPhones(allFilteredSelected ? new Set() : new Set(campaignVisible.map(c => c.phone_key)));
+  }, [campaignVisible, allFilteredSelected]);
 
   const runCampaign = async () => {
     if (!selectedCustomers.length || sendingCampaign) return;
@@ -731,6 +759,7 @@ export default function CustomersScreen() {
     try {
       const { sent, failed } = await sendBulkCampaign(selectedCustomers, TEMPLATE_SID.promo, {
         delayMs: 2500,
+        campaignKey: CAMPAIGN_KEY, campaignLabel: CAMPAIGN_LABEL, sentBy: userName,
         onProgress: (done, total, result) => setCampaignProgress(p => ({
           done, total,
           sent: p.sent + (result.ok ? 1 : 0),
@@ -739,6 +768,7 @@ export default function CustomersScreen() {
       });
       alert(`✅ انتهت الحملة — انبعت ${sent}، فشل ${failed}.`);
       setSelectedPhones(new Set());
+      loadCampaignData(); // حدّث شارات/إحصاءات "استلم الحملة" فوراً
     } catch (e) {
       alert('خطأ بالحملة: ' + e.message);
     } finally {
@@ -785,14 +815,25 @@ export default function CustomersScreen() {
       </div>
 
       {campaignMode && (
-        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold flex items-center justify-between gap-2 flex-wrap">
-          <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
-          {displayed.length > 0 && (
-            <button onClick={toggleSelectAllFiltered}
-              className="shrink-0 px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
-              {allFilteredSelected ? `✕ إلغاء تحديد الكل (${displayed.length})` : `✓ تحديد الكل (${displayed.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
-            </button>
-          )}
+        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
+            {campaignVisible.length > 0 && (
+              <button onClick={toggleSelectAllFiltered}
+                className="shrink-0 px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
+                {allFilteredSelected ? `✕ إلغاء تحديد الكل (${campaignVisible.length})` : `✓ تحديد الكل (${campaignVisible.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 flex-wrap font-normal text-[11px] pt-2 border-t border-teal/20">
+            <span>
+              {campaignStats ? `📊 سبق وانبعتلها الحملة: ${campaignStats.sent} عميل${campaignStats.failed ? ` (+${campaignStats.failed} فشلوا)` : ''}${campaignStats.lastSentAt ? ` — آخر إرسال ${new Date(campaignStats.lastSentAt).toLocaleDateString('ar', { day: 'numeric', month: 'short' })}` : ''}` : '⏳ جارٍ تحميل سجل الحملة...'}
+            </span>
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+              <input type="checkbox" checked={excludeSent} onChange={e => setExcludeSent(e.target.checked)} className="rounded" />
+              🚫 استبعد اللي انبعتلهم قبل
+            </label>
+          </div>
         </div>
       )}
 
@@ -884,16 +925,17 @@ export default function CustomersScreen() {
         <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm flex items-center justify-between">
           <span>{error}</span><button onClick={load} className="underline text-xs">إعادة</button>
         </div>
-      ) : displayed.length === 0 ? (
+      ) : campaignVisible.length === 0 ? (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">👤</p>
-          <p className="text-sm font-bold">لا عملاء مطابقون</p>
+          <p className="text-sm font-bold">{campaignMode && excludeSent ? 'كل عملاء هالتصفية استلموا الحملة قبل هلق 🎉' : 'لا عملاء مطابقون'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {displayed.map(c => (
+          {campaignVisible.map(c => (
             <CustomerCard key={c.phone_key} c={c} onOpen={setSelected}
-              campaignMode={campaignMode} selected={selectedPhones.has(c.phone_key)} onToggleSelect={toggleSelect} />
+              campaignMode={campaignMode} selected={selectedPhones.has(c.phone_key)} onToggleSelect={toggleSelect}
+              alreadySent={sentPhones.has(c.phone_key)} />
           ))}
         </div>
       )}
