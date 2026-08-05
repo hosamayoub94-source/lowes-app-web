@@ -103,7 +103,9 @@ export const NAV_ITEMS = [
   { id: 'admin-guides',   label: 'إدارة الأدلة',  icon: '📖', path: '/admin/guides', roles: [A, M],   group: 'admin', perm: P.MANAGE_GUIDES },
   { id: 'files',          label: 'الملفات',      icon: '📁', path: '/files',      roles: [A, M],     group: 'admin' },
   { id: 'daily-workspace', label: 'مساحة العمل', icon: '🗂️', path: '/workspace',  roles: [A, M],     group: 'admin' },
-  { id: 'admin-whatsapp', label: 'محادثات واتساب', icon: '💬', path: '/admin/whatsapp', roles: [A, M], group: 'admin' },
+  // roles يشمل SM/E كمخرج ثانٍ لموظفي المبيعات المُمنوحين send_whatsapp — نفس
+  // نمط manage_campaigns أعلاه (roles/perm لازم يتطابقا مع AppRoutes.jsx).
+  { id: 'admin-whatsapp', label: 'محادثات واتساب', icon: '💬', path: '/admin/whatsapp', roles: [A, M, SM, E], group: 'admin', perm: P.SEND_WHATSAPP },
 ];
 
 // An item is visible if the role sees it by default, OR the user has been

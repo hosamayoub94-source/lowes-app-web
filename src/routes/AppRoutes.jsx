@@ -172,7 +172,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.ADMIN_WHATSAPP}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER]}>
+              <ProtectedRoute roles={[...SALES_ROLES, ROLES.EMPLOYEE]} perm={P.SEND_WHATSAPP}>
                 <AdminWhatsAppScreen />
               </ProtectedRoute>
             }

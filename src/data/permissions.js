@@ -35,6 +35,7 @@ export const PERMISSIONS = {
   VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
   VIEW_MEDIA_BUYER_BOARD: 'view_media_buyer_board', // media-buyer analytics dashboard
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
+  SEND_WHATSAPP:        'send_whatsapp',         // open/reply to WhatsApp chats with customers (official number)
 };
 
 // Human labels (for the admin UI)
@@ -61,6 +62,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
   [PERMISSIONS.VIEW_MEDIA_BUYER_BOARD]: 'لوحة الميديا باير (تحليل أداء الحملات)',
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
+  [PERMISSIONS.SEND_WHATSAPP]:        'التواصل مع العملاء عبر واتساب الرسمي',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -87,6 +89,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.MANAGE_CAMPAIGNS]:    'إنشاء الحملات وإضافة الإعلانات وإسناد الموظفين للتسجيل.',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
   [PERMISSIONS.MANAGE_GUIDES]:       'إضافة وتعديل أدلة استخدام التطبيق (تظهر في الدليل ولوزي تعرفها).',
+  [PERMISSIONS.SEND_WHATSAPP]:       'فتح محادثة والرد على العملاء عبر رقم واتساب الرسمي — الموظف بدون هالصلاحية ما يشوف الشاشة إطلاقاً، ومع الصلاحية يشوف بس محادثاته هو (الأدمن/المدير يشوفوا الكل).',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -101,6 +104,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
   { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
     permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST, PERMISSIONS.VIEW_MEDIA_BUYER_BOARD] },
+  { key: 'whatsapp',   icon: '💬', label: 'واتساب العملاء',
+    permissions: [PERMISSIONS.SEND_WHATSAPP] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_GUIDES] },
 ];
@@ -132,6 +137,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_CAMPAIGN_COST,
     PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
     PERMISSIONS.MANAGE_GUIDES,
+    PERMISSIONS.SEND_WHATSAPP,
   ],
 
   [ROLES.SALES_MANAGER]: [

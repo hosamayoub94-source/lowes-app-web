@@ -8,9 +8,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
+import { ROLES } from '@data/teams';
 import {
   fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
+  fetchWhatsAppOwners, claimWhatsAppConversation,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
 } from '@services/whatsappService';
 
@@ -46,9 +48,11 @@ function normalizePhoneInput(raw) {
 }
 
 export default function AdminWhatsAppScreen() {
-  const { id: userId } = useAuth();
+  const { id: userId, name: userName, role } = useAuth();
+  const isManager = role === ROLES.ADMIN || role === ROLES.MANAGER; // يشوفوا كل المحادثات — الباقي يشوفوا بس محادثاتهم
   const toast = useToast();
   const [messages, setMessages] = useState(null); // null = لسا ما حمّل
+  const [owners, setOwners] = useState([]); // [{ phone, to_number, owner_id, owner_name }]
   const [openPhone, setOpenPhone] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -69,14 +73,40 @@ export default function AdminWhatsAppScreen() {
 
   const load = useCallback(async () => {
     try {
-      const rows = await fetchWhatsAppMessages();
+      const [rows, ownerRows] = await Promise.all([fetchWhatsAppMessages(), fetchWhatsAppOwners()]);
       setMessages(rows || []);
+      setOwners(ownerRows || []);
     } catch (e) {
       toast.error(e.message);
     }
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // فتح محادثة جاي من مكان تاني بالتطبيق (زر "فتح شات واتساب" بشاشة العميل) —
+  // ?open=+905551234567 — يفتحها ويسجّل الموظف الحالي مالكاً لها لو ما كان
+  // فيها مالك أصلاً.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('open');
+    if (!p) return;
+    const norm = normalizePhoneInput(p);
+    if (/^\+\d{6,15}$/.test(norm)) {
+      setOpenPhone(norm);
+      autoOpenedRef.current = true;
+      claimWhatsAppConversation(norm, WA_LINES[MAIN_LINE].number, userId, userName).then(load).catch(() => {});
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('open');
+    window.history.replaceState({}, '', url.pathname + url.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ownerByPhone = useMemo(() => {
+    const num = WA_LINES[line].number;
+    const map = {};
+    for (const o of owners) if (o.to_number === num) map[normalizeWaPhone(o.phone)] = o;
+    return map;
+  }, [owners, line]);
 
   const lineMsgs = useMemo(() => {
     if (!messages) return null;
@@ -91,8 +121,13 @@ export default function AdminWhatsAppScreen() {
       const p = normalizeWaPhone(m.phone);
       if (!byPhone[p] || new Date(m.created_at) > new Date(byPhone[p].created_at)) byPhone[p] = { ...m, phone: p };
     }
-    return Object.values(byPhone).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [lineMsgs]);
+    let list = Object.values(byPhone);
+    // موظف عادي (بلا صلاحية إدارة) يشوف بس المحادثات المسجَّلة إله — الأدمن/
+    // المدير يشوفوا الكل. محادثة بلا مالك أصلاً (عميل راسل جديد بلا حدا فتحها)
+    // ما تظهر للموظف العادي بهالنسخة البسيطة — تحتاج الأدمن يوزّعها أول.
+    if (!isManager) list = list.filter(t => ownerByPhone[t.phone]?.owner_id === userId);
+    return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [lineMsgs, isManager, ownerByPhone, userId]);
 
   useEffect(() => {
     if (!autoOpenedRef.current && !openPhone && threads.length) {
@@ -111,11 +146,16 @@ export default function AdminWhatsAppScreen() {
   const trackingThreads = useMemo(() => filteredThreads.filter(t => isOrderTrackingBody(t.body)), [filteredThreads]);
   const convoThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body)), [filteredThreads]);
 
+  // محادثة عائدة لموظف تاني (مو إله) — موظف عادي ما يشوف رسائلها حتى لو
+  // وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
+  const openOwnedByOther = !isManager && !!openPhone
+    && ownerByPhone[openPhone] && ownerByPhone[openPhone].owner_id !== userId;
+
   const thread = useMemo(
-    () => (lineMsgs || [])
+    () => openOwnedByOther ? [] : (lineMsgs || [])
       .filter(m => normalizeWaPhone(m.phone) === openPhone)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
-    [lineMsgs, openPhone],
+    [lineMsgs, openPhone, openOwnedByOther],
   );
 
   // يفتح المحادثة على آخر رسالة مباشرة (تحت) بدل أول رسالة (فوق) — طلب صريح.
@@ -196,6 +236,7 @@ export default function AdminWhatsAppScreen() {
     setOpenPhone(p);
     setNewChatOpen(false);
     setNewChatPhone('');
+    claimWhatsAppConversation(p, WA_LINES[line].number, userId, userName).then(load).catch(() => {});
   };
 
   const deleteThread = async (phone, e) => {
@@ -227,6 +268,12 @@ export default function AdminWhatsAppScreen() {
   };
 
   const forwardMessage = async (m) => {
+    const media = m.media_url ? { mediaUrl: m.media_url, mediaContentType: m.media_content_type } : null;
+    const body = m.body && !m.body.startsWith('[template:') ? m.body : '';
+    if (!body && !media) {
+      toast.error('هاي رسالة إشعار آلي بلا نص أو مرفق — ما فيها شي قابل للتحويل.');
+      return;
+    }
     const raw = window.prompt('حوّلي هالرسالة لأي رقم؟ (بكود الدولة، مثال: 905551234567)');
     if (!raw) return;
     const p = normalizePhoneInput(raw);
@@ -236,8 +283,7 @@ export default function AdminWhatsAppScreen() {
     }
     setSending(true);
     try {
-      const media = m.media_url ? { mediaUrl: m.media_url, mediaContentType: m.media_content_type } : null;
-      await sendWhatsAppReply(p, m.body && !m.body.startsWith('[template:') ? m.body : '', userId, line, media);
+      await sendWhatsAppReply(p, body, userId, line, media);
       toast.success?.('اتحوّلت الرسالة');
       await load();
     } catch (err) {
@@ -282,6 +328,9 @@ export default function AdminWhatsAppScreen() {
           {t.direction === 'out' ? 'أنتم: ' : ''}
           {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
         </div>
+        {isManager && ownerByPhone[t.phone]?.owner_name && (
+          <div className="text-[10px] text-teal-700 truncate">👤 {ownerByPhone[t.phone].owner_name}</div>
+        )}
       </div>
       <button
         onClick={(e) => deleteThread(t.phone, e)}
@@ -372,7 +421,12 @@ export default function AdminWhatsAppScreen() {
           {/* المحادثة المفتوحة */}
           <div className={`bg-surface border border-border/60 rounded-xl flex-1 p-3 flex-col max-h-[70vh] ${openPhone ? 'flex' : 'hidden md:flex'}`}>
             {!openPhone && <div className="text-muted text-sm py-8 text-center">👈 اختر محادثة</div>}
-            {openPhone && (
+            {openPhone && openOwnedByOther && (
+              <div className="text-muted text-sm py-8 text-center">
+                🔒 هاي المحادثة مسؤول عنها {ownerByPhone[openPhone]?.owner_name || 'موظف تاني'} — مو ظاهرة إلك.
+              </div>
+            )}
+            {openPhone && !openOwnedByOther && (
               <>
                 <div className="flex items-center justify-between mb-2 pb-2 border-b border-border/40 shrink-0 gap-2 flex-wrap">
                   <button

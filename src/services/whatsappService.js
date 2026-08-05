@@ -24,6 +24,32 @@ export async function fetchWhatsAppMessages() {
   return res.json();
 }
 
+// ملكية المحادثات (نسخة بسيطة) — كل صف: هالمحادثة (رقم+خط) مسؤول عنها موظف
+// معيَّن. الأدمن/المدير يشوفوا الكل بغض النظر عن هالجدول (تُطبَّق بالواجهة).
+export async function fetchWhatsAppOwners() {
+  const res = await fetch(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_conversation_owners?select=*`,
+    { headers: WA_HEADERS },
+  );
+  if (!res.ok) throw new Error('تعذّر تحميل ملكية المحادثات');
+  return res.json();
+}
+
+// يسجّل/يحدّث مين مسؤول عن هالمحادثة — upsert (idempotent، ما بيغيّر المالك
+// الموجود لو نادى عليها موظف تاني بالغلط، بس منطق "أول ما يفتحها" بالواجهة).
+export async function claimWhatsAppConversation(phone, toNumber, ownerId, ownerName) {
+  const res = await fetch(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_conversation_owners?on_conflict=phone,to_number`,
+    {
+      method: 'POST',
+      headers: { ...WA_HEADERS, Prefer: 'resolution=ignore-duplicates,return=representation' },
+      body: JSON.stringify({ phone, to_number: toNumber, owner_id: ownerId, owner_name: ownerName || null }),
+    },
+  );
+  if (!res.ok) throw new Error('تعذّر تسجيل ملكية المحادثة');
+  return res.json();
+}
+
 // line: "main" (+13204416777، افتراضي) أو "campaign" (+16195144716، سارة/رودي) — راجع 09_Decision_Register.md § D-016
 // media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)
 export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {

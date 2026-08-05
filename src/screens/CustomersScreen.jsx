@@ -10,7 +10,7 @@ import {
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
   sellerVariants, canonicalSeller, exportMetaCSV, getSellerAliases,
-  listCustomerMonths, monthRange,
+  listCustomerMonths, monthRange, phoneKey,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { STATUSES } from '@data/orderStatus';
@@ -18,6 +18,7 @@ import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { sendBulkCampaign, TEMPLATE_SID } from '@services/whatsappService';
+import { sessionCan, PERMISSIONS } from '@data/permissions';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -66,6 +67,7 @@ function WaIcon({ size = 15 }) {
 
 function CustomerModal({ c, sellerName, onClose }) {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const mkt = custMarket(c);
   const idle = daysSince(c.last_order);
   const tier = loyaltyTier(c.stars);
@@ -151,6 +153,17 @@ function CustomerModal({ c, sellerName, onClose }) {
 
   const waSend  = customerWaLink(c.phone, mkt, msg);
   const waPlain = customerWaLink(c.phone, mkt);
+
+  // زر "فتح شات واتساب الرسمي" — يفتح/يطالب بملكية المحادثة بشاشة
+  // /admin/whatsapp (نفس الموظف يضل صاحبها بعدين). القناة الرسمية محظورة
+  // كلياً على سوريا (D-022، خطأ Twilio 21408) — الزر يظهر بس لتركيا.
+  const canOfficialWa = mkt === 'turkey' && sessionCan(session, PERMISSIONS.SEND_WHATSAPP);
+  const openOfficialWa = () => {
+    const digits = phoneKey(c.phone)?.replace(/^0+/, '');
+    if (!digits) return;
+    const full = digits.startsWith('90') ? digits : '90' + digits;
+    navigate(`/admin/whatsapp?open=${encodeURIComponent('+' + full)}`);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-2 sm:p-4" dir="rtl" onClick={onClose}>
@@ -285,6 +298,12 @@ function CustomerModal({ c, sellerName, onClose }) {
                 </a>
               )}
             </div>
+            {canOfficialWa && (
+              <button onClick={openOfficialWa}
+                className="w-full py-2 rounded-xl border border-teal text-teal-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-teal/10 transition">
+                💬 فتح شات واتساب الرسمي (يضل عندك)
+              </button>
+            )}
           </div>
 
           {/* Notes */}
