@@ -16,8 +16,95 @@ import {
   fetchWhatsAppOwners, claimWhatsAppConversation,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
 } from '@services/whatsappService';
+import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 
 const MAIN_LINE = 'main'; // خط وحيد فعلياً حالياً — راجع WA_LINES
+
+const PERIODS = [
+  { key: 7,  label: '7 أيام' },
+  { key: 30, label: '30 يوم' },
+  { key: 90, label: '90 يوم' },
+];
+
+// لوحة تحليلات — سبرنت ② من خطة النمو (5 أغسطس 2026): أول أرقام حقيقية
+// لأداء قناة واتساب (معدل رد، سرعة رد الفريق، تحويل لطلب فعلي). أساس
+// لقياس أي حملة إعادة تنشيط/إحالة جاية بدل تخمين.
+function WhatsAppAnalyticsPanel() {
+  const [days, setDays] = useState(30);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true); setError(null);
+    getWhatsAppAnalytics(days)
+      .then(setStats)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
+  const fmtMin = (m) => {
+    if (m == null) return '—';
+    if (m < 60) return `${Math.round(m)} د`;
+    return `${(m / 60).toFixed(1)} س`;
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        {PERIODS.map(p => (
+          <button key={p.key} onClick={() => setDays(p.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition ${days === p.key ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-surface-alt animate-pulse rounded-2xl" />)}
+        </div>
+      ) : error ? (
+        <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm">{error}</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
+              <p className="text-2xl font-extrabold text-teal">{fmt(stats.totalConvos)}</p>
+              <p className="text-[11px] text-muted mt-0.5">محادثة</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
+              <p className="text-2xl font-extrabold text-text">{fmt(stats.totalIn)} / {fmt(stats.totalOut)}</p>
+              <p className="text-[11px] text-muted mt-0.5">وارد / صادر</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
+              <p className="text-2xl font-extrabold text-amber-fg">{stats.replyRate}%</p>
+              <p className="text-[11px] text-muted mt-0.5">معدل رد العميل</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
+              <p className="text-2xl font-extrabold text-navy dark:text-white">{fmtMin(stats.avgResponseMin)}</p>
+              <p className="text-[11px] text-muted mt-0.5">متوسط سرعة رد الفريق</p>
+            </div>
+          </div>
+          <div className="bg-teal/10 border border-teal/30 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-teal-700">💰 تحويل لطلب فعلي (خلال 7 أيام من أول رسالة)</p>
+              <p className="text-[11px] text-muted mt-0.5">مطابقة أرقام محادثات واتساب مع طلبات تركيا الفعلية — تركيا فقط (واتساب سوريا محظور).</p>
+            </div>
+            <div className="text-center shrink-0">
+              <p className="text-2xl font-extrabold text-teal">{stats.converted}</p>
+              <p className="text-[11px] text-muted">{stats.conversionRate}% من المحادثات</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted text-center">
+            {stats.customerInitiated} محادثة بلّشها العميل من أصل {stats.totalConvos} — الباقي إشعارات آلية (تتبّع شحن) ما تلاها رد.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
 
 // واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
 // invalid content error) — تأكَّد هذا حياً: حتى MediaRecorder بصيغة
@@ -71,6 +158,7 @@ export default function AdminWhatsAppScreen() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferPhone, setTransferPhone] = useState('');
+  const [view, setView] = useState('chat'); // 'chat' | 'analytics'
   const bottomRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -352,10 +440,22 @@ export default function AdminWhatsAppScreen() {
     <div className="max-w-5xl mx-auto p-4 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
         <h1 className="font-extrabold text-text flex items-center gap-2"><span>💬</span> محادثات واتساب</h1>
-        <button onClick={load} className="text-xs text-teal-700 font-bold">تحديث ↻</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setView(v => v === 'chat' ? 'analytics' : 'chat')}
+            className={`text-xs font-bold rounded-lg px-3 py-1.5 border-2 transition ${view === 'analytics' ? 'border-teal bg-teal text-navy' : 'border-border/60 text-muted hover:border-teal/40'}`}>
+            {view === 'analytics' ? '← المحادثات' : '📊 تحليلات'}
+          </button>
+          {view === 'chat' && <button onClick={load} className="text-xs text-teal-700 font-bold">تحديث ↻</button>}
+        </div>
       </div>
-      <p className="text-xs text-muted">الرسائل الواردة والصادرة عبر أرقام لوويز الرسمية.</p>
+      <p className="text-xs text-muted">
+        {view === 'analytics' ? 'أداء قناة واتساب — معدل رد، سرعة الفريق، تحويل لطلب فعلي.' : 'الرسائل الواردة والصادرة عبر أرقام لوويز الرسمية.'}
+      </p>
 
+      {view === 'analytics' ? (
+        <WhatsAppAnalyticsPanel />
+      ) : (
+      <>
       <div className="flex gap-2 items-center flex-wrap">
         <span className="text-xs font-bold rounded-lg px-3 py-1.5 bg-teal/10 text-teal-700">
           {WA_LINES[line].label} · {WA_LINES[line].number}
@@ -589,6 +689,8 @@ export default function AdminWhatsAppScreen() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

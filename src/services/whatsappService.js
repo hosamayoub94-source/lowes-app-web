@@ -5,11 +5,11 @@
 // lowes-classic. القيمتان تحت public anon key عام (غير سرّي)، لا Twilio secrets هون.
 // أُنشئ 1 أغسطس 2026.
 // =============================================================
-const WA_PROJECT_URL = 'https://kesoqnwyydycuyifqfhl.supabase.co';
+export const WA_PROJECT_URL = 'https://kesoqnwyydycuyifqfhl.supabase.co';
 const WA_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtlc29xbnd5eWR5Y3V5aWZxZmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjQzMDMsImV4cCI6MjA5NDUwMDMwM30.7muMlaq4MhWdJicSqzupLBZqTvaLbhWjieQuaQvCvBg';
 
-const WA_HEADERS = {
+export const WA_HEADERS = {
   apikey: WA_ANON_KEY,
   Authorization: `Bearer ${WA_ANON_KEY}`,
   'Content-Type': 'application/json',
