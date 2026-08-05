@@ -151,6 +151,29 @@ function normalizePhoneInput(raw) {
   return p;
 }
 
+// علامات ✓/✓✓ زرقاء بصرية بدل نص الحالة الخام — "متل الواتساب" (طلب مالك
+// 5 أغسطس 2026). بس للرسائل الصادرة.
+function StatusTicks({ status }) {
+  if (!status) return null;
+  if (status === 'read') return <span title="قُرئت" className="text-blue-400">✓✓</span>;
+  if (status === 'delivered') return <span title="وصلت" className="opacity-70">✓✓</span>;
+  if (status === 'sent' || status === 'queued') return <span title={status === 'queued' ? 'قيد الإرسال' : 'أُرسلت'} className="opacity-70">✓</span>;
+  if (status === 'failed' || status === 'undelivered') return <span title={status} className="text-red-400">⚠️</span>;
+  return <span title={status} className="opacity-70">{status}</span>;
+}
+
+// فاصل تاريخ ("اليوم"/"أمس"/تاريخ) بين رسائل أيام مختلفة — "متل الواتساب"
+// (طلب مالك 5 أغسطس 2026).
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'اليوم';
+  if (sameDay(d, yesterday)) return 'أمس';
+  return d.toLocaleDateString('ar', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export default function AdminWhatsAppScreen() {
   const { id: userId, name: userName, role } = useAuth();
   const location = useLocation();
@@ -165,6 +188,7 @@ export default function AdminWhatsAppScreen() {
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef(null);
   const imageInputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const autoOpenedRef = useRef(false); // يفتح أول محادثة تلقائياً مرة وحدة بس — لا يعيد فتحها بعد ما يضغط المستخدم "رجوع"
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
@@ -184,6 +208,9 @@ export default function AdminWhatsAppScreen() {
   const [tagFilter, setTagFilter] = useState(null); // وسم مُختار للفلترة (null = الكل)
   const [tagInput, setTagInput] = useState('');
   const [savingTag, setSavingTag] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // رسالة يُردّ عليها بالاقتباس (quote-reply)
+  const [msgSearchOpen, setMsgSearchOpen] = useState(false);
+  const [msgSearch, setMsgSearch] = useState(''); // بحث نص داخل المحادثة المفتوحة
   const bottomRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -326,6 +353,15 @@ export default function AdminWhatsAppScreen() {
     if (openPhone) bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [openPhone, thread.length]);
 
+  // بحث نص داخل المحادثة المفتوحة — "متل الواتساب" (طلب مالك 5 أغسطس 2026).
+  const displayThread = useMemo(() => {
+    const q = msgSearch.trim();
+    if (!q) return thread;
+    return thread.filter(m => formatWaBody(m.body).includes(q));
+  }, [thread, msgSearch]);
+
+  useEffect(() => { setMsgSearchOpen(false); setMsgSearch(''); setReplyingTo(null); }, [openPhone]);
+
   // محادثة تتبّع = فيها أي رسالة إشعار آلي بتاريخها (لا بس آخر رسالة — لو
   // الموظف رد بنص حر، تضل "تتبّع" لأنها بلّشت هيك). البانر يستهدفها تحديداً
   // (طلب مالك 5 أغسطس 2026: "بدي بنر خاص في التتبّع").
@@ -339,10 +375,21 @@ export default function AdminWhatsAppScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openPhone, openIsTracking]);
 
+  // رد اقتباس (quote-reply) — Twilio ما بيدعم quoted-reply الأصلية لواتساب
+  // لرسائل حرة، فنحاكيها بسطر اقتباس نصّي فوق الرد الفعلي (نفس أسلوب
+  // البريد/الشات التقليدي). طلب مالك 5 أغسطس 2026.
+  const startReply = (m) => {
+    const snippet = m.media_url && !m.body ? '📎 مرفق' : formatWaBody(m.body).slice(0, 80);
+    setReplyingTo({ id: m.id, snippet, direction: m.direction });
+  };
+  const cancelReply = () => setReplyingTo(null);
+
   const send = async () => {
-    const body = draft.trim();
+    let body = draft.trim();
     if (!openPhone || !/^\+\d{6,15}$/.test(openPhone) || !body) return;
+    if (replyingTo) body = `↩️ ${replyingTo.snippet}\n—\n${body}`;
     setDraft('');
+    setReplyingTo(null);
     setSending(true);
     try {
       await sendWhatsAppReply(openPhone, body, userId, line);
@@ -370,6 +417,17 @@ export default function AdminWhatsAppScreen() {
 
   const pickImage = () => imageInputRef.current?.click();
   const onImageChosen = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    sendMedia(file, file.name.split('.').pop());
+  };
+
+  // إرسال ملفات غير الصور (PDF/Word/إلخ) — طلب مالك 5 أغسطس 2026. زر منفصل
+  // عن "📷 صورة" (نفس sendMedia، فقط accept أوسع). الرندر أصلاً جاهز
+  // (رابط "📎 مرفق" لأي media_content_type غير audio/image).
+  const pickFile = () => fileInputRef.current?.click();
+  const onFileChosen = (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -745,6 +803,13 @@ export default function AdminWhatsAppScreen() {
                       </button>
                     )}
                     <button
+                      onClick={() => setMsgSearchOpen(v => !v)}
+                      title="بحث داخل المحادثة"
+                      className={`text-xs font-bold ${msgSearchOpen ? 'text-teal-700' : 'text-muted hover:text-teal-700'}`}
+                    >
+                      🔍
+                    </button>
+                    <button
                       onClick={() => { setTransferOpen(v => !v); setTransferPhone(''); }}
                       title="نقل المحادثة لرقم آخر"
                       className="text-muted hover:text-teal-700 text-xs font-bold"
@@ -819,51 +884,84 @@ export default function AdminWhatsAppScreen() {
                   </div>
                 )}
 
+                {msgSearchOpen && (
+                  <div className="flex gap-2 mb-2 bg-border/10 rounded-lg p-2">
+                    <input
+                      autoFocus
+                      className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
+                      placeholder="🔍 بحث بنص الرسائل بهالمحادثة…"
+                      value={msgSearch}
+                      onChange={(e) => setMsgSearch(e.target.value)}
+                    />
+                    {msgSearch && (
+                      <span className="text-[11px] text-muted self-center shrink-0">{displayThread.length} نتيجة</span>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2">
-                  {thread.map(m => (
-                    <div
-                      key={m.id}
-                      className={`group max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                        m.direction === 'out'
-                          ? 'self-end bg-teal text-navy'
-                          : 'self-start bg-border/30 text-text'
-                      }`}
-                    >
-                      {m.media_url && (m.media_content_type || '').startsWith('audio/') && (
-                        <audio controls src={m.media_url} className="max-w-full mb-1" />
-                      )}
-                      {m.media_url && (m.media_content_type || '').startsWith('image/') && (
-                        <img src={m.media_url} alt="" className="max-w-full rounded-lg mb-1" />
-                      )}
-                      {m.media_url && !(m.media_content_type || '').startsWith('audio/') && !(m.media_content_type || '').startsWith('image/') && (
-                        <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-teal-700 block mb-1">📎 مرفق</a>
-                      )}
-                      {formatWaBody(m.body)}
-                      <div className="flex items-center gap-2 text-[10px] opacity-70 mt-1">
-                        <span>
-                          {new Date(m.created_at).toLocaleString('ar')}
-                          {m.direction === 'out' && m.status ? ` · ${m.status}` : ''}
-                        </span>
-                        <button
-                          onClick={() => forwardMessage(m)}
-                          title="تحويل الرسالة"
-                          className="opacity-0 group-hover:opacity-100 hover:!opacity-100"
-                        >
-                          ↪️
-                        </button>
-                        {m.direction === 'out' && (
-                          <button
-                            onClick={() => deleteMessage(m.id)}
-                            disabled={deletingMsgId === m.id}
-                            title="حذف الرسالة"
-                            className="opacity-0 group-hover:opacity-100 hover:!opacity-100 disabled:opacity-30"
-                          >
-                            {deletingMsgId === m.id ? '…' : '🗑️'}
-                          </button>
+                  {displayThread.length === 0 && msgSearch && (
+                    <p className="text-center text-xs text-muted py-4">لا نتائج لـ«{msgSearch}»</p>
+                  )}
+                  {displayThread.map((m, i) => {
+                    const prevDay = i > 0 ? dayLabel(displayThread[i - 1].created_at) : null;
+                    const curDay = dayLabel(m.created_at);
+                    return (
+                      <div key={m.id} className="contents">
+                        {curDay !== prevDay && (
+                          <div className="self-center text-[10px] font-bold text-muted bg-border/30 rounded-full px-3 py-0.5 my-1">{curDay}</div>
                         )}
+                        <div
+                          className={`group max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                            m.direction === 'out'
+                              ? 'self-end bg-teal text-navy'
+                              : 'self-start bg-border/30 text-text'
+                          }`}
+                        >
+                          {m.media_url && (m.media_content_type || '').startsWith('audio/') && (
+                            <audio controls src={m.media_url} className="max-w-full mb-1" />
+                          )}
+                          {m.media_url && (m.media_content_type || '').startsWith('image/') && (
+                            <img src={m.media_url} alt="" className="max-w-full rounded-lg mb-1" />
+                          )}
+                          {m.media_url && !(m.media_content_type || '').startsWith('audio/') && !(m.media_content_type || '').startsWith('image/') && (
+                            <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-teal-700 block mb-1">📎 مرفق</a>
+                          )}
+                          {formatWaBody(m.body)}
+                          <div className="flex items-center gap-2 text-[10px] opacity-70 mt-1">
+                            <span className="flex items-center gap-1">
+                              {new Date(m.created_at).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
+                              {m.direction === 'out' && <StatusTicks status={m.status} />}
+                            </span>
+                            <button
+                              onClick={() => startReply(m)}
+                              title="رد باقتباس"
+                              className="opacity-0 group-hover:opacity-100 hover:!opacity-100"
+                            >
+                              ↩️
+                            </button>
+                            <button
+                              onClick={() => forwardMessage(m)}
+                              title="تحويل الرسالة"
+                              className="opacity-0 group-hover:opacity-100 hover:!opacity-100"
+                            >
+                              ↪️
+                            </button>
+                            {m.direction === 'out' && (
+                              <button
+                                onClick={() => deleteMessage(m.id)}
+                                disabled={deletingMsgId === m.id}
+                                title="حذف الرسالة"
+                                className="opacity-0 group-hover:opacity-100 hover:!opacity-100 disabled:opacity-30"
+                              >
+                                {deletingMsgId === m.id ? '…' : '🗑️'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div ref={bottomRef} />
                 </div>
 
@@ -914,8 +1012,16 @@ export default function AdminWhatsAppScreen() {
                   </div>
                 )}
 
+                {replyingTo && (
+                  <div className="flex items-center justify-between gap-2 mb-1.5 bg-border/10 border-r-4 border-teal rounded-lg px-2.5 py-1.5">
+                    <span className="text-[11px] text-muted truncate">↩️ رد على: {replyingTo.snippet}</span>
+                    <button onClick={cancelReply} className="text-muted hover:text-red-500 shrink-0">✕</button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={onImageChosen} />
+                  <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChosen} />
                   <button
                     onClick={() => setQuickOpen(v => !v)}
                     disabled={sending || recording}
@@ -931,6 +1037,14 @@ export default function AdminWhatsAppScreen() {
                     className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
                   >
                     📷
+                  </button>
+                  <button
+                    onClick={pickFile}
+                    disabled={sending || recording}
+                    title="إرسال ملف (PDF/Word/إلخ)"
+                    className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
+                  >
+                    📎
                   </button>
                   {recording && (
                     <button
