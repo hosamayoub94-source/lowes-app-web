@@ -277,18 +277,20 @@ const TEMPLATE_SID = {
 
 export { TEMPLATE_SID };
 
-// عرض ودّي لجسم رسالة قالب — الرسائل المُرسَلة بقالب فقط (contentSid بلا body،
-// أغلبها إشعارات حالة الطلب) تُخزَّن كـ"[template:HXxxx] {json}" خام غير
-// مقروء. هاي بترجم SID المعروف لاسم القالب + تعرض قيم {{1}}/{{2}} بشكل نظيف.
-const TEMPLATE_LABELS = {
-  [TEMPLATE_SID.shipped]: '📦 تم شحن الطلب',
-  [TEMPLATE_SID.at_center]: '🏢 الطلب وصل لمركز التوزيع',
-  [TEMPLATE_SID.on_way]: '🚚 الطلب بالطريق',
-  [TEMPLATE_SID.delivered]: '✅ تم تسليم الطلب',
-  [TEMPLATE_SID.cancelled]: '❌ تم إلغاء الطلب',
-  [TEMPLATE_SID.not_received]: '⚠️ العميل أفاد بعدم استلام الطلب',
-  [TEMPLATE_SID.returning]: '↩️ الطلب قيد الإرجاع',
-  [TEMPLATE_SID.promo]: '🌿 رسالة حملة كثافة الشعر (الروزماري)',
+// عرض حقيقي لجسم رسالة قالب — الرسائل المُرسَلة بقالب فقط (contentSid بلا
+// body، أغلبها إشعارات حالة الطلب أو الحملة) تُخزَّن كـ"[template:HXxxx]
+// {json}" خام غير مقروء. هاي تعيد بناء **نفس النص الحرفي يلي وصل للعميل**
+// (مو مجرد تسمية داخلية) — جُلبت من Twilio Content API حرفياً 5 أغسطس 2026
+// (نفس النص المعتمَد من Meta). لو تغيّر أي قالب مستقبلاً، لازم تحديث هون يدوياً.
+const TEMPLATE_BODIES = {
+  [TEMPLATE_SID.shipped]:      'مرحباً {{1}} 👋\nطلبك رقم {{2}} طلع بالطريق 📦 بيوصل خلال الأيام الجاية.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.at_center]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} وصل لمركز التوزيع بمنطقتك 📍 قربنا نوصلّك.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.on_way]:       'مرحباً {{1}} 👋\nالمندوب بالطريق إلك هلق بخصوص طلبك رقم {{2}} 🚚 خلّي هاتفك قريب منك.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.delivered]:    'مرحباً {{1}} 👋\nتم تسليم طلبك رقم {{2}} بنجاح ✅ نتمنى تستمتعي فيه.\nلو عندك أي سؤال احنا هون دايماً، وبيسعدنا نسمع رأيك 💛\nتابعينا @lowes_profesyonel\n— LOWE\'S Professional',
+  [TEMPLATE_SID.cancelled]:    'مرحباً {{1}} 👋\nتم إلغاء طلبك رقم {{2}} 😔 إذا صار هيك بالغلط أو بدك تفاصيل، احنا هون جاهزين نساعدك.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.not_received]: 'مرحباً {{1}} 👋\nحاولنا نوصلّك طلبك رقم {{2}} وما زبط ⚠️ رح نتواصل معك قريباً نرتب وقت أنسب.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.returning]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} راجع لمركزنا ↩️ رح نتواصل معك نعرف السبب ونلاقي الحل الأنسب.\n— LOWE\'S Professional',
+  [TEMPLATE_SID.promo]:        '🖼️ [صورة: مجموعة الروزماري]\nمرحباً {{1}}، كثافة شعرك تستاهل عناية حقيقية 🌿\nخط الروزماري من LOWE\'S profesyonel — نتيجة مثبتة علمياً من مختبرات SKINLAB.\nخصم 30% لمدة أسبوع فقط — العرض ينتهي قريباً!\nاكتشفي الفرق الآن 👇\n[زر: تسوّقي الآن → lowesprofesyonel.com]',
 };
 
 // تصنيف محادثة: إشعار طلب آلي (شحن/تسليم/إلغاء...) مقابل محادثة عميل حقيقية —
@@ -309,10 +311,14 @@ export function formatWaBody(body) {
   const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);
   if (!m) return body;
   const [, sid, varsJson] = m;
-  const label = TEMPLATE_LABELS[sid] || `قالب معتمَد (${sid.slice(0, 10)}…)`;
   let vars = {};
   try { vars = varsJson ? JSON.parse(varsJson) : {}; } catch { /* ignore */ }
-  const parts = [label];
+  const template = TEMPLATE_BODIES[sid];
+  if (template) {
+    return template.replace(/\{\{(\d)\}\}/g, (_, n) => vars[n] ?? `{{${n}}}`);
+  }
+  // قالب غير معروف (جديد لسا ما انضاف هون) — رجوع لملخّص أساسي بدل نص فاضي.
+  const parts = [`قالب معتمَد (${sid.slice(0, 10)}…)`];
   if (vars['1']) parts.push(`العميل: ${vars['1']}`);
   if (vars['2']) parts.push(`رقم الطلب: ${vars['2']}`);
   return parts.join(' — ');
