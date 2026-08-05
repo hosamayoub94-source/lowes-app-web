@@ -21,7 +21,7 @@ import {
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 import { listActiveProfiles } from '@services/authService';
 
-const MAIN_LINE = 'main'; // خط وحيد فعلياً حالياً — راجع WA_LINES
+const MAIN_LINE = 'main'; // خط افتراضي عند فتح الشاشة — راجع WA_LINES لكل الخطوط المتاحة
 
 // فرق تشترك برؤية محادثات بعضها البعض — طلب مالك 5 أغسطس 2026: "ديانا وسالي
 // كشخص واحد" (بدل تقسيم صارم نص/نص كل وحدة تشوف بس محادثاتها). أي محادثة
@@ -184,7 +184,11 @@ export default function AdminWhatsAppScreen() {
   const [openPhone, setOpenPhone] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const line = MAIN_LINE; // خط وحيد فعلياً حالياً (خط الحملة مُزال — راجع D-016)
+  // خطّان فعليان الآن (5 أغسطس 2026): main = عملاء/تتبّع، campaign = حملات
+  // جماعية — كل واحد رقم Twilio مستقل مسجَّل ONLINE. المدير/الأدمن فقط يقدر
+  // يبدّل (الموظف العادي بيشتغل دائماً على main — أبسط، وحملات ديانا/سالي
+  // أصلاً بترسل عبر sendBulkCampaign مش من هالشاشة).
+  const [line, setLine] = useState(MAIN_LINE);
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -224,6 +228,10 @@ export default function AdminWhatsAppScreen() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // تبديل الخط بيغيّر مجموعة المحادثات بالكامل — نقفل المحادثة المفتوحة
+  // لتفادي عرض محادثة رقم تاني بالغلط (openPhone مش مرتبط بخط).
+  useEffect(() => { setOpenPhone(''); autoOpenedRef.current = false; }, [line]);
 
   // موظفين نشطين — لقائمة "تغيير المسؤول" (سبب الحاجة: موظف عادي فتح محادثة
   // مملوكة لحدا تاني فانقفلت بوجهه بلا أي طريقة يحوّلها إله — 5 أغسطس 2026).
@@ -675,9 +683,23 @@ export default function AdminWhatsAppScreen() {
       ) : (
       <>
       <div className="flex gap-2 items-center flex-wrap">
-        <span className="text-xs font-bold rounded-lg px-3 py-1.5 bg-teal/10 text-teal-700">
-          {WA_LINES[line].label} · {WA_LINES[line].number}
-        </span>
+        {isManager ? (
+          Object.entries(WA_LINES).map(([key, l]) => (
+            <button
+              key={key}
+              onClick={() => setLine(key)}
+              className={`text-xs font-bold rounded-lg px-3 py-1.5 border-2 transition ${
+                line === key ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted hover:border-teal/40'
+              }`}
+            >
+              {l.label} · {l.number}
+            </button>
+          ))
+        ) : (
+          <span className="text-xs font-bold rounded-lg px-3 py-1.5 bg-teal/10 text-teal-700">
+            {WA_LINES[line].label} · {WA_LINES[line].number}
+          </span>
+        )}
         <button
           onClick={() => setNewChatOpen(v => !v)}
           className="text-xs font-bold rounded-lg px-3 py-1.5 border border-border/60 bg-surface text-text"

@@ -92,8 +92,8 @@ export async function setConversationTags(phone, toNumber, tags) {
 
 export const SUGGESTED_TAGS = ['عميل جديد', 'متابعة', 'VIP', 'شكوى', 'استفسار سعر', 'جاهز للطلب'];
 
-// line: "main" (+13204416777، الرقم الوحيد الشغّال فعلياً حالياً) — الرقم
-// التاني ("campaign") لسا معطَّل عند Twilio (خطأ 63110)، راجع HANDOFF.
+// line: "main" (+13204416777 — عملاء/تتبّع) أو "campaign" (+12768772635 —
+// حملات جماعية) — كلاهما مسجَّلان ONLINE فعلياً على Twilio منذ 5 أغسطس 2026.
 // media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)
 export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {
   const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
@@ -259,8 +259,13 @@ export function trackingLinkMessage(order, customerName) {
   return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}.\nتابعي شحنتك أول بأول من هون:\n${brandedTrackingUrl(order.order_id)}`;
 }
 
+// خطّان منفصلان — قرار مالك 5 أغسطس 2026: الرئيسي يضل حصراً للعملاء/تتبّع
+// الشحن (سمعة عالية HIGH مبنية من استخدام فعلي، ما نخاطر فيها بحملات
+// جماعية)، والجديد (+12768772635، صار ONLINE بعد تحرير التسجيل العالق)
+// مخصَّص للحملات التسويقية فقط. مرتبط بـSecret جديد TWILIO_WHATSAPP_FROM_2.
 export const WA_LINES = {
-  main: { number: '+13204416777', label: 'الرقم الرئيسي' },
+  main:     { number: '+13204416777', label: 'الرئيسي — عملاء وتتبّع' },
+  campaign: { number: '+12768772635', label: 'الحملات' },
 };
 
 export function normalizeWaPhone(raw) {
@@ -422,7 +427,7 @@ export async function sendBulkCampaign(customers, contentSid, {
         method: 'POST',
         headers: WA_HEADERS,
         body: JSON.stringify({
-          phone, contentSid, byUser: 'bulk-campaign',
+          phone, contentSid, byUser: 'bulk-campaign', line: 'campaign',
           contentVariables: { '1': c.name || 'عميلتنا العزيزة' },
         }),
       });
