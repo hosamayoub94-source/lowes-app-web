@@ -20,13 +20,25 @@ export const WA_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+// ⚠️ 6 أغسطس 2026: كان هون limit=500 ثابت — مع تدفّق حملات جماعية (880+
+// رسالة برسالة واحدة) صارت الرسائل الأقدم (متل محادثات تتبّع هيا الموزَّعة
+// إلها مسبقاً) تُدفَن تحت سقف الـ500 وتختفي كلياً من واجهتها رغم إنها
+// مسجَّلة إلها فعلياً بجدول الملكية — بگت "بس محادثتين" رغم 47 محادثة
+// فعلية. الحل: صفحات (نفس نمط fetchAllRows بباقي التطبيق) بدل سقف ثابت.
 export async function fetchWhatsAppMessages() {
-  const res = await fetch(
-    `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&order=created_at.desc&limit=500`,
-    { headers: WA_HEADERS },
-  );
-  if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب');
-  return res.json();
+  const pageSize = 1000;
+  const out = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const res = await fetch(
+      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&order=created_at.desc&limit=${pageSize}&offset=${offset}`,
+      { headers: WA_HEADERS },
+    );
+    if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب');
+    const page = await res.json();
+    out.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return out;
 }
 
 // ملكية المحادثات (نسخة بسيطة) — كل صف: هالمحادثة (رقم+خط) مسؤول عنها موظف
