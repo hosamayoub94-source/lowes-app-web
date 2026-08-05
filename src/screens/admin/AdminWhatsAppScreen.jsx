@@ -363,8 +363,13 @@ export default function AdminWhatsAppScreen() {
     sendMedia(file, file.name.split('.').pop());
   };
 
+  // "غير مافي خيار إلغاء التسجيل قبل الإرسال" (طلب مالك 5 أغسطس 2026) —
+  // stop() وحده كان يُرسل دائماً؛ العلم هون يميّز "أوقف وأرسل" عن "ألغِ".
+  const cancelRecordingRef = useRef(false);
+
   const toggleRecording = async () => {
     if (recording) {
+      cancelRecordingRef.current = false;
       recorderRef.current?.stop();
       return;
     }
@@ -385,6 +390,7 @@ export default function AdminWhatsAppScreen() {
       rec.onstart = () => setRecording(true);
       rec.ondataavailable = (arrayBuffer) => {
         setRecording(false);
+        if (cancelRecordingRef.current) { cancelRecordingRef.current = false; return; } // ألغيت — ما نرسل
         const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
         if (blob.size > 0) sendMedia(blob, 'ogg');
       };
@@ -394,6 +400,12 @@ export default function AdminWhatsAppScreen() {
       setRecording(false);
       toast.error('تعذّر الوصول للميكروفون: ' + e.message);
     }
+  };
+
+  const cancelRecording = () => {
+    if (!recording) return;
+    cancelRecordingRef.current = true;
+    recorderRef.current?.stop();
   };
 
   const startNewChat = () => {
@@ -885,6 +897,16 @@ export default function AdminWhatsAppScreen() {
                   >
                     📷
                   </button>
+                  {recording && (
+                    <button
+                      onClick={cancelRecording}
+                      disabled={sending}
+                      title="إلغاء التسجيل بلا إرسال"
+                      className="border border-red-500 text-red-500 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      🗑️
+                    </button>
+                  )}
                   <button
                     onClick={toggleRecording}
                     disabled={sending}
