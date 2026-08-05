@@ -20,7 +20,7 @@ export async function fetchMessagesSince(sinceISO) {
   const PAGE = 1000;
   for (;;) {
     const res = await fetch(
-      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone,direction,created_at&created_at=gte.${encodeURIComponent(sinceISO)}&order=created_at.asc&limit=${PAGE}&offset=${offset}`,
+      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone,direction,created_at,by_user&created_at=gte.${encodeURIComponent(sinceISO)}&order=created_at.asc&limit=${PAGE}&offset=${offset}`,
       { headers: WA_HEADERS },
     );
     if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب للتحليل');
@@ -35,6 +35,10 @@ export async function fetchMessagesSince(sinceISO) {
 
 // يبني إحصاءات المحادثات من الرسائل الخام: معدل رد العميل، سرعة رد الفريق
 // (لما العميل يبلّش هو)، وعدد صادر/وارد إجمالي.
+// مرسِلون آليون — يُستبعدوا من لوحة "مين عم يشتغل" (طلب مالك 6 أغسطس
+// 2026: أدمن يقدر يشوف أداء الموظفين الفعلي على واتساب، لا ضجيج آلي).
+const SYSTEM_SENDERS = new Set(['bulk-campaign', 'order-created']);
+
 export function buildWhatsAppStats(messages) {
   const byPhone = new Map();
   for (const m of messages) {
@@ -47,6 +51,7 @@ export function buildWhatsAppStats(messages) {
   let totalIn = 0, totalOut = 0, repliedConvos = 0, customerInitiated = 0;
   const responseTimesMin = [];
   const conversations = [];
+  const agentMap = new Map(); // by_user → { sent, responseTimes: [] }
 
   for (const [phoneKey, msgs] of byPhone) {
     msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -71,6 +76,27 @@ export function buildWhatsAppStats(messages) {
       inCount: ins.length, outCount: outs.length,
       customerInitiated: first.direction === 'in', responseMin,
     });
+
+    // نسب كل رسالة صادرة لصاحبها (by_user) + سرعة ردّه لو جاءت بعد رسالة عميل
+    // مباشرة (نفس منطق "سرعة رد الفريق" أعلاه، بس مقسَّم بالشخص).
+    let pendingInboundAt = null;
+    for (const m of msgs) {
+      if (m.direction === 'in') {
+        pendingInboundAt = m.created_at;
+      } else if (m.direction === 'out') {
+        const agent = m.by_user;
+        if (agent && !SYSTEM_SENDERS.has(agent)) {
+          if (!agentMap.has(agent)) agentMap.set(agent, { sent: 0, responseTimes: [] });
+          const a = agentMap.get(agent);
+          a.sent++;
+          if (pendingInboundAt) {
+            const mins = (new Date(m.created_at) - new Date(pendingInboundAt)) / 60000;
+            if (mins >= 0 && mins < 60 * 24 * 3) a.responseTimes.push(mins);
+            pendingInboundAt = null;
+          }
+        }
+      }
+    }
   }
 
   const totalConvos = byPhone.size;
@@ -78,12 +104,28 @@ export function buildWhatsAppStats(messages) {
     ? Math.round(responseTimesMin.reduce((a, b) => a + b, 0) / responseTimesMin.length)
     : null;
 
+  const agentStats = [...agentMap.entries()].map(([byUser, v]) => ({
+    byUser, sent: v.sent,
+    avgResponseMin: v.responseTimes.length ? Math.round(v.responseTimes.reduce((a, b) => a + b, 0) / v.responseTimes.length) : null,
+  })).sort((a, b) => b.sent - a.sent);
+
   return {
     totalConvos, totalIn, totalOut, repliedConvos, customerInitiated,
     replyRate: totalConvos ? Math.round((repliedConvos / totalConvos) * 100) : 0,
     avgResponseMin,
     conversations,
+    agentStats,
   };
+}
+
+// يبدّل معرّفات الموظفين (by_user = profile.id) بأسمائهم — استعلام واحد
+// بالدفعة بدل استعلام لكل وكيل.
+async function resolveAgentNames(agentStats) {
+  const ids = agentStats.map(a => a.byUser).filter(id => /^[0-9a-f-]{36}$/i.test(id));
+  if (!ids.length) return agentStats.map(a => ({ ...a, name: a.byUser }));
+  const { data } = await supabase.from('profiles').select('id, employee_name').in('id', ids);
+  const nameById = new Map((data || []).map(p => [p.id, p.employee_name]));
+  return agentStats.map(a => ({ ...a, name: nameById.get(a.byUser) || a.byUser }));
 }
 
 // طلبات تركيا منذ تاريخ معيّن (للمطابقة مع محادثات واتساب) — صفحات 1000.
@@ -134,5 +176,7 @@ export async function getWhatsAppAnalytics(days = 30) {
   const stats = buildWhatsAppStats(messages);
   let converted = 0;
   try { converted = await computeConversions(stats.conversations, since); } catch { /* orders قد تفشل بلا كسر التحليلات الأساسية */ }
-  return { ...stats, converted, conversionRate: stats.totalConvos ? Math.round((converted / stats.totalConvos) * 100) : 0, since, days };
+  let agentStats = stats.agentStats;
+  try { agentStats = await resolveAgentNames(stats.agentStats); } catch { /* أسماء الموظفين ثانوية — لا تكسر باقي التحليلات */ }
+  return { ...stats, agentStats, converted, conversionRate: stats.totalConvos ? Math.round((converted / stats.totalConvos) * 100) : 0, since, days };
 }

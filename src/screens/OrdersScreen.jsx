@@ -22,7 +22,7 @@ import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
-import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
+import { notifyOrderStatusWhatsApp, sendOrderReceivedMessage } from '@services/whatsappService';
 import { trackingLink } from '@utils/shippingTracking';
 import { batchUpdateByIds } from '@utils/batchUpdate';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from '@components/ui/Modal';
@@ -3531,6 +3531,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       savedId = data?.id;
       if (data?.order_id) form.order_id = data.order_id; // الكود المولّد (للعرض/المخزون/المزامنة)
       notifyNewOrderToFulfillment({ ...form, id: savedId });
+      sendOrderReceivedMessage({ ...form, id: savedId }); // best-effort — راجع ORDER_RECEIVED_READY بـwhatsappService.js
     }
     setModal(null);
     load();

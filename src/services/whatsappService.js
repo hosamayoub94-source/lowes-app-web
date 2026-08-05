@@ -212,7 +212,7 @@ export const QUICK_REPLIES = [
 export const TRACKING_QUICK_REPLIES = [
   {
     key: 'welcome', label: '👋 ترحيب',
-    text: (name) => `مرحباً ${name || ''} 🌿\nمعك فريق LOWE'S Professional، تشرّفنا فيك وبطلبك — أي سؤال احنا هون بخدمتك 💚`,
+    text: (name) => `مرحباً ${name || ''} 🌿\nمعك فريق Lowe's Profesyonel، تشرّفنا فيك وبطلبك — أي سؤال احنا هون بخدمتك 💚`,
   },
   {
     key: 'thanks', label: '🙏 شكر',
@@ -508,5 +508,40 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
     });
   } catch {
     /* best-effort — لا نوقف تحديث الحالة الأصلي مهما حصل */
+  }
+}
+
+// ⏳ قالب "استلام الطلب" — تأكيد فوري عند إنشاء الطلب (مختلف عن إشعارات
+// تغيّر الحالة اللاحقة أعلاه). قُدِّم لموافقة Meta 6 أغسطس 2026 (status:
+// received وقت التقديم، SID: HXb29d16c967c8d7f651502eff3fa40f76). **لا
+// تُفعَّل قبل تأكيد الموافقة** (GET /v1/Content/{sid}/ApprovalRequests
+// → status: approved) — بدّل ORDER_RECEIVED_READY لـtrue فقط بعدها، وإلا
+// كل إرسال يفشل بخطأ Twilio 63016 (نفس درس promo/v2 tracking templates).
+const ORDER_RECEIVED_SID = 'HXb29d16c967c8d7f651502eff3fa40f76';
+const ORDER_RECEIVED_READY = false;
+
+// يرسل تأكيد استلام الطلب فور إنشائه — قيد التجهيز، تسليم لشركة الشحن خلال
+// 48 ساعة، مدة توصيل متوقعة 2-5 أيام عمل (نفس أسلوب شركات الشحن — تقدير لا
+// وعد)، ملخّص المنتجات والمجموع، ودعوة لطيفة للمتابعة. طلب مالك 6 أغسطس
+// 2026. best-effort دائماً — ما يوقف حفظ الطلب مهما صار.
+export async function sendOrderReceivedMessage(order) {
+  if (!ORDER_RECEIVED_READY) return;
+  try {
+    const phone = normalizeLocalPhone(order?.phone_1, order?.market);
+    if (!phone) return;
+    const name = order?.customer_name || 'عميلنا العزيز';
+    const orderNo = String(order?.order_id ?? order?.id ?? '');
+    const itemsSummary = (order?.items || []).map(it => `${it.name} ×${it.qty}`).join('، ') || '—';
+    const total = order?.amount ? `${Number(order.amount).toLocaleString()} ${order.currency || ''}`.trim() : '—';
+    await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
+      method: 'POST',
+      headers: WA_HEADERS,
+      body: JSON.stringify({
+        phone, contentSid: ORDER_RECEIVED_SID,
+        contentVariables: { '1': name, '2': orderNo, '3': itemsSummary, '4': total },
+      }),
+    });
+  } catch {
+    /* best-effort — ما يوقف حفظ الطلب مهما صار */
   }
 }

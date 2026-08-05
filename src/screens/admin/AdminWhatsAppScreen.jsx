@@ -116,6 +116,26 @@ function WhatsAppAnalyticsPanel() {
           <p className="text-[10px] text-muted text-center">
             {stats.customerInitiated} محادثة بلّشها العميل من أصل {stats.totalConvos} — الباقي إشعارات آلية (تتبّع شحن) ما تلاها رد.
           </p>
+
+          {/* أداء كل موظف على واتساب — طلب مالك 6 أغسطس 2026: "بدي قيّم مين
+              عم يشتغل". عدد الرسائل الصادرة + متوسط سرعة الرد لكل موظف،
+              مستخرَجة من عمود by_user (نفس معرّف الموظف بجدول profiles). */}
+          {stats.agentStats?.length > 0 && (
+            <div className="bg-surface border border-border rounded-2xl p-3">
+              <p className="text-xs font-bold text-text mb-2">👤 أداء الموظفين</p>
+              <div className="space-y-1.5">
+                {stats.agentStats.map(a => (
+                  <div key={a.byUser} className="flex items-center justify-between text-xs border-b border-border/30 pb-1.5 last:border-0 last:pb-0">
+                    <span className="font-bold text-text">{a.name}</span>
+                    <span className="text-muted flex items-center gap-3">
+                      <span>{a.sent} رسالة</span>
+                      <span>{a.avgResponseMin != null ? fmtMin(a.avgResponseMin) : '—'} متوسط الرد</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
