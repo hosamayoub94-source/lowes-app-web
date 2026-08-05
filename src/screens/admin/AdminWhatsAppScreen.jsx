@@ -22,6 +22,19 @@ import { listActiveProfiles } from '@services/authService';
 
 const MAIN_LINE = 'main'; // خط وحيد فعلياً حالياً — راجع WA_LINES
 
+// فرق تشترك برؤية محادثات بعضها البعض — طلب مالك 5 أغسطس 2026: "ديانا وسالي
+// كشخص واحد" (بدل تقسيم صارم نص/نص كل وحدة تشوف بس محادثاتها). أي محادثة
+// عند أي عضو بالفريق تظهر للكل — بلا حاجة لتغيير المالك الفعلي بقاعدة
+// البيانات. ⚠️ ثابت بالكود مؤقتاً (دَين تقني) — لو صارت الفرق أكتر/متغيّرة
+// بشكل متكرر، ينقل هذا لإعداد يُدار من لوحة الأدمن بدل تعديل الكود مباشرة.
+const WHATSAPP_TEAMS = [
+  ['Diana Hasan', 'Sally Teba'],
+];
+function teammatesOf(name) {
+  const team = WHATSAPP_TEAMS.find(t => t.includes(name));
+  return team || [name];
+}
+
 const PERIODS = [
   { key: 7,  label: '7 أيام' },
   { key: 30, label: '30 يوم' },
@@ -229,12 +242,16 @@ export default function AdminWhatsAppScreen() {
       if (!byPhone[p] || new Date(m.created_at) > new Date(byPhone[p].created_at)) byPhone[p] = { ...m, phone: p };
     }
     let list = Object.values(byPhone);
-    // موظف عادي (بلا صلاحية إدارة) يشوف بس المحادثات المسجَّلة إله — الأدمن/
-    // المدير يشوفوا الكل. محادثة بلا مالك أصلاً (عميل راسل جديد بلا حدا فتحها)
-    // ما تظهر للموظف العادي بهالنسخة البسيطة — تحتاج الأدمن يوزّعها أول.
-    if (!isManager) list = list.filter(t => ownerByPhone[t.phone]?.owner_id === userId);
+    // موظف عادي (بلا صلاحية إدارة) يشوف بس المحادثات المسجَّلة إله أو لأي
+    // عضو بفريقها (WHATSAPP_TEAMS) — الأدمن/المدير يشوفوا الكل. محادثة بلا
+    // مالك أصلاً (عميل راسل جديد بلا حدا فتحها) ما تظهر للموظف العادي
+    // بهالنسخة البسيطة — تحتاج الأدمن يوزّعها أول.
+    if (!isManager) {
+      const mates = teammatesOf(userName);
+      list = list.filter(t => mates.includes(ownerByPhone[t.phone]?.owner_name));
+    }
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [lineMsgs, isManager, ownerByPhone, userId]);
+  }, [lineMsgs, isManager, ownerByPhone, userName]);
 
   useEffect(() => {
     if (!autoOpenedRef.current && !openPhone && threads.length) {
@@ -253,10 +270,10 @@ export default function AdminWhatsAppScreen() {
   const trackingThreads = useMemo(() => filteredThreads.filter(t => isOrderTrackingBody(t.body)), [filteredThreads]);
   const convoThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body)), [filteredThreads]);
 
-  // محادثة عائدة لموظف تاني (مو إله) — موظف عادي ما يشوف رسائلها حتى لو
-  // وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
+  // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
+  // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
   const openOwnedByOther = !isManager && !!openPhone
-    && ownerByPhone[openPhone] && ownerByPhone[openPhone].owner_id !== userId;
+    && ownerByPhone[openPhone] && !teammatesOf(userName).includes(ownerByPhone[openPhone].owner_name);
 
   const thread = useMemo(
     () => openOwnedByOther ? [] : (lineMsgs || [])
