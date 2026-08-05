@@ -387,16 +387,14 @@ const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // اللي تناسبه بدل ما يضطر يعدّل نص واحد مفروض عليه.
 export async function aiFollowupMessage({ customerName, products, idleDays, sellerName }) {
   try {
-    const ctx = `اكتب 3 خيارات مختلفة (مو نفس الفكرة بصياغة مختلفة، فعلاً 3 مقاربات متنوّعة — وحدة ودّية بسيطة، وحدة فيها اقتراح منتج مكمّل، وحدة فيها لمسة إلحاح لطيف بخصم/عرض) لرسالة واتساب قصيرة بالعربي لمتابعة عميلة من Lowe's Professional للعناية بالبشرة.`
-      + ` اسم العميلة: ${customerName || 'العميلة'}.`
-      + (products?.length ? ` اشترت سابقاً: ${products.slice(0, 4).join('، ')}.` : '')
+    const ctx = `اكتبي 3 خيارات مختلفة (مو نفس الفكرة بصياغة مختلفة، فعلاً 3 مقاربات متنوّعة — وحدة ودّية بسيطة، وحدة فيها اقتراح منتج مكمّل، وحدة فيها لمسة إلحاح لطيف بخصم/عرض) لرسالة متابعة لعميلة اسمها ${customerName || 'العميلة'}.`
       + (idleDays && idleDays !== Infinity ? ` مضى ${idleDays} يوماً على آخر طلب.` : '')
       + (sellerName ? ` وقّعي باسم ${sellerName}.` : '')
       + ` افصل بين كل رسالة والتانية بسطر فيه بس ثلاث شرطات (---) ولا شي غيرها. بلا ترقيم ولا عناوين، بس نص الرسالة الجاهز للإرسال مباشرة بكل جزء.`;
     const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'reply', product: '', extra: ctx }),
+      body: JSON.stringify({ mode: 'followup', product: products?.length ? products.slice(0, 4).join('، ') : '', extra: ctx }),
     });
     if (!res.ok) return null;
     const data = await res.json();

@@ -80,6 +80,13 @@ ${extra || product || ''}
 - إذا كان شكوى، تعاطفي واحتوي الموقف باحترافية.
 كل رد جاهز للنسخ المباشر.`;
 
+    case 'followup':
+      return base + `## مهمتك الآن
+اكتبي **رسالة واتساب متابعة قصيرة** يبعتها الفريق لعميلة (هاي رسالة جديدة منّا لها، مو رد على رسالة وصلتنا منها).
+${product ? `اشترت سابقاً: ${product}. ` : ''}${extra || ''}
+
+كل رسالة جاهزة للنسخ والإرسال مباشرة على واتساب — بلا عناوين ولا تنسيق ماركداون (لا #، لا **، لا شرطات نقطية)، إيموجي بحدود 1-2 فقط.`;
+
     case 'calendar':
       return base + `## مهمتك الآن
 خططي **تقويم محتوى أسبوعي (7 أيام)** لحسابات لويز على السوشال.
@@ -104,7 +111,7 @@ Deno.serve(async (req: Request) => {
   try {
     const { mode = 'caption', product = '', extra = '' } = await req.json();
 
-    const validModes = ['caption', 'reels', 'reply', 'calendar'];
+    const validModes = ['caption', 'reels', 'reply', 'followup', 'calendar'];
     if (!validModes.includes(mode)) {
       return json({ error: 'invalid mode' }, 400);
     }
@@ -113,6 +120,8 @@ Deno.serve(async (req: Request) => {
 
     const userMsg = mode === 'reply'
       ? 'اكتبي الردود المقترحة.'
+      : mode === 'followup'
+      ? 'اكتبي رسائل المتابعة المطلوبة.'
       : mode === 'calendar'
       ? 'اكتبي التقويم الأسبوعي الكامل.'
       : mode === 'reels'
