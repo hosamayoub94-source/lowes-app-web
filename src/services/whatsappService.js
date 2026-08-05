@@ -519,7 +519,7 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
 // received، SID: HX7a1399acb1734201f34faec6a8152559). **لا تُفعَّل قبل تأكيد**
 // **الموافقة** — بدّل UNBOXING_VIDEO_READY لـtrue فقط بعدها.
 const UNBOXING_VIDEO_SID = 'HX7a1399acb1734201f34faec6a8152559';
-const UNBOXING_VIDEO_READY = false;
+const UNBOXING_VIDEO_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أغسطس 2026 (أعادت Meta تصنيفها MARKETING)
 
 async function sendUnboxingVideoRequest(order) {
   if (!UNBOXING_VIDEO_READY) return;
@@ -548,7 +548,7 @@ async function sendUnboxingVideoRequest(order) {
 // → status: approved) — بدّل ORDER_RECEIVED_READY لـtrue فقط بعدها، وإلا
 // كل إرسال يفشل بخطأ Twilio 63016 (نفس درس promo/v2 tracking templates).
 const ORDER_RECEIVED_SID = 'HXb29d16c967c8d7f651502eff3fa40f76';
-const ORDER_RECEIVED_READY = false;
+const ORDER_RECEIVED_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أغسطس 2026
 
 // يرسل تأكيد استلام الطلب فور إنشائه — قيد التجهيز، تسليم لشركة الشحن خلال
 // 48 ساعة، مدة توصيل متوقعة 2-5 أيام عمل (نفس أسلوب شركات الشحن — تقدير لا

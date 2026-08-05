@@ -36,7 +36,7 @@ const TEMPLATE_SID: Record<string, string> = {
 // طلب مالك 6 أغسطس 2026). SID قُدِّم لموافقة Meta 6 أغسطس 2026 (status:
 // received). **لا تُفعَّل قبل تأكيد الموافقة.**
 const UNBOXING_VIDEO_SID = "HX7a1399acb1734201f34faec6a8152559";
-const UNBOXING_VIDEO_READY = false;
+const UNBOXING_VIDEO_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أغسطس 2026 (أعادت Meta تصنيفها MARKETING)
 
 // يطبّع رقم الهاتف المحلي (سوري/تركي، غالباً يبدأ بصفر) لصيغة دولية +E.164.
 function normalizePhone(raw: string | null | undefined, market: string | null | undefined): string | null {
