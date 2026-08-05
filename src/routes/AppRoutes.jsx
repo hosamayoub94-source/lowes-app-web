@@ -88,6 +88,7 @@ const AdminChannelsScreen      = lazy(() => import(/* webpackChunkName: "admin-c
 const AdminWhatsAppScreen      = lazy(() => import(/* webpackChunkName: "admin-whatsapp"      */ '@screens/admin/AdminWhatsAppScreen'));
 const AdminProjectsScreen      = lazy(() => import(/* webpackChunkName: "admin-projects"     */ '@screens/admin/AdminProjectsScreen'));
 const JoinScreen               = lazy(() => import(/* webpackChunkName: "join"              */ '@screens/JoinScreen'));
+const PublicTrackScreen        = lazy(() => import(/* webpackChunkName: "public-track"      */ '@screens/PublicTrackScreen'));
 
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
@@ -427,6 +428,9 @@ export function AppRoutes() {
 
         {/* صفحة عامة — شبكة النجوم (لا تسجيل دخول) */}
         <Route path={ROUTES.JOIN} element={<JoinScreen />} />
+
+        {/* صفحة عامة — تتبّع طلب للعميل (لا تسجيل دخول) */}
+        <Route path={ROUTES.TRACK} element={<PublicTrackScreen />} />
 
         {/* Catch-all — شاشة 404 (كان يوجد مسار «*» مكرّر يعيد للرئيسية فيُلغيها). */}
         <Route path="*" element={<NotFoundScreen />} />

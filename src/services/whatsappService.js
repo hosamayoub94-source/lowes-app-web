@@ -7,7 +7,6 @@
 // =============================================================
 import { supabase } from './supabase';
 import { getCustomerOrders } from './customerService';
-import { trackingLink } from '@utils/shippingTracking';
 import { STATUSES } from '@data/orderStatus';
 import { COMPANY } from '@data/brand';
 
@@ -239,18 +238,25 @@ export async function getLatestOrderForWaPhone(waPhone) {
   } catch { return null; }
 }
 
-// رسالة رابط تتبّع ديناميكية — رابط تتبّع فعلي عند شركة الشحن + حالة الطلب
-// الحقيقية، بدل نص عام بلا معلومة. لو ما لقينا طلب مرتبط بالرقم، ترجع سؤال
-// توضيحي بدل معلومة مختلَقة.
+// رابط صفحة التتبّع العلنية بدومين لوويز نفسه (بديل احترافي عن رابط شركة
+// الشحن الخام — طلب مالك 5 أغسطس 2026 "متل الشركات العالمية"). راجع
+// src/screens/PublicTrackScreen.jsx.
+const APP_BASE_URL = 'https://lowes-app-web.vercel.app';
+export function brandedTrackingUrl(orderId) {
+  return `${APP_BASE_URL}/track/${encodeURIComponent(orderId)}`;
+}
+
+// رسالة رابط تتبّع ديناميكية — رابط تتبّع بهويتنا (لا رابط شركة الشحن الخام)
+// + حالة الطلب الحقيقية، بدل نص عام بلا معلومة. لو ما لقينا طلب مرتبط
+// بالرقم، ترجع سؤال توضيحي بدل معلومة مختلَقة.
 export function trackingLinkMessage(order, customerName) {
   const name = customerName || order?.customer_name || '';
   if (!order) return `مرحباً ${name} 🌿 ما لقيت طلب مرتبط برقمك حالياً — ممكن تأكدي لي رقم الطلب؟`;
-  const link = trackingLink(order.shipping_company, order.tracking_number);
   const statusLabel = STATUSES[order.status]?.label || order.status || '';
-  if (!link) {
+  if (!order.tracking_number) {
     return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}. رقم تتبع الشحنة لسا ما انسجل، رح نبعتلك ياه أول ما يجهز.`;
   }
-  return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}.\nرابط تتبّع الشحنة مباشرة:\n${link}`;
+  return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}.\nتابعي شحنتك أول بأول من هون:\n${brandedTrackingUrl(order.order_id)}`;
 }
 
 export const WA_LINES = {
@@ -295,6 +301,23 @@ const TEMPLATE_SID = {
 };
 
 export { TEMPLATE_SID };
+
+// ⏳ قوالب v2 بزر "تتبّع الشحنة" (رابط ديناميكي لـ PublicTrackScreen، بدل
+// نص بلا رابط) — قُدِّمت لموافقة Meta 5 أغسطس 2026 (status: received وقت
+// التقديم). **ما تستبدل TEMPLATE_SID فوق بهاي لحد ما تتأكد الموافقة**
+// (نفس درس promo — قالب غير معتمَد بيترفض بخطأ 63016). تحقّق عبر Twilio
+// Content API (GET /v1/Content/{sid}/ApprovalRequests → status: approved)
+// قبل التبديل، وبعدها احذف هالتعليق واستبدل القيم فوق.
+const PENDING_TEMPLATE_SID_V2 = {
+  shipped: 'HXb7b169193122a9ef28b5d325e1c677b8',
+  at_center: 'HXd67200bbcefe0ea6f5b2b1ee4783e5fb',
+  on_way: 'HXb94f286c3d6a6ff18c026d9cd860c648',
+  delivered: 'HX8488cebc405836a8754a4fdcd135bf30',
+  cancelled: 'HX811b42acf8805422c828d34b94cb54f2',
+  not_received: 'HXe342e4d0b35339c93c7dbb189270a8a5',
+  returning: 'HX8ae3500cc67471cb7d809f8af6bb0353',
+};
+export { PENDING_TEMPLATE_SID_V2 };
 
 // عرض حقيقي لجسم رسالة قالب — الرسائل المُرسَلة بقالب فقط (contentSid بلا
 // body، أغلبها إشعارات حالة الطلب أو الحملة) تُخزَّن كـ"[template:HXxxx]
