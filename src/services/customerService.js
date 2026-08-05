@@ -383,14 +383,16 @@ export function boughtProductNames(orders) {
 // (reuses the brand-tone "reply" mode). Returns text or null.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// يرجع مصفوفة من 3 اقتراحات رسائل مختلفة (مو رسالة وحدة) — الموظف يختار
+// اللي تناسبه بدل ما يضطر يعدّل نص واحد مفروض عليه.
 export async function aiFollowupMessage({ customerName, products, idleDays, sellerName }) {
   try {
-    const ctx = `اكتب رسالة واتساب قصيرة ودّية بالعربي لمتابعة عميلة من Lowe's Professional للعناية بالبشرة.`
+    const ctx = `اكتب 3 خيارات مختلفة (مو نفس الفكرة بصياغة مختلفة، فعلاً 3 مقاربات متنوّعة — وحدة ودّية بسيطة، وحدة فيها اقتراح منتج مكمّل، وحدة فيها لمسة إلحاح لطيف بخصم/عرض) لرسالة واتساب قصيرة بالعربي لمتابعة عميلة من Lowe's Professional للعناية بالبشرة.`
       + ` اسم العميلة: ${customerName || 'العميلة'}.`
       + (products?.length ? ` اشترت سابقاً: ${products.slice(0, 4).join('، ')}.` : '')
       + (idleDays && idleDays !== Infinity ? ` مضى ${idleDays} يوماً على آخر طلب.` : '')
-      + ` اطمئني على تجربتها، أظهري الاهتمام، واقترحي منتجاً مكمّلاً بلطف بدون إلحاح.`
-      + (sellerName ? ` وقّعي باسم ${sellerName}.` : '');
+      + (sellerName ? ` وقّعي باسم ${sellerName}.` : '')
+      + ` افصل بين كل رسالة والتانية بسطر فيه بس ثلاث شرطات (---) ولا شي غيرها. بلا ترقيم ولا عناوين، بس نص الرسالة الجاهز للإرسال مباشرة بكل جزء.`;
     const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
@@ -398,7 +400,10 @@ export async function aiFollowupMessage({ customerName, products, idleDays, sell
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return data?.content || null;
+    const raw = data?.content || '';
+    if (!raw) return null;
+    const options = raw.split(/\n?-{3,}\n?/).map(s => s.trim()).filter(Boolean);
+    return options.length ? options : [raw.trim()];
   } catch { return null; }
 }
 

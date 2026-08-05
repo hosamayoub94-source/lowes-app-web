@@ -82,6 +82,7 @@ function CustomerModal({ c, sellerName, onClose }) {
   const [lastOrderDays, setLastOrderDays] = useState(idle);
   const [msg, setMsg]       = useState(followupMessage(c.name, sellerName));
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiOptions, setAiOptions] = useState([]); // اقتراحات لوزي المتعددة — تُختار بدل ما تُفرَض
 
   useEffect(() => { getNotes(c.phone_key).then(setNotes); }, [c.phone_key]);
   useEffect(() => {
@@ -145,9 +146,13 @@ function CustomerModal({ c, sellerName, onClose }) {
 
   const writeWithAi = async () => {
     setAiLoading(true);
+    setAiOptions([]);
     try {
       const out = await aiFollowupMessage({ customerName: c.name, products: bought, idleDays: idle, sellerName });
-      if (out) setMsg(out);
+      if (out?.length) {
+        setAiOptions(out);
+        setMsg(out[0]); // أول اقتراح يتعبّى بالصندوق فوراً — الباقي جاهزين تحته لو حابة تبدّلي
+      }
     } finally { setAiLoading(false); }
   };
 
@@ -285,6 +290,21 @@ function CustomerModal({ c, sellerName, onClose }) {
             </div>
             <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={4}
               className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none" />
+            {aiOptions.length > 1 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted">اقتراحات لوزي — دوسي على وحدة تاخديها بدل الحالية:</p>
+                <div className="flex flex-col gap-1">
+                  {aiOptions.map((opt, i) => (
+                    <button key={i} onClick={() => setMsg(opt)}
+                      className={`text-start text-[11px] rounded-lg px-2 py-1.5 border transition truncate ${
+                        opt === msg ? 'border-teal bg-teal/10 text-teal-700 font-bold' : 'border-border/60 text-muted hover:bg-surface-alt'
+                      }`}>
+                      {opt.slice(0, 70)}{opt.length > 70 ? '…' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
               {waSend && (
                 <a href={waSend} target="_blank" rel="noreferrer"
