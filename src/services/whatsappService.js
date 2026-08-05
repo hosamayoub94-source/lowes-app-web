@@ -66,12 +66,62 @@ export async function deleteWhatsAppConversation(phone, toNumber) {
   const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
     method: 'POST',
     headers: WA_HEADERS,
-    body: JSON.stringify({ phone, toNumber }),
+    body: JSON.stringify({ action: 'deleteConversation', phone, toNumber }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر حذف المحادثة');
   return data;
 }
+
+// يحذف رسالة صادرة واحدة (رسالتنا نحن — لا يُحذَف رد العميل، هو ملكه).
+export async function deleteWhatsAppMessage(id) {
+  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
+    method: 'POST',
+    headers: WA_HEADERS,
+    body: JSON.stringify({ action: 'deleteMessage', id }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر حذف الرسالة');
+  return data;
+}
+
+// ينقل تاريخ محادثة كامل لرقم جديد (العميل غيّر رقمه واستمر عليه) — يبقى
+// بنفس الشاشة، بس تحت رقم مختلف من الآن فصاعداً.
+export async function transferWhatsAppConversation(fromPhone, toPhone, toNumber) {
+  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
+    method: 'POST',
+    headers: WA_HEADERS,
+    body: JSON.stringify({ action: 'transferConversation', fromPhone, toPhone, toNumber }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر نقل المحادثة');
+  return data;
+}
+
+// ردود جاهزة (مؤتمتة يدوياً — سارة/رودي يضغطوا بدل ما يكتبوا من الصفر) —
+// مبنية على سكريبت البيع المتفَق عليه لحملة كثافة الشعر (خط الروزماري).
+export const QUICK_REPLIES = [
+  {
+    label: 'السعر',
+    text: 'أهلاً 🌿 خصم 30% لهالأسبوع بس على مجموعة الروزماري — حابة أبعتلك رابط الطلب المباشر؟',
+  },
+  {
+    label: 'الدليل العلمي',
+    text: 'دراسة علمية مستقلة (SKINLAB، بولندا) أثبتت إن ماء الروزماري النقي بيزيد كثافة الشعر بنسبة +15.53% خلال 8 أسابيع.',
+  },
+  {
+    label: 'الثقة/الأصالة',
+    text: 'المنتج صناعة تركيا 🇹🇷، أكتر من 230,000 عميلة جربوه، تقييم 4.7/5، ومسجَّل رسمياً (ÜTS) ومطابق للمعايير الأوروبية.',
+  },
+  {
+    label: 'التوصيل',
+    text: 'بيوصلك الطلب خلال 3-5 أيام عمل، والدفع عند الاستلام.',
+  },
+  {
+    label: 'متابعة',
+    text: 'العرض بينتهي قريباً — حابة أثبتلك الطلب الآن قبل ما ينتهي الخصم؟',
+  },
+];
 
 export const WA_LINES = {
   main: { number: '+13204416777', label: 'الرقم الرئيسي' },
@@ -129,6 +179,19 @@ const TEMPLATE_LABELS = {
   [TEMPLATE_SID.returning]: '↩️ الطلب قيد الإرجاع',
   [TEMPLATE_SID.promo]: '🌿 رسالة حملة كثافة الشعر (الروزماري)',
 };
+
+// تصنيف محادثة: إشعار طلب آلي (شحن/تسليم/إلغاء...) مقابل محادثة عميل حقيقية —
+// يُستخدَم لفصل شات "تتبّع الطلبات" عن "المحادثات" بقائمة المحادثات.
+const ORDER_TRACKING_SIDS = new Set([
+  TEMPLATE_SID.shipped, TEMPLATE_SID.at_center, TEMPLATE_SID.on_way,
+  TEMPLATE_SID.delivered, TEMPLATE_SID.cancelled, TEMPLATE_SID.not_received,
+  TEMPLATE_SID.returning,
+]);
+export function isOrderTrackingBody(body) {
+  if (!body) return false;
+  const m = body.match(/^\[template:([^\]]+)\]/);
+  return !!m && ORDER_TRACKING_SIDS.has(m[1]);
+}
 
 export function formatWaBody(body) {
   if (!body) return '';
