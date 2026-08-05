@@ -693,8 +693,8 @@ export default function CustomersScreen() {
 
   // الحملة الجماعية مسموحة فقط لقسم "لويز تركيا" — الاستبعاد الصريح لسوريا
   // (D-022) والحماية من خلط أسواق بقسمي "سترونغ"/"الكل".
-  // TEMPLATE_SID.promo مُعطَّل عمداً (قالب قديم فيه اسم "سارة" ثابت بلا
-  // متغيّر) — الزر يختفي تلقائياً لحد ما القالب البديل يوافَق عليه من Meta.
+  // TEMPLATE_SID.promo (v2، صورة + متغيّر حقيقي) موافَق عليه من Meta فعلياً
+  // (تأكّد 5 أغسطس 2026 عبر Twilio Content API — status: approved).
   const canCampaign = sec.market === 'turkey' && !archive && !!TEMPLATE_SID.promo;
 
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
@@ -712,9 +712,20 @@ export default function CustomersScreen() {
     [displayed, selectedPhones],
   );
 
+  // تحديد/إلغاء الكل ضمن التصفية الحالية (القسم + الفئة، مثلاً "💔 استرجاع") —
+  // بدون هذا، حملة إعادة تنشيط لمئات العملاء الخاملين تعني ضغط كل بطاقة يدوياً
+  // (غير عملي). تعمل على displayed (المُصفّى بالفئة) لا rows الخام.
+  const allFilteredSelected = displayed.length > 0 && displayed.every(c => selectedPhones.has(c.phone_key));
+  const toggleSelectAllFiltered = useCallback(() => {
+    setSelectedPhones(allFilteredSelected ? new Set() : new Set(displayed.map(c => c.phone_key)));
+  }, [displayed, allFilteredSelected]);
+
   const runCampaign = async () => {
     if (!selectedCustomers.length || sendingCampaign) return;
-    if (!window.confirm(`بدك تبعت رسالة "كثافة الشعر" لـ${selectedCustomers.length} عميل عبر واتساب؟ ما في تراجع بعد الإرسال.`)) return;
+    // بمعدل 2.5 ثانية بين كل رسالة (حماية Quality Rating عند Meta) — دفعة كبيرة
+    // تاخد وقت حقيقي، والموظف/ة لازم تخلّي التبويب مفتوح لحد ما تخلص.
+    const etaMin = Math.ceil((selectedCustomers.length * 2.5) / 60);
+    if (!window.confirm(`بدك تبعت رسالة "كثافة الشعر" لـ${selectedCustomers.length} عميل عبر واتساب؟ رح تاخد تقريباً ${etaMin} دقيقة (خلّي هالتبويب مفتوح). ما في تراجع بعد الإرسال.`)) return;
     setSendingCampaign(true);
     setCampaignProgress({ done: 0, total: selectedCustomers.length, sent: 0, failed: 0 });
     try {
@@ -774,8 +785,14 @@ export default function CustomersScreen() {
       </div>
 
       {campaignMode && (
-        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold">
-          📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.
+        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold flex items-center justify-between gap-2 flex-wrap">
+          <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
+          {displayed.length > 0 && (
+            <button onClick={toggleSelectAllFiltered}
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
+              {allFilteredSelected ? `✕ إلغاء تحديد الكل (${displayed.length})` : `✓ تحديد الكل (${displayed.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
+            </button>
+          )}
         </div>
       )}
 
