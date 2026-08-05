@@ -19,6 +19,10 @@ import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { sendBulkCampaign, TEMPLATE_SID } from '@services/whatsappService';
 import { sessionCan, PERMISSIONS } from '@data/permissions';
+import {
+  getOrCreateReferralCode, redeemReferralCode, referralInviteMessage,
+  aiReferralMessage, getReferralStats,
+} from '@services/referralService';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -83,6 +87,15 @@ function CustomerModal({ c, sellerName, onClose }) {
   const [msg, setMsg]       = useState(followupMessage(c.name, sellerName));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiOptions, setAiOptions] = useState([]); // اقتراحات لوزي المتعددة — تُختار بدل ما تُفرَض
+
+  // ── دعوات الانتشار (الإحالة) ────────────────────────────────
+  const [refCode, setRefCode]         = useState(null);
+  const [refLoading, setRefLoading]   = useState(false);
+  const [refMsg, setRefMsg]           = useState('');
+  const [refAiLoading, setRefAiLoading] = useState(false);
+  const [redeemInput, setRedeemInput] = useState('');
+  const [redeemBusy, setRedeemBusy]   = useState(false);
+  const [redeemResult, setRedeemResult] = useState(null); // {ok, error?, referrerName?}
 
   useEffect(() => { getNotes(c.phone_key).then(setNotes); }, [c.phone_key]);
   useEffect(() => {
@@ -156,8 +169,46 @@ function CustomerModal({ c, sellerName, onClose }) {
     } finally { setAiLoading(false); }
   };
 
+  // توليد/جلب كود الإحالة (كسول — بس لما البائع يفتح قسم "دعوة صديقة").
+  const loadReferralCode = async () => {
+    if (refCode || refLoading) return;
+    setRefLoading(true);
+    try {
+      const row = await getOrCreateReferralCode({ phoneKey: c.phone_key, name: c.name, market: mkt, createdBy: sellerName });
+      setRefCode(row);
+      setRefMsg(referralInviteMessage(c.name, row.code, sellerName));
+    } catch { /* تجاهل — الزر يضل يسمح بإعادة المحاولة */ }
+    finally { setRefLoading(false); }
+  };
+
+  const writeReferralWithAi = async () => {
+    if (!refCode) return;
+    setRefAiLoading(true);
+    try {
+      const out = await aiReferralMessage({ customerName: c.name, code: refCode.code, sellerName });
+      if (out) setRefMsg(out);
+    } finally { setRefAiLoading(false); }
+  };
+
+  // تسجيل تحويل ناجح: هالعميلة (الجديدة) ذكرت كود صديقة عند الطلب.
+  // نربطه بأحدث طلب فعلي إلها (lastOrder) بدل لمس نموذج إنشاء الطلب.
+  const redeemCode = async () => {
+    if (!redeemInput.trim() || redeemBusy) return;
+    setRedeemBusy(true);
+    setRedeemResult(null);
+    try {
+      const res = await redeemReferralCode({
+        code: redeemInput, newPhoneKey: c.phone_key, newCustomerName: c.name,
+        orderId: lastOrder?.id || null, redeemedBy: sellerName,
+      });
+      setRedeemResult(res);
+      if (res.ok) setRedeemInput('');
+    } finally { setRedeemBusy(false); }
+  };
+
   const waSend  = customerWaLink(c.phone, mkt, msg);
   const waPlain = customerWaLink(c.phone, mkt);
+  const waReferral = refCode ? customerWaLink(c.phone, mkt, refMsg) : null;
 
   // واتساب الاستهلاكي (wa.me) بيفتح تطبيق واتساب الشخصي عالموبايل — ما عنا
   // API ولا webhook نقرأ منه أي شي (رد العميل يضل غير مرئي كلياً)، بس أقل
@@ -333,6 +384,56 @@ function CustomerModal({ c, sellerName, onClose }) {
                 className="w-full py-2 rounded-xl border border-teal text-teal-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-teal/10 transition">
                 💬 فتح شات واتساب الرسمي (يضل عندك)
               </button>
+            )}
+          </div>
+
+          {/* دعوات الانتشار — الإحالة */}
+          <div className="space-y-2 bg-teal/5 border border-teal/20 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-extrabold text-teal-700">🎁 دعوة صديقة (إحالة)</p>
+              {refCode && (
+                <button onClick={writeReferralWithAi} disabled={refAiLoading}
+                  className="text-[11px] font-bold text-navy bg-navy/10 px-2 py-1 rounded-lg hover:bg-navy/15 transition disabled:opacity-50">
+                  {refAiLoading ? '… لوزي تكتب' : '✨ لوزي تكتب الدعوة'}
+                </button>
+              )}
+            </div>
+            {!refCode ? (
+              <button onClick={loadReferralCode} disabled={refLoading}
+                className="w-full py-2 rounded-xl border-2 border-teal/40 text-teal-700 text-xs font-bold hover:bg-teal/10 transition disabled:opacity-50">
+                {refLoading ? '...' : '🔗 ولّد كود إحالة لهالعميلة'}
+              </button>
+            ) : (
+              <>
+                <p className="text-[11px] text-muted">كودها: <span className="font-mono font-bold text-teal-700" dir="ltr">{refCode.code}</span> — بتشاركه مع صديقة، وكل ما حدا يطلب فيه إلها وإله خصم.</p>
+                <textarea value={refMsg} onChange={e => setRefMsg(e.target.value)} rows={3}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none" />
+                {waReferral && (
+                  <a href={waReferral} target="_blank" rel="noreferrer"
+                    className="w-full py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition"
+                    style={{ background: '#25D366' }}>
+                    <WaIcon /> إرسال دعوة واتساب
+                  </a>
+                )}
+              </>
+            )}
+            {/* عميلة جديدة (طلب واحد أو أقل) — احتمال إنها إجت بكود إحالة */}
+            {c.orders_count <= 1 && (
+              <div className="pt-2 border-t border-teal/10 space-y-1.5">
+                <p className="text-[11px] text-muted">إذا إجت بكود من صديقة، سجّليه هون:</p>
+                <div className="flex gap-2">
+                  <input value={redeemInput} onChange={e => setRedeemInput(e.target.value.toUpperCase())}
+                    placeholder="LOWES-XXXX" dir="ltr"
+                    className="flex-1 border border-border rounded-xl px-3 py-2 text-sm font-mono bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                  <button onClick={redeemCode} disabled={redeemBusy || !redeemInput.trim()}
+                    className="px-3 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">تسجيل</button>
+                </div>
+                {redeemResult && (
+                  <p className={`text-[11px] font-bold ${redeemResult.ok ? 'text-teal-700' : 'text-red-fg'}`}>
+                    {redeemResult.ok ? `✅ تحويل ناجح — إحالة من ${redeemResult.referrerName || 'صديقة'}!` : `❌ ${redeemResult.error}`}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -525,6 +626,7 @@ export default function CustomersScreen() {
   const [exporting, setExporting] = useState(false);
   const [partnerNames, setPartnerNames] = useState([]);
   const [archive, setArchive]   = useState(false);    // الأرشيف الشهري
+  const [refStats, setRefStats] = useState(null);     // {generated, redeemed} — KPI الإحالة
 
   // وضع الحملة الجماعية — بس لأسواق غير سوريا (واتساب الرسمي محظور كلياً على
   // +963، خطأ Twilio 21408 — راجع 09_Decision_Register.md § D-022).
@@ -579,6 +681,12 @@ export default function CustomersScreen() {
   }, [sec.market, sec.brand]);
 
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [load]);
+
+  // KPI الإحالة — بس للأقسام اللي عندها market فعلي (سوريا/تركيا)، مش سترونغ/الكل.
+  useEffect(() => {
+    if (!sec.market) { setRefStats(null); return; }
+    getReferralStats({ market: sec.market }).then(setRefStats).catch(() => setRefStats(null));
+  }, [sec.market]);
 
   // mineOnly is applied server-side; segment is a client-side refinement.
   const displayed = useMemo(() => rows.filter(c => inSegment(c, segment)), [rows, segment]);
@@ -645,6 +753,7 @@ export default function CustomersScreen() {
                   {totalCount != null ? `${totalCount.toLocaleString('en-US')} عميل في القسم` : `${stats.total} عميل`}
                   {totalCount != null && totalCount > rows.length && ` · معروض ${stats.total} (ابحث للوصول للبقية)`}
                   {' · '}{stats.due} للمتابعة · {stats.vip} VIP
+                  {refStats && refStats.generated > 0 && ` · 🎁 ${refStats.generated} إحالة (${refStats.redeemed} تحوّلت لطلب)`}
                 </>}
           </p>
         </div>

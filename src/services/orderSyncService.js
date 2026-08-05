@@ -13,14 +13,10 @@ const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const SYNCABLE_MARKETS = ['syria', 'turkey'];
 export const isSyncable = (o) => o && SYNCABLE_MARKETS.includes(o.market) && o.archived !== true && !o.deleted_at;
 
-// ── المزامنة: التطبيق → الجدول ─────────────────────────────────
-// يستدعي edge fn ويحدّث مؤشر المزامنة (sync_status/sync_error/attempts/last_synced_at)
-// حسب الرد. أعمدة sync_* تُضاف بالـDDL (المرحلة 1)؛ التحديث best-effort.
-export async function syncToSheet(orderId, { markPending = false } = {}) {
-  if (!orderId) return { ok: false, error: 'no order id' };
-  if (markPending) {
-    await supabaseAnon.from('orders').update({ sync_status: 'pending' }).eq('id', orderId).then(() => {}, () => {});
-  }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// نداء واحد لـ edge fn (بدون إعادة محاولة) — يُستخدم داخلياً بواسطة syncToSheet.
+async function callSyncFn(orderId) {
   let ok = false, errText = null, action = null, row = null, skipped = null, itemsSent = null, itemsWritten = null, droppedItems = null;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
@@ -43,6 +39,30 @@ export async function syncToSheet(orderId, { markPending = false } = {}) {
   } catch (e) {
     ok = false; errText = String(e?.message || e).slice(0, 300);
   }
+  return { ok, errText, action, row, skipped, itemsSent, itemsWritten, droppedItems };
+}
+
+// ── المزامنة: التطبيق → الجدول ─────────────────────────────────
+// يستدعي edge fn ويحدّث مؤشر المزامنة (sync_status/sync_error/attempts/last_synced_at)
+// حسب الرد. أعمدة sync_* تُضاف بالـDDL (المرحلة 1)؛ التحديث best-effort.
+//
+// أغلب حالات «فشل المزامنة» عابرة (انقطاع شبكة لحظي عند العميل، أو رد HTML
+// غريب مؤقت من Google Apps Script تحت الضغط) — لوحظ ~7% من طلبات تركيا تفشل
+// مرة واحدة ثم تنجح فوراً عند إعادة المحاولة يدوياً. بدل تعليم الطلب «فشل»
+// من أول محاولة عابرة، نعيد المحاولة تلقائياً (حتى مرتين إضافيتين بتأخير
+// قصير) قبل أن نستسلم ونكتب sync_status='failed'.
+const RETRY_DELAYS_MS = [1000, 2000];
+export async function syncToSheet(orderId, { markPending = false } = {}) {
+  if (!orderId) return { ok: false, error: 'no order id' };
+  if (markPending) {
+    await supabaseAnon.from('orders').update({ sync_status: 'pending' }).eq('id', orderId).then(() => {}, () => {});
+  }
+  let attempt = await callSyncFn(orderId);
+  for (let i = 0; !attempt.ok && !attempt.skipped && i < RETRY_DELAYS_MS.length; i++) {
+    await sleep(RETRY_DELAYS_MS[i]);
+    attempt = await callSyncFn(orderId);
+  }
+  const { ok, errText, action, row, skipped, itemsSent, itemsWritten, droppedItems } = attempt;
   // حدّث المؤشر (لا يكسر شيئاً لو الأعمدة لم تُطبّق بعد — نتجاهل الخطأ).
   const patch = ok
     ? { sync_status: 'synced', sheet_synced: true, sync_error: null, last_synced_at: new Date().toISOString() }
