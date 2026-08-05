@@ -23,6 +23,7 @@ import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatu
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import { notifyOrderStatusWhatsApp } from '@services/whatsappService';
+import { trackingLink } from '@utils/shippingTracking';
 import { batchUpdateByIds } from '@utils/batchUpdate';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from '@components/ui/Modal';
 import SyriaFlag from '@components/ui/SyriaFlag';
@@ -1470,31 +1471,11 @@ const TURKEY_COMPANIES = ['yurtiçi', 'Aras', 'ptt', 'توصيل الموتور'
 const CURRENCIES       = ['TRY', 'SYP', 'USD'];
 const PICKUP_TYPES     = ['استلام من المركز', 'عنوان المنزل', 'عنوان العمل'];
 
-const TRACKING_URLS = {
-  'Yurtiçi Kargo': (n) => `https://www.yurticikargo.com/tr/online-servisler/gonderi-sorgula?code=${n}`,
-  'Aras Kargo':    (n) => `https://kargotakip.aras.com.tr/?id=${n}`,
-  'PTT Kargo':     (n) => `https://turkiye.ptt.gov.tr/anasayfa#`,
-  'Sürat Kargo':   (n) => `https://www.suratkargo.com.tr/KargoTakip/?takipNo=${n}`,
-  'MNG Kargo':     (n) => `https://www.mngkargo.com.tr/tr/musteri-hizmetleri/kargo-sorgula?trackingNumber=${n}`,
-};
-
 function waLink(phone, market) {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, '');
   if (market === 'turkey') return `https://wa.me/90${digits.replace(/^0/, '')}`;
   return `https://wa.me/963${digits.replace(/^0/, '')}`;
-}
-function trackingLink(company, number) {
-  if (!number) return null;
-  // بابل اكسبرس (سوريا): صفحة تتبّع عامة — نطابق أي صيغة للاسم
-  if (/بابل|babel/i.test(company || '')) return `https://www.babel-express.com/track?awb=${encodeURIComponent(number)}`;
-  // شركة الكرم (سوريا): صفحة تتبّع عامة بلا تسجيل دخول
-  if (/كرم/i.test(company || '')) return `https://newpost.mrkaram.com/track/${encodeURIComponent(number)}`;
-  const fn = company ? TRACKING_URLS[company] : null;
-  if (fn) return fn(number);
-  // Universal fallback for any company with a tracking number
-  if (number) return `https://kargomnerede.com.tr/tracking?t=${encodeURIComponent(number)}`;
-  return null;
 }
 // رقم الطلب (order_id) يُولَّد تلقائياً بقاعدة البيانات: تريغر BEFORE INSERT
 // (assign_order_code) يعطي كوداً تسلسلياً ذرّياً لكل فريق (market+brand):

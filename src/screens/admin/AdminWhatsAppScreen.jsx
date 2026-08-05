@@ -15,6 +15,7 @@ import {
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
   fetchWhatsAppOwners, claimWhatsAppConversation,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
+  TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
 } from '@services/whatsappService';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 
@@ -159,6 +160,8 @@ export default function AdminWhatsAppScreen() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferPhone, setTransferPhone] = useState('');
   const [view, setView] = useState('chat'); // 'chat' | 'analytics'
+  const [trackingOrder, setTrackingOrder] = useState(null); // آخر طلب حقيقي لصاحب المحادثة المفتوحة (لرسالة رابط التتبع)
+  const [trackingBannerOpen, setTrackingBannerOpen] = useState(true);
   const bottomRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -255,6 +258,18 @@ export default function AdminWhatsAppScreen() {
   useEffect(() => {
     if (openPhone) bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [openPhone, thread.length]);
+
+  // محادثة تتبّع = فيها أي رسالة إشعار آلي بتاريخها (لا بس آخر رسالة — لو
+  // الموظف رد بنص حر، تضل "تتبّع" لأنها بلّشت هيك). البانر يستهدفها تحديداً
+  // (طلب مالك 5 أغسطس 2026: "بدي بنر خاص في التتبّع").
+  const openIsTracking = useMemo(() => thread.some(m => isOrderTrackingBody(m.body)), [thread]);
+
+  useEffect(() => {
+    setTrackingBannerOpen(true);
+    if (!openPhone || !openIsTracking) { setTrackingOrder(null); return; }
+    getLatestOrderForWaPhone(openPhone).then(setTrackingOrder).catch(() => setTrackingOrder(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPhone, openIsTracking]);
 
   const send = async () => {
     const body = draft.trim();
@@ -621,6 +636,39 @@ export default function AdminWhatsAppScreen() {
                   ))}
                   <div ref={bottomRef} />
                 </div>
+
+                {/* بانر رسائل تتبّع ذكية — يظهر بس لما المحادثة المفتوحة أصلها
+                    إشعار تتبّع آلي. أكتر من مجرد حالة شحن: ترحيب/شكر/توثيق فتح
+                    الطرد/دعوة قناة/متابعة صفحات/طلب تقييم + رابط تتبع حقيقي
+                    (طلب مالك 5 أغسطس 2026). كل زر يعبّي صندوق الرد، ما بيرسل مباشرة. */}
+                {openIsTracking && (
+                  <div className="mb-2 bg-teal/10 border border-teal/30 rounded-lg p-2">
+                    <button onClick={() => setTrackingBannerOpen(v => !v)}
+                      className="w-full flex items-center justify-between text-xs font-bold text-teal-700">
+                      <span>🏷️ رسائل تتبّع ذكية {trackingOrder ? `— طلبها الأخير #${trackingOrder.order_id || ''}` : ''}</span>
+                      <span>{trackingBannerOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {trackingBannerOpen && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => insertQuickReply(trackingLinkMessage(trackingOrder, trackingOrder?.customer_name))}
+                          className="text-[11px] font-bold px-2 py-1 rounded-lg bg-teal text-navy hover:opacity-90 transition"
+                        >
+                          🔗 رابط التتبّع
+                        </button>
+                        {TRACKING_QUICK_REPLIES.map((q) => (
+                          <button
+                            key={q.key}
+                            onClick={() => insertQuickReply(q.text(trackingOrder?.customer_name))}
+                            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-teal/40 text-teal-700 hover:bg-teal/10 transition"
+                          >
+                            {q.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {quickOpen && (
                   <div className="mb-2 bg-border/10 rounded-lg p-2 flex flex-col gap-1 max-h-40 overflow-y-auto">

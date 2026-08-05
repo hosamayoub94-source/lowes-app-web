@@ -6,6 +6,10 @@
 // أُنشئ 1 أغسطس 2026.
 // =============================================================
 import { supabase } from './supabase';
+import { getCustomerOrders } from './customerService';
+import { trackingLink } from '@utils/shippingTracking';
+import { STATUSES } from '@data/orderStatus';
+import { COMPANY } from '@data/brand';
 
 export const WA_PROJECT_URL = 'https://kesoqnwyydycuyifqfhl.supabase.co';
 const WA_ANON_KEY =
@@ -150,6 +154,66 @@ export const QUICK_REPLIES = [
     text: 'العرض بينتهي قريباً — حابة أثبتلك الطلب الآن قبل ما ينتهي الخصم؟',
   },
 ];
+
+// ── رسائل تتبّع ذكية ────────────────────────────────────────────
+// طلب مالك 5 أغسطس 2026: رسائل التتبّع لازم تفيد أكتر من مجرد حالة شحن آلية —
+// ترحيب/شكر بأسلوب بسيط (مش رسمي/متكبّر)، حماية حق العميل عند الاستلام،
+// وتحفيز تفاعل حقيقي (قناة واتساب/متابعة/تقييم). كل نص text(name) دالة
+// عشان الاسم ينحقن ديناميكياً — الموظف يقدر يعدّل قبل الإرسال زي أي رسالة.
+export const TRACKING_QUICK_REPLIES = [
+  {
+    key: 'welcome', label: '👋 ترحيب',
+    text: (name) => `مرحباً ${name || ''} 🌿\nمعك فريق LOWE'S Professional، تشرّفنا فيك وبطلبك — أي سؤال احنا هون بخدمتك 💚`,
+  },
+  {
+    key: 'thanks', label: '🙏 شكر',
+    text: (name) => `يسلموا ${name || ''} 🌿 شكراً إلك عن قلب على ثقتك فينا — وجودك معنا بيسعدنا كتير، وإذا في أي شي تاني احتجتيه بس اكتبيلنا.`,
+  },
+  {
+    key: 'unboxing', label: '📦 توثيق فتح الطرد',
+    text: () => `قبل ما تفتحي الطرد 🙏 صوّري فيديو قصير من لحظة استلامك للطرد المغلق لحد ما تفتحيه — هيك بنضمن حقك 100% لو صار أي نقص أو خطأ بالمحتوى.`,
+  },
+  {
+    key: 'channel', label: '📢 دعوة لقناة واتساب',
+    text: () => `تحبي تكوني أول وحدة تعرف عن عروضنا وجديدنا؟ 🌿 انضمي لقناتنا على واتساب:\n${COMPANY.whatsappChannelUrl}`,
+  },
+  {
+    key: 'social', label: '📱 متابعة صفحاتنا',
+    text: () => `تابعينا على إنستغرام ${COMPANY.instagramSkincare} 📸 لأحدث النصائح والعروض الحصرية — وموقعنا ${COMPANY.website} فيه كل تشكيلتنا.`,
+  },
+  {
+    key: 'review', label: '⭐ طلب تقييم/رأي',
+    text: (name) => `${name ? name + ' 💛' : '💛'} شو رأيك بمنتجاتنا لحد هلق؟ رأيك بيهمنا كتير وبيساعدنا نتحسّن — احكيلنا انطباعك وتقييمك من 5 ⭐.`,
+  },
+  {
+    key: 'followup_result', label: '🔁 متابعة النتيجة',
+    text: (name) => `${name || ''} 🌿 صار كم يوم على استخدامك للمنتج — شو حاسة؟ لاحظتي فرق؟ حابين نطمن عليكِ ونعرف كيف رافقك معنا.`,
+  },
+];
+
+// آخر طلب حقيقي لهالرقم (لأي سوق) — يُستخدَم لبناء رسالة رابط التتبع
+// الديناميكية بدل نص عام. يعيد استخدام نفس مطابقة الهاتف الموثوقة
+// (RPC get_customer_orders_by_key) المستخدمة بشاشة العملاء.
+export async function getLatestOrderForWaPhone(waPhone) {
+  try {
+    const orders = await getCustomerOrders(waPhone);
+    return orders?.[0] || null;
+  } catch { return null; }
+}
+
+// رسالة رابط تتبّع ديناميكية — رابط تتبّع فعلي عند شركة الشحن + حالة الطلب
+// الحقيقية، بدل نص عام بلا معلومة. لو ما لقينا طلب مرتبط بالرقم، ترجع سؤال
+// توضيحي بدل معلومة مختلَقة.
+export function trackingLinkMessage(order, customerName) {
+  const name = customerName || order?.customer_name || '';
+  if (!order) return `مرحباً ${name} 🌿 ما لقيت طلب مرتبط برقمك حالياً — ممكن تأكدي لي رقم الطلب؟`;
+  const link = trackingLink(order.shipping_company, order.tracking_number);
+  const statusLabel = STATUSES[order.status]?.label || order.status || '';
+  if (!link) {
+    return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}. رقم تتبع الشحنة لسا ما انسجل، رح نبعتلك ياه أول ما يجهز.`;
+  }
+  return `مرحباً ${name} 🌿 طلبك رقم ${order.order_id || ''} حالته حالياً: ${statusLabel}.\nرابط تتبّع الشحنة مباشرة:\n${link}`;
+}
 
 export const WA_LINES = {
   main: { number: '+13204416777', label: 'الرقم الرئيسي' },
