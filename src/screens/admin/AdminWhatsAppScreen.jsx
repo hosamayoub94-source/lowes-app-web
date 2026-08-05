@@ -168,6 +168,7 @@ export default function AdminWhatsAppScreen() {
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
   const [search, setSearch] = useState('');
+  const [unansweredFirst, setUnansweredFirst] = useState(true); // ترفع المحادثات يلي لسا ما انردّ عليها فوق
   const [deletingPhone, setDeletingPhone] = useState('');
   const [deletingMsgId, setDeletingMsgId] = useState('');
   const [quickOpen, setQuickOpen] = useState(false);
@@ -269,6 +270,15 @@ export default function AdminWhatsAppScreen() {
   // فصل شات "تتبّع الطلبات" (إشعارات آلية) عن "المحادثات" (رد حر من عميل/موظف) — طلب صريح.
   const trackingThreads = useMemo(() => filteredThreads.filter(t => isOrderTrackingBody(t.body)), [filteredThreads]);
   const convoThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body)), [filteredThreads]);
+
+  // "غير مردودة أولاً" — آخر رسالة بالمحادثة من العميل (لسا محدا ردّ) ترفع
+  // فوق، مع الحفاظ على ترتيب الأحدث ضمن كل مجموعة. طلب مالك 5 أغسطس 2026:
+  // ما تضيع محادثة عميل بانتظار رد وسط قائمة طويلة.
+  const sortUnansweredFirst = (list) => unansweredFirst
+    ? [...list].sort((a, b) => (b.direction === 'in') - (a.direction === 'in'))
+    : list;
+  const sortedConvoThreads = useMemo(() => sortUnansweredFirst(convoThreads), [convoThreads, unansweredFirst]);
+  const sortedTrackingThreads = useMemo(() => sortUnansweredFirst(trackingThreads), [trackingThreads, unansweredFirst]);
 
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
@@ -474,6 +484,7 @@ export default function AdminWhatsAppScreen() {
       onClick={() => setOpenPhone(t.phone)}
       className={`group px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2 ${t.phone === openPhone ? 'bg-teal/10' : ''}`}
     >
+      {t.direction === 'in' && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="بانتظار رد" />}
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-text" dir="ltr">{t.phone}</div>
         <div className="text-xs text-muted truncate">
@@ -552,7 +563,7 @@ export default function AdminWhatsAppScreen() {
         <div className="flex gap-3 items-start flex-wrap md:flex-nowrap">
           {/* قائمة المحادثات — على الموبايل تختفي لما تكون محادثة مفتوحة (شاشة وحدة بالمرة، متل أي تطبيق شات) */}
           <div className={`bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] flex flex-col ${openPhone ? 'hidden md:flex' : 'flex'}`}>
-            <div className="p-2 border-b border-border/40 shrink-0">
+            <div className="p-2 border-b border-border/40 shrink-0 space-y-1.5">
               <input
                 className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
                 placeholder="🔍 بحث برقم الهاتف…"
@@ -560,6 +571,10 @@ export default function AdminWhatsAppScreen() {
                 onChange={(e) => setSearch(e.target.value)}
                 dir="ltr"
               />
+              <button onClick={() => setUnansweredFirst(v => !v)}
+                className={`w-full text-[11px] font-bold rounded-lg px-2 py-1.5 border transition ${unansweredFirst ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted'}`}>
+                🔴 غير مردودة أولاً {unansweredFirst ? '✓' : ''}
+              </button>
             </div>
             <div className="overflow-y-auto flex-1">
               {filteredThreads.length === 0 && (
@@ -567,16 +582,16 @@ export default function AdminWhatsAppScreen() {
                   {threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
                 </div>
               )}
-              {convoThreads.length > 0 && (
+              {sortedConvoThreads.length > 0 && (
                 <>
                   <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">💬 المحادثات</div>
-                  {convoThreads.map(renderThreadRow)}
+                  {sortedConvoThreads.map(renderThreadRow)}
                 </>
               )}
-              {trackingThreads.length > 0 && (
+              {sortedTrackingThreads.length > 0 && (
                 <>
                   <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">📦 تتبّع الطلبات (آلي)</div>
-                  {trackingThreads.map(renderThreadRow)}
+                  {sortedTrackingThreads.map(renderThreadRow)}
                 </>
               )}
             </div>

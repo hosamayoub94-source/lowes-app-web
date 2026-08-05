@@ -31,6 +31,8 @@ export const NOTIFICATION_TYPE = {
   ORDER_STATUS_CHANGED: 'order_status_changed',
   ORDER_NEW:             'order_new',
   ANNOUNCEMENT:           'announcement',
+  // WhatsApp
+  WHATSAPP_REPLY:        'whatsapp_reply',
 };
 
 // ── Display metadata per type ─────────────────────────────────
@@ -55,6 +57,7 @@ export const TYPE_META = {
   order_status_changed: { icon: '📦', label: 'تغيّر حالة طلب',     colorClass: 'text-blue-fg    bg-blue-bg'   },
   order_new:             { icon: '📥', label: 'طلب جديد',          colorClass: 'text-teal       bg-teal/10'   },
   announcement:           { icon: '📢', label: 'إعلان',            colorClass: 'text-blue-fg    bg-blue-bg'   },
+  whatsapp_reply:         { icon: '💬', label: 'رد عميل واتساب',    colorClass: 'text-teal       bg-teal/10'   },
 };
 
 // ── Severity ──────────────────────────────────────────────────
@@ -86,6 +89,7 @@ export const TYPE_SEVERITY = {
   order_status_changed: 'info',
   order_new:             'info',
   announcement:           'info',
+  whatsapp_reply:         'warning',
 };
 
 /** Returns the severity for a given type (with optional override). */
@@ -122,6 +126,7 @@ export const TYPE_ROUTE = {
   order_status_changed: '/orders',
   order_new:            '/orders',
   announcement:          '/announcements',
+  whatsapp_reply:        '/admin/whatsapp',
 };
 
 /**
