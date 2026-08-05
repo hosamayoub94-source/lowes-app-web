@@ -14,7 +14,7 @@ import {
   fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
   fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
-  normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, QUICK_REPLIES, WA_LINES,
+  normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, extractTemplateName, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
   setConversationTags, SUGGESTED_TAGS,
 } from '@services/whatsappService';
@@ -239,6 +239,19 @@ export default function AdminWhatsAppScreen() {
     return messages.filter(m => (m.to_number || WA_LINES.main.number) === num);
   }, [messages, line]);
 
+  // اسم العميل بدل رقمه بس — "متل الواتساب الحقيقي" (طلب مالك 5 أغسطس 2026).
+  // مستخرَج من أي رسالة قالب بالمحادثة (نفس الاسم يلي انبعت فعلياً)، بلا أي
+  // استعلام DB إضافي — قاعدة العملاء ~24 ألف صف، أغلى بكتير من الحاجة الفعلية.
+  const nameByPhone = useMemo(() => {
+    if (!lineMsgs) return {};
+    const map = {};
+    for (const m of lineMsgs) {
+      const name = extractTemplateName(m.body);
+      if (name) map[normalizeWaPhone(m.phone)] = name;
+    }
+    return map;
+  }, [lineMsgs]);
+
   const threads = useMemo(() => {
     if (!lineMsgs) return [];
     const byPhone = {};
@@ -391,7 +404,13 @@ export default function AdminWhatsAppScreen() {
       rec.ondataavailable = (arrayBuffer) => {
         setRecording(false);
         if (cancelRecordingRef.current) { cancelRecordingRef.current = false; return; } // ألغيت — ما نرسل
-        const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
+        // ⚠️ 5 أغسطس 2026: عملاء اشتكوا "ما عم يفتح الفويس" (مو بس مش واضح —
+        // ما يشتغل إطلاقاً). السبب المرجّح: نوع الملف كان "audio/ogg" بلا
+        // "codecs=opus" الصريح — بعض عملاء واتساب ما بيتعرّفوا على ملف صوتي
+        // بدون هالتحديد الدقيق فبيفشل التشغيل حتى لو الترميز سليم فعلياً.
+        // هالسلسلة (blob.type → uploadWhatsAppMedia → Storage Content-Type
+        // → Twilio يقرأها لما يجيب الملف) بتنقل النوع حرفياً لواتساب.
+        const blob = new Blob([arrayBuffer], { type: 'audio/ogg; codecs=opus' });
         if (blob.size > 0) sendMedia(blob, 'ogg');
       };
       recorderRef.current = rec;
@@ -550,7 +569,14 @@ export default function AdminWhatsAppScreen() {
     >
       {t.direction === 'in' && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="بانتظار رد" />}
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-sm text-text" dir="ltr">{t.phone}</div>
+        {nameByPhone[t.phone] ? (
+          <>
+            <div className="font-bold text-sm text-text truncate">{nameByPhone[t.phone]}</div>
+            <div className="text-[10px] text-muted" dir="ltr">{t.phone}</div>
+          </>
+        ) : (
+          <div className="font-bold text-sm text-text" dir="ltr">{t.phone}</div>
+        )}
         <div className="text-xs text-muted truncate">
           {t.direction === 'out' ? 'أنتم: ' : ''}
           {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
@@ -698,7 +724,16 @@ export default function AdminWhatsAppScreen() {
                   >
                     ‹ رجوع
                   </button>
-                  <div className="font-bold text-sm text-text hidden md:block" dir="ltr">{openPhone}</div>
+                  <div className="hidden md:block">
+                    {nameByPhone[openPhone] ? (
+                      <>
+                        <div className="font-bold text-sm text-text">{nameByPhone[openPhone]}</div>
+                        <div className="text-[10px] text-muted" dir="ltr">{openPhone}</div>
+                      </>
+                    ) : (
+                      <div className="font-bold text-sm text-text" dir="ltr">{openPhone}</div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     {isManager && (
                       <button

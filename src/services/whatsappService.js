@@ -334,6 +334,20 @@ export function isCampaignBody(body) {
   return !!m && m[1] === TEMPLATE_SID.promo;
 }
 
+// اسم العميل المحقون بأي رسالة قالب (متغيّر {{1}} — دايماً الاسم بكل
+// قوالبنا التسويقية/التتبّع). بلا استعلام DB إضافي — نفس اسم انبعت للعميل
+// فعلياً مخزون أصلاً بجسم الرسالة. طلب مالك 5 أغسطس 2026: عرض اسم العميل
+// مو رقمه بس، "متل الواتساب الحقيقي".
+export function extractTemplateName(body) {
+  if (!body) return null;
+  const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);
+  if (!m || !m[2]) return null;
+  try {
+    const vars = JSON.parse(m[2]);
+    return vars['1'] || null;
+  } catch { return null; }
+}
+
 export function formatWaBody(body) {
   if (!body) return '';
   const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);
