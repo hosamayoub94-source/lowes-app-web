@@ -74,6 +74,25 @@ export async function setWhatsAppConversationOwner(phone, toNumber, ownerId, own
   return res.json();
 }
 
+// وسوم يدوية للمحادثة (تصنيف حرّ — "عميل جديد"، اسم البائع، إلخ) لفلترة
+// قائمة المحادثات. طلب مالك 5 أغسطس 2026. UPDATE لا upsert — عمود owner_id
+// بالجدول NOT NULL بلا default، فمحادثة بلا مالك أصلاً (ما انفتحت/اتملكت
+// بعد) ما فيها صف لتوسمه؛ افتحها/املكها أول (claim) ثم وسمها.
+export async function setConversationTags(phone, toNumber, tags) {
+  const res = await fetch(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_conversation_owners?phone=eq.${encodeURIComponent(phone)}&to_number=eq.${encodeURIComponent(toNumber)}`,
+    {
+      method: 'PATCH',
+      headers: { ...WA_HEADERS, Prefer: 'return=representation' },
+      body: JSON.stringify({ tags }),
+    },
+  );
+  if (!res.ok) throw new Error('تعذّر تحديث وسوم المحادثة');
+  return res.json();
+}
+
+export const SUGGESTED_TAGS = ['عميل جديد', 'متابعة', 'VIP', 'شكوى', 'استفسار سعر', 'جاهز للطلب'];
+
 // line: "main" (+13204416777، الرقم الوحيد الشغّال فعلياً حالياً) — الرقم
 // التاني ("campaign") لسا معطَّل عند Twilio (خطأ 63110)، راجع HANDOFF.
 // media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)

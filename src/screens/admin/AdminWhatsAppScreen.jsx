@@ -16,6 +16,7 @@ import {
   fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
+  setConversationTags, SUGGESTED_TAGS,
 } from '@services/whatsappService';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 import { listActiveProfiles } from '@services/authService';
@@ -180,6 +181,9 @@ export default function AdminWhatsAppScreen() {
   const [employees, setEmployees] = useState([]); // لقائمة "تغيير المسؤول" — أدمن/مدير فقط
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassigning, setReassigning] = useState(false);
+  const [tagFilter, setTagFilter] = useState(null); // وسم مُختار للفلترة (null = الكل)
+  const [tagInput, setTagInput] = useState('');
+  const [savingTag, setSavingTag] = useState(false);
   const bottomRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -263,9 +267,17 @@ export default function AdminWhatsAppScreen() {
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().replace(/[^\d+]/g, '');
-    if (!q) return threads;
-    return threads.filter(t => t.phone.includes(q));
-  }, [threads, search]);
+    let list = q ? threads.filter(t => t.phone.includes(q)) : threads;
+    if (tagFilter) list = list.filter(t => (ownerByPhone[t.phone]?.tags || []).includes(tagFilter));
+    return list;
+  }, [threads, search, tagFilter, ownerByPhone]);
+
+  // كل الوسوم المستخدَمة فعلياً (من owners) — لقائمة الفلترة بالسايدبار.
+  const allTags = useMemo(() => {
+    const set = new Set();
+    for (const o of owners) for (const t of (o.tags || [])) set.add(t);
+    return [...set].sort();
+  }, [owners]);
 
   // فصل شات "تتبّع الطلبات" (إشعارات آلية) عن "المحادثات" (رد حر من عميل/موظف) — طلب صريح.
   const trackingThreads = useMemo(() => filteredThreads.filter(t => isOrderTrackingBody(t.body)), [filteredThreads]);
@@ -478,6 +490,36 @@ export default function AdminWhatsAppScreen() {
     }
   };
 
+  const currentTags = ownerByPhone[openPhone]?.tags || [];
+
+  const addTag = async (tag) => {
+    const clean = String(tag || '').trim();
+    if (!clean || !openPhone || currentTags.includes(clean)) { setTagInput(''); return; }
+    setSavingTag(true);
+    try {
+      await setConversationTags(openPhone, WA_LINES[line].number, [...currentTags, clean]);
+      setTagInput('');
+      await load();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  const removeTag = async (tag) => {
+    if (!openPhone) return;
+    setSavingTag(true);
+    try {
+      await setConversationTags(openPhone, WA_LINES[line].number, currentTags.filter(t => t !== tag));
+      await load();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
   const renderThreadRow = (t) => (
     <div
       key={t.phone}
@@ -575,6 +617,20 @@ export default function AdminWhatsAppScreen() {
                 className={`w-full text-[11px] font-bold rounded-lg px-2 py-1.5 border transition ${unansweredFirst ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted'}`}>
                 🔴 غير مردودة أولاً {unansweredFirst ? '✓' : ''}
               </button>
+              {allTags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setTagFilter(null)}
+                    className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 border ${!tagFilter ? 'border-navy bg-navy text-white' : 'border-border/60 text-muted'}`}>
+                    الكل
+                  </button>
+                  {allTags.map(tag => (
+                    <button key={tag} onClick={() => setTagFilter(v => v === tag ? null : tag)}
+                      className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 border ${tagFilter === tag ? 'border-navy bg-navy text-white' : 'border-border/60 text-muted hover:border-navy/40'}`}>
+                      🏷️ {tag}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="overflow-y-auto flex-1">
               {filteredThreads.length === 0 && (
@@ -641,6 +697,29 @@ export default function AdminWhatsAppScreen() {
                       {deletingPhone === openPhone ? '…' : '🗑️ حذف'}
                     </button>
                   </div>
+                </div>
+
+                {/* وسوم يدوية للمحادثة — تصنيف حرّ ("عميل جديد"، اسم البائع...)
+                    لفلترة القائمة بالسايدبار. طلب مالك 5 أغسطس 2026. */}
+                <div className="flex items-center flex-wrap gap-1.5 mb-2">
+                  {currentTags.map(tag => (
+                    <span key={tag} className="text-[11px] font-bold bg-navy/10 text-navy dark:text-white rounded-md px-2 py-0.5 flex items-center gap-1">
+                      🏷️ {tag}
+                      <button onClick={() => removeTag(tag)} disabled={savingTag} className="hover:text-red-500">✕</button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addTag(tagInput); }}
+                    disabled={savingTag || !ownerByPhone[openPhone]}
+                    placeholder={ownerByPhone[openPhone] ? '+ إضافة وسم…' : 'ملكية أول لتقدري توسمي'}
+                    list="wa-suggested-tags"
+                    className="text-[11px] border border-border/60 rounded-md px-2 py-0.5 bg-surface text-text w-32 disabled:opacity-50"
+                  />
+                  <datalist id="wa-suggested-tags">
+                    {SUGGESTED_TAGS.map(t => <option key={t} value={t} />)}
+                  </datalist>
                 </div>
 
                 {reassignOpen && (
