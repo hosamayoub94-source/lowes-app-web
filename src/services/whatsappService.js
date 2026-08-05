@@ -325,6 +325,15 @@ export function isOrderTrackingBody(body) {
   return !!m && ORDER_TRACKING_SIDS.has(m[1]);
 }
 
+// محادثة أصلها حملة تسويقية (قالب promo) — تُفصَل عن كل من "المحادثات"
+// العضوية و"تتبّع الطلبات" الآلي. طلب مالك 5 أغسطس 2026: تتبّع الطلبات
+// مسؤولية Haya حصراً، ومحادثات الحملة لازم تنفصل عن هالقسمين.
+export function isCampaignBody(body) {
+  if (!body) return false;
+  const m = body.match(/^\[template:([^\]]+)\]/);
+  return !!m && m[1] === TEMPLATE_SID.promo;
+}
+
 export function formatWaBody(body) {
   if (!body) return '';
   const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);

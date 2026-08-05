@@ -14,7 +14,7 @@ import {
   fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
   fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
-  normalizeWaPhone, formatWaBody, isOrderTrackingBody, QUICK_REPLIES, WA_LINES,
+  normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
   setConversationTags, SUGGESTED_TAGS,
 } from '@services/whatsappService';
@@ -279,9 +279,12 @@ export default function AdminWhatsAppScreen() {
     return [...set].sort();
   }, [owners]);
 
-  // فصل شات "تتبّع الطلبات" (إشعارات آلية) عن "المحادثات" (رد حر من عميل/موظف) — طلب صريح.
+  // فصل ثلاثي: "تتبّع الطلبات" (إشعارات آلية — مسؤولية Haya حصراً) / "الحملات"
+  // (رسائل تسويقية جماعية) / "المحادثات" (رد حر عضوي من عميل/موظف) — طلب
+  // مالك 5 أغسطس 2026: فصل الحملات عن تتبّع الطلبات، كل قسم له سياقه.
   const trackingThreads = useMemo(() => filteredThreads.filter(t => isOrderTrackingBody(t.body)), [filteredThreads]);
-  const convoThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body)), [filteredThreads]);
+  const campaignThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body) && isCampaignBody(t.body)), [filteredThreads]);
+  const convoThreads = useMemo(() => filteredThreads.filter(t => !isOrderTrackingBody(t.body) && !isCampaignBody(t.body)), [filteredThreads]);
 
   // "غير مردودة أولاً" — آخر رسالة بالمحادثة من العميل (لسا محدا ردّ) ترفع
   // فوق، مع الحفاظ على ترتيب الأحدث ضمن كل مجموعة. طلب مالك 5 أغسطس 2026:
@@ -290,6 +293,7 @@ export default function AdminWhatsAppScreen() {
     ? [...list].sort((a, b) => (b.direction === 'in') - (a.direction === 'in'))
     : list;
   const sortedConvoThreads = useMemo(() => sortUnansweredFirst(convoThreads), [convoThreads, unansweredFirst]);
+  const sortedCampaignThreads = useMemo(() => sortUnansweredFirst(campaignThreads), [campaignThreads, unansweredFirst]);
   const sortedTrackingThreads = useMemo(() => sortUnansweredFirst(trackingThreads), [trackingThreads, unansweredFirst]);
 
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
@@ -370,7 +374,13 @@ export default function AdminWhatsAppScreen() {
         encoderPath: OPUS_ENCODER_WORKER,
         streamPages: false, // false = ملف .ogg واحد كامل عند stop()، لا Streaming
         numberOfChannels: 1,
-        encoderSampleRate: 16000, // كافٍ لصوت بشري، حجم ملف أصغر
+        // ⚠️ 5 أغسطس 2026: عملاء اشتكوا "الصوت مش واضح" — 16kHz بلا bitRate
+        // صريح كان الافتراضي يحسب معدل بت منخفض جداً لصوت بشري. رفعناها:
+        // 24kHz (super-wideband) + VOIP application (محسَّن لوضوح الكلام لا
+        // الموسيقى) + bitRate صريح 32kbps — لسا ملف صغير مناسب لواتساب.
+        encoderSampleRate: 24000,
+        encoderApplication: 2048, // OPUS_APPLICATION_VOIP
+        bitRate: 32000,
       });
       rec.onstart = () => setRecording(true);
       rec.ondataavailable = (arrayBuffer) => {
@@ -642,6 +652,12 @@ export default function AdminWhatsAppScreen() {
                 <>
                   <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">💬 المحادثات</div>
                   {sortedConvoThreads.map(renderThreadRow)}
+                </>
+              )}
+              {sortedCampaignThreads.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">📢 الحملات</div>
+                  {sortedCampaignThreads.map(renderThreadRow)}
                 </>
               )}
               {sortedTrackingThreads.length > 0 && (
