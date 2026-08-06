@@ -34,6 +34,23 @@
 
 ---
 
+### 🗓️ جلسة 6 آب 2026 (24) — تفعيل 6 قوالب v2 (زر تتبّع الشحنة) بعد بلاغ المالك — منشور على main
+
+**البلاغ:** المالك بعتلي سكرين شوت لمحادثة عميل حقيقي (MOHAMED EL HİLALİ) — رسالة "المندوب بالطريق" وصلت بلا زر تتبّع، رغم القوالب v2 (السبرنت السابق بنفس اليوم). طلب صريح: "تصرف كمسؤول".
+
+**التحقّق (Chrome، جلسة المالك الحقيقية بعد ما سجّل دخوله):** فتحت Twilio Console وفحصت القوالب السبعة **كل وحدة على حدة** (مو بس القائمة العامة): **6 معتمَدة فعلياً** (`on_way`, `not_received`, `returning`, `at_center`, `cancelled`, `delivered`) — القالب اللي وصل لـMOHAMED كان `on_way` (Approved). **`shipped` وحدها لسا Pending.**
+
+**التنفيذ:**
+- `src/services/whatsappService.js`: `TEMPLATE_SID` صار يشير مباشرة للـ6 SIDs المعتمَدة (v2، بزر رابط تتبّع ديناميكي)، عدا `shipped` بقيت v1. أُضيفت `LEGACY_TEMPLATE_SID_V1` (القيم v1 القديمة) للحفاظ على عرض صحيح للرسائل التاريخية بـ`formatWaBody`/`isOrderTrackingBody` (نصوص v1/v2 متطابقة حرفياً — الفرق زر الرابط فقط، فما احتاج تعديل `TEMPLATE_BODIES` الفعلي، بس إضافة مفاتيح legacy). `notifyOrderStatusWhatsApp()` صار يضيف `{{3}}` (رقم الطلب مكرَّر، يغذّي الزر) لكل حالة عدا `shipped`.
+- نفس التعديل بالضبط بـ`supabase/functions/_shared/notifyWhatsAppStatus.ts` (تستخدمه دوال التتبّع الآلي track-babel/karam/ptt/yurtici).
+- **فحوصات:** `npx eslint src/services/whatsappService.js` ✅ 0 أخطاء · `npm run build` ✅ (نجح بالكامل، نفس تحذيرات chunk size القديمة غير المتعلقة). **منشور فعلياً:** `git commit` + `git push origin main` (commit `64481d7`) — Vercel بنى ونشر تلقائياً (`dpl_GH3zYn9AUTWwZ2KgaaLF3JAQcKYm`, تحقّقت من الحالة عبر Vercel API: **READY** على `lowes-app-web.vercel.app`).
+
+**⚠️ فجوة حقيقية متبقّية — مو منشورة بعد:** `notifyWhatsAppStatus.ts` هو edge function منشور على مشروع Supabase منفصل (`fghdumrgimoeqsafdhhh`، دوال `track-*`) — نشر Vercel **ما بينشره**. التعديل بالمصدر محلي فقط لحد الآن. **يعني: التحديثات اليدوية من شاشة الطلبات (`OrdersScreen` → `whatsappService.js`) صارت تستخدم v2 فعلياً على الإنتاج، لكن التحديثات الآلية من شركات الشحن (webhook تتبّع) لسا تستخدم v1 القديمة (بلا زر) لحد ما ينُشر `supabase functions deploy` — ما عندي CLI/token لهالخطوة.** يحتاج المالك أو جلسة عندها وصول Supabase CLI تنشرها.
+
+**فحوصات:** جميعها ناجحة (تفاصيل فوق).
+
+---
+
 ### 🗓️ جلسة 6 أغسطس 2026 (22) — قالبا "استلام الطلب" و"فيديو فتح الطرد" صارا شغّالين فعلياً
 
 المالك بلّغ بوصول رد موافقة من Meta. تحقّق عبر Twilio Content API: **كلا القالبين موافَق عليهما** (`lowes_order_received_v1` و`lowes_unboxing_video_request_v1`) — الثاني أعادت Meta تصنيفه `MARKETING` تلقائياً (كان مُقدَّماً UTILITY، نفس ما صار مع قالب "delivered_v2" بجلسة سابقة) — يبقى شغّالاً بس خاضع لقواعد جودة/معدّل رسائل التسويق بواتساب. `shipped_v2` لسا `pending`.
