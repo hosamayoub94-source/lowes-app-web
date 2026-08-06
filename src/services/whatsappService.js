@@ -455,7 +455,7 @@ export async function sendBulkCampaign(customers, contentSid, {
         headers: WA_HEADERS,
         body: JSON.stringify({
           phone, contentSid, byUser: 'bulk-campaign', line: 'campaign',
-          contentVariables: { '1': c.name || 'عميلتنا العزيزة' },
+          contentVariables: { '1': c.name || 'عميلنا العزيز' },
         }),
       });
       const data = await res.json().catch(() => ({}));
