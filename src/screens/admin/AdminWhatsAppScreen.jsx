@@ -29,7 +29,7 @@ const MAIN_LINE = 'main'; // خط افتراضي عند فتح الشاشة — 
 // البيانات. ⚠️ ثابت بالكود مؤقتاً (دَين تقني) — لو صارت الفرق أكتر/متغيّرة
 // بشكل متكرر، ينقل هذا لإعداد يُدار من لوحة الأدمن بدل تعديل الكود مباشرة.
 const WHATSAPP_TEAMS = [
-  ['Diana Hasan', 'Sally Teba'],
+  ['Diana Hasan', 'Sally Teba', 'Fatima Ayoub'],
 ];
 function teammatesOf(name) {
   const team = WHATSAPP_TEAMS.find(t => t.includes(name));
