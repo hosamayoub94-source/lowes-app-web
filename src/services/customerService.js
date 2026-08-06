@@ -134,7 +134,7 @@ const SORTS = {
   name:   { col: 'name',         asc: true  },
 };
 
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null } = {}) {
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null, maxLastOrder = null, minLastOrder = null, minOrdersCount = null } = {}) {
   const s = SORTS[sort] || SORTS.orders;
   let q = supabase
     .from('customer_stats')
@@ -145,6 +145,13 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
   // أرشيف شهري: قصر النتائج على عملاء آخر طلبهم ضمن الشهر [monthStart, monthEnd)
   if (monthStart) q = q.gte('last_order', monthStart);
   if (monthEnd)   q = q.lt('last_order', monthEnd);
+  // فلترة شرائح idle (متابعة/استرجاع) على مستوى القاعدة — بدل جلب limit صف
+  // مرتّبة بالأكثر طلباً ثم فلترة عميلة (كانت تخفي شرائح idle كبيرة خلف سقف
+  // الجلب، راجع [[campaign-400-row-cap-bug]]). last_order فاضي (Infinity
+  // بحساب daysSince) يُحسَب "خامل دائماً" — نفس منطق inSegment بالواجهة.
+  if (maxLastOrder) q = q.or(`last_order.lte.${maxLastOrder},last_order.is.null`);
+  if (minLastOrder) q = q.gte('last_order', minLastOrder);
+  if (minOrdersCount != null) q = q.gte('orders_count', minOrdersCount);
   // «my customers» — match any of the name variants server-side (archive uses
   // short names, profiles use full names), so ALL their customers are returned.
   if (sellerNames && sellerNames.length) {

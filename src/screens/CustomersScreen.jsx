@@ -677,15 +677,30 @@ export default function CustomersScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
+      // شرائح idle (متابعة/معرّضون/استرجاع) تحتاج فلترة على مستوى القاعدة —
+      // بدون هذا، سقف الجلب (400/600 صف مرتّبة بالأكثر طلباً) بيخفي أغلب
+      // العملاء الخاملين (اللي أصلاً قليلي الطلبات) خلف الصفحة الأولى، فيظهر
+      // "تحديد الكل" برقم أقل بكثير من الحقيقي (بق موثَّق سابقاً بجلسة 5 آب —
+      // 346 ظاهرة مقابل 881 حقيقية). حساب التواريخ بنفس منطق daysSince/inSegment.
+      const now = Date.now();
+      const cutoff = (days) => new Date(now - days * 86400000).toISOString().slice(0, 10);
+      let segFilter = {};
+      if (segment === 'followup') segFilter = { maxLastOrder: cutoff(30) };
+      else if (segment === 'winback') segFilter = { maxLastOrder: cutoff(90) };
+      else if (segment === 'atrisk') segFilter = { maxLastOrder: cutoff(45), minLastOrder: cutoff(90), minOrdersCount: 2 };
+
       const data = await listCustomers({
         search, vipOnly, sort, market: sec.market, brand: sec.brand,
         sellerNames: mineOnly ? myNames : null,
-        limit: mineOnly ? 600 : 400,
+        // شريحة idle مفعّلة → الفلترة صارت بالقاعدة، فالسقف يقدر يرتفع بأمان
+        // (بيرجع بس المطابقين فعلياً، مو 400 عميل عشوائي بعدين تُفلتَر).
+        limit: segment !== 'all' ? 5000 : (mineOnly ? 600 : 400),
+        ...segFilter,
       });
       setRows(data);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [search, vipOnly, sort, mineOnly, myNames, sec.market, sec.brand]);
+  }, [search, vipOnly, sort, mineOnly, myNames, sec.market, sec.brand, segment]);
 
   // True total for the section (independent of the 400-row display cap).
   useEffect(() => {
