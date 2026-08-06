@@ -298,12 +298,12 @@ function normalizeLocalPhone(raw, market) {
 }
 
 // نفس قوالب supabase/functions/_shared/notifyWhatsAppStatus.ts — إن عدّلت وحدة عدّل التانية.
-// 6 أغسطس 2026: تحقّقت مباشرة من Twilio Console — 6 من 7 قوالب v2 (بزر "تتبّع
-// الشحنة" برابط ديناميكي) صارت Approved من Meta. صار الإرسال الفعلي يستخدمها.
-// shipped وحدها لسا v1 (v2 متها Pending — راجع PENDING_TEMPLATE_SID_V2 تحت).
-// {{1}}=اسم العميل, {{2}}=رقم الطلب, {{3}}=رقم الطلب مكرَّر (لزر الرابط، قوالب v2 بس).
+// 6 أغسطس 2026: تحقّقت مباشرة من Twilio Console — كل السبعة قوالب v2 (بزر
+// "تتبّع الشحنة" برابط ديناميكي) صارت Approved من Meta (shipped آخر وحدة،
+// اعتُمدت 21:33). صار الإرسال الفعلي يستخدمها كلها بلا استثناء.
+// {{1}}=اسم العميل, {{2}}=رقم الطلب, {{3}}=رقم الطلب مكرَّر (لزر الرابط).
 const TEMPLATE_SID = {
-  shipped: 'HXaf12020e320fbffba951eac64318d8ce', // ⏳ v1 — v2 (PENDING_TEMPLATE_SID_V2.shipped) لسا Pending عند Meta
+  shipped: 'HXb7b169193122a9ef28b5d325e1c677b8',
   at_center: 'HXd67200bbcefe0ea6f5b2b1ee4783e5fb',
   on_way: 'HXb94f286c3d6a6ff18c026d9cd860c648',
   delivered: 'HX8488cebc405836a8754a4fdcd135bf30',
@@ -324,6 +324,7 @@ export { TEMPLATE_SID };
 // أعلاه بـv2) لكن تبقى هون فقط عشان formatWaBody() يقدر يعيد بناء نص الرسائل
 // التاريخية المُرسَلة قبل التبديل (6 أغسطس 2026).
 const LEGACY_TEMPLATE_SID_V1 = {
+  shipped: 'HXaf12020e320fbffba951eac64318d8ce',
   at_center: 'HX430237ba5998ec6d99a041715dac99bb',
   on_way: 'HX649f6747f5e4e59877cd734f9d258fff',
   delivered: 'HXdf345ed4562848274f06e3a5fa5a5b94',
@@ -331,15 +332,6 @@ const LEGACY_TEMPLATE_SID_V1 = {
   not_received: 'HXf58a03f83c7adceeac99f32a6a26c29f',
   returning: 'HX1b3f03e35175ea655ed9d50930b9b228',
 };
-
-// ⏳ قالب shipped v2 — لسا Pending عند Meta (آخر فحص: 6 أغسطس 2026 عبر Twilio
-// Console). **لا تستبدل TEMPLATE_SID.shipped فوق بهاي قبل تأكيد الموافقة**
-// (نفس درس promo — قالب غير معتمَد بيترفض بخطأ 63016). تحقّق عبر Twilio
-// Console/Content API (status: approved) قبل التبديل.
-const PENDING_TEMPLATE_SID_V2 = {
-  shipped: 'HXb7b169193122a9ef28b5d325e1c677b8',
-};
-export { PENDING_TEMPLATE_SID_V2 };
 
 // عرض حقيقي لجسم رسالة قالب — الرسائل المُرسَلة بقالب فقط (contentSid بلا
 // body، أغلبها إشعارات حالة الطلب أو الحملة) تُخزَّن كـ"[template:HXxxx]
@@ -357,6 +349,7 @@ const TEMPLATE_BODIES = {
   [TEMPLATE_SID.promo]:        '🖼️ [صورة: مجموعة الروزماري]\nمرحباً {{1}}، كثافة شعرك تستاهل عناية حقيقية 🌿\nخط الروزماري من LOWE\'S profesyonel — نتيجة مثبتة علمياً من مختبرات SKINLAB.\nخصم 30% لمدة أسبوع فقط — العرض ينتهي قريباً!\nاكتشفي الفرق الآن 👇\n[زر: تسوّقي الآن → lowesprofesyonel.com]',
   // نسخ v1 القديمة — نفس النص الحرفي (v2 غيّرت الزر فقط لا النص) — لعرض
   // الرسائل التاريخية المُرسَلة قبل التبديل لـv2 (6 أغسطس 2026) بشكل صحيح.
+  [LEGACY_TEMPLATE_SID_V1.shipped]:      'مرحباً {{1}} 👋\nطلبك رقم {{2}} طلع بالطريق 📦 بيوصل خلال الأيام الجاية.\n— LOWE\'S Professional',
   [LEGACY_TEMPLATE_SID_V1.at_center]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} وصل لمركز التوزيع بمنطقتك 📍 قربنا نوصلّك.\n— LOWE\'S Professional',
   [LEGACY_TEMPLATE_SID_V1.on_way]:       'مرحباً {{1}} 👋\nالمندوب بالطريق إلك هلق بخصوص طلبك رقم {{2}} 🚚 خلّي هاتفك قريب منك.\n— LOWE\'S Professional',
   [LEGACY_TEMPLATE_SID_V1.delivered]:    'مرحباً {{1}} 👋\nتم تسليم طلبك رقم {{2}} بنجاح ✅ نتمنى تستمتعي فيه.\nلو عندك أي سؤال احنا هون دايماً، وبيسعدنا نسمع رأيك 💛\nتابعينا @lowes_profesyonel\n— LOWE\'S Professional',
@@ -516,10 +509,8 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
     if (!phone) return;
     const name = order?.customer_name || 'عميلنا العزيز';
     const orderNo = String(order?.order_id ?? order?.id ?? '');
-    // {{3}} = رقم الطلب مكرَّر — يغذّي زر "تتبّع الشحنة" الديناميكي بقوالب v2.
-    // shipped وحدها لسا v1 (بلا زر) — إرسال متغيّر زائد لقالب v1 يرفضه Twilio.
-    const contentVariables = { '1': name, '2': orderNo };
-    if (newStatus !== 'shipped') contentVariables['3'] = orderNo;
+    // {{3}} = رقم الطلب مكرَّر — يغذّي زر "تتبّع الشحنة" الديناميكي (كل القوالب v2 الآن).
+    const contentVariables = { '1': name, '2': orderNo, '3': orderNo };
     await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
       method: 'POST',
       headers: WA_HEADERS,

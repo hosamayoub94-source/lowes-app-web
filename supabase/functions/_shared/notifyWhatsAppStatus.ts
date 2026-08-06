@@ -20,14 +20,14 @@ const WA_ANON_KEY =
 
 // Content SID لكل قالب معتمَد (Twilio Content Template Builder، لغة عربية، فئة Utility).
 // {{1}} = اسم العميل، {{2}} = رقم الطلب، {{3}} = رقم الطلب مكرَّر (زر رابط
-// التتبّع الديناميكي، قوالب v2 بس). 6 أغسطس 2026: تحقّقت مباشرة من Twilio
-// Console — 6 من 7 قوالب v2 صارت Approved من Meta، استُبدلت هون. shipped
-// وحدها بقيت v1 (v2 لسا Pending) — نفس التبديل بـsrc/services/whatsappService.js،
-// إن عدّلت وحدة عدّل التانية. ⚠️ هالملف edge function منشور على مشروع Supabase
-// منفصل (fghdumrgimoeqsafdhhh، دوال track-babel/karam/ptt/yurtici) — لازم
+// التتبّع الديناميكي). 6 أغسطس 2026: تحقّقت مباشرة من Twilio Console — كل
+// السبعة قوالب v2 صارت Approved من Meta (shipped آخر وحدة، 21:33)، استُبدلت
+// هون كلها. نفس التبديل بـsrc/services/whatsappService.js، إن عدّلت وحدة
+// عدّل التانية. ⚠️ هالملف edge function منشور على مشروع Supabase منفصل
+// (fghdumrgimoeqsafdhhh، دوال track-babel/karam/ptt/yurtici) — لازم
 // `supabase functions deploy` بعد أي تعديل هون، التعديل بالمصدر لا يكفي وحده.
 const TEMPLATE_SID: Record<string, string> = {
-  shipped: "HXaf12020e320fbffba951eac64318d8ce", // ⏳ v1 — v2 (HXb7b169193122a9ef28b5d325e1c677b8) لسا Pending عند Meta
+  shipped: "HXb7b169193122a9ef28b5d325e1c677b8",
   at_center: "HXd67200bbcefe0ea6f5b2b1ee4783e5fb",
   on_way: "HXb94f286c3d6a6ff18c026d9cd860c648",
   delivered: "HX8488cebc405836a8754a4fdcd135bf30",
@@ -71,9 +71,8 @@ export async function notifyWhatsAppStatus(order: OrderForWhatsApp, newStatus: s
     if (!phone) return;
     const name = order.customer_name || "عميلنا العزيز";
     const orderNo = String(order.order_id ?? order.id ?? "");
-    // {{3}} = رقم الطلب مكرَّر لزر "تتبّع الشحنة" — قوالب v2 بس (shipped لسا v1 بلا زر).
-    const contentVariables: Record<string, string> = { "1": name, "2": orderNo };
-    if (newStatus !== "shipped") contentVariables["3"] = orderNo;
+    // {{3}} = رقم الطلب مكرَّر لزر "تتبّع الشحنة" (كل القوالب v2 الآن).
+    const contentVariables: Record<string, string> = { "1": name, "2": orderNo, "3": orderNo };
     await fetch(WA_PROJECT_URL, {
       method: "POST",
       headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
