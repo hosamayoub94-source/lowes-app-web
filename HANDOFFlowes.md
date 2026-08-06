@@ -45,9 +45,16 @@
 - نفس التعديل بالضبط بـ`supabase/functions/_shared/notifyWhatsAppStatus.ts` (تستخدمه دوال التتبّع الآلي track-babel/karam/ptt/yurtici).
 - **فحوصات:** `npx eslint src/services/whatsappService.js` ✅ 0 أخطاء · `npm run build` ✅ (نجح بالكامل، نفس تحذيرات chunk size القديمة غير المتعلقة). **منشور فعلياً:** `git commit` + `git push origin main` (commit `64481d7`) — Vercel بنى ونشر تلقائياً (`dpl_GH3zYn9AUTWwZ2KgaaLF3JAQcKYm`, تحقّقت من الحالة عبر Vercel API: **READY** على `lowes-app-web.vercel.app`).
 
-**⚠️ فجوة حقيقية متبقّية — مو منشورة بعد:** `notifyWhatsAppStatus.ts` هو edge function منشور على مشروع Supabase منفصل (`fghdumrgimoeqsafdhhh`، دوال `track-*`) — نشر Vercel **ما بينشره**. التعديل بالمصدر محلي فقط لحد الآن. **يعني: التحديثات اليدوية من شاشة الطلبات (`OrdersScreen` → `whatsappService.js`) صارت تستخدم v2 فعلياً على الإنتاج، لكن التحديثات الآلية من شركات الشحن (webhook تتبّع) لسا تستخدم v1 القديمة (بلا زر) لحد ما ينُشر `supabase functions deploy` — ما عندي CLI/token لهالخطوة.** يحتاج المالك أو جلسة عندها وصول Supabase CLI تنشرها.
+**✅ الفجوة اتسدّت بنفس الجلسة:** `notifyWhatsAppStatus.ts` منشور على مشروع Supabase منفصل (`fghdumrgimoeqsafdhhh`، دوال `track-*`) — نشر Vercel ما بينشره. اكتشفت إن `npx supabase` عنده جلسة دخول فعّالة أصلاً على هالجهاز (`npx supabase projects list` رجّعت المشروعين بلا أي طلب دخول) — نفس الطريقة الموثَّقة بجلسات سابقة (`الكود الحالي المنشور هو المصدر الوحيد الموثوق الآن`). نشرت الأربعة دوال مباشرة:
+```
+npx supabase functions deploy track-babel  --project-ref fghdumrgimoeqsafdhhh --no-verify-jwt
+npx supabase functions deploy track-karam  --project-ref fghdumrgimoeqsafdhhh --no-verify-jwt
+npx supabase functions deploy track-ptt    --project-ref fghdumrgimoeqsafdhhh --no-verify-jwt
+npx supabase functions deploy track-yurtici --project-ref fghdumrgimoeqsafdhhh --no-verify-jwt
+```
+كل الأربعة رجّعت `"message":"Deployed Functions."` بنجاح (رفعت `index.ts` + `_shared/notifyWhatsAppStatus.ts` المحدَّث). **من هلق: التحديثات اليدوية (شاشة الطلبات) والآلية (webhooks شركات الشحن) كلتاهن تستخدمان قوالب v2 بزر تتبّع فعلياً على الإنتاج.** `shipped` وحدها (كل الطرق) بتضل بلا زر لحد ما توافق Meta (لسا Pending).
 
-**فحوصات:** جميعها ناجحة (تفاصيل فوق).
+**فحوصات:** جميعها ناجحة (تفاصيل فوق) + نشر Supabase مؤكَّد بردّ API مباشر لكل دالة.
 
 ---
 
