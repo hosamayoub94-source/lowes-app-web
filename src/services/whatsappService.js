@@ -298,17 +298,18 @@ function normalizeLocalPhone(raw, market) {
 }
 
 // نفس قوالب supabase/functions/_shared/notifyWhatsAppStatus.ts — إن عدّلت وحدة عدّل التانية.
-// 1 أغسطس 2026 (تحديث): واتساب بزنس يرفض نص حرّ خارج نافذة الـ24 ساعة (خطأ Twilio
-// 63016) — التحديث اليدوي هلق يرسل عبر Message Template معتمَد من Meta (Content SID)
-// بدل نص حر، بنفس القوالب المستخدمة بالتحديث التلقائي. {{1}}=اسم العميل, {{2}}=رقم الطلب.
+// 6 أغسطس 2026: تحقّقت مباشرة من Twilio Console — 6 من 7 قوالب v2 (بزر "تتبّع
+// الشحنة" برابط ديناميكي) صارت Approved من Meta. صار الإرسال الفعلي يستخدمها.
+// shipped وحدها لسا v1 (v2 متها Pending — راجع PENDING_TEMPLATE_SID_V2 تحت).
+// {{1}}=اسم العميل, {{2}}=رقم الطلب, {{3}}=رقم الطلب مكرَّر (لزر الرابط، قوالب v2 بس).
 const TEMPLATE_SID = {
-  shipped: 'HXaf12020e320fbffba951eac64318d8ce',
-  at_center: 'HX430237ba5998ec6d99a041715dac99bb',
-  on_way: 'HX649f6747f5e4e59877cd734f9d258fff',
-  delivered: 'HXdf345ed4562848274f06e3a5fa5a5b94',
-  cancelled: 'HXfdc8e012f3c36d9110ffd5b0efd49d52',
-  not_received: 'HXf58a03f83c7adceeac99f32a6a26c29f',
-  returning: 'HX1b3f03e35175ea655ed9d50930b9b228',
+  shipped: 'HXaf12020e320fbffba951eac64318d8ce', // ⏳ v1 — v2 (PENDING_TEMPLATE_SID_V2.shipped) لسا Pending عند Meta
+  at_center: 'HXd67200bbcefe0ea6f5b2b1ee4783e5fb',
+  on_way: 'HXb94f286c3d6a6ff18c026d9cd860c648',
+  delivered: 'HX8488cebc405836a8754a4fdcd135bf30',
+  cancelled: 'HX811b42acf8805422c828d34b94cb54f2',
+  not_received: 'HXe342e4d0b35339c93c7dbb189270a8a5',
+  returning: 'HX8ae3500cc67471cb7d809f8af6bb0353',
   // قالب تسويقي v2 (صورة مجموعة الروزماري + متغيّر {{1}} حقيقي + خصم 30%
   // لأسبوع + زر رابط للموقع) — قُدِّم لموافقة Meta (Marketing) 4 أغسطس 2026.
   // القالب القديم (اسم "سارة" ثابت بلا متغيّر) بقي معطَّلاً نهائياً — راجع
@@ -319,20 +320,24 @@ const TEMPLATE_SID = {
 
 export { TEMPLATE_SID };
 
-// ⏳ قوالب v2 بزر "تتبّع الشحنة" (رابط ديناميكي لـ PublicTrackScreen، بدل
-// نص بلا رابط) — قُدِّمت لموافقة Meta 5 أغسطس 2026 (status: received وقت
-// التقديم). **ما تستبدل TEMPLATE_SID فوق بهاي لحد ما تتأكد الموافقة**
+// قوالب v1 القديمة (بلا زر رابط) — لم تعد تُستخدَم بالإرسال الفعلي (استُبدلت
+// أعلاه بـv2) لكن تبقى هون فقط عشان formatWaBody() يقدر يعيد بناء نص الرسائل
+// التاريخية المُرسَلة قبل التبديل (6 أغسطس 2026).
+const LEGACY_TEMPLATE_SID_V1 = {
+  at_center: 'HX430237ba5998ec6d99a041715dac99bb',
+  on_way: 'HX649f6747f5e4e59877cd734f9d258fff',
+  delivered: 'HXdf345ed4562848274f06e3a5fa5a5b94',
+  cancelled: 'HXfdc8e012f3c36d9110ffd5b0efd49d52',
+  not_received: 'HXf58a03f83c7adceeac99f32a6a26c29f',
+  returning: 'HX1b3f03e35175ea655ed9d50930b9b228',
+};
+
+// ⏳ قالب shipped v2 — لسا Pending عند Meta (آخر فحص: 6 أغسطس 2026 عبر Twilio
+// Console). **لا تستبدل TEMPLATE_SID.shipped فوق بهاي قبل تأكيد الموافقة**
 // (نفس درس promo — قالب غير معتمَد بيترفض بخطأ 63016). تحقّق عبر Twilio
-// Content API (GET /v1/Content/{sid}/ApprovalRequests → status: approved)
-// قبل التبديل، وبعدها احذف هالتعليق واستبدل القيم فوق.
+// Console/Content API (status: approved) قبل التبديل.
 const PENDING_TEMPLATE_SID_V2 = {
   shipped: 'HXb7b169193122a9ef28b5d325e1c677b8',
-  at_center: 'HXd67200bbcefe0ea6f5b2b1ee4783e5fb',
-  on_way: 'HXb94f286c3d6a6ff18c026d9cd860c648',
-  delivered: 'HX8488cebc405836a8754a4fdcd135bf30',
-  cancelled: 'HX811b42acf8805422c828d34b94cb54f2',
-  not_received: 'HXe342e4d0b35339c93c7dbb189270a8a5',
-  returning: 'HX8ae3500cc67471cb7d809f8af6bb0353',
 };
 export { PENDING_TEMPLATE_SID_V2 };
 
@@ -350,14 +355,24 @@ const TEMPLATE_BODIES = {
   [TEMPLATE_SID.not_received]: 'مرحباً {{1}} 👋\nحاولنا نوصلّك طلبك رقم {{2}} وما زبط ⚠️ رح نتواصل معك قريباً نرتب وقت أنسب.\n— LOWE\'S Professional',
   [TEMPLATE_SID.returning]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} راجع لمركزنا ↩️ رح نتواصل معك نعرف السبب ونلاقي الحل الأنسب.\n— LOWE\'S Professional',
   [TEMPLATE_SID.promo]:        '🖼️ [صورة: مجموعة الروزماري]\nمرحباً {{1}}، كثافة شعرك تستاهل عناية حقيقية 🌿\nخط الروزماري من LOWE\'S profesyonel — نتيجة مثبتة علمياً من مختبرات SKINLAB.\nخصم 30% لمدة أسبوع فقط — العرض ينتهي قريباً!\nاكتشفي الفرق الآن 👇\n[زر: تسوّقي الآن → lowesprofesyonel.com]',
+  // نسخ v1 القديمة — نفس النص الحرفي (v2 غيّرت الزر فقط لا النص) — لعرض
+  // الرسائل التاريخية المُرسَلة قبل التبديل لـv2 (6 أغسطس 2026) بشكل صحيح.
+  [LEGACY_TEMPLATE_SID_V1.at_center]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} وصل لمركز التوزيع بمنطقتك 📍 قربنا نوصلّك.\n— LOWE\'S Professional',
+  [LEGACY_TEMPLATE_SID_V1.on_way]:       'مرحباً {{1}} 👋\nالمندوب بالطريق إلك هلق بخصوص طلبك رقم {{2}} 🚚 خلّي هاتفك قريب منك.\n— LOWE\'S Professional',
+  [LEGACY_TEMPLATE_SID_V1.delivered]:    'مرحباً {{1}} 👋\nتم تسليم طلبك رقم {{2}} بنجاح ✅ نتمنى تستمتعي فيه.\nلو عندك أي سؤال احنا هون دايماً، وبيسعدنا نسمع رأيك 💛\nتابعينا @lowes_profesyonel\n— LOWE\'S Professional',
+  [LEGACY_TEMPLATE_SID_V1.cancelled]:    'مرحباً {{1}} 👋\nتم إلغاء طلبك رقم {{2}} 😔 إذا صار هيك بالغلط أو بدك تفاصيل، احنا هون جاهزين نساعدك.\n— LOWE\'S Professional',
+  [LEGACY_TEMPLATE_SID_V1.not_received]: 'مرحباً {{1}} 👋\nحاولنا نوصلّك طلبك رقم {{2}} وما زبط ⚠️ رح نتواصل معك قريباً نرتب وقت أنسب.\n— LOWE\'S Professional',
+  [LEGACY_TEMPLATE_SID_V1.returning]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} راجع لمركزنا ↩️ رح نتواصل معك نعرف السبب ونلاقي الحل الأنسب.\n— LOWE\'S Professional',
 };
 
 // تصنيف محادثة: إشعار طلب آلي (شحن/تسليم/إلغاء...) مقابل محادثة عميل حقيقية —
-// يُستخدَم لفصل شات "تتبّع الطلبات" عن "المحادثات" بقائمة المحادثات.
+// يُستخدَم لفصل شات "تتبّع الطلبات" عن "المحادثات" بقائمة المحادثات. يشمل
+// v1 القديمة كمان (رسائل تاريخية قبل التبديل لـv2) عشان ما تنكسر تصنيفها.
 const ORDER_TRACKING_SIDS = new Set([
   TEMPLATE_SID.shipped, TEMPLATE_SID.at_center, TEMPLATE_SID.on_way,
   TEMPLATE_SID.delivered, TEMPLATE_SID.cancelled, TEMPLATE_SID.not_received,
   TEMPLATE_SID.returning,
+  ...Object.values(LEGACY_TEMPLATE_SID_V1),
 ]);
 export function isOrderTrackingBody(body) {
   if (!body) return false;
@@ -501,10 +516,14 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
     if (!phone) return;
     const name = order?.customer_name || 'عميلنا العزيز';
     const orderNo = String(order?.order_id ?? order?.id ?? '');
+    // {{3}} = رقم الطلب مكرَّر — يغذّي زر "تتبّع الشحنة" الديناميكي بقوالب v2.
+    // shipped وحدها لسا v1 (بلا زر) — إرسال متغيّر زائد لقالب v1 يرفضه Twilio.
+    const contentVariables = { '1': name, '2': orderNo };
+    if (newStatus !== 'shipped') contentVariables['3'] = orderNo;
     await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
       method: 'POST',
       headers: WA_HEADERS,
-      body: JSON.stringify({ phone, contentSid, contentVariables: { '1': name, '2': orderNo } }),
+      body: JSON.stringify({ phone, contentSid, contentVariables }),
     });
   } catch {
     /* best-effort — لا نوقف تحديث الحالة الأصلي مهما حصل */

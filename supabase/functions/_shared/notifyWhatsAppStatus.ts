@@ -19,15 +19,21 @@ const WA_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtlc29xbnd5eWR5Y3V5aWZxZmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjQzMDMsImV4cCI6MjA5NDUwMDMwM30.7muMlaq4MhWdJicSqzupLBZqTvaLbhWjieQuaQvCvBg";
 
 // Content SID لكل قالب معتمَد (Twilio Content Template Builder، لغة عربية، فئة Utility).
-// {{1}} = اسم العميل، {{2}} = رقم الطلب.
+// {{1}} = اسم العميل، {{2}} = رقم الطلب، {{3}} = رقم الطلب مكرَّر (زر رابط
+// التتبّع الديناميكي، قوالب v2 بس). 6 أغسطس 2026: تحقّقت مباشرة من Twilio
+// Console — 6 من 7 قوالب v2 صارت Approved من Meta، استُبدلت هون. shipped
+// وحدها بقيت v1 (v2 لسا Pending) — نفس التبديل بـsrc/services/whatsappService.js،
+// إن عدّلت وحدة عدّل التانية. ⚠️ هالملف edge function منشور على مشروع Supabase
+// منفصل (fghdumrgimoeqsafdhhh، دوال track-babel/karam/ptt/yurtici) — لازم
+// `supabase functions deploy` بعد أي تعديل هون، التعديل بالمصدر لا يكفي وحده.
 const TEMPLATE_SID: Record<string, string> = {
-  shipped: "HXaf12020e320fbffba951eac64318d8ce",
-  at_center: "HX430237ba5998ec6d99a041715dac99bb",
-  on_way: "HX649f6747f5e4e59877cd734f9d258fff",
-  delivered: "HXdf345ed4562848274f06e3a5fa5a5b94",
-  cancelled: "HXfdc8e012f3c36d9110ffd5b0efd49d52",
-  not_received: "HXf58a03f83c7adceeac99f32a6a26c29f",
-  returning: "HX1b3f03e35175ea655ed9d50930b9b228",
+  shipped: "HXaf12020e320fbffba951eac64318d8ce", // ⏳ v1 — v2 (HXb7b169193122a9ef28b5d325e1c677b8) لسا Pending عند Meta
+  at_center: "HXd67200bbcefe0ea6f5b2b1ee4783e5fb",
+  on_way: "HXb94f286c3d6a6ff18c026d9cd860c648",
+  delivered: "HX8488cebc405836a8754a4fdcd135bf30",
+  cancelled: "HX811b42acf8805422c828d34b94cb54f2",
+  not_received: "HXe342e4d0b35339c93c7dbb189270a8a5",
+  returning: "HX8ae3500cc67471cb7d809f8af6bb0353",
 };
 
 // ⏳ قالب "طلب فيديو فتح الطرد" — يُرسَل بعد رسالة التسليم مباشرة، نفس منطق
@@ -65,10 +71,13 @@ export async function notifyWhatsAppStatus(order: OrderForWhatsApp, newStatus: s
     if (!phone) return;
     const name = order.customer_name || "عميلنا العزيز";
     const orderNo = String(order.order_id ?? order.id ?? "");
+    // {{3}} = رقم الطلب مكرَّر لزر "تتبّع الشحنة" — قوالب v2 بس (shipped لسا v1 بلا زر).
+    const contentVariables: Record<string, string> = { "1": name, "2": orderNo };
+    if (newStatus !== "shipped") contentVariables["3"] = orderNo;
     await fetch(WA_PROJECT_URL, {
       method: "POST",
       headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, contentSid, contentVariables: { "1": name, "2": orderNo } }),
+      body: JSON.stringify({ phone, contentSid, contentVariables }),
     });
     if (newStatus === "delivered" && UNBOXING_VIDEO_READY) {
       await fetch(WA_PROJECT_URL, {
