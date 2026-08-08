@@ -433,6 +433,15 @@ export function extractTemplateName(body) {
   } catch { return null; }
 }
 
+// السبعة قوالب v2 هدول تحديداً (بس هدول) مبنيّة عند Twilio بزر "تتبّع الشحنة"
+// (Call-to-Action URL، {{3}}=رقم الطلب يغذّي الرابط الديناميكي) — الزر نفسه
+// عنصر منفصل عن نص الرسالة (body)، فمهما أعدنا بناء النص من TEMPLATE_BODIES
+// ما رح يظهر تلقائياً بمعاينة الأدمن. نضيفه هون يدوياً بس لهالسبعة تحديداً
+// (v1 القديمة والقوالب التانية كلها بلا زر فعلياً — ما نضيف رابط وهمي إلها)
+// عشان الموظف/ة يشوف نفس اللي وصل للعميل فعلياً، بلا لبس. طلب مالك 9 أغسطس
+// 2026 بعد ما شاف رسالة "طلع بالطريق" بمعاينة الأدمن بلا أي رابط ظاهر.
+const STATUS_BUTTON_SIDS = new Set(Object.values(TEMPLATE_SID).filter(sid => sid !== TEMPLATE_SID.promo));
+
 export function formatWaBody(body) {
   if (!body) return '';
   const m = body.match(/^\[template:([^\]]+)\]\s*(\{.*\})?$/);
@@ -442,7 +451,11 @@ export function formatWaBody(body) {
   try { vars = varsJson ? JSON.parse(varsJson) : {}; } catch { /* ignore */ }
   const template = TEMPLATE_BODIES[sid];
   if (template) {
-    return template.replace(/\{\{(\d)\}\}/g, (_, n) => vars[n] ?? `{{${n}}}`);
+    let text = template.replace(/\{\{(\d)\}\}/g, (_, n) => vars[n] ?? `{{${n}}}`);
+    if (STATUS_BUTTON_SIDS.has(sid) && vars['2']) {
+      text += `\n🔗 تتبّع الشحنة: ${brandedTrackingUrl(vars['2'])}`;
+    }
+    return text;
   }
   // قالب غير معروف (جديد لسا ما انضاف هون) — رجوع لملخّص أساسي بدل نص فاضي.
   const parts = [`قالب معتمَد (${sid.slice(0, 10)}…)`];
