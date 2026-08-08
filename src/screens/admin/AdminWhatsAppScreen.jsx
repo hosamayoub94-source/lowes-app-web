@@ -26,8 +26,8 @@ import {
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
   setConversationTags, SUGGESTED_TAGS,
 } from '@services/whatsappService';
-import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 import { listActiveProfiles } from '@services/authService';
+import { WhatsAppAnalyticsPanel } from './whatsapp/AnalyticsPanel';
 import { ThreadListSection } from './whatsapp/ThreadListSection';
 import { ThreadSearchBar } from './whatsapp/ThreadSearchBar';
 import { ChatHeader } from './whatsapp/ChatHeader';
@@ -56,113 +56,6 @@ const WHATSAPP_TEAMS = [
 function teammatesOf(name) {
   const team = WHATSAPP_TEAMS.find(t => t.includes(name));
   return team || [name];
-}
-
-const PERIODS = [
-  { key: 7,  label: '7 أيام' },
-  { key: 30, label: '30 يوم' },
-  { key: 90, label: '90 يوم' },
-];
-
-// لوحة تحليلات — سبرنت ② من خطة النمو (5 أغسطس 2026): أول أرقام حقيقية
-// لأداء قناة واتساب (معدل رد، سرعة رد الفريق، تحويل لطلب فعلي). أساس
-// لقياس أي حملة إعادة تنشيط/إحالة جاية بدل تخمين.
-// (خارج نطاق إعادة التصميم البصري 7 أغسطس 2026 — تبقى كما هي عمداً.)
-function WhatsAppAnalyticsPanel() {
-  const [days, setDays] = useState(30);
-  const [stats, setStats] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true); setError(null);
-    getWhatsAppAnalytics(days)
-      .then(setStats)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [days]);
-
-  const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
-  const fmtMin = (m) => {
-    if (m == null) return '—';
-    if (m < 60) return `${Math.round(m)} د`;
-    return `${(m / 60).toFixed(1)} س`;
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setDays(p.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition ${days === p.key ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-surface-alt animate-pulse rounded-2xl" />)}
-        </div>
-      ) : error ? (
-        <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm">{error}</div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold text-teal">{fmt(stats.totalConvos)}</p>
-              <p className="text-[11px] text-muted mt-0.5">محادثة</p>
-            </div>
-            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold text-text">{fmt(stats.totalIn)} / {fmt(stats.totalOut)}</p>
-              <p className="text-[11px] text-muted mt-0.5">وارد / صادر</p>
-            </div>
-            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold text-amber-fg">{stats.replyRate}%</p>
-              <p className="text-[11px] text-muted mt-0.5">معدل رد العميل</p>
-            </div>
-            <div className="bg-surface border border-border rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold text-navy dark:text-white">{fmtMin(stats.avgResponseMin)}</p>
-              <p className="text-[11px] text-muted mt-0.5">متوسط سرعة رد الفريق</p>
-            </div>
-          </div>
-          <div className="bg-teal/10 border border-teal/30 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-teal-700">💰 تحويل لطلب فعلي (خلال 7 أيام من أول رسالة)</p>
-              <p className="text-[11px] text-muted mt-0.5">مطابقة أرقام محادثات واتساب مع طلبات تركيا الفعلية — تركيا فقط (واتساب سوريا محظور).</p>
-            </div>
-            <div className="text-center shrink-0">
-              <p className="text-2xl font-extrabold text-teal">{stats.converted}</p>
-              <p className="text-[11px] text-muted">{stats.conversionRate}% من المحادثات</p>
-            </div>
-          </div>
-          <p className="text-[10px] text-muted text-center">
-            {stats.customerInitiated} محادثة بلّشها العميل من أصل {stats.totalConvos} — الباقي إشعارات آلية (تتبّع شحن) ما تلاها رد.
-          </p>
-
-          {/* أداء كل موظف على واتساب — طلب مالك 6 أغسطس 2026: "بدي قيّم مين
-              عم يشتغل". عدد الرسائل الصادرة + متوسط سرعة الرد لكل موظف،
-              مستخرَجة من عمود by_user (نفس معرّف الموظف بجدول profiles). */}
-          {stats.agentStats?.length > 0 && (
-            <div className="bg-surface border border-border rounded-2xl p-3">
-              <p className="text-xs font-bold text-text mb-2">👤 أداء الموظفين</p>
-              <div className="space-y-1.5">
-                {stats.agentStats.map(a => (
-                  <div key={a.byUser} className="flex items-center justify-between text-xs border-b border-border/30 pb-1.5 last:border-0 last:pb-0">
-                    <span className="font-bold text-text">{a.name}</span>
-                    <span className="text-muted flex items-center gap-3">
-                      <span>{a.sent} رسالة</span>
-                      <span>{a.avgResponseMin != null ? fmtMin(a.avgResponseMin) : '—'} متوسط الرد</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
 }
 
 // واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
