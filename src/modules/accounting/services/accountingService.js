@@ -110,11 +110,16 @@ export async function createEntry(data) {
  *   • الساق الواصلة:  book=toBook   · category=TRANSFER_IN  (يزيد رصيد المُستلِم)
  * كلاهما entry_type='transfer' → يُستثنيان من الربح/الخسارة، والمجموع = صفر للشركة.
  */
-export async function createTransfer({ amount, currency, fromBook, toBook, date, note, createdBy }) {
+export async function createTransfer({ amount, currency, walletId, fromBook, toBook, date, note, createdBy }) {
   const amt = Number(amount) || 0;
   if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
   const field = currency === 'TRY' ? 'amount_try' : currency === 'SYP' ? 'amount_syp' : 'amount_usd';
-  const pm    = currency === 'TRY' ? 'cash_try'   : currency === 'SYP' ? 'cash_syp'   : 'cash_usd';
+  // ⚠️ إصلاح 9 آب 2026: كان يفترض دايماً "كاش" (cash_usd/cash_syp/cash_try)
+  // بغض النظر عن المحفظة الحقيقية يلي طلعت منها العملية — فسحب من "شام كاش"
+  // أو "بنك" كان يُسجَّل خطأً كسحب من كاش، فيخرّب رصيد المحفظتين معاً (بلاغ
+  // مالك: "عنا أكتر من محفظة، لازم تحديد أي وحدة"). walletId الجديد (اختياري)
+  // يسمح بتحديد المحفظة الفعلية؛ لو ما انبعت، نفس الافتراض القديم (توافق خلفي).
+  const pm = walletId || (currency === 'TRY' ? 'cash_try' : currency === 'SYP' ? 'cash_syp' : 'cash_usd');
   const group = globalThis.crypto?.randomUUID?.() || `trf-${Date.now()}-${Math.round(amt)}`;
   const fromOp = fromBook === BOOK.OPERATIONAL;
   const amounts = {

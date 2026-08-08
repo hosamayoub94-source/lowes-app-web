@@ -26,6 +26,8 @@ import {
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
   WALLETS,
+  WALLET_CURRENCY_SYMBOL,
+  walletDelta,
   BOOK,
   entryColorClass,
 } from '../types/accounting.types.js';
@@ -297,20 +299,21 @@ function EntryForm({ initial, sources = [], onSave, onClose, loading }) {
 }
 
 // ── Settlement Modal (سحب الرصيد / توريد) ───────────────────────────────────────
-function SettleModal({ kind, balance, onConfirm, onClose, loading }) {
+// ⚠️ إصلاح 9 آب 2026: كان فيه اختيار عملة بس (USD/TRY/SYP) — عنا أكتر من محفظة
+// لنفس العملة (كاش $ مقابل شام USD مقابل بنك USD مثلاً)، فكل عملية كانت
+// تُسجَّل تلقائياً كـ"كاش" بغض النظر من أي محفظة فعلياً طلعت. صار الاختيار
+// بالمحفظة نفسها (walletBalances — رصيد كل محفظة الفعلي بالكتاب التشغيلي)،
+// والعملة تُشتق من المحفظة المختارة تلقائياً.
+function SettleModal({ kind, walletBalances, onConfirm, onClose, loading }) {
   const isWithdraw = kind === 'withdraw';
-  const CCY_OPTS = [
-    { code: 'USD', field: 'amount_usd', sym: '$' },
-    { code: 'TRY', field: 'amount_try', sym: '₺' },
-    { code: 'SYP', field: 'amount_syp', sym: 'ل.س' },
-  ];
-  const firstWithBal = CCY_OPTS.find(c => Number(balance?.[c.field] || 0) !== 0)?.code || 'USD';
-  const [currency, setCurrency] = useState(firstWithBal);
+  const firstWithBal = walletBalances.find(w => w.balance !== 0)?.id || walletBalances[0]?.id;
+  const [walletId, setWalletId] = useState(firstWithBal);
   const [amount, setAmount]     = useState('');
   const [date, setDate]         = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote]         = useState('');
-  const cur = CCY_OPTS.find(c => c.code === currency);
-  const bal = Number(balance?.[cur.field] || 0);
+  const w   = walletBalances.find(x => x.id === walletId) || walletBalances[0];
+  const sym = WALLET_CURRENCY_SYMBOL[w?.currency] || '';
+  const bal = Number(w?.balance || 0);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -322,24 +325,24 @@ function SettleModal({ kind, balance, onConfirm, onClose, loading }) {
             : 'تسجّل توريد أموال من الإدارة المالية إليهم (يزيد رصيدهم).'}
         </p>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted mb-1 block">العملة</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
-                {CCY_OPTS.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted mb-1 block">المبلغ ({cur.sym})</label>
-              <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)}
-                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
-            </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">المحفظة</label>
+            <select value={walletId} onChange={e => setWalletId(e.target.value)}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+              {walletBalances.map(x => (
+                <option key={x.id} value={x.id}>{x.label} — {x.balance.toLocaleString('ar-SA-u-nu-latn')} {WALLET_CURRENCY_SYMBOL[x.currency]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">المبلغ ({sym})</label>
+            <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)}
+              className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
           </div>
           {isWithdraw && bal > 0 && (
             <button type="button" onClick={() => setAmount(String(bal))}
               className="text-xs text-teal font-semibold hover:underline">
-              سحب الرصيد كاملاً ({cur.sym}{bal.toLocaleString('ar-SA-u-nu-latn')})
+              سحب الرصيد كاملاً ({sym}{bal.toLocaleString('ar-SA-u-nu-latn')})
             </button>
           )}
           <div>
@@ -354,7 +357,7 @@ function SettleModal({ kind, balance, onConfirm, onClose, loading }) {
           </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={() => onConfirm({ kind, currency, amount, date, note })} disabled={loading}
+          <button onClick={() => onConfirm({ kind, walletId, currency: w?.currency, amount, date, note })} disabled={loading}
             className="flex-1 py-2 rounded-xl bg-teal text-navy text-sm font-semibold hover:bg-teal/90 disabled:opacity-50 transition">
             {loading ? '…' : 'تأكيد'}
           </button>
@@ -497,15 +500,25 @@ export function AccountingDashboard() {
   const LARGE_EXPENSE_USD = 100;
   const LARGE_EXPENSE_TRY = 3000;
 
+  // رصيد كل محفظة فعلياً ضمن الكتاب التشغيلي (فادي/وسيم) — يغذّي اختيار
+  // المحفظة بمودال السحب/التوريد، بدل افتراض "كاش" دايماً.
+  const opWalletBalances = useMemo(() => {
+    const opEntries = entries.filter(e => (e.book ?? BOOK.CENTRAL) === BOOK.OPERATIONAL);
+    return WALLETS.map(w => ({
+      ...w,
+      balance: opEntries.reduce((s, e) => s + walletDelta(e, w), 0),
+    }));
+  }, [entries]);
+
   // تسوية الحساب التشغيلي: سحب الرصيد (مصروف→تسليم) أو توريد (دخل) — تُنشئ قيداً واحداً.
-  const handleSettle = async ({ kind, currency, amount, date, note }) => {
+  const handleSettle = async ({ kind, walletId, currency, amount, date, note }) => {
     const amt = Number(amount) || 0;
     if (amt <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return; }
     const isWithdraw = kind === 'withdraw';
     try {
       // سحب = نقل من التشغيلي → المركزي · توريد = العكس (تحويل بساقين يساوي صفراً).
       await createTransfer({
-        amount: amt, currency,
+        amount: amt, currency, walletId,
         fromBook: isWithdraw ? BOOK.OPERATIONAL : BOOK.CENTRAL,
         toBook:   isWithdraw ? BOOK.CENTRAL : BOOK.OPERATIONAL,
         date, note,
@@ -908,7 +921,7 @@ export function AccountingDashboard() {
       {settle && (
         <SettleModal
           kind={settle.kind}
-          balance={opBalance}
+          walletBalances={opWalletBalances}
           loading={loading.action}
           onConfirm={handleSettle}
           onClose={() => setSettle(null)}

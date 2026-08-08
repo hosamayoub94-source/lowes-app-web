@@ -20,6 +20,8 @@ import {
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
   WALLETS,
+  WALLET_CURRENCY_SYMBOL,
+  walletDelta,
   TRANSFER_OUT,
   BOOK,
   filterByBook,
@@ -144,7 +146,7 @@ export default function AccountingScreen() {
 
   // ── Handover to central treasury (تسليم الرصيد للإدارة المالية) ─────────────
   const [showHandover, setShowHandover] = useState(false);
-  const [hForm, setHForm] = useState({ currency: 'USD', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
+  const [hForm, setHForm] = useState({ walletId: 'cash_usd', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
   const [hError, setHError] = useState(null);
 
   const walletAmounts = (walletId, val) => {
@@ -198,9 +200,10 @@ export default function AccountingScreen() {
     const amt = Number(hForm.amount) || 0;
     if (amt <= 0) { setHError('أدخل مبلغاً صحيحاً'); return; }
     setHError(null);
+    const w = opWalletBalances.find(x => x.id === hForm.walletId) || opWalletBalances[0];
     try {
       await createTransfer({
-        amount: amt, currency: hForm.currency,
+        amount: amt, currency: w?.currency, walletId: hForm.walletId,
         fromBook: BOOK.OPERATIONAL, toBook: BOOK.CENTRAL,
         date: hForm.date, note: hForm.note,
       });
@@ -216,6 +219,12 @@ export default function AccountingScreen() {
   const opEntries = useMemo(() => filterOperational(bookEntries), [bookEntries]);
   // الرصيد التراكمي (مراعٍ للتحويلات: تسليم/توريد) = الكاش الموجود لديهم.
   const opBalance = useMemo(() => computeBookBalance(entries, BOOK.OPERATIONAL), [entries]);
+  // رصيد كل محفظة فعلياً (كاش/شام/بنك × عملة) — طلب مالك 9 آب 2026: "عنا أكتر
+  // من محفظة، لازم تحديد أي وحدة رح ينسحب منها" بدل افتراض "كاش" دايماً.
+  const opWalletBalances = useMemo(
+    () => WALLETS.map(w => ({ ...w, balance: bookEntries.reduce((s, e) => s + walletDelta(e, w), 0) })),
+    [bookEntries],
+  );
 
   // ── Month filtering ────────────────────────────────────────────────────────
   const monthEntries = useMemo(() =>
@@ -780,27 +789,33 @@ export default function AccountingScreen() {
             <h3 className="font-bold text-lg text-text mb-1">⬆️ تسليم الرصيد للإدارة المالية</h3>
             <p className="text-xs text-muted mb-4">يُسجَّل تحويلاً ينقص رصيدكم ويزيد الخزينة المركزية (بلا تأثير على الربح/الخسارة).</p>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted mb-1 block">العملة</label>
-                  <select value={hForm.currency} onChange={e => setHForm(f => ({ ...f, currency: e.target.value }))}
-                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
-                    {['USD', 'TRY', 'SYP'].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted mb-1 block">المبلغ ({hForm.currency})</label>
-                  <input type="number" step="any" value={hForm.amount} onChange={e => setHForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
-                </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">المحفظة</label>
+                <select value={hForm.walletId} onChange={e => setHForm(f => ({ ...f, walletId: e.target.value }))}
+                  className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text">
+                  {opWalletBalances.map(w => (
+                    <option key={w.id} value={w.id}>{w.label} — {w.balance.toLocaleString('ar-SA-u-nu-latn')} {WALLET_CURRENCY_SYMBOL[w.currency]}</option>
+                  ))}
+                </select>
               </div>
               {(() => {
-                const fld = hForm.currency === 'TRY' ? 'amount_try' : hForm.currency === 'SYP' ? 'amount_syp' : 'amount_usd';
-                const bal = Number(opBalance?.[fld] || 0);
+                const w = opWalletBalances.find(x => x.id === hForm.walletId) || opWalletBalances[0];
+                const sym = WALLET_CURRENCY_SYMBOL[w?.currency] || '';
+                return (
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">المبلغ ({sym})</label>
+                    <input type="number" step="any" value={hForm.amount} onChange={e => setHForm(f => ({ ...f, amount: e.target.value }))}
+                      className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-cream text-text" placeholder="0" />
+                  </div>
+                );
+              })()}
+              {(() => {
+                const w = opWalletBalances.find(x => x.id === hForm.walletId) || opWalletBalances[0];
+                const bal = Number(w?.balance || 0);
                 return bal > 0 ? (
                   <button type="button" onClick={() => setHForm(f => ({ ...f, amount: String(bal) }))}
                     className="text-xs text-teal font-semibold hover:underline">
-                    سلّم الكل ({bal.toLocaleString('ar-SA-u-nu-latn')} {hForm.currency})
+                    سلّم الكل ({bal.toLocaleString('ar-SA-u-nu-latn')} {WALLET_CURRENCY_SYMBOL[w?.currency]})
                   </button>
                 ) : null;
               })()}
