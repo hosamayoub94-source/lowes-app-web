@@ -3,10 +3,14 @@
 // بلا أي state أو استدعاء بيانات — كل شي جاي props.
 // =============================================================
 import { Avatar } from '@components/ui';
+import { StatusTicks } from './MessageBubble';
 
 export function ThreadListRow({
   thread, isOpen, name, ownerName, isDeleting, onOpen, onDelete,
 }) {
+  const time = thread.created_at
+    ? new Date(thread.created_at).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
+    : '';
   return (
     <div
       onClick={onOpen}
@@ -23,22 +27,26 @@ export function ThreadListRow({
         ) : (
           <div className="font-bold text-sm text-text" dir="ltr">{thread.phone}</div>
         )}
-        <div className="text-xs text-muted truncate">
+        <div className="text-xs text-muted truncate flex items-center gap-1">
           {thread.direction === 'out' ? 'أنتم: ' : ''}
           {thread.preview}
+          {thread.direction === 'out' && <StatusTicks status={thread.status} />}
         </div>
         {ownerName && (
           <div className="text-[10px] text-teal-700 truncate">👤 {ownerName}</div>
         )}
       </div>
-      <button
-        onClick={onDelete}
-        disabled={isDeleting}
-        title="حذف المحادثة"
-        className="text-muted hover:text-red-500 opacity-60 hover:opacity-100 text-sm shrink-0 disabled:opacity-30"
-      >
-        {isDeleting ? '…' : '🗑️'}
-      </button>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <span className="text-[10px] text-muted">{time}</span>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          title="حذف المحادثة"
+          className="text-muted hover:text-red-500 opacity-60 hover:opacity-100 text-sm disabled:opacity-30"
+        >
+          {isDeleting ? '…' : '🗑️'}
+        </button>
+      </div>
     </div>
   );
 }
