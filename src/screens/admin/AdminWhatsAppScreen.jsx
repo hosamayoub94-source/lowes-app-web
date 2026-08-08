@@ -58,6 +58,20 @@ function teammatesOf(name) {
   return team || [name];
 }
 
+// حصر كل موظف/ة بخط واحد بس — طلب مالك 9 أغسطس 2026: هيا (تتبّع طلبات
+// تركيا) ما إلها شغل بخط الحملات فبده ينحجب عنها كلياً ("حتى ما تتشتت")،
+// وفريق الحملات (ديانا/سالي/فاطمة) بالعكس ما إلهم شغل بالخط الرئيسي فبده
+// ينحجب عنهم هنن. أي موظف/ة مش مذكورة هون (أو أدمن/مدير) بتضل تشوف كلا
+// الخطين متل قبل — القيد هون سلبي فقط لأسماء محدَّدة صراحة. ⚠️ نفس دَين
+// WHATSAPP_TEAMS التقني (ثابت بالكود مؤقتاً) — لو تكرر هالنمط لموظفين
+// جداد، الأفضل ينقل لإعداد صلاحيات فعلي بدل تعديل الكود بكل مرة.
+const LINE_ACCESS = {
+  'Haya Almarouf': ['main'],
+  'Diana Hasan': ['campaign'],
+  'Sally Teba': ['campaign'],
+  'Fatima Ayoub': ['campaign'],
+};
+
 // واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
 // invalid content error) — تأكَّد هذا حياً: حتى MediaRecorder بصيغة
 // audio/mp4 "الافتراضية" بكروم رجعت نفس الخطأ. المتصفح نفسه ما بيقدر يسجّل
@@ -114,6 +128,21 @@ export default function AdminWhatsAppScreen() {
   // يبدّل (الموظف العادي بيشتغل دائماً على main — أبسط، وحملات ديانا/سالي
   // أصلاً بترسل عبر sendBulkCampaign مش من هالشاشة).
   const [line, setLine] = useState(MAIN_LINE);
+  // الخطوط المسموحة لهالمستخدم/ة تحديداً — أدمن/مدير أو أي اسم مش بـLINE_ACCESS
+  // يشوف الاثنين متل قبل، أما الأسماء المذكورة صراحة تنحصر بخط واحد.
+  const allowedLineKeys = useMemo(
+    () => (isManager ? Object.keys(WA_LINES) : (LINE_ACCESS[userName] || Object.keys(WA_LINES))),
+    [isManager, userName],
+  );
+  const visibleLines = useMemo(
+    () => Object.fromEntries(Object.entries(WA_LINES).filter(([k]) => allowedLineKeys.includes(k))),
+    [allowedLineKeys],
+  );
+  // لو الخط الحالي صار غير مسموح (أول تحميل لموظف/ة محصورة بخط وحيد)، بدّل
+  // للخط المسموح تلقائياً بدل ما تضل الشاشة عالقة عخط فاضي بلا محادثات.
+  useEffect(() => {
+    if (!allowedLineKeys.includes(line)) setLine(allowedLineKeys[0] || MAIN_LINE);
+  }, [allowedLineKeys, line]);
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -627,7 +656,7 @@ export default function AdminWhatsAppScreen() {
       ) : (
       <>
       <div className="flex gap-2 items-center flex-wrap">
-        <LineSwitcher lines={WA_LINES} line={line} onChange={setLine} />
+        {allowedLineKeys.length > 1 && <LineSwitcher lines={visibleLines} line={line} onChange={setLine} />}
         <NewChatBar
           open={newChatOpen}
           onToggle={() => setNewChatOpen(v => !v)}
