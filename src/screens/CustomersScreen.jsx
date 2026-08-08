@@ -772,6 +772,15 @@ export default function CustomersScreen() {
     setSelectedPhones(allFilteredSelected ? new Set() : new Set(campaignVisible.map(c => c.phone_key)));
   }, [campaignVisible, allFilteredSelected]);
 
+  // تحديد أول N فقط ضمن التصفية الحالية — لدفعات مضبوطة يومياً (مثلاً 600)
+  // بدل "تحديد الكل" يلي بياخد الشريحة كاملة (ممكن تكون آلاف) بضغطة وحدة.
+  // طلب مالك 8 أغسطس 2026: تشغيل حملة "تواصل ودّي" بدفعات يومية محكومة.
+  const [batchN, setBatchN] = useState(600);
+  const selectFirstN = useCallback(() => {
+    const n = Math.max(1, Math.min(batchN || 0, campaignVisible.length));
+    setSelectedPhones(new Set(campaignVisible.slice(0, n).map(c => c.phone_key)));
+  }, [campaignVisible, batchN]);
+
   const runCampaign = async () => {
     if (!selectedCustomers.length || sendingCampaign) return;
     // بمعدل 2.5 ثانية بين كل رسالة (حماية Quality Rating عند Meta) — دفعة كبيرة
@@ -852,10 +861,19 @@ export default function CustomersScreen() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب &quot;{activeCampaign.label}&quot; (معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
             {campaignVisible.length > 0 && (
-              <button onClick={toggleSelectAllFiltered}
-                className="shrink-0 px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
-                {allFilteredSelected ? `✕ إلغاء تحديد الكل (${campaignVisible.length})` : `✓ تحديد الكل (${campaignVisible.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input type="number" min={1} max={campaignVisible.length} value={batchN}
+                  onChange={e => setBatchN(Number(e.target.value) || 0)}
+                  className="w-16 px-1.5 py-1 rounded-lg border border-teal/40 bg-surface text-text text-[11px] text-center" />
+                <button onClick={selectFirstN}
+                  className="px-2.5 py-1 rounded-lg bg-teal/80 text-navy text-[11px] font-bold hover:opacity-90 transition">
+                  ✓ تحديد أول {Math.min(batchN || 0, campaignVisible.length)}
+                </button>
+                <button onClick={toggleSelectAllFiltered}
+                  className="px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
+                  {allFilteredSelected ? `✕ إلغاء تحديد الكل (${campaignVisible.length})` : `✓ تحديد الكل (${campaignVisible.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
+                </button>
+              </div>
             )}
           </div>
           <div className="flex items-center justify-between gap-2 flex-wrap font-normal text-[11px] pt-2 border-t border-teal/20">
