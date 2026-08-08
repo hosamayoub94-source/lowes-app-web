@@ -1,14 +1,18 @@
 // =============================================================
-// LineSwitcher — تبديل خط واتساب (رئيسي/حملات) للأدمن/المدير،
-// شارة قراءة فقط للموظف العادي. يلف مكوّن Tabs الجاهز. عرض بحت.
+// LineSwitcher — تبديل خط واتساب (رئيسي/حملات)، للجميع. يلف مكوّن Tabs
+// الجاهز. عرض بحت.
+//
+// ⚠️ 8 أغسطس 2026: كانت مقفولة على الأدمن/المدير بس (الموظف العادي يشوف
+// شارة قراءة فقط، بلا إمكانية تبديل) — بَق حقيقي اكتُشف حياً: ردود
+// العملاء على أي حملة جماعية (sendBulkCampaign بيستخدم line: 'campaign'
+// دايماً) بتوصل لخط "الحملات" +12768772635 لا الخط الرئيسي، فديانا/سالي/
+// فاطمة (كلهم role_type=employee) ما كانوا يقدروا يوصلولها إطلاقاً —
+// "ما عم تظهر المحادثات" كان بالضبط هيك. لا سبب أمني يبرر تقييد التبديل
+// (رؤية المحادثة نفسها أصلاً محكومة بملكية الفريق بغض النظر عن الخط).
 // =============================================================
-import { Tabs, Badge } from '@components/ui';
+import { Tabs } from '@components/ui';
 
-export function LineSwitcher({ isManager, lines, line, onChange }) {
-  if (!isManager) {
-    const l = lines[line];
-    return <Badge tone="teal">{l.label} · {l.number}</Badge>;
-  }
+export function LineSwitcher({ lines, line, onChange }) {
   const tabs = Object.entries(lines).map(([key, l]) => ({ key, label: `${l.label} · ${l.number}` }));
   return <Tabs tabs={tabs} value={line} onChange={onChange} size="sm" />;
 }

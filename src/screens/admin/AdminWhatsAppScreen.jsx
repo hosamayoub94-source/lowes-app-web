@@ -224,13 +224,20 @@ export default function AdminWhatsAppScreen() {
       if (!byPhone[p] || new Date(m.created_at) > new Date(byPhone[p].created_at)) byPhone[p] = { ...m, phone: p };
     }
     let list = Object.values(byPhone);
-    // موظف عادي (بلا صلاحية إدارة) يشوف بس المحادثات المسجَّلة إله أو لأي
-    // عضو بفريقها (WHATSAPP_TEAMS) — الأدمن/المدير يشوفوا الكل. محادثة بلا
-    // مالك أصلاً (عميل راسل جديد بلا حدا فتحها) ما تظهر للموظف العادي
-    // بهالنسخة البسيطة — تحتاج الأدمن يوزّعها أول.
+    // موظف عادي (بلا صلاحية إدارة) يشوف محادثاته/فريقها (WHATSAPP_TEAMS)
+    // + أي محادثة بلا مالك أصلاً (عميل راسل جديد بلا حدا فتحها بعد) —
+    // الأدمن/المدير يشوفوا الكل دايماً.
+    // ⚠️ 8 أغسطس 2026: كان استبعاد "بلا مالك" كامل عن الموظف العادي (لازم
+    // الأدمن يوزّعها يدوياً أول) — بَق حقيقي اكتُشف حياً: مع حملات جماعية
+    // بمعدل مئات الرسائل يومياً، كل رد عميل جديد بيوصل بلا مالك (bulk send
+    // ما بيستدعي claimWhatsAppConversation)، فديانا/سالي/فاطمة ما كانوا
+    // يشوفوا ولا رد جديد إطلاقاً لحد ما أدمن يفتحها يدوياً واحدة واحدة —
+    // غير عملي عند 600 رسالة/يوم. صار الموظف العادي يشوف المحادثات الجديدة
+    // بلا مالك كمان (بيصير مالكها تلقائياً أول ما يفتحها ويرد — نفس منطق
+    // ?open= الموجود أصلاً).
     if (!isManager) {
       const mates = teammatesOf(userName);
-      list = list.filter(t => mates.includes(ownerByPhone[t.phone]?.owner_name));
+      list = list.filter(t => !ownerByPhone[t.phone] || mates.includes(ownerByPhone[t.phone]?.owner_name));
     }
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [lineMsgs, isManager, ownerByPhone, userName]);
@@ -241,6 +248,17 @@ export default function AdminWhatsAppScreen() {
       setOpenPhone(threads[0].phone);
     }
   }, [threads, openPhone]);
+
+  // فتح محادثة من القائمة — لو بلا مالك أصلاً (رد جديد على حملة جماعية
+  // مثلاً)، أول من يفتحها يصير مالكها تلقائياً (نفس منطق ?open= وبدء محادثة
+  // جديدة الموجودين أصلاً) — claimWhatsAppConversation idempotent، ما بيغيّر
+  // مالك موجود لو حدا سبقه.
+  const openThread = useCallback((phone) => {
+    setOpenPhone(phone);
+    if (!ownerByPhone[phone]) {
+      claimWhatsAppConversation(phone, WA_LINES[line].number, userId, userName).then(load).catch(() => {});
+    }
+  }, [ownerByPhone, line, userId, userName, load]);
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().replace(/[^\d+]/g, '');
@@ -606,7 +624,7 @@ export default function AdminWhatsAppScreen() {
       ) : (
       <>
       <div className="flex gap-2 items-center flex-wrap">
-        <LineSwitcher isManager={isManager} lines={WA_LINES} line={line} onChange={setLine} />
+        <LineSwitcher lines={WA_LINES} line={line} onChange={setLine} />
         <NewChatBar
           open={newChatOpen}
           onToggle={() => setNewChatOpen(v => !v)}
@@ -649,7 +667,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
-                onOpen={setOpenPhone}
+                onOpen={openThread}
                 onDelete={deleteThread}
               />
               <ThreadListSection
@@ -660,7 +678,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
-                onOpen={setOpenPhone}
+                onOpen={openThread}
                 onDelete={deleteThread}
               />
               <ThreadListSection
@@ -671,7 +689,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
-                onOpen={setOpenPhone}
+                onOpen={openThread}
                 onDelete={deleteThread}
               />
             </div>
