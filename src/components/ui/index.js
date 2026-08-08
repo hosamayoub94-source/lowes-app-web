@@ -10,5 +10,6 @@ export { StatCard } from './StatCard';
 export { Toast } from './Toast';
 export { Hero } from './Hero';
 export { EmptyState } from './EmptyState';
+export { Tabs } from './Tabs';
 export { Spinner, LoadingScreen } from './Loading';
 export { Input, Textarea, Select, Field } from './Input';

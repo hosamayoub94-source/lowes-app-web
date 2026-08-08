@@ -4,12 +4,20 @@
 //   (يمين) + رد نصي/صوتي/صورة مباشر. يقرأ/يكتب على جدول whatsapp_messages
 //   بمشروع Supabase آخر — راجع src/services/whatsappService.js للتفاصيل.
 //   محميّة admin/manager.
+//
+// 7 أغسطس 2026 — إعادة تصميم بصري/UX (طلب مالك: "حسّها مش بروفشنال، غليظة
+// عالموبايل"). كل الـstate/handlers/منطق تجاري بهالملف بقي حرفياً بلا تغيير
+// — فقط الـJSX تحوّل لتركيب مكوّنات عرض من src/screens/admin/whatsapp/
+// (يستخدموا نظام التصميم الجاهز Button/Avatar/Badge/BottomSheet/EmptyState
+// الموجود أصلاً بالتطبيق بس ما كان مستخدَم بهالشاشة). التفاصيل والمنطق
+// الكامل موثّقة بخطة الجلسة.
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES } from '@data/teams';
+import { Button, EmptyState, Spinner } from '@components/ui';
 import {
   fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
@@ -20,6 +28,20 @@ import {
 } from '@services/whatsappService';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 import { listActiveProfiles } from '@services/authService';
+import { ThreadListSection } from './whatsapp/ThreadListSection';
+import { ThreadSearchBar } from './whatsapp/ThreadSearchBar';
+import { ChatHeader } from './whatsapp/ChatHeader';
+import { TagBar } from './whatsapp/TagBar';
+import { ReassignSheet } from './whatsapp/ReassignSheet';
+import { TransferSheet } from './whatsapp/TransferSheet';
+import { QuickRepliesSheet } from './whatsapp/QuickRepliesSheet';
+import { MessageBubble } from './whatsapp/MessageBubble';
+import { DateDivider } from './whatsapp/DateDivider';
+import { TrackingBanner } from './whatsapp/TrackingBanner';
+import { Composer } from './whatsapp/Composer';
+import { QuoteReplyBar } from './whatsapp/QuoteReplyBar';
+import { LineSwitcher } from './whatsapp/LineSwitcher';
+import { NewChatBar } from './whatsapp/NewChatBar';
 
 const MAIN_LINE = 'main'; // خط افتراضي عند فتح الشاشة — راجع WA_LINES لكل الخطوط المتاحة
 
@@ -45,6 +67,7 @@ const PERIODS = [
 // لوحة تحليلات — سبرنت ② من خطة النمو (5 أغسطس 2026): أول أرقام حقيقية
 // لأداء قناة واتساب (معدل رد، سرعة رد الفريق، تحويل لطلب فعلي). أساس
 // لقياس أي حملة إعادة تنشيط/إحالة جاية بدل تخمين.
+// (خارج نطاق إعادة التصميم البصري 7 أغسطس 2026 — تبقى كما هي عمداً.)
 function WhatsAppAnalyticsPanel() {
   const [days, setDays] = useState(30);
   const [stats, setStats] = useState(null);
@@ -171,17 +194,6 @@ function normalizePhoneInput(raw) {
   return p;
 }
 
-// علامات ✓/✓✓ زرقاء بصرية بدل نص الحالة الخام — "متل الواتساب" (طلب مالك
-// 5 أغسطس 2026). بس للرسائل الصادرة.
-function StatusTicks({ status }) {
-  if (!status) return null;
-  if (status === 'read') return <span title="قُرئت" className="text-blue-400">✓✓</span>;
-  if (status === 'delivered') return <span title="وصلت" className="opacity-70">✓✓</span>;
-  if (status === 'sent' || status === 'queued') return <span title={status === 'queued' ? 'قيد الإرسال' : 'أُرسلت'} className="opacity-70">✓</span>;
-  if (status === 'failed' || status === 'undelivered') return <span title={status} className="text-red-400">⚠️</span>;
-  return <span title={status} className="opacity-70">{status}</span>;
-}
-
 // فاصل تاريخ ("اليوم"/"أمس"/تاريخ) بين رسائل أيام مختلفة — "متل الواتساب"
 // (طلب مالك 5 أغسطس 2026).
 function dayLabel(iso) {
@@ -236,6 +248,10 @@ export default function AdminWhatsAppScreen() {
   const [msgSearchOpen, setMsgSearchOpen] = useState(false);
   const [msgSearch, setMsgSearch] = useState(''); // بحث نص داخل المحادثة المفتوحة
   const bottomRef = useRef(null);
+  // أسماء الرسائل يلي سبق ورُسمت — أنيميشن دخول للرسالة الجديدة فقط، مش كل
+  // رسالة بكل إعادة رسم (load() بتعيد جلب القائمة كاملة بعد كل إرسال).
+  // ملاحظة عرض بحتة، ما بتلمس أي state/منطق تجاري.
+  const seenMsgIdsRef = useRef(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -363,6 +379,16 @@ export default function AdminWhatsAppScreen() {
   const sortedConvoThreads = useMemo(() => sortUnansweredFirst(convoThreads), [convoThreads, unansweredFirst]);
   const sortedCampaignThreads = useMemo(() => sortUnansweredFirst(campaignThreads), [campaignThreads, unansweredFirst]);
   const sortedTrackingThreads = useMemo(() => sortUnansweredFirst(trackingThreads), [trackingThreads, unansweredFirst]);
+
+  // نسخة عرض من كل قائمة (فوق) — بس بتضيف preview نصي جاهز لصفوف القائمة
+  // الجانبية (ThreadListRow عرض بحت، ما بتستورد formatWaBody بنفسها).
+  const withPreview = (list) => list.map(t => ({
+    ...t,
+    preview: t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40),
+  }));
+  const previewConvoThreads = useMemo(() => withPreview(sortedConvoThreads), [sortedConvoThreads]);
+  const previewCampaignThreads = useMemo(() => withPreview(sortedCampaignThreads), [sortedCampaignThreads]);
+  const previewTrackingThreads = useMemo(() => withPreview(sortedTrackingThreads), [sortedTrackingThreads]);
 
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
@@ -647,51 +673,35 @@ export default function AdminWhatsAppScreen() {
     }
   };
 
-  const renderThreadRow = (t) => (
-    <div
-      key={t.phone}
-      onClick={() => setOpenPhone(t.phone)}
-      className={`group px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2 ${t.phone === openPhone ? 'bg-teal/10' : ''}`}
-    >
-      {t.direction === 'in' && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="بانتظار رد" />}
-      <div className="flex-1 min-w-0">
-        {nameByPhone[t.phone] ? (
-          <>
-            <div className="font-bold text-sm text-text truncate">{nameByPhone[t.phone]}</div>
-            <div className="text-[10px] text-muted" dir="ltr">{t.phone}</div>
-          </>
-        ) : (
-          <div className="font-bold text-sm text-text" dir="ltr">{t.phone}</div>
-        )}
-        <div className="text-xs text-muted truncate">
-          {t.direction === 'out' ? 'أنتم: ' : ''}
-          {t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40)}
-        </div>
-        {isManager && ownerByPhone[t.phone]?.owner_name && (
-          <div className="text-[10px] text-teal-700 truncate">👤 {ownerByPhone[t.phone].owner_name}</div>
-        )}
-      </div>
-      <button
-        onClick={(e) => deleteThread(t.phone, e)}
-        disabled={deletingPhone === t.phone}
-        title="حذف المحادثة"
-        className="text-muted hover:text-red-500 opacity-60 hover:opacity-100 text-sm shrink-0 disabled:opacity-30"
-      >
-        {deletingPhone === t.phone ? '…' : '🗑️'}
-      </button>
-    </div>
-  );
+  // بنر تتبّع ذكي — عناصر جاهزة (رابط التتبّع الحقيقي + الردود السريعة
+  // المخصَّصة لحالة الطلب) لمكوّن TrackingBanner العرضي البحت.
+  const trackingBannerItems = [
+    {
+      key: 'link',
+      label: '🔗 رابط التتبّع',
+      primary: true,
+      onClick: () => insertQuickReply(trackingLinkMessage(trackingOrder, trackingOrder?.customer_name)),
+    },
+    ...TRACKING_QUICK_REPLIES.map((q) => ({
+      key: q.key,
+      label: q.label,
+      onClick: () => insertQuickReply(q.text(trackingOrder?.customer_name)),
+    })),
+  ];
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
         <h1 className="font-extrabold text-text flex items-center gap-2"><span>💬</span> محادثات واتساب</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setView(v => v === 'chat' ? 'analytics' : 'chat')}
-            className={`text-xs font-bold rounded-lg px-3 py-1.5 border-2 transition ${view === 'analytics' ? 'border-teal bg-teal text-navy' : 'border-border/60 text-muted hover:border-teal/40'}`}>
+          <Button
+            variant={view === 'analytics' ? 'teal' : 'outline'}
+            size="sm"
+            onClick={() => setView(v => v === 'chat' ? 'analytics' : 'chat')}
+          >
             {view === 'analytics' ? '← المحادثات' : '📊 تحليلات'}
-          </button>
-          {view === 'chat' && <button onClick={load} className="text-xs text-teal-700 font-bold">تحديث ↻</button>}
+          </Button>
+          {view === 'chat' && <Button variant="ghost" size="sm" onClick={load}>تحديث ↻</Button>}
         </div>
       </div>
       <p className="text-xs text-muted">
@@ -703,228 +713,137 @@ export default function AdminWhatsAppScreen() {
       ) : (
       <>
       <div className="flex gap-2 items-center flex-wrap">
-        {isManager ? (
-          Object.entries(WA_LINES).map(([key, l]) => (
-            <button
-              key={key}
-              onClick={() => setLine(key)}
-              className={`text-xs font-bold rounded-lg px-3 py-1.5 border-2 transition ${
-                line === key ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted hover:border-teal/40'
-              }`}
-            >
-              {l.label} · {l.number}
-            </button>
-          ))
-        ) : (
-          <span className="text-xs font-bold rounded-lg px-3 py-1.5 bg-teal/10 text-teal-700">
-            {WA_LINES[line].label} · {WA_LINES[line].number}
-          </span>
-        )}
-        <button
-          onClick={() => setNewChatOpen(v => !v)}
-          className="text-xs font-bold rounded-lg px-3 py-1.5 border border-border/60 bg-surface text-text"
-        >
-          ＋ محادثة جديدة
-        </button>
+        <LineSwitcher isManager={isManager} lines={WA_LINES} line={line} onChange={setLine} />
+        <NewChatBar
+          open={newChatOpen}
+          onToggle={() => setNewChatOpen(v => !v)}
+          phone={newChatPhone}
+          onPhoneChange={setNewChatPhone}
+          onStart={startNewChat}
+        />
       </div>
 
-      {newChatOpen && (
-        <div className="flex gap-2 bg-surface border border-border/60 rounded-xl p-2">
-          <input
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
-            placeholder="رقم بكود الدولة (مثال: 905551234567)"
-            value={newChatPhone}
-            onChange={(e) => setNewChatPhone(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') startNewChat(); }}
-            dir="ltr"
-          />
-          <button
-            onClick={startNewChat}
-            className="bg-teal text-navy rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal/90"
-          >
-            بدء
-          </button>
-        </div>
+      {messages === null && (
+        <div className="py-10 flex justify-center"><Spinner size="lg" /></div>
       )}
 
-      {messages === null && <div className="text-muted text-sm py-8 text-center">⏳ جارٍ التحميل…</div>}
-
       {messages !== null && (
-        <div className="flex gap-3 items-start flex-wrap md:flex-nowrap">
+        <div className="flex gap-3 items-start h-[calc(100dvh-3.5rem-7rem-8.5rem)] md:h-[calc(100dvh-3.5rem-2rem-8.5rem)]">
           {/* قائمة المحادثات — على الموبايل تختفي لما تكون محادثة مفتوحة (شاشة وحدة بالمرة، متل أي تطبيق شات) */}
-          <div className={`bg-surface border border-border/60 rounded-xl w-full md:w-72 shrink-0 max-h-[70vh] flex flex-col ${openPhone ? 'hidden md:flex' : 'flex'}`}>
-            <div className="p-2 border-b border-border/40 shrink-0 space-y-1.5">
-              <input
-                className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
-                placeholder="🔍 بحث برقم الهاتف…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                dir="ltr"
-              />
-              <button onClick={() => setUnansweredFirst(v => !v)}
-                className={`w-full text-[11px] font-bold rounded-lg px-2 py-1.5 border transition ${unansweredFirst ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted'}`}>
-                🔴 غير مردودة أولاً {unansweredFirst ? '✓' : ''}
-              </button>
-              {allTags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  <button onClick={() => setTagFilter(null)}
-                    className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 border ${!tagFilter ? 'border-navy bg-navy text-white' : 'border-border/60 text-muted'}`}>
-                    الكل
-                  </button>
-                  {allTags.map(tag => (
-                    <button key={tag} onClick={() => setTagFilter(v => v === tag ? null : tag)}
-                      className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 border ${tagFilter === tag ? 'border-navy bg-navy text-white' : 'border-border/60 text-muted hover:border-navy/40'}`}>
-                      🏷️ {tag}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="overflow-y-auto flex-1">
+          <div className={`bg-surface border border-border/60 rounded-card w-full md:w-72 shrink-0 h-full min-w-0 flex flex-col min-h-0 ${openPhone ? 'hidden md:flex' : 'flex animate-in fade-in slide-in-from-right-4 duration-200'}`}>
+            <ThreadSearchBar
+              search={search}
+              onSearchChange={setSearch}
+              unansweredFirst={unansweredFirst}
+              onToggleUnanswered={() => setUnansweredFirst(v => !v)}
+              allTags={allTags}
+              tagFilter={tagFilter}
+              onTagFilterChange={setTagFilter}
+            />
+            <div className="overflow-y-auto flex-1 min-h-0">
               {filteredThreads.length === 0 && (
-                <div className="text-muted text-sm py-8 text-center">
-                  {threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
-                </div>
+                <EmptyState
+                  icon="💬"
+                  title={threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
+                  className="border-0 bg-transparent py-8"
+                />
               )}
-              {sortedConvoThreads.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">💬 المحادثات</div>
-                  {sortedConvoThreads.map(renderThreadRow)}
-                </>
-              )}
-              {sortedCampaignThreads.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">📢 الحملات</div>
-                  {sortedCampaignThreads.map(renderThreadRow)}
-                </>
-              )}
-              {sortedTrackingThreads.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 text-[11px] font-bold text-muted bg-border/20 sticky top-0">📦 تتبّع الطلبات (آلي)</div>
-                  {sortedTrackingThreads.map(renderThreadRow)}
-                </>
-              )}
+              <ThreadListSection
+                label="💬 المحادثات"
+                threads={previewConvoThreads}
+                openPhone={openPhone}
+                nameByPhone={nameByPhone}
+                ownerByPhone={ownerByPhone}
+                isManager={isManager}
+                deletingPhone={deletingPhone}
+                onOpen={setOpenPhone}
+                onDelete={deleteThread}
+              />
+              <ThreadListSection
+                label="📢 الحملات"
+                threads={previewCampaignThreads}
+                openPhone={openPhone}
+                nameByPhone={nameByPhone}
+                ownerByPhone={ownerByPhone}
+                isManager={isManager}
+                deletingPhone={deletingPhone}
+                onOpen={setOpenPhone}
+                onDelete={deleteThread}
+              />
+              <ThreadListSection
+                label="📦 تتبّع الطلبات (آلي)"
+                threads={previewTrackingThreads}
+                openPhone={openPhone}
+                nameByPhone={nameByPhone}
+                ownerByPhone={ownerByPhone}
+                isManager={isManager}
+                deletingPhone={deletingPhone}
+                onOpen={setOpenPhone}
+                onDelete={deleteThread}
+              />
             </div>
           </div>
 
           {/* المحادثة المفتوحة */}
-          <div className={`bg-surface border border-border/60 rounded-xl flex-1 p-3 flex-col max-h-[70vh] ${openPhone ? 'flex' : 'hidden md:flex'}`}>
-            {!openPhone && <div className="text-muted text-sm py-8 text-center">👈 اختر محادثة</div>}
+          <div className={`bg-surface border border-border/60 rounded-card flex-1 p-3 h-full min-h-0 min-w-0 flex-col ${openPhone ? 'flex animate-in fade-in slide-in-from-left-4 duration-200' : 'hidden md:flex'}`}>
+            {!openPhone && (
+              <EmptyState icon="👈" title="اختر محادثة" className="border-0 bg-transparent m-auto" />
+            )}
             {openPhone && openOwnedByOther && (
-              <div className="text-muted text-sm py-8 text-center">
-                🔒 هاي المحادثة مسؤول عنها {ownerByPhone[openPhone]?.owner_name || 'موظف تاني'} — مو ظاهرة إلك.
-              </div>
+              <EmptyState
+                icon="🔒"
+                title="محادثة موظف/ة تانية"
+                description={`هاي المحادثة مسؤول عنها ${ownerByPhone[openPhone]?.owner_name || 'موظف تاني'} — مو ظاهرة إلك.`}
+                className="border-0 bg-transparent m-auto"
+              />
             )}
             {openPhone && !openOwnedByOther && (
               <>
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-border/40 shrink-0 gap-2 flex-wrap">
-                  <button
-                    onClick={() => setOpenPhone('')}
-                    className="md:hidden text-xs font-bold text-teal-700"
-                  >
-                    ‹ رجوع
-                  </button>
-                  <div className="hidden md:block">
-                    {nameByPhone[openPhone] ? (
-                      <>
-                        <div className="font-bold text-sm text-text">{nameByPhone[openPhone]}</div>
-                        <div className="text-[10px] text-muted" dir="ltr">{openPhone}</div>
-                      </>
-                    ) : (
-                      <div className="font-bold text-sm text-text" dir="ltr">{openPhone}</div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {isManager && (
-                      <button
-                        onClick={() => setReassignOpen(v => !v)}
-                        title="تحويل هاي المحادثة لموظف/ة تانية"
-                        className="text-muted hover:text-teal-700 text-xs font-bold"
-                      >
-                        👤 {ownerByPhone[openPhone]?.owner_name ? `عند ${ownerByPhone[openPhone].owner_name} — تغيير` : 'بلا مسؤول — تعيين'}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setMsgSearchOpen(v => !v)}
-                      title="بحث داخل المحادثة"
-                      className={`text-xs font-bold ${msgSearchOpen ? 'text-teal-700' : 'text-muted hover:text-teal-700'}`}
-                    >
-                      🔍
-                    </button>
-                    <button
-                      onClick={() => { setTransferOpen(v => !v); setTransferPhone(''); }}
-                      title="نقل المحادثة لرقم آخر"
-                      className="text-muted hover:text-teal-700 text-xs font-bold"
-                    >
-                      🔀 نقل
-                    </button>
-                    <button
-                      onClick={(e) => deleteThread(openPhone, e)}
-                      disabled={deletingPhone === openPhone}
-                      title="حذف المحادثة"
-                      className="text-muted hover:text-red-500 text-sm disabled:opacity-30"
-                    >
-                      {deletingPhone === openPhone ? '…' : '🗑️ حذف'}
-                    </button>
-                  </div>
-                </div>
+                <ChatHeader
+                  phone={openPhone}
+                  name={nameByPhone[openPhone]}
+                  isManager={isManager}
+                  ownerName={ownerByPhone[openPhone]?.owner_name}
+                  msgSearchOpen={msgSearchOpen}
+                  isDeleting={deletingPhone === openPhone}
+                  onBack={() => setOpenPhone('')}
+                  onToggleReassign={() => setReassignOpen(v => !v)}
+                  onToggleSearch={() => setMsgSearchOpen(v => !v)}
+                  onToggleTransfer={() => { setTransferOpen(v => !v); setTransferPhone(''); }}
+                  onDelete={(e) => deleteThread(openPhone, e)}
+                />
 
                 {/* وسوم يدوية للمحادثة — تصنيف حرّ ("عميل جديد"، اسم البائع...)
                     لفلترة القائمة بالسايدبار. طلب مالك 5 أغسطس 2026. */}
-                <div className="flex items-center flex-wrap gap-1.5 mb-2">
-                  {currentTags.map(tag => (
-                    <span key={tag} className="text-[11px] font-bold bg-navy/10 text-navy dark:text-white rounded-md px-2 py-0.5 flex items-center gap-1">
-                      🏷️ {tag}
-                      <button onClick={() => removeTag(tag)} disabled={savingTag} className="hover:text-red-500">✕</button>
-                    </span>
-                  ))}
-                  <input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') addTag(tagInput); }}
-                    disabled={savingTag || !ownerByPhone[openPhone]}
-                    placeholder={ownerByPhone[openPhone] ? '+ إضافة وسم…' : 'ملكية أول لتقدري توسمي'}
-                    list="wa-suggested-tags"
-                    className="text-[11px] border border-border/60 rounded-md px-2 py-0.5 bg-surface text-text w-32 disabled:opacity-50"
+                <TagBar
+                  tags={currentTags}
+                  hasOwner={!!ownerByPhone[openPhone]}
+                  savingTag={savingTag}
+                  tagInput={tagInput}
+                  onTagInputChange={setTagInput}
+                  onAddTag={addTag}
+                  onRemove={removeTag}
+                  suggestedTags={SUGGESTED_TAGS}
+                />
+
+                {isManager && (
+                  <ReassignSheet
+                    open={reassignOpen}
+                    onClose={() => setReassignOpen(false)}
+                    employees={employees}
+                    currentOwnerId={ownerByPhone[openPhone]?.owner_id}
+                    reassigning={reassigning}
+                    onPick={reassignOwner}
                   />
-                  <datalist id="wa-suggested-tags">
-                    {SUGGESTED_TAGS.map(t => <option key={t} value={t} />)}
-                  </datalist>
-                </div>
-
-                {reassignOpen && (
-                  <div className="flex flex-wrap gap-1.5 mb-2 bg-border/10 rounded-lg p-2 max-h-32 overflow-y-auto">
-                    {employees.length === 0 ? (
-                      <span className="text-xs text-muted">⏳ جارٍ تحميل الموظفين…</span>
-                    ) : employees.map(emp => (
-                      <button
-                        key={emp.id}
-                        onClick={() => reassignOwner(emp)}
-                        disabled={reassigning}
-                        className={`text-xs font-bold px-2 py-1 rounded-lg border transition disabled:opacity-40 ${
-                          ownerByPhone[openPhone]?.owner_id === emp.id
-                            ? 'border-teal bg-teal text-navy' : 'border-border/60 text-text hover:bg-teal/10'
-                        }`}
-                      >
-                        {emp.employee_name}
-                      </button>
-                    ))}
-                  </div>
                 )}
 
-                {transferOpen && (
-                  <div className="flex gap-2 mb-2 bg-border/10 rounded-lg p-2">
-                    <input
-                      className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
-                      placeholder="الرقم الجديد (بكود الدولة)"
-                      value={transferPhone}
-                      onChange={(e) => setTransferPhone(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') doTransfer(); }}
-                      dir="ltr"
-                    />
-                    <button onClick={doTransfer} className="bg-teal text-navy rounded-lg px-3 py-1.5 text-xs font-bold">نقل</button>
-                  </div>
-                )}
+                <TransferSheet
+                  open={transferOpen}
+                  onClose={() => setTransferOpen(false)}
+                  phone={transferPhone}
+                  onPhoneChange={setTransferPhone}
+                  onConfirm={doTransfer}
+                />
 
                 {msgSearchOpen && (
                   <div className="flex gap-2 mb-2 bg-border/10 rounded-lg p-2">
@@ -941,66 +860,27 @@ export default function AdminWhatsAppScreen() {
                   </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2">
+                <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2 min-h-0">
                   {displayThread.length === 0 && msgSearch && (
                     <p className="text-center text-xs text-muted py-4">لا نتائج لـ«{msgSearch}»</p>
                   )}
                   {displayThread.map((m, i) => {
                     const prevDay = i > 0 ? dayLabel(displayThread[i - 1].created_at) : null;
                     const curDay = dayLabel(m.created_at);
+                    const isNew = !seenMsgIdsRef.current.has(m.id);
+                    seenMsgIdsRef.current.add(m.id);
                     return (
                       <div key={m.id} className="contents">
-                        {curDay !== prevDay && (
-                          <div className="self-center text-[10px] font-bold text-muted bg-border/30 rounded-full px-3 py-0.5 my-1">{curDay}</div>
-                        )}
-                        <div
-                          className={`group max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                            m.direction === 'out'
-                              ? 'self-end bg-teal text-navy'
-                              : 'self-start bg-border/30 text-text'
-                          }`}
-                        >
-                          {m.media_url && (m.media_content_type || '').startsWith('audio/') && (
-                            <audio controls src={m.media_url} className="max-w-full mb-1" />
-                          )}
-                          {m.media_url && (m.media_content_type || '').startsWith('image/') && (
-                            <img src={m.media_url} alt="" className="max-w-full rounded-lg mb-1" />
-                          )}
-                          {m.media_url && !(m.media_content_type || '').startsWith('audio/') && !(m.media_content_type || '').startsWith('image/') && (
-                            <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-teal-700 block mb-1">📎 مرفق</a>
-                          )}
-                          {formatWaBody(m.body)}
-                          <div className="flex items-center gap-2 text-[10px] opacity-70 mt-1">
-                            <span className="flex items-center gap-1">
-                              {new Date(m.created_at).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
-                              {m.direction === 'out' && <StatusTicks status={m.status} />}
-                            </span>
-                            <button
-                              onClick={() => startReply(m)}
-                              title="رد باقتباس"
-                              className="opacity-0 group-hover:opacity-100 hover:!opacity-100"
-                            >
-                              ↩️
-                            </button>
-                            <button
-                              onClick={() => forwardMessage(m)}
-                              title="تحويل الرسالة"
-                              className="opacity-0 group-hover:opacity-100 hover:!opacity-100"
-                            >
-                              ↪️
-                            </button>
-                            {m.direction === 'out' && (
-                              <button
-                                onClick={() => deleteMessage(m.id)}
-                                disabled={deletingMsgId === m.id}
-                                title="حذف الرسالة"
-                                className="opacity-0 group-hover:opacity-100 hover:!opacity-100 disabled:opacity-30"
-                              >
-                                {deletingMsgId === m.id ? '…' : '🗑️'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                        {curDay !== prevDay && <DateDivider label={curDay} />}
+                        <MessageBubble
+                          message={m}
+                          text={formatWaBody(m.body)}
+                          isNew={isNew}
+                          onReply={() => startReply(m)}
+                          onForward={() => forwardMessage(m)}
+                          onDelete={() => deleteMessage(m.id)}
+                          isDeleting={deletingMsgId === m.id}
+                        />
                       </div>
                     );
                   })}
@@ -1012,123 +892,39 @@ export default function AdminWhatsAppScreen() {
                     الطرد/دعوة قناة/متابعة صفحات/طلب تقييم + رابط تتبع حقيقي
                     (طلب مالك 5 أغسطس 2026). كل زر يعبّي صندوق الرد، ما بيرسل مباشرة. */}
                 {openIsTracking && (
-                  <div className="mb-2 bg-teal/10 border border-teal/30 rounded-lg p-2">
-                    <button onClick={() => setTrackingBannerOpen(v => !v)}
-                      className="w-full flex items-center justify-between text-xs font-bold text-teal-700">
-                      <span>🏷️ رسائل تتبّع ذكية {trackingOrder ? `— طلبها الأخير #${trackingOrder.order_id || ''}` : ''}</span>
-                      <span>{trackingBannerOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {trackingBannerOpen && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <button
-                          onClick={() => insertQuickReply(trackingLinkMessage(trackingOrder, trackingOrder?.customer_name))}
-                          className="text-[11px] font-bold px-2 py-1 rounded-lg bg-teal text-navy hover:opacity-90 transition"
-                        >
-                          🔗 رابط التتبّع
-                        </button>
-                        {TRACKING_QUICK_REPLIES.map((q) => (
-                          <button
-                            key={q.key}
-                            onClick={() => insertQuickReply(q.text(trackingOrder?.customer_name))}
-                            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-teal/40 text-teal-700 hover:bg-teal/10 transition"
-                          >
-                            {q.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {quickOpen && (
-                  <div className="mb-2 bg-border/10 rounded-lg p-2 flex flex-col gap-1 max-h-40 overflow-y-auto">
-                    {QUICK_REPLIES.map((q, i) => (
-                      <button
-                        key={i}
-                        onClick={() => insertQuickReply(q.text)}
-                        className="text-xs text-start text-text hover:bg-teal/10 rounded px-2 py-1"
-                      >
-                        <span className="font-bold">{q.label}:</span> {q.text.slice(0, 50)}…
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {replyingTo && (
-                  <div className="flex items-center justify-between gap-2 mb-1.5 bg-border/10 border-r-4 border-teal rounded-lg px-2.5 py-1.5">
-                    <span className="text-[11px] text-muted truncate">↩️ رد على: {replyingTo.snippet}</span>
-                    <button onClick={cancelReply} className="text-muted hover:text-red-500 shrink-0">✕</button>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={onImageChosen} />
-                  <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChosen} />
-                  <button
-                    onClick={() => setQuickOpen(v => !v)}
-                    disabled={sending || recording}
-                    title="ردود جاهزة"
-                    className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    ⚡
-                  </button>
-                  <button
-                    onClick={pickImage}
-                    disabled={sending || recording}
-                    title="إرسال صورة"
-                    className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    📷
-                  </button>
-                  <button
-                    onClick={pickFile}
-                    disabled={sending || recording}
-                    title="إرسال ملف (PDF/Word/إلخ)"
-                    className="border border-border/60 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    📎
-                  </button>
-                  {recording && (
-                    <button
-                      onClick={cancelRecording}
-                      disabled={sending}
-                      title="إلغاء التسجيل بلا إرسال"
-                      className="border border-red-500 text-red-500 rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50"
-                    >
-                      🗑️
-                    </button>
-                  )}
-                  <button
-                    onClick={toggleRecording}
-                    disabled={sending}
-                    title={recording ? 'إيقاف وإرسال التسجيل' : 'تسجيل رسالة صوتية'}
-                    className={`border rounded-xl px-2.5 py-1.5 text-sm disabled:opacity-50 ${
-                      recording ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-border/60'
-                    }`}
-                  >
-                    {recording ? '⏹️' : '🎙️'}
-                  </button>
-                  <input
-                    className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm bg-surface text-text"
-                    placeholder="اكتب رد…"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-                        e.preventDefault();
-                        send();
-                      }
-                    }}
-                    disabled={sending || recording}
+                  <TrackingBanner
+                    open={trackingBannerOpen}
+                    onToggle={() => setTrackingBannerOpen(v => !v)}
+                    orderId={trackingOrder?.order_id}
+                    items={trackingBannerItems}
                   />
-                  <button
-                    onClick={send}
-                    disabled={sending || recording || !draft.trim()}
-                    className="bg-teal text-navy rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-teal/90 disabled:opacity-50"
-                  >
-                    {sending ? '…' : 'إرسال'}
-                  </button>
-                </div>
+                )}
+
+                <QuickRepliesSheet
+                  open={quickOpen}
+                  onClose={() => setQuickOpen(false)}
+                  replies={QUICK_REPLIES}
+                  onPick={insertQuickReply}
+                />
+
+                {replyingTo && <QuoteReplyBar snippet={replyingTo.snippet} onCancel={cancelReply} />}
+
+                <Composer
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  onSend={send}
+                  sending={sending}
+                  recording={recording}
+                  onToggleQuick={() => setQuickOpen(v => !v)}
+                  onPickImage={pickImage}
+                  onPickFile={pickFile}
+                  onToggleRecording={toggleRecording}
+                  onCancelRecording={cancelRecording}
+                  imageInputRef={imageInputRef}
+                  fileInputRef={fileInputRef}
+                  onImageChosen={onImageChosen}
+                  onFileChosen={onFileChosen}
+                />
               </>
             )}
           </div>
