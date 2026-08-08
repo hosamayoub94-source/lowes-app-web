@@ -158,6 +158,12 @@ export default function AdminWhatsAppScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // تحميل مكتبة تسجيل الصوت مسبقاً عند فتح الشاشة (بدل أول ضغطة على 🎙️) —
+  // "ياخذ وقت لإرسال التسجيل" (شكوى مالك 8 أغسطس 2026): جزء من التأخير كان
+  // تحميل opus-recorder من CDN أول مرة بيضغط الموظف تسجيل، مش وقت الإرسال
+  // نفسه. تحميلها بالخلفية هون بيخلي أول تسجيل فعلي جاهز فوراً.
+  useEffect(() => { loadOpusRecorder().catch(() => {}); }, []);
+
   // تبديل الخط بيغيّر مجموعة المحادثات بالكامل — نقفل المحادثة المفتوحة
   // لتفادي عرض محادثة رقم تاني بالغلط (openPhone مش مرتبط بخط).
   useEffect(() => { setOpenPhone(''); autoOpenedRef.current = false; }, [line]);
@@ -242,12 +248,9 @@ export default function AdminWhatsAppScreen() {
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [lineMsgs, isManager, ownerByPhone, userName]);
 
-  useEffect(() => {
-    if (!autoOpenedRef.current && !openPhone && threads.length) {
-      autoOpenedRef.current = true;
-      setOpenPhone(threads[0].phone);
-    }
-  }, [threads, openPhone]);
+  // 8 أغسطس 2026 (طلب مالك): ما نفتح أي محادثة تلقائياً عند دخول الشاشة —
+  // نضل بقائمة المحادثات لحد ما الموظف يختار هو أي وحدة يفتح (كان قبل هيك
+  // بيفتح أول محادثة بالقائمة تلقائياً، فبيروح مباشرة داخل شات معيّن).
 
   // فتح محادثة من القائمة — لو بلا مالك أصلاً (رد جديد على حملة جماعية
   // مثلاً)، أول من يفتحها يصير مالكها تلقائياً (نفس منطق ?open= وبدء محادثة
