@@ -243,10 +243,22 @@ export const TRACKING_QUICK_REPLIES = [
 // آخر طلب حقيقي لهالرقم (لأي سوق) — يُستخدَم لبناء رسالة رابط التتبع
 // الديناميكية بدل نص عام. يعيد استخدام نفس مطابقة الهاتف الموثوقة
 // (RPC get_customer_orders_by_key) المستخدمة بشاشة العملاء.
+//
+// 🐛→✅ 8 أغسطس 2026: كان دايماً بيرجع null لعملاء عندهم طلب حقيقي فعلياً
+// ("ما لقيت طلب مرتبط برقمك" لعميل مثبَت عنده TL-29121) — السبب: رقم
+// واتساب دولي كامل بكود الدولة (905394693150) بينما orders.phone_1 مخزَّن
+// محلياً بلا كود دولة (5394693150)، فالمطابقة الحرفية (RPC + fallback) ما
+// كانت تلاقي شي أبداً. نجرّب المفتاح الكامل أولاً، وبعدها آخر 10 أرقام
+// (نمط تركيا محلي) ثم آخر 9 (نمط سوريا محلي) كبدائل.
 export async function getLatestOrderForWaPhone(waPhone) {
   try {
-    const orders = await getCustomerOrders(waPhone);
-    return orders?.[0] || null;
+    const digits = String(waPhone || '').replace(/\D/g, '');
+    const candidates = [...new Set([digits, digits.slice(-10), digits.slice(-9)])].filter(k => k.length >= 6);
+    for (const key of candidates) {
+      const orders = await getCustomerOrders(key);
+      if (orders?.length) return orders[0];
+    }
+    return null;
   } catch { return null; }
 }
 
