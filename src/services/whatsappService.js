@@ -320,14 +320,14 @@ const TEMPLATE_SID = {
 
 export { TEMPLATE_SID };
 
-// ⏳ قالب "تواصل ودّي" جديد (Text، بلا زر/رابط — رسالة استرجاع علاقة بحتة:
+// ✅ قالب "تواصل ودّي" (Text، بلا زر/رابط — رسالة استرجاع علاقة بحتة:
 // "اشتقنالك، كيف تجربتك، هاد رقمنا الرسمي") — قُدِّم لموافقة Meta (Marketing)
-// 7 أغسطس 2026. طلب مالك صريح: هدفها فتح نافذة رد حر مع العميل، لا بيع
-// مباشر — أي رابط (إنستا/قناة واتساب) يُرسَل يدوياً بعد رد العميل، مش
-// بنفس الرسالة. **لا تُرسِل قبل تأكيد "WhatsApp approval status: Approved"**
-// (نفس درس promo — قالب غير معتمَد بيترفض بخطأ 63016).
-const PENDING_CHECKIN_TEMPLATE_SID = 'HX2ca0719593a6f86f64b8a4f1e74c6288'; // lowes_customer_checkin_v1
-export { PENDING_CHECKIN_TEMPLATE_SID };
+// 7 أغسطس 2026، **اعتُمد فعلياً 8 أغسطس 2026** (تحقّق مباشر عبر Twilio
+// Console: WhatsApp approval status: Approved). طلب مالك صريح: هدفها فتح
+// نافذة رد حر مع العميل، لا بيع مباشر — أي رابط (إنستا/قناة واتساب) يُرسَل
+// يدوياً بعد رد العميل، مش بنفس الرسالة.
+const CHECKIN_TEMPLATE_SID = 'HX2ca0719593a6f86f64b8a4f1e74c6288'; // lowes_customer_checkin_v1
+export { CHECKIN_TEMPLATE_SID };
 
 // قوالب v1 القديمة (بلا زر رابط) — لم تعد تُستخدَم بالإرسال الفعلي (استُبدلت
 // أعلاه بـv2) لكن تبقى هون فقط عشان formatWaBody() يقدر يعيد بناء نص الرسائل
@@ -356,6 +356,7 @@ const TEMPLATE_BODIES = {
   [TEMPLATE_SID.not_received]: 'مرحباً {{1}} 👋\nحاولنا نوصلّك طلبك رقم {{2}} وما زبط ⚠️ رح نتواصل معك قريباً نرتب وقت أنسب.\n— LOWE\'S Professional',
   [TEMPLATE_SID.returning]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} راجع لمركزنا ↩️ رح نتواصل معك نعرف السبب ونلاقي الحل الأنسب.\n— LOWE\'S Professional',
   [TEMPLATE_SID.promo]:        '🖼️ [صورة: مجموعة الروزماري]\nمرحباً {{1}}، كثافة شعرك تستاهل عناية حقيقية 🌿\nخط الروزماري من LOWE\'S profesyonel — نتيجة مثبتة علمياً من مختبرات SKINLAB.\nخصم 30% لمدة أسبوع فقط — العرض ينتهي قريباً!\nاكتشفي الفرق الآن 👇\n[زر: تسوّقي الآن → lowesprofesyonel.com]',
+  [CHECKIN_TEMPLATE_SID]:      'مرحباً {{1}} 👋 اشتقنالك عندنا بـLOWE\'S profesyonel! كيف كانت تجربتك معنا؟ حابين نسمع رأيك 🤝\nهاد رقمنا الرسمي – لأي سؤال أو طلب جديد.',
   // نسخ v1 القديمة — نفس النص الحرفي (v2 غيّرت الزر فقط لا النص) — لعرض
   // الرسائل التاريخية المُرسَلة قبل التبديل لـv2 (6 أغسطس 2026) بشكل صحيح.
   [LEGACY_TEMPLATE_SID_V1.shipped]:      'مرحباً {{1}} 👋\nطلبك رقم {{2}} طلع بالطريق 📦 بيوصل خلال الأيام الجاية.\n— LOWE\'S Professional',
@@ -382,13 +383,14 @@ export function isOrderTrackingBody(body) {
   return !!m && ORDER_TRACKING_SIDS.has(m[1]);
 }
 
-// محادثة أصلها حملة تسويقية (قالب promo) — تُفصَل عن كل من "المحادثات"
-// العضوية و"تتبّع الطلبات" الآلي. طلب مالك 5 أغسطس 2026: تتبّع الطلبات
-// مسؤولية Haya حصراً، ومحادثات الحملة لازم تنفصل عن هالقسمين.
+// محادثة أصلها حملة جماعية (قالب promo أو checkin) — تُفصَل عن كل من
+// "المحادثات" العضوية و"تتبّع الطلبات" الآلي. طلب مالك 5 أغسطس 2026: تتبّع
+// الطلبات مسؤولية Haya حصراً، ومحادثات الحملة لازم تنفصل عن هالقسمين.
+const CAMPAIGN_SIDS = new Set([TEMPLATE_SID.promo, CHECKIN_TEMPLATE_SID]);
 export function isCampaignBody(body) {
   if (!body) return false;
   const m = body.match(/^\[template:([^\]]+)\]/);
-  return !!m && m[1] === TEMPLATE_SID.promo;
+  return !!m && CAMPAIGN_SIDS.has(m[1]);
 }
 
 // اسم العميل المحقون بأي رسالة قالب (متغيّر {{1}} — دايماً الاسم بكل

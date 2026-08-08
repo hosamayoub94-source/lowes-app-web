@@ -17,13 +17,21 @@ import { STATUSES } from '@data/orderStatus';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID } from '@services/whatsappService';
+import { sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID, CHECKIN_TEMPLATE_SID } from '@services/whatsappService';
 
-// حملة "كثافة الشعر" الوحيدة الموجودة حالياً — مفتاح ثابت لتتبّعها بجدول
-// campaign_sends. لما تنضاف حملة تسويقية تانية (قالب تاني معتمَد)، هاد
-// المفتاح لازم يصير ديناميكي بدل ثابت.
-const CAMPAIGN_KEY = 'hair_density_promo_v2';
-const CAMPAIGN_LABEL = 'كثافة الشعر — خصم 30%';
+// كل الحملات الجماعية المتاحة للإرسال من هالشاشة — كل وحدة قالب معتمَد من
+// Meta + مفتاح خاص بجدول campaign_sends (كل حملة لها تتبّع/استبعاد منفصل).
+// لإضافة حملة جديدة لاحقاً: أضف سطر هون بس، بلا تعديل أي منطق تاني.
+const CAMPAIGNS = [
+  {
+    key: 'hair_density_promo_v2', label: 'كثافة الشعر — خصم 30%', contentSid: TEMPLATE_SID.promo,
+    hint: 'قالب تسويقي (صورة + خصم) — بيع مباشر.',
+  },
+  {
+    key: 'customer_checkin_v1', label: 'تواصل ودّي — اشتقنالك', contentSid: CHECKIN_TEMPLATE_SID,
+    hint: 'رسالة استرجاع علاقة بحتة (بلا بيع/رابط) — بتفتح نافذة رد حر 24 ساعة، الفريق يرد يدوياً وبيرسل روابط لو لزم.',
+  },
+];
 import { sessionCan, PERMISSIONS } from '@data/permissions';
 import {
   getOrCreateReferralCode, redeemReferralCode, referralInviteMessage,
@@ -640,6 +648,7 @@ export default function CustomersScreen() {
   // وضع الحملة الجماعية — بس لأسواق غير سوريا (واتساب الرسمي محظور كلياً على
   // +963، خطأ Twilio 21408 — راجع 09_Decision_Register.md § D-022).
   const [campaignMode, setCampaignMode] = useState(false);
+  const [campaignChoice, setCampaignChoice] = useState(CAMPAIGNS[0].key);
   const [selectedPhones, setSelectedPhones] = useState(() => new Set());
   const [sendingCampaign, setSendingCampaign] = useState(false);
   const [campaignProgress, setCampaignProgress] = useState(null); // {done,total,sent,failed}
@@ -720,19 +729,19 @@ export default function CustomersScreen() {
 
   // الحملة الجماعية مسموحة فقط لقسم "لويز تركيا" — الاستبعاد الصريح لسوريا
   // (D-022) والحماية من خلط أسواق بقسمي "سترونغ"/"الكل".
-  // TEMPLATE_SID.promo (v2، صورة + متغيّر حقيقي) موافَق عليه من Meta فعلياً
-  // (تأكّد 5 أغسطس 2026 عبر Twilio Content API — status: approved).
-  const canCampaign = sec.market === 'turkey' && !archive && !!TEMPLATE_SID.promo;
+  const activeCampaign = CAMPAIGNS.find(c => c.key === campaignChoice) || CAMPAIGNS[0];
+  const canCampaign = sec.market === 'turkey' && !archive && !!activeCampaign.contentSid;
 
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
+  useEffect(() => { setSelectedPhones(new Set()); }, [campaignChoice]);
 
-  // مين استلم حملة "كثافة الشعر" قبل هلق + إحصاءات سريعة — يُحمَّل مرة عند
-  // دخول قسم تركيا (لا يحتاج وضع الحملة مفعَّل)، ويُعاد تحميله بعد أي إرسال.
+  // مين استلم هالحملة (المختارة حالياً) قبل هلق + إحصاءات سريعة — يُحمَّل عند
+  // دخول قسم تركيا أو تبديل الحملة، ويُعاد تحميله بعد أي إرسال.
   const loadCampaignData = useCallback(() => {
     if (!canCampaign) { setSentPhones(new Set()); setCampaignStats(null); return; }
-    getCampaignSentPhones(CAMPAIGN_KEY).then(setSentPhones).catch(() => {});
-    getCampaignStats(CAMPAIGN_KEY).then(setCampaignStats).catch(() => {});
-  }, [canCampaign]);
+    getCampaignSentPhones(activeCampaign.key).then(setSentPhones).catch(() => {});
+    getCampaignStats(activeCampaign.key).then(setCampaignStats).catch(() => {});
+  }, [canCampaign, activeCampaign.key]);
   useEffect(() => { loadCampaignData(); }, [loadCampaignData]);
 
   const toggleSelect = useCallback((c) => {
@@ -768,13 +777,13 @@ export default function CustomersScreen() {
     // بمعدل 2.5 ثانية بين كل رسالة (حماية Quality Rating عند Meta) — دفعة كبيرة
     // تاخد وقت حقيقي، والموظف/ة لازم تخلّي التبويب مفتوح لحد ما تخلص.
     const etaMin = Math.ceil((selectedCustomers.length * 2.5) / 60);
-    if (!window.confirm(`بدك تبعت رسالة "كثافة الشعر" لـ${selectedCustomers.length} عميل عبر واتساب؟ رح تاخد تقريباً ${etaMin} دقيقة (خلّي هالتبويب مفتوح). ما في تراجع بعد الإرسال.`)) return;
+    if (!window.confirm(`بدك تبعت رسالة "${activeCampaign.label}" لـ${selectedCustomers.length} عميل عبر واتساب؟ رح تاخد تقريباً ${etaMin} دقيقة (خلّي هالتبويب مفتوح). ما في تراجع بعد الإرسال.`)) return;
     setSendingCampaign(true);
     setCampaignProgress({ done: 0, total: selectedCustomers.length, sent: 0, failed: 0 });
     try {
-      const { sent, failed } = await sendBulkCampaign(selectedCustomers, TEMPLATE_SID.promo, {
+      const { sent, failed } = await sendBulkCampaign(selectedCustomers, activeCampaign.contentSid, {
         delayMs: 2500,
-        campaignKey: CAMPAIGN_KEY, campaignLabel: CAMPAIGN_LABEL, sentBy: userName,
+        campaignKey: activeCampaign.key, campaignLabel: activeCampaign.label, sentBy: userName,
         onProgress: (done, total, result) => setCampaignProgress(p => ({
           done, total,
           sent: p.sent + (result.ok ? 1 : 0),
@@ -831,8 +840,17 @@ export default function CustomersScreen() {
 
       {campaignMode && (
         <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal font-bold space-y-2">
+          <div className="flex items-center gap-2 flex-wrap pb-2 border-b border-teal/20">
+            <span className="shrink-0">📋 القالب:</span>
+            {CAMPAIGNS.map(cmp => (
+              <button key={cmp.key} onClick={() => setCampaignChoice(cmp.key)} title={cmp.hint}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border-2 transition ${campaignChoice === cmp.key ? 'border-teal bg-teal text-navy' : 'border-teal/30 text-teal hover:border-teal/60'}`}>
+                {cmp.label}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب "كثافة الشعر" (تسويقي، معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
+            <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب &quot;{activeCampaign.label}&quot; (معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
             {campaignVisible.length > 0 && (
               <button onClick={toggleSelectAllFiltered}
                 className="shrink-0 px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
