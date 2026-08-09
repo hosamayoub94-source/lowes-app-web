@@ -46,6 +46,7 @@ export function filterOperational(entries = []) {
 export function computeOperationalBalance(entries = []) {
   const bal = { amount_usd: 0, amount_try: 0, amount_syp: 0 };
   for (const e of entries) {
+    if (e.is_void) continue; // إدخال خاطئ مُعلَّم — لا يُحتسب (طلب مالك 9 آب 2026)
     const sign = e.entry_type === ENTRY_TYPE.INCOME   ?  1
                : e.entry_type === ENTRY_TYPE.EXPENSE  ? -1
                : e.entry_type === ENTRY_TYPE.TRANSFER ? (e.category === TRANSFER_IN ? 1 : e.category === TRANSFER_OUT ? -1 : 0)

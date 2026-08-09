@@ -137,6 +137,29 @@ const useAccountingStore = create()(
       }
     },
 
+    // تعليم/إلغاء تعليم قيد كـ"إدخال خاطئ" — بديل الحذف (طلب مالك 9 آب 2026):
+    // "بدل ما نحذف القيد الخاطئ (بيسبب مشاكل بالمحاسبة)، بدنا نحدده وبس —
+    // يضل بالسجل متظلل بالأسود، بلا حذف، وما يُحتسب بأي رصيد أو تقرير."
+    async setEntryVoid(id, isVoid, reason) {
+      get()._setLoading('action', true);
+      try {
+        const { updateEntry } = await import('../services/accountingService.js');
+        const updated = await updateEntry(id, {
+          is_void: isVoid,
+          void_reason: isVoid ? (reason || null) : null,
+          voided_by: isVoid ? get()._userId : null,
+          voided_at: isVoid ? new Date().toISOString() : null,
+        });
+        set(s => ({ entries: s.entries.map(e => (e.id === id ? updated : e)) }));
+        return updated;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      } finally {
+        get()._setLoading('action', false);
+      }
+    },
+
     async deleteEntry(id) {
       get()._setLoading('action', true);
       try {
@@ -251,7 +274,7 @@ const useAccountingStore = create()(
       // بكروت الـKPI الرئيسية بالشاشة).
       const { entries } = get();
       const sumCur = (type, field) => entries
-        .filter(e => e.entry_type === type)
+        .filter(e => e.entry_type === type && !e.is_void) // إدخال خاطئ مُعلَّم لا يُحتسب (طلب مالك 9 آب 2026)
         .reduce((s, e) => s + Number(e[field] ?? 0), 0);
       const income = sumCur(ENTRY_TYPE.INCOME, 'amount_usd');
       const income_try = sumCur(ENTRY_TYPE.INCOME, 'amount_try');
@@ -285,6 +308,7 @@ const useAccountingStore = create()(
       const { entries, rates } = get();
       const map = {};
       entries.forEach(e => {
+        if (e.is_void) return; // إدخال خاطئ مُعلَّم لا يُحتسب (طلب مالك 9 آب 2026)
         if (e.entry_type === ENTRY_TYPE.TRANSFER) return;
         const key = e.category || 'غير مصنف';
         if (!map[key]) map[key] = { label: key, total: 0, count: 0 };

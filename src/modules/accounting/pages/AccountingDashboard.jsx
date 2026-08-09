@@ -377,7 +377,7 @@ export function AccountingDashboard() {
   const { entries, kpis, breakdown, isLoading } = useAccountingDashboard();
   const categories = useCategories();
   const channels = useChannels();
-  const { createEntry, createTransfer, updateEntry, deleteEntry, setFilters, resetFilters } = useAccountingActions();
+  const { createEntry, createTransfer, updateEntry, setEntryVoid, deleteEntry, setFilters, resetFilters } = useAccountingActions();
   const loading = useAccountingLoading();
   const toast = useToast();
 
@@ -568,6 +568,17 @@ export function AccountingDashboard() {
   const handleDelete = async (id) => {
     await deleteEntry(id);
     setConfirmDel(null);
+  };
+
+  // تعليم/إلغاء تعليم "إدخال خاطئ" — بديل الحذف: يضل القيد بالسجل (بلا حذف)،
+  // بس ما يُحتسب بأي رصيد. طلب مالك 9 آب 2026.
+  const handleToggleVoid = async (e) => {
+    if (e.is_void) {
+      await setEntryVoid(e.id, false);
+      return;
+    }
+    const reason = window.prompt('سبب تحديد هذا القيد كإدخال خاطئ؟ (اختياري)') || '';
+    await setEntryVoid(e.id, true, reason);
   };
 
   const handleApplyDates = () => {
@@ -799,48 +810,66 @@ export function AccountingDashboard() {
             ) : (
               filtered.map(e => (
                 <div key={e.id}
-                  className="bg-surface border border-border/60 rounded-2xl p-3.5 flex items-center gap-3 hover:border-navy/20 transition group">
+                  className={`border rounded-2xl p-3.5 flex items-center gap-3 transition group ${
+                    e.is_void
+                      ? 'bg-black/85 border-black/85 opacity-70'
+                      : 'bg-surface border-border/60 hover:border-navy/20'
+                  }`}>
                   {/* Icon */}
                   <span className="text-2xl shrink-0">{ENTRY_TYPE_ICONS[e.entry_type] ?? '📄'}</span>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text truncate">{e.description}</p>
+                    <p className={`text-sm font-semibold truncate ${e.is_void ? 'text-white/70 line-through' : 'text-text'}`}>
+                      {e.description}
+                      {e.is_void && <span className="text-[10px] font-bold text-red-400 not-italic no-underline mr-2">🚫 إدخال خاطئ</span>}
+                    </p>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                      <span className="text-xs text-muted">{e.category || '—'}</span>
-                      <span className="text-xs text-muted">·</span>
-                      <span className="text-xs text-muted">{e.entry_date}</span>
-                      <span className="text-xs text-muted">·</span>
-                      <span className="text-xs text-muted">{PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method}</span>
+                      <span className={`text-xs ${e.is_void ? 'text-white/50' : 'text-muted'}`}>{e.category || '—'}</span>
+                      <span className={`text-xs ${e.is_void ? 'text-white/50' : 'text-muted'}`}>·</span>
+                      <span className={`text-xs ${e.is_void ? 'text-white/50' : 'text-muted'}`}>{e.entry_date}</span>
+                      <span className={`text-xs ${e.is_void ? 'text-white/50' : 'text-muted'}`}>·</span>
+                      <span className={`text-xs ${e.is_void ? 'text-white/50' : 'text-muted'}`}>{PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method}</span>
                     </div>
-                    {e.notes && <p className="text-xs text-muted/70 mt-0.5 truncate">{e.notes}</p>}
+                    {e.notes && <p className={`text-xs mt-0.5 truncate ${e.is_void ? 'text-white/40' : 'text-muted/70'}`}>{e.notes}</p>}
+                    {e.is_void && e.void_reason && <p className="text-[11px] text-red-300 mt-0.5 truncate">السبب: {e.void_reason}</p>}
                   </div>
 
                   {/* Amounts */}
                   <div className="text-right shrink-0 space-y-0.5">
-                    <p className={`text-sm font-bold ${entryColorClass(e.entry_type)}`}>
+                    <p className={`text-sm font-bold ${e.is_void ? 'text-white/50 line-through' : entryColorClass(e.entry_type)}`}>
                       {e.entry_type==='income' ? '+' : '-'}${Number(e.amount_usd).toFixed(0)}
                     </p>
                     {Number(e.amount_try) > 0 && (
-                      <p className="text-xs text-muted">{Number(e.amount_try).toLocaleString()} ₺</p>
+                      <p className={`text-xs ${e.is_void ? 'text-white/40 line-through' : 'text-muted'}`}>{Number(e.amount_try).toLocaleString()} ₺</p>
                     )}
                     {Number(e.amount_syp) > 0 && (
-                      <p className="text-xs text-muted">{Number(e.amount_syp).toLocaleString()} ل.س</p>
+                      <p className={`text-xs ${e.is_void ? 'text-white/40 line-through' : 'text-muted'}`}>{Number(e.amount_syp).toLocaleString()} ل.س</p>
                     )}
                   </div>
 
                   {/* Actions */}
                   <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
-                    {/* وصل دفع — available for all */}
-                    <button
-                      onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
-                      className="p-1.5 rounded-lg text-teal/60 hover:text-teal hover:bg-teal/10 transition"
-                      title="وصل دفع رسمي"
-                    >
-                      🧾
-                    </button>
-                    {/* Admin: edit + delete */}
+                    {/* وصل دفع — available for all، غير متاح لقيد مُعلَّم خاطئ */}
+                    {!e.is_void && (
+                      <button
+                        onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
+                        className="p-1.5 rounded-lg text-teal/60 hover:text-teal hover:bg-teal/10 transition"
+                        title="وصل دفع رسمي"
+                      >
+                        🧾
+                      </button>
+                    )}
+                    {/* Admin: تعليم كإدخال خاطئ (بديل الحذف — القيد يضل موجود بلا حذف ولا يُحتسب) */}
                     {isAdmin && (
+                      <button onClick={() => handleToggleVoid(e)}
+                        className={`p-1.5 rounded-lg transition ${e.is_void ? 'text-teal-300 hover:bg-white/10' : 'text-orange-500/70 hover:text-orange-600 hover:bg-orange-50'}`}
+                        title={e.is_void ? 'إلغاء تعليم "إدخال خاطئ"' : 'تحديد كإدخال خاطئ (بدل الحذف)'}>
+                        {e.is_void ? '↩️' : '🚫'}
+                      </button>
+                    )}
+                    {/* Admin: تعديل + حذف — غير متاحين لقيد مُعلَّم كإدخال خاطئ (بدل الحذف نستخدم التعليم فقط) */}
+                    {isAdmin && !e.is_void && (
                       <>
                         <button onClick={() => { setEditEntry(e); setShowForm(true); }}
                           className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/10 transition"

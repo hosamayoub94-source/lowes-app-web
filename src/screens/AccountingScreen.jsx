@@ -126,7 +126,7 @@ export default function AccountingScreen() {
   useAccountingBootstrap(id);
 
   const { entries, isLoading } = useAccountingDashboard();
-  const { createEntry, createTransfer, deleteEntry }  = useAccountingActions();
+  const { createEntry, createTransfer, deleteEntry, setEntryVoid }  = useAccountingActions();
   const loading    = useAccountingLoading();
   const categories = useCategories();
   const channels   = useChannels();
@@ -301,6 +301,17 @@ export default function AccountingScreen() {
     await deleteEntry(entryId);
   };
 
+  // تعليم/إلغاء تعليم "إدخال خاطئ" — بديل الحذف: يضل القيد بالسجل (بلا حذف)،
+  // بس ما يُحتسب بأي رصيد. طلب مالك 9 آب 2026.
+  const handleToggleVoid = async (e) => {
+    if (e.is_void) {
+      await setEntryVoid(e.id, false);
+      return;
+    }
+    const reason = window.prompt('سبب تحديد هذا القيد كإدخال خاطئ؟ (اختياري)') || '';
+    await setEntryVoid(e.id, true, reason);
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try { await exportToExcel(filtered, monthFilter); }
@@ -465,55 +476,68 @@ export default function AccountingScreen() {
                   <th className="py-2 px-3 text-center">التاريخ</th>
                   <th className="py-2 px-3 text-center">الدفع</th>
                   <th className="py-2 px-3 text-center">وصل</th>
-                  {isAdmin && <th className="py-2 px-3 text-center">حذف</th>}
+                  {isAdmin && <th className="py-2 px-3 text-center">إجراءات</th>}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(e => (
-                  <tr key={e.id} className="border-t border-border hover:bg-cream/50 transition">
+                  <tr key={e.id} className={`border-t transition ${e.is_void ? 'bg-black/85 border-black/85' : 'border-border hover:bg-cream/50'}`}>
                     <td className="py-3 px-3">
-                      <span className={`text-xs font-semibold ${entryColorClass(e.entry_type)}`}>
+                      <span className={`text-xs font-semibold ${e.is_void ? 'text-white/60' : entryColorClass(e.entry_type)}`}>
                         {ENTRY_TYPE_ICONS[e.entry_type]} {ENTRY_TYPE_LABELS[e.entry_type] ?? e.entry_type}
                       </span>
-                      {e.category && <div className="text-xs text-muted mt-0.5">{e.category}</div>}
+                      {e.category && <div className={`text-xs mt-0.5 ${e.is_void ? 'text-white/40' : 'text-muted'}`}>{e.category}</div>}
                     </td>
                     <td className="py-3 px-3 max-w-xs">
-                      <p className="text-text text-sm leading-tight">{e.description}</p>
+                      <p className={`text-sm leading-tight ${e.is_void ? 'text-white/70 line-through' : 'text-text'}`}>{e.description}</p>
+                      {e.is_void && <p className="text-[10px] font-bold text-red-400 mt-0.5">🚫 إدخال خاطئ{e.void_reason ? ` — ${e.void_reason}` : ''}</p>}
                     </td>
-                    <td className="py-3 px-3 text-center text-xs text-muted font-mono">
+                    <td className={`py-3 px-3 text-center text-xs font-mono ${e.is_void ? 'text-white/40' : 'text-muted'}`}>
                       {e.reference_no ?? '—'}
                     </td>
-                    <td className={`py-3 px-3 text-center font-mono font-semibold text-xs ${e.amount_usd ? entryColorClass(e.entry_type) : 'text-muted'}`}>
+                    <td className={`py-3 px-3 text-center font-mono font-semibold text-xs ${e.is_void ? 'text-white/50 line-through' : e.amount_usd ? entryColorClass(e.entry_type) : 'text-muted'}`}>
                       {fmtUSD(e.amount_usd)}
                     </td>
-                    <td className="py-3 px-3 text-center font-mono text-muted text-xs">
+                    <td className={`py-3 px-3 text-center font-mono text-xs ${e.is_void ? 'text-white/40 line-through' : 'text-muted'}`}>
                       {fmtTRY(e.amount_try)}
                     </td>
-                    <td className="py-3 px-3 text-center font-mono text-muted text-xs">
+                    <td className={`py-3 px-3 text-center font-mono text-xs ${e.is_void ? 'text-white/40 line-through' : 'text-muted'}`}>
                       {fmtSYP(e.amount_syp)}
                     </td>
-                    <td className="py-3 px-3 text-center text-xs text-muted">
+                    <td className={`py-3 px-3 text-center text-xs ${e.is_void ? 'text-white/40' : 'text-muted'}`}>
                       {e.entry_date ? new Date(e.entry_date).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory') : '—'}
                     </td>
-                    <td className="py-3 px-3 text-center text-xs text-muted">
+                    <td className={`py-3 px-3 text-center text-xs ${e.is_void ? 'text-white/40' : 'text-muted'}`}>
                       {PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method ?? '—'}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <button
-                        onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
-                        className="text-teal hover:opacity-70 text-base transition"
-                        title="طباعة وصل دفع رسمي"
-                      >🧾</button>
+                      {!e.is_void && (
+                        <button
+                          onClick={() => printPaymentVoucher(e, { authorizedBy: 'hosam ayoub' })}
+                          className="text-teal hover:opacity-70 text-base transition"
+                          title="طباعة وصل دفع رسمي"
+                        >🧾</button>
+                      )}
                     </td>
                     {isAdmin && (
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         <button
-                          onClick={() => handleDelete(e.id)}
+                          onClick={() => handleToggleVoid(e)}
                           disabled={loading.action}
-                          className="text-red-fg hover:opacity-70 text-xs transition"
+                          className={`text-xs transition ${e.is_void ? 'text-teal-300 hover:opacity-70' : 'text-orange-500 hover:opacity-70'}`}
+                          title={e.is_void ? 'إلغاء تعليم "إدخال خاطئ"' : 'تحديد كإدخال خاطئ (بدل الحذف)'}
                         >
-                          حذف
+                          {e.is_void ? '↩️ رجوع' : '🚫 إدخال خاطئ'}
                         </button>
+                        {!e.is_void && (
+                          <button
+                            onClick={() => handleDelete(e.id)}
+                            disabled={loading.action}
+                            className="text-red-fg hover:opacity-70 text-xs transition mr-2"
+                          >
+                            حذف
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -522,15 +546,15 @@ export default function AccountingScreen() {
               {/* Totals row */}
               <tfoot>
                 <tr className="border-t-2 border-border bg-cream text-xs font-bold text-muted">
-                  <td className="py-2 px-3" colSpan={3}>المجموع ({filtered.length} قيد)</td>
+                  <td className="py-2 px-3" colSpan={3}>المجموع ({filtered.filter(e => !e.is_void).length} قيد)</td>
                   <td className="py-2 px-3 text-center text-text">
-                    {fmtUSD(filtered.reduce((s, e) => s + (Number(e.amount_usd) || 0), 0))}
+                    {fmtUSD(filtered.reduce((s, e) => s + (e.is_void ? 0 : Number(e.amount_usd) || 0), 0))}
                   </td>
                   <td className="py-2 px-3 text-center text-text">
-                    {fmtTRY(filtered.reduce((s, e) => s + (Number(e.amount_try) || 0), 0))}
+                    {fmtTRY(filtered.reduce((s, e) => s + (e.is_void ? 0 : Number(e.amount_try) || 0), 0))}
                   </td>
                   <td className="py-2 px-3 text-center text-text">
-                    {fmtSYP(filtered.reduce((s, e) => s + (Number(e.amount_syp) || 0), 0))}
+                    {fmtSYP(filtered.reduce((s, e) => s + (e.is_void ? 0 : Number(e.amount_syp) || 0), 0))}
                   </td>
                   <td colSpan={isAdmin ? 3 : 2} />
                 </tr>

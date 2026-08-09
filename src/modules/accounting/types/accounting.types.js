@@ -131,6 +131,7 @@ export function legacyWalletId(pm, currency) {
  * legacy generic payment methods. Returns 0 if the entry isn't this wallet's.
  */
 export function walletDelta(entry, wallet) {
+  if (entry.is_void) return 0; // إدخال خاطئ مُعلَّم — لا يُحتسب بأي رصيد (طلب مالك 9 آب 2026)
   const amt = Number(entry[wallet.amtField]) || 0;
   if (!amt) return 0;
   const pm = entry.payment_method;

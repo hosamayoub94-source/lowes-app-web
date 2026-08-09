@@ -31,6 +31,7 @@ export const useAccountingActions = () =>
     createTransfer:      s.createTransfer,
     createWalletTransfer: s.createWalletTransfer,
     updateEntry:         s.updateEntry,
+    setEntryVoid:    s.setEntryVoid,
     deleteEntry:     s.deleteEntry,
     loadCategories:  s.loadCategories,
     createCategory:  s.createCategory,
