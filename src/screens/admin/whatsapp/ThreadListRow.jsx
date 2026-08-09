@@ -6,7 +6,7 @@ import { Avatar } from '@components/ui';
 import { StatusTicks } from './MessageBubble';
 
 export function ThreadListRow({
-  thread, isOpen, name, ownerName, isDeleting, onOpen, onDelete,
+  thread, isOpen, name, ownerName, isDeleting, isSeen, onOpen, onDelete,
 }) {
   const time = thread.created_at
     ? new Date(thread.created_at).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
@@ -17,7 +17,11 @@ export function ThreadListRow({
       className={`group px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2.5 transition-colors ${isOpen ? 'bg-teal/10' : 'hover:bg-surface-alt'}`}
     >
       <Avatar name={name || thread.phone} size="sm" />
-      {thread.direction === 'in' && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="بانتظار رد" />}
+      {thread.direction === 'in' && (
+        isSeen
+          ? <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="انفتحت — تمت رؤيتها" />
+          : <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="بانتظار رد" />
+      )}
       <div className="flex-1 min-w-0">
         {name ? (
           <>

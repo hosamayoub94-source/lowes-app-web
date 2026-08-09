@@ -298,12 +298,32 @@ export default function AdminWhatsAppScreen() {
   // مثلاً)، أول من يفتحها يصير مالكها تلقائياً (نفس منطق ?open= وبدء محادثة
   // جديدة الموجودين أصلاً) — claimWhatsAppConversation idempotent، ما بيغيّر
   // مالك موجود لو حدا سبقه.
+  // نقطة حمراء = آخر رسالة بالمحادثة من العميل ولسا ما انفتحت. نقطة خضراء =
+  // اتفتحت وشافها حدا بالفريق (بس لسا ما انردّ عليها — الرد بيشيل النقطة
+  // نهائياً، منطق موجود أصلاً). مخزَّنة محلياً بالمتصفح (بلا جدول DB جديد)
+  // — طلب مالك 9 أغسطس 2026: "نعرف إنها انشافت". ⚠️ لا تتزامن بين
+  // أجهزة/متصفحات موظفين مختلفين، كل واحد شايف "شفتها" الخاصة فيه بس.
+  const [seenMap, setSeenMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wa_seen_map') || '{}'); } catch { return {}; }
+  });
+  const markSeen = useCallback((phone, msgId) => {
+    if (!msgId) return;
+    setSeenMap(prev => {
+      if (prev[phone] === msgId) return prev;
+      const next = { ...prev, [phone]: msgId };
+      try { localStorage.setItem('wa_seen_map', JSON.stringify(next)); } catch { /* كاش بحت */ }
+      return next;
+    });
+  }, []);
+
   const openThread = useCallback((phone) => {
     setOpenPhone(phone);
+    const t = threads.find(th => th.phone === phone);
+    if (t) markSeen(phone, t.id);
     if (!ownerByPhone[phone]) {
       claimWhatsAppConversation(phone, WA_LINES[line].number, userId, userName).then(load).catch(() => {});
     }
-  }, [ownerByPhone, line, userId, userName, load]);
+  }, [ownerByPhone, line, userId, userName, load, threads, markSeen]);
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().replace(/[^\d+]/g, '');
@@ -712,6 +732,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
+                seenMap={seenMap}
                 onOpen={openThread}
                 onDelete={deleteThread}
               />
@@ -723,6 +744,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
+                seenMap={seenMap}
                 onOpen={openThread}
                 onDelete={deleteThread}
               />
@@ -734,6 +756,7 @@ export default function AdminWhatsAppScreen() {
                 ownerByPhone={ownerByPhone}
                 isManager={isManager}
                 deletingPhone={deletingPhone}
+                seenMap={seenMap}
                 onOpen={openThread}
                 onDelete={deleteThread}
               />

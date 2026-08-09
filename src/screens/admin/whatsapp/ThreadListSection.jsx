@@ -5,7 +5,7 @@
 import { ThreadListRow } from './ThreadListRow';
 
 export function ThreadListSection({
-  label, threads, openPhone, nameByPhone, ownerByPhone, isManager, deletingPhone, onOpen, onDelete,
+  label, threads, openPhone, nameByPhone, ownerByPhone, isManager, deletingPhone, seenMap, onOpen, onDelete,
 }) {
   if (!threads.length) return null;
   return (
@@ -19,6 +19,7 @@ export function ThreadListSection({
           name={nameByPhone[t.phone]}
           ownerName={isManager ? ownerByPhone[t.phone]?.owner_name : null}
           isDeleting={deletingPhone === t.phone}
+          isSeen={seenMap?.[t.phone] === t.id}
           onOpen={() => onOpen(t.phone)}
           onDelete={(e) => onDelete(t.phone, e)}
         />
