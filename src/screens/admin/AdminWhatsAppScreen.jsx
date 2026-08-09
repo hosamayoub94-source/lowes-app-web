@@ -187,6 +187,19 @@ export default function AdminWhatsAppScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // تحديث خلفي هادئ كل 20 ثانية — بدون toast ولا أي مؤشر تحميل، وبلا لمس
+  // openPhone/draft، حتى ما تنقفل محادثة مفتوحة أو ينمسح رد نصف مكتوب.
+  // سبب الحاجة: حملات جماعية بترسل عشرات/مئات الرسائل بعد ما الموظف فاتح
+  // الشاشة أصلاً — بلا هيك ما بيشوفها إلا بتحديث يدوي (F5) (طلب مالك 9 أغسطس 2026).
+  useEffect(() => {
+    const t = setInterval(() => {
+      Promise.all([fetchWhatsAppMessages(), fetchWhatsAppOwners()])
+        .then(([rows, ownerRows]) => { setMessages(rows || []); setOwners(ownerRows || []); })
+        .catch(() => {}); // صامت — شبكة متقطعة عادية، ما تستاهل إزعاج المستخدم
+    }, 20000);
+    return () => clearInterval(t);
+  }, []);
+
   // تحميل مكتبة تسجيل الصوت مسبقاً عند فتح الشاشة (بدل أول ضغطة على 🎙️) —
   // "ياخذ وقت لإرسال التسجيل" (شكوى مالك 8 أغسطس 2026): جزء من التأخير كان
   // تحميل opus-recorder من CDN أول مرة بيضغط الموظف تسجيل، مش وقت الإرسال
