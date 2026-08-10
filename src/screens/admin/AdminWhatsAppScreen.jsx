@@ -397,6 +397,20 @@ export default function AdminWhatsAppScreen() {
   // (طلب مالك 5 أغسطس 2026: "بدي بنر خاص في التتبّع").
   const openIsTracking = useMemo(() => thread.some(m => isOrderTrackingBody(m.body)), [thread]);
 
+  // نافذة جلسة واتساب (24 ساعة) — قرار D-041 (11 آب 2026): تحقّق حي أثبت
+  // إن أي رسالة حرة (مش قالب) لعميل ما راسل خلال آخر 24 ساعة بترجع
+  // "undelivered" بصمت — الموظف يفتكر إنها وصلت وهي أصلاً ما وصلت. آخر
+  // رسالة "in" بالمحادثة تحدد بداية النافذة؛ لا نافذة = تحذير قبل الإرسال،
+  // مش بعده (بديل أدنى بالقرار — منع كامل يحتاج قائمة قوالب لسا مو موجودة
+  // بهالشاشة).
+  const lastInboundAt = useMemo(() => {
+    for (let i = thread.length - 1; i >= 0; i--) {
+      if (thread[i].direction === 'in') return thread[i].created_at;
+    }
+    return null;
+  }, [thread]);
+  const sessionOpen = !!lastInboundAt && (Date.now() - new Date(lastInboundAt).getTime()) < 24 * 60 * 60 * 1000;
+
   useEffect(() => {
     setTrackingBannerOpen(true);
     setReassignOpen(false);
@@ -885,6 +899,16 @@ export default function AdminWhatsAppScreen() {
                   replies={QUICK_REPLIES}
                   onPick={insertQuickReply}
                 />
+
+                {!sessionOpen && (
+                  <div className="mb-2 bg-amber-50 border border-amber-300 rounded-lg p-2 text-[11px] font-bold text-amber-800 flex items-start gap-1.5">
+                    <span>⚠️</span>
+                    <span>
+                      لا نافذة جلسة نشطة (العميل ما راسل خلال آخر 24 ساعة) — أي رسالة حرة رح ترجع
+                      «لم تصل» بصمت. لازم قالب معتمَد بدل الكتابة الحرة.
+                    </span>
+                  </div>
+                )}
 
                 {replyingTo && <QuoteReplyBar snippet={replyingTo.snippet} onCancel={cancelReply} />}
 
