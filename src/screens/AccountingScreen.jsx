@@ -10,6 +10,7 @@ import {
   useAccountingDashboard,
   useAccountingActions,
   useAccountingLoading,
+  useEntriesTruncated,
   useCategories,
   useChannels,
 } from '@modules/accounting/hooks/useAccounting.js';
@@ -128,6 +129,7 @@ export default function AccountingScreen() {
   const { entries, isLoading } = useAccountingDashboard();
   const { createEntry, createTransfer, deleteEntry, setEntryVoid }  = useAccountingActions();
   const loading    = useAccountingLoading();
+  const entriesTruncated = useEntriesTruncated();
   const categories = useCategories();
   const channels   = useChannels();
   const toast      = useToast();
@@ -242,6 +244,7 @@ export default function AccountingScreen() {
     const calc = (amtKey) => {
       let income = 0, expense = 0;
       for (const e of monthEntries) {
+        if (e.is_void) continue; // إدخال خاطئ مُعلَّم — كان لسّا داخل بهالكروت (إصلاح 10 آب 2026)
         if (e.entry_type === ENTRY_TYPE.TRANSFER) continue; // internal move — not income/expense
         const amt = Number(e[amtKey]) || 0;
         if (!amt) continue;
@@ -371,8 +374,11 @@ export default function AccountingScreen() {
       {/* الرصيد الموجود حالياً لدى فادي ووسيم (تُسوّيه الإدارة المالية آخر الشهر) */}
       <OperationalBalanceCard
         balance={opBalance}
-        title="💼 الرصيد الموجود حالياً (لدى فادي ووسيم)"
-        subtitle="إجمالي الاستلامات ناقص المصاريف والتحويلات — سلّمه للإدارة المالية عند الحاجة"
+        title="💼 الرصيد التراكمي لدى فادي ووسيم — كل الفترات"
+        subtitle="استلامات − مصاريف − رواتب وسلف ± تحويلات · لا يتأثر بفلتر الشهر أعلاه"
+        scopeEntries={bookEntries}
+        scopeLabel="الحساب التشغيلي (فادي ووسيم)"
+        truncated={entriesTruncated}
       >
         {canEnter && (
           <button
@@ -385,7 +391,7 @@ export default function AccountingScreen() {
       </OperationalBalanceCard>
 
       {/* لوحة المحافظ — شو معنا بكل محفظة (ل.س / دولار / شام بالعملتين) لدى فادي/وسيم */}
-      <TreasuryPanel entries={bookEntries} />
+      <TreasuryPanel entries={bookEntries} scopeLabel="خزائن فادي ووسيم فقط" />
 
       {/* Financial report (period = current month filter) */}
       {showReport && (

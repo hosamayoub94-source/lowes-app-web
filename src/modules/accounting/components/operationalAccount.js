@@ -2,10 +2,12 @@
 // الحساب التشغيلي (فادي ووسيم) — منطق نقيّ
 //   جدول القيود يعرض: استلام (دخل) · مصروف (لا رواتب/سلف).
 //   الرصيد التراكمي يحسب أيضاً التحويلات (تسليم/توريد بين الكتابين):
-//     الرصيد = Σ استلامات − Σ مصاريف + Σ تحويل وارد − Σ تحويل صادر.
+//     الرصيد = Σ استلامات − Σ مصاريف − Σ رواتب وسلف + Σ تحويل وارد − Σ تحويل صادر.
 //   هذا ما تُسوّيه «الإدارة المالية» (سحب/توريد) كتحويل بساقين يساوي صفراً.
+//   ⚠️ الإشارة تأتي حصراً من entrySign — لا تُكرَّر هنا (قرار 10 آب 2026).
 // =============================================================
-import { ENTRY_TYPE, TRANSFER_IN, TRANSFER_OUT, BOOK, filterByBook } from '../types/accounting.types.js';
+import { ENTRY_TYPE, BOOK, filterByBook } from '../types/accounting.types.js';
+import { entrySign } from '../logic/entrySign.js';
 
 // تصنيفات/مصادر جاهزة (المالك يقدر يضيف غيرها بالكتابة)
 export const OP_CAT = {
@@ -46,11 +48,9 @@ export function filterOperational(entries = []) {
 export function computeOperationalBalance(entries = []) {
   const bal = { amount_usd: 0, amount_try: 0, amount_syp: 0 };
   for (const e of entries) {
-    if (e.is_void) continue; // إدخال خاطئ مُعلَّم — لا يُحتسب (طلب مالك 9 آب 2026)
-    const sign = e.entry_type === ENTRY_TYPE.INCOME   ?  1
-               : e.entry_type === ENTRY_TYPE.EXPENSE  ? -1
-               : e.entry_type === ENTRY_TYPE.TRANSFER ? (e.category === TRANSFER_IN ? 1 : e.category === TRANSFER_OUT ? -1 : 0)
-               : 0;
+    // قاعدة الإشارة الوحيدة بالنظام (entrySign) — نفسها يلي تستخدمها لوحة
+    // الخزائن، كي تبقى بطاقة الرصيد = مجموع بطاقات المحافظ حرفياً.
+    const sign = entrySign(e);
     if (!sign) continue;
     bal.amount_usd += sign * (Number(e.amount_usd) || 0);
     bal.amount_try += sign * (Number(e.amount_try) || 0);

@@ -18,6 +18,7 @@ import {
   useCategories,
   useChannels,
   useAccountingLoading,
+  useEntriesTruncated,
 } from '../hooks/useAccounting.js';
 import {
   ENTRY_TYPE,
@@ -29,6 +30,7 @@ import {
   WALLET_CURRENCY_SYMBOL,
   walletDelta,
   BOOK,
+  filterByBook,
   entryColorClass,
 } from '../types/accounting.types.js';
 import { ROLES } from '@data/teams';
@@ -375,6 +377,7 @@ export function AccountingDashboard() {
   useAccountingBootstrap(id);
 
   const { entries, kpis, breakdown, isLoading } = useAccountingDashboard();
+  const entriesTruncated = useEntriesTruncated();
   const categories = useCategories();
   const channels = useChannels();
   const { createEntry, createTransfer, updateEntry, setEntryVoid, deleteEntry, setFilters, resetFilters } = useAccountingActions();
@@ -429,13 +432,19 @@ export function AccountingDashboard() {
   }, [entries, sourceFilter]);
 
   // الرصيد التشغيلي الموجود لدى فادي ووسيم (كتاب التشغيلي، مراعٍ للتحويلات) — لتسويته آخر الشهر.
+  // opBookEntries = نفس المجموعة يلي انحسب منها الرصيد، تُمرَّر للوحة التفكيك
+  // كي يكون «من وين إجا الرقم» مبنياً على البيانات ذاتها حرفياً.
+  const opBookEntries = useMemo(() => filterByBook(entries, BOOK.OPERATIONAL), [entries]);
   const opBalance = useMemo(() => computeBookBalance(entries, BOOK.OPERATIONAL), [entries]);
   const [settle, setSettle] = useState(null); // { kind:'withdraw'|'supply' }
 
   // KPIs for filtered view — multi-currency (USD + TRY + SYP)
   const filteredKpis = useMemo(() => {
+    // !e.is_void — كانت مفقودة هون: القيود المعلَّمة «إدخال خاطئ» كانت لسّا
+    // داخلة بهالبطاقات وبالفاتورة المطبوعة، بعكس بقية الشاشة (إصلاح 10 آب 2026).
     const sum = (type, field) =>
-      filtered.filter(e => e.entry_type === type).reduce((s, e) => s + Number(e[field] || 0), 0);
+      filtered.filter(e => e.entry_type === type && !e.is_void)
+              .reduce((s, e) => s + Number(e[field] || 0), 0);
 
     const income_usd  = sum('income',  'amount_usd');
     const expense_usd = sum('expense', 'amount_usd');
@@ -476,7 +485,7 @@ export function AccountingDashboard() {
     };
 
     const sumMonth = (type, field, y, m) =>
-      entries.filter(e => e.entry_type === type && inMonth(e, y, m))
+      entries.filter(e => e.entry_type === type && !e.is_void && inMonth(e, y, m))
              .reduce((s, e) => s + Number(e[field] || 0), 0);
 
     const cur  = { inc: sumMonth('income','amount_syp',thisY,thisM), exp: sumMonth('expense','amount_syp',thisY,thisM) };
@@ -486,7 +495,7 @@ export function AccountingDashboard() {
 
     // Top category this month
     const catTotals = {};
-    entries.filter(e => e.entry_type === 'expense' && inMonth(e, thisY, thisM)).forEach(e => {
+    entries.filter(e => e.entry_type === 'expense' && !e.is_void && inMonth(e, thisY, thisM)).forEach(e => {
       const cat = e.category || 'أخرى';
       catTotals[cat] = (catTotals[cat] || 0) + Number(e.amount_syp || 0);
     });
@@ -502,13 +511,10 @@ export function AccountingDashboard() {
 
   // رصيد كل محفظة فعلياً ضمن الكتاب التشغيلي (فادي/وسيم) — يغذّي اختيار
   // المحفظة بمودال السحب/التوريد، بدل افتراض "كاش" دايماً.
-  const opWalletBalances = useMemo(() => {
-    const opEntries = entries.filter(e => (e.book ?? BOOK.CENTRAL) === BOOK.OPERATIONAL);
-    return WALLETS.map(w => ({
-      ...w,
-      balance: opEntries.reduce((s, e) => s + walletDelta(e, w), 0),
-    }));
-  }, [entries]);
+  const opWalletBalances = useMemo(() => WALLETS.map(w => ({
+    ...w,
+    balance: opBookEntries.reduce((s, e) => s + walletDelta(e, w), 0),
+  })), [opBookEntries]);
 
   // تسوية الحساب التشغيلي: سحب الرصيد (مصروف→تسليم) أو توريد (دخل) — تُنشئ قيداً واحداً.
   const handleSettle = async ({ kind, walletId, currency, amount, date, note }) => {
@@ -620,14 +626,17 @@ export function AccountingDashboard() {
         </div>
 
         {/* ── Treasury Panel ── */}
-        <TreasuryPanel entries={entries} className="mb-0" />
+        <TreasuryPanel entries={entries} className="mb-0" scopeLabel="خزائن الشركة كاملة (الكتابان)" />
 
         {/* ── تسوية الحساب التشغيلي (فادي ووسيم) — الإدارة المالية تسحب أو تورّد ── */}
         <div className="my-4">
           <OperationalBalanceCard
             balance={opBalance}
-            title="💼 الرصيد لدى الحساب التشغيلي (فادي ووسيم)"
-            subtitle="استلاماتهم ناقص مصاريفهم — تُسوّيه الإدارة المالية آخر الشهر"
+            title="💼 الرصيد التراكمي لدى فادي ووسيم — كل الفترات"
+            subtitle="استلامات − مصاريف − رواتب وسلف ± تحويلات · لا يتأثر بفلتر التاريخ أعلاه"
+            scopeEntries={opBookEntries}
+            scopeLabel="الحساب التشغيلي (فادي ووسيم)"
+            truncated={entriesTruncated}
           >
             {isAdmin && (
               <>

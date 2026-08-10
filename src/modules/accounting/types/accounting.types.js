@@ -1,6 +1,10 @@
 // =============================================================
 // Accounting Ledger — Type definitions & constants
 // =============================================================
+// ملاحظة: استيراد دائري مقصود مع logic/entrySign.js — entrySign تقرأ الثوابت
+// من هنا، وwalletDelta تستدعيها. آمن لأن كليهما دوال تُستدعى بعد اكتمال تحميل
+// الوحدتين (لا يُقرأ أي ثابت أثناء تقييم الوحدة نفسها).
+import { entrySign } from '../logic/entrySign.js';
 
 export const ENTRY_TYPE = {
   INCOME:   'income',
@@ -131,15 +135,14 @@ export function legacyWalletId(pm, currency) {
  * legacy generic payment methods. Returns 0 if the entry isn't this wallet's.
  */
 export function walletDelta(entry, wallet) {
-  if (entry.is_void) return 0; // إدخال خاطئ مُعلَّم — لا يُحتسب بأي رصيد (طلب مالك 9 آب 2026)
   const amt = Number(entry[wallet.amtField]) || 0;
   if (!amt) return 0;
   const pm = entry.payment_method;
   const belongs = pm === wallet.id || legacyWalletId(pm, wallet.currency) === wallet.id;
   if (!belongs) return 0;
-  if (entry.entry_type === ENTRY_TYPE.INCOME) return amt;
-  if (entry.entry_type === ENTRY_TYPE.TRANSFER) return entry.category === TRANSFER_IN ? amt : -amt;
-  return -amt; // expense / advance / salary
+  // الإشارة من entrySign (المصدر الوحيد) — كانت مكرّرة هنا بقاعدة مختلفة عن
+  // بطاقة الرصيد (الرواتب/السلف)، فما كانت اللوحتان تتطابقان. قرار 10 آب 2026.
+  return entrySign(entry) * amt;
 }
 
 export const ADVANCE_STATUS = {

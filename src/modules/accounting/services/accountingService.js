@@ -81,14 +81,35 @@ export async function fetchEntries(filters = {}) {
     return list;
   }
   const { supabase } = await import('@services/supabase');
-  let q = supabase.from('accounting_entries').select('*').order('entry_date', { ascending: false });
-  if (filters.type)       q = q.eq('entry_type', filters.type);
-  if (filters.from)       q = q.gte('entry_date', filters.from);
-  if (filters.to)         q = q.lte('entry_date', filters.to);
-  if (filters.employeeId) q = q.eq('employee_id', filters.employeeId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return data;
+
+  // ⚠️ PostgREST بيرجّع 1000 صف كحدّ أقصى للطلب الواحد. الأرصدة هون **تراكمية**
+  // (كل الفترات)، فأول ما الدفتر يتجاوز 1000 قيد كانت أقدم القيود تسقط بصمت
+  // والرصيد يطلع غلط بلا أي إشارة. لهيك منجلب بصفحات لحد ما تخلص.
+  const PAGE = 1000;
+  const MAX_PAGES = 50;          // سقف أمان: 50,000 قيد
+  const all = [];
+  let truncated = false;
+
+  for (let page = 0; ; page++) {
+    if (page >= MAX_PAGES) { truncated = true; break; }
+    let q = supabase.from('accounting_entries').select('*')
+      .order('entry_date', { ascending: false })
+      .order('id', { ascending: false })   // ترتيب حاسم ومستقر — بلاه ممكن يتكرر/يسقط صف بين الصفحات
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (filters.type)       q = q.eq('entry_type', filters.type);
+    if (filters.from)       q = q.gte('entry_date', filters.from);
+    if (filters.to)         q = q.lte('entry_date', filters.to);
+    if (filters.employeeId) q = q.eq('employee_id', filters.employeeId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    all.push(...(data || []));
+    if (!data || data.length < PAGE) break;   // آخر صفحة
+  }
+
+  // علَم غير قابل للتعداد: ما بيأثر على .length ولا على أي map/filter موجودة،
+  // بس الواجهة بتقدر تقرأه وتحذّر إذا الجلب ما اكتمل.
+  Object.defineProperty(all, 'truncated', { value: truncated, enumerable: false });
+  return all;
 }
 
 export async function createEntry(data) {
@@ -179,14 +200,68 @@ export async function updateEntry(id, data) {
   return row;
 }
 
+/**
+ * حذف قيد — وإذا كان ساق تحويل، تُحذف **المجموعة كاملة** (الساقان معاً).
+ *
+ * ⚠️ سبب هذا: التحويل بين الكتابين يُكتب بساقين بنفس `transfer_group`. حذف
+ * ساق واحدة بيخلّي مبلغاً يطلع من كتاب وما يوصل للتاني — فيختلّ مجموع الشركة
+ * بصمت وما بيوقف. (فحص 10 آب 2026 لقى 3 سيقان يتيمة فعلياً بقاعدة البيانات،
+ * خلّت الكتاب المركزي سالباً −35,000 ل.س.)
+ *
+ * @returns {Promise<number>} عدد القيود المحذوفة فعلياً.
+ */
 export async function deleteEntry(id) {
   if (USE_MOCK) {
-    _mockEntries = _mockEntries.filter(e => e.id !== id);
-    return;
+    const target = _mockEntries.find(e => e.id === id);
+    const grp = target?.transfer_group;
+    const before = _mockEntries.length;
+    _mockEntries = grp
+      ? _mockEntries.filter(e => e.transfer_group !== grp)
+      : _mockEntries.filter(e => e.id !== id);
+    return before - _mockEntries.length;
   }
   const { supabase } = await import('@services/supabase');
-  const { error } = await supabase.from('accounting_entries').delete().eq('id', id);
+
+  // نقرأ القيد أولاً لنعرف إذا هو ساق تحويل.
+  const { data: target, error: readErr } = await supabase
+    .from('accounting_entries').select('id, transfer_group').eq('id', id).maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+
+  const q = target?.transfer_group
+    ? supabase.from('accounting_entries').delete().eq('transfer_group', target.transfer_group)
+    : supabase.from('accounting_entries').delete().eq('id', id);
+
+  const { data, error } = await q.select('id');
   if (error) throw new Error(error.message);
+  return (data || []).length;
+}
+
+/**
+ * تعليم قيد كـ«إدخال خاطئ» — وإذا كان ساق تحويل، تُعلَّم المجموعة كاملة.
+ * نفس منطق الحذف: تعليم ساق واحدة بس بيخلق خللاً مطابقاً للساق اليتيمة.
+ * @returns {Promise<Array>} القيود المحدَّثة.
+ */
+export async function setEntriesVoidByEntry(id, patch) {
+  if (USE_MOCK) {
+    const target = _mockEntries.find(e => e.id === id);
+    const grp = target?.transfer_group;
+    const hit = e => (grp ? e.transfer_group === grp : e.id === id);
+    _mockEntries = _mockEntries.map(e => (hit(e) ? { ...e, ...patch } : e));
+    return _mockEntries.filter(hit);
+  }
+  const { supabase } = await import('@services/supabase');
+
+  const { data: target, error: readErr } = await supabase
+    .from('accounting_entries').select('id, transfer_group').eq('id', id).maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+
+  const q = target?.transfer_group
+    ? supabase.from('accounting_entries').update(patch).eq('transfer_group', target.transfer_group)
+    : supabase.from('accounting_entries').update(patch).eq('id', id);
+
+  const { data, error } = await q.select();
+  if (error) throw new Error(error.message);
+  return data || [];
 }
 
 export async function fetchCategories(type = null) {

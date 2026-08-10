@@ -12,6 +12,7 @@ import {
 
 const INITIAL_STATE = {
   entries:    [],
+  entriesTruncated: false,  // لم يكتمل جلب الدفتر → الأرصدة التراكمية ناقصة
   categories: [],
   channels:   [],
   rates:      {},   // { TRY: units-per-USD, SYP: units-per-USD } — لتوحيد KPIs/التوزيع بالدولار
@@ -64,7 +65,9 @@ const useAccountingStore = create()(
         // الرصيد/الخزينة تعتمد على الدفتر الكامل — لا نمرّر فلاتر التاريخ/النوع للسيرفر،
         // والتصفية تتم في الواجهة (filtered useMemo) كي تبقى entries هي الدفتر الكامل دائماً.
         const entries = await fetchEntries({ ...extra });
-        set({ entries });
+        // truncated = ما اكتمل جلب الدفتر (سقف الصفحات) → الأرصدة التراكمية
+        // ناقصة، والواجهة لازم تحذّر بدل ما تعرض رقماً ناقصاً كأنه صحيح.
+        set({ entries, entriesTruncated: entries?.truncated === true });
       } catch (err) {
         set({ error: err.message });
       } finally {
@@ -143,15 +146,18 @@ const useAccountingStore = create()(
     async setEntryVoid(id, isVoid, reason) {
       get()._setLoading('action', true);
       try {
-        const { updateEntry } = await import('../services/accountingService.js');
-        const updated = await updateEntry(id, {
+        // ساقا التحويل تُعلَّمان معاً — تعليم ساق واحدة يخلق ساقاً يتيمة
+        // ويختلّ مجموع الشركة بصمت (نفس علّة الحذف).
+        const { setEntriesVoidByEntry } = await import('../services/accountingService.js');
+        const rows = await setEntriesVoidByEntry(id, {
           is_void: isVoid,
           void_reason: isVoid ? (reason || null) : null,
           voided_by: isVoid ? get()._userId : null,
           voided_at: isVoid ? new Date().toISOString() : null,
         });
-        set(s => ({ entries: s.entries.map(e => (e.id === id ? updated : e)) }));
-        return updated;
+        const byId = new Map(rows.map(r => [r.id, r]));
+        set(s => ({ entries: s.entries.map(e => byId.get(e.id) || e) }));
+        return rows.find(r => r.id === id) || rows[0];
       } catch (err) {
         set({ error: err.message });
         throw err;
@@ -164,8 +170,13 @@ const useAccountingStore = create()(
       get()._setLoading('action', true);
       try {
         const { deleteEntry } = await import('../services/accountingService.js');
+        // ساق التحويل تحذف مجموعتها كاملة → نحذف محلياً بنفس المنطق.
+        const target = get().entries.find(e => e.id === id);
+        const grp = target?.transfer_group;
         await deleteEntry(id);
-        set(s => ({ entries: s.entries.filter(e => e.id !== id) }));
+        set(s => ({
+          entries: s.entries.filter(e => (grp ? e.transfer_group !== grp : e.id !== id)),
+        }));
       } catch (err) {
         set({ error: err.message });
         throw err;

@@ -8,6 +8,8 @@ import useAccountingStore from '../store/useAccountingStore.js';
 // ── Primitive selectors ────────────────────────────────────────────────────
 
 export const useEntries           = () => useAccountingStore(s => s.entries);
+/** true = لم يكتمل جلب الدفتر → الأرصدة التراكمية ناقصة (تُعرض كتحذير). */
+export const useEntriesTruncated  = () => useAccountingStore(s => s.entriesTruncated);
 export const useCategories        = () => useAccountingStore(s => s.categories);
 export const useChannels          = () => useAccountingStore(s => s.channels);
 export const useAccountingFilters = () => useAccountingStore(s => s.filters);

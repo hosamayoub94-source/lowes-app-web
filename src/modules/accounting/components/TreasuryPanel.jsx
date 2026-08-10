@@ -12,7 +12,7 @@ function fmtAmt(n, currency) {
   return n < 0 ? `-${sym} ${abs}` : `${sym} ${abs}`;
 }
 
-export default function TreasuryPanel({ entries = [], className = '' }) {
+export default function TreasuryPanel({ entries = [], className = '', scopeLabel = '' }) {
   // مفتوحة افتراضياً: «اديش معنا بكل محفظة» تبيّن فوراً بلا نقرة (طلب المالك).
   const [showDetails, setShowDetails] = useState(true);
   // المحفظة المختارة لعرض كشف حركتها (نقر على البطاقة).
@@ -54,7 +54,16 @@ export default function TreasuryPanel({ entries = [], className = '' }) {
         <div className="flex items-center gap-3">
           <span className="text-lg">🏦</span>
           <div className="text-right">
-            <div className="text-sm font-bold text-text">لوحة الخزائن والمحافظ</div>
+            <div className="text-sm font-bold text-text flex items-center gap-2 flex-wrap">
+              لوحة الخزائن والمحافظ
+              {/* النطاق صريح: نفس اللوحة معروضة بصفحتين على مجموعتَي قيود
+                  مختلفتين، وبلا هالشارة كانت الأرقام تبيّن متناقضة. */}
+              {scopeLabel && (
+                <span className="px-2 py-0.5 rounded-lg bg-cream border border-border text-[10px] font-medium text-muted">
+                  {scopeLabel} · {entries.length} قيد
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted flex gap-3">
               <span className={totalUSD >= 0 ? 'text-green-600' : 'text-red-500'}>
                 ${totalUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}
