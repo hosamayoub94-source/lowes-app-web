@@ -431,6 +431,13 @@ export default function AdminWhatsAppScreen() {
   const send = async () => {
     let body = draft.trim();
     if (!openPhone || !/^\+\d{6,15}$/.test(openPhone) || !body) return;
+    // منع فعلي، لا تحذير فقط — القرار D-041 (11 آب 2026): إرسال حر برا نافذة
+    // الجلسة مضمون الفشل (undelivered صامت مؤكَّد حياً) — عبء بلا أي فائدة،
+    // فيُمنع بدل ما يُترك ليكتشفه الموظف بالصدفة لاحقاً.
+    if (!sessionOpen) {
+      toast.error('لا نافذة جلسة نشطة — هذه الرسالة لن تصل. استخدم قالب معتمَد بدلاً من الكتابة الحرة.');
+      return;
+    }
     if (replyingTo) body = `↩️ ${replyingTo.snippet}\n—\n${body}`;
     setDraft('');
     setReplyingTo(null);
@@ -447,6 +454,10 @@ export default function AdminWhatsAppScreen() {
 
   const sendMedia = async (blob, ext) => {
     if (!openPhone || !/^\+\d{6,15}$/.test(openPhone)) return;
+    if (!sessionOpen) {
+      toast.error('لا نافذة جلسة نشطة — هذا المرفق لن يصل. استخدم قالب معتمَد بدلاً من الإرسال الحر.');
+      return;
+    }
     setSending(true);
     try {
       const media = await uploadWhatsAppMedia(blob, ext);
@@ -904,8 +915,8 @@ export default function AdminWhatsAppScreen() {
                   <div className="mb-2 bg-amber-50 border border-amber-300 rounded-lg p-2 text-[11px] font-bold text-amber-800 flex items-start gap-1.5">
                     <span>⚠️</span>
                     <span>
-                      لا نافذة جلسة نشطة (العميل ما راسل خلال آخر 24 ساعة) — أي رسالة حرة رح ترجع
-                      «لم تصل» بصمت. لازم قالب معتمَد بدل الكتابة الحرة.
+                      لا نافذة جلسة نشطة (العميل ما راسل خلال آخر 24 ساعة) — الإرسال الحر معطَّل
+                      لأنه مضمون الفشل («لم تصل» بصمت). لازم قالب معتمَد بدل الكتابة الحرة.
                     </span>
                   </div>
                 )}
