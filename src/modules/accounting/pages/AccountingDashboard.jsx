@@ -635,6 +635,7 @@ export function AccountingDashboard() {
             title="💼 الرصيد التراكمي لدى فادي ووسيم — كل الفترات"
             subtitle="استلامات − مصاريف − رواتب وسلف ± تحويلات · لا يتأثر بفلتر التاريخ أعلاه"
             scopeEntries={opBookEntries}
+            allEntries={entries}
             scopeLabel="الحساب التشغيلي (فادي ووسيم)"
             truncated={entriesTruncated}
           >

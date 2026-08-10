@@ -15,6 +15,7 @@ export default function OperationalBalanceCard({
   subtitle,
   children,
   scopeEntries,          // القيود يلي انحسب منها الرصيد — لتفكيكه
+  allEntries,            // الدفتر كامل — لكشف الخلل (سيقان التحويل تعبر الكتابين)
   scopeLabel = '',
   truncated = false,     // لم يكتمل جلب الدفتر → الرقم ناقص
 }) {
@@ -67,6 +68,7 @@ export default function OperationalBalanceCard({
           open={showWhy}
           onClose={() => setShowWhy(false)}
           entries={scopeEntries}
+          allEntries={allEntries}
           scopeLabel={scopeLabel}
         />
       )}

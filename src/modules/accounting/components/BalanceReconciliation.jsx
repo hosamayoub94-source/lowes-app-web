@@ -12,9 +12,19 @@ import { BOOK_LABELS } from '../types/accounting.types.js';
 const fmt = (v, c) =>
   `${c.sym}${Math.abs(Number(v) || 0).toLocaleString('en-US', { maximumFractionDigits: c.maxFrac })}`;
 
-export default function BalanceReconciliation({ open, onClose, entries = [], scopeLabel = '' }) {
+export default function BalanceReconciliation({
+  open, onClose,
+  entries = [],       // نطاق البطاقة — منه يُبنى التفكيك
+  allEntries,         // الدفتر كامل — منه يُكشف الخلل
+  scopeLabel = '',
+}) {
   const { rows, total } = useMemo(() => explainBalance(entries), [entries]);
-  const issues = useMemo(() => findLedgerIssues(entries), [entries]);
+  // ⚠️ كشف الخلل لازم يشتغل على **الدفتر كامل**: التحويل بساقين موزّعتين على
+  // كتابين، فلو فحصنا كتاباً واحداً بس، كل تحويل سليم بيبيّن «يتيم» (ساقه
+  // التانية بالكتاب التاني). إصلاح 10 آب 2026 بعد ما اللوحة عرضت 12 يتيمة
+  // بدل 3 الحقيقيات.
+  const ledger = Array.isArray(allEntries) ? allEntries : entries;
+  const issues = useMemo(() => findLedgerIssues(ledger), [ledger]);
 
   if (!open) return null;
 
@@ -81,6 +91,11 @@ export default function BalanceReconciliation({ open, onClose, entries = [], sco
             <p className="text-[11px] text-muted mt-2">
               ✅ هذا المجموع يساوي لوحة الخزائن لنفس النطاق بالضبط — نفس قاعدة الإشارة للاثنين.
             </p>
+            {ledger !== entries && (
+              <p className="text-[11px] text-muted/70 mt-1">
+                فحص الخلل أدناه يشمل الدفتر كامل ({ledger.length} قيد) — سيقان التحويل موزّعة على الكتابين.
+              </p>
+            )}
           </div>
 
           {/* الخلل */}

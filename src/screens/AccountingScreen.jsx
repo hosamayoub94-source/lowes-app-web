@@ -377,6 +377,7 @@ export default function AccountingScreen() {
         title="💼 الرصيد التراكمي لدى فادي ووسيم — كل الفترات"
         subtitle="استلامات − مصاريف − رواتب وسلف ± تحويلات · لا يتأثر بفلتر الشهر أعلاه"
         scopeEntries={bookEntries}
+        allEntries={entries}
         scopeLabel="الحساب التشغيلي (فادي ووسيم)"
         truncated={entriesTruncated}
       >
