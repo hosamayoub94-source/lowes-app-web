@@ -144,6 +144,10 @@ export default function AdminWhatsAppScreen() {
     if (!allowedLineKeys.includes(line)) setLine(allowedLineKeys[0] || MAIN_LINE);
   }, [allowedLineKeys, line]);
   const [recording, setRecording] = useState(false);
+  // نسخة ref من recording — تُقرأ داخل الـinterval (deps فاضية، ما بيشوف
+  // تحديثات state) لتفادي تجميد اللقطة الصوتية بمنتصف تسجيل. راجع تعليق
+  // الـinterval تحت لتفاصيل شكوى "الصوت مقطّع" (12 آب 2026).
+  const recordingRef = useRef(false);
   const recorderRef = useRef(null);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -191,8 +195,14 @@ export default function AdminWhatsAppScreen() {
   // openPhone/draft، حتى ما تنقفل محادثة مفتوحة أو ينمسح رد نصف مكتوب.
   // سبب الحاجة: حملات جماعية بترسل عشرات/مئات الرسائل بعد ما الموظف فاتح
   // الشاشة أصلاً — بلا هيك ما بيشوفها إلا بتحديث يدوي (F5) (طلب مالك 9 أغسطس 2026).
+  // ⚠️ 12 أغسطس 2026: يتخطّى نفسه بالكامل أثناء تسجيل صوتي جارٍ — شكوى مالك
+  // "الصوت مقطّع كأنه تقطيع": fetchWhatsAppMessages بيجيب الجدول كامل (آلاف
+  // الصفوف) ويعيد رسم القائمة كاملة، ولو صادف توقيته منتصف تسجيل بيجمّد
+  // المتصفح لحظياً — التقاط المايك بالـmain thread بيخسر بيانات بهالجمود
+  // فيطلع الصوت مقطّعاً. تخطّي التحديث أثناء التسجيل بيمنعها.
   useEffect(() => {
     const t = setInterval(() => {
+      if (recordingRef.current) return;
       Promise.all([fetchWhatsAppMessages(), fetchWhatsAppOwners()])
         .then(([rows, ownerRows]) => { setMessages(rows || []); setOwners(ownerRows || []); })
         .catch(() => {}); // صامت — شبكة متقطعة عادية، ما تستاهل إزعاج المستخدم
@@ -428,6 +438,29 @@ export default function AdminWhatsAppScreen() {
   };
   const cancelReply = () => setReplyingTo(null);
 
+  // إضافة محلية فورية للرسالة الصادرة بدل إعادة تحميل الجدول كاملاً بعد كل
+  // إرسال — القرار من شكوى مالك 12 آب 2026 ("تقل بالمراسلة"): fetchWhatsAppMessages
+  // يجيب كل الجدول (آلاف الصفوف، بصفحات 1000) وكان يُنادى فوراً بعد كل إرسال،
+  // فيوقف الواجهة كل مرة لثوان لحد ما يخلص التحميل — عبء غير ضروري، الرسالة
+  // نفسها معروفة محلياً أصلاً فور نجاح الإرسال. التوفيق مع القاعدة الحقيقية
+  // (حالة التسليم الفعلية) يصير عبر التحديث الهادئ كل 20 ثانية الموجود أصلاً.
+  const appendLocalMessage = (partial) => {
+    const msg = {
+      id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      phone: openPhone,
+      direction: 'out',
+      status: 'queued',
+      by_user: userId,
+      twilio_sid: null,
+      created_at: new Date().toISOString(),
+      to_number: WA_LINES[line].number,
+      media_url: null,
+      media_content_type: null,
+      ...partial,
+    };
+    setMessages(prev => [msg, ...(prev || [])]);
+  };
+
   const send = async () => {
     let body = draft.trim();
     if (!openPhone || !/^\+\d{6,15}$/.test(openPhone) || !body) return;
@@ -444,7 +477,7 @@ export default function AdminWhatsAppScreen() {
     setSending(true);
     try {
       await sendWhatsAppReply(openPhone, body, userId, line);
-      await load();
+      appendLocalMessage({ body });
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -462,7 +495,7 @@ export default function AdminWhatsAppScreen() {
     try {
       const media = await uploadWhatsAppMedia(blob, ext);
       await sendWhatsAppReply(openPhone, '', userId, line, media);
-      await load();
+      appendLocalMessage({ media_url: media.mediaUrl, media_content_type: media.mediaContentType });
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -513,8 +546,9 @@ export default function AdminWhatsAppScreen() {
         encoderApplication: 2048, // OPUS_APPLICATION_VOIP
         bitRate: 32000,
       });
-      rec.onstart = () => setRecording(true);
+      rec.onstart = () => { recordingRef.current = true; setRecording(true); };
       rec.ondataavailable = (arrayBuffer) => {
+        recordingRef.current = false;
         setRecording(false);
         if (cancelRecordingRef.current) { cancelRecordingRef.current = false; return; } // ألغيت — ما نرسل
         // ⚠️ 5 أغسطس 2026: عملاء اشتكوا "ما عم يفتح الفويس" (مو بس مش واضح —

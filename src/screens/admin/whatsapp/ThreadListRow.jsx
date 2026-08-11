@@ -5,12 +5,26 @@
 import { Avatar } from '@components/ui';
 import { StatusTicks } from './MessageBubble';
 
+// تاريخ مختصر بجانب الساعة — "اليوم"/"أمس"/يوم-شهر لأي أقدم. طلب مالك
+// 12 أغسطس 2026: الساعة وحدها ما بتكفي لمعرفة أي يوم كانت المحادثة، خصوصاً
+// بقائمة تخلط محادثات من أيام مختلفة (نفس فكرة dayLabel بالمحادثة المفتوحة).
+function dateLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'اليوم';
+  if (sameDay(d, yesterday)) return 'أمس';
+  return d.toLocaleDateString('ar', { day: 'numeric', month: 'short' });
+}
+
 export function ThreadListRow({
   thread, isOpen, name, ownerName, isDeleting, isSeen, onOpen, onDelete,
 }) {
   const time = thread.created_at
     ? new Date(thread.created_at).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
     : '';
+  const date = thread.created_at ? dateLabel(thread.created_at) : '';
   return (
     <div
       onClick={onOpen}
@@ -41,6 +55,7 @@ export function ThreadListRow({
         )}
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
+        <span className="text-[10px] text-muted">{date}</span>
         <span className="text-[10px] text-muted">{time}</span>
         <button
           onClick={onDelete}
