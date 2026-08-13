@@ -287,12 +287,21 @@ export const TRACKING_QUICK_REPLIES = [
 // محلياً بلا كود دولة (5394693150)، فالمطابقة الحرفية (RPC + fallback) ما
 // كانت تلاقي شي أبداً. نجرّب المفتاح الكامل أولاً، وبعدها آخر 10 أرقام
 // (نمط تركيا محلي) ثم آخر 9 (نمط سوريا محلي) كبدائل.
+// ⚠️ 13 آب 2026: بلاغ مالك مباشر بعد تجربة حية — فتح شات تتبّع كان "بيطول"
+// أحياناً كتير. تحقّق حي (Node مباشر ضد RPC `get_customer_orders_by_key`)
+// أكّد: كل مفتاح مرشَّح بياخد ~1-1.5 ثانية لحاله، وكانت الثلاث مرشّحين
+// (رقم كامل/آخر 10/آخر 9) يُجرَّبوا **متسلسلين** — لو أول مفتاحين ما
+// طابقوا شي (حالة شائعة)، صار عندنا ~3 ثواني انتظار قبل ما تظهر لوحة
+// التتبّع، لكل محادثة تتبّع تُفتح. صاروا الثلاثة يُجرَّبوا بالتوازي
+// (Promise.all)، ونختار أول نتيجة غير فاضية حسب ترتيب الأولوية الأصلي
+// (الرقم الكامل > آخر 10 > آخر 9) — نفس دقّة المطابقة القديمة، بس بزمن
+// دورة شبكة وحدة تقريباً بدل مجموع الثلاثة.
 export async function getLatestOrderForWaPhone(waPhone) {
   try {
     const digits = String(waPhone || '').replace(/\D/g, '');
     const candidates = [...new Set([digits, digits.slice(-10), digits.slice(-9)])].filter(k => k.length >= 6);
-    for (const key of candidates) {
-      const orders = await getCustomerOrders(key);
+    const results = await Promise.all(candidates.map((key) => getCustomerOrders(key).catch(() => [])));
+    for (const orders of results) {
       if (orders?.length) return orders[0];
     }
     return null;
