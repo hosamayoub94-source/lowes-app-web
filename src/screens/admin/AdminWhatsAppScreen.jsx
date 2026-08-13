@@ -195,10 +195,18 @@ export default function AdminWhatsAppScreen() {
   // ملاحظة عرض بحتة، ما بتلمس أي state/منطق تجاري.
   const seenMsgIdsRef = useRef(new Set());
 
+  // نسخة Map بمعرّف الرسالة (id → صف) موازية لـmessages — بس لتفادي إعادة
+  // بناء فهرس كامل كل نبضة تحديث هادئ (راجع تعليق الـinterval تحت). مو مصدر
+  // الحقيقة (messages state هو المصدر)، مجرّد كاش سريع لسؤال "هل تغيّر شي
+  // فعلياً بهالدفعة؟" — لو صار بيه تسرّب طفيف (صف محذوف محلياً ضل بالماب)
+  // ما بيأثر على صحة البيانات، أسوأ حالة إعادة رسم زيادة مش أقل من اللازم.
+  const messagesByIdRef = useRef(new Map());
+
   const load = useCallback(async () => {
     try {
       const [rows, ownerRows] = await Promise.all([fetchWhatsAppMessages(), fetchWhatsAppOwners()]);
       setMessages(rows || []);
+      messagesByIdRef.current = new Map((rows || []).map(m => [m.id, m]));
       setOwners(ownerRows || []);
     } catch (e) {
       toast.error(e.message);
@@ -239,13 +247,28 @@ export default function AdminWhatsAppScreen() {
   // غير كافٍ. صارت النافذة يومين: تحديث حالة تسليم/قراءة حقيقي بيصير خلال
   // ساعات من الإرسال لا أيام، فيومين هامش أمان كافي فعلياً ويقلّص كل نبضة
   // لصفحة واحدة عادةً بدل 4-7.
+  // ⚠️ نفس اليوم (تحديث ثانٍ بعد بلاغ مالك "لسا تقيل شوي") — PerformanceObserver
+  // بمتصفح حي أظهر ~350-1000ms جمود بالـmain thread عند **كل** نبضة، حتى بعد
+  // تصغير الشبكة: setMessages بيغيّر مرجع المصفوفة دايماً (حتى لو محتواها
+  // الفعلي ما تغيّر)، فيشغّل سلسلة useMemo كاملة (lineMsgs/threads/nameByPhone)
+  // تمسح آلاف الرسائل من جديد — يصير حتى لو ما وصل شي جديد. صار فيه فحص
+  // سريع (messagesByIdRef) قبل أي setMessages: لو كل صف بالدفعة الحديثة
+  // مطابق تماماً (نفس status/body/media_url) لما هو موجود أصلاً، ما ننادي
+  // setMessages إطلاقاً — صفر إعادة رسم لنبضات "هادئة" فعلياً (لا شي جديد).
   useEffect(() => {
     const t = setInterval(() => {
       if (recordingRef.current) return;
       Promise.all([fetchRecentWhatsAppMessages(2), fetchWhatsAppOwners()])
         .then(([recentRows, ownerRows]) => {
-          setMessages(prev => mergeWhatsAppMessages(prev, recentRows));
           setOwners(ownerRows || []);
+          const map = messagesByIdRef.current;
+          const changed = recentRows.some((row) => {
+            const existing = map.get(row.id);
+            return !existing || existing.status !== row.status || existing.body !== row.body || existing.media_url !== row.media_url;
+          });
+          if (!changed) return; // بلا setMessages — بلا أي إعادة رسم
+          for (const row of recentRows) map.set(row.id, row);
+          setMessages(prev => mergeWhatsAppMessages(prev, recentRows));
         })
         .catch(() => {}); // صامت — شبكة متقطعة عادية، ما تستاهل إزعاج المستخدم
     }, 20000);
@@ -306,24 +329,32 @@ export default function AdminWhatsAppScreen() {
   // اسم العميل بدل رقمه بس — "متل الواتساب الحقيقي" (طلب مالك 5 أغسطس 2026).
   // مستخرَج من أي رسالة قالب بالمحادثة (نفس الاسم يلي انبعت فعلياً)، بلا أي
   // استعلام DB إضافي — قاعدة العملاء ~24 ألف صف، أغلى بكتير من الحاجة الفعلية.
-  const nameByPhone = useMemo(() => {
-    if (!lineMsgs) return {};
-    const map = {};
+  // ⚠️ 13 آب 2026: كانت هاي وbyPhone (تحت) مبنيّتين بمسحتين منفصلتين كاملتين
+  // على lineMsgs (بيكبر لآلاف الصفوف مع تراكم التاريخ) — كل تحديث هادئ (كل
+  // 20 ثانية) كان يعيد مسح الجدول كامل مرتين + مطابقة regex على **كل** رسالة
+  // حتى لو الاسم انلقى مسبقاً لنفس الرقم. تحقّق حي (Chrome، PerformanceObserver
+  // للـ`longtask`) أكّد ~350-1000ms جمود بالـmain thread عند كل نبضة تحديث —
+  // هذا سبب "لسا تقيل شوي" رغم إصلاح الشبكة. صارت مسحة واحدة بس (byPhone
+  // ونameByPhone سوا)، والاسم يتوقف عن محاولة الاستخراج أول ما ينلقى للرقم
+  // (بدل تشغيل regex على كل رسالة تالية لنفس العميل).
+  const { rawThreadsByPhone, nameByPhone } = useMemo(() => {
+    if (!lineMsgs) return { rawThreadsByPhone: {}, nameByPhone: {} };
+    const byPhone = {};
+    const names = {};
     for (const m of lineMsgs) {
-      const name = extractTemplateName(m.body);
-      if (name) map[normalizeWaPhone(m.phone)] = name;
+      const p = normalizeWaPhone(m.phone);
+      if (!byPhone[p] || new Date(m.created_at) > new Date(byPhone[p].created_at)) byPhone[p] = { ...m, phone: p };
+      if (!names[p]) {
+        const name = extractTemplateName(m.body);
+        if (name) names[p] = name;
+      }
     }
-    return map;
+    return { rawThreadsByPhone: byPhone, nameByPhone: names };
   }, [lineMsgs]);
 
   const threads = useMemo(() => {
     if (!lineMsgs) return [];
-    const byPhone = {};
-    for (const m of lineMsgs) {
-      const p = normalizeWaPhone(m.phone);
-      if (!byPhone[p] || new Date(m.created_at) > new Date(byPhone[p].created_at)) byPhone[p] = { ...m, phone: p };
-    }
-    let list = Object.values(byPhone);
+    let list = Object.values(rawThreadsByPhone);
     // موظف عادي (بلا صلاحية إدارة) يشوف محادثاته/فريقها (WHATSAPP_TEAMS)
     // + أي محادثة بلا مالك أصلاً (عميل راسل جديد بلا حدا فتحها بعد) —
     // الأدمن/المدير يشوفوا الكل دايماً.
@@ -340,7 +371,7 @@ export default function AdminWhatsAppScreen() {
       list = list.filter(t => !ownerByPhone[t.phone] || mates.includes(ownerByPhone[t.phone]?.owner_name));
     }
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [lineMsgs, isManager, ownerByPhone, userName]);
+  }, [lineMsgs, rawThreadsByPhone, isManager, ownerByPhone, userName]);
 
   // 8 أغسطس 2026 (طلب مالك): ما نفتح أي محادثة تلقائياً عند دخول الشاشة —
   // نضل بقائمة المحادثات لحد ما الموظف يختار هو أي وحدة يفتح (كان قبل هيك
