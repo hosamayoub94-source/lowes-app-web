@@ -6,7 +6,6 @@
 // أُنشئ 1 أغسطس 2026.
 // =============================================================
 import { supabase } from './supabase';
-import { getCustomerOrders } from './customerService';
 import { STATUSES } from '@data/orderStatus';
 import { COMPANY } from '@data/brand';
 
@@ -288,23 +287,35 @@ export const TRACKING_QUICK_REPLIES = [
 // كانت تلاقي شي أبداً. نجرّب المفتاح الكامل أولاً، وبعدها آخر 10 أرقام
 // (نمط تركيا محلي) ثم آخر 9 (نمط سوريا محلي) كبدائل.
 // ⚠️ 13 آب 2026: بلاغ مالك مباشر بعد تجربة حية — فتح شات تتبّع كان "بيطول"
-// أحياناً كتير. تحقّق حي (Node مباشر ضد RPC `get_customer_orders_by_key`)
-// أكّد: كل مفتاح مرشَّح بياخد ~1-1.5 ثانية لحاله، وكانت الثلاث مرشّحين
-// (رقم كامل/آخر 10/آخر 9) يُجرَّبوا **متسلسلين** — لو أول مفتاحين ما
-// طابقوا شي (حالة شائعة)، صار عندنا ~3 ثواني انتظار قبل ما تظهر لوحة
-// التتبّع، لكل محادثة تتبّع تُفتح. صاروا الثلاثة يُجرَّبوا بالتوازي
-// (Promise.all)، ونختار أول نتيجة غير فاضية حسب ترتيب الأولوية الأصلي
-// (الرقم الكامل > آخر 10 > آخر 9) — نفس دقّة المطابقة القديمة، بس بزمن
-// دورة شبكة وحدة تقريباً بدل مجموع الثلاثة.
+// أحياناً كتير. أول محاولة إصلاح (تشغيل الثلاث مرشّحين بالتوازي عبر RPC
+// `get_customer_orders_by_key`) قلّلت الزمن بس ما حلّت المشكلة فعلياً —
+// تحقّق حي تاني (Chrome، PerformanceObserver على الشبكة الحقيقية) أظهر كل
+// نداء RPC يواحد لحاله بياخد **~1.8-2.8 ثانية**، وحتى بالتوازي الزمن
+// الكلي بيبقى بحدود أبطأ نداء. تحقّق مباشر إضافي (REST مباشر، بلا RPC):
+// نداء وحيد بفلتر `.in('phone_1', [...])` على جدول orders نفسه (33,690
+// صف) بيرجع نفس النتيجة الصحيحة بـ~350-600ms فقط بعد أول اتصال — RPC
+// نفسه هو الأبطأ (تكلفة استدعاء الدالة + مسار مختلف)، مش المشكلة عدد
+// النداءات. صار الاستعلام مباشرة عبر Supabase client (`.from('orders')`)
+// بنداء **وحيد** بدل RPC بثلاث نسخ متوازية — يجيب كل الصفوف المطابقة لأي
+// مرشّح دفعة وحدة، ونختار أفضل تطابق بالكود حسب نفس أولوية المطابقة
+// القديمة (الرقم الكامل > آخر 10 > آخر 9).
 export async function getLatestOrderForWaPhone(waPhone) {
   try {
     const digits = String(waPhone || '').replace(/\D/g, '');
     const candidates = [...new Set([digits, digits.slice(-10), digits.slice(-9)])].filter(k => k.length >= 6);
-    const results = await Promise.all(candidates.map((key) => getCustomerOrders(key).catch(() => [])));
-    for (const orders of results) {
-      if (orders?.length) return orders[0];
+    if (!candidates.length) return null;
+    const { data, error } = await supabase
+      .from('orders')
+      .select('order_date, items, amount, currency, status, city, address, wa_number, market, brand, customer_name, handler_name, order_id, phone_1, tracking_number')
+      .in('phone_1', candidates)
+      .order('order_date', { ascending: false })
+      .limit(20);
+    if (error || !data?.length) return null;
+    for (const key of candidates) {
+      const match = data.find((o) => o.phone_1 === key);
+      if (match) return match;
     }
-    return null;
+    return data[0];
   } catch { return null; }
 }
 
