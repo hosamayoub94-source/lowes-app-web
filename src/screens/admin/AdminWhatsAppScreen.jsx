@@ -232,14 +232,17 @@ export default function AdminWhatsAppScreen() {
   // وديانا وسالي". السبب: كل نبضة كانت تجيب الجدول **كامل** (6800+ صف
   // اليوم، بيكبر ~600-900/يوم من الحملات) بصفحات 1000 متسلسلة، كل 20 ثانية
   // بلا توقف طول ما الشاشة مفتوحة — شبكة+parsing كل مرة يجمّد الواجهة.
-  // صار يجيب بس رسائل آخر 7 أيام (fetchRecentWhatsAppMessages) ويدمجها
-  // بمصفوفة الرسائل الموجودة (mergeWhatsAppMessages) بدل استبدالها كاملة —
-  // كافي فعلياً لأي تحديث حالة تسليم/قراءة حقيقي (بيصير خلال ساعات من
-  // الإرسال لا أيام)، بس أخف بكتير من جلب كل تاريخ المحادثات كل مرة.
+  // صار يجيب بس رسائل حديثة (fetchRecentWhatsAppMessages) ويدمجها بمصفوفة
+  // الرسائل الموجودة (mergeWhatsAppMessages) بدل استبدالها كاملة.
+  // ⚠️ نفس اليوم — تحقّق حي بمتصفح فعلي أظهر إن نافذة 7 أيام أول تجربة كانت
+  // لسا تجيب ~5000 من 6800 صف (4 صفحات) لأن الجدول عمره 13 يوم بس — تخفيض
+  // غير كافٍ. صارت النافذة يومين: تحديث حالة تسليم/قراءة حقيقي بيصير خلال
+  // ساعات من الإرسال لا أيام، فيومين هامش أمان كافي فعلياً ويقلّص كل نبضة
+  // لصفحة واحدة عادةً بدل 4-7.
   useEffect(() => {
     const t = setInterval(() => {
       if (recordingRef.current) return;
-      Promise.all([fetchRecentWhatsAppMessages(7), fetchWhatsAppOwners()])
+      Promise.all([fetchRecentWhatsAppMessages(2), fetchWhatsAppOwners()])
         .then(([recentRows, ownerRows]) => {
           setMessages(prev => mergeWhatsAppMessages(prev, recentRows));
           setOwners(ownerRows || []);

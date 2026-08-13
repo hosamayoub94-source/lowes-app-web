@@ -20,55 +20,62 @@ export const WA_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+// ⚠️ 13 أغسطس 2026: تحقّق حي (Chrome فعلي، إنتاج) كشف إن كل نداء REST لهالمشروع
+// (kesoqnwyydycuyifqfhl) بياخد ~900ms — أبطأ بكتير من المتوقَّع (مشروع Supabase
+// تاني بمنطقة مختلفة عن باقي التطبيق). الصفحات كانت تُجلَب **متسلسلة**
+// (سطر بسطر بحلقة for + await) فتحميل 7 صفحات = 7×900ms ≈ 6.3 ثانية انتظار
+// شبكة صرف — هاد جزء كبير من الثقل المُبلَّغ عنه. fetchPagedWhatsApp تجيب
+// أول صفحة (مع Prefer: count=exact لمعرفة العدد الكلي من Content-Range)، ثم
+// تجيب **باقي الصفحات كلها بالتوازي** (Promise.all) بدل الانتظار صفحة صفحة —
+// يهبط الزمن الكلي لصفحة ونص تقريباً (900ms + دفعة متوازية واحدة) بغض النظر
+// عن عدد الصفحات.
+async function fetchPagedWhatsApp(baseUrl, pageSize = 1000) {
+  const firstRes = await fetch(`${baseUrl}&limit=${pageSize}&offset=0`, {
+    headers: { ...WA_HEADERS, Prefer: 'count=exact' },
+  });
+  if (!firstRes.ok) throw new Error('تعذّر تحميل رسائل واتساب');
+  const firstPage = await firstRes.json();
+  const range = firstRes.headers.get('content-range'); // "0-999/6806"
+  const total = range ? parseInt(range.split('/')[1], 10) : firstPage.length;
+  const out = [...firstPage];
+  if (firstPage.length === pageSize && Number.isFinite(total) && total > pageSize) {
+    const offsets = [];
+    for (let offset = pageSize; offset < total; offset += pageSize) offsets.push(offset);
+    const restPages = await Promise.all(offsets.map((offset) =>
+      fetch(`${baseUrl}&limit=${pageSize}&offset=${offset}`, { headers: WA_HEADERS })
+        .then((res) => { if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب'); return res.json(); }),
+    ));
+    for (const page of restPages) out.push(...page);
+  }
+  return out;
+}
+
 // ⚠️ 6 أغسطس 2026: كان هون limit=500 ثابت — مع تدفّق حملات جماعية (880+
 // رسالة برسالة واحدة) صارت الرسائل الأقدم (متل محادثات تتبّع هيا الموزَّعة
 // إلها مسبقاً) تُدفَن تحت سقف الـ500 وتختفي كلياً من واجهتها رغم إنها
 // مسجَّلة إلها فعلياً بجدول الملكية — بگت "بس محادثتين" رغم 47 محادثة
 // فعلية. الحل: صفحات (نفس نمط fetchAllRows بباقي التطبيق) بدل سقف ثابت.
 export async function fetchWhatsAppMessages() {
-  const pageSize = 1000;
-  const out = [];
-  for (let offset = 0; ; offset += pageSize) {
-    const res = await fetch(
-      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&order=created_at.desc&limit=${pageSize}&offset=${offset}`,
-      { headers: WA_HEADERS },
-    );
-    if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب');
-    const page = await res.json();
-    out.push(...page);
-    if (page.length < pageSize) break;
-  }
-  return out;
+  return fetchPagedWhatsApp(`${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&order=created_at.desc`);
 }
 
 // نسخة خفيفة لتحديث الخلفية الدوري (كل 20 ثانية) — بلاغ مالك 13 آب 2026:
 // "التطبيق تقيل، عم يعلّق" (حسام/ديانا/سالي). السبب: fetchWhatsAppMessages
 // الكاملة كانت تُنادى كل 20 ثانية بلا استثناء — تجيب الجدول بأكمله (6800+
-// صف اليوم، بيكبر ~600-900 صف/يوم من الحملات الجماعية) عبر صفحات 1000
-// **متسلسلة** (مش متوازية)، فكل نبضة تحديث هادئ صارت فعلياً عدة ثوانٍ من
-// شبكة + JSON parsing + إعادة رسم القائمة كاملة — يتكرر كل 20 ثانية دائماً
-// طالما الشاشة مفتوحة. صار التحديث الهادئ يجيب بس رسائل آخر 7 أيام
-// (`created_at=gte.<cutoff>`) — كافية فعلياً لأي تحديث حالة تسليم/قراءة
-// حقيقي (بيصير خلال ساعات من الإرسال لا أيام)، ويُدمَج بمصفوفة الرسائل
-// الموجودة بدل استبدالها كاملة (راجع mergeWhatsAppMessages بالشاشة).
-// التحميل الأول (فتح الشاشة) ولا زر "تحديث ↻" اليدوي يضلّوا يستخدموا
-// fetchWhatsAppMessages الكاملة — لازم السجل كامل لبناء قائمة المحادثات
-// والبحث برقم هاتف قديم.
+// صف اليوم، بيكبر ~600-900 صف/يوم من الحملات الجماعية) بصفحات متسلسلة، فكل
+// نبضة تحديث هادئ صارت فعلياً عدة ثوانٍ من شبكة + JSON parsing + إعادة رسم
+// القائمة كاملة — يتكرر كل 20 ثانية دائماً طالما الشاشة مفتوحة. صار التحديث
+// الهادئ يجيب بس رسائل حديثة (`created_at=gte.<cutoff>`) — كافية فعلياً لأي
+// تحديث حالة تسليم/قراءة حقيقي (بيصير خلال ساعات من الإرسال لا أيام)، ويُدمَج
+// بمصفوفة الرسائل الموجودة بدل استبدالها كاملة (راجع mergeWhatsAppMessages
+// بالشاشة). التحميل الأول (فتح الشاشة) ولا زر "تحديث ↻" اليدوي يضلّوا
+// يستخدموا fetchWhatsAppMessages الكاملة — لازم السجل كامل لبناء قائمة
+// المحادثات والبحث برقم هاتف قديم.
 export async function fetchRecentWhatsAppMessages(days = 7) {
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const pageSize = 1000;
-  const out = [];
-  for (let offset = 0; ; offset += pageSize) {
-    const res = await fetch(
-      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&created_at=gte.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=${pageSize}&offset=${offset}`,
-      { headers: WA_HEADERS },
-    );
-    if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب');
-    const page = await res.json();
-    out.push(...page);
-    if (page.length < pageSize) break;
-  }
-  return out;
+  return fetchPagedWhatsApp(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&created_at=gte.${encodeURIComponent(cutoff)}&order=created_at.desc`,
+  );
 }
 
 // ملكية المحادثات (نسخة بسيطة) — كل صف: هالمحادثة (رقم+خط) مسؤول عنها موظف
