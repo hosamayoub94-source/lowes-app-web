@@ -653,6 +653,8 @@ export default function CustomersScreen() {
   const [sendingCampaign, setSendingCampaign] = useState(false);
   const [campaignProgress, setCampaignProgress] = useState(null); // {done,total,sent,failed}
   const [sentPhones, setSentPhones] = useState(() => new Set()); // مين استلم حملة "كثافة الشعر" قبل هلق
+  const [sentPhonesReady, setSentPhonesReady] = useState(false); // false = لسا ما تأكدنا من سجل الاستبعاد — ممنوع الإرسال بهالحالة (خطر تكرار)
+  const [sentPhonesFailed, setSentPhonesFailed] = useState(false); // فشل تحميل سجل "المُرسَل لهم" — لازم نمنع الإرسال بدل ما نفترض الكل جديد
   const [campaignStats, setCampaignStats] = useState(null); // {sent, failed, lastSentAt}
   const [excludeSent, setExcludeSent] = useState(true); // افتراضياً استبعد المُرسَل لهم — منع إزعاج نفس العميل مرتين
 
@@ -738,8 +740,14 @@ export default function CustomersScreen() {
   // مين استلم هالحملة (المختارة حالياً) قبل هلق + إحصاءات سريعة — يُحمَّل عند
   // دخول قسم تركيا أو تبديل الحملة، ويُعاد تحميله بعد أي إرسال.
   const loadCampaignData = useCallback(() => {
-    if (!canCampaign) { setSentPhones(new Set()); setCampaignStats(null); return; }
-    getCampaignSentPhones(activeCampaign.key).then(setSentPhones).catch(() => {});
+    if (!canCampaign) { setSentPhones(new Set()); setCampaignStats(null); setSentPhonesReady(false); setSentPhonesFailed(false); return; }
+    setSentPhonesReady(false);
+    setSentPhonesFailed(false);
+    getCampaignSentPhones(activeCampaign.key)
+      .then(set => { setSentPhones(set); setSentPhonesReady(true); })
+      // فشل التحميل ما لازم يُعامَل متل "محدا استلم الحملة" — هيك كنا عم نبعت
+      // لعملاء استلموا فعلاً لأن سجل الاستبعاد ضل فاضي بصمت (D-الحملة المكررة).
+      .catch(() => { setSentPhonesFailed(true); setSentPhonesReady(false); });
     getCampaignStats(activeCampaign.key).then(setCampaignStats).catch(() => {});
   }, [canCampaign, activeCampaign.key]);
   useEffect(() => { loadCampaignData(); }, [loadCampaignData]);
@@ -783,6 +791,14 @@ export default function CustomersScreen() {
 
   const runCampaign = async () => {
     if (!selectedCustomers.length || sendingCampaign) return;
+    // منع صارم: لو سجل "مين استلم قبل" ما تأكّد تحميله (أو فشل)، ممنوع نبعت —
+    // هيك كنا عم نضرب نفس العميل مرتين بصمت لما تفشل قراءة campaign_sends.
+    if (excludeSent && !sentPhonesReady) {
+      alert(sentPhonesFailed
+        ? '⚠️ فشل تحميل سجل "مين استلم الحملة قبل" — الإرسال معطّل حالياً منعاً لتكرار الرسالة. جرّب "إعادة تحميل" أو تواصل مع الدعم.'
+        : '⏳ لسا عم يتحقق من سجل "مين استلم الحملة قبل" — انتظر لحظة وحاول مرة ثانية.');
+      return;
+    }
     // بمعدل 2.5 ثانية بين كل رسالة (حماية Quality Rating عند Meta) — دفعة كبيرة
     // تاخد وقت حقيقي، والموظف/ة لازم تخلّي التبويب مفتوح لحد ما تخلص.
     const etaMin = Math.ceil((selectedCustomers.length * 2.5) / 60);
@@ -865,12 +881,12 @@ export default function CustomersScreen() {
                 <input type="number" min={1} max={campaignVisible.length} value={batchN}
                   onChange={e => setBatchN(Number(e.target.value) || 0)}
                   className="w-16 px-1.5 py-1 rounded-lg border border-teal/40 bg-surface text-text text-[11px] text-center" />
-                <button onClick={selectFirstN}
-                  className="px-2.5 py-1 rounded-lg bg-teal/80 text-navy text-[11px] font-bold hover:opacity-90 transition">
+                <button onClick={selectFirstN} disabled={excludeSent && !sentPhonesReady}
+                  className="px-2.5 py-1 rounded-lg bg-teal/80 text-navy text-[11px] font-bold hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
                   ✓ تحديد أول {Math.min(batchN || 0, campaignVisible.length)}
                 </button>
-                <button onClick={toggleSelectAllFiltered}
-                  className="px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition">
+                <button onClick={toggleSelectAllFiltered} disabled={excludeSent && !sentPhonesReady}
+                  className="px-2.5 py-1 rounded-lg bg-teal text-navy text-[11px] font-bold hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
                   {allFilteredSelected ? `✕ إلغاء تحديد الكل (${campaignVisible.length})` : `✓ تحديد الكل (${campaignVisible.length}${segment !== 'all' ? ' — ' + SEGMENTS.find(s => s.key === segment)?.label : ''})`}
                 </button>
               </div>
@@ -885,6 +901,15 @@ export default function CustomersScreen() {
               🚫 استبعد اللي انبعتلهم قبل
             </label>
           </div>
+          {excludeSent && sentPhonesFailed && (
+            <div className="flex items-center justify-between gap-2 flex-wrap font-bold text-[11px] pt-2 border-t border-red-300 text-red-700">
+              <span>⚠️ فشل تحميل سجل &quot;مين استلم قبل&quot; — الإرسال معطّل الآن منعاً لتكرار الرسالة على نفس العميل.</span>
+              <button onClick={loadCampaignData} className="px-2.5 py-1 rounded-lg bg-red-600 text-white hover:opacity-90 transition">🔄 إعادة تحميل</button>
+            </div>
+          )}
+          {excludeSent && !sentPhonesReady && !sentPhonesFailed && (
+            <div className="font-normal text-[11px] pt-2 border-t border-teal/20 text-muted">⏳ عم يتحقق من سجل &quot;مين استلم قبل&quot;...</div>
+          )}
         </div>
       )}
 
