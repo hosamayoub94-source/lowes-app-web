@@ -19,7 +19,7 @@ import { useToast } from '@hooks/useToast';
 import { ROLES } from '@data/teams';
 import { Button, EmptyState, Spinner } from '@components/ui';
 import {
-  fetchWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
+  fetchWhatsAppMessages, fetchRecentWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
   fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, extractTemplateName, QUICK_REPLIES, WA_LINES,
@@ -92,6 +92,22 @@ function loadOpusRecorder() {
     });
   }
   return opusRecorderPromise;
+}
+
+// يدمج دفعة "رسائل حديثة" (آخر 7 أيام) بمصفوفة الرسائل الكاملة الموجودة —
+// يستبدل أي صف موجود بنسخته الأحدث (تحديث حالة تسليم/قراءة) ويضيف أي صف
+// جديد كلياً، بلا لمس الرسائل الأقدم من 7 أيام (تبقى كما هي، ما إلها داعي
+// تحديث). راجع تعليق التحديث الهادئ فوق لسبب الحاجة.
+function mergeWhatsAppMessages(prev, recentRows) {
+  const prevList = prev || [];
+  if (!recentRows || recentRows.length === 0) return prevList;
+  const recentIds = new Set(recentRows.map(m => m.id));
+  // بيشيل أي صف "temp-…" (رسالة صادرة أُضيفت محلياً فوراً عند الإرسال —
+  // appendLocalMessage) بهالدفعة — الرسالة الحقيقية بمعرّف Twilio الفعلي
+  // لازم تكون وصلت ضمن آخر 7 أيام أصلاً (أُرسلت للتو)، إبقاء النسخة المؤقتة
+  // بيخلق رسالة مكررة على الشاشة.
+  const untouched = prevList.filter(m => !recentIds.has(m.id) && !String(m.id).startsWith('temp-'));
+  return [...recentRows, ...untouched];
 }
 
 function normalizePhoneInput(raw) {
@@ -189,6 +205,18 @@ export default function AdminWhatsAppScreen() {
     }
   }, [toast]);
 
+  // جلب ملكية المحادثات بس (بلا لمس الرسائل) — لأفعال بتغيّر جدول الملكية
+  // فقط (وسم/تحويل مسؤول/نقل محادثة): تعيد جلب الجدول الكامل بدل الاكتفاء
+  // بجدول الملكية الخفيف كان يجمّد الواجهة بلا داعٍ (بلاغ 13 آب 2026 —
+  // راجع تعليق التحديث الهادئ فوق لنفس السبب الجذري).
+  const refreshOwners = useCallback(async () => {
+    try {
+      setOwners(await fetchWhatsAppOwners() || []);
+    } catch (e) {
+      toast.error(e.message);
+    }
+  }, [toast]);
+
   useEffect(() => { load(); }, [load]);
 
   // تحديث خلفي هادئ كل 20 ثانية — بدون toast ولا أي مؤشر تحميل، وبلا لمس
@@ -200,11 +228,22 @@ export default function AdminWhatsAppScreen() {
   // الصفوف) ويعيد رسم القائمة كاملة، ولو صادف توقيته منتصف تسجيل بيجمّد
   // المتصفح لحظياً — التقاط المايك بالـmain thread بيخسر بيانات بهالجمود
   // فيطلع الصوت مقطّعاً. تخطّي التحديث أثناء التسجيل بيمنعها.
+  // ⚠️ 13 أغسطس 2026: بلاغ مالك "التطبيق كتير تقيل، عم يعلّق — معذّبني أنا
+  // وديانا وسالي". السبب: كل نبضة كانت تجيب الجدول **كامل** (6800+ صف
+  // اليوم، بيكبر ~600-900/يوم من الحملات) بصفحات 1000 متسلسلة، كل 20 ثانية
+  // بلا توقف طول ما الشاشة مفتوحة — شبكة+parsing كل مرة يجمّد الواجهة.
+  // صار يجيب بس رسائل آخر 7 أيام (fetchRecentWhatsAppMessages) ويدمجها
+  // بمصفوفة الرسائل الموجودة (mergeWhatsAppMessages) بدل استبدالها كاملة —
+  // كافي فعلياً لأي تحديث حالة تسليم/قراءة حقيقي (بيصير خلال ساعات من
+  // الإرسال لا أيام)، بس أخف بكتير من جلب كل تاريخ المحادثات كل مرة.
   useEffect(() => {
     const t = setInterval(() => {
       if (recordingRef.current) return;
-      Promise.all([fetchWhatsAppMessages(), fetchWhatsAppOwners()])
-        .then(([rows, ownerRows]) => { setMessages(rows || []); setOwners(ownerRows || []); })
+      Promise.all([fetchRecentWhatsAppMessages(7), fetchWhatsAppOwners()])
+        .then(([recentRows, ownerRows]) => {
+          setMessages(prev => mergeWhatsAppMessages(prev, recentRows));
+          setOwners(ownerRows || []);
+        })
         .catch(() => {}); // صامت — شبكة متقطعة عادية، ما تستاهل إزعاج المستخدم
     }, 20000);
     return () => clearInterval(t);
@@ -331,9 +370,11 @@ export default function AdminWhatsAppScreen() {
     const t = threads.find(th => th.phone === phone);
     if (t) markSeen(phone, t.id);
     if (!ownerByPhone[phone]) {
-      claimWhatsAppConversation(phone, WA_LINES[line].number, userId, userName).then(load).catch(() => {});
+      // claim بيلمس جدول الملكية بس — تحديث ملكية خفيف كافي، بلا حاجة لإعادة
+      // جلب كل جدول الرسائل (راجع تعليق refreshOwners).
+      claimWhatsAppConversation(phone, WA_LINES[line].number, userId, userName).then(refreshOwners).catch(() => {});
     }
-  }, [ownerByPhone, line, userId, userName, load, threads, markSeen]);
+  }, [ownerByPhone, line, userId, userName, refreshOwners, threads, markSeen]);
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().replace(/[^\d+]/g, '');
@@ -583,7 +624,7 @@ export default function AdminWhatsAppScreen() {
     setOpenPhone(p);
     setNewChatOpen(false);
     setNewChatPhone('');
-    claimWhatsAppConversation(p, WA_LINES[line].number, userId, userName).then(load).catch(() => {});
+    claimWhatsAppConversation(p, WA_LINES[line].number, userId, userName).then(refreshOwners).catch(() => {});
   };
 
   const deleteThread = async (phone, e) => {
@@ -593,7 +634,9 @@ export default function AdminWhatsAppScreen() {
     try {
       await deleteWhatsAppConversation(phone, WA_LINES[line].number);
       if (openPhone === phone) setOpenPhone('');
-      await load();
+      // حذف محلي بدل إعادة جلب الجدول كامل — نعرف بالضبط شو انحذف
+      // (راجع تعليق refreshOwners/التحديث الهادئ لسبب تفادي الجلب الكامل).
+      setMessages(prev => (prev || []).filter(m => normalizeWaPhone(m.phone) !== phone));
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -606,7 +649,7 @@ export default function AdminWhatsAppScreen() {
     setDeletingMsgId(id);
     try {
       await deleteWhatsAppMessage(id);
-      await load();
+      setMessages(prev => (prev || []).filter(m => m.id !== id));
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -632,7 +675,8 @@ export default function AdminWhatsAppScreen() {
     try {
       await sendWhatsAppReply(p, body, userId, line, media);
       toast.success?.('اتحوّلت الرسالة');
-      await load();
+      // ما في داعي لإعادة جلب الجدول كامل — التحديث الهادئ (خلال 20 ثانية)
+      // بيجيبها ضمن آخر 7 أيام تلقائياً.
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -669,7 +713,7 @@ export default function AdminWhatsAppScreen() {
     try {
       await setWhatsAppConversationOwner(openPhone, WA_LINES[line].number, emp.id, emp.employee_name);
       setReassignOpen(false);
-      await load();
+      await refreshOwners();
       toast.success(`صارت المحادثة عند ${emp.employee_name}`);
     } catch (err) {
       toast.error(err.message);
@@ -687,7 +731,7 @@ export default function AdminWhatsAppScreen() {
     try {
       await setConversationTags(openPhone, WA_LINES[line].number, [...currentTags, clean]);
       setTagInput('');
-      await load();
+      await refreshOwners();
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -700,7 +744,7 @@ export default function AdminWhatsAppScreen() {
     setSavingTag(true);
     try {
       await setConversationTags(openPhone, WA_LINES[line].number, currentTags.filter(t => t !== tag));
-      await load();
+      await refreshOwners();
     } catch (err) {
       toast.error(err.message);
     } finally {

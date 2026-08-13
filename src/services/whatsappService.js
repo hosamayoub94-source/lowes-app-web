@@ -41,6 +41,36 @@ export async function fetchWhatsAppMessages() {
   return out;
 }
 
+// نسخة خفيفة لتحديث الخلفية الدوري (كل 20 ثانية) — بلاغ مالك 13 آب 2026:
+// "التطبيق تقيل، عم يعلّق" (حسام/ديانا/سالي). السبب: fetchWhatsAppMessages
+// الكاملة كانت تُنادى كل 20 ثانية بلا استثناء — تجيب الجدول بأكمله (6800+
+// صف اليوم، بيكبر ~600-900 صف/يوم من الحملات الجماعية) عبر صفحات 1000
+// **متسلسلة** (مش متوازية)، فكل نبضة تحديث هادئ صارت فعلياً عدة ثوانٍ من
+// شبكة + JSON parsing + إعادة رسم القائمة كاملة — يتكرر كل 20 ثانية دائماً
+// طالما الشاشة مفتوحة. صار التحديث الهادئ يجيب بس رسائل آخر 7 أيام
+// (`created_at=gte.<cutoff>`) — كافية فعلياً لأي تحديث حالة تسليم/قراءة
+// حقيقي (بيصير خلال ساعات من الإرسال لا أيام)، ويُدمَج بمصفوفة الرسائل
+// الموجودة بدل استبدالها كاملة (راجع mergeWhatsAppMessages بالشاشة).
+// التحميل الأول (فتح الشاشة) ولا زر "تحديث ↻" اليدوي يضلّوا يستخدموا
+// fetchWhatsAppMessages الكاملة — لازم السجل كامل لبناء قائمة المحادثات
+// والبحث برقم هاتف قديم.
+export async function fetchRecentWhatsAppMessages(days = 7) {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const pageSize = 1000;
+  const out = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const res = await fetch(
+      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=*&created_at=gte.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=${pageSize}&offset=${offset}`,
+      { headers: WA_HEADERS },
+    );
+    if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب');
+    const page = await res.json();
+    out.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return out;
+}
+
 // ملكية المحادثات (نسخة بسيطة) — كل صف: هالمحادثة (رقم+خط) مسؤول عنها موظف
 // معيَّن. الأدمن/المدير يشوفوا الكل بغض النظر عن هالجدول (تُطبَّق بالواجهة).
 export async function fetchWhatsAppOwners() {
