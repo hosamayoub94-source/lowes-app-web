@@ -523,26 +523,39 @@ export async function sendBulkCampaign(customers, contentSid, {
   return { sent, failed, results };
 }
 
+// PostgREST بيقص أي نتيجة عند 1000 صف افتراضياً بصمت (بلا خطأ) — حملة
+// "تواصل ودّي" عبرت الـ1000 إرسال ناجح فوقع عميل حقيقي (استلم الحملة
+// مرتين فعلياً بـ8 و10 أغسطس) خارج الصفحة الأولى، فبان "لسا ما استلم"
+// رغم وجوده بالجدول (اكتُشف 13 أغسطس 2026 لما عملية الاستبعاد فشلت حياً).
+// كل قراءة من campaign_sends لازم تصفّح بدفعات 1000 لحد ما تخلص.
+async function fetchAllCampaignSends(campaignKey, columns) {
+  const rows = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('campaign_sends')
+      .select(columns)
+      .eq('campaign_key', campaignKey)
+      .range(from, from + PAGE - 1);
+    if (error || !data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return rows;
+}
+
 // أرقام (phone_key) استلمت حملة معيّنة سابقاً — لفلترة "استبعد المُرسَل لهم"
 // ولوسم بطاقة العميل بشارة. status='sent' فقط (محاولة فاشلة لا تُعدّ استلاماً).
 export async function getCampaignSentPhones(campaignKey) {
   if (!campaignKey) return new Set();
-  const { data } = await supabase
-    .from('campaign_sends')
-    .select('phone_key')
-    .eq('campaign_key', campaignKey)
-    .eq('status', 'sent');
-  return new Set((data ?? []).map(r => r.phone_key).filter(Boolean));
+  const rows = await fetchAllCampaignSends(campaignKey, 'phone_key, status');
+  return new Set(rows.filter(r => r.status === 'sent').map(r => r.phone_key).filter(Boolean));
 }
 
 // سجل حملات مختصر (للوحة صغيرة) — عدد المُرسَل/الفاشل وآخر إرسال، حسب campaign_key.
 export async function getCampaignStats(campaignKey) {
   if (!campaignKey) return { sent: 0, failed: 0, lastSentAt: null };
-  const { data } = await supabase
-    .from('campaign_sends')
-    .select('status, sent_at')
-    .eq('campaign_key', campaignKey);
-  const rows = data ?? [];
+  const rows = await fetchAllCampaignSends(campaignKey, 'status, sent_at');
   const sent = rows.filter(r => r.status === 'sent').length;
   const failed = rows.filter(r => r.status === 'failed').length;
   const lastSentAt = rows.reduce((max, r) => (!max || r.sent_at > max) ? r.sent_at : max, null);
