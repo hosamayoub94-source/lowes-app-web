@@ -3,6 +3,24 @@
 
 ---
 
+### 🗓️ جلسة 14 آب 2026 — ✅ D-042: كل قوالب واتساب التسويقية السبعة معتمَدة من Meta
+
+**تحقّق حي مباشر عبر Twilio Console (Claude in Chrome، جلسة حسام الحقيقية):** فُتحت صفحة كل قالب من السبعة على حدة (لا الاعتماد على شارة القائمة العامة — مضلِّلة، نفس الدرس الموثَّق بجلسة 12 آب). **النتيجة: السبعة معتمَدة فعلياً (Approved)** — تغيّر عن آخر توثيق (جلسة 37، 12 آب: "Under Review"):
+
+| القالب | SID | التصنيف | الحالة |
+|---|---|---|---|
+| `lowes_star_network_invite_v1` | `HX1dca1ffa4cdf22952523966cd84e2e2e` | Marketing | ✅ Approved |
+| `lowes_price_followup_v1` | `HX24e2fa78fd27c8341b3cd6f65c9b6e0d` | Marketing | ✅ Approved |
+| `lowes_vip_reactivation_v1` | `HXb4e264f068a156b19f9ae08cd6c345b4` | Marketing | ✅ Approved |
+| `lowes_new_product_launch_v1` | `HX0900b9fc058172cbd78209013a8ed8d8` | Marketing | ✅ Approved |
+| `lowes_limited_offer_reminder_v2` | `HX9f71c6f80fa88af4108cc5903a508a65` | Marketing | ✅ Approved |
+| `lowes_academy_invite_v3` | `HXfce3e9ef44400bfdf238b1e19e4169c8` | Marketing | ✅ Approved |
+| `lowes_service_recovery_v1` | `HX25063a1c40a170d7d8daaba49a85d3a2` | Utility | ✅ Approved |
+
+**D-042 مُغلَق — السبعة جاهزة للاستخدام الفعلي بالتطبيق.** لم يُنفَّذ أي كود هالجلسة — تحقّق حالة فقط. الخطوة التالية (لو أراد حسام): ربط هالقوالب فعلياً بمسارات إرسال حقيقية بالكود (حملات/رسائل فردية) إن لم تكن مربوطة أصلاً — يحتاج مراجعة `whatsappService.js` للتأكد.
+
+---
+
 ### 🗓️ جلسة 13 آب 2026 (38) — إصلاح ثقل/تجميد شاشة `/admin/whatsapp` ✅ build ✓ منشور
 
 **البلاغ (حسام مباشرة):** "التطبيق الواتساب كتير تقيل عم يعلق معذبني انا وديانا وسالي عم يشتكو منو".
