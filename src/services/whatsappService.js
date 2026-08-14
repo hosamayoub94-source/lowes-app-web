@@ -668,6 +668,21 @@ export async function getCampaignStats(campaignKey) {
   return { sent, failed, lastSentAt, converted, revenue };
 }
 
+// كل الحملات (مجمَّعة، أي campaign_key) — لبطاقة "أداء قناة واتساب" العامة
+// (`AnalyticsPanel.jsx`)، نفس فترة التحليلات المختارة (7/30/90 يوم). المبلغ
+// بالليرة التركية (₺) — نفس عملة الإدخال بـmarkCampaignConversion.
+export async function getAllCampaignConversions(days = 30) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data, error } = await supabase
+    .from('campaign_sends')
+    .select('converted_amount')
+    .eq('converted', true)
+    .gte('converted_at', since);
+  if (error) return { count: 0, revenue: 0 };
+  const revenue = (data || []).reduce((sum, r) => sum + (Number(r.converted_amount) || 0), 0);
+  return { count: data?.length || 0, revenue };
+}
+
 // كل الحملات يلي انبعتلها هالرقم (status='sent') + حالة التحويل — لعرضها
 // بمحادثة واتساب مفتوحة، عشان الموظف/ة تصنّف "اشترت" من نفس مكان شغلها
 // بلا تنقّل. phoneKey محلي (بلا كود دولة) — نفس customerService.phoneKey.

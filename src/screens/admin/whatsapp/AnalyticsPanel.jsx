@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { Tabs, Card, CardTitle, StatCard, Badge } from '@components/ui';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
+import { getAllCampaignConversions } from '@services/whatsappService';
 
 const PERIODS = [
   { key: 7,  label: '7 أيام' },
@@ -20,6 +21,11 @@ export function WhatsAppAnalyticsPanel() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  // مبيعات مصنَّفة يدوياً من الموظفين (زر "🛍️ سجّل شراء" بالمحادثة) — مقياس
+  // مختلف عن `stats.converted` فوق (مطابقة تلقائية لأي طلب حقيقي، بلا ربط
+  // بحملة محدَّدة). 15 أغسطس 2026، طلب مالك: "نعرف بشكل عام شو بعنا من
+  // هالحملات" — هاي البطاقة تجاوب عليه تحديداً (مبلغ حقيقي بالليرة، لا عدّاد بس).
+  const [campaignSales, setCampaignSales] = useState(null);
 
   useEffect(() => {
     setLoading(true); setError(null);
@@ -27,6 +33,7 @@ export function WhatsAppAnalyticsPanel() {
       .then(setStats)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+    getAllCampaignConversions(days).then(setCampaignSales).catch(() => setCampaignSales(null));
   }, [days]);
 
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
@@ -68,6 +75,22 @@ export function WhatsAppAnalyticsPanel() {
           <p className="text-[10px] text-muted text-center">
             {stats.customerInitiated} محادثة بلّشها العميل من أصل {stats.totalConvos} — الباقي إشعارات آلية (تتبّع شحن) ما تلاها رد.
           </p>
+
+          {/* مبيعات مصنَّفة يدوياً من حملات واتساب — زر "🛍️ سجّل شراء" داخل
+              أي محادثة حملة (15 أغسطس 2026). مختلف عن بطاقة "تحويل لطلب
+              فعلي" فوق (تلقائية، أي طلب — مو مربوطة بحملة تحديداً). */}
+          {campaignSales != null && campaignSales.count > 0 && (
+            <Card variant="flat" className="bg-amber-500/10 border-amber-500/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-amber-700">🛍️ مبيعات مصنَّفة يدوياً من الحملات</p>
+                <p className="text-[11px] text-muted mt-0.5">سجّلها الموظفون بأنفسهم من داخل محادثات الحملات — مبلغ حقيقي بالليرة، لا تخمين.</p>
+              </div>
+              <div className="text-center shrink-0">
+                <p className="text-2xl font-extrabold text-amber-700">{fmt(campaignSales.revenue)}₺</p>
+                <p className="text-[11px] text-muted">{campaignSales.count} عملية شراء</p>
+              </div>
+            </Card>
+          )}
 
           {/* أداء كل موظف على واتساب — طلب مالك 6 أغسطس 2026: "بدي قيّم مين
               عم يشتغل". عدد الرسائل الصادرة + متوسط سرعة الرد لكل موظف،

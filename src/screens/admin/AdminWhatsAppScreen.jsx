@@ -460,7 +460,7 @@ export default function AdminWhatsAppScreen() {
   // بمحادثة حملة وتسجّل المبلغ مباشرة من نفس مكان شغلها. window.prompt
   // (لا مودال جديد) — نفس مستوى البساطة المستخدَم أصلاً بتحويل المحادثة.
   const recordConversion = useCallback(async (campaignKey) => {
-    const amountStr = window.prompt('💰 قيمة الطلب بالدولار؟');
+    const amountStr = window.prompt('💰 قيمة الطلب بالليرة التركية (₺)؟');
     if (amountStr == null) return;
     const amount = Number(String(amountStr).replace(/[^\d.]/g, ''));
     if (!Number.isFinite(amount) || amount <= 0) { toast.error('مبلغ غير صالح'); return; }
@@ -1014,7 +1014,7 @@ export default function AdminWhatsAppScreen() {
                       <div key={row.campaign_key}>
                         {row.converted ? (
                           <span className="font-bold text-emerald-700">
-                            ✅ اشترت من &quot;{row.campaign_label || row.campaign_key}&quot; — ${Number(row.converted_amount || 0).toLocaleString('en-US')}
+                            ✅ اشترت من &quot;{row.campaign_label || row.campaign_key}&quot; — {Number(row.converted_amount || 0).toLocaleString('en-US')}₺
                           </span>
                         ) : (
                           <button
