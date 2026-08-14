@@ -669,15 +669,18 @@ export async function getCampaignStats(campaignKey) {
 }
 
 // كل الحملات (مجمَّعة، أي campaign_key) — لبطاقة "أداء قناة واتساب" العامة
-// (`AnalyticsPanel.jsx`)، نفس فترة التحليلات المختارة (7/30/90 يوم). المبلغ
-// بالليرة التركية (₺) — نفس عملة الإدخال بـmarkCampaignConversion.
-export async function getAllCampaignConversions(days = 30) {
-  const since = new Date(Date.now() - days * 86400000).toISOString();
+// (`AnalyticsPanel.jsx`)، نفس فترة التحليلات المختارة. {from, to}: تاريخ
+// "YYYY-MM-DD" — 15 أغسطس 2026: استُبدل بارامتر `days` بحدَّين صريحين
+// (اليوم/أمس/يوم محدَّد ما كانت تُمثَّل بـ"آخر N يوم"). المبلغ بالليرة
+// التركية (₺) — نفس عملة الإدخال بـmarkCampaignConversion.
+export async function getAllCampaignConversions({ from, to }) {
+  const since = new Date(`${from}T00:00:00`).toISOString();
+  const until = new Date(`${to}T23:59:59.999`).toISOString();
   const { data, error } = await supabase
     .from('campaign_sends')
     .select('converted_amount')
     .eq('converted', true)
-    .gte('converted_at', since);
+    .gte('converted_at', since).lte('converted_at', until);
   if (error) return { count: 0, revenue: 0 };
   const revenue = (data || []).reduce((sum, r) => sum + (Number(r.converted_amount) || 0), 0);
   return { count: data?.length || 0, revenue };

@@ -12,7 +12,9 @@ const CUR_SYM = { try: '₺', syp: 'ل.س', usd: '$' };
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const fmtSales = (s) => ['usd', 'try', 'syp'].filter(c => s?.[c] > 0).map(c => `${fmt(s[c])} ${CUR_SYM[c]}`).join(' · ') || '—';
 
-const PERIODS = [['today', 'اليوم'], ['7d', '7 أيام'], ['month', 'هذا الشهر'], ['custom', 'مخصّص']];
+// 15 أغسطس 2026: أُضيفت "أمس" (طلب مالك) — "مخصّص" كانت أصلاً بتغطي أي يوم
+// واحد (from=to بنفس التاريخ) لكن بلا اختصار جاهز بضغطة وحدة.
+const PERIODS = [['today', 'اليوم'], ['yesterday', 'أمس'], ['7d', '7 أيام'], ['month', 'هذا الشهر'], ['custom', 'مخصّص']];
 const SRC_COLORS = { ad: '#0d7377', old: '#d97706', other: '#64748b' };
 
 export default function MediaBuyerBoardScreen() {
@@ -25,8 +27,9 @@ export default function MediaBuyerBoardScreen() {
   const [loading, setLoading] = useState(true);
 
   const range = useMemo(() => {
-    if (period === 'today')  return { from: todayISO(), to: todayISO() };
-    if (period === '7d')     return { from: daysAgoISO(6), to: todayISO() };
+    if (period === 'today')     return { from: todayISO(), to: todayISO() };
+    if (period === 'yesterday') return { from: daysAgoISO(1), to: daysAgoISO(1) };
+    if (period === '7d')        return { from: daysAgoISO(6), to: todayISO() };
     if (period === 'month')  return { from: monthStartISO(), to: todayISO() };
     return { from, to };
   }, [period, from, to]);

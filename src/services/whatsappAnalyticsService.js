@@ -13,14 +13,17 @@ import { WA_PROJECT_URL, WA_HEADERS } from './whatsappService';
 const digits = (s) => String(s || '').replace(/\D/g, '');
 const last9  = (s) => digits(s).slice(-9); // كافٍ لمطابقة رقم تركي محلي/دولي بلا لبس
 
-// يجلب كل رسائل واتساب منذ تاريخ معيّن (صفحات 1000 — سقف PostgREST).
-export async function fetchMessagesSince(sinceISO) {
+// يجلب كل رسائل واتساب بين تاريخين (صفحات 1000 — سقف PostgREST). untilISO
+// اختياري (بلا حد أعلى = لغاية الآن) — 15 أغسطس 2026: أُضيف عشان "اليوم"/
+// "أمس"/"تحديد يوم" تحتاج حدّاً أعلى حقيقي، لا بس "آخر N يوم من الآن".
+export async function fetchMessagesSince(sinceISO, untilISO = null) {
   const all = [];
   let offset = 0;
   const PAGE = 1000;
+  const untilFilter = untilISO ? `&created_at=lte.${encodeURIComponent(untilISO)}` : '';
   for (;;) {
     const res = await fetch(
-      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone,direction,created_at,by_user&created_at=gte.${encodeURIComponent(sinceISO)}&order=created_at.asc&limit=${PAGE}&offset=${offset}`,
+      `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone,direction,created_at,by_user&created_at=gte.${encodeURIComponent(sinceISO)}${untilFilter}&order=created_at.asc&limit=${PAGE}&offset=${offset}`,
       { headers: WA_HEADERS },
     );
     if (!res.ok) throw new Error('تعذّر تحميل رسائل واتساب للتحليل');
@@ -169,14 +172,18 @@ export async function computeConversions(conversations, sinceISO) {
   return converted;
 }
 
-// نداء واحد مريح للوحة: يرجّع كل الأرقام جاهزة لفترة (بالأيام).
-export async function getWhatsAppAnalytics(days = 30) {
-  const since = new Date(Date.now() - days * 86400000).toISOString();
-  const messages = await fetchMessagesSince(since);
+// نداء واحد مريح للوحة: يرجّع كل الأرقام جاهزة لفترة. {from, to}: تاريخ
+// "YYYY-MM-DD" (نفس صيغة campaignAnalyticsService.todayISO/daysAgoISO) —
+// 15 أغسطس 2026: استُبدل بارامتر `days` (كان يعني "آخر N يوم من الآن" بس،
+// ما يقدر يمثّل "اليوم"/"أمس"/يوم محدَّد بالماضي) بحدَّين صريحين.
+export async function getWhatsAppAnalytics({ from, to }) {
+  const since = new Date(`${from}T00:00:00`).toISOString();
+  const until = new Date(`${to}T23:59:59.999`).toISOString();
+  const messages = await fetchMessagesSince(since, until);
   const stats = buildWhatsAppStats(messages);
   let converted = 0;
   try { converted = await computeConversions(stats.conversations, since); } catch { /* orders قد تفشل بلا كسر التحليلات الأساسية */ }
   let agentStats = stats.agentStats;
   try { agentStats = await resolveAgentNames(stats.agentStats); } catch { /* أسماء الموظفين ثانوية — لا تكسر باقي التحليلات */ }
-  return { ...stats, agentStats, converted, conversionRate: stats.totalConvos ? Math.round((converted / stats.totalConvos) * 100) : 0, since, days };
+  return { ...stats, agentStats, converted, conversionRate: stats.totalConvos ? Math.round((converted / stats.totalConvos) * 100) : 0, since, until };
 }

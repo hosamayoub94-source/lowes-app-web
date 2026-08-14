@@ -5,19 +5,23 @@
 // بلا أي تغيير بمنطق الجلب/الحساب. سبرنت ② من خطة النمو (5 أغسطس
 // 2026): أول أرقام حقيقية لأداء قناة واتساب.
 // =============================================================
-import { useState, useEffect } from 'react';
-import { Tabs, Card, CardTitle, StatCard, Badge } from '@components/ui';
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardTitle, StatCard, Badge } from '@components/ui';
 import { getWhatsAppAnalytics } from '@services/whatsappAnalyticsService';
 import { getAllCampaignConversions } from '@services/whatsappService';
+import { todayISO, daysAgoISO } from '@services/campaignAnalyticsService';
 
+// 15 أغسطس 2026: استُبدلت فترات "آخر N يوم من الآن" (7/30/90) بفترات
+// تقويمية حقيقية (اليوم/أمس/يوم محدَّد) — نفس نمط "📡 لوحة الميديا باير"
+// (`MediaBuyerBoardScreen.jsx`) بطلب مالك مباشر، عشان تصير كل لوحات
+// التحليلات متّسقة بنفس أسلوب اختيار الفترة.
 const PERIODS = [
-  { key: 7,  label: '7 أيام' },
-  { key: 30, label: '30 يوم' },
-  { key: 90, label: '90 يوم' },
+  ['today', 'اليوم'], ['yesterday', 'أمس'], ['7d', '7 أيام'], ['30d', '30 يوم'], ['custom', 'تحديد يوم'],
 ];
 
 export function WhatsAppAnalyticsPanel() {
-  const [days, setDays] = useState(30);
+  const [period, setPeriod] = useState('30d');
+  const [customDate, setCustomDate] = useState(todayISO());
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,14 +31,22 @@ export function WhatsAppAnalyticsPanel() {
   // هالحملات" — هاي البطاقة تجاوب عليه تحديداً (مبلغ حقيقي بالليرة، لا عدّاد بس).
   const [campaignSales, setCampaignSales] = useState(null);
 
+  const range = useMemo(() => {
+    if (period === 'today')     return { from: todayISO(), to: todayISO() };
+    if (period === 'yesterday') return { from: daysAgoISO(1), to: daysAgoISO(1) };
+    if (period === '7d')        return { from: daysAgoISO(6), to: todayISO() };
+    if (period === '30d')       return { from: daysAgoISO(29), to: todayISO() };
+    return { from: customDate, to: customDate }; // 'custom'
+  }, [period, customDate]);
+
   useEffect(() => {
     setLoading(true); setError(null);
-    getWhatsAppAnalytics(days)
+    getWhatsAppAnalytics(range)
       .then(setStats)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-    getAllCampaignConversions(days).then(setCampaignSales).catch(() => setCampaignSales(null));
-  }, [days]);
+    getAllCampaignConversions(range).then(setCampaignSales).catch(() => setCampaignSales(null));
+  }, [range]);
 
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
   const fmtMin = (m) => {
@@ -45,7 +57,18 @@ export function WhatsAppAnalyticsPanel() {
 
   return (
     <div className="space-y-3">
-      <Tabs tabs={PERIODS.map(p => ({ key: p.key, label: p.label }))} value={days} onChange={setDays} size="sm" />
+      <div className="flex gap-1.5 flex-wrap items-center">
+        {PERIODS.map(([k, l]) => (
+          <button key={k} onClick={() => setPeriod(k)}
+            className={'px-3 py-1.5 rounded-xl text-xs font-bold transition border ' + (period === k ? 'bg-teal text-navy border-teal' : 'bg-surface-alt text-muted hover:text-text border-border')}>
+            {l}
+          </button>
+        ))}
+        {period === 'custom' && (
+          <input type="date" value={customDate} max={todayISO()} onChange={e => setCustomDate(e.target.value)}
+            className="border border-border rounded-xl px-2 py-1.5 text-xs bg-surface text-text" />
+        )}
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
