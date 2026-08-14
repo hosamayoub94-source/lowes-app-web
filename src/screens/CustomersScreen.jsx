@@ -775,16 +775,31 @@ export default function CustomersScreen() {
 
   // حملات "audienceOf" (مثل عرض المتفاعلين) مقيَّدة بشريحة محسوبة سيرفرياً
   // (مين ردّ فعلاً على حملة سابقة) — null = لسا عم تحمّل، Set = جاهزة.
+  // ⚠️ 14 آب 2026: بلاغ مالك مباشر (لقطة شاشة) — الشريحة رجّعت 299 عميل مؤهَّل
+  // بس "تحديد الكل" ظهر 72 بس. السبب: campaignVisible كانت مبنية فوق
+  // `displayed`، واللي جايّة أصلاً من `rows` المحمَّلة بحد أقصى 400 عميل
+  // **مرتَّبين بالأكثر طلباً** (نفس سقف التصفّح العادي) — أي عميل بالـ299
+  // مش ضمن أعلى 400 بالترتيب هيك (شائع: عميل جديد ردّ على تواصل ودّي بس ما
+  // طلب كتير بعد) كان يختفي من القائمة الفعلية للحملة بصمت. الحل: نجيب
+  // بيانات الـ299 مباشرة بـphone_keys (بلا سقف/ترتيب) بدل الاعتماد على
+  // `displayed` المحدودة أصلاً لغرض التصفّح العادي.
   const [responderPhones, setResponderPhones] = useState(null);
+  const [responderCustomers, setResponderCustomers] = useState([]);
   useEffect(() => {
-    if (!activeCampaign.audienceOf) { setResponderPhones(null); return; }
+    if (!activeCampaign.audienceOf) { setResponderPhones(null); setResponderCustomers([]); return; }
     let cancelled = false;
     setResponderPhones(null);
     getCampaignResponderPhoneKeys(activeCampaign.audienceOf)
-      .then(set => { if (!cancelled) setResponderPhones(set); })
-      .catch(() => { if (!cancelled) setResponderPhones(new Set()); });
+      .then(async (set) => {
+        if (cancelled) return;
+        setResponderPhones(set);
+        if (!set.size) { setResponderCustomers([]); return; }
+        const full = await listCustomers({ phoneKeys: [...set], market: sec.market, brand: sec.brand }).catch(() => []);
+        if (!cancelled) setResponderCustomers(full);
+      })
+      .catch(() => { if (!cancelled) { setResponderPhones(new Set()); setResponderCustomers([]); } });
     return () => { cancelled = true; };
-  }, [activeCampaign.audienceOf]);
+  }, [activeCampaign.audienceOf, sec.market, sec.brand]);
 
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
   useEffect(() => { setSelectedPhones(new Set()); }, [campaignChoice]);
@@ -812,22 +827,23 @@ export default function CustomersScreen() {
     });
   }, []);
 
+  // قاعدة المرشَّحين لوضع الحملة — عادةً `displayed` (سقف/ترتيب التصفّح
+  // العادي)، بس حملة "audienceOf" تستخدم `responderCustomers` (الشريحة
+  // الكاملة بلا سقف — راجع تعليق الإصلاح أعلاه) عشان ما نخسر عملاء مؤهَّلين
+  // مش ضمن أعلى 400 بالترتيب الافتراضي.
+  const campaignBaseList = (campaignMode && activeCampaign.audienceOf) ? responderCustomers : displayed;
+
   const selectedCustomers = useMemo(
-    () => displayed.filter(c => selectedPhones.has(c.phone_key)),
-    [displayed, selectedPhones],
+    () => campaignBaseList.filter(c => selectedPhones.has(c.phone_key)),
+    [campaignBaseList, selectedPhones],
   );
 
   // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent)
   // حتى ما نزعج نفس العميل مرتين بنفس العرض. خارج وضع الحملة تبقى displayed كاملة.
-  // حملة "audienceOf": تتقيّد أيضاً بشريحة المتفاعلين — لسا عم تحمّل (null)
-  // = قائمة فاضية مؤقتاً (أفضل من عرض الكل بالغلط لثانية قبل ما توصل الشريحة).
-  const campaignVisible = useMemo(() => {
-    let list = (campaignMode && excludeSent) ? displayed.filter(c => !sentPhones.has(c.phone_key)) : displayed;
-    if (campaignMode && activeCampaign.audienceOf) {
-      list = responderPhones ? list.filter(c => responderPhones.has(c.phone_key)) : [];
-    }
-    return list;
-  }, [displayed, campaignMode, excludeSent, sentPhones, activeCampaign, responderPhones]);
+  const campaignVisible = useMemo(
+    () => (campaignMode && excludeSent) ? campaignBaseList.filter(c => !sentPhones.has(c.phone_key)) : campaignBaseList,
+    [campaignBaseList, campaignMode, excludeSent, sentPhones],
+  );
 
   // تحديد/إلغاء الكل ضمن التصفية الحالية (القسم + الفئة، مثلاً "💔 استرجاع") —
   // بدون هذا، حملة إعادة تنشيط لمئات العملاء الخاملين تعني ضغط كل بطاقة يدوياً

@@ -134,13 +134,18 @@ const SORTS = {
   name:   { col: 'name',         asc: true  },
 };
 
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null, maxLastOrder = null, minLastOrder = null, minOrdersCount = null } = {}) {
+// phoneKeys: قائمة صريحة (مثلاً شريحة "ردّوا على حملة X") — بيتخطّى الترتيب/سقف
+// limit العادي (كان بيقص شرائح صغيرة محسوبة سيرفرياً لو أعضاؤها مش ضمن أعلى
+// limit عميل بالترتيب الافتراضي "الأكثر طلباً"، راجع [[campaign-audience-cap-bug]]).
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null, maxLastOrder = null, minLastOrder = null, minOrdersCount = null, phoneKeys = null } = {}) {
   const s = SORTS[sort] || SORTS.orders;
-  let q = supabase
-    .from('customer_stats')
-    .select('*')
-    .order(s.col, { ascending: s.asc, nullsFirst: false })
-    .limit(limit);
+  let q = supabase.from('customer_stats').select('*');
+  if (phoneKeys) {
+    if (!phoneKeys.length) return [];
+    q = q.in('phone_key', phoneKeys); // مجموعة محدودة سلفاً — لا حاجة لـorder/limit
+  } else {
+    q = q.order(s.col, { ascending: s.asc, nullsFirst: false }).limit(limit);
+  }
   if (vipOnly) q = q.gte('stars', 1);
   // أرشيف شهري: قصر النتائج على عملاء آخر طلبهم ضمن الشهر [monthStart, monthEnd)
   if (monthStart) q = q.gte('last_order', monthStart);
