@@ -437,11 +437,16 @@ export default function AdminWhatsAppScreen() {
   }, [threads, search, tagFilter, ownerByPhone]);
 
   // كل الوسوم المستخدَمة فعلياً (من owners) — لقائمة الفلترة بالسايدبار.
+  // ⚠️ 13 آب 2026: بلاغ مالك — هيا (محصورة بالخط الرئيسي) شايفة رقاقات وسم
+  // "عميل ديانا"/"تجهيز ديانا"/"عميل سالي" رغم إن فريقها منفصل كلياً عن
+  // فريق الحملات. السبب: كانت مبنية من owners الخام (كل الخطوط سوا) بدل
+  // ownerByPhone (مفلترة بالخط الحالي أصلاً) — فوسوم فريق الحملات كانت
+  // تظهر حتى وأنت واقف عالخط الرئيسي.
   const allTags = useMemo(() => {
     const set = new Set();
-    for (const o of owners) for (const t of (o.tags || [])) set.add(t);
+    for (const o of Object.values(ownerByPhone)) for (const t of (o.tags || [])) set.add(t);
     return [...set].sort();
-  }, [owners]);
+  }, [ownerByPhone]);
 
   // فصل ثلاثي: "تتبّع الطلبات" (إشعارات آلية — مسؤولية Haya حصراً) / "الحملات"
   // (رسائل تسويقية جماعية) / "المحادثات" (رد حر عضوي من عميل/موظف) — طلب
