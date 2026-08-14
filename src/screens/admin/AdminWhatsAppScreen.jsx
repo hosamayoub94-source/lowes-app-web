@@ -386,7 +386,17 @@ export default function AdminWhatsAppScreen() {
       const mates = teammatesOf(userName);
       list = list.filter((t) => {
         const owner = ownerByPhone[t.phone]?.owner_name;
-        return !owner || mates.includes(owner) || !ownerAllowedOnLine(owner, line);
+        // ⚠️ 14 آب 2026: بلاغ مالك مباشر — ديانا/سالي (محصورات بخط الحملات)
+        // بتقولوا في رسائل عالحملات ما عم يشوفوهن. السبب: لما حسام (أدمن)
+        // يفتح/يردّ على محادثة عالخط، بيصير "مالكها" — و`ownerAllowedOnLine`
+        // بترجّع true للأدمن دايماً (بلا قيد LINE_ACCESS = مسموح بكل خط)،
+        // فشرط "orphaned" (السطر تحت) ما بينطبق عليه، وهو مش بقائمة `mates`
+        // أصلاً (فريق الحملات فقط) — فالمحادثة تختفي كلياً من فريق الحملات
+        // رغم إنه خطهم الوحيد وهم المسؤولون الفعليون عنه. أي مالك **بلا أي
+        // قيد إطلاقاً** بـLINE_ACCESS (أدمن/مدير أو أي اسم مستقبلي غير
+        // مقيَّد) لازم يُعامَل كمشارك بكل خط لا كمالك حصري يحجب الفريق.
+        const ownerUnrestricted = owner && !LINE_ACCESS[owner];
+        return !owner || mates.includes(owner) || !ownerAllowedOnLine(owner, line) || ownerUnrestricted;
       });
     }
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -486,9 +496,14 @@ export default function AdminWhatsAppScreen() {
 
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
+  // ⚠️ 14 آب 2026: نفس إصلاح `filteredThreads` أعلاه — مالك بلا أي قيد
+  // بـLINE_ACCESS (أدمن/مدير) ما لازم يُحتسَب "موظف تاني يحجب المحادثة"،
+  // وإلا رد حسام على محادثة عالحملات كان يقفلها كلياً بوجه ديانا/سالي.
+  const openOwnedByOtherOwner = ownerByPhone[openPhone]?.owner_name;
   const openOwnedByOther = !isManager && !!openPhone
-    && ownerByPhone[openPhone] && !teammatesOf(userName).includes(ownerByPhone[openPhone].owner_name)
-    && ownerAllowedOnLine(ownerByPhone[openPhone].owner_name, line);
+    && ownerByPhone[openPhone] && !teammatesOf(userName).includes(openOwnedByOtherOwner)
+    && ownerAllowedOnLine(openOwnedByOtherOwner, line)
+    && !!LINE_ACCESS[openOwnedByOtherOwner];
 
   const thread = useMemo(
     () => openOwnedByOther ? [] : (lineMsgs || [])
