@@ -28,7 +28,7 @@ export function ThreadListRow({
   return (
     <div
       onClick={onOpen}
-      className={`group px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2.5 transition-colors ${isOpen ? 'bg-teal/10' : 'hover:bg-surface-alt'}`}
+      className={`group h-full box-border px-3 py-2 border-b border-border/40 cursor-pointer flex items-center gap-2.5 overflow-hidden transition-colors ${isOpen ? 'bg-teal/10' : 'hover:bg-surface-alt'}`}
     >
       <Avatar name={name || thread.phone} size="sm" />
       {thread.direction === 'in' && (

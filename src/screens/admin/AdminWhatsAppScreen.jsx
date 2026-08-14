@@ -28,7 +28,7 @@ import {
 } from '@services/whatsappService';
 import { listActiveProfiles } from '@services/authService';
 import { WhatsAppAnalyticsPanel } from './whatsapp/AnalyticsPanel';
-import { ThreadListSection } from './whatsapp/ThreadListSection';
+import { VirtualThreadList, buildThreadListItems } from './whatsapp/VirtualThreadList';
 import { ThreadSearchBar } from './whatsapp/ThreadSearchBar';
 import { ChatHeader } from './whatsapp/ChatHeader';
 import { TagBar } from './whatsapp/TagBar';
@@ -451,6 +451,15 @@ export default function AdminWhatsAppScreen() {
   const previewCampaignThreads = useMemo(() => withPreview(sortedCampaignThreads), [sortedCampaignThreads]);
   const previewTrackingThreads = useMemo(() => withPreview(sortedTrackingThreads), [sortedTrackingThreads]);
 
+  // مصفوفة مسطّحة واحدة (عناوين أقسام + صفوف) للقائمة الافتراضية
+  // (VirtualThreadList) — راجع تعليق ذاك الملف لسبب الحاجة (1000+ محادثة
+  // حقيقية بلا افتراضية كانت تجمّد سكرول الآيفون تحديداً).
+  const threadListItems = useMemo(() => buildThreadListItems([
+    { key: 'convo', label: '💬 المحادثات', threads: previewConvoThreads },
+    { key: 'campaign', label: '📢 الحملات', threads: previewCampaignThreads },
+    { key: 'tracking', label: '📦 تتبّع الطلبات (آلي)', threads: previewTrackingThreads },
+  ]), [previewConvoThreads, previewCampaignThreads, previewTrackingThreads]);
+
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
   const openOwnedByOther = !isManager && !!openPhone
@@ -853,17 +862,16 @@ export default function AdminWhatsAppScreen() {
               tagFilter={tagFilter}
               onTagFilterChange={setTagFilter}
             />
-            <div className="overflow-y-auto flex-1 min-h-0">
-              {filteredThreads.length === 0 && (
-                <EmptyState
-                  icon="💬"
-                  title={threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
-                  className="border-0 bg-transparent py-8"
-                />
-              )}
-              <ThreadListSection
-                label="💬 المحادثات"
-                threads={previewConvoThreads}
+            {filteredThreads.length === 0 && (
+              <EmptyState
+                icon="💬"
+                title={threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
+                className="border-0 bg-transparent py-8"
+              />
+            )}
+            {filteredThreads.length > 0 && (
+              <VirtualThreadList
+                items={threadListItems}
                 openPhone={openPhone}
                 nameByPhone={nameByPhone}
                 ownerByPhone={ownerByPhone}
@@ -873,31 +881,7 @@ export default function AdminWhatsAppScreen() {
                 onOpen={openThread}
                 onDelete={deleteThread}
               />
-              <ThreadListSection
-                label="📢 الحملات"
-                threads={previewCampaignThreads}
-                openPhone={openPhone}
-                nameByPhone={nameByPhone}
-                ownerByPhone={ownerByPhone}
-                isManager={isManager}
-                deletingPhone={deletingPhone}
-                seenMap={seenMap}
-                onOpen={openThread}
-                onDelete={deleteThread}
-              />
-              <ThreadListSection
-                label="📦 تتبّع الطلبات (آلي)"
-                threads={previewTrackingThreads}
-                openPhone={openPhone}
-                nameByPhone={nameByPhone}
-                ownerByPhone={ownerByPhone}
-                isManager={isManager}
-                deletingPhone={deletingPhone}
-                seenMap={seenMap}
-                onOpen={openThread}
-                onDelete={deleteThread}
-              />
-            </div>
+            )}
           </div>
 
           {/* المحادثة المفتوحة */}
