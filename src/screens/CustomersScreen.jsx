@@ -979,7 +979,7 @@ export default function CustomersScreen() {
           </div>
           <div className="flex items-center justify-between gap-2 flex-wrap font-normal text-[11px] pt-2 border-t border-teal/20">
             <span>
-              {campaignStats ? `📊 سبق وانبعتلها الحملة: ${campaignStats.sent} عميل${campaignStats.failed ? ` (+${campaignStats.failed} فشلوا)` : ''}${campaignStats.lastSentAt ? ` — آخر إرسال ${new Date(campaignStats.lastSentAt).toLocaleDateString('ar', { day: 'numeric', month: 'short' })}` : ''}` : '⏳ جارٍ تحميل سجل الحملة...'}
+              {campaignStats ? `📊 سبق وانبعتلها الحملة: ${campaignStats.sent} عميل${campaignStats.failed ? ` (+${campaignStats.failed} فشلوا)` : ''}${campaignStats.lastSentAt ? ` — آخر إرسال ${new Date(campaignStats.lastSentAt).toLocaleDateString('ar', { day: 'numeric', month: 'short' })}` : ''}${campaignStats.converted ? ` — ✅ ${campaignStats.converted} اشترت (مجموع $${fmt(campaignStats.revenue)})` : ''}` : '⏳ جارٍ تحميل سجل الحملة...'}
             </span>
             <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
               <input type="checkbox" checked={excludeSent} onChange={e => setExcludeSent(e.target.checked)} className="rounded" />

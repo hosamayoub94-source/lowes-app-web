@@ -653,14 +653,50 @@ export async function getCampaignSentPhones(campaignKey) {
   return new Set(rows.filter(r => r.status === 'sent').map(r => r.phone_key).filter(Boolean));
 }
 
-// سجل حملات مختصر (للوحة صغيرة) — عدد المُرسَل/الفاشل وآخر إرسال، حسب campaign_key.
+// سجل حملات مختصر (للوحة صغيرة) — عدد المُرسَل/الفاشل وآخر إرسال + تحويلات
+// فعلية لمبيعات (converted/revenue، عمودان جديدان 14 أغسطس 2026 — راجع
+// migration `20260814_campaign_conversions.sql`)، حسب campaign_key.
 export async function getCampaignStats(campaignKey) {
-  if (!campaignKey) return { sent: 0, failed: 0, lastSentAt: null };
-  const rows = await fetchAllCampaignSends(campaignKey, 'status, sent_at');
+  if (!campaignKey) return { sent: 0, failed: 0, lastSentAt: null, converted: 0, revenue: 0 };
+  const rows = await fetchAllCampaignSends(campaignKey, 'status, sent_at, converted, converted_amount');
   const sent = rows.filter(r => r.status === 'sent').length;
   const failed = rows.filter(r => r.status === 'failed').length;
   const lastSentAt = rows.reduce((max, r) => (!max || r.sent_at > max) ? r.sent_at : max, null);
-  return { sent, failed, lastSentAt };
+  const convertedRows = rows.filter(r => r.converted);
+  const converted = convertedRows.length;
+  const revenue = convertedRows.reduce((sum, r) => sum + (Number(r.converted_amount) || 0), 0);
+  return { sent, failed, lastSentAt, converted, revenue };
+}
+
+// كل الحملات يلي انبعتلها هالرقم (status='sent') + حالة التحويل — لعرضها
+// بمحادثة واتساب مفتوحة، عشان الموظف/ة تصنّف "اشترت" من نفس مكان شغلها
+// بلا تنقّل. phoneKey محلي (بلا كود دولة) — نفس customerService.phoneKey.
+export async function getPhoneCampaignSends(phoneKey) {
+  if (!phoneKey) return [];
+  const { data, error } = await supabase
+    .from('campaign_sends')
+    .select('campaign_key, campaign_label, sent_at, converted, converted_amount')
+    .eq('phone_key', phoneKey).eq('status', 'sent')
+    .order('sent_at', { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+// تسجيل تحويل حملة لمبيع فعلي (يدوي — الموظف/ة تشوف "بدي اطلب" بمحادثة
+// حملة، تسجّل المبلغ). يستهدف أحدث صف "sent" لهالرقم بهالحملة تحديداً (لو
+// انبعتلها نفس الحملة أكتر من مرة بغلط، ناخد الأحدث).
+export async function markCampaignConversion(phoneKey, campaignKey, amount, byUser) {
+  const { data: rows, error: selErr } = await supabase
+    .from('campaign_sends')
+    .select('id')
+    .eq('phone_key', phoneKey).eq('campaign_key', campaignKey).eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(1);
+  if (selErr || !rows?.length) throw new Error('ما لقيت سجل إرسال لهالحملة لهالرقم');
+  const { error } = await supabase.from('campaign_sends')
+    .update({ converted: true, converted_amount: amount, converted_at: new Date().toISOString(), converted_by: byUser })
+    .eq('id', rows[0].id);
+  if (error) throw error;
 }
 
 // phone_keys لعملاء **ردّوا فعلياً** (رسالة واردة حقيقية) بعد ما استلموا حملة

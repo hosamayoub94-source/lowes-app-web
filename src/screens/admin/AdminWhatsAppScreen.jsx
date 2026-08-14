@@ -25,6 +25,7 @@ import {
   normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, extractTemplateName, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
   setConversationTags, SUGGESTED_TAGS,
+  getPhoneCampaignSends, markCampaignConversion,
 } from '@services/whatsappService';
 import { listActiveProfiles } from '@services/authService';
 import { WhatsAppAnalyticsPanel } from './whatsapp/AnalyticsPanel';
@@ -202,6 +203,11 @@ export default function AdminWhatsAppScreen() {
   const [tagFilter, setTagFilter] = useState(null); // وسم مُختار للفلترة (null = الكل)
   const [tagInput, setTagInput] = useState('');
   const [savingTag, setSavingTag] = useState(false);
+  // حملات واتساب يلي انبعتلها المحادثة المفتوحة + حالة تحويلها لمبيع فعلي
+  // (14 أغسطس 2026، طلب مالك) — بلا هالمعرفة، الموظف/ة ما تعرف أصلاً إنه
+  // هالعميلة جاية من حملة لتقدر تصنّفها.
+  const [campaignSends, setCampaignSends] = useState([]);
+  const [savingConversion, setSavingConversion] = useState(null); // campaign_key الجاري تسجيله حالياً
   const [replyingTo, setReplyingTo] = useState(null); // رسالة يُردّ عليها بالاقتباس (quote-reply)
   const [msgSearchOpen, setMsgSearchOpen] = useState(false);
   const [msgSearch, setMsgSearch] = useState(''); // بحث نص داخل المحادثة المفتوحة
@@ -438,6 +444,39 @@ export default function AdminWhatsAppScreen() {
       claimWhatsAppConversation(phone, WA_LINES[line].number, userId, userName).then(refreshOwners).catch(() => {});
     }
   }, [ownerByPhone, line, userId, userName, refreshOwners, threads, markSeen]);
+
+  // حملات هالرقم + حالة التحويل — واتساب الرسمي محظور بسوريا كلياً (D-022)،
+  // فـphone_key دايماً محلي تركي (بلا كود دولة) بجدول campaign_sends.
+  useEffect(() => {
+    if (!openPhone) { setCampaignSends([]); return; }
+    const localDigits = normalizeWaPhone(openPhone).replace(/^\+?90/, '').replace(/\D/g, '');
+    if (localDigits.length < 8) { setCampaignSends([]); return; }
+    let cancelled = false;
+    getPhoneCampaignSends(localDigits).then(rows => { if (!cancelled) setCampaignSends(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [openPhone]);
+
+  // تسجيل عملية شراء فعلية على حملة معيّنة — الموظف/ة تشوف "بدي اطلب"
+  // بمحادثة حملة وتسجّل المبلغ مباشرة من نفس مكان شغلها. window.prompt
+  // (لا مودال جديد) — نفس مستوى البساطة المستخدَم أصلاً بتحويل المحادثة.
+  const recordConversion = useCallback(async (campaignKey) => {
+    const amountStr = window.prompt('💰 قيمة الطلب بالدولار؟');
+    if (amountStr == null) return;
+    const amount = Number(String(amountStr).replace(/[^\d.]/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('مبلغ غير صالح'); return; }
+    setSavingConversion(campaignKey);
+    try {
+      const localDigits = normalizeWaPhone(openPhone).replace(/^\+?90/, '').replace(/\D/g, '');
+      await markCampaignConversion(localDigits, campaignKey, amount, userName);
+      const fresh = await getPhoneCampaignSends(localDigits);
+      setCampaignSends(fresh);
+      toast.success('✅ تسجّلت عملية الشراء');
+    } catch (e) {
+      toast.error(e.message || 'فشل تسجيل عملية الشراء');
+    } finally {
+      setSavingConversion(null);
+    }
+  }, [openPhone, userName, toast]);
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().replace(/[^\d+]/g, '');
@@ -965,6 +1004,31 @@ export default function AdminWhatsAppScreen() {
                   onRemove={removeTag}
                   suggestedTags={SUGGESTED_TAGS}
                 />
+
+                {/* حملات هالعميلة + تسجيل تحويل لمبيع فعلي — 14 أغسطس 2026،
+                    طلب مالك: "الموظفين يصير عندهم خيار تصنيف الأشخاص اللي
+                    اشترو" عشان نعرف بسرعة شو بعنا من كل حملة. */}
+                {campaignSends.length > 0 && (
+                  <div className="flex items-center flex-wrap gap-2 mb-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1.5 text-xs">
+                    {campaignSends.map((row) => (
+                      <div key={row.campaign_key}>
+                        {row.converted ? (
+                          <span className="font-bold text-emerald-700">
+                            ✅ اشترت من &quot;{row.campaign_label || row.campaign_key}&quot; — ${Number(row.converted_amount || 0).toLocaleString('en-US')}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => recordConversion(row.campaign_key)}
+                            disabled={savingConversion === row.campaign_key}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-bold hover:opacity-90 transition disabled:opacity-50"
+                          >
+                            🛍️ {savingConversion === row.campaign_key ? 'جارٍ التسجيل...' : `سجّل شراء — "${row.campaign_label || row.campaign_key}"`}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {isManager && (
                   <ReassignSheet
