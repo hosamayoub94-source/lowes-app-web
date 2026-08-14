@@ -398,6 +398,31 @@ export { TEMPLATE_SID };
 const CHECKIN_TEMPLATE_SID = 'HX2ca0719593a6f86f64b8a4f1e74c6288'; // lowes_customer_checkin_v1
 export { CHECKIN_TEMPLATE_SID };
 
+// ✅ D-042 — 7 قوالب تسويقية/خدمية جديدة، **كلها معتمَدة من Meta** (تحقّق مباشر
+// عبر Twilio Console 14 أغسطس 2026 — راجع HANDOFFlowes.md لنفس التاريخ).
+// ⚠️ ثلاثة منها بس ({{1}}=اسم العميل فقط) جاهزة لحملة جماعية فورية عبر
+// sendBulkCampaign (بيحقن {{1}} تلقائياً، بلا أي متغيّر إضافي). الأربعة
+// الباقية **لسا غير مربوطة بأي شاشة إرسال** بقصد:
+// - price_followup/new_product_launch/limited_offer_reminder تحتاج متغيّر
+//   إضافي حقيقي لكل حملة (اسم منتج/سعر/تاريخ انتهاء عرض) — sendBulkCampaign
+//   الحالية بتحقن {{1}} بس، حقن قيمة عامة/فاضية بـ{{2}}/{{3}} يعني إرسال
+//   رسالة مكسورة أو مضلِّلة لعملاء حقيقيين. يحتاج قرار مالك: إضافة حقل إدخال
+//   بواجهة الحملة قبل ربطها.
+// - service_recovery تصنيفها Utility لا Marketing — رسالة استرجاع شكوى فردية
+//   بعد تفاعل محدد مع عميل معيَّن، مو حملة جماعية عشوائية. تحتاج نقطة ربط
+//   مختلفة (زر ضمن شاشة شكوى/محادثة فردية) لا CAMPAIGNS الجماعية.
+const STAR_NETWORK_INVITE_SID = 'HX1dca1ffa4cdf22952523966cd84e2e2e'; // lowes_star_network_invite_v1 — {{1}}=اسم فقط
+const VIP_REACTIVATION_SID    = 'HXb4e264f068a156b19f9ae08cd6c345b4'; // lowes_vip_reactivation_v1 — {{1}}=اسم فقط
+const ACADEMY_INVITE_SID      = 'HXfce3e9ef44400bfdf238b1e19e4169c8'; // lowes_academy_invite_v3 — {{1}}=اسم فقط
+const PRICE_FOLLOWUP_SID      = 'HX24e2fa78fd27c8341b3cd6f65c9b6e0d'; // lowes_price_followup_v1 — {{1}}=اسم, {{2}}=اسم منتج (غير مربوطة بعد)
+const NEW_PRODUCT_LAUNCH_SID  = 'HX0900b9fc058172cbd78209013a8ed8d8'; // lowes_new_product_launch_v1 — {{1}}=اسم, {{2}}=اسم منتج (غير مربوطة بعد)
+const LIMITED_OFFER_SID       = 'HX9f71c6f80fa88af4108cc5903a508a65'; // lowes_limited_offer_reminder_v2 — {{1}}=اسم, {{2}}=العرض, {{3}}=تاريخ الانتهاء (غير مربوطة بعد)
+const SERVICE_RECOVERY_SID    = 'HX25063a1c40a170d7d8daaba49a85d3a2'; // lowes_service_recovery_v1 — Utility، فردية لا جماعية (غير مربوطة بعد)
+export {
+  STAR_NETWORK_INVITE_SID, VIP_REACTIVATION_SID, ACADEMY_INVITE_SID,
+  PRICE_FOLLOWUP_SID, NEW_PRODUCT_LAUNCH_SID, LIMITED_OFFER_SID, SERVICE_RECOVERY_SID,
+};
+
 // قوالب v1 القديمة (بلا زر رابط) — لم تعد تُستخدَم بالإرسال الفعلي (استُبدلت
 // أعلاه بـv2) لكن تبقى هون فقط عشان formatWaBody() يقدر يعيد بناء نص الرسائل
 // التاريخية المُرسَلة قبل التبديل (6 أغسطس 2026).
@@ -426,6 +451,15 @@ const TEMPLATE_BODIES = {
   [TEMPLATE_SID.returning]:    'مرحباً {{1}} 👋\nطلبك رقم {{2}} راجع لمركزنا ↩️ رح نتواصل معك نعرف السبب ونلاقي الحل الأنسب.\n— LOWE\'S Professional',
   [TEMPLATE_SID.promo]:        '🖼️ [صورة: مجموعة الروزماري]\nمرحباً {{1}}، كثافة شعرك تستاهل عناية حقيقية 🌿\nخط الروزماري من LOWE\'S profesyonel — نتيجة مثبتة علمياً من مختبرات SKINLAB.\nخصم 30% لمدة أسبوع فقط — العرض ينتهي قريباً!\nاكتشفي الفرق الآن 👇\n[زر: تسوّقي الآن → lowesprofesyonel.com]',
   [CHECKIN_TEMPLATE_SID]:      'مرحباً {{1}} 👋 اشتقنالك عندنا بـLOWE\'S profesyonel! كيف كانت تجربتك معنا؟ حابين نسمع رأيك 🤝\nهاد رقمنا الرسمي – لأي سؤال أو طلب جديد.',
+  // D-042 — 7 قوالب جديدة (14 أغسطس 2026)، نص حرفي منقول من معاينة Twilio
+  // Console وقت التحقّق من الاعتماد — نفس النص المعتمَد من Meta.
+  [STAR_NETWORK_INVITE_SID]: 'مرحباً {{1}} 🌿 كتير سعدنا بردّك الحلو وثقتك بمنتجاتنا. حابة تعرفي إنه ممكن تحوّلي هالثقة لدخل فعلي؟ شبكة النجوم بتخليكي توصّلي منتجاتنا لصديقاتك وتربحي عمولة عن كل طلب. تحبي نشرحلك بدقيقتين؟',
+  [PRICE_FOLLOWUP_SID]:      'أهلاً {{1}} 🌿 شفنا سؤالك عن {{2}} وحابين نكمّل معك. تفضّلي التفاصيل والسعر جاهزين، رح نبعتلك الرابط المباشر خلال دقايق لو أكّدتي.',
+  [VIP_REACTIVATION_SID]:    'اشتقنالك {{1}} 🌿 من زمان ما شفنا طلب منك. عندنا تشكيلة جديدة بتوقيعنا العلمي المعتاد، وحابين نعرف رأيك فيها. أي سؤال أو مساعدة، احنا هون.',
+  [NEW_PRODUCT_LAUNCH_SID]:  'مرحباً {{1}} 🌿 عندنا جديد: {{2}}. مصنّع بنفس معايير الجودة الأوروبية يلي تعرفيها فينا. حابة تكوني من أول اللي يجرّبوه؟',
+  [LIMITED_OFFER_SID]:       'تذكير بسيط {{1}} 🌿 عرض {{2}} عنا لهلق بس لغاية {{3}}. إذا كنتي ناوية تطلبي، هلأ أنسب وقت.',
+  [ACADEMY_INVITE_SID]:      'أهلاً {{1}} 🌿 حابة تتعرفي أكتر على منتجاتنا وطريقة استخدامها الصح؟ قناة "أكاديمية لوويز" على تلغرام فيها شرح مبسّط ومفيد لكل خط منتج. تحبي الرابط؟',
+  [SERVICE_RECOVERY_SID]:    'أهلاً {{1}}، حابين نتأكد إنه كل شي تمام معك بعد آخر تجربة. إذا في أي شي ما عجبك أو محتاج حل، خبّرينا مباشرة وبنعالجه فوراً — رضاك أهم من أي شي.',
   // قالب "استلام الطلب" — {{1}}=اسم العميل, {{2}}=رقم الطلب, {{3}}=ملخّص
   // المنتجات, {{4}}=المجموع. كان مفقوداً من هالخريطة فظهر بواجهة الأدمن
   // كنص خام "قالب معتمَد (HXb29d16c9…) — العميل: X — رقم الطلب: Y" بدل
@@ -469,7 +503,14 @@ export function isOrderTrackingBody(body) {
 // محادثة أصلها حملة جماعية (قالب promo أو checkin) — تُفصَل عن كل من
 // "المحادثات" العضوية و"تتبّع الطلبات" الآلي. طلب مالك 5 أغسطس 2026: تتبّع
 // الطلبات مسؤولية Haya حصراً، ومحادثات الحملة لازم تنفصل عن هالقسمين.
-const CAMPAIGN_SIDS = new Set([TEMPLATE_SID.promo, CHECKIN_TEMPLATE_SID]);
+// D-042: الستة قوالب التسويقية الجديدة تُصنَّف "حملة" كمان (نفس منطق
+// promo/checkin) — service_recovery استُثنيت عمداً (Utility فردية بعد تفاعل
+// محدد مع عميل، لا حملة جماعية عشوائية؛ تسقط بالتصنيف الافتراضي "محادثات").
+const CAMPAIGN_SIDS = new Set([
+  TEMPLATE_SID.promo, CHECKIN_TEMPLATE_SID,
+  STAR_NETWORK_INVITE_SID, PRICE_FOLLOWUP_SID, VIP_REACTIVATION_SID,
+  NEW_PRODUCT_LAUNCH_SID, LIMITED_OFFER_SID, ACADEMY_INVITE_SID,
+]);
 export function isCampaignBody(body) {
   if (!body) return false;
   const m = body.match(/^\[template:([^\]]+)\]/);

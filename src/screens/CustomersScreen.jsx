@@ -17,11 +17,19 @@ import { STATUSES } from '@data/orderStatus';
 import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID, CHECKIN_TEMPLATE_SID } from '@services/whatsappService';
+import {
+  sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID, CHECKIN_TEMPLATE_SID,
+  STAR_NETWORK_INVITE_SID, VIP_REACTIVATION_SID, ACADEMY_INVITE_SID,
+} from '@services/whatsappService';
 
 // كل الحملات الجماعية المتاحة للإرسال من هالشاشة — كل وحدة قالب معتمَد من
 // Meta + مفتاح خاص بجدول campaign_sends (كل حملة لها تتبّع/استبعاد منفصل).
 // لإضافة حملة جديدة لاحقاً: أضف سطر هون بس، بلا تعديل أي منطق تاني.
+// ⚠️ D-042 (14 أغسطس 2026): من السبعة قوالب المعتمَدة حديثاً، هون بس الثلاثة
+// يلي متغيّرها الوحيد {{1}}=اسم العميل (نفس ما sendBulkCampaign بتحقنه
+// تلقائياً). الأربعة الباقية (متابعة سعر/منتج، منتج جديد، عرض محدود،
+// واسترجاع شكوى) تحتاج متغيّر إضافي حقيقي لكل حملة — غير مربوطة بقصد، راجع
+// التعليق أعلى تعريفها بـwhatsappService.js.
 const CAMPAIGNS = [
   {
     key: 'hair_density_promo_v2', label: 'كثافة الشعر — خصم 30%', contentSid: TEMPLATE_SID.promo,
@@ -30,6 +38,18 @@ const CAMPAIGNS = [
   {
     key: 'customer_checkin_v1', label: 'تواصل ودّي — اشتقنالك', contentSid: CHECKIN_TEMPLATE_SID,
     hint: 'رسالة استرجاع علاقة بحتة (بلا بيع/رابط) — بتفتح نافذة رد حر 24 ساعة، الفريق يرد يدوياً وبيرسل روابط لو لزم.',
+  },
+  {
+    key: 'star_network_invite_v1', label: 'دعوة شبكة النجوم', contentSid: STAR_NETWORK_INVITE_SID,
+    hint: 'دعوة عميلة راضية تصير مسوّقة (شبكة النجوم) — مناسبة لعميلات علّقن إيجابياً.',
+  },
+  {
+    key: 'vip_reactivation_v1', label: 'إعادة تنشيط — عملاء قدامى', contentSid: VIP_REACTIVATION_SID,
+    hint: 'رسالة "اشتقنالك" لعملاء ما طلبوا من فترة — مناسبة لشريحة الخاملين/عائدين.',
+  },
+  {
+    key: 'academy_invite_v3', label: 'دعوة أكاديمية لوويز (تلغرام)', contentSid: ACADEMY_INVITE_SID,
+    hint: 'دعوة لقناة تعليمية عن استخدام المنتجات — بلا بيع مباشر.',
   },
 ];
 import { sessionCan, PERMISSIONS } from '@data/permissions';
