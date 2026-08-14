@@ -72,6 +72,22 @@ const LINE_ACCESS = {
   'Fatima Ayoub': ['campaign'],
 };
 
+// ⚠️ 13 آب 2026: بلاغ مالك مباشر — هيا (محصورة بالخط الرئيسي) بتقول في
+// رسائل عالرئيسي "مو عم تشوفهن لأنه مكتوب عليهن ديانا" (مثال حقيقي:
+// +905313549286، مالكتها ديانا Hasan). السبب: ملكية قديمة من قبل قيد
+// LINE_ACCESS (9 أغسطس) — ديانا كانت تقدر تفتح محادثات عالخط الرئيسي
+// وقتها، فصارت "مالكة" واحدة. بعد القيد صارت ديانا محصورة بخط الحملات
+// بس (ما إلها شغل بالرئيسي إطلاقاً حسب قرار المالك)، بس الملكية القديمة
+// ضلّت مسجَّلة، وفلتر "شوف بس محادثاتك/فريقك" (8 أغسطس) كان يحجب
+// المحادثة عن هيا لأن ديانا مش بفريقها — رغم إن ديانا نفسها ما عاد
+// مسموحلها تشتغل عهالخط أصلاً. ملكية زي هيك "يتيمة" (مالكها ممنوع من
+// هالخط حالياً) لازم تُعامَل كأنها بلا مالك فعلي لأغراض العرض — الشخص
+// المسموحله فعلياً بهالخط (هيا) لازم يشوفها ويقدر يردّ.
+function ownerAllowedOnLine(ownerName, lineKey) {
+  const access = LINE_ACCESS[ownerName];
+  return !access || access.includes(lineKey); // بلا قيد بـLINE_ACCESS = مسموح بكل الخطوط دايماً
+}
+
 // واتساب (Meta) بيرفض أي صوت مش Ogg/Opus حقيقي بخطأ Twilio 63021 (Channel
 // invalid content error) — تأكَّد هذا حياً: حتى MediaRecorder بصيغة
 // audio/mp4 "الافتراضية" بكروم رجعت نفس الخطأ. المتصفح نفسه ما بيقدر يسجّل
@@ -368,10 +384,13 @@ export default function AdminWhatsAppScreen() {
     // ?open= الموجود أصلاً).
     if (!isManager) {
       const mates = teammatesOf(userName);
-      list = list.filter(t => !ownerByPhone[t.phone] || mates.includes(ownerByPhone[t.phone]?.owner_name));
+      list = list.filter((t) => {
+        const owner = ownerByPhone[t.phone]?.owner_name;
+        return !owner || mates.includes(owner) || !ownerAllowedOnLine(owner, line);
+      });
     }
     return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [lineMsgs, rawThreadsByPhone, isManager, ownerByPhone, userName]);
+  }, [lineMsgs, rawThreadsByPhone, isManager, ownerByPhone, userName, line]);
 
   // 8 أغسطس 2026 (طلب مالك): ما نفتح أي محادثة تلقائياً عند دخول الشاشة —
   // نضل بقائمة المحادثات لحد ما الموظف يختار هو أي وحدة يفتح (كان قبل هيك
@@ -463,7 +482,8 @@ export default function AdminWhatsAppScreen() {
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
   const openOwnedByOther = !isManager && !!openPhone
-    && ownerByPhone[openPhone] && !teammatesOf(userName).includes(ownerByPhone[openPhone].owner_name);
+    && ownerByPhone[openPhone] && !teammatesOf(userName).includes(ownerByPhone[openPhone].owner_name)
+    && ownerAllowedOnLine(ownerByPhone[openPhone].owner_name, line);
 
   const thread = useMemo(
     () => openOwnedByOther ? [] : (lineMsgs || [])
