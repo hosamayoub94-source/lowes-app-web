@@ -18,8 +18,9 @@ import { useAuth } from '@hooks/useAuth';
 import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
-  sendBulkCampaign, getCampaignSentPhones, getCampaignStats, TEMPLATE_SID, CHECKIN_TEMPLATE_SID,
-  STAR_NETWORK_INVITE_SID, VIP_REACTIVATION_SID, ACADEMY_INVITE_SID,
+  sendBulkCampaign, getCampaignSentPhones, getCampaignStats, getCampaignResponderPhoneKeys,
+  TEMPLATE_SID, CHECKIN_TEMPLATE_SID,
+  STAR_NETWORK_INVITE_SID, VIP_REACTIVATION_SID, ACADEMY_INVITE_SID, LIMITED_OFFER_SID,
 } from '@services/whatsappService';
 
 // كل الحملات الجماعية المتاحة للإرسال من هالشاشة — كل وحدة قالب معتمَد من
@@ -50,6 +51,24 @@ const CAMPAIGNS = [
   {
     key: 'academy_invite_v3', label: 'دعوة أكاديمية لوويز (تلغرام)', contentSid: ACADEMY_INVITE_SID,
     hint: 'دعوة لقناة تعليمية عن استخدام المنتجات — بلا بيع مباشر.',
+  },
+  // 14 أغسطس 2026 — طلب حسام: بعد حملة "تواصل ودّي"، استهدف بس اللي ردّوا
+  // فعلياً بحملة بيع مباشر أرخص (شريحة أصغر وأدفأ = تكلفة أقل واحتمال تحويل
+  // أعلى من إعادة بث للقائمة كاملة). القالب `limited_offer_reminder_v2`
+  // يحتاج {{2}}=نص العرض و{{3}}=تاريخ الانتهاء — audienceOf يقيّد المُرسَل
+  // لهم لمن ردّوا على customer_checkin_v1 فقط (CustomersScreen يفلتر
+  // campaignVisible بناءً عليه)، extraVars دالة (لا قيمة ثابتة) عشان تاريخ
+  // الانتهاء يُحسَب لحظة الإرسال الفعلي لا وقت تحميل الصفحة. المدة: 7 أيام —
+  // نفس نمط "أسبوع فقط" المستخدَم أصلاً بقالب كثافة الشعر، كافية لعميلة
+  // ردّت لتوّها تتخذ قرار بلا ضغط مبالغ فيه.
+  {
+    key: 'welcome_back_offer_v1', label: '🎯 عرض 30% — لمن ردّوا على "تواصل ودّي"', contentSid: LIMITED_OFFER_SID,
+    hint: 'خصم 30% لأول طلب، لمدة أسبوع — بس لعميلات ردّوا فعلياً على حملة "تواصل ودّي" (شريحة أدفأ، تكلفة أقل من حملة عامة).',
+    audienceOf: 'customer_checkin_v1',
+    extraVars: () => {
+      const end = new Date(); end.setDate(end.getDate() + 7);
+      return { '2': 'خصم 30% لأول طلب', '3': end.toLocaleDateString('ar', { day: 'numeric', month: 'long' }) };
+    },
   },
 ];
 import { sessionCan, PERMISSIONS } from '@data/permissions';
@@ -754,6 +773,19 @@ export default function CustomersScreen() {
   const activeCampaign = CAMPAIGNS.find(c => c.key === campaignChoice) || CAMPAIGNS[0];
   const canCampaign = sec.market === 'turkey' && !archive && !!activeCampaign.contentSid;
 
+  // حملات "audienceOf" (مثل عرض المتفاعلين) مقيَّدة بشريحة محسوبة سيرفرياً
+  // (مين ردّ فعلاً على حملة سابقة) — null = لسا عم تحمّل، Set = جاهزة.
+  const [responderPhones, setResponderPhones] = useState(null);
+  useEffect(() => {
+    if (!activeCampaign.audienceOf) { setResponderPhones(null); return; }
+    let cancelled = false;
+    setResponderPhones(null);
+    getCampaignResponderPhoneKeys(activeCampaign.audienceOf)
+      .then(set => { if (!cancelled) setResponderPhones(set); })
+      .catch(() => { if (!cancelled) setResponderPhones(new Set()); });
+    return () => { cancelled = true; };
+  }, [activeCampaign.audienceOf]);
+
   useEffect(() => { setCampaignMode(false); setSelectedPhones(new Set()); }, [section, archive]);
   useEffect(() => { setSelectedPhones(new Set()); }, [campaignChoice]);
 
@@ -787,10 +819,15 @@ export default function CustomersScreen() {
 
   // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent)
   // حتى ما نزعج نفس العميل مرتين بنفس العرض. خارج وضع الحملة تبقى displayed كاملة.
-  const campaignVisible = useMemo(
-    () => (campaignMode && excludeSent) ? displayed.filter(c => !sentPhones.has(c.phone_key)) : displayed,
-    [displayed, campaignMode, excludeSent, sentPhones],
-  );
+  // حملة "audienceOf": تتقيّد أيضاً بشريحة المتفاعلين — لسا عم تحمّل (null)
+  // = قائمة فاضية مؤقتاً (أفضل من عرض الكل بالغلط لثانية قبل ما توصل الشريحة).
+  const campaignVisible = useMemo(() => {
+    let list = (campaignMode && excludeSent) ? displayed.filter(c => !sentPhones.has(c.phone_key)) : displayed;
+    if (campaignMode && activeCampaign.audienceOf) {
+      list = responderPhones ? list.filter(c => responderPhones.has(c.phone_key)) : [];
+    }
+    return list;
+  }, [displayed, campaignMode, excludeSent, sentPhones, activeCampaign, responderPhones]);
 
   // تحديد/إلغاء الكل ضمن التصفية الحالية (القسم + الفئة، مثلاً "💔 استرجاع") —
   // بدون هذا، حملة إعادة تنشيط لمئات العملاء الخاملين تعني ضغط كل بطاقة يدوياً
@@ -822,12 +859,18 @@ export default function CustomersScreen() {
     // بمعدل 2.5 ثانية بين كل رسالة (حماية Quality Rating عند Meta) — دفعة كبيرة
     // تاخد وقت حقيقي، والموظف/ة لازم تخلّي التبويب مفتوح لحد ما تخلص.
     const etaMin = Math.ceil((selectedCustomers.length * 2.5) / 60);
-    if (!window.confirm(`بدك تبعت رسالة "${activeCampaign.label}" لـ${selectedCustomers.length} عميل عبر واتساب؟ رح تاخد تقريباً ${etaMin} دقيقة (خلّي هالتبويب مفتوح). ما في تراجع بعد الإرسال.`)) return;
+    // متغيّرات إضافية (لو الحملة محتاجتها، مثلاً {{2}}/{{3}} بعرض المتفاعلين)
+    // — تُحسَب هون (لحظة الإرسال الفعلي) عشان تاريخ الانتهاء يطلع صحيح حتى لو
+    // الصفحة كانت مفتوحة من قبل. تُعرَض بنص التأكيد عشان الموظف/ة يشوف بالضبط
+    // شو رح ينبعت قبل ما يأكّد.
+    const extraVars = typeof activeCampaign.extraVars === 'function' ? activeCampaign.extraVars() : activeCampaign.extraVars;
+    const extraVarsPreview = extraVars ? `\nنص العرض: "${extraVars['2'] || ''}" — لغاية ${extraVars['3'] || ''}` : '';
+    if (!window.confirm(`بدك تبعت رسالة "${activeCampaign.label}" لـ${selectedCustomers.length} عميل عبر واتساب؟${extraVarsPreview}\nرح تاخد تقريباً ${etaMin} دقيقة (خلّي هالتبويب مفتوح). ما في تراجع بعد الإرسال.`)) return;
     setSendingCampaign(true);
     setCampaignProgress({ done: 0, total: selectedCustomers.length, sent: 0, failed: 0 });
     try {
       const { sent, failed } = await sendBulkCampaign(selectedCustomers, activeCampaign.contentSid, {
-        delayMs: 2500,
+        delayMs: 2500, extraVars,
         campaignKey: activeCampaign.key, campaignLabel: activeCampaign.label, sentBy: userName,
         onProgress: (done, total, result) => setCampaignProgress(p => ({
           done, total,
@@ -895,7 +938,13 @@ export default function CustomersScreen() {
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب &quot;{activeCampaign.label}&quot; (معتمَد من Meta) رح ينبعت للمحددين فقط.</span>
+            <span>📢 وضع الحملة نشط — دوس على أي بطاقة عميل لتحديدها/إلغاء تحديدها. قالب &quot;{activeCampaign.label}&quot; (معتمَد من Meta) رح ينبعت للمحددين فقط.
+              {activeCampaign.audienceOf && (
+                responderPhones === null
+                  ? ' ⏳ جارٍ حساب شريحة المتفاعلين...'
+                  : ` 🎯 مقيَّدة بمن ردّوا فعلاً على الحملة السابقة (${responderPhones.size} عميل مؤهَّل).`
+              )}
+            </span>
             {campaignVisible.length > 0 && (
               <div className="flex items-center gap-1.5 shrink-0">
                 <input type="number" min={1} max={campaignVisible.length} value={batchN}

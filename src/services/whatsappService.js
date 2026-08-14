@@ -573,8 +573,11 @@ export function formatWaBody(body) {
 // campaign_sends (مشروعنا الرئيسي، لا مشروع واتساب) — بدونه ما في طريقة
 // نعرف "مين استلم حملة كذا" لاحقاً ولا نستبعد المُرسَل لهم من حملة جاية
 // (اكتُشفت الفجوة 5 أغسطس 2026 لما المالك سأل "مين ارسلتلهم ومين لأ").
+// extraVars: متغيّرات إضافية ثابتة (نفس القيمة لكل المُرسَل لهم بهالحملة —
+// مثلاً {{2}}=نص العرض, {{3}}=تاريخ الانتهاء) لقوالب فيها أكتر من {{1}}=اسم.
+// 14 أغسطس 2026 — أول استخدام: حملة "عرض 30% للمتفاعلين".
 export async function sendBulkCampaign(customers, contentSid, {
-  delayMs = 2500, onProgress, campaignKey = null, campaignLabel = null, sentBy = null,
+  delayMs = 2500, onProgress, campaignKey = null, campaignLabel = null, sentBy = null, extraVars = null,
 } = {}) {
   const results = [];
   let sent = 0, failed = 0;
@@ -596,7 +599,7 @@ export async function sendBulkCampaign(customers, contentSid, {
         headers: WA_HEADERS,
         body: JSON.stringify({
           phone, contentSid, byUser: 'bulk-campaign', line: 'campaign',
-          contentVariables: { '1': c.name || 'عميلنا العزيز' },
+          contentVariables: { '1': c.name || 'عميلنا العزيز', ...(extraVars || {}) },
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -658,6 +661,41 @@ export async function getCampaignStats(campaignKey) {
   const failed = rows.filter(r => r.status === 'failed').length;
   const lastSentAt = rows.reduce((max, r) => (!max || r.sent_at > max) ? r.sent_at : max, null);
   return { sent, failed, lastSentAt };
+}
+
+// phone_keys لعملاء **ردّوا فعلياً** (رسالة واردة حقيقية) بعد ما استلموا حملة
+// معيّنة — شريحة "متفاعلين" لاستهداف حملة متابعة أرخص/أدفأ بدل إعادة استهداف
+// القائمة كاملة. 14 أغسطس 2026، طلب مالك: حملة بيع مباشر بتكلفة أقل لمن
+// ردّ على "تواصل ودّي".
+// المطابقة: آخر 10 خانات من phone_key (محلي، بلا كود دولة — جدول عملائنا)
+// مقابل آخر 10 خانات من phone (دولي +90...، جدول whatsapp_messages) — نفس
+// نمط "last-10-digits" المستخدَم أصلاً بـgetLatestOrderForWaPhone. الرد
+// لازم يكون **بعد** إرسال الحملة لهالعميل تحديداً (لا مجرد أي رسالة قديمة).
+export async function getCampaignResponderPhoneKeys(campaignKey) {
+  const sends = await fetchAllCampaignSends(campaignKey, 'phone_key, sent_at, status');
+  const sentRows = sends.filter(r => r.status === 'sent' && r.phone_key);
+  if (!sentRows.length) return new Set();
+  const inbound = await fetchPagedWhatsApp(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone,created_at&direction=eq.in&to_number=eq.${encodeURIComponent(WA_LINES.campaign.number)}`,
+  );
+  const last10 = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+  const earliestReplyByPhone = new Map(); // last10(phone) -> أقدم وقت رد
+  for (const m of inbound) {
+    const key = last10(m.phone);
+    if (!key) continue;
+    const t = new Date(m.created_at).getTime();
+    const prev = earliestReplyByPhone.get(key);
+    if (prev == null || t < prev) earliestReplyByPhone.set(key, t);
+  }
+  const responders = new Set();
+  for (const row of sentRows) {
+    const key = last10(row.phone_key);
+    const replyAt = earliestReplyByPhone.get(key);
+    if (replyAt != null && (!row.sent_at || replyAt >= new Date(row.sent_at).getTime())) {
+      responders.add(row.phone_key);
+    }
+  }
+  return responders;
 }
 
 // يرسل إشعار واتساب على تغيّر حالة طلب — يُستدعى من شاشة الطلبات عند تحديث يدوي.
