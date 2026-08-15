@@ -71,6 +71,14 @@ const CAMPAIGNS = [
     },
   },
 ];
+
+// 🚨 تجميد مؤقت 16 أغسطس 2026 — Meta علّمت حساب واتساب "Lowes 2" (كل الأرقام
+// تحته، بما فيها خط الحملات +12768772635) بمشكلة "Sending spam" (خط الحملات
+// جودته "منخفض" بلوحة Meta)، مهلة حتى 13 نوفمبر 2026 قبل تقييد/تعطيل فعلي.
+// قرار المالك: وقف الإرسال الجماعي فوراً لحد ما تتعافى الجودة، قبل ما نطلب
+// مراجعة من Meta (طلب مراجعة بدون إصلاح السلوك أولاً بيخاطر بحرق الاستئناف).
+// لرفع التجميد لاحقاً: بدّل هاد لـfalse بعد تأكيد تعافي الجودة من لوحة Meta.
+const CAMPAIGN_FROZEN = true;
 import { sessionCan, PERMISSIONS } from '@data/permissions';
 import {
   getOrCreateReferralCode, redeemReferralCode, referralInviteMessage,
@@ -864,6 +872,10 @@ export default function CustomersScreen() {
 
   const runCampaign = async () => {
     if (!selectedCustomers.length || sendingCampaign) return;
+    if (CAMPAIGN_FROZEN) {
+      alert('🚨 الإرسال الجماعي متوقّف مؤقتاً — Meta علّمت حساب واتساب "Lowes 2" بمشكلة "Sending spam" (خط الحملات جودته منخفضة). التجميد لحماية الحساب كامل (بما فيه الخط الرئيسي) لحد ما تتعافى الجودة. راجع 09_Decision_Register.md بـABOS.');
+      return;
+    }
     // منع صارم: لو سجل "مين استلم قبل" ما تأكّد تحميله (أو فشل)، ممنوع نبعت —
     // هيك كنا عم نضرب نفس العميل مرتين بصمت لما تفشل قراءة campaign_sends.
     if (excludeSent && !sentPhonesReady) {
@@ -928,10 +940,13 @@ export default function CustomersScreen() {
         </div>
         <div className="flex gap-2 shrink-0">
           {canCampaign && (
-            <button onClick={() => { setCampaignMode(v => !v); setSelectedPhones(new Set()); }}
-              className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition ${campaignMode ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}
-              title="تحديد عملاء وإرسال حملة واتساب جماعية">
-              {campaignMode ? '✕ إلغاء التحديد' : '📢 وضع الحملة'}
+            <button onClick={() => {
+              if (CAMPAIGN_FROZEN) { alert('🚨 الحملات الجماعية متوقفة مؤقتاً — مشكلة "Sending spam" بحساب واتساب "Lowes 2" عند Meta. راجع 09_Decision_Register.md.'); return; }
+              setCampaignMode(v => !v); setSelectedPhones(new Set());
+            }}
+              className={`px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition ${CAMPAIGN_FROZEN ? 'border-red-400 text-red-500 opacity-70' : campaignMode ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}
+              title={CAMPAIGN_FROZEN ? 'متوقفة مؤقتاً — مشكلة spam عند Meta' : 'تحديد عملاء وإرسال حملة واتساب جماعية'}>
+              {CAMPAIGN_FROZEN ? '🚨 الحملات متوقفة مؤقتاً' : campaignMode ? '✕ إلغاء التحديد' : '📢 وضع الحملة'}
             </button>
           )}
           <button onClick={() => setArchive(v => !v)}
