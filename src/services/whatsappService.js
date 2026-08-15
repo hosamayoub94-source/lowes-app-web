@@ -653,6 +653,24 @@ export async function getCampaignSentPhones(campaignKey) {
   return new Set(rows.filter(r => r.status === 'sent').map(r => r.phone_key).filter(Boolean));
 }
 
+// 🚨 16 آب 2026 — D-043: Meta علّمت حساب واتساب "Lowes 2" بـ"Sending spam"،
+// وخط الحملات جودته انحدرت لـ"منخفض". تحقّق مباشر عبر REST: 275 من 3206
+// رسالة حملات (8.6%) رجعت "undelivered" (رقم غير مفعَّل على واتساب/حاجب)،
+// و21 رقماً منها أُعيد استهدافهم بحملة لاحقة رغم فشل الإرسال قبلها — إعادة
+// محاولة الإرسال لأرقام ميتة/حاجبة بالضبط النمط اللي Meta بتصنّفه سبام.
+// هاي الدالة تجيب كل رقم أرجع "undelivered" **بأي حملة سابقة** (بغض النظر
+// عن campaign_key) عشان نستبعده من كل حملة جماعية مستقبلية بشكل دائم — لا
+// مجرد الحملة الحالية متل getCampaignSentPhones. last-10-digits نفس نمط
+// getCampaignResponderPhoneKeys (تطابق phone الدولي بجدول واتساب مقابل
+// phone_key المحلي بجدول عملائنا).
+export async function getUndeliverablePhoneLast10s() {
+  const rows = await fetchPagedWhatsApp(
+    `${WA_PROJECT_URL}/rest/v1/whatsapp_messages?select=phone&by_user=eq.bulk-campaign&status=eq.undelivered`,
+  );
+  const last10 = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+  return new Set(rows.map((r) => last10(r.phone)).filter(Boolean));
+}
+
 // سجل حملات مختصر (للوحة صغيرة) — عدد المُرسَل/الفاشل وآخر إرسال + تحويلات
 // فعلية لمبيعات (converted/revenue، عمودان جديدان 14 أغسطس 2026 — راجع
 // migration `20260814_campaign_conversions.sql`)، حسب campaign_key.

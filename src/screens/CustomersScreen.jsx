@@ -19,6 +19,7 @@ import { supabase } from '@services/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   sendBulkCampaign, getCampaignSentPhones, getCampaignStats, getCampaignResponderPhoneKeys,
+  getUndeliverablePhoneLast10s,
   TEMPLATE_SID, CHECKIN_TEMPLATE_SID,
   STAR_NETWORK_INVITE_SID, VIP_REACTIVATION_SID, ACADEMY_INVITE_SID, LIMITED_OFFER_SID,
 } from '@services/whatsappService';
@@ -704,6 +705,12 @@ export default function CustomersScreen() {
   const [sentPhonesFailed, setSentPhonesFailed] = useState(false); // فشل تحميل سجل "المُرسَل لهم" — لازم نمنع الإرسال بدل ما نفترض الكل جديد
   const [campaignStats, setCampaignStats] = useState(null); // {sent, failed, lastSentAt}
   const [excludeSent, setExcludeSent] = useState(true); // افتراضياً استبعد المُرسَل لهم — منع إزعاج نفس العميل مرتين
+  // 🚨 D-043 (16 آب 2026): أرقام رجعت "undelivered" بأي حملة سابقة (غير
+  // مفعّلة على واتساب/حاجبة) — استبعاد دائم وغير قابل للتعطيل من أي حملة
+  // مستقبلية، لأن إعادة استهدافها هو اللي فعّل تصنيف "Sending spam" عند
+  // Meta لحساب "Lowes 2" (275/3206 = 8.6% من رسائل الحملات، 21 رقم أُعيد
+  // استهدافهم رغم فشل سابق — راجع 09_Decision_Register.md § D-043).
+  const [undeliverablePhones, setUndeliverablePhones] = useState(() => new Set());
 
   // Load accepted shift partners
   useEffect(() => {
@@ -827,6 +834,13 @@ export default function CustomersScreen() {
   }, [canCampaign, activeCampaign.key]);
   useEffect(() => { loadCampaignData(); }, [loadCampaignData]);
 
+  // قائمة الأرقام "الميتة" (undelivered بأي حملة سابقة) — عبر كل الحملات لا
+  // حملة واحدة فقط، فتُحمَّل مرة وحدة لما ندخل قسم تركيا لا مع كل تبديل حملة.
+  useEffect(() => {
+    if (!canCampaign) { setUndeliverablePhones(new Set()); return; }
+    getUndeliverablePhoneLast10s().then(setUndeliverablePhones).catch(() => {});
+  }, [canCampaign]);
+
   const toggleSelect = useCallback((c) => {
     setSelectedPhones(prev => {
       const next = new Set(prev);
@@ -846,12 +860,17 @@ export default function CustomersScreen() {
     [campaignBaseList, selectedPhones],
   );
 
-  // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent)
-  // حتى ما نزعج نفس العميل مرتين بنفس العرض. خارج وضع الحملة تبقى displayed كاملة.
-  const campaignVisible = useMemo(
-    () => (campaignMode && excludeSent) ? campaignBaseList.filter(c => !sentPhones.has(c.phone_key)) : campaignBaseList,
-    [campaignBaseList, campaignMode, excludeSent, sentPhones],
-  );
+  // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent،
+  // قابل للتعطيل)، **و** تستبعد دائماً (غير قابل للتعطيل) أي رقم "ميت" رجّع
+  // undelivered بحملة سابقة (D-043 — حماية جودة الحساب عند Meta). خارج وضع
+  // الحملة تبقى displayed كاملة.
+  const last10 = useCallback((s) => String(s || '').replace(/\D/g, '').slice(-10), []);
+  const campaignVisible = useMemo(() => {
+    if (!campaignMode) return campaignBaseList;
+    let list = campaignBaseList.filter(c => !undeliverablePhones.has(last10(c.phone_key)));
+    if (excludeSent) list = list.filter(c => !sentPhones.has(c.phone_key));
+    return list;
+  }, [campaignBaseList, campaignMode, excludeSent, sentPhones, undeliverablePhones, last10]);
 
   // تحديد/إلغاء الكل ضمن التصفية الحالية (القسم + الفئة، مثلاً "💔 استرجاع") —
   // بدون هذا، حملة إعادة تنشيط لمئات العملاء الخاملين تعني ضغط كل بطاقة يدوياً
@@ -1009,6 +1028,11 @@ export default function CustomersScreen() {
           )}
           {excludeSent && !sentPhonesReady && !sentPhonesFailed && (
             <div className="font-normal text-[11px] pt-2 border-t border-teal/20 text-muted">⏳ عم يتحقق من سجل &quot;مين استلم قبل&quot;...</div>
+          )}
+          {undeliverablePhones.size > 0 && (
+            <div className="font-normal text-[11px] pt-2 border-t border-teal/20 text-muted">
+              🛡️ مستبعَد دائماً من كل الحملات: أرقام رجّعت فشل تسليم سابقاً (حماية جودة الحساب عند Meta — D-043).
+            </div>
           )}
         </div>
       )}
