@@ -11,6 +11,7 @@
 //   • sales_targets     → monthly target (if defined)
 // =============================================================
 import { supabase, supabaseAnon } from './supabase';
+import { fetchAllRows } from '@utils/fetchAllRows';
 
 // ── Date helpers ──────────────────────────────────────────────
 function todaySlash() {
@@ -64,10 +65,17 @@ const zero = () => ({ try: 0, syp: 0, usd: 0 });
 // ── Orders (status + value + top products) ────────────────────
 async function fetchOrders() {
   const monthStart = monthStartISO();
-  const { data, error } = await supabase
-    .from('orders')
-    .select('status, amount, currency, items, market, created_at, order_date')
-    .gte('order_date', monthStart + 'T00:00:00');
+  // fetchAllRows — PostgREST يبتر عند 1000 صف صامتاً بلا خطأ. تحقّقت حياً:
+  // آخر الشهر بيعدّي 1000 طلب بسهولة (أغسطس لحاله عدّى 800+ بمنتصف الشهر)،
+  // فبدون هالـhelper كانت أرقام "المُسلَّم لكل فريق" تطلع ناقصة بصمت.
+  let data = [];
+  let error = null;
+  try {
+    data = await fetchAllRows(() => supabase
+      .from('orders')
+      .select('status, amount, currency, items, market, created_at, order_date')
+      .gte('order_date', monthStart + 'T00:00:00'));
+  } catch (e) { error = e; }
 
   if (error || !data) return { total: 0, byStatus: {}, pending: 0, delivered: 0, cancelled: 0, topProducts: [], valueByCurrency: {}, byMarket: {} };
 
@@ -77,17 +85,25 @@ async function fetchOrders() {
   // تقسيم حسب الفريق — orders.market عمود نظيف وإلزامي ('syria'/'turkey'،
   // لا علاقة له بتضارب campaigns.team/profiles.team). كان يُجلب هون أصلاً
   // (السطر فوق) بس بلا استخدام — كل الأرقام كانت مجمّعة للفريقين سوا.
+  // كل الطلبات (كل الحالات) + delivered فقط (طلب حسام: "القطع اللي تسلّمت"
+  // هي رقم "المباع" الحقيقي، مش كل طلب مسجَّل بغض النظر عن حالته).
   const byMarket = {};
-  const marketBucket = (mk) => (byMarket[mk] ??= { orders: 0, units: 0, valueByCurrency: {} });
+  const marketBucket = (mk) => (byMarket[mk] ??= {
+    orders: 0, units: 0, valueByCurrency: {},
+    delivered: { orders: 0, units: 0, valueByCurrency: {} },
+  });
 
   for (const o of data) {
     byStatus[o.status] = (byStatus[o.status] || 0) + 1;
     const mb = marketBucket(o.market || 'غير محدد');
+    const isDelivered = o.status === 'delivered';
     mb.orders += 1;
+    if (isDelivered) mb.delivered.orders += 1;
     if (o.amount) {
       const cur = o.currency || 'TRY';
       valueByCurrency[cur] = (valueByCurrency[cur] || 0) + Number(o.amount);
       mb.valueByCurrency[cur] = (mb.valueByCurrency[cur] || 0) + Number(o.amount);
+      if (isDelivered) mb.delivered.valueByCurrency[cur] = (mb.delivered.valueByCurrency[cur] || 0) + Number(o.amount);
     }
     if (Array.isArray(o.items)) {
       for (const it of o.items) {
@@ -95,6 +111,7 @@ async function fetchOrders() {
         const qty = Number(it.qty || 1);
         productCount[name] = (productCount[name] || 0) + qty;
         mb.units += qty;
+        if (isDelivered) mb.delivered.units += qty;
       }
     }
   }
@@ -115,6 +132,53 @@ async function fetchOrders() {
     valueByCurrency,
     byMarket,
   };
+}
+
+// ── حركة المخزن (استلام/تحويل/حجز/استرداد) لكل فريق هذا الشهر ──
+// wh_movements ما فيها market مباشرة — لازم ربطها بـwh_warehouses.market عبر
+// from/to_warehouse_id. from=null (receive) يُحسب "دخول" فقط لسوق to. حركة
+// بين مخزنين بنفس السوق تُحسب دخول+خروج لنفس السوق (صافي صفر بقصد — تحويل
+// داخلي، مش دخول/خروج فعلي للفريق). حركة "adjust" مُستبعدة من المجموع لأنها
+// تسجّل الكمية النهائية المطلقة بعد الجرد (مش فرق/دلتا) فجمعها بيعطي رقم
+// كارثي الخطأ — تُحسب بالعدّاد فقط كـ"عدد عمليات تصحيح".
+async function fetchInventoryMovements() {
+  const monthStart = monthStartISO();
+  // fetchAllRows — تحقّقت حياً: 1153 حركة هالشهر لحاله (بمنتصف الشهر)، تعدّى
+  // سقف PostgREST الـ1000 صف الصامت. بدون هالـhelper الأرقام كانت تُبتر.
+  let movRows = [];
+  let whRows = [];
+  try {
+    [movRows, whRows] = await Promise.all([
+      fetchAllRows(() => supabase.from('wh_movements')
+        .select('from_warehouse_id, to_warehouse_id, quantity, type, created_at')
+        .gte('created_at', monthStart + 'T00:00:00')),
+      fetchAllRows(() => supabase.from('wh_warehouses').select('id, market')),
+    ]);
+  } catch { return { byMarket: {} }; }
+
+  const marketByWh = Object.fromEntries(whRows.map(w => [w.id, w.market || 'غير محدد']));
+  const byMarket = {};
+  const bucket = (mk) => (byMarket[mk] ??= { in: 0, out: 0, adjustCount: 0, byType: {} });
+
+  for (const m of movRows) {
+    const qty = Number(m.quantity) || 0;
+    if (m.type === 'adjust') {
+      const mk = marketByWh[m.to_warehouse_id] || marketByWh[m.from_warehouse_id];
+      if (mk) bucket(mk).adjustCount += 1;
+      continue;
+    }
+    if (m.to_warehouse_id && marketByWh[m.to_warehouse_id]) {
+      const b = bucket(marketByWh[m.to_warehouse_id]);
+      b.in += qty;
+      (b.byType[m.type] ??= { in: 0, out: 0 }).in += qty;
+    }
+    if (m.from_warehouse_id && marketByWh[m.from_warehouse_id]) {
+      const b = bucket(marketByWh[m.from_warehouse_id]);
+      b.out += qty;
+      (b.byType[m.type] ??= { in: 0, out: 0 }).out += qty;
+    }
+  }
+  return { byMarket };
 }
 
 // ── Attendance (today) ────────────────────────────────────────
@@ -296,7 +360,7 @@ async function fetchTarget() {
 
 // ── Master loader ─────────────────────────────────────────────
 export async function loadManagerBoard() {
-  const [sales, orders, attendance, tasks, target, commissions, returns] = await Promise.all([
+  const [sales, orders, attendance, tasks, target, commissions, returns, inventory] = await Promise.all([
     fetchSales(),
     fetchOrders(),
     fetchAttendance(),
@@ -304,7 +368,8 @@ export async function loadManagerBoard() {
     fetchTarget(),
     fetchCommissions(),
     fetchReturnsReport(),
+    fetchInventoryMovements(),
   ]);
 
-  return { sales, orders, attendance, tasks, target, commissions, returns, loadedAt: new Date().toISOString() };
+  return { sales, orders, attendance, tasks, target, commissions, returns, inventory, loadedAt: new Date().toISOString() };
 }

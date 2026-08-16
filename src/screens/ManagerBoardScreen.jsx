@@ -116,7 +116,7 @@ export default function ManagerBoardScreen() {
     </div>
   );
 
-  const { sales, orders, attendance, tasks, target, commissions, returns } = data;
+  const { sales, orders, attendance, tasks, target, commissions, returns, inventory } = data;
 
   // Sales display — primary in USD, with TRY/SYP secondary
   // Prefer the dashboard's achieved_usd if present, else our daily_reports sum
@@ -253,17 +253,20 @@ export default function ManagerBoardScreen() {
 
         {Object.keys(orders.byMarket || {}).length > 0 && (
           <div className="bg-surface-alt rounded-xl px-3 py-2.5">
-            <p className="text-[11px] font-bold text-muted mb-2">🌍 بحسب الفريق</p>
+            <p className="text-[11px] font-bold text-muted mb-2">🌍 بحسب الفريق — المُسلَّم فعلياً (الرقم الحقيقي للمباع)</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {Object.entries(orders.byMarket).map(([mk, m]) => (
                 <div key={mk} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
                   <p className="text-xs font-bold text-text mb-1">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk}</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
-                    <span>📦 {m.orders} طلب</span>
-                    <span>🔢 {m.units} قطعة</span>
-                    {Object.entries(m.valueByCurrency).map(([cur, v]) => (
-                      <span key={cur} className="font-bold text-text">{fmt(v)} {cur}</span>
+                    <span>🚚 {m.delivered.orders} طلب مسلَّم</span>
+                    <span>🔢 {m.delivered.units} قطعة مسلَّمة</span>
+                    {Object.entries(m.delivered.valueByCurrency).map(([cur, v]) => (
+                      <span key={cur} className="font-bold text-green-fg">{fmt(v)} {cur}</span>
                     ))}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted/70 mt-1 pt-1 border-t border-border/40">
+                    <span>كل الطلبات (كل الحالات): {m.orders} طلب · {m.units} قطعة</span>
                   </div>
                 </div>
               ))}
@@ -271,6 +274,27 @@ export default function ManagerBoardScreen() {
           </div>
         )}
       </Section>
+
+      {/* ── حركة المخزن حسب الفريق (هذا الشهر) ────── */}
+      {Object.keys(inventory?.byMarket || {}).length > 0 && (
+        <Section title="حركة المخزن (هذا الشهر)" icon="🏭">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {Object.entries(inventory.byMarket).map(([mk, m]) => (
+              <div key={mk} className="bg-surface-alt rounded-lg px-3 py-2.5 border border-border/50">
+                <p className="text-xs font-bold text-text mb-1.5">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                  <span className="text-green-fg font-bold">⬇️ دخل {m.in} قطعة</span>
+                  <span className="text-red-fg font-bold">⬆️ خرج {m.out} قطعة</span>
+                  {m.adjustCount > 0 && <span className="text-muted">🔧 {m.adjustCount} تصحيح جرد</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted/70 mt-2">
+            «دخل» = استلام بضاعة جديدة أو استرداد من طلبات ملغاة. «خرج» = حجز لطلبات قيد التجهيز أو تحويل لمخزن بسوق تاني.
+          </p>
+        </Section>
+      )}
 
       {/* ── عمولات البائعين (المسلّم هذا الشهر) ───── */}
       {commissions?.sellers?.length > 0 && (
