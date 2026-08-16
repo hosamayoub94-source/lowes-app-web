@@ -76,8 +76,8 @@ function BrandKitTab() {
 
       {/* Instructions */}
       <div className="rounded-xl bg-navy/5 dark:bg-navy/30 border border-navy/10 px-4 py-3 text-xs text-muted leading-relaxed">
-        ① اضغط <b className="text-teal">نسخ</b> → الصق في Seedream / Midjourney / Flux
-        · ② لا تضيف reference images لصور المنتج النقية
+        ① ارفع <b className="text-amber-500">صورة المنتج الحقيقية</b> كـ reference image بنسبة تأثير 70–85% — <b className="text-red-500">إلزامي</b>، بدونها كل توليد رح يطلّع شكل/لون/label مختلف عن سابقه لأن الأداة ما إلها ذاكرة بصرية من نص وحده
+        · ② اضغط <b className="text-teal">نسخ</b> → الصق البرومبت جنب الصورة بـ Seedream / Midjourney / Flux
         · ③ بعد الموافقة اضغط <b className="text-green-600">✓</b>
       </div>
 
@@ -275,6 +275,9 @@ function QuickGeneratorTab() {
           <pre className="text-xs text-muted leading-relaxed whitespace-pre-wrap font-mono bg-white/60 dark:bg-black/10 rounded-xl p-3 max-h-48 overflow-y-auto select-all">
             {prompt}
           </pre>
+          <div className="rounded-xl bg-navy/5 dark:bg-navy/30 border border-navy/10 px-3 py-2.5 text-xs text-muted leading-relaxed">
+            📌 ارفعي <b className="text-amber-500">صورة المنتج الحقيقية</b> كـ reference image (70–85%) قبل التوليد — <b className="text-red-500">إلزامي لكل الأنماط</b>، وإلا شكل العبوة/اللون بيتغيّر كل مرة لأن الأداة بترسم من النص وحده بلا هالصورة
+          </div>
         </div>
       )}
     </div>
