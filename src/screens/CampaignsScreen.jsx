@@ -83,8 +83,13 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
     setSaving(true); setErr(null);
     try {
       // Map the screen's fields → `campaigns` columns.
+      // status و is_active لازم يمشوا مع بعض: تغيير الحالة لـ«متوقفة/منتهية»
+      // من هالفورم هو الطريقة الأوضح يلي المدير بيستخدمها لـ«إطفاء» حملة —
+      // لازم يخفيها عن الموظفين فوراً متل زر «تعطيل» بالضبط، مش بس يبدّل
+      // البادج اللوني بلا أي أثر فعلي.
       const payload = {
         name: form.name.trim(), team: form.team, status: form.status,
+        is_active: form.status === 'active',
         channel_type_custom: form.channel_type,
         channel_name_custom: form.channel_name.trim() || null,
         budget_usd: form.cost_usd === '' ? 0 : Number(form.cost_usd),
@@ -95,7 +100,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
       };
       const q = editCampaign
         ? supabase.from('campaigns').update(payload).eq('id', editCampaign.id)
-        : supabase.from('campaigns').insert({ ...payload, is_active: true, created_by: userName || null });
+        : supabase.from('campaigns').insert({ ...payload, created_by: userName || null });
       const { error } = await q;
       if (error) throw new Error(error.message);
       onSaved(); onClose();
@@ -661,7 +666,7 @@ export default function CampaignsScreen() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
-  const [showDisabled, setShowDisabled] = useState(false);
+  const [showDisabled, setShowDisabled] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [selected, setSelected]   = useState(null);
@@ -715,11 +720,14 @@ export default function CampaignsScreen() {
         };
       });
 
-      // أخفِ الحملات المعطّلة افتراضياً (تظهر بفلتر «المعطّلة»).
-      if (!showDisabled) enriched = enriched.filter(c => c.is_active !== false);
-
-      // Employees only see campaigns they're assigned to
-      if (!canManage) enriched = enriched.filter(c => (c.assigned_to || []).includes(userName));
+      // الموظفون (غير المدراء) ما بيشوفوا المعطّلة أبداً — بغض النظر عن فلتر
+      // «إظهار المعطّلة» (هو خاص بشاشة المدير فقط). المدراء يشوفوا الكل
+      // افتراضياً (showDisabled=true) لحتى الحملة المعطّلة تضل ظاهرة عندهم.
+      if (!canManage) {
+        enriched = enriched.filter(c => c.is_active !== false && (c.assigned_to || []).includes(userName));
+      } else if (!showDisabled) {
+        enriched = enriched.filter(c => c.is_active !== false);
+      }
 
       setCampaigns(enriched);
     } catch (e) {
@@ -754,11 +762,13 @@ export default function CampaignsScreen() {
     load();
   };
 
-  // تعطيل / إعادة تفعيل حملة (للمدراء) — is_active هو آلية الإخفاء
-  // (status محكوم بـCHECK active/paused/ended، فلا نلمسه هنا).
+  // تعطيل / إعادة تفعيل حملة (للمدراء) — is_active هو آلية الإخفاء الفعلية.
+  // نزامن status معها بالاتجاهين حتى ما يرجع يصير تضارب متل قبل (حملة
+  // is_active=false لكن status لسا «نشطة» بالبادج، أو العكس).
   const toggleCampaignActive = async (c) => {
+    const willBeActive = c.is_active === false;
     const { error } = await supabase.from('campaigns')
-      .update({ is_active: c.is_active === false }).eq('id', c.id);
+      .update({ is_active: willBeActive, status: willBeActive ? 'active' : 'paused' }).eq('id', c.id);
     if (error) { alert('فشل: ' + error.message); return; }
     load();
   };

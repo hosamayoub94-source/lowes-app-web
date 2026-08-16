@@ -22,6 +22,16 @@ export function daysAgoISO(n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// campaigns.team ("تيم سوريا"/"تيم Lowes تركيا"/"الكل") و daily_reports.team/
+// profiles.team ("سوريا"/"تركيا"/...) قاموسان مختلفان لنفس الفريق — نفس
+// التضارب الموثَّق بـOrdersScreen.jsx. هالدالة بتوحّدهم لمفتاح مقارنة واحد.
+function normalizeTeamKey(t) {
+  if (!t) return '';
+  if (t.includes('سوريا')) return 'syria';
+  if (t.includes('تركيا')) return 'turkey';
+  return t.trim();
+}
+
 const zeroCur = () => ({ try: 0, syp: 0, usd: 0 });
 const addCur  = (a, b) => { a.try += Number(b.try || 0); a.syp += Number(b.syp || 0); a.usd += Number(b.usd || 0); return a; };
 const rowCur  = (r) => ({ try: Number(r.amount_try || 0), syp: Number(r.amount_syp || 0), usd: Number(r.amount_usd || 0) });
@@ -167,11 +177,15 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   const today = todayISO();
 
   // 1) رؤوس التقارير ضمن المدى (+ الفريق)
+  // campaigns.team ("تيم سوريا"/"تيم Lowes تركيا") و daily_reports.team/
+  // profiles.team ("سوريا"/"تركيا") قاموسان مختلفان لنفس الفِرق (نفس التضارب
+  // الموثَّق سابقاً بـOrdersScreen.jsx). فلترة .eq('team', team) مباشرة كانت
+  // تقارن قيمة من القاموس الأول بعمود فيه قيم القاموس الثاني → صفر تطابق
+  // دائماً. صار الفلتر بعد الجلب (client-side) بتطبيع الفريقين لمفتاح موحّد.
   let repQ = supabase
     .from('daily_reports')
     .select('id, employee_name, team, report_date, total_messages, total_confirmations, total_sales_try, total_sales_syp, total_sales_usd, old_customer_count, old_customer_amount_try, old_customer_amount_syp, old_customer_amount_usd, other_source_count, other_source_amount_try, other_source_amount_syp, other_source_amount_usd')
     .gte('report_date', fromD).lte('report_date', toD);
-  if (team) repQ = repQ.eq('team', team);
 
   const [repRes, campRes, adRes, profRes] = await Promise.all([
     repQ,
@@ -180,7 +194,11 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     supabase.from('profiles').select('employee_name, team, role_type, is_active').eq('is_active', true),
   ]);
 
-  const reports  = repRes.data ?? [];
+  let reports = repRes.data ?? [];
+  if (team) {
+    const teamKey = normalizeTeamKey(team);
+    reports = reports.filter(r => normalizeTeamKey(r.team) === teamKey);
+  }
   const campaigns = campRes.data ?? [];
   const ads       = adRes.data ?? [];
   const profiles  = profRes.data ?? [];
