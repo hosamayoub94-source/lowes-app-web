@@ -69,22 +69,32 @@ async function fetchOrders() {
     .select('status, amount, currency, items, market, created_at, order_date')
     .gte('order_date', monthStart + 'T00:00:00');
 
-  if (error || !data) return { total: 0, byStatus: {}, pending: 0, delivered: 0, cancelled: 0, topProducts: [], valueByCurrency: {} };
+  if (error || !data) return { total: 0, byStatus: {}, pending: 0, delivered: 0, cancelled: 0, topProducts: [], valueByCurrency: {}, byMarket: {} };
 
   const byStatus = {};
   const valueByCurrency = {};
   const productCount = {};
+  // تقسيم حسب الفريق — orders.market عمود نظيف وإلزامي ('syria'/'turkey'،
+  // لا علاقة له بتضارب campaigns.team/profiles.team). كان يُجلب هون أصلاً
+  // (السطر فوق) بس بلا استخدام — كل الأرقام كانت مجمّعة للفريقين سوا.
+  const byMarket = {};
+  const marketBucket = (mk) => (byMarket[mk] ??= { orders: 0, units: 0, valueByCurrency: {} });
 
   for (const o of data) {
     byStatus[o.status] = (byStatus[o.status] || 0) + 1;
+    const mb = marketBucket(o.market || 'غير محدد');
+    mb.orders += 1;
     if (o.amount) {
       const cur = o.currency || 'TRY';
       valueByCurrency[cur] = (valueByCurrency[cur] || 0) + Number(o.amount);
+      mb.valueByCurrency[cur] = (mb.valueByCurrency[cur] || 0) + Number(o.amount);
     }
     if (Array.isArray(o.items)) {
       for (const it of o.items) {
         const name = it.name || 'غير محدد';
-        productCount[name] = (productCount[name] || 0) + Number(it.qty || 1);
+        const qty = Number(it.qty || 1);
+        productCount[name] = (productCount[name] || 0) + qty;
+        mb.units += qty;
       }
     }
   }
@@ -103,6 +113,7 @@ async function fetchOrders() {
     shipped:    byStatus.shipped || 0,
     topProducts,
     valueByCurrency,
+    byMarket,
   };
 }
 

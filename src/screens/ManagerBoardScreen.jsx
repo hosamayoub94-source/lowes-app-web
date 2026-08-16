@@ -237,7 +237,7 @@ export default function ManagerBoardScreen() {
         </div>
 
         {orders.topProducts.length > 0 && (
-          <div className="bg-surface-alt rounded-xl px-3 py-2.5">
+          <div className="bg-surface-alt rounded-xl px-3 py-2.5 mb-3">
             <p className="text-[11px] font-bold text-muted mb-2">🏆 أكثر المنتجات طلباً</p>
             <div className="space-y-1.5">
               {orders.topProducts.map((p, i) => (
@@ -245,6 +245,26 @@ export default function ManagerBoardScreen() {
                   <span className="text-xs font-bold text-teal w-4">{i + 1}</span>
                   <span className="flex-1 text-xs text-text truncate">{p.name}</span>
                   <span className="text-xs font-bold text-muted">{p.qty}×</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Object.keys(orders.byMarket || {}).length > 0 && (
+          <div className="bg-surface-alt rounded-xl px-3 py-2.5">
+            <p className="text-[11px] font-bold text-muted mb-2">🌍 بحسب الفريق</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {Object.entries(orders.byMarket).map(([mk, m]) => (
+                <div key={mk} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
+                  <p className="text-xs font-bold text-text mb-1">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                    <span>📦 {m.orders} طلب</span>
+                    <span>🔢 {m.units} قطعة</span>
+                    {Object.entries(m.valueByCurrency).map(([cur, v]) => (
+                      <span key={cur} className="font-bold text-text">{fmt(v)} {cur}</span>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
