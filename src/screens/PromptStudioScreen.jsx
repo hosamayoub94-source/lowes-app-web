@@ -122,24 +122,88 @@ function BrandKitTab() {
 
 // ── تبويب 2: مولّد سريع ──────────────────────────────────────
 const QUICK_FORMATS = [
-  { key: '1:1',  label: '1:1 — مربّع', size: '2480x2480' },
-  { key: '4:5',  label: '4:5 — بوست', size: '1080x1350' },
-  { key: '9:16', label: '9:16 — ستوري', size: '1080x1920' },
+  { key: '1:1',  label: '1:1 — مربّع',  size: '2480x2480', tag: 'Square 1:1' },
+  { key: '4:5',  label: '4:5 — بوست',   size: '1080x1350', tag: 'Portrait 4:5' },
+  { key: '9:16', label: '9:16 — ستوري/Reels', size: '1080x1920', tag: 'Vertical 9:16' },
 ];
 
 const QUICK_MODES = [
-  { key: 'product', label: '📷 منتج فقط' },
-  { key: 'model',   label: '👤 مع مودل' },
-  { key: 'scene',   label: '🌿 مع مشهد' },
+  { key: 'product',      label: '📷 منتج فقط' },
+  { key: 'model',        label: '👤 مع مودل' },
+  { key: 'video',        label: '🎬 فيديو' },
+  { key: 'before-after', label: '↔️ قبل / بعد' },
+  { key: 'ugc',          label: '📱 UGC' },
+  { key: 'carousel',     label: '🖼️ كاروسيل' },
 ];
+
+// يسحب وصف العبوة الحقيقي من productPrompt (شكل، مادة، لون) عشان يُعاد استخدامه
+// بالأنماط الجديدة بدل كتابة وصف عام يفقد تفاصيل المنتج الحقيقية.
+function extractPackagingDesc(productPrompt) {
+  const m = productPrompt.match(/— (a[n]? .+?)\. Centered on a seamless/s);
+  return m ? m[1] : 'the product';
+}
+
+function fmtTag(format) {
+  const f = QUICK_FORMATS.find((x) => x.key === format) || QUICK_FORMATS[0];
+  return `${f.tag}, ${f.size}px`;
+}
+
+function buildBeforeAfterPrompt(product, format) {
+  const desc = extractPackagingDesc(product.productPrompt);
+  return `Split-frame before/after result photography for LOWE'S Profesyonel ${product.en}.
+Left half ("before"): skin appears dull, uneven tone, slightly tired — neutral cool lighting.
+Right half ("after"): skin appears radiant, smooth, visibly improved — same angle, warm glowing lighting.
+A thin vertical gold line divides both halves. ${fmtTag(format)}.
+${desc} sits small in the bottom corner, styled identically on both sides.
+Camera: identical framing and angle on both halves — the comparison must feel honest and clinical, not exaggerated.
+Photorealistic, editorial skincare photography. --no burned-in "before/after" text (add captions in post), no heavy retouching, no unrealistic skin, no watermark`;
+}
+
+function buildUgcPrompt(product, format) {
+  const desc = extractPackagingDesc(product.productPrompt);
+  return `Authentic UGC-style photo/video of a real customer using LOWE'S Profesyonel ${product.en}.
+Setting: home bathroom mirror or bedroom vanity, lived-in and unstyled — not a studio.
+Framing: ${fmtTag(format)}, handheld phone-camera feel, natural imperfect composition.
+Lighting: everyday indoor light — window light or ring-light glow, no professional rig.
+The person speaks naturally toward the camera while holding ${desc}, casual first-person testimonial energy, trustworthy and unscripted.
+Camera: front-facing selfie angle or handheld arm's-length shot.
+--no studio lighting, no posed stock-photo energy, no on-screen branding overlays, no watermark`;
+}
+
+function buildVideoPrompt(product, format) {
+  const desc = extractPackagingDesc(product.productPrompt);
+  const cam = format === '9:16'
+    ? 'Slow vertical push-in, camera drifting upward from base to cap.'
+    : 'Slow orbital pan 120° around the product, camera at eye level.';
+  return `Product showcase video of the LOWE'S Profesyonel ${product.en} — ${desc}.
+${fmtTag(format)}, 6–8 seconds.
+Camera: ${cam} Camera motion only — the product stays completely still.
+Setting: seamless warm-cream (#FBF7EC) background, soft diffused light from the upper-left, cap and label catch a soft gold highlight as the camera moves.
+A faint embossed gold heart motif is barely visible beneath the product base.
+--no people, no text overlays, no cuts, no watermark`;
+}
+
+function buildCarouselPrompt(product, format) {
+  const siblings = BRAND_PROMPTS.filter((x) => x.category === product.category && x.id !== product.id).slice(0, 3);
+  const slides = [product, ...siblings];
+  const catLabel = CATEGORIES[product.category];
+  return `Carousel set — ${catLabel} routine, ${fmtTag(format)}. Keep camera angle, warm-cream surface tone (#FBF7EC) and light direction identical across every slide so the set reads as one system.
+
+Slide 1 (Cover): ${slides.map((s) => s.en).join(', ')} arranged together in an evenly-spaced flatlay grid, labels facing camera, faint embossed gold heart motif in the background.
+${slides.map((s, i) => `Slide ${i + 2}: ${s.en} alone — single hero shot, same styling and lighting as Slide 1.`).join('\n')}
+
+--no people, no clutter, no harsh shadows, no watermark`;
+}
 
 function buildQuickPrompt(product, mode, format) {
   if (!product) return '';
-  const base = mode === 'model' ? product.modelPrompt : product.productPrompt;
-  const fmt = QUICK_FORMATS.find((f) => f.key === format);
-  if (!fmt) return base;
-  // Replace size reference at end if present
-  return base.replace(/Square 1:1.*?studio quality/i, `${format === '1:1' ? 'Square 1:1' : format === '4:5' ? 'Portrait 4:5' : 'Vertical 9:16'}, ${fmt.size}px, 300 DPI, studio quality`);
+  if (mode === 'model') return product.modelPrompt.replace('Square 1:1, 2480x2480px', fmtTag(format));
+  if (mode === 'product') return product.productPrompt.replace('Square 1:1, 2480x2480px', fmtTag(format));
+  if (mode === 'video') return buildVideoPrompt(product, format);
+  if (mode === 'before-after') return buildBeforeAfterPrompt(product, format);
+  if (mode === 'ugc') return buildUgcPrompt(product, format);
+  if (mode === 'carousel') return buildCarouselPrompt(product, format);
+  return product.productPrompt;
 }
 
 function QuickGeneratorTab() {
@@ -153,27 +217,27 @@ function QuickGeneratorTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Product picker */}
-        <div className="sm:col-span-1 space-y-1">
-          <label className="text-xs font-semibold text-muted block">المنتج</label>
-          <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40">
-            {Object.entries(CATEGORIES).map(([cat, label]) => (
-              <optgroup key={cat} label={`${CAT_ICONS[cat]} ${label}`}>
-                {BRAND_PROMPTS.filter((p) => p.category === cat).map((p) => (
-                  <option key={p.id} value={p.id}>{p.ar}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+      {/* Product picker */}
+      <div className="space-y-1">
+        <label className="text-xs font-semibold text-muted block">المنتج</label>
+        <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40">
+          {Object.entries(CATEGORIES).map(([cat, label]) => (
+            <optgroup key={cat} label={`${CAT_ICONS[cat]} ${label}`}>
+              {BRAND_PROMPTS.filter((p) => p.category === cat).map((p) => (
+                <option key={p.id} value={p.id}>{p.ar}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Mode */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted block">النمط</label>
-          <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-muted block">نوع المحتوى</label>
+          <div className="grid grid-cols-2 gap-1.5">
             {QUICK_MODES.map((m) => (
-              <button key={m.key} onClick={() => setMode(m.key)} className={cn('px-3 py-2 rounded-xl text-sm font-bold border transition text-start', mode === m.key ? 'bg-teal text-navy border-teal' : 'bg-surface border-border text-muted hover:text-text')}>
+              <button key={m.key} onClick={() => setMode(m.key)} className={cn('px-3 py-2 rounded-xl text-sm font-bold border transition text-center', mode === m.key ? 'bg-teal text-navy border-teal' : 'bg-surface border-border text-muted hover:text-text')}>
                 {m.label}
               </button>
             ))}
@@ -182,8 +246,8 @@ function QuickGeneratorTab() {
 
         {/* Format */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted block">النسبة</label>
-          <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-muted block">التنسيق</label>
+          <div className="flex flex-col gap-1.5">
             {QUICK_FORMATS.map((f) => (
               <button key={f.key} onClick={() => setFormat(f.key)} className={cn('px-3 py-2 rounded-xl text-sm font-bold border transition text-start', format === f.key ? 'bg-teal text-navy border-teal' : 'bg-surface border-border text-muted hover:text-text')}>
                 {f.label}
