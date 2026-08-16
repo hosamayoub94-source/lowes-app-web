@@ -202,6 +202,13 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   const campaigns = campRes.data ?? [];
   const ads       = adRes.data ?? [];
   const profiles  = profRes.data ?? [];
+  // نفس تطبيع الفريق فوق، لكن لحساب الإنفاق/الالتزام حسب الحملة نفسها —
+  // كانت هاي الحلقات تدور على campaigns كاملة بغض النظر عن فلتر team، فرقم
+  // إنفاق حملات ميتا/اليدوي يطلع مجموع الفريقين سوا حتى لو مفلتَر "سوريا" بس.
+  // campById/filters تبقى على كل الحملات (بلا فلترة) — للأسماء وخيارات القوائم.
+  const teamCampaigns = team
+    ? campaigns.filter(c => normalizeTeamKey(c.team) === normalizeTeamKey(team))
+    : campaigns;
 
   const reportById  = Object.fromEntries(reports.map(r => [r.id, r]));
   const campById    = Object.fromEntries(campaigns.map(c => [c.id, c]));
@@ -232,6 +239,13 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     const { data, error } = await mq;
     if (!error) metaRows = data ?? [];
   } catch { metaRows = []; }
+  // نفس فلترة teamCampaigns — بدونها ملخّص ميتا (وصول/إنفاق/ROAS) كان يظل
+  // يجمع الفريقين سوا حتى لو محدَّد فريق واحد. صفوف بلا campaign_id (لسا ما
+  // انربطت بحملة) تُستبعد عند تحديد فريق — إسنادها لأي فريق غير مؤكَّد.
+  if (team) {
+    const teamCampIds = new Set(teamCampaigns.map(c => c.id));
+    metaRows = metaRows.filter(m => m.campaign_id && teamCampIds.has(m.campaign_id));
+  }
   const metaByCampaign = {};
   let metaSpend = 0, metaReach = 0, metaImpr = 0, metaResults = 0, metaCur = null;
   for (const m of metaRows) {
@@ -250,7 +264,7 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   const campSpend = {};
   const spendByCur = { try: 0, syp: 0, usd: 0 };
   let anySpend = false;
-  for (const c of campaigns) {
+  for (const c of teamCampaigns) {
     const metaSp = metaByCampaign[c.id]?.spend || 0;
     if (metaSp > 0) {
       const cur = curKey || null;
@@ -379,7 +393,7 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   // ── الالتزام: المتوقّع = أعضاء الحملات النشطة (موظفون نشطون) ──
   const activeNames = new Set(profiles.map(p => p.employee_name));
   const expected = new Set();
-  for (const c of campaigns) {
+  for (const c of teamCampaigns) {
     if (c.is_active === false) continue;
     for (const m of (Array.isArray(c.members) ? c.members : [])) if (activeNames.has(m)) expected.add(m);
   }
