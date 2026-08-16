@@ -88,6 +88,31 @@ Deno.serve(async (req) => {
       pages++;
     }
 
+    // إنشاء تلقائي لأي حملة ميتا ما إلها مطابقة عندنا (بالاسم/meta_campaign_id) —
+    // حتى ما يضطر أحد ينشئها يدوياً بالتطبيق قبل ما تبلّش بياناتها بالتجميع.
+    // team إلزامي بالجدول (NOT NULL) وميتا ما بتعرف سوريا/تركيا، فبتنحط
+    // "غير مصنّف" كعلامة — تظهر ببانر بشاشة الحملات لحتى مدير يصنّفها بضغطة.
+    const newCampaigns = new Map<string, string>(); // meta_campaign_id -> name
+    for (const r of rows) {
+      const mid = r.campaign_id ? String(r.campaign_id) : null;
+      if (!mid || byMetaId.has(mid) || byName.has(norm(r.campaign_name)) || newCampaigns.has(mid)) continue;
+      newCampaigns.set(mid, r.campaign_name || `حملة ميتا ${mid}`);
+    }
+    let created = 0;
+    if (newCampaigns.size) {
+      const toInsert = [...newCampaigns.entries()].map(([mid, name]) => ({
+        name, team: 'غير مصنّف', status: 'active', is_active: true, meta_campaign_id: mid,
+      }));
+      const { data: insertedCamps, error: insErr } = await supabase.from('campaigns').insert(toInsert).select('id, name, meta_campaign_id');
+      if (!insErr) {
+        for (const c of (insertedCamps ?? [])) {
+          if (c.meta_campaign_id) byMetaId.set(String(c.meta_campaign_id), c.id);
+          if (c.name) byName.set(norm(c.name), c.id);
+        }
+        created = insertedCamps?.length || 0;
+      }
+    }
+
     // upsert
     let upserted = 0;
     for (const r of rows) {
@@ -104,7 +129,7 @@ Deno.serve(async (req) => {
       if (!error) upserted++;
     }
 
-    return json({ ok: true, since, until, fetched: rows.length, upserted });
+    return json({ ok: true, since, until, fetched: rows.length, upserted, campaigns_created: created });
   } catch (err) {
     return json({ ok: false, error: String(err) }, 500);
   }

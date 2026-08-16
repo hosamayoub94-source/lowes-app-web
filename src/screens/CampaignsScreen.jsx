@@ -129,6 +129,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
                 <option value="تيم سوريا">🟩 تيم سوريا</option>
                 <option value="تيم Lowes تركيا">🇹🇷 تيم تركيا</option>
                 <option value="الكل">الكل</option>
+                {form.team === 'غير مصنّف' && <option value="غير مصنّف">❓ غير مصنّف (من ميتا — اختر فريق)</option>}
               </select>
             </div>
             <div className="space-y-1">
@@ -777,6 +778,9 @@ export default function CampaignsScreen() {
   const activeCnt = campaigns.filter(c => c.status === 'active').length;
   const totPurchases = campaigns.reduce((s, c) => s + c._purchases, 0);
   const totCost = campaigns.reduce((s, c) => s + (Number(c.cost_usd) || 0), 0);
+  // حملات دخلت تلقائياً من مزامنة ميتا (sync-meta-insights) — ميتا ما بتعرف
+  // سوريا/تركيا فبتدخل بـteam="غير مصنّف" لحد ما مدير يصنّفها بضغطة واحدة.
+  const unclassified = canManage ? campaigns.filter(c => c.team === 'غير مصنّف') : [];
 
   return (
     <div className="space-y-5">
@@ -797,6 +801,15 @@ export default function CampaignsScreen() {
             📊 لوحة الأداء {showDashboard ? '▲' : '▼'}
           </button>
           {showDashboard && !loading && <CampaignsDashboard campaigns={campaigns} canViewCost={canViewCost} />}
+        </div>
+      )}
+
+      {/* حملات ميتا الجديدة يلي محتاجة تصنيف فريق */}
+      {unclassified.length > 0 && (
+        <div className="bg-amber-bg border border-amber/30 text-amber-fg rounded-xl px-4 py-3 text-sm flex items-center gap-2 flex-wrap">
+          <span>🆕 دخلت {unclassified.length} حملة تلقائياً من ميتا وبحاجة تحديد الفريق (سوريا/تركيا) — بدونه ما رح تظهر بتحليلات الفريق الصحيح.</span>
+          <button onClick={() => { setEditCampaign(unclassified[0]); setShowCreate(true); }}
+            className="px-3 py-1 rounded-lg bg-amber-fg text-white text-xs font-bold">صنّف أول وحدة</button>
         </div>
       )}
 
