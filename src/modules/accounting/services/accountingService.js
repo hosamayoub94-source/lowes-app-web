@@ -94,7 +94,13 @@ export async function fetchEntries(filters = {}) {
     if (page >= MAX_PAGES) { truncated = true; break; }
     let q = supabase.from('accounting_entries').select('*')
       .order('entry_date', { ascending: false })
-      .order('id', { ascending: false })   // ترتيب حاسم ومستقر — بلاه ممكن يتكرر/يسقط صف بين الصفحات
+      // ⚠️ إصلاح 17 آب 2026: كان الفاصل الثاني `id` (UUID عشوائي، بلا علاقة
+      // بوقت الإدخال) — فقيود نفس تاريخ القيد كانت تترتب عشوائياً بينها، وما
+      // كان أحدث قيد مضاف يطلع فوق بشكل مضمون. `created_at` (وقت التسجيل
+      // الفعلي بالسيرفر) هو الفاصل الصحيح؛ `id` يبقى فاصلاً ثالثاً وحيداً
+      // للاستقرار بين صفحات الجلب (ساقا نفس التحويل يتشاركان created_at حرفياً).
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(page * PAGE, page * PAGE + PAGE - 1);
     if (filters.type)       q = q.eq('entry_type', filters.type);
     if (filters.from)       q = q.gte('entry_date', filters.from);
