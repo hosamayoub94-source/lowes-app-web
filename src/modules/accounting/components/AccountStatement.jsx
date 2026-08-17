@@ -91,10 +91,15 @@ export default function AccountStatement({
       : channelStatementRows(entries, { channelId, categoryKey });
   }, [open, kind, entries, wallet, channelId, categoryKey]);
 
-  const { rows, totals } = useMemo(
+  const { rows: chronoRows, totals } = useMemo(
     () => buildStatement(baseRows, { from: from || null, to: to || null, query }),
     [baseRows, from, to, query],
   );
+
+  // الرصيد الجاري لازم يُحسب تصاعدياً (الأقدم أولاً، فوق) — ذلك يصير بـbuildStatement.
+  // العرض بالجدول والتصدير بالعكس (الأحدث أولاً) — نفس رصيد كل صفّ محسوب مسبقاً
+  // بلا تغيير، بس ترتيب الظهور يطابق توقّع "أحدث حركة تطلع فوق دائماً".
+  const rows = useMemo(() => [...chronoRows].reverse(), [chronoRows]);
 
   // الأعمدة الظاهرة = العملات التي لها أي حركة (محفظة = عملة واحدة عادةً).
   const cols = useMemo(() => {
