@@ -22,10 +22,10 @@ function monthStartISO() {
 }
 const norm = (s) => String(s || '').trim().toLowerCase();
 
-export async function loadProfitability({ since } = {}) {
+export async function loadProfitability({ since, brand = 'lowes' } = {}) {
   const from = since || monthStartISO();
 
-  const [orders, econRes] = await Promise.all([
+  const [orders, econRes, mapRes] = await Promise.all([
     // على دفعات + استثناء المحذوف (soft-delete يحمل status='cancelled' فيُحسب
     // خطأً كمرتجع). جدول orders ضخم (30k+) فبدون الدفعات تُبتر البيانات.
     fetchAllRows(() => supabaseAnon.from('orders')
@@ -33,24 +33,41 @@ export async function loadProfitability({ since } = {}) {
       .is('deleted_at', null)
       .gte('order_date', from + 'T00:00:00')),
     supabase.from('product_economics').select('*'),
+    supabase.from('product_name_map').select('*'),
   ]);
 
   const econRows = econRes.data ?? [];
   const econByName = {};
   econRows.forEach(e => { econByName[norm(e.item_name)] = e; });
 
-  // Aggregate units sold + returned units (المرتجع الحقيقي فقط) per item name.
-  // الملغي يُتخطّى (لم يُباع ولا يُرجَع).
-  const agg = {}; // key: display name
+  // ⚠️ 17 آب 2026: أسماء عناصر الطلبات حرّة — نفس المنتج يظهر بعدة أسماء
+  // (عربي/إنجليزي/أخطاء إملائية: "شامبو الروزماري" و"ROSEMARY SHAMPOO" هما
+  // نفس الصنف) فكانا يُحسبان كصنفين منفصلين وتُشتّت الأرقام. product_name_map
+  // يربط كل اسم خام باسم موحّد + براند (lowes/strong) + حالة نشاط — أصناف
+  // سترونغ المُعلَّمة "مجمَّد" (is_active=false) تُستبعد كلياً من التقرير.
+  // اسم غير مُخطَّط (لا صف له بالجدول) يبقى ظاهراً باسمه الخام تحت براند lowes
+  // الافتراضي، عشان ما يختفي بصمت — يحتاج تصنيف لاحق بدل تجاهله.
+  const mapRows = mapRes.data ?? [];
+  const nameMap = {};
+  mapRows.forEach(m => { nameMap[norm(m.alias_name)] = m; });
+
+  // Aggregate units sold + returned units (المرتجع الحقيقي فقط) per canonical name.
+  // الملغي يُتخطّى (لم يُباع ولا يُرجَع). أصناف سترونغ المجمَّدة تُستبعد كلياً.
+  const agg = {}; // key: canonical display name
   for (const o of orders) {
     if (!Array.isArray(o.items)) continue;
     if (CANCELLED_STATUSES.includes(o.status)) continue;
     const returned = RETURN_STATUSES.includes(o.status);
     for (const it of o.items) {
-      const name = (it.name || '').trim();
-      if (!name) continue;
+      const rawName = (it.name || '').trim();
+      if (!rawName) continue;
+      const m = nameMap[norm(rawName)];
+      if (m && !m.is_active) continue; // صنف مجمَّد — مُستبعد كلياً
+      const itemBrand = m?.brand || 'lowes';
+      if (brand !== 'all' && itemBrand !== brand) continue;
+      const name = m?.canonical_name || rawName;
       const key = norm(name);
-      if (!agg[key]) agg[key] = { name, units: 0, returns: 0 };
+      if (!agg[key]) agg[key] = { name, units: 0, returns: 0, brand: itemBrand };
       const qty = Number(it.qty || 1);
       if (returned) agg[key].returns += qty;
       else agg[key].units += qty;
@@ -73,7 +90,7 @@ export async function loadProfitability({ since } = {}) {
     const hasEcon     = price > 0 && cost > 0;
 
     return {
-      name: p.name, units: p.units, returns: p.returns, returnRate,
+      name: p.name, brand: p.brand, units: p.units, returns: p.returns, returnRate,
       price, cost, ad, ship, unitProfit, revenue, netProfit, margin, hasEcon,
       // classification
       flag: !hasEcon ? 'unset'
@@ -102,6 +119,16 @@ export async function loadProfitability({ since } = {}) {
   };
 
   return { products, totals, since: from };
+}
+
+/** تجميد/تفعيل صنف — يطبَّق على كل الأسماء الخام المدمَجة تحت نفس الاسم الموحَّد. */
+export async function setProductActive(canonicalName, isActive) {
+  const { error } = await supabase
+    .from('product_name_map')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('canonical_name', canonicalName);
+  if (error) throw error;
+  return true;
 }
 
 /** Upsert economics for one item name. */

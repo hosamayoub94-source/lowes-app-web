@@ -4,7 +4,7 @@
 // مع إدخال السعر/التكلفة/الإعلان/الشحن (يُحفظ ويُحسب فوراً).
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
-import { loadProfitability, saveEconomics } from '@services/profitabilityService';
+import { loadProfitability, saveEconomics, setProductActive } from '@services/profitabilityService';
 import { useToast } from '@hooks/useToast';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(n || 0);
@@ -189,6 +189,12 @@ function sinceFor(period) {
   return d.toISOString().slice(0, 10);
 }
 
+const BRANDS = [
+  { key: 'lowes',  label: "🌿 LOWE'S" },
+  { key: 'strong', label: '💊 سترونغ' },
+  { key: 'all',    label: 'الكل' },
+];
+
 export default function ProfitabilityScreen() {
   const toast = useToast();
   const [data, setData]   = useState(null);
@@ -196,14 +202,26 @@ export default function ProfitabilityScreen() {
   const [editing, setEditing] = useState(null);
   const [bulk, setBulk]       = useState(false);
   const [period, setPeriod]   = useState('90d');
+  const [brand, setBrand]     = useState('lowes');
+  const [freezing, setFreezing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await loadProfitability({ since: sinceFor(period) })); }
+    try { setData(await loadProfitability({ since: sinceFor(period), brand })); }
     catch (e) { toast.error(e.message || 'تعذّر التحميل'); }
     finally { setLoading(false); }
-  }, [toast, period]);
+  }, [toast, period, brand]);
   useEffect(() => { load(); }, [load]);
+
+  const toggleFreeze = async (p) => {
+    setFreezing(p.name);
+    try {
+      await setProductActive(p.name, false);
+      toast.success(`🚫 "${p.name}" صار مجمَّداً — اختفى من التقرير`);
+      load();
+    } catch (e) { toast.error(e.message || 'تعذّر التجميد'); }
+    finally { setFreezing(null); }
+  };
 
   if (loading && !data) return (
     <div className="max-w-3xl mx-auto pb-24 space-y-3" dir="rtl">
@@ -219,6 +237,16 @@ export default function ProfitabilityScreen() {
       <div className="bg-navy rounded-2xl p-5 text-white">
         <h1 className="text-xl font-extrabold flex items-center gap-2">💎 ربحية المنتج</h1>
         <p className="text-white/70 text-xs mt-1">الربح الصافي الحقيقي لكل صنف — حدّد التكلفة لكشف الرابح من الخاسر</p>
+      </div>
+
+      {/* Brand toggle */}
+      <div className="flex gap-1.5">
+        {BRANDS.map(b => (
+          <button key={b.key} onClick={()=>setBrand(b.key)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${brand===b.key?'bg-navy text-white border-navy':'bg-surface text-muted border-border hover:border-navy/40'}`}>
+            {b.label}
+          </button>
+        ))}
       </div>
 
       {/* Period toggle */}
@@ -276,9 +304,18 @@ export default function ProfitabilityScreen() {
                       {p.margin!==null && <p className="text-[10px] text-muted">هامش {p.margin}%</p>}
                     </>
                   ) : null}
-                  <button onClick={()=>setEditing(p)} className="mt-1 text-[11px] font-semibold text-teal hover:bg-teal/10 px-2.5 py-1 rounded-lg transition">
-                    {p.hasEcon ? 'تعديل' : '➕ حدّد'}
-                  </button>
+                  <div className="flex items-center gap-1 mt-1 justify-end">
+                    <button onClick={()=>setEditing(p)} className="text-[11px] font-semibold text-teal hover:bg-teal/10 px-2.5 py-1 rounded-lg transition">
+                      {p.hasEcon ? 'تعديل' : '➕ حدّد'}
+                    </button>
+                    {p.brand === 'strong' && (
+                      <button onClick={()=>toggleFreeze(p)} disabled={freezing===p.name}
+                        title="تجميد — إخفاء دائم من التقرير (منتج مُلغى)"
+                        className="text-[11px] font-semibold text-orange-600 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition disabled:opacity-50">
+                        {freezing===p.name ? '…' : '🚫 تجميد'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
