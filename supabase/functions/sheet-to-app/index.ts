@@ -320,6 +320,9 @@ Deno.serve(async (req) => {
         .select('id, order_id, status, archived')
         .eq('market', market)
         .is('deleted_at', null)
+        // طلبات شبكة النجوم لا توجد بالجدول أصلاً (تُدفَع له بعد الإنشاء وقد
+        // يفشل الدفع ~7٪) — بلا هذا الاستثناء يُلغيها reconcile خلال دقيقة.
+        .or('source.is.null,source.neq.star_network')
         .not('status', 'in', '("delivered","settled","returned","cancelled")');
       if (qErr) return json({ ok: false, error: qErr.message }, 500);
 

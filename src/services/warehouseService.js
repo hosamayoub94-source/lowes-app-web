@@ -279,6 +279,24 @@ async function _releaseOrder(order, performedBy) {
   }
 }
 
+// مصادر خارجية تملك مخزونها بنفسها — طلباتها لا تُخصَم هنا إطلاقاً.
+// شبكة النجوم (lowes-classic) تخصم مخزون تركيا عند اعتماد المشرفة على نفس
+// البضاعة الفعلية؛ الخصم هنا كمان = خصم مزدوج بكل قطعة.
+const EXTERNALLY_STOCKED_SOURCES = new Set(['star_network']);
+
+// ⚠️ لا تنقل هذا الفحص لمواقع الاستدعاء: `handleSave` بشاشة الطلبات يمرّر
+// `{ id, ...form }` و`form` قائمة سماح صريحة لا تحوي `source` — فأول تعديل
+// إداري على طلب مُنسَّخ (رقم هاتف مثلاً) كان يخصم البضاعة مرة ثانية. لذلك
+// نقرأ `source` من القاعدة حين لا يحمله الكائن الممرَّر.
+async function _isExternallyStocked(order) {
+  let src = order.source;
+  if (src === undefined) {
+    const { data } = await supabase.from('orders').select('source').eq('id', order.id).maybeSingle();
+    src = data?.source ?? null;
+  }
+  return EXTERNALLY_STOCKED_SOURCES.has(src);
+}
+
 // مُصلِّح الحالة الموحّد: يضمن أن مخزون الطلب يطابق حالته الحالية.
 // يُستدعى عند كل إنشاء/تغيير حالة (فردي/جماعي) + الحذف/الإلغاء.
 // idempotent + net-aware. no-op للعلامات غير lowes. best-effort (لا يرمي).
@@ -286,6 +304,7 @@ export async function syncOrderStock(order, performedBy) {
   try {
     if (!order?.id) return;
     if ((order.brand || 'lowes') !== 'lowes') return;
+    if (await _isExternallyStocked(order)) return;
     const desiredOut   = DEDUCTED_STATUSES.has(order.status);
     const currentlyOut = await _isCurrentlyReserved(order.id);
     if (desiredOut && !currentlyOut)      await _reserveOrder(order, performedBy);

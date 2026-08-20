@@ -773,6 +773,9 @@ export async function getCampaignResponderPhoneKeys(campaignKey) {
 // يرسل إشعار واتساب على تغيّر حالة طلب — يُستدعى من شاشة الطلبات عند تحديث يدوي.
 // best-effort دائماً: ما بيرمي استثناء أبداً كي ما يوقف تحديث الحالة نفسه.
 export async function notifyOrderStatusWhatsApp(order, newStatus) {
+  // شبكة النجوم تراسل العميل بنفسها عن نفس الطلب — رسالتان من رقمين
+  // مختلفين عن طلب واحد (والرقم موسوم spam من Meta منذ 16 آب 2026).
+  if (order?.source === 'star_network') return;
   try {
     const contentSid = TEMPLATE_SID[newStatus];
     if (!contentSid) return;
@@ -836,6 +839,7 @@ const ORDER_RECEIVED_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أ�
 // وعد)، ملخّص المنتجات والمجموع، ودعوة لطيفة للمتابعة. طلب مالك 6 أغسطس
 // 2026. best-effort دائماً — ما يوقف حفظ الطلب مهما صار.
 export async function sendOrderReceivedMessage(order) {
+  if (order?.source === 'star_network') return;   // المصدر راسل العميل أصلاً
   if (!ORDER_RECEIVED_READY) return;
   try {
     const phone = normalizeLocalPhone(order?.phone_1, order?.market);

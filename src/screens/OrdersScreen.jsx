@@ -1964,6 +1964,12 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : <SyriaFlag />} {order.order_id}</span>
+            {order.source === 'star_network' && (
+              <span title={`نسخة من شبكة النجوم — المصدر ${order.external_id || ''}`}
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-amber-bg text-amber-fg border border-amber/30">
+                🌟 شبكة النجوم
+              </span>
+            )}
             <StatusBadge status={order.status} />
           </div>
           <p className="text-sm font-bold text-text mt-1 truncate">{order.customer_name}</p>
@@ -3274,7 +3280,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
     for (const o of list) {
       const next = nextFor(o);
       try {
-        await supabaseAnon.from('orders').update({ status: next }).eq('id', o.id);
+        await supabaseAnon.from('orders')
+          .update({ status: next, updated_at: new Date().toISOString(), updated_by: userName })
+          .eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
         syncOrderStock({ ...o, status: next }, userName); // خصم/استرداد حسب الحالة الجديدة
         setOrders(p => p.map(x => x.id === o.id ? { ...x, status: next } : x));
@@ -3681,6 +3689,19 @@ export default function OrdersScreen({ forcedMarket = null }) {
       && !TERMINAL_SYNC.includes(o.status) && (!lockedMarket || o.market === lockedMarket)),
     [orders, lockedMarket]
   );
+  // طلبات شبكة النجوم التي شحنّاها هنا بينما المصدر لسّا عند «معتمد/للتجهيز».
+  // المزامنة اتجاه واحد (قراءة فقط) فلا نستطيع تأشيرها هناك — و`confirmCollection`
+  // بشبكة النجوم (app.js:11227) يرفض التحصيل ما لم تصر حالة الطلب هناك
+  // shipped/delivered، وهي بوابة عمولة المسوّقة وترقية الأبلاين والتسوية
+  // الأسبوعية. بلا هذه اللوحة يُنسى التأشير فتتأخّر عمولة بلا سبب ظاهر.
+  const starNeedsMarkOff = useMemo(
+    () => orders.filter(o =>
+      o.source === 'star_network' && !o.deleted_at && o.archived !== true
+      && o.external_stage === 'ops'
+      && !['waiting', 'pending', 'cancelled'].includes(o.status)),
+    [orders]
+  );
+
   const [retryingAll, setRetryingAll] = useState(false);
   const handleRetryAll = async () => {
     const ids = failedSync.map(o => o.id);
@@ -4030,6 +4051,29 @@ export default function OrdersScreen({ forcedMarket = null }) {
             className="px-3 py-2 rounded-xl bg-red-fg/10 text-red-fg text-xs font-bold hover:opacity-80 transition disabled:opacity-40 shrink-0">
             {retryingAll ? '…' : '🔄 أعد مزامنة الكل'}
           </button>
+        </div>
+      )}
+
+      {/* لوحة «بانتظار التأشير في شبكة النجوم» — تُغلق حلقة العمولة يدوياً */}
+      {isManager && !viewArchive && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && starNeedsMarkOff.length > 0 && (
+        <div className="bg-amber-bg border border-amber/30 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <span className="text-2xl">🌟</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-fg">
+              {starNeedsMarkOff.length} طلب شبكة نجوم بانتظار التأشير بالتطبيق المصدر
+            </p>
+            <p className="text-[11px] text-muted">
+              أشّرها «شُحن» بشبكة النجوم — بدونها لا يُقبل تأكيد التحصيل ولا تُصرف عمولة المسوّقة.
+            </p>
+            <p className="text-[11px] text-muted mt-1 truncate">
+              {starNeedsMarkOff.slice(0, 4).map(o => `${o.order_id} (#${String(o.external_id || '').slice(-5)})`).join(' · ')}
+              {starNeedsMarkOff.length > 4 ? ' …' : ''}
+            </p>
+          </div>
+          <a href="https://app.lowesprofesyonel.com" target="_blank" rel="noreferrer"
+            className="px-3 py-2 rounded-xl bg-amber-fg/10 text-amber-fg text-xs font-bold hover:opacity-80 transition shrink-0">
+            افتح شبكة النجوم ↗
+          </a>
         </div>
       )}
 

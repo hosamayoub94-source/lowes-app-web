@@ -29,7 +29,11 @@ export const ALL_STATUS_KEYS = Object.keys(STATUSES);
 // قوائم الحالات حسب السوق (المالك: قوائم منفصلة لكل سوق).
 // تركيا = مسار شركات الشحن (مركز/شحن/في الطريق). سوريا = مسار محلي (موتور).
 // تركيا (طلب المالك): مطابقة لقائمة الجدول بالضبط وبترتيبها.
-const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_center','shipped','returning','prepaid','waiting','special_delivery','motor_prep','settled','cancelled','motor'];
+// 'pending' مُلحَقة بالآخر عمداً (جسر شبكة النجوم): الطلب المُنسَّخ ينزل
+// 'waiting' ثم يصير 'pending' عند اعتماد المشرفة فيظهر بلوحة التجهيز.
+// ⚠️ لا تنقلها للأول — statusKeysForMarket(m)[0] هي الحالة الافتراضية لكل
+// طلب تركي يُنشأ يدوياً.
+const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_center','shipped','returning','prepaid','waiting','special_delivery','motor_prep','settled','cancelled','motor','pending'];
 // سوريا: أضيفت at_center/on_way (29 يوليو 2026) — حالتا تتبّع شركات الشحن
 // (بابل اكسبرس، شركة الكرم) صارتا رسميتين بدل ما تبقيا مكتوبتين تلقائياً فقط
 // بلا وجود بقائمة السوق (لم يقدر الفريق يختارهما يدوياً قبل هذا).
