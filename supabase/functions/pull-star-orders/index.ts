@@ -66,25 +66,30 @@ const num = (v: unknown) => {
 };
 const normName = (v: unknown) => s(v).toLowerCase().replace(/\s+/g, ' ');
 
-// ── قراءة شبكة النجوم (REST) ─────────────────────────────────
-// ⚠️ لا select=* أبداً: عمود data هو الطلب الكامل (أصناف + إثبات دفع + سجلّ
-// اعتماد) ويصل 5–20KB للطلب. مشروع شبكة النجوم سبق أن تجاوز حد الـEgress.
-async function starGet(query: string): Promise<any[]> {
-  const res = await fetch(`${STAR_URL}/rest/v1/orders?${query}`, {
+// ── قراءة شبكة النجوم عبر RPC مُقيَّد (لا REST مباشر على orders) ──────
+// تقوية أمنية (D-049، 21 آب 2026): STAR_KEY لم يعد service_role الكامل —
+// صار مفتاح anon العام (غير سرّي أصلاً — مُضمَّن بكود شبكة النجوم نفسه،
+// "safe to embed"). القراءة تمرّ حصراً عبر دالة SECURITY DEFINER
+// `public.star_bridge_orders` (مُنشأة على مشروع شبكة النجوم يدوياً، انظر
+// HANDOFFlowes.md) — تُعيد فقط الحقول المُسقَطة أدناه، مفلترة سيرفرياً
+// بنفس شرط النطاق (تركيا + مسوّقة/مشرفة)، وGRANT EXECUTE لـanon فقط. لا
+// select=* أبداً حتى داخل الدالة — عمود data الكامل (5–20KB/طلب) لا يخرج
+// عبر أي مسار.
+async function starRpc(args: { p_ids?: string[]; p_since?: string; p_limit?: number }): Promise<any[]> {
+  const res = await fetch(`${STAR_URL}/rest/v1/rpc/star_bridge_orders`, {
+    method: 'POST',
     headers: {
       apikey: STAR_KEY,
       Authorization: `Bearer ${STAR_KEY}`,
       Accept: 'application/json',
+      'Content-Type': 'application/json',
       Prefer: 'count=none',
     },
+    body: JSON.stringify(args),
   });
-  if (!res.ok) throw new Error(`star REST ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`star RPC ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return await res.json();
 }
-
-// فلتر ثابت: تركيا فقط + أدوار المسوّقة/المشرفة فقط. country يعيش داخل data
-// (لا عمود له). طلبات الأمانة (role=consign) والجملة يستبعدها فلتر الدور.
-const BASE_FILTER = 'role=in.(marketer,supervisor)&data->>country=eq.TR';
 
 // verifyStage بشبكة النجوم → حالة تطبيق لويز.
 //   supervisor = أُنشئ وبانتظار المشرفة، **لا مخزون مخصوم** → waiting (خارج لوحة التجهيز)
@@ -110,26 +115,6 @@ function paymentOf(row: any) {
   if (ch === 'partial') return { paid: dep,   status: 'partial', label: `دفع جزئي (عربون ${dep})` };
   return { paid: 0, status: 'unpaid', label: 'دفع عند الباب 💵' };
 }
-
-// أعمدة المرحلة ٢ — مُسقَطة بالاسم، لا data كاملاً.
-const PROJECTION = [
-  'id', 'client_name', 'created_at', 'status', 'user_id',
-  'vstage:data->>verifyStage',
-  'items:data->items',
-  'ctotal:data->>customerTotalTry',
-  'dep:data->>depositTry',
-  'collect:data->>amountToCollectTry',
-  'pc:data->>payChannel',
-  'trpm:data->>trPayMethod',
-  'p1:data->>shipPhone',
-  'p2:data->>shipPhone2',
-  'wa:data->>shipWA',
-  'city:data->>shipCity',
-  'dist:data->>shipDistrict',
-  'addr:data->>shipAddr',
-  'shipco:data->>shipCompany',
-  'recv:data->>shipName',
-].join(',');
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -187,12 +172,10 @@ Deno.serve(async (req) => {
         ? new Date(new Date(st.last_created_at).getTime() - WATERMARK_SLACK_MS)
         : new Date(nowMs - DEFAULT_LOOKBACK_MS);
 
-    // 1أ) معرّفات المصدر داخل النافذة (عمودان فقط).
-    fresh = await starGet(
-      `select=id,created_at&${BASE_FILTER}`
-      + `&created_at=gte.${encodeURIComponent(since.toISOString())}`
-      + `&order=created_at.asc&limit=${NEW_PAGE_LIMIT}`,
-    );
+    // 1أ) الطلبات الجديدة داخل النافذة — RPC يُرجع البيانات المُسقَطة كاملة
+    // مباشرة (لا حاجة لجلب id فقط ثم إعادة الجلب — الحقول نفسها بلا تكلفة
+    // إضافية عبر star_bridge_orders، فدُمجت المرحلتان لتقليل عدد الرحلات).
+    fresh = await starRpc({ p_since: since.toISOString(), p_limit: NEW_PAGE_LIMIT });
     stats.scanned = fresh.length;
 
     // 1ب) ما هو منسوخ عندنا أصلاً؟ بلا فلترة deleted_at/archived — الطلب
@@ -203,39 +186,35 @@ Deno.serve(async (req) => {
       .eq('source', SOURCE_TAG);
     const mirrored = new Map<string, any>((mirroredRows ?? []).map((r: any) => [r.external_id, r]));
 
-    const newIds = fresh.map((r: any) => s(r.id)).filter((id) => id && !mirrored.has(id));
+    const rowsByExtId = new Map<string, any>();
+    for (const r of fresh) if (!mirrored.has(s(r.id))) rowsByExtId.set(s(r.id), r);
+
+    // 1ج) الطلبات المفتوحة عندنا (waiting/pending) — رحلة واحدة تُرجع
+    // البيانات الكاملة مباشرة، فنقارن vstage ونبني السجل من نفس النتيجة
+    // بلا رحلة ثالثة منفصلة.
     const openIds = (mirroredRows ?? [])
       .filter((r: any) => !r.deleted_at && UNTOUCHED.has(r.status))
       .map((r: any) => r.external_id)
       .filter(Boolean);
 
-    // 1ج) فحص المرحلة للمجموعة المفتوحة فقط (محدودة — عشرات لا آلاف).
-    const changedIds: string[] = [];
     if (openIds.length) {
-      const probe = await starGet(
-        `select=id,status,vstage:data->>verifyStage&id=in.(${openIds.map(encodeURIComponent).join(',')})`,
-      );
+      const probe = await starRpc({ p_ids: openIds });
       for (const p of probe) {
         const cur = mirrored.get(s(p.id));
         if (!cur) continue;
         // vstage غير معروف (اختلاف حساسية حالة أحرف مفتاح JSON مثلاً) → ادفعه
-        // للمرحلة ٢ التي تجلبه صراحةً، بدل تخطّيه بصمت.
-        if (p.vstage == null || s(p.vstage) !== s(cur.external_stage)) changedIds.push(s(p.id));
+        // للتنفيذ صراحةً بدل تخطّيه بصمت.
+        if (p.vstage == null || s(p.vstage) !== s(cur.external_stage)) rowsByExtId.set(s(p.id), p);
       }
       // ⚠️ مرآة شبكة النجوم تحذف صفوفاً غابت عن الـblob — فقد يرجع الاستعلام
       // أقل مما طُلب. الغياب = «لا تغيير»، لا حذف ولا إلغاء.
     }
 
-    const targets = [...new Set([...newIds, ...changedIds])];
-    if (!targets.length) {
+    const rows = [...rowsByExtId.values()];
+    if (!rows.length) {
       if (!dryRun) await releaseLock(supabase, stats, started, fresh);
       return json({ ok: true, ...stats, note: 'nothing to do' }, 200);
     }
-
-    // ── 2) المرحلة الثانية — جلب مُسقَط للمستهدَفين فقط ────────
-    const rows = await starGet(
-      `select=${encodeURIComponent(PROJECTION)}&id=in.(${targets.map(encodeURIComponent).join(',')})`,
-    );
 
     // أسماء المسوّقات (للملاحظات فقط) + قاموس أسماء المنتجات المعتمدة.
     const marketerNames = await fetchMarketerNames(rows.map((r: any) => s(r.user_id)));
