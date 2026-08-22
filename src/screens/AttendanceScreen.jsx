@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth }   from '@hooks/useAuth';
 import { supabase }  from '@services/supabase';
 import { SelfieCapture } from '@components/attendance/SelfieCapture';
+import { resolveCheckInContext, isWeeklyOffDay } from '@services/shiftPartnersService';
 
 // ── Date helpers ───────────────────────────────────────────────
 /** Returns "YYYY/MM/DD" — matches DB text format */
@@ -171,11 +172,10 @@ function AbsenceReasonModal({ slash, userName, team, existingReason, onSave, onC
 }
 
 // ── Day badge in weekly strip ──────────────────────────────────
-function DayBadge({ dayRec, slash, userName, team, onReasonSaved }) {
+function DayBadge({ dayRec, slash, userName, team, onReasonSaved, fixedWeeklyOff = false }) {
   const today     = todaySlash();
   const isToday   = slash === today;
   const isFuture  = slash > today;
-  const isPast    = slash < today;
   const [showModal, setShowModal] = useState(false);
 
   if (isFuture) return (
@@ -189,12 +189,15 @@ function DayBadge({ dayRec, slash, userName, team, onReasonSaved }) {
   const checkOut     = dayRec?.checkOut;
   const complete     = !!(checkIn && checkOut);
   const hasAbsReason = dayRec?.absReason;
-  const isWeeklyOff  = dayRec?.weeklyOff;
+  // عطلة أسبوعية: إما مسجَّلة يدوياً، أو يوم العطلة المثبّت ببيانات الموظف
+  const isWeeklyOff  = dayRec?.weeklyOff || fixedWeeklyOff;
 
   if (!checkIn) return (
     <>
+      {/* اليوم متاح للنقر أيضاً — الموظف بلا يوم عطلة مثبّت يسجّل عطلته
+          المرنة بنفسه بيومها، لا بعد فواتها فقط. */}
       <div
-        onClick={() => isPast && !hasAbsReason && !isWeeklyOff && setShowModal(true)}
+        onClick={() => !isFuture && !hasAbsReason && !isWeeklyOff && setShowModal(true)}
         className={`flex flex-col items-center gap-1 p-2 rounded-xl border cursor-pointer transition
           ${isToday ? 'border-teal/30 bg-teal/5'
           : isWeeklyOff ? 'border-yellow-300 bg-yellow-50'
@@ -337,6 +340,8 @@ export default function AttendanceScreen() {
   const [duration, setDuration] = useState('');
   // Face verification descriptor loaded from profile
   const [faceDescriptor, setFaceDescriptor] = useState(null);
+  // يوم العطلة الأسبوعية المثبّت ببيانات الموظف (profiles.rest_day)
+  const [restDay, setRestDay] = useState(null);
   // Minutes still remaining before check-out is allowed (0 = unlocked)
   const [checkoutLockLeft, setCheckoutLockLeft] = useState(0);
   // Selfie verification: 'in' | 'out' | null
@@ -448,15 +453,16 @@ export default function AttendanceScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Load face descriptor for verification
+  // Load face descriptor for verification + يوم العطلة الأسبوعية المثبّت
   useEffect(() => {
     if (!userName) return;
     supabase.from('profiles')
-      .select('face_descriptor')
+      .select('face_descriptor, rest_day')
       .eq('employee_name', userName)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.face_descriptor) setFaceDescriptor(data.face_descriptor);
+        if (data?.rest_day) setRestDay(data.rest_day);
       })
       .catch(() => {});
   }, [userName]);
@@ -484,7 +490,12 @@ export default function AttendanceScreen() {
     const dateVal  = hour < 6 ? slashDate(1) : todaySlash();
     const dayName  = arabicDaySlash(dateVal);
     try {
-      const { error: insErr } = await supabase.from('attendance').insert({
+      // وردية الموظف تُفهم من مجموعة شركاء دوامه (عددها) + وقت التسجيل الفعلي.
+      // بلا مجموعة → القيَم محايدة تماماً وسلوك النظام كما كان.
+      // ملاحظة: سماحية التأخير قاعدة حساب داخلية — لا تُعرض للموظف إطلاقاً.
+      const ctx = await resolveCheckInContext(userName, now, slashToISO(dateVal));
+
+      const base = {
         employee_name: userName,
         date:          dateVal,
         day:           dayName,
@@ -493,11 +504,20 @@ export default function AttendanceScreen() {
         team:          team ?? null,
         method:        'app',
         recorded_at:   now,
-        delay_minutes: 0,
-        was_late:      false,
-        status:        '✅ حاضر',
+        delay_minutes: ctx.delayMinutes,
+        was_late:      ctx.wasLate,
+        status:        ctx.wasLate ? '⏰ متأخر' : '✅ حاضر',
         selfie_url:    selfieUrl ?? null,
-      });
+      };
+      // أعمدة الوردية اختيارية — لو الترحيل لسّه ما انطبق نُعيد المحاولة بدونها
+      const withShift = ctx.shift
+        ? { ...base, shift_key: ctx.shift.key, shift_start: ctx.shift.start, shift_group_id: ctx.group?.id ?? null }
+        : base;
+
+      let { error: insErr } = await supabase.from('attendance').insert(withShift);
+      if (insErr && withShift !== base && /shift_key|shift_start|shift_group_id|schema cache/i.test(insErr.message || '')) {
+        ({ error: insErr } = await supabase.from('attendance').insert(base));
+      }
       if (insErr) throw new Error(insErr.message);
       flash('✅ تم تسجيل الحضور بنجاح!');
       await loadData();
@@ -623,7 +643,11 @@ export default function AttendanceScreen() {
   // Stats
   const completedDays = days.filter(d => d <= todaySlash() && week[d]?.checkIn && week[d]?.checkOut).length;
   const presentDays   = days.filter(d => d <= todaySlash() && week[d]?.checkIn).length;
-  const absentDays    = days.filter(d => d < todaySlash() && !week[d]?.checkIn).length;
+  // العطلة الأسبوعية — مثبّتة بالبيانات أو مرنة سجّلها الموظف — لا تُحتسب غياباً
+  const absentDays    = days.filter(d =>
+    d < todaySlash() && !week[d]?.checkIn
+    && !week[d]?.weeklyOff && !isWeeklyOffDay(restDay, slashToISO(d))
+  ).length;
 
   return (
     <div className="max-w-lg mx-auto space-y-4 pb-24 sm:pb-8" dir="rtl">
@@ -851,7 +875,8 @@ export default function AttendanceScreen() {
         <div className="grid grid-cols-7 gap-1">
           {days.map(slash => (
             <DayBadge key={slash} dayRec={week[slash]} slash={slash}
-              userName={userName} team={team} onReasonSaved={loadData} />
+              userName={userName} team={team} onReasonSaved={loadData}
+              fixedWeeklyOff={isWeeklyOffDay(restDay, slashToISO(slash))} />
           ))}
         </div>
 
