@@ -287,8 +287,9 @@ export default function AttendanceReportScreen() {
   const selectedEmployee = employees.find(e => e.id === selectedEmp);
 
   // Build day rows (one per calendar day of month)
-  // يوم العطلة الأسبوعية المثبّت بالبيانات (profiles.rest_day). لو غير محدَّد
-  // للموظف، يبقى السلوك السابق كما هو: الجمعة عطلة.
+  // يوم العطلة الأسبوعية المثبّت بالبيانات (profiles.rest_day).
+  // قرار حسام (22 آب 2026): لا يوم عطلة افتراضي — الموظف بلا يوم محدَّد
+  // ليس له عطلة أسبوعية إطلاقاً (النظام مرن، اليوم يُحدَّد ببياناته فقط).
   const restDay = selectedEmployee?.rest_day || null;
 
   const rows = useMemo(() => {
@@ -302,9 +303,8 @@ export default function AttendanceReportScreen() {
     for (let d = 1; d <= days; d++) {
       const date   = `${month}-${String(d).padStart(2, '0')}`;
       const dow    = new Date(date).getDay();
-      const isFri  = dow === 5;
-      // يوم العطلة المثبّت للموظف — وإلا الجمعة (السلوك القديم لمن بلا يوم محدَّد)
-      const isOff  = restDay ? isWeeklyOffDay(restDay, date) : isFri;
+      // العطلة من بيانات الموظف حصراً — بلا يوم محدَّد = بلا عطلة أسبوعية
+      const isOff  = isWeeklyOffDay(restDay, date);
       const log    = logByDate[date];
       const checkIn  = log?.check_in  || log?.check_in_time  || null;
       const checkOut = log?.check_out || log?.check_out_time || null;
@@ -314,7 +314,6 @@ export default function AttendanceReportScreen() {
         date,
         day: d,
         dow,
-        isFriday: isFri,
         isWeeklyOff: isOff,
         isWorkday: !isOff,
         checkIn,

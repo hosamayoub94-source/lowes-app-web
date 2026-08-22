@@ -38,18 +38,19 @@ check('20:00 → مسائي',              resolveShift(P3, '20:00').key, 'eveni
 check('23:30 → مسائي',              resolveShift(P3, '23:30').key, 'evening');
 check('00:30 (بعد منتصف الليل) → مسائي', resolveShift(P3, '00:30').key, 'evening');
 
-console.log('\n── سماحية 10 دقائق (لا تُعرض للموظف) ──');
-check('وردية 10:00 · دخول 10:00', computeDelayMinutes('10:00', '10:00'), 0);
-check('وردية 10:00 · دخول 10:10', computeDelayMinutes('10:10', '10:00'), 0);
-check('وردية 10:00 · دخول 10:11', computeDelayMinutes('10:11', '10:00'), 1);
-check('وردية 10:00 · دخول 10:45', computeDelayMinutes('10:45', '10:00'), 35);
-check('وردية 10:00 · دخول 09:50 (مبكر)', computeDelayMinutes('09:50', '10:00'), 0);
-check('وردية 15:00 · دخول 15:10', computeDelayMinutes('15:10', '15:00'), 0);
-check('وردية 17:00 · دخول 17:10', computeDelayMinutes('17:10', '17:00'), 0);
-check('وردية 17:00 · دخول 17:25', computeDelayMinutes('17:25', '17:00'), 15);
-check('وردية 20:00 · دخول 20:10', computeDelayMinutes('20:10', '20:00'), 0);
-check('وردية 20:00 · دخول 20:40', computeDelayMinutes('20:40', '20:00'), 30);
-check('وردية 20:00 · دخول 00:15 (بعد منتصف الليل)', computeDelayMinutes('00:15', '20:00'), 245);
+console.log('\n── سماحية 10 دقائق: بوّابة لا خصم (قرار حسام 22 آب) ──');
+check('وردية 10:00 · دخول 10:00',        computeDelayMinutes('10:00', '10:00'), 0);
+check('وردية 10:00 · دخول 10:10 (آخر السماحية)', computeDelayMinutes('10:10', '10:00'), 0);
+check('وردية 10:00 · دخول 10:11 → 11 د لا 1', computeDelayMinutes('10:11', '10:00'), 11);
+check('وردية 10:00 · دخول 10:15 → 15 د لا 5',  computeDelayMinutes('10:15', '10:00'), 15);
+check('وردية 10:00 · دخول 10:45 → 45 د',       computeDelayMinutes('10:45', '10:00'), 45);
+check('وردية 10:00 · دخول 09:50 (مبكر)',       computeDelayMinutes('09:50', '10:00'), 0);
+check('وردية 15:00 · دخول 15:10',              computeDelayMinutes('15:10', '15:00'), 0);
+check('وردية 17:00 · دخول 17:10',              computeDelayMinutes('17:10', '17:00'), 0);
+check('وردية 17:00 · دخول 17:25 → 25 د',       computeDelayMinutes('17:25', '17:00'), 25);
+check('وردية 20:00 · دخول 20:10',              computeDelayMinutes('20:10', '20:00'), 0);
+check('وردية 20:00 · دخول 20:40 → 40 د',       computeDelayMinutes('20:40', '20:00'), 40);
+check('وردية 20:00 · دخول 00:15 (بعد منتصف الليل) → 255 د', computeDelayMinutes('00:15', '20:00'), 255);
 
 console.log('\n── الوردية المسائية للثلاثة تعبر منتصف الليل ──');
 const ev = P3.shifts.find(s => s.key === 'evening');
@@ -63,8 +64,14 @@ check('الجمعة لموظف عطلته الجمعة',   isWeeklyOffDay('ال�
 check('السبت لموظف عطلته الجمعة',    isWeeklyOffDay('الجمعة', '2026-08-22'), false);
 check('السبت لموظف عطلته السبت',     isWeeklyOffDay('السبت',  '2026-08-22'), true);
 check('الأحد لموظف عطلته الأحد',     isWeeklyOffDay('الأحد',  '2026-08-23'), true);
-check('بلا يوم عطلة محدَّد',          isWeeklyOffDay(null,     '2026-08-21'), false);
 check('يقبل صيغة YYYY/MM/DD',        isWeeklyOffDay('السبت',  '2026/08/22'), true);
+
+// قرار حسام (22 آب 2026): لا يوم عطلة افتراضي — لا الجمعة ولا غيرها
+console.log('\n── بلا يوم عطلة محدَّد → لا عطلة أسبوعية إطلاقاً (نظام مرن) ──');
+check('الجمعة',  isWeeklyOffDay(null, '2026-08-21'), false);
+check('السبت',   isWeeklyOffDay(null, '2026-08-22'), false);
+check('الأحد',   isWeeklyOffDay('',   '2026-08-23'), false);
+check('قيمة غير معروفة', isWeeklyOffDay('يوم غلط', '2026-08-21'), false);
 
 console.log('\n── مجموعات غير مدعومة → لا تغيير على النظام الحالي ──');
 check('مجموعة من 1', shiftPlanForSize(1), null);
