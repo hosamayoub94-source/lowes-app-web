@@ -71,6 +71,7 @@ export const NAV_ITEMS = [
   { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M], group: 'hr', perm: P.MANAGE_PAYROLL },
   { id: 'hr',                label: 'الموارد البشرية', icon: '🧑‍💼', path: '/hr',              roles: [A, M], group: 'hr', perm: P.APPROVE_LEAVES },
   { id: 'attendance-report', label: 'تقرير الحضور',  icon: '📅', path: '/attendance-report', roles: [A, M], group: 'hr', perm: P.VIEW_ALL_ATTENDANCE },
+  { id: 'shift-partners',    label: 'شركاء الدوام',  icon: '👥', path: '/admin/shift-partners', roles: [A, M], group: 'hr', perm: P.MANAGE_ATTENDANCE },
   { id: 'holidays',          label: 'العطل الرسمية', icon: '🏖️', path: '/holidays',          roles: [A, M], group: 'hr' },
   { id: 'reviews',           label: 'تقييم الأداء',  icon: '📊', path: '/reviews',           roles: [A, M], group: 'hr' },
 

@@ -5,6 +5,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { Hero } from '@components/ui/Hero';
 import { Card, CardTitle } from '@components/ui/Card';
+import { isWeeklyOffDay, SHIFT_PLANS } from '@services/shiftPartnersService';
+
+// تسميات الورديات (مفتاح الوردية المخزَّن → اسم عربي)
+const SHIFT_LABELS = Object.values(SHIFT_PLANS)
+  .flatMap(p => p.shifts)
+  .reduce((acc, s) => { acc[s.key] = s.label; return acc; }, {});
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -52,6 +58,7 @@ const STATUS_MAP = {
   absent:      { label: 'غياب',     cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
   on_break:    { label: 'استراحة',  cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
   holiday:     { label: 'إجازة',    cls: 'bg-teal/10 text-teal' },
+  weekly_off:  { label: 'عطلة',     cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
 };
 
 // ── Mock data ──────────────────────────────────────────────────────────────
@@ -88,7 +95,7 @@ async function fetchEmployees() {
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, team, is_active')
+    .select('id, employee_name, role_type, team, is_active, rest_day')
     .eq('is_active', true)
     .order('employee_name');
   if (error?.message?.includes('does not exist') || error?.message?.includes('relation')) {
@@ -111,23 +118,45 @@ async function fetchLogs(employeeId, employeeName, ym, isMock) {
 
   if (employeeName) {
     try {
-      const { data: attData, error: attErr } = await supabase
+      // أعمدة الوردية اختيارية — لو الترحيل لسّه ما انطبق نرجع للأعمدة الأساسية
+      const BASE_COLS  = 'id, date, type, time_in, note, delay_minutes, was_late';
+      const SHIFT_COLS = `${BASE_COLS}, shift_key, shift_start`;
+      const query = (cols) => supabase
         .from('attendance')
-        .select('id, date, type, time_in, note')
+        .select(cols)
         .eq('employee_name', employeeName)
         .gte('date', fromSlash)
         .lte('date', toSlash)
-        .in('type', ['in', 'out'])
+        .in('type', ['in', 'out', 'absent', 'weekly_off'])
         .order('date');
 
+      let { data: attData, error: attErr } = await query(SHIFT_COLS);
+      if (attErr) ({ data: attData, error: attErr } = await query(BASE_COLS));
+
       if (!attErr && attData?.length) {
-        // Aggregate two rows per day → one entry
+        // Aggregate rows per day → one entry
         const byDate = {};
         attData.forEach(r => {
           const isoDate = r.date.replace(/\//g, '-'); // "2026/05/24" → "2026-05-24"
-          if (!byDate[isoDate]) byDate[isoDate] = { checkIn: null, checkOut: null };
-          if (r.type === 'in')  byDate[isoDate].checkIn  = r.time_in;
-          if (r.type === 'out') byDate[isoDate].checkOut = r.time_in;
+          if (!byDate[isoDate]) {
+            byDate[isoDate] = {
+              checkIn: null, checkOut: null, delayMinutes: 0, wasLate: false,
+              shiftKey: null, shiftStart: null, dayType: null, note: null,
+            };
+          }
+          const d = byDate[isoDate];
+          if (r.type === 'in') {
+            d.checkIn      = r.time_in;
+            d.delayMinutes = Number(r.delay_minutes ?? 0) || 0;
+            d.wasLate      = !!r.was_late;
+            d.shiftKey     = r.shift_key   ?? null;
+            d.shiftStart   = r.shift_start ?? null;
+          }
+          if (r.type === 'out') d.checkOut = r.time_in;
+          if (r.type === 'weekly_off' || r.type === 'absent') {
+            d.dayType = r.type;
+            d.note    = r.note ?? null;
+          }
         });
         return Object.entries(byDate).map(([isoDate, d]) => ({
           id:        `att-${isoDate}`,
@@ -135,7 +164,17 @@ async function fetchLogs(employeeId, employeeName, ym, isMock) {
           // "HH:MM" → ISO timestamp so calcHours works
           check_in:  d.checkIn  ? `${isoDate}T${d.checkIn}:00`  : null,
           check_out: d.checkOut ? `${isoDate}T${d.checkOut}:00` : null,
-          status:    d.checkIn ? (d.checkOut ? 'checked_out' : 'present') : null,
+          delay_minutes: d.delayMinutes,
+          was_late:      d.wasLate,
+          shift_key:     d.shiftKey,
+          shift_start:   d.shiftStart,
+          day_type:      d.dayType,
+          note:          d.note,
+          status: d.dayType === 'weekly_off'
+            ? 'weekly_off'
+            : d.checkIn
+              ? (d.wasLate ? 'late' : (d.checkOut ? 'checked_out' : 'present'))
+              : (d.dayType === 'absent' ? 'absent' : null),
         }));
       }
     } catch {
@@ -153,9 +192,11 @@ async function exportAttendance(rows, employeeName, ym) {
   const XLSX = await import('xlsx');
   const data = rows.map(r => ({
     'التاريخ':      r.date,
+    'الوردية':      r.isWeeklyOff ? '—' : (SHIFT_LABELS[r.shiftKey] ?? '—'),
     'دخول':         r.checkIn  ? fmtTime(r.checkIn)  : '—',
     'خروج':         r.checkOut ? fmtTime(r.checkOut) : '—',
     'ساعات العمل':  r.hours ?? '—',
+    'تأخير (د)':    r.delayMinutes > 0 ? r.delayMinutes : 0,
     'الحالة':       STATUS_MAP[r.status]?.label ?? r.status ?? '—',
   }));
   const ws = XLSX.utils.json_to_sheet(data);
@@ -246,6 +287,10 @@ export default function AttendanceReportScreen() {
   const selectedEmployee = employees.find(e => e.id === selectedEmp);
 
   // Build day rows (one per calendar day of month)
+  // يوم العطلة الأسبوعية المثبّت بالبيانات (profiles.rest_day). لو غير محدَّد
+  // للموظف، يبقى السلوك السابق كما هو: الجمعة عطلة.
+  const restDay = selectedEmployee?.rest_day || null;
+
   const rows = useMemo(() => {
     const logByDate = {};
     for (const l of logs) {
@@ -258,23 +303,33 @@ export default function AttendanceReportScreen() {
       const date   = `${month}-${String(d).padStart(2, '0')}`;
       const dow    = new Date(date).getDay();
       const isFri  = dow === 5;
+      // يوم العطلة المثبّت للموظف — وإلا الجمعة (السلوك القديم لمن بلا يوم محدَّد)
+      const isOff  = restDay ? isWeeklyOffDay(restDay, date) : isFri;
       const log    = logByDate[date];
       const checkIn  = log?.check_in  || log?.check_in_time  || null;
       const checkOut = log?.check_out || log?.check_out_time || null;
+      // يوم العطلة: لا غياب، لا تأخير، لا مخالفة دوام
+      const delayMinutes = isOff ? 0 : (Number(log?.delay_minutes ?? 0) || 0);
       result.push({
         date,
         day: d,
         dow,
         isFriday: isFri,
-        isWorkday: !isFri,
+        isWeeklyOff: isOff,
+        isWorkday: !isOff,
         checkIn,
         checkOut,
+        delayMinutes,
+        shiftKey:   log?.shift_key   ?? null,
+        shiftStart: log?.shift_start ?? null,
         hours:  calcHours(checkIn, checkOut),
-        status: log?.status ?? (isFri ? 'holiday' : (checkIn ? 'checked_out' : null)),
+        status: isOff
+          ? 'weekly_off'
+          : (log?.status ?? (checkIn ? 'checked_out' : null)),
       });
     }
     return result;
-  }, [logs, month]);
+  }, [logs, month, restDay]);
 
   const handleExport = async () => {
     if (!selectedEmployee) return;
@@ -371,9 +426,11 @@ export default function AttendanceReportScreen() {
                 <tr className="text-xs text-muted border-b border-border">
                   <th className="py-2 px-3 text-right">التاريخ</th>
                   <th className="py-2 px-3 text-right">اليوم</th>
+                  <th className="py-2 px-3 text-center">الوردية</th>
                   <th className="py-2 px-3 text-center">دخول</th>
                   <th className="py-2 px-3 text-center">خروج</th>
                   <th className="py-2 px-3 text-center">ساعات</th>
+                  <th className="py-2 px-3 text-center">تأخير</th>
                   <th className="py-2 px-3 text-center">الحالة</th>
                 </tr>
               </thead>
@@ -383,12 +440,15 @@ export default function AttendanceReportScreen() {
                     key={r.date}
                     className={[
                       'border-t border-border transition',
-                      r.isFriday ? 'opacity-40 bg-cream/30' : 'hover:bg-cream/50',
-                      !r.checkIn && !r.isFriday ? 'bg-red-50/40 dark:bg-red-900/10' : '',
+                      r.isWeeklyOff ? 'opacity-40 bg-cream/30' : 'hover:bg-cream/50',
+                      !r.checkIn && !r.isWeeklyOff ? 'bg-red-50/40 dark:bg-red-900/10' : '',
                     ].join(' ')}
                   >
                     <td className="py-2 px-3 text-xs text-muted font-mono">{r.date}</td>
                     <td className="py-2 px-3 text-xs text-text">{DAY_NAMES[r.dow]}</td>
+                    <td className="py-2 px-3 text-center text-[11px] text-muted">
+                      {r.isWeeklyOff ? '—' : (SHIFT_LABELS[r.shiftKey] ?? '—')}
+                    </td>
                     <td className="py-2 px-3 text-center text-xs font-mono text-green-600">
                       {r.checkIn ? fmtTime(r.checkIn) : '—'}
                     </td>
@@ -398,9 +458,12 @@ export default function AttendanceReportScreen() {
                     <td className="py-2 px-3 text-center text-xs font-mono text-teal font-semibold">
                       {r.hours ?? '—'}
                     </td>
+                    <td className={`py-2 px-3 text-center text-xs font-mono ${r.delayMinutes > 0 ? 'text-amber-600 font-semibold' : 'text-muted'}`}>
+                      {r.isWeeklyOff ? '—' : (r.delayMinutes > 0 ? `${r.delayMinutes} د` : '—')}
+                    </td>
                     <td className="py-2 px-3 text-center">
-                      {r.isFriday
-                        ? <StatusBadge status="holiday" />
+                      {r.isWeeklyOff
+                        ? <StatusBadge status="weekly_off" />
                         : r.status
                           ? <StatusBadge status={r.status} />
                           : <span className="text-[10px] text-muted">غياب</span>
