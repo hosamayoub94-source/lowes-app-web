@@ -176,7 +176,6 @@ function DayBadge({ dayRec, slash, userName, team, onReasonSaved, fixedWeeklyOff
   const today     = todaySlash();
   const isToday   = slash === today;
   const isFuture  = slash > today;
-  const isPast    = slash < today;
   const [showModal, setShowModal] = useState(false);
 
   if (isFuture) return (
@@ -195,8 +194,10 @@ function DayBadge({ dayRec, slash, userName, team, onReasonSaved, fixedWeeklyOff
 
   if (!checkIn) return (
     <>
+      {/* اليوم متاح للنقر أيضاً — الموظف بلا يوم عطلة مثبّت يسجّل عطلته
+          المرنة بنفسه بيومها، لا بعد فواتها فقط. */}
       <div
-        onClick={() => isPast && !hasAbsReason && !isWeeklyOff && setShowModal(true)}
+        onClick={() => !isFuture && !hasAbsReason && !isWeeklyOff && setShowModal(true)}
         className={`flex flex-col items-center gap-1 p-2 rounded-xl border cursor-pointer transition
           ${isToday ? 'border-teal/30 bg-teal/5'
           : isWeeklyOff ? 'border-yellow-300 bg-yellow-50'
@@ -642,8 +643,11 @@ export default function AttendanceScreen() {
   // Stats
   const completedDays = days.filter(d => d <= todaySlash() && week[d]?.checkIn && week[d]?.checkOut).length;
   const presentDays   = days.filter(d => d <= todaySlash() && week[d]?.checkIn).length;
-  // يوم العطلة الأسبوعية المثبّت لا يُحتسب غياباً ولا يُطلب فيه تسجيل حضور
-  const absentDays    = days.filter(d => d < todaySlash() && !week[d]?.checkIn && !isWeeklyOffDay(restDay, slashToISO(d))).length;
+  // العطلة الأسبوعية — مثبّتة بالبيانات أو مرنة سجّلها الموظف — لا تُحتسب غياباً
+  const absentDays    = days.filter(d =>
+    d < todaySlash() && !week[d]?.checkIn
+    && !week[d]?.weeklyOff && !isWeeklyOffDay(restDay, slashToISO(d))
+  ).length;
 
   return (
     <div className="max-w-lg mx-auto space-y-4 pb-24 sm:pb-8" dir="rtl">

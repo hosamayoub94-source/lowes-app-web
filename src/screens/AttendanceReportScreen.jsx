@@ -303,9 +303,12 @@ export default function AttendanceReportScreen() {
     for (let d = 1; d <= days; d++) {
       const date   = `${month}-${String(d).padStart(2, '0')}`;
       const dow    = new Date(date).getDay();
-      // العطلة من بيانات الموظف حصراً — بلا يوم محدَّد = بلا عطلة أسبوعية
-      const isOff  = isWeeklyOffDay(restDay, date);
       const log    = logByDate[date];
+      // العطلة الأسبوعية من مصدرين:
+      //  1) يوم مثبَّت ببيانات الموظف (profiles.rest_day)
+      //  2) عطلة مرنة سجّلها الموظف بنفسه لذلك اليوم (attendance.type = weekly_off)
+      // ومَن لا هذا ولا ذاك → مداوم كل الأيام (لا يوم عطلة افتراضي).
+      const isOff  = isWeeklyOffDay(restDay, date) || log?.day_type === 'weekly_off';
       const checkIn  = log?.check_in  || log?.check_in_time  || null;
       const checkOut = log?.check_out || log?.check_out_time || null;
       // يوم العطلة: لا غياب، لا تأخير، لا مخالفة دوام
