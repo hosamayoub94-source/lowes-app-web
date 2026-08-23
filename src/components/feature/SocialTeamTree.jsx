@@ -1,48 +1,72 @@
 // =============================================================
-// SocialTeamTree — هيكل فريق السوشال ميديا فقط (لا هيكل الشركة كلها)
+// SocialTeamTree — شجرة قسم Media فقط (لا هيكل الشركة كلها)
 //
-// يقرأ الأشخاص الحقيقيين من profiles — لا أسماء مكتوبة بالكود:
-//   • مدير السوشال      → role_type = social_manager
-//   • أعضاء الفريق      → team = 'ميديا' (عدا المدير والميديا باير)
-//   • الميديا باير      → role_type = media_buyer — يُعرض **بجانب** الفريق
-//                          لا تحته: مرتبط بالفريق كله ولا يتبع مدير السوشال.
+// مصدر التبعية الإدارية هو **المسمى الوظيفي** (profiles.job_title)
+// مقابل المسميات المعتمدة بـ@data/orgChart — لا الدور ولا الفريق.
+// السبب: أكثر من موظف يحمل دور social_manager لأغراض صلاحيات، ولا
+// تُغيَّر الصلاحيات لأجل العرض (D-075).
 //
-// هذا عرض فقط — لا يكتب شيئاً ولا يغيّر أي مدير مسجَّل بالنظام.
+//   Media
+//   ├── Social Media Manager
+//   │   ├── Graphic Designer × 2
+//   │   └── Social Media Specialist × 2
+//   ├── Media Buyer × 1
+//   ├── Trade Relations Specialist
+//   └── Medical Relations Specialist
+//
+// عرض فقط — لا يكتب شيئاً ولا يغيّر أي دور أو مدير مسجَّل بالنظام.
 // =============================================================
 import { useEffect, useState } from 'react';
-import { supabase }     from '@services/supabase';
-import { Avatar }       from '@components/ui/Avatar';
-import { ROLES, ROLE_LABELS } from '@data/teams';
+import { supabase } from '@services/supabase';
+import { Avatar }   from '@components/ui/Avatar';
+import { ROLES }    from '@data/teams';
+import { MEDIA_TEAM, MEDIA_JOB_TITLES, mediaTitleOf } from '@data/orgChart';
 
-const SOCIAL_TEAM = 'ميديا';
-
-/** بطاقة شخص واحد — أو خانة شاغرة بنفس اصطلاح شاشة الهيكل الإداري. */
-function PersonCard({ person, titleEn, titleAr, tone = 'default' }) {
-  const ring =
+/** بطاقة شخص — أو خانة شاغرة بنفس اصطلاح شاشة الهيكل الإداري القائمة. */
+function PersonCard({ person, titleEn, titleAr, specialty, tone = 'default' }) {
+  const skin =
     tone === 'manager' ? 'border-teal/40 bg-teal/5'
-    : tone === 'linked' ? 'border-dashed border-amber-300 bg-amber-50/40 dark:bg-amber-900/10'
+    : tone === 'aside' ? 'border-dashed border-amber-300 bg-amber-50/40 dark:bg-amber-900/10'
     : 'border-border bg-surface';
 
   return (
-    <div className={`rounded-2xl border p-3 min-w-[10.5rem] ${ring}`}>
+    <div className={`rounded-2xl border p-3 min-w-[10.5rem] max-w-[13rem] ${skin}`}>
       <p className="text-[11px] font-black text-text" dir="ltr" style={{ textAlign: 'right' }}>{titleEn}</p>
-      <p className="text-[10px] text-muted mb-2">{titleAr}</p>
+      <p className="text-[10px] text-muted">{titleAr}</p>
+      {specialty && <p className="text-[9px] text-muted/80 mb-2 leading-relaxed">{specialty}</p>}
       {person ? (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-1.5">
           <Avatar name={person.employee_name} src={person.avatar_url} size="sm" />
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-text truncate">{person.employee_name}</p>
-            {person.job_title && <p className="text-[10px] text-muted truncate">{person.job_title}</p>}
-          </div>
+          <p className="text-sm font-bold text-text truncate">{person.employee_name}</p>
         </div>
       ) : (
-        <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5">
+        <span className="inline-block mt-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5">
           Vacant
         </span>
       )}
     </div>
   );
 }
+
+/** خانات مسمّى واحد: يعرض كل مَن يحمله، وخانة شاغرة حتى اكتمال العدد. */
+function TitleSlots({ def, holders, expected, tone }) {
+  const vacancies = Math.max(0, (expected ?? 0) - holders.length);
+  return (
+    <>
+      {holders.map(p => (
+        <PersonCard key={p.id} person={p} tone={tone}
+          titleEn={def.title_en} titleAr={def.title_ar} specialty={def.specialty} />
+      ))}
+      {Array.from({ length: vacancies }, (_, i) => (
+        <PersonCard key={`${def.key}-vacant-${i}`} person={null} tone={tone}
+          titleEn={def.title_en} titleAr={def.title_ar} specialty={def.specialty} />
+      ))}
+    </>
+  );
+}
+
+// العدد المتوقَّع لكل مسمى بالهيكل المعتمد
+const EXPECTED = { social_manager: 1, graphic: 2, specialist: 2, media_buyer: 1, trade: 1, medical: 1 };
 
 export default function SocialTeamTree() {
   const [people, setPeople]   = useState([]);
@@ -56,9 +80,7 @@ export default function SocialTeamTree() {
         .select('id, employee_name, job_title, role_type, team, avatar_url, is_active')
         .eq('is_active', true)
         .order('employee_name');
-      if (!alive) return;
-      setPeople(data ?? []);
-      setLoading(false);
+      if (alive) { setPeople(data ?? []); setLoading(false); }
     })();
     return () => { alive = false; };
   }, []);
@@ -66,78 +88,88 @@ export default function SocialTeamTree() {
   if (loading) {
     return (
       <div className="bg-surface border border-border rounded-2xl p-5 text-center text-xs text-muted">
-        جارٍ تحميل هيكل الفريق…
+        جارٍ تحميل هيكل القسم…
       </div>
     );
   }
 
-  const manager = people.find(p => p.role_type === ROLES.SOCIAL_MANAGER) ?? null;
-  const buyers  = people.filter(p => p.role_type === ROLES.MEDIA_BUYER);
-  const members = people.filter(p =>
-    p.team === SOCIAL_TEAM &&
-    p.id !== manager?.id &&
-    p.role_type !== ROLES.MEDIA_BUYER,
+  const dept = people.filter(p => p.team === MEDIA_TEAM);
+
+  /** حاملو مسمّى معتمد. الميديا باير يُلتقط بدوره أيضاً لمن لم يُثبَّت مسمّاه بعد. */
+  const holdersOf = (key) => dept.filter(p => {
+    const t = mediaTitleOf(p.job_title);
+    if (t?.key === key) return true;
+    return key === 'media_buyer' && !t && p.role_type === ROLES.MEDIA_BUYER;
+  });
+
+  const def       = (key) => MEDIA_JOB_TITLES.find(x => x.key === key);
+  const managers  = holdersOf('social_manager');
+  const directs   = ['graphic', 'specialist'];
+  const asides    = ['media_buyer', 'trade', 'medical'];
+
+  // أعضاء القسم بلا مسمّى معتمد — لا يُنسبون لأي مدير، ينتظرون التثبيت
+  const assignedIds = new Set(
+    [...managers, ...directs.flatMap(holdersOf), ...asides.flatMap(holdersOf)].map(p => p.id),
   );
+  const unassigned = dept.filter(p => !assignedIds.has(p.id));
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4 space-y-3" dir="rtl">
+    <div className="bg-surface border border-border rounded-2xl p-4 space-y-4" dir="rtl">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <p className="text-sm font-bold text-text">🧭 هيكل فريق السوشال</p>
-        <p className="text-[10px] text-muted">مَن يتبع مَن إدارياً — منفصل تماماً عن شركاء الدوام</p>
+        <p className="text-sm font-bold text-text">🗂️ شجرة قسم Media</p>
+        <p className="text-[10px] text-muted">التبعية الإدارية تُقرأ من المسمى الوظيفي — منفصلة عن شركاء الدوام</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
 
-        {/* ── الفريق: المدير ثم التابعون ── */}
-        <div className="flex flex-col items-center gap-0">
-          <PersonCard
-            person={manager}
-            titleEn="Social Media Manager"
-            titleAr="مدير السوشال ميديا"
-            tone="manager"
-          />
+        {/* ── مدير السوشال ومَن يتبعه إدارياً ── */}
+        <div className="flex flex-col items-center">
+          <TitleSlots def={def('social_manager')} holders={managers}
+            expected={EXPECTED.social_manager} tone="manager" />
 
-          {/* وصلة نازلة من المدير */}
           <div className="w-px h-5 bg-border" aria-hidden="true" />
+          <div className="h-px w-full max-w-[34rem] bg-border" aria-hidden="true" />
 
-          {members.length === 0 ? (
-            <p className="text-[11px] text-muted py-2">لا يوجد أعضاء مسجَّلون بفريق «{SOCIAL_TEAM}» بعد</p>
-          ) : (
-            <>
-              {/* سكة أفقية تجمع التابعين */}
-              <div className="h-px w-full max-w-[36rem] bg-border" aria-hidden="true" />
-              <div className="flex flex-wrap justify-center gap-3 pt-0">
-                {members.map(m => (
-                  <div key={m.id} className="flex flex-col items-center">
-                    <div className="w-px h-5 bg-border" aria-hidden="true" />
-                    <PersonCard
-                      person={m}
-                      titleEn={m.job_title || 'Social Media Team'}
-                      titleAr={ROLE_LABELS[m.role_type] ?? 'عضو فريق'}
-                    />
-                  </div>
-                ))}
+          <div className="flex flex-wrap justify-center gap-3">
+            {directs.map(key => (
+              <div key={key} className="flex flex-col items-center">
+                <div className="w-px h-5 bg-border" aria-hidden="true" />
+                <div className="flex flex-wrap justify-center gap-3">
+                  <TitleSlots def={def(key)} holders={holdersOf(key)} expected={EXPECTED[key]} />
+                </div>
               </div>
-            </>
-          )}
+            ))}
+          </div>
         </div>
 
-        {/* ── الميديا باير: بجانب الفريق لا تحته ── */}
-        <div className="flex flex-col items-center gap-2 lg:border-s lg:border-dashed lg:border-amber-300 lg:ps-4
-                        border-t border-dashed border-amber-300 pt-4 lg:border-t-0 lg:pt-0">
-          {buyers.length === 0 ? (
-            <PersonCard person={null} titleEn="Media Buyer" titleAr="ميديا باير" tone="linked" />
-          ) : (
-            buyers.map(b => (
-              <PersonCard key={b.id} person={b} titleEn="Media Buyer" titleAr="ميديا باير" tone="linked" />
-            ))
-          )}
-          <p className="text-[10px] text-amber-700 dark:text-amber-400 text-center max-w-[11rem] leading-relaxed">
-            متعاون مع الفريق كله — لا يتبع مدير السوشال
+        {/* ── ضمن القسم، خارج تبعية مدير السوشال ── */}
+        <div className="flex flex-col items-center gap-2 pt-4 border-t border-dashed border-amber-300
+                        lg:pt-0 lg:border-t-0 lg:border-s lg:border-dashed lg:border-amber-300 lg:ps-4">
+          {asides.map(key => (
+            <TitleSlots key={key} def={def(key)} holders={holdersOf(key)}
+              expected={EXPECTED[key]} tone="aside" />
+          ))}
+          <p className="text-[10px] text-amber-700 dark:text-amber-400 text-center max-w-[12rem] leading-relaxed">
+            ضمن قسم Media — لا يتبعون مدير السوشال إدارياً
           </p>
         </div>
-
       </div>
+
+      {/* ── بانتظار تثبيت المسمى — لا يُنسبون لأي مدير ── */}
+      {unassigned.length > 0 && (
+        <div className="border-t border-border pt-3">
+          <p className="text-[10px] font-bold text-muted mb-1.5">
+            بانتظار تثبيت المسمى الوظيفي ({unassigned.length}) — غير منسوبين لأي مدير
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {unassigned.map(p => (
+              <span key={p.id} className="px-2.5 py-1 rounded-full bg-surface-alt border border-border text-xs text-text">
+                {p.employee_name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

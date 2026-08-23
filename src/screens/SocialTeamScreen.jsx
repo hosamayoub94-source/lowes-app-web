@@ -7,6 +7,7 @@ import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import SocialTeamTree from '@components/feature/SocialTeamTree';
+import { MEDIA_JOB_TITLES, mediaTitleOf } from '@data/orgChart';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -55,6 +56,19 @@ export default function SocialTeamScreen() {
     } else {
       toast.error(r.message || 'تعذّرت الإضافة');
     }
+  };
+
+  // تثبيت مسمى معتمد على موظف — يكتب job_title فقط.
+  // لا يمسّ role_type ولا الصلاحيات ولا الفريق ولا أي حقل آخر.
+  const setJobTitle = async (row, titleEn) => {
+    setBusy(true);
+    const { error } = await supabase.from('profiles')
+      .update({ job_title: titleEn || null })
+      .eq('id', row.id);
+    setBusy(false);
+    if (error) { toast.error('تعذّر حفظ المسمى: ' + error.message); return; }
+    toast.success(titleEn ? `${row.employee_name} → ${titleEn}` : 'أُزيل المسمى');
+    load();
   };
 
   const toggle = async (row) => {
@@ -122,7 +136,19 @@ export default function SocialTeamScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-text truncate">{r.employee_name}</p>
-                    <p className="text-[11px] text-muted truncate">{r.job_title || 'فريق السوشال'}</p>
+                    {/* تثبيت المسمى المعتمد — يكتب job_title وحده، لا يمسّ الدور ولا الصلاحيات */}
+                    <select
+                      value={mediaTitleOf(r.job_title)?.title_en ?? ''}
+                      onChange={e => setJobTitle(r, e.target.value)}
+                      disabled={busy}
+                      className="mt-0.5 w-full max-w-[15rem] text-[11px] bg-surface border border-border rounded-lg px-2 py-1 text-text disabled:opacity-50">
+                      <option value="">
+                        {r.job_title ? `— غير معتمد: ${r.job_title} —` : '— بلا مسمى معتمد —'}
+                      </option>
+                      {MEDIA_JOB_TITLES.map(t => (
+                        <option key={t.key} value={t.title_en}>{t.title_en} · {t.title_ar}</option>
+                      ))}
+                    </select>
                   </div>
                   <button onClick={() => toggle(r)} disabled={busy}
                     className="text-xs font-semibold text-red-500 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition disabled:opacity-50">
