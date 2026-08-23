@@ -319,7 +319,21 @@ export async function fetchDerivedPartnerGroups() {
   // عمود shift_partner غير مضاف بعد → الميزة غير جاهزة، بلا أي عطل
   if (error) return { groups: [], pending: [], ready: false };
 
-  const flagged = (data ?? []).filter(p => String(p.shift_partner ?? '').trim());
+  // مَن حدّده الموظفون بأنفسهم من «شركاء الوردية» بالملف الشخصي —
+  // النظام القائم (جدول shift_partners بموافقة متبادلة، وهو نفسه ما
+  // يجعل الشريكين يريان طلبات بعض). لا نظام موازٍ.
+  let selfDeclared = new Set();
+  try {
+    const { data: sp } = await supabase
+      .from('shift_partners').select('requester, partner').eq('status', 'accepted');
+    for (const r of sp ?? []) { selfDeclared.add(r.requester); selfDeclared.add(r.partner); }
+  } catch { /* الجدول غير متاح → نكتفي بحقل الإدارة */ }
+
+  // العلامة مصدران: شراكة معتمَدة اختارها الموظف، أو حقل يملؤه المسؤول.
+  // التجميع نفسه يتم بالرقم/الصفحة — فالعلامة اشتراك لا تعريف للمجموعة.
+  const flagged = (data ?? []).filter(p =>
+    String(p.shift_partner ?? '').trim() || selfDeclared.has(p.employee_name),
+  );
 
   const byPage = new Map();
   const pending = [];
