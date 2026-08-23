@@ -7,6 +7,8 @@ import { useAuth } from '@hooks/useAuth';
 import PermissionsEditor from '@components/feature/PermissionsEditor';
 // مصدر الحقيقة للأدوار (يشمل أدوار التوزيع + الإدارة) — لا تكرّر القائمة محلياً.
 import { ROLE_LABELS } from '@data/teams';
+// مسميات قسم Media المعتمدة — مصدر واحد مشترك مع شجرة القسم.
+import { MEDIA_JOB_TITLES } from '@data/orgChart';
 
 const ROLE_COLORS = {
   admin:          'bg-purple-bg text-purple-fg',
@@ -79,7 +81,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
+  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -87,7 +89,7 @@ async function fetchProfiles() {
     // Columns not migrated yet — fall back to base columns
     const res = await supabase
       .from('profiles')
-      .select('id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points')
+      .select('id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points')
       .order('role_type').order('employee_name');
     if (res.error) throw new Error(res.error.message);
     return { profiles: res.data ?? [], hasExtCols: false };
@@ -118,7 +120,7 @@ async function adminResetPin(employeeName, newPin) {
 
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
-  employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
+  employee_name: '', job_title: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   seller_type: 'online',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
@@ -291,6 +293,7 @@ export default function AdminUsersScreen() {
     setEditUser(p);
     setForm({
       employee_name: p.employee_name ?? '',
+      job_title:     p.job_title ?? '',
       role_type:     p.role_type ?? 'employee',
       seller_type:   p.seller_type ?? 'online',
       team:          p.team ?? '',
@@ -320,6 +323,7 @@ export default function AdminUsersScreen() {
     try {
       const patch = {
         employee_name: form.employee_name.trim(),
+        job_title:     form.job_title.trim() || null,
         role_type:     form.role_type,
         team:          form.team || null,
         manager_scope: form.manager_scope || null,
@@ -678,6 +682,39 @@ export default function AdminUsersScreen() {
                 <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))} className={selectCls}>
                   {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}
                 </select>
+              </Field>
+              {/* المسمى الوظيفي — نص حر يحفظ ما هو مكتوب سلفاً كما هو،
+                  مع أزرار سريعة لمسميات قسم Media المعتمدة (D-075).
+                  لا يمسّ الدور ولا الصلاحيات ولا الفريق. */}
+              <Field label="المسمى الوظيفي">
+                <input
+                  type="text"
+                  value={form.job_title}
+                  onChange={e => setForm(f => ({ ...f, job_title: e.target.value }))}
+                  placeholder="مثال: Graphic Designer"
+                  className={inputCls}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {MEDIA_JOB_TITLES.map(t => {
+                    const on = form.job_title.trim().toLowerCase() === t.title_en.toLowerCase();
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, job_title: t.title_en }))}
+                        title={t.title_ar}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold border transition ${
+                          on ? 'border-teal bg-teal/10 text-teal'
+                             : 'border-border bg-surface-alt text-muted hover:text-text'
+                        }`}>
+                        {t.title_en}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted mt-1.5">
+                  مسميات قسم Media المعتمدة — اضغط لتثبيت المسمى، أو اكتب أي مسمى آخر لبقية الأقسام.
+                </p>
               </Field>
               <Field label="نطاق الإشراف (للمدراء)">
                 <input type="text" value={form.manager_scope} onChange={e => setForm(f => ({ ...f, manager_scope: e.target.value }))} placeholder="مثال: إسطنبول" className={inputCls} />
