@@ -64,6 +64,7 @@ export const ROUTES = {
   // HR Features
   SCHEDULE:  '/schedule',
   SHIFT_PARTNERS: '/admin/shift-partners',
+  PARTNER_GROUPS: '/partner-groups',
   ADVANCES:  '/advances',
   REVIEWS:   '/reviews',
 

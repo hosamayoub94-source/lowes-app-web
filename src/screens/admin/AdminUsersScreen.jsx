@@ -96,13 +96,27 @@ async function fetchProfiles() {
   }
 
   if (error) throw new Error(error.message);
-  return { profiles: data ?? [], hasExtCols: true };
+
+  // shift_partner قد لا يكون مضافاً بعد — يُجلب منفصلاً حتى لا يُسقِط
+  // بقية الأعمدة الموسّعة عند غيابه.
+  let profiles = data ?? [];
+  const sp = await supabase.from('profiles').select('id,shift_partner');
+  if (!sp.error && sp.data) {
+    const byId = new Map(sp.data.map(r => [r.id, r.shift_partner]));
+    profiles = profiles.map(r => ({ ...r, shift_partner: byId.get(r.id) ?? null }));
+  }
+  return { profiles, hasExtCols: true };
 }
 
 async function updateProfile(id, patch) {
   const { supabase } = await import('@services/supabase');
-  const { error } = await supabase
-    .from('profiles').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  const body = { ...patch, updated_at: new Date().toISOString() };
+  let { error } = await supabase.from('profiles').update(body).eq('id', id);
+  // العمود الجديد قد لا يكون مضافاً بعد — تُحفظ بقية الحقول كالمعتاد
+  if (error && /shift_partner|schema cache/i.test(error.message || '')) {
+    const { shift_partner: _omit, ...rest } = body;
+    ({ error } = await supabase.from('profiles').update(rest).eq('id', id));
+  }
   if (error) throw new Error(error.message);
 }
 
@@ -120,7 +134,7 @@ async function adminResetPin(employeeName, newPin) {
 
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
-  employee_name: '', job_title: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
+  employee_name: '', job_title: '', shift_partner: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   seller_type: 'online',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
   birthday: '', join_date: '',
@@ -294,6 +308,7 @@ export default function AdminUsersScreen() {
     setForm({
       employee_name: p.employee_name ?? '',
       job_title:     p.job_title ?? '',
+      shift_partner: p.shift_partner ?? '',
       role_type:     p.role_type ?? 'employee',
       seller_type:   p.seller_type ?? 'online',
       team:          p.team ?? '',
@@ -324,6 +339,7 @@ export default function AdminUsersScreen() {
       const patch = {
         employee_name: form.employee_name.trim(),
         job_title:     form.job_title.trim() || null,
+        shift_partner: form.shift_partner.trim() || null,
         role_type:     form.role_type,
         team:          form.team || null,
         manager_scope: form.manager_scope || null,
@@ -755,6 +771,23 @@ export default function AdminUsersScreen() {
                   {/* Page name */}
                   <div className="border-t border-border pt-3">
                     <p className="text-xs font-semibold text-muted mb-3">📱 السوشال ميديا</p>
+                    {/* شركاء الدوام — الشريك هنا، والرقم/الصفحة بالحقل أدناه
+                        (page_name القائم مسبقاً، يُستخدم كما هو بلا تكرار).
+                        المجموعة تتكوّن تلقائياً ممّن يشتركون بنفس الرقم/الصفحة. */}
+                    <div className="mb-3">
+                    <Field label="الشريك بالدوام">
+                      <input
+                        type="text"
+                        value={form.shift_partner}
+                        onChange={e => setForm(f => ({ ...f, shift_partner: e.target.value }))}
+                        placeholder="اسم الشريك (أو الشريكين مفصولين بفاصلة)"
+                        className={inputCls}
+                      />
+                      <p className="text-[10px] text-muted mt-1.5">
+                        تُبنى المجموعة تلقائياً من الزملاء الذين لهم شريك محدَّد ويشتركون بنفس الرقم أو الصفحة أدناه.
+                      </p>
+                    </Field>
+                    </div>
                     <Field label="اسم الصفحة">
                       <input type="text" value={form.page_name} onChange={e => setForm(f => ({ ...f, page_name: e.target.value }))} placeholder="@username أو اسم الصفحة" className={inputCls} />
                     </Field>

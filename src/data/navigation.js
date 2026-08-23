@@ -41,6 +41,7 @@ export const NAV_ITEMS = [
   // ── Daily basics (everyone) — first items feed the mobile bottom bar
   { id: 'workspace',    label: 'الرئيسية',   icon: '🏠', path: '/',            roles: ALL,                 group: 'core' },
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
+  { id: 'partner-groups', label: 'شركاء الدوام', icon: '👥', path: '/partner-groups', roles: ALL,          group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
   { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },

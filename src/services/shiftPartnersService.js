@@ -280,6 +280,71 @@ export async function saveGroup(group, effectiveFrom = todayISO()) {
   return data;
 }
 
+// ── مجموعات مُشتقّة من ملفات الموظفين ─────────────────────────
+// مسار مستقل عن جدول shift_groups أعلاه ولا يمسّه: المجموعة هنا
+// تتكوّن **تلقائياً** ممّن حُدِّدوا كشركاء (profiles.shift_partner)
+// ويعملون على نفس رقم الواتساب أو نفس الصفحة (profiles.page_name —
+// حقل قائم مسبقاً، يُستخدم كما هو).
+
+/** الاسم الأول من الاسم الكامل. */
+function firstName(fullName) {
+  return String(fullName ?? '').trim().split(/\s+/)[0] || String(fullName ?? '').trim();
+}
+
+/** مفتاح موحَّد للرقم/الصفحة — يمنع تكرار المجموعة لفروق شكلية. */
+function pageKey(page) {
+  return String(page ?? '')
+    .trim().toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/^@/, '')
+    .replace(/[()\-\s]/g, '');   // أرقام الواتساب بصيغ مختلفة → مفتاح واحد
+}
+
+/**
+ * يبني مجموعات شركاء الدوام من ملفات الموظفين.
+ * العضوية: موظف نشط · له شريك محدَّد · وله رقم/صفحة.
+ * المجموعة: كل مَن يشتركون بنفس الرقم/الصفحة (عضوان أو ثلاثة).
+ * التفرّد مضمون بالبناء — المفتاح هو الرقم/الصفحة، فلا مجموعتان لنفسه.
+ *
+ * @returns {Promise<{groups: object[], pending: object[], ready: boolean}>}
+ */
+export async function fetchDerivedPartnerGroups() {
+  const COLS = 'id, employee_name, shift_partner, page_name, team, avatar_url';
+  let data, error;
+  try {
+    ({ data, error } = await supabase
+      .from('profiles').select(COLS).eq('is_active', true).order('employee_name'));
+  } catch { return { groups: [], pending: [], ready: false }; }
+
+  // عمود shift_partner غير مضاف بعد → الميزة غير جاهزة، بلا أي عطل
+  if (error) return { groups: [], pending: [], ready: false };
+
+  const flagged = (data ?? []).filter(p => String(p.shift_partner ?? '').trim());
+
+  const byPage = new Map();
+  const pending = [];
+  for (const p of flagged) {
+    const key = pageKey(p.page_name);
+    if (!key) { pending.push(p); continue; }   // شريك محدَّد بلا رقم/صفحة
+    if (!byPage.has(key)) byPage.set(key, { key, page: String(p.page_name).trim(), members: [] });
+    byPage.get(key).members.push(p);
+  }
+
+  const groups = [...byPage.values()]
+    .filter(g => g.members.length >= 2)
+    .map(g => ({
+      ...g,
+      name: g.members.map(m => firstName(m.employee_name)).join(' + '),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+  // عضو وحيد على رقم/صفحة — ليس مجموعة بعد، يُعرض كناقص لا كمجموعة
+  const singles = [...byPage.values()].filter(g => g.members.length === 1)
+    .flatMap(g => g.members);
+
+  return { groups, pending: [...pending, ...singles], ready: true };
+}
+
 /** إنهاء مجموعة اعتباراً من تاريخ — لا حذف، السجلات القديمة تبقى كما هي. */
 export async function endGroup(id, effectiveFrom = todayISO()) {
   const { error } = await supabase.from(TABLE)

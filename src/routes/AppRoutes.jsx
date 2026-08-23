@@ -66,6 +66,7 @@ const TrainingScreen           = lazy(() => import(/* webpackChunkName: "trainin
 const AdminQuizScreen          = lazy(() => import(/* webpackChunkName: "admin-quiz"       */ '@screens/admin/AdminQuizScreen'));
 const AdminFaceEnrollScreen    = lazy(() => import(/* webpackChunkName: "admin-face"       */ '@screens/admin/AdminFaceEnrollScreen'));
 const ShiftScheduleScreen      = lazy(() => import(/* webpackChunkName: "schedule"         */ '@screens/ShiftScheduleScreen'));
+const PartnerGroupsScreen      = lazy(() => import(/* webpackChunkName: "partner-groups"   */ '@screens/PartnerGroupsScreen'));
 const ShiftPartnersScreen      = lazy(() => import(/* webpackChunkName: "shift-partners"   */ '@screens/admin/ShiftPartnersScreen'));
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
@@ -392,6 +393,7 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.SCHEDULE} element={<ShiftScheduleScreen />} />
+          <Route path={ROUTES.PARTNER_GROUPS} element={<PartnerGroupsScreen />} />
           <Route
             path={ROUTES.SHIFT_PARTNERS}
             element={
