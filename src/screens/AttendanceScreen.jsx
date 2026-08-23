@@ -10,6 +10,7 @@ import { useAuth }   from '@hooks/useAuth';
 import { supabase }  from '@services/supabase';
 import { SelfieCapture } from '@components/attendance/SelfieCapture';
 import { resolveCheckInContext, isWeeklyOffDay } from '@services/shiftPartnersService';
+import ShiftGroupsBoard from '@components/feature/ShiftGroupsBoard';
 
 // ── Date helpers ───────────────────────────────────────────────
 /** Returns "YYYY/MM/DD" — matches DB text format */
@@ -897,6 +898,9 @@ export default function AttendanceScreen() {
           ))}
         </div>
       </div>
+
+      {/* ── مجموعات شركاء الدوام السارية — عرض لكل الموظفين ─── */}
+      <ShiftGroupsBoard currentUserName={userName} />
 
       {/* ── Who is in today (live) ───────────────────────────── */}
       <WhoIsInToday />

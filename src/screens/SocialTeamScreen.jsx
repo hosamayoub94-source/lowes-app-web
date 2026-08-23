@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
+import SocialTeamTree from '@components/feature/SocialTeamTree';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -73,6 +74,9 @@ export default function SocialTeamScreen() {
         <h1 className="text-xl font-extrabold flex items-center gap-2">🌐 فريق السوشال</h1>
         <p className="text-white/70 text-xs mt-1">أضف أو عطّل موظفي السوشال بسرعة — للتعامل مع تغيّر الفريق</p>
       </div>
+
+      {/* هيكل الفريق — عرض فقط، لا يغيّر أي بيانات */}
+      <SocialTeamTree />
 
       {/* Add */}
       {!adding ? (
