@@ -207,7 +207,7 @@ function GroupCard({ group, onEdit, onEnd }) {
 }
 
 // ── الشاشة ─────────────────────────────────────────────────────
-export default function ShiftPartnersScreen() {
+export default function ShiftPartnersScreen({ embedded = false }) {
   const { name: currentUser } = useAuth();
 
   const [groups,    setGroups]    = useState([]);
@@ -252,8 +252,10 @@ export default function ShiftPartnersScreen() {
 
   return (
     <div className="space-y-5" dir="rtl">
-      <Hero eyebrow="الموارد البشرية" title="شركاء الدوام"
-        subtitle="حدّد مَن يعمل مع مَن — عدد أعضاء المجموعة يحدّد نظام الورديات" />
+      {!embedded && (
+        <Hero eyebrow="الموارد البشرية" title="شركاء الدوام"
+          subtitle="حدّد مَن يعمل مع مَن — عدد أعضاء المجموعة يحدّد نظام الورديات" />
+      )}
 
       {tableMissing && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2 text-xs text-amber-700 dark:text-amber-400">

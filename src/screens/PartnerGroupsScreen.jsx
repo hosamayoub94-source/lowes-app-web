@@ -7,15 +7,25 @@
 //
 // عرض فقط — لا يكتب شيئاً، ولا يمسّ مجموعات شاشة الإدارة اليدوية.
 // =============================================================
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useAuth }  from '@hooks/useAuth';
 import { Hero }     from '@components/ui/Hero';
 import { Card, CardTitle } from '@components/ui/Card';
 import { Avatar }   from '@components/ui/Avatar';
+import { ROLES }    from '@data/teams';
+import { PERMISSIONS as P, resolvePermissions } from '@data/permissions';
 import { fetchDerivedPartnerGroups } from '@services/shiftPartnersService';
 
+// قسم الإدارة اليدوية — يُحمَّل فقط لمن يملك صلاحيته
+const ShiftPartnersManager = lazy(() => import('@screens/admin/ShiftPartnersScreen'));
+
 export default function PartnerGroupsScreen() {
-  const { name: me } = useAuth();
+  const { name: me, role, session } = useAuth();
+
+  // نفس شرط المسار القديم: الدور أو الصلاحية — بلا تغيير أي صلاحية
+  const canManage =
+    [ROLES.ADMIN, ROLES.MANAGER].includes(role) ||
+    resolvePermissions(session).has(P.MANAGE_ATTENDANCE);
   const [groups, setGroups]   = useState([]);
   const [pending, setPending] = useState([]);
   const [ready, setReady]     = useState(true);
@@ -118,6 +128,22 @@ export default function PartnerGroupsScreen() {
             ))}
           </div>
         </Card>
+      )}
+
+      {/* ── مجموعات الورديات اليدوية — للإدارة فقط، ضمن نفس التبويب ── */}
+      {canManage && (
+        <div className="pt-2 border-t border-border space-y-3">
+          <div>
+            <p className="text-sm font-bold text-text">⚙️ مجموعات الورديات (إدارة)</p>
+            <p className="text-[11px] text-muted mt-0.5">
+              مجموعات يحدّدها المسؤول يدوياً ويُشتقّ منها نظام الورديات وحساب التأخير —
+              منفصلة عن المجموعات التلقائية أعلاه.
+            </p>
+          </div>
+          <Suspense fallback={<Card><p className="text-center py-6 text-muted text-sm">جار التحميل…</p></Card>}>
+            <ShiftPartnersManager embedded />
+          </Suspense>
+        </div>
       )}
     </div>
   );
