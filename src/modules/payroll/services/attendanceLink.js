@@ -17,8 +17,13 @@ const PRESENT_STATUSES = new Set(['present', 'late', 'on_break', 'checked_out'])
 // شبه فارغ (بقايا مخطط قديم keyed بـuser_id) — نُبقيه fallback فقط.
 // (توحيد مصدر الحضور — تدقيق 2026-07-02.)
 const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-const isPresentStatus = (s) => { const t = String(s || ''); return t.includes('حاضر') || t.includes('خروج') || t.includes('present') || t.includes('late'); };
-const isLeaveStatus   = (s) => { const t = String(s || ''); return t.includes('إجازة') || t.includes('اجازة') || t.includes('leave') || t.includes('off'); };
+// «متأخر» حضور لا غياب — الموظف داوم، والتأخير محمول بـwas_late/delay_minutes.
+// بلا هذا الشرط أي صف حالته «متأخر» (من الشيت أو أي مصدر) يسقط من الحضور
+// والإجازة معاً فيُحتسب غياباً ويُخصم من راتبه يوم اشتغله فعلاً.
+const isPresentStatus = (s) => { const t = String(s || ''); return t.includes('حاضر') || t.includes('خروج') || t.includes('متأخر') || t.includes('present') || t.includes('late'); };
+// «عطلة» يوم مُبرَّر كالإجازة — يشمل «🌟 عطلة أسبوعية» التي يسجّلها الموظف
+// بنفسه. لا تُحتسب غياباً ولا تُخصم من الراتب (D-073).
+const isLeaveStatus   = (s) => { const t = String(s || ''); return t.includes('إجازة') || t.includes('اجازة') || t.includes('عطلة') || t.includes('leave') || t.includes('off'); };
 const isLateStatus    = (s) => String(s || '').includes('late') || String(s || '').includes('متأخر');
 const dayKey = (d) => String(d ?? '').replace(/-/g, '/').slice(0, 10); // «YYYY/MM/DD»
 

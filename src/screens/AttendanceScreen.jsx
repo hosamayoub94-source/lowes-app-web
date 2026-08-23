@@ -506,7 +506,10 @@ export default function AttendanceScreen() {
         recorded_at:   now,
         delay_minutes: ctx.delayMinutes,
         was_late:      ctx.wasLate,
-        status:        ctx.wasLate ? '⏰ متأخر' : '✅ حاضر',
+        // ⚠️ لا تغيّر نص status: محرّك الرواتب يتعرّف على الحضور بالنص
+        // (attendanceLink.isPresentStatus). التأخير محمول بـwas_late و
+        // delay_minutes — وهما ما يقرأه التقرير وkpiEngine.
+        status:        '✅ حاضر',
         selfie_url:    selfieUrl ?? null,
       };
       // أعمدة الوردية اختيارية — لو الترحيل لسّه ما انطبق نُعيد المحاولة بدونها

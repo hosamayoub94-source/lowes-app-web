@@ -50,15 +50,17 @@ async function checkAttendance(session) {
 
     if (now.getHours() >= LATEST_REMINDER_HOUR) return; // خارج نافذة معقولة لإزعاج أي حدا
 
+    // 'weekly_off' = سجّل اليوم كعطلته الأسبوعية المرنة — لا يُطلب منه تسجيل
+    // حضور بيوم عطلته، تماماً كصاحب اليوم المثبّت أعلاه (D-073).
     const { data } = await supabase
       .from('attendance')
       .select('id')
       .eq('employee_name', session.name)
       .eq('date', todaySlash())
-      .eq('type', 'in')
-      .maybeSingle();
+      .in('type', ['in', 'weekly_off'])
+      .limit(1);
 
-    if (data) return; // already checked in
+    if (data?.length) return; // سجّل حضوره أو أعلن عطلته
 
     await sendNotification({
       userId:   session.id,
