@@ -14,7 +14,7 @@ import { Card, CardTitle } from '@components/ui/Card';
 import { Avatar }   from '@components/ui/Avatar';
 import { ROLES }    from '@data/teams';
 import { PERMISSIONS as P, resolvePermissions } from '@data/permissions';
-import { fetchDerivedPartnerGroups } from '@services/shiftPartnersService';
+import { fetchDerivedPartnerGroups, shiftPlanForSize } from '@services/shiftPartnersService';
 
 // قسم الإدارة اليدوية — يُحمَّل فقط لمن يملك صلاحيته
 const ShiftPartnersManager = lazy(() => import('@screens/admin/ShiftPartnersScreen'));
@@ -105,7 +105,26 @@ export default function PartnerGroupsScreen() {
                   ))}
                 </div>
 
-                <p className="text-[10px] text-muted">{g.members.length} أعضاء</p>
+                {/* نظام الورديات يُشتقّ من عدد الأعضاء تلقائياً */}
+                {(() => {
+                  const plan = shiftPlanForSize(g.members.length);
+                  if (!plan) return <p className="text-[10px] text-muted">{g.members.length} أعضاء · بلا تقسيم ورديات</p>;
+                  return (
+                    <div className="border-t border-border pt-2 space-y-1">
+                      <p className="text-[10px] font-bold text-muted">
+                        الورديات · {plan.span.start} → {plan.span.end}
+                        {plan.breakWindow && ` · استراحة ${plan.breakWindow.start}–${plan.breakWindow.end}`}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {plan.shifts.map(s => (
+                          <span key={s.key} className="px-2 py-0.5 rounded-lg bg-teal/10 text-teal text-[10px] font-semibold">
+                            {s.label} {s.start}–{s.end}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -134,10 +153,10 @@ export default function PartnerGroupsScreen() {
       {canManage && (
         <div className="pt-2 border-t border-border space-y-3">
           <div>
-            <p className="text-sm font-bold text-text">⚙️ مجموعات الورديات (إدارة)</p>
+            <p className="text-sm font-bold text-text">⚙️ تجاوز يدوي للمجموعات (اختياري)</p>
             <p className="text-[11px] text-muted mt-0.5">
-              مجموعات يحدّدها المسؤول يدوياً ويُشتقّ منها نظام الورديات وحساب التأخير —
-              منفصلة عن المجموعات التلقائية أعلاه.
+              المجموعات أعلاه تلقائية ويُشتقّ منها نظام الورديات وحساب التأخير مباشرةً. لا حاجة لإنشاء شيء هنا — استخدمه فقط لتثبيت مجموعة تخالف البيانات التلقائية،
+              فتكون لها الأولوية عليها.
             </p>
           </div>
           <Suspense fallback={<Card><p className="text-center py-6 text-muted text-sm">جار التحميل…</p></Card>}>

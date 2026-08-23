@@ -378,7 +378,24 @@ export async function endGroup(id, effectiveFrom = todayISO()) {
  * @param {string} dateISO — يوم الوردية (لا اليوم التقويمي بالضرورة)
  */
 export async function resolveCheckInContext(employeeName, checkInHHMM, dateISO = todayISO()) {
-  const group = await fetchGroupForEmployee(employeeName, dateISO);
+  // 1) مجموعة يدوية سارية بذلك التاريخ إن وُجدت — تبقى الأولوية لها
+  //    احتراماً لأي تحديد صريح من المسؤول.
+  // 2) وإلا: المجموعة التلقائية من ملفات الموظفين (الشريك + الرقم/الصفحة).
+  //    فلا حاجة لإنشاء المجموعات يدوياً أصلاً.
+  let group = await fetchGroupForEmployee(employeeName, dateISO);
+  if (!group) {
+    const { groups } = await fetchDerivedPartnerGroups();
+    const g = groups.find(x => x.members.some(m => m.employee_name === employeeName));
+    if (g) {
+      group = {
+        id:      null,                 // مجموعة مشتقّة — لا سطر بجدول shift_groups
+        name:    g.name,
+        members: g.members.map(m => m.employee_name),
+        derived: true,
+        page:    g.page,
+      };
+    }
+  }
   const plan  = shiftPlanForGroup(group);
   const shift = resolveShift(plan, checkInHHMM);
   if (!shift) return { group, plan: null, shift: null, delayMinutes: 0, wasLate: false };
