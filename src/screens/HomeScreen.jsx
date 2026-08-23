@@ -15,6 +15,7 @@ import { useTheme } from '@hooks/useTheme';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAnon } from '@services/supabase';
 import { resolveCheckInContext } from '@services/shiftPartnersService';
+import MyPartnerGroupCard from '@components/feature/MyPartnerGroupCard';
 import { ROLES }    from '@data/teams';
 import { homeBlocksForRole } from '@data/homeLayout';
 import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
@@ -1051,6 +1052,7 @@ export default function HomeScreen() {
   const renderBlock = (key) => {
     switch (key) {
       case 'attendance':      return <AttendanceCard name={name} team={team} />;
+      case 'partnerGroup':    return <MyPartnerGroupCard name={name} />;
       case 'myTasks':         return <MyTasksCard name={name} userId={userId} />;
       case 'myTarget':        return <MyTargetCard name={name} />;
       case 'announcement':    return <AnnouncementCard />;
@@ -1144,7 +1146,7 @@ export default function HomeScreen() {
           );
         }
         if (isChart(key) && isChart(rest[i - 1])) return null; // already rendered as pair
-        return <div key={key}>{renderBlock(key)}</div>;
+        return <div key={key} className="empty:hidden">{renderBlock(key)}</div>;
       })}
 
     </div>
