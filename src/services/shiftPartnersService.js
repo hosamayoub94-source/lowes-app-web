@@ -282,29 +282,29 @@ export async function saveGroup(group, effectiveFrom = todayISO()) {
 
 // ── مجموعات مُشتقّة من ملفات الموظفين ─────────────────────────
 // مسار مستقل عن جدول shift_groups أعلاه ولا يمسّه: المجموعة هنا
-// تتكوّن **تلقائياً** ممّن حُدِّدوا كشركاء (profiles.shift_partner)
-// ويعملون على نفس رقم الواتساب أو نفس الصفحة (profiles.page_name —
-// حقل قائم مسبقاً، يُستخدم كما هو).
+// تتكوّن **تلقائياً** من الشراكة المتبادَلة نفسها (D-0xx، 24 آب 2026 —
+// كان التصميم السابق يشترط أيضاً تطابق نص «الصفحة/الرقم» حرفياً بين
+// الشريكين، فتبيّن عملياً أنه يفشل حتى مع شراكة مقبولة فعلياً: كل موظف
+// يكتب اسم صفحته بصيغته الخاصة (Lowe's professional / Profesyonel /
+// Prfesyonel...) فلا يتطابق نصياً رغم كونها غالباً نفس الصفحة. القرار:
+// المجموعة = مكوّنات الترابط (connected components) على رسم الشراكات
+// المقبولة بجدول shift_partners — الصفحة/الرقم عرض معلوماتي فقط، ليست
+// شرط تكوين. يدعم الثلاثي غير المكتمل بكل الأزواج: كفاية شخص محوري
+// (hub) اتّفق مع الاثنين الآخرين، حتى لو ما تأكّدا هما مع بعض مباشرة —
+// هذا فعلياً كيف تتشكّل أغلب الثلاثيات بالبيانات الحقيقية (لا واجهة
+// طلب ثلاثي مباشر بالنظام).
 
 /** الاسم الأول من الاسم الكامل. */
 function firstName(fullName) {
   return String(fullName ?? '').trim().split(/\s+/)[0] || String(fullName ?? '').trim();
 }
 
-/** مفتاح موحَّد للرقم/الصفحة — يمنع تكرار المجموعة لفروق شكلية. */
-function pageKey(page) {
-  return String(page ?? '')
-    .trim().toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/^@/, '')
-    .replace(/[()\-\s]/g, '');   // أرقام الواتساب بصيغ مختلفة → مفتاح واحد
-}
-
 /**
  * يبني مجموعات شركاء الدوام من ملفات الموظفين.
- * العضوية: موظف نشط · له شريك محدَّد · وله رقم/صفحة.
- * المجموعة: كل مَن يشتركون بنفس الرقم/الصفحة (عضوان أو ثلاثة).
- * التفرّد مضمون بالبناء — المفتاح هو الرقم/الصفحة، فلا مجموعتان لنفسه.
+ * العضوية: موظف نشط له شراكة مقبولة (shift_partners.status='accepted')
+ * مع موظف نشط آخر، أو حقل profiles.shift_partner يذكر اسم موظف نشط.
+ * المجموعة: مكوّن ترابط كامل بهذا الرسم (عضوان أو ثلاثة عادةً — نظام
+ * الورديات مبني لهذين الحجمين فقط، غيرهما يُعرض بلا تقسيم ورديات).
  *
  * @returns {Promise<{groups: object[], pending: object[], ready: boolean}>}
  */
@@ -319,44 +319,75 @@ export async function fetchDerivedPartnerGroups() {
   // عمود shift_partner غير مضاف بعد → الميزة غير جاهزة، بلا أي عطل
   if (error) return { groups: [], pending: [], ready: false };
 
-  // مَن حدّده الموظفون بأنفسهم من «شركاء الوردية» بالملف الشخصي —
-  // النظام القائم (جدول shift_partners بموافقة متبادلة، وهو نفسه ما
-  // يجعل الشريكين يريان طلبات بعض). لا نظام موازٍ.
-  let selfDeclared = new Set();
+  const profiles = data ?? [];
+  const byName = new Map(profiles.map(p => [p.employee_name, p]));
+
+  // شراكات مقبولة متبادَلة — المصدر الأساسي (نفس نظام «شركاء الوردية»
+  // بالملف الشخصي، بموافقة الطرفين).
+  let accepted = [];
   try {
     const { data: sp } = await supabase
       .from('shift_partners').select('requester, partner').eq('status', 'accepted');
-    for (const r of sp ?? []) { selfDeclared.add(r.requester); selfDeclared.add(r.partner); }
-  } catch { /* الجدول غير متاح → نكتفي بحقل الإدارة */ }
+    accepted = sp ?? [];
+  } catch { /* الجدول غير متاح → نكتفي بحقل الإدارة إن وُجد */ }
 
-  // العلامة مصدران: شراكة معتمَدة اختارها الموظف، أو حقل يملؤه المسؤول.
-  // التجميع نفسه يتم بالرقم/الصفحة — فالعلامة اشتراك لا تعريف للمجموعة.
-  const flagged = (data ?? []).filter(p =>
-    String(p.shift_partner ?? '').trim() || selfDeclared.has(p.employee_name),
-  );
+  // Union-Find بسيط على أسماء الموظفين النشطين فقط.
+  const parent = new Map();
+  const find = (x) => {
+    if (!parent.has(x)) parent.set(x, x);
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r);
+    let cur = x;
+    while (parent.get(cur) !== r) { const next = parent.get(cur); parent.set(cur, r); cur = next; }
+    return r;
+  };
+  const union = (a, b) => {
+    if (!byName.has(a) || !byName.has(b)) return; // طرف غير نشط/غير موجود — لا يُربَط
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
 
-  const byPage = new Map();
-  const pending = [];
-  for (const p of flagged) {
-    const key = pageKey(p.page_name);
-    if (!key) { pending.push(p); continue; }   // شريك محدَّد بلا رقم/صفحة
-    if (!byPage.has(key)) byPage.set(key, { key, page: String(p.page_name).trim(), members: [] });
-    byPage.get(key).members.push(p);
+  const flaggedNames = new Set();
+  for (const { requester, partner } of accepted) {
+    if (byName.has(requester)) flaggedNames.add(requester);
+    if (byName.has(partner))   flaggedNames.add(partner);
+    union(requester, partner);
+  }
+  // حقل الإدارة (profiles.shift_partner) — يدعم اسماً أو أكثر مفصولة بفاصلة.
+  for (const p of profiles) {
+    const raw = String(p.shift_partner ?? '').trim();
+    if (!raw) continue;
+    flaggedNames.add(p.employee_name);
+    for (const name of raw.split(/[,،]/).map(s => s.trim()).filter(Boolean)) {
+      flaggedNames.add(p.employee_name);
+      union(p.employee_name, name);
+    }
   }
 
-  const groups = [...byPage.values()]
-    .filter(g => g.members.length >= 2)
-    .map(g => ({
-      ...g,
-      name: g.members.map(m => firstName(m.employee_name)).join(' + '),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  const byRoot = new Map();
+  for (const name of flaggedNames) {
+    const root = find(name);
+    if (!byRoot.has(root)) byRoot.set(root, []);
+    byRoot.get(root).push(byName.get(name));
+  }
 
-  // عضو وحيد على رقم/صفحة — ليس مجموعة بعد، يُعرض كناقص لا كمجموعة
-  const singles = [...byPage.values()].filter(g => g.members.length === 1)
-    .flatMap(g => g.members);
+  const groups = [];
+  const pending = [];
+  for (const members of byRoot.values()) {
+    if (members.length < 2) { pending.push(...members); continue; }
+    // الصفحة/الرقم — عرض معلوماتي فقط الآن (لا شرط تكوين): كل الصفحات
+    // المختلفة غير الفارغة المذكورة بين الأعضاء، بدون تكرار.
+    const pages = [...new Set(members.map(m => String(m.page_name ?? '').trim()).filter(Boolean))];
+    groups.push({
+      key:  members.map(m => m.id).sort().join('+'),
+      page: pages.join(' / '),
+      members,
+      name: members.map(m => firstName(m.employee_name)).join(' + '),
+    });
+  }
+  groups.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-  return { groups, pending: [...pending, ...singles], ready: true };
+  return { groups, pending, ready: true };
 }
 
 /** إنهاء مجموعة اعتباراً من تاريخ — لا حذف، السجلات القديمة تبقى كما هي. */
