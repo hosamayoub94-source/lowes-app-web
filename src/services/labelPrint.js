@@ -8,6 +8,7 @@
 import QRCode from 'qrcode';
 import { BRAND, COMPANY, BRAND_COLORS } from '@data/brand';
 import { supabase } from './supabase';
+import { useShippingStore, syriaShippingOptions, syriaCarrierGroupKey, SYRIA_SHIPPING_PRIORITY } from './shippingService';
 
 const JOIN_URL = 'https://app.lowesprofesyonel.com/join';
 const IG_URL   = COMPANY.instagramSkincareUrl;
@@ -265,9 +266,54 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
 }
 
 // ────────────────────────────────────────────────────────────────
+//  ترتيب طباعة سوريا — تجميع/فرز حسب شركة الشحن (D-0xx، 24 آب 2026).
+//  طلبات تركيا لا تتحرك من مكانها إطلاقاً: كل فتحة بالمصفوفة كانت طلب تركيا
+//  تبقى بنفس الطلب وبنفس الموضع تماماً — فقط فتحات سوريا يُعاد ترتيبها فيما
+//  بينها. يُطبَّق هنا فقط، لحظة بناء مستند الطباعة — لا يمسّ ترتيب/بيانات
+//  الطلبات المخزَّنة بقاعدة البيانات أو بأي شاشة أخرى بالتطبيق.
+// ────────────────────────────────────────────────────────────────
+async function sortSyriaForPrint(orders) {
+  const syriaIdx = [];
+  orders.forEach((o, i) => { if (o?.market === 'syria') syriaIdx.push(i); });
+  if (syriaIdx.length < 2) return orders; // لا فائدة من الفرز لطلب سوريا واحد أو صفر
+
+  // أحدث قائمة معتمدة من قنوات المحاسبة (best-effort — القائمة الثابتة تبقى
+  // fallback آمناً لو تعذّر الجلب، ولا يُفقَد أي طلب بأي الحالتين).
+  try { await useShippingStore.getState().load(); } catch { /* fallback يكفي */ }
+  const channels = useShippingStore.getState().channels;
+  const restNames = syriaShippingOptions(channels).filter(
+    (n) => !SYRIA_SHIPPING_PRIORITY.includes(n) && n !== 'أخرى',
+  );
+
+  const bucketOrder = [...SYRIA_SHIPPING_PRIORITY, ...restNames, 'أخرى'];
+  const buckets = new Map(bucketOrder.map((k) => [k, []]));
+
+  const syriaOrders = syriaIdx.map((i) => orders[i]);
+  for (const o of syriaOrders) {
+    const key = syriaCarrierGroupKey(o.shipping_company, restNames);
+    if (!buckets.has(key)) buckets.set(key, []); // احتياط نظري — لا يُفقَد أي طلب
+    buckets.get(key).push(o);
+  }
+
+  // buckets أُنشئت من bucketOrder فترتيب تكرارها (Map) مطابق للترتيب المعتمد
+  // تلقائياً؛ أي مفتاح احتياطي أُضيف لاحقاً (نظرياً غير متوقَّع) يقع بنهاية
+  // التكرار فلا يُفقَد أي طلب.
+  const sortedSyria = [];
+  for (const list of buckets.values()) sortedSyria.push(...list);
+
+  const result = orders.slice();
+  syriaIdx.forEach((origIdx, k) => { result[origIdx] = sortedSyria[k]; });
+  return result;
+}
+
+// ────────────────────────────────────────────────────────────────
 //  buildLabelsHTML — مستند HTML كامل (صفحات A4 / 8 بوليصات/ورقة)
 // ────────────────────────────────────────────────────────────────
 export async function buildLabelsHTML(orders) {
+  // تجميع/ترتيب طلبات سوريا حسب شركة الشحن — طلبات تركيا بلا أي تحريك (راجع
+  // تعليق sortSyriaForPrint أعلاه). يبقى عدد الطلبات وبياناتها كما هي تماماً.
+  orders = await sortSyriaForPrint(orders);
+
   const qrOpts = { width: 200, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } };
   // توليد QR انستا + شبكة النجوم — PNG عبر canvas (مربعات مملوءة للطباعة)
   const [igQrDataUrl, joinQrDataUrl] = await Promise.all([

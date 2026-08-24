@@ -13,6 +13,7 @@ import { sendNotification, sendBulkNotifications } from '@modules/notifications/
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { syncOrderStock } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress, parseTurkishAddress } from '@data/cities';
+import { useShippingStore, syriaShippingOptions } from '@services/shippingService';
 import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets, fetchMahalles } from '@services/turkeyApi';
@@ -2200,6 +2201,46 @@ function ItemRow({ item, index, onChange, onRemove, products = [] }) {
   );
 }
 
+// ── Syria shipping picker (D-0xx) ───────────────────────────────
+// قائمة صارمة من المعتمد فقط — لا كتابة حرة إطلاقاً إلا عبر «أخرى». اختيار أي
+// شركة من القائمة يُخفي حقل الكتابة نهائياً؛ الاسم يُحفظ حرفياً كما بالقائمة.
+// خاص بسوريا فقط — لا يُستخدم لتركيا (تبقى ComboBox حرة هناك كما كانت دائماً).
+function SyriaShippingPicker({ value, onChange, options }) {
+  const approved = options.filter(o => o !== 'أخرى');
+  const isKnown = !!value && approved.includes(value);
+  // «أخرى» تُفعَّل تلقائياً لو القيمة الحالية نص حر غير موجود بالقائمة الرسمية
+  // (طلب قديم بصيغة سابقة، أو طلب سبق واختير له «أخرى») — يُعرض بحقل الكتابة
+  // كما هو، بلا مسح أو تعديل تلقائي لقيمته.
+  const [otherMode, setOtherMode] = useState(() => !!value && !isKnown);
+  const [otherText, setOtherText] = useState(() => (!!value && !isKnown) ? value : '');
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={otherMode ? 'أخرى' : (isKnown ? value : '')}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'أخرى') { setOtherMode(true); onChange(otherText); }
+          else { setOtherMode(false); onChange(v); }
+        }}
+        className={INP}
+      >
+        <option value="" disabled>اختر شركة الشحن</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      {otherMode && (
+        <input
+          type="text"
+          value={otherText}
+          onChange={(e) => { setOtherText(e.target.value); onChange(e.target.value); }}
+          placeholder="اكتب اسم شركة الشحن"
+          className={INP}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Order Form Modal ──────────────────────────────────────────
 function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
   const { name: userName, team, order_market } = useAuth();
@@ -2228,7 +2269,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     payment_method:   order.payment_method   ?? 'دفع عند الباب 💵',
     payment_status:   order.payment_status   ?? 'unpaid',
     paid_amount:      order.paid_amount      ?? '',
-    shipping_company: order.shipping_company ?? 'Yurtiçi Kargo',
+    // fallback فارغ لسوريا (لا نفرض اسم شركة شحن تركية على طلب سوري بلا شركة محفوظة) —
+    // القائمة الصارمة أدناه تجبر الموظف على اختيار صريح لو كانت فارغة فعلاً.
+    shipping_company: order.shipping_company ?? (order.market === 'syria' ? '' : 'Yurtiçi Kargo'),
     pickup_type:      order.pickup_type      ?? 'استلام من المركز',
     tracking_number:  order.tracking_number  ?? '',
     shipping_payer:   order.shipping_payer   ?? 'company',
@@ -2247,7 +2290,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     wa_number:     prefill.wa_number || '',
     city:          prefill.city || '',
     address:       prefill.address || '',
-    shipping_company: (forcedMarket || prefill.market) === 'syria' ? 'شركة الكرم' : 'Yurtiçi Kargo',
+    shipping_company: (forcedMarket || prefill.market) === 'syria' ? 'الكرم' : 'Yurtiçi Kargo',
     payment_method:   (forcedMarket || prefill.market) === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
   } : {
     ...EMPTY_FORM,
@@ -2255,7 +2298,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     market:   myMarket,
     status:   statusKeysForMarket(myMarket)[0] || 'pending',  // أول حالة بالسوق (تركيا تبدأ «في التجهيز»)
     currency: myMarket === 'syria' ? 'SYP' : 'TRY',
-    shipping_company: myMarket === 'syria' ? 'شركة الكرم' : 'Yurtiçi Kargo',
+    shipping_company: myMarket === 'syria' ? 'الكرم' : 'Yurtiçi Kargo',
     payment_method:   myMarket === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
   });
 
@@ -2284,6 +2327,13 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  // قائمة شركات الشحن الرسمية المعتمدة لسوريا (D-0xx) — حيّة من قنوات المحاسبة
+  // + fallback ثابت، بلا الجهات غير الشحنية (مواصلات/معرض دمشق/كاندي). تركيا
+  // غير متأثرة إطلاقاً — تستمر بـComboBox الحر كما كان دائماً.
+  const shipChannels = useShippingStore(s => s.channels);
+  useEffect(() => { useShippingStore.getState().load(); }, []);
+  const syriaShipOptions = useMemo(() => syriaShippingOptions(shipChannels), [shipChannels]);
+
   // Repeat-customer lookup: when phone settles, check if we know this customer.
   // عملاء الواتساب فقط (شائع بسوريا) بلا phone_1 — نرجع لـwa_number.
   useEffect(() => {
@@ -2311,7 +2361,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
         brand: market === 'syria' ? 'lowes' : p.brand,         // سوريا ما فيها سترونغ
         status: statusKeysForMarket(market)[0] || p.status,     // حالة صالحة لهذا السوق
         currency: market === 'turkey' ? 'TRY' : 'SYP',
-        shipping_company: market === 'turkey' ? 'Yurtiçi Kargo' : 'شركة الكرم',
+        shipping_company: market === 'turkey' ? 'Yurtiçi Kargo' : 'الكرم',
         payment_method: market === 'turkey' ? 'دفع عند الباب 💵' : 'دفع عند الاستلام',
         // تنظيف حقول عنوان السوق السابق حتى لا تُحفَظ بيانات خاطئة
         city: '', district: '', address: '', sy_neighborhood: '',
@@ -2689,8 +2739,16 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LBL}>شركة الشحن</label>
-                <ComboBox value={form.shipping_company} onChange={v => set('shipping_company', v)}
-                  options={companies} className={INP} placeholder="اختر أو اكتب" />
+                {/* سوريا: قائمة صارمة مقفلة على المعتمد — الكتابة اليدوية فقط
+                    عبر «أخرى» (D-0xx). تركيا: ComboBox حر كما كان دائماً — بلا
+                    أي تغيير. */}
+                {form.market === 'syria' ? (
+                  <SyriaShippingPicker value={form.shipping_company} onChange={v => set('shipping_company', v)}
+                    options={syriaShipOptions} />
+                ) : (
+                  <ComboBox value={form.shipping_company} onChange={v => set('shipping_company', v)}
+                    options={companies} className={INP} placeholder="اختر أو اكتب" />
+                )}
               </div>
               <div>
                 <label className={LBL}>نوع الاستلام</label>
