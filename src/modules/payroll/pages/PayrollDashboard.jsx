@@ -49,6 +49,7 @@ function ActionBtn({ onClick, disabled, children, variant = 'blue' }) {
   const cls = {
     blue:  'bg-blue-bg text-blue-fg border-blue/20 hover:opacity-80',
     green: 'bg-green-bg text-green-fg border-green/20 hover:opacity-80',
+    red:   'bg-red-bg text-red-fg border-red/20 hover:opacity-80',
   }[variant];
   return (
     <button
@@ -92,16 +93,20 @@ function Modal({ title, onClose, children, footer }) {
 
 // ─── Main component ───────────────────────────────────────────
 export function PayrollDashboard() {
-  const { id, role } = useAuth();
+  const { id, role, name } = useAuth();
   usePayrollBootstrap(id);
 
   const { runs, kpis, isLoading } = usePayrollDashboard();
   const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid } = useRunDetail();
   const selectedRunId = useSelectedRunId();
-  const { selectRun, createRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
+  const { selectRun, createRun, deleteRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
   const loading = usePayrollLoading();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  // حذف دورة/مسودة رواتب — صلاحية مقصورة على هذين الاسمين فقط (طلب المالك
+  // 2026-08-30)، وليست تابعة لدور "أدمن" العام — أي أدمن آخر لا يرى الزر.
+  const DELETE_RUN_ALLOWED = new Set(['hosam ayoub', 'amany alkshki']);
+  const canDeleteRun = DELETE_RUN_ALLOWED.has(String(name || '').trim().toLowerCase());
 
   // ── New Run form
   const [showNewRun, setShowNewRun] = useState(false);
@@ -121,6 +126,17 @@ export function PayrollDashboard() {
 
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
+
+  const handleDeleteRun = useCallback(async () => {
+    if (!run) return;
+    if (!window.confirm(`حذف مسودة رواتب ${periodLabel(run.period_year, run.period_month)} نهائياً؟ سيُحذف معها كل إدخالات الموظفين بهذه الدورة — لا يمكن التراجع.`)) return;
+    try {
+      await deleteRun(run.id);
+      setCommMsg('✅ حُذفت المسودة.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  }, [run, deleteRun]);
 
   // ── One-click payroll engine
   const [engineRunning, setEngineRunning] = useState(false);
@@ -465,6 +481,12 @@ export function PayrollDashboard() {
                   {isAdmin && run.status === PAYROLL_STATUS.APPROVED && (
                     <ActionBtn onClick={markRunPaid} disabled={isSubmitting} variant="green">
                       💳 تسجيل دفع
+                    </ActionBtn>
+                  )}
+                  {/* حذف المسودة — صلاحية مقصورة على hosam ayoub / Amany alkshki فقط */}
+                  {canDeleteRun && run.status === PAYROLL_STATUS.DRAFT && (
+                    <ActionBtn onClick={handleDeleteRun} disabled={isSubmitting} variant="red">
+                      🗑️ حذف المسودة
                     </ActionBtn>
                   )}
                 </div>
