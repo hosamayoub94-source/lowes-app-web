@@ -17,7 +17,7 @@ import {
   usePayrollLoading,
 } from '../hooks/usePayroll.js';
 import { PayrollRunCard } from '../components/PayrollRunCard.jsx';
-import { EntryRow } from '../components/EntryRow.jsx';
+import { EmployeePayrollCard } from '../components/EmployeePayrollCard.jsx';
 import {
   PAYROLL_STATUS,
   MONTHS_AR,
@@ -550,52 +550,34 @@ export function PayrollDashboard() {
                   )}
                 </div>
               ) : (
-                /* نفس شريط التمرير الأفقي الموجود — فقط الآن الصفوف تمرّر
-                   عمودياً داخل صندوق محدود الارتفاع، فيبقى شريطه الأفقي
-                   ظاهراً دائماً بأسفل الصندوق مهما كان الموظف الحالي (بلا
-                   حاجة للنزول لآخر القائمة وبلا شريط تمرير إضافي). */
-                <div className="overflow-x-auto overflow-y-auto max-h-[65vh]">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-surface-alt text-muted text-xs border-b border-border/40">
-                        <th className="py-2.5 px-4 text-right font-semibold">الموظف</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">العمل</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">غياب</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">الأساسي</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">البدلات</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">العمولة</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">خصومات</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">الصافي</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">إجراء</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map(e => (
-                        <EntryRow
-                          key={e.id}
-                          entry={e}
-                          run={run}
-                          canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
-                          onEdit={openEditEntry}
-                          onDelete={deleteEntry}
-                          onStatement={openStatement}
-                        />
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-surface-alt/60 border-t border-border/40 font-bold">
-                        <td className="py-3 px-4 text-right text-xs text-muted" colSpan={7}>الإجمالي (لكل عملة)</td>
-                        <td className="py-3 px-4 text-center text-teal font-extrabold text-sm tabular-nums whitespace-nowrap">
-                          {Object.keys(totalsByCurrency).length === 0
-                            ? formatCurrency(0)
-                            : Object.entries(totalsByCurrency).map(([c, v]) => (
-                                <div key={c}>{formatCurrency(v, c)}</div>
-                              ))}
-                        </td>
-                        {isAdmin && run.status === PAYROLL_STATUS.DRAFT && <td />}
-                      </tr>
-                    </tfoot>
-                  </table>
+                /* بطاقة كاملة واحترافية لكل موظف — الترتيب الثابت المعتمد
+                   (اسم+مكان العمل، أساسي، تارجت، إنجاز فعلي، فرق التارجت
+                   التلقائي، خصومات، عمولة، بدل إنترنت، صافي) ثم الإجراءات.
+                   قائمة عمودية تمرّر داخل صندوق محدود الارتفاع. */
+                <div className="overflow-y-auto max-h-[75vh] p-4 space-y-3">
+                  {entries.map(e => (
+                    <EmployeePayrollCard
+                      key={e.id}
+                      entry={e}
+                      run={run}
+                      canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
+                      onEdit={openEditEntry}
+                      onDelete={deleteEntry}
+                      onStatement={openStatement}
+                    />
+                  ))}
+
+                  {/* الإجمالي (لكل عملة) */}
+                  <div className="bg-surface-alt/60 border border-border/40 rounded-2xl px-5 py-3 flex items-center justify-between font-bold">
+                    <span className="text-xs text-muted">الإجمالي (لكل عملة)</span>
+                    <span className="text-teal font-extrabold text-sm tabular-nums text-left">
+                      {Object.keys(totalsByCurrency).length === 0
+                        ? formatCurrency(0)
+                        : Object.entries(totalsByCurrency).map(([c, v]) => (
+                            <div key={c}>{formatCurrency(v, c)}</div>
+                          ))}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
