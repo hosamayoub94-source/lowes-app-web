@@ -263,9 +263,25 @@ export function printPayslip(entry, run) {
     </tr>` : ''}
     ${Number(entry.commission_usd ?? 0) > 0 ? `
     <tr>
-      <td>عمولة المبيعات (${Number(entry.commission_pct ?? 0)}% على ${fmt(entry.sales_total_usd, cur)})</td>
+      <td>عمولة المبيعات (${Number(entry.commission_pct ?? 0)}% على الزيادة المعدّلة${entry.returns_excess ? ` بعد خصم ${entry.returns_excess} راجع زائد` : ''})</td>
       <td><span class="positive">إضافة</span></td>
       <td><span class="positive">+${fmt(entry.commission_usd, cur)}</span></td>
+    </tr>` : ''}
+    ${entry.team ? `
+    <tr>
+      <td colspan="3" style="font-size:11px;color:#6b7280">
+        📊 الفريق: ${entry.team === 'syria' ? 'سوريا ($)' : 'تركيا (₺)'} ·
+        التارجت: ${Number(entry.target_local ?? 0).toLocaleString('en-US')} ·
+        المبيعات: ${Number(entry.sales_local ?? 0).toLocaleString('en-US')} ·
+        الطلبات: ${entry.sales_orders_count ?? 0} ·
+        الرواجع: ${entry.returns_count ?? 0} (مسموح ${entry.returns_allowed ?? 0})
+      </td>
+    </tr>` : ''}
+    ${Number(entry.shortfall_deduction_usd ?? 0) > 0 ? `
+    <tr>
+      <td>حسم عدم تحقيق التارجت (نقص ${Number(entry.shortfall_local ?? 0).toLocaleString('en-US')} × 10%)</td>
+      <td><span class="negative">خصم</span></td>
+      <td><span class="negative">-${fmt(entry.shortfall_deduction_usd, cur)}</span></td>
     </tr>` : ''}
     ${Number(entry.bonus_usd ?? 0) > 0 ? `
     <tr>

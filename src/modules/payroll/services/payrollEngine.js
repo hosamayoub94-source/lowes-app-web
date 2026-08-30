@@ -1,29 +1,33 @@
 // =============================================================
 // Payroll Engine — one-click monthly payroll computation
 //
-// Computes, for each active employee (salaries standardized to USD):
+// Computes, for each active employee:
 //   net = base + allowances + sales commission
-//       − absence deduction − approved advances − manual deductions
+//       − shortfall deduction − absence deduction
+//       − approved advances − manual deductions
 //
-// Data sources (the live, authoritative ones — verified against prod,
-// see docs/payroll-engine-blueprint.md):
-//   • base / allowances / commission%  → employee_salary_settings
-//        (base_salary, internet_allowance, food_allowance,
-//         sales_commission_pct, currency)  — joined to active profiles
-//   • monthly sales   → orders (handler_name = seller, amount, currency,
-//                        status, order_date) — collected orders only,
-//                        ALL currencies converted to USD via exchange_rates
-//   • absence         → attendance_records (via attendanceLink.js)
+// Data sources (the live, authoritative ones):
+//   • base / allowances       → employee_salary_settings (preferred) or
+//                                profiles.base_salary_usd/*_allowance_usd
+//                                (fallback — see resolveSalary()). Both are
+//                                real, both are edited by the owner from
+//                                different screens; NEITHER is migrated or
+//                                deleted here (owner decision 2026-08-30).
+//   • monthly sales/target/returns → orders, computed in the EMPLOYEE'S
+//                                OWN TEAM currency (profiles.team = 'سوريا'
+//                                → USD pipeline, 'تركيا' → TRY pipeline),
+//                                regardless of which market/currency the
+//                                individual order was placed in (owner
+//                                rule 2026-08-30: team decides the formula,
+//                                not the order's country).
+//   • absence         → attendance_records (via attendanceLink.js) — manual,
+//                        reference only (owner decision 2026-07-02).
 //   • approved advances → employee_requests (repay this month), → USD
 //
-// Owner decisions (2026-07-01): salary source = employee_salary_settings.
-// Owner decisions (2026-07-02):
-//   • commission = فوق التارجت فقط — نفس قواعد commission_rules التي يعدّلها
-//     الأدمن من شاشة الطلبات (تركيا: 65k TRY ثم above_target_pct على الفائض +
-//     شرائح مسبق الدفع · سوريا: 1000$ ثم above_target_pct على الفائض).
-//   • الغياب لا يُخصم تلقائياً — «سجّلهم كلهم حضور»؛ الأدمن يحدد أيام الغياب
-//     يدوياً من ✏️ (سجلات الحضور تُعرض كمرجع فقط).
-//   • الرواجع/غير المستلَم: لا أتمتة — أرقام يدوية يحددها الأدمن (خصومات/عمولة).
+// Target / exchange-rate / commission-% VALUES used for a run are frozen
+// on payroll_runs at "month setup" time (month_setup_confirmed_at) so a
+// later change to commission_rules/exchange_rates never re-prices an
+// already-computed month (owner rule 2026-08-30, spec §20).
 // =============================================================
 
 import { supabase, supabaseAnon } from '@services/supabase';
@@ -34,8 +38,28 @@ import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 // commission is earned on collected/delivered sales, never on returns.
 export const COMMISSIONABLE_STATUSES = ['delivered', 'settled'];
 
-// Entry currency — salaries are standardized to USD (owner decision).
+// Confirmed-return status (final state) — used for the returns-penalty
+// pipeline (spec §9-13). 'returning'/'not_received' are still in-flight
+// follow-up states, not a confirmed return, so they are excluded here.
+export const RETURN_STATUS = 'returned';
+
+// Entry currency — payroll storage/display is standardized to USD.
 export const PAYROLL_CURRENCY = 'USD';
+
+// Team → calc-currency + commission_rules key mapping. `profiles.team`
+// is free text shared with non-sales departments (see AdminUsersScreen
+// TEAM_OPTIONS) — only these two exact values are recognized as a
+// payroll team; anything else (empty, 'مبيعات', 'إدارة', 'ميديا'…) is
+// treated as "team not set" and blocks that employee's auto-calc
+// (spec: "لا تبدأ الحسبة... بشكل ناقص أو صامت").
+const TEAM_MAP = {
+  'سوريا': { key: 'syria', currency: 'USD' },
+  'تركيا': { key: 'turkey', currency: 'TRY' },
+};
+
+export function resolveTeam(teamRaw) {
+  return TEAM_MAP[String(teamRaw || '').trim()] || null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -58,6 +82,11 @@ function employeeNames(emp) {
   return [emp.employee_name, emp.seller_alias]
     .map(normalizeName)
     .filter(Boolean);
+}
+
+/** Ceil(orders * 3%) — allowed returns before any deduction kicks in. */
+export function calcAllowedReturns(ordersCount) {
+  return Math.ceil((Number(ordersCount) || 0) * 0.03);
 }
 
 // ── Exchange rates ────────────────────────────────────────────
@@ -110,69 +139,118 @@ function toUsd(amount, currency, rateMap) {
   return { usd: Number(amount) * rate, missing: false };
 }
 
-// ── Sales aggregation ─────────────────────────────────────────
+/**
+ * Convert an amount from any currency to a target currency (both ends may
+ * be USD/TRY/SYP), via the USD rate map. Used to run the whole
+ * target/sales/average/commission pipeline in the EMPLOYEE'S TEAM
+ * currency (spec §5: "حسبة تركيا كاملة تتم أولاً بالليرة التركية").
+ */
+function convert(amount, fromCur, toCur, rateMap) {
+  if (fromCur === toCur) return { value: Number(amount) || 0, missing: false };
+  const { usd, missing } = toUsd(amount, fromCur, rateMap);
+  if (toCur === 'USD') return { value: usd, missing };
+  const rate = rateMap[toCur];
+  if (!(rate > 0)) return { value: 0, missing: true };
+  return { value: usd / rate, missing };
+}
+
+// ── Sales + returns aggregation ────────────────────────────────
 
 /**
  * One query for the whole month's collected orders, grouped by
- * (normalized handler name → currency → totals). One `orders` hit per run.
+ * (normalized handler name → currency → totals+count). One `orders`
+ * hit per run for sales, one for confirmed returns.
  */
 export async function fetchMonthlySalesIndex(year, month) {
   const { from, to } = monthBounds(year, month);
   const index = new Map();
 
   // على دفعات — شهر بحجم >1000 طلب محصّل يُبتر صامتاً فتنقص العمولات/الرواتب.
-  const data = await fetchAllRows(() => supabase
-    .from('orders')
-    .select('handler_name, amount, currency, status, market, payment_method')
-    .gte('order_date', from)
-    .lt('order_date', to)
-    .in('status', COMMISSIONABLE_STATUSES));
+  const [salesData, returnsData] = await Promise.all([
+    fetchAllRows(() => supabase
+      .from('orders')
+      .select('handler_name, amount, currency, status, market, payment_method')
+      .gte('order_date', from)
+      .lt('order_date', to)
+      .in('status', COMMISSIONABLE_STATUSES)),
+    fetchAllRows(() => supabase
+      .from('orders')
+      .select('handler_name')
+      .gte('order_date', from)
+      .lt('order_date', to)
+      .eq('status', RETURN_STATUS)),
+  ]);
 
   const isPrepaid = (pm) => {
     const p = String(pm || '');
     return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
   };
 
-  for (const o of (data || [])) {
+  const getBucket = (key) => {
+    let b = index.get(key);
+    if (!b) { b = { byCur: {}, prepaidTry: 0, returnsCount: 0 }; index.set(key, b); }
+    return b;
+  };
+
+  for (const o of (salesData || [])) {
     const key = normalizeName(o.handler_name);
     if (!key) continue;
     const cur = o.currency || 'USD';
-    const bucket = index.get(key) || { byCur: {}, prepaidTry: 0, syriaByCur: {} };
+    const bucket = getBucket(key);
     const slot = bucket.byCur[cur] || { total: 0, count: 0 };
     slot.total += Number(o.amount) || 0;
     slot.count += 1;
     bucket.byCur[cur] = slot;
     // لشرائح مسبق الدفع التركية (نفس منطق محفظة البائع بشاشة الطلبات)
     if (cur === 'TRY' && isPrepaid(o.payment_method)) bucket.prepaidTry += Number(o.amount) || 0;
-    // مبيعات سوريا لكل عملة (تارجت سوريا بالدولار المحوَّل)
-    if (o.market === 'syria') {
-      const s = bucket.syriaByCur[cur] || 0;
-      bucket.syriaByCur[cur] = s + (Number(o.amount) || 0);
-    }
-    index.set(key, bucket);
   }
+
+  for (const o of (returnsData || [])) {
+    const key = normalizeName(o.handler_name);
+    if (!key) continue;
+    getBucket(key).returnsCount += 1;
+  }
+
   return index;
 }
 
 /**
- * Employee's collected sales for a month, converted to USD across ALL
- * currencies, from a prebuilt index + rate map.
+ * Employee's collected sales for a month, converted to the given target
+ * currency across ALL currencies/markets — sales pipeline runs entirely
+ * in the employee's OWN TEAM currency (spec §3-5), not the order's.
  */
-export function salesUsdFromIndex(index, emp, rateMap) {
-  let usd = 0, count = 0, missingRate = false;
+function salesInCurrency(index, emp, targetCur, rateMap) {
+  let value = 0, count = 0, missingRate = false;
+  let tryTotal = 0, prepaidTry = 0, returnsCount = 0;
   for (const name of employeeNames(emp)) {
     const bucket = index.get(name);
     if (!bucket) continue;
     for (const [cur, slot] of Object.entries(bucket.byCur || {})) {
-      const { usd: v, missing } = toUsd(slot.total, cur, rateMap);
-      usd += v; count += slot.count;
+      const { value: v, missing } = convert(slot.total, cur, targetCur, rateMap);
+      value += v; count += slot.count;
       if (missing) missingRate = true;
+      if (cur === 'TRY') tryTotal += slot.total;
     }
+    prepaidTry += bucket.prepaidTry || 0;
+    returnsCount += bucket.returnsCount || 0;
   }
-  return { usd: Math.round(usd * 100) / 100, count, missingRate };
+  return {
+    value: Math.round(value * 100) / 100, count, missingRate,
+    tryTotal, prepaidTry, returnsCount,
+  };
 }
 
-// ── Commission rules (نفس جدول شاشة الطلبات — الأدمن يعدّله من هناك) ──
+/**
+ * Legacy USD-total (all currencies → USD) for display purposes (kept for
+ * backward-compat call sites / the "sales statement" modal).
+ */
+export function salesUsdFromIndex(index, emp, rateMap) {
+  const s = salesInCurrency(index, emp, 'USD', rateMap);
+  return { usd: s.value, count: s.count, missingRate: s.missingRate };
+}
+
+// ── Commission rules (defaults only — a run's OWN snapshot on
+//    payroll_runs always wins once month setup is confirmed) ──
 
 export const DEFAULT_RULES = {
   turkey: { monthly_target_try: 65000, above_target_pct: 5, prepaid_target_try: 0, prepaid_tier1_pct: 0, prepaid_tier2_pct: 0 },
@@ -187,71 +265,6 @@ export async function fetchCommissionRules() {
     if (r.id === 'turkey' || r.id === 'syria') map[r.id] = { ...map[r.id], ...r };
   }
   return map;
-}
-
-/**
- * عمولة «فوق التارجت» لموظف — مطابقة لمنطق محفظة البائع (commissionBreakdown):
- *   تركيا (TRY): فوق monthly_target_try → above_target_pct على الفائض
- *                + شرائح مسبق الدفع (prepaid_target_try / tier1 / tier2).
- *   سوريا (USD محوَّل): فوق monthly_target_usd → above_target_pct على الفائض.
- * تُعاد القيمة بالدولار (عملة كشف الرواتب) + تفصيل نصي للملاحظات.
- */
-export function commissionFromIndex(index, emp, rules, rateMap) {
-  let tryTotal = 0, prepaidTry = 0, syriaUsd = 0, missingRate = false;
-  for (const name of employeeNames(emp)) {
-    const bucket = index.get(name);
-    if (!bucket) continue;
-    tryTotal   += bucket.byCur?.TRY?.total || 0;
-    prepaidTry += bucket.prepaidTry || 0;
-    for (const [cur, total] of Object.entries(bucket.syriaByCur || {})) {
-      const { usd: v, missing } = toUsd(total, cur, rateMap);
-      syriaUsd += v;
-      if (missing) missingRate = true;
-    }
-  }
-
-  const parts = [];
-  let commissionUsd = 0, pctUsed = 0;
-
-  // تركيا — بالليرة ثم تحويل للدولار
-  const tr = rules?.turkey || DEFAULT_RULES.turkey;
-  const trTarget = Number(tr.monthly_target_try) || 0;
-  const trPct    = Number(tr.above_target_pct) || 0;
-  const aboveTry = Math.max(0, tryTotal - trTarget) * trPct / 100;
-  const ppTarget = Number(tr.prepaid_target_try) || 0;
-  const reachedPrepaid = ppTarget > 0 && prepaidTry >= ppTarget;
-  const tier1 = reachedPrepaid ? ppTarget * (Number(tr.prepaid_tier1_pct) || 0) / 100 : 0;
-  const tier2 = reachedPrepaid ? Math.max(0, prepaidTry - ppTarget) * (Number(tr.prepaid_tier2_pct) || 0) / 100 : 0;
-  const commTry = aboveTry + tier1 + tier2;
-  if (commTry > 0) {
-    const { usd, missing } = toUsd(commTry, 'TRY', rateMap);
-    commissionUsd += usd;
-    if (missing) missingRate = true;
-    pctUsed = trPct;
-    parts.push(`تركيا: مبيعات ₺${Math.round(tryTotal).toLocaleString('en-US')} − تارجت ₺${trTarget.toLocaleString('en-US')} → ${trPct}% = ₺${Math.round(commTry).toLocaleString('en-US')}`);
-  } else if (tryTotal > 0) {
-    parts.push(`تركيا: ₺${Math.round(tryTotal).toLocaleString('en-US')} دون التارجت (₺${trTarget.toLocaleString('en-US')}) — لا عمولة`);
-  }
-
-  // سوريا — بالدولار المحوَّل
-  const sy = rules?.syria || DEFAULT_RULES.syria;
-  const syTarget = Number(sy.monthly_target_usd) || 0;
-  const syPct    = Number(sy.above_target_pct) || 0;
-  const aboveUsd = Math.max(0, syriaUsd - syTarget) * syPct / 100;
-  if (aboveUsd > 0) {
-    commissionUsd += aboveUsd;
-    pctUsed = pctUsed || syPct;
-    parts.push(`سوريا: مبيعات $${Math.round(syriaUsd)} − تارجت $${syTarget} → ${syPct}% = $${Math.round(aboveUsd * 100) / 100}`);
-  } else if (syriaUsd > 0) {
-    parts.push(`سوريا: $${Math.round(syriaUsd)} دون التارجت ($${syTarget}) — لا عمولة`);
-  }
-
-  return {
-    commissionUsd: Math.round(commissionUsd * 100) / 100,
-    pctUsed,
-    detail: parts.join(' · ') || null,
-    missingRate,
-  };
 }
 
 /**
@@ -306,49 +319,152 @@ export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap)
   return { usd: Math.round(usd * 100) / 100, missingRate };
 }
 
+// ── Salary resolution (dual source — no forced merge) ──────────
+
+/**
+ * Base salary + allowances + commission%, preferring `employee_salary_settings`
+ * (supports a native non-USD currency) and falling back to the flat
+ * `profiles.*_usd` columns (AdminUsersScreen) when no settings row exists.
+ * NEITHER table is written to nor migrated here — both remain exactly as
+ * the owner edits them from their respective screens (owner decision
+ * 2026-08-30: "كلاهما مُستخدم فعلياً — بدون دمج قسري").
+ */
+function resolveSalary(emp, settings) {
+  if (settings && (Number(settings.base_salary) || 0) > 0) {
+    return {
+      source: 'employee_salary_settings',
+      currency: settings.currency || 'USD',
+      rawBase: Number(settings.base_salary) || 0,
+      rawAllowances: (Number(settings.internet_allowance) || 0) + (Number(settings.food_allowance) || 0),
+      commissionPctFallback: Number(settings.sales_commission_pct) || 0,
+    };
+  }
+  const rawBase = Number(emp.base_salary_usd) || 0;
+  if (rawBase > 0) {
+    return {
+      source: 'profiles',
+      currency: 'USD',
+      rawBase,
+      rawAllowances: (Number(emp.housing_allowance_usd) || 0) + (Number(emp.transport_allowance_usd) || 0),
+      commissionPctFallback: Number(emp.commission_pct) || 0,
+    };
+  }
+  return { source: null, currency: 'USD', rawBase: 0, rawAllowances: 0, commissionPctFallback: 0 };
+}
+
 // ── Per-employee computation ──────────────────────────────────
 
 /**
  * Compute a full payroll entry for one employee.
- * @param {object} opts.emp       active profile row (id, employee_name, seller_alias, role_type)
- * @param {object} opts.settings  employee_salary_settings row (or null)
- * @param {Map}    opts.salesIndex prebuilt month sales index
- * @param {object} opts.rateMap   currency→USD map
+ * @param {object} opts.emp        active profile row (id, employee_name, seller_alias, team, role_type, + salary flat cols)
+ * @param {object} opts.settings   employee_salary_settings row (or null)
+ * @param {Map}    opts.salesIndex prebuilt month sales+returns index
+ * @param {object} opts.rateMap    currency→USD map (live, for advances/salary conversion only)
+ * @param {object} opts.run        payroll_runs row — its frozen target/pct/rate snapshot is
+ *                                 authoritative once month_setup_confirmed_at is set.
  */
-export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, rules }) {
-  // الراتب الأساسي والبدلات مسجَّلة بعملة settings.currency (افتراضياً TRY
-  // بقاعدة البيانات، وقد تكون SYP) — يجب تحويلها للدولار قبل تخزينها كـ
-  // *_usd تماماً متل العمولة/السلف، وإلا يُعامَل الرقم الخام كأنه دولار
-  // فيتضخّم الراتب بعشرات/آلاف الأضعاف لأي موظف براتب TRY أو SYP.
-  const salaryCurrency = settings?.currency || 'USD';
-  const rawBase       = Number(settings?.base_salary) || 0;
-  const rawAllowances = (Number(settings?.internet_allowance) || 0) +
-                        (Number(settings?.food_allowance) || 0);
-  const { usd: base,       missing: baseMissing }      = toUsd(rawBase, salaryCurrency, rateMap);
-  const { usd: allowances, missing: allowancesMissing } = toUsd(rawAllowances, salaryCurrency, rateMap);
-  const salaryMissing = (rawBase > 0 && baseMissing) || (rawAllowances > 0 && allowancesMissing);
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run }) {
+  const salary = resolveSalary(emp, settings);
+  const { usd: base,       missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
+  const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
+  const salaryMissing = salary.source === null || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing);
 
-  // Sales (all currencies → USD) — للعرض/الكشف
-  const { usd: salesUsd, count: salesCount, missingRate: salesMissing } =
-    salesUsdFromIndex(salesIndex, emp, rateMap);
+  // ── Team resolution (spec §3: calc method follows the EMPLOYEE'S team,
+  //    never the order's market/currency) ──
+  const team = resolveTeam(emp.team);
+  const notes = [];
+  if (salary.source === null) notes.push('⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي');
+  if (!team) notes.push(`⚠️ فريق الموظف غير محدد أو غير معروف (سوريا/تركيا) — لا يمكن حساب التارجت/العمولة تلقائياً`);
 
-  // العمولة = فوق التارجت فقط (قرار المالك 2026-07-02) — نفس قواعد
-  // commission_rules التي يعدّلها الأدمن من شاشة الطلبات. لو تعذّر جلب
-  // القواعد نرجع للنسبة الثابتة القديمة من إعدادات الموظف.
-  let commission = 0, commPct = 0, commDetail = null, commMissing = false;
-  if (rules) {
-    const c = commissionFromIndex(salesIndex, emp, rules, rateMap);
-    commission = c.commissionUsd;
-    commPct    = c.pctUsed;
-    commDetail = c.detail;
-    commMissing = c.missingRate;
-  } else {
-    commPct    = Number(settings?.sales_commission_pct) || 0;
-    commission = Math.round((salesUsd * commPct) / 100 * 100) / 100;
+  let commissionUsd = 0, shortfallDeductionUsd = 0;
+  let teamFields = {
+    team: team?.key ?? null, target_currency: team?.currency ?? null,
+    target_local: 0, sales_local: 0, sales_avg_local: 0,
+    returns_count: 0, returns_allowed: 0, returns_excess: 0, return_deduction_local: 0,
+    increase_local: 0, adjusted_increase_local: 0, shortfall_local: 0,
+  };
+  let salesUsdDisplay = 0, salesCountDisplay = 0, salesMissing = false, commPct = 0;
+
+  if (team) {
+    const s = salesInCurrency(salesIndex, emp, team.currency, rateMap);
+    salesMissing = s.missingRate;
+    // Display total in USD regardless of team (KPI cards / statement modal expect USD)
+    salesUsdDisplay = team.currency === 'USD' ? s.value : convert(s.value, team.currency, 'USD', rateMap).value;
+    salesCountDisplay = s.count;
+
+    // Target + % — from the run's FROZEN snapshot if confirmed, else the
+    // live commission_rules defaults (so an un-set-up run still previews).
+    const target = team.key === 'syria'
+      ? Number(run?.target_syria_usd ?? DEFAULT_RULES.syria.monthly_target_usd) || 0
+      : Number(run?.target_turkey_try ?? DEFAULT_RULES.turkey.monthly_target_try) || 0;
+    commPct = team.key === 'syria'
+      ? Number(run?.above_target_pct_syria ?? DEFAULT_RULES.syria.above_target_pct) || 0
+      : Number(run?.above_target_pct_turkey ?? DEFAULT_RULES.turkey.above_target_pct) || 0;
+
+    const salesLocal = s.value;
+    const ordersCount = s.count;
+    const returnsCount = s.returnsCount;
+    const achieved = salesLocal >= target;
+
+    if (achieved) {
+      const increaseLocal = salesLocal - target;
+      const avgLocal = ordersCount > 0 ? salesLocal / ordersCount : 0;
+      const returnsAllowed = calcAllowedReturns(ordersCount);
+      const returnsExcess = Math.max(0, returnsCount - returnsAllowed);
+      const returnDeductionLocal = avgLocal * returnsExcess;
+      const adjustedIncreaseLocal = Math.max(0, increaseLocal - returnDeductionLocal);
+      const commissionLocal = adjustedIncreaseLocal * commPct / 100;
+      const { value: commUsd, missing: cMiss } = convert(commissionLocal, team.currency, 'USD', rateMap);
+      commissionUsd = Math.round(commUsd * 100) / 100;
+      if (cMiss) salesMissing = true;
+
+      teamFields = {
+        team: team.key, target_currency: team.currency, target_local: target,
+        sales_local: Math.round(salesLocal * 100) / 100, sales_avg_local: Math.round(avgLocal * 100) / 100,
+        returns_count: returnsCount, returns_allowed: returnsAllowed, returns_excess: returnsExcess,
+        return_deduction_local: Math.round(returnDeductionLocal * 100) / 100,
+        increase_local: Math.round(increaseLocal * 100) / 100,
+        adjusted_increase_local: Math.round(adjustedIncreaseLocal * 100) / 100,
+        shortfall_local: 0,
+      };
+      const sym = team.currency === 'USD' ? '$' : '₺';
+      notes.push(`✅ محقق التارجت — فوق التارجت ${sym}${Math.round(increaseLocal).toLocaleString('en-US')}` +
+        (returnsExcess > 0
+          ? ` − رواجع زائدة (${returnsExcess}×${sym}${avgLocal.toFixed(0)}=${sym}${returnDeductionLocal.toFixed(0)}) = ${sym}${adjustedIncreaseLocal.toFixed(0)} × ${commPct}% = ${sym}${commissionLocal.toFixed(2)}`
+          : ` × ${commPct}% = ${sym}${commissionLocal.toFixed(2)}`));
+    } else {
+      const shortfallLocal = target - salesLocal;
+      const shortfallDeductionLocal = shortfallLocal * 0.10;
+      const { value: dUsd, missing: dMiss } = convert(shortfallDeductionLocal, team.currency, 'USD', rateMap);
+      shortfallDeductionUsd = Math.round(dUsd * 100) / 100;
+      if (dMiss) salesMissing = true;
+
+      // Returns are still surfaced for reference even when target isn't
+      // reached (spec §9-13 apply only "عند تحقيق التارغت" — no returns
+      // deduction stacked on top of the shortfall penalty).
+      const returnsAllowed = calcAllowedReturns(ordersCount);
+      teamFields = {
+        team: team.key, target_currency: team.currency, target_local: target,
+        sales_local: Math.round(salesLocal * 100) / 100, sales_avg_local: 0,
+        returns_count: returnsCount, returns_allowed: returnsAllowed,
+        returns_excess: Math.max(0, returnsCount - returnsAllowed),
+        return_deduction_local: 0, increase_local: 0, adjusted_increase_local: 0,
+        shortfall_local: Math.round(shortfallLocal * 100) / 100,
+      };
+      const sym = team.currency === 'USD' ? '$' : '₺';
+      notes.push(`❌ غير محقق للتارجت — نقص ${sym}${Math.round(shortfallLocal).toLocaleString('en-US')} × 10% = حسم ${sym}${shortfallDeductionLocal.toFixed(2)}`);
+    }
+  } else if (settings) {
+    // No team resolvable → cannot run the target/returns pipeline at all.
+    // Fall back to the OLD flat commission_pct × total USD sales so the
+    // entry isn't silently zeroed, but flag it loudly (already pushed above).
+    const s = salesUsdFromIndex(salesIndex, emp, rateMap);
+    salesUsdDisplay = s.usd; salesCountDisplay = s.count; salesMissing = s.missingRate;
+    commPct = salary.commissionPctFallback;
+    commissionUsd = Math.round((s.usd * commPct) / 100 * 100) / 100;
   }
 
-  // الحضور — مرجع فقط، بلا خصم تلقائي (قرار المالك 2026-07-02:
-  // «سجّلهم كلهم حضور — الغياب يدوي، الأدمن يحدد الأرقام» من ✏️).
+  // الحضور — مرجع فقط، بلا خصم تلقائي (قرار المالك 2026-07-02).
   let workingDays = 26, attRef = null;
   try {
     const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
@@ -365,14 +481,10 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const { usd: advance, missingRate: advMissing } =
     await fetchAdvanceRepaymentUsd(emp.id, year, month, rateMap);
 
-  const net = base + allowances + commission - absenceDeduction - advance;
+  const net = base + allowances + commissionUsd - shortfallDeductionUsd - absenceDeduction - advance;
 
-  const notes = [
-    !settings ? '⚠️ لا يوجد إعداد راتب' : null,
-    commDetail,
-    attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️',
-    (salesMissing || advMissing || commMissing || salaryMissing) ? '⚠️ سعر صرف ناقص' : null,
-  ].filter(Boolean).join(' · ') || null;
+  notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
+  if (salesMissing || advMissing || salaryMissing) notes.push('⚠️ سعر صرف ناقص');
 
   return {
     run_id: runId,
@@ -380,22 +492,25 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     employee_name: emp.employee_name,
     role_type: emp.role_type,
     currency: PAYROLL_CURRENCY,
+    salary_source: salary.source,
     base_salary_usd: base,
     allowances_usd: allowances,
     bonus_usd: 0,
-    commission_usd: commission,
+    commission_usd: commissionUsd,
     commission_pct: commPct,
-    sales_total_usd: salesUsd,
-    sales_orders_count: salesCount,
+    sales_total_usd: salesUsdDisplay,
+    sales_orders_count: salesCountDisplay,
     deductions_usd: 0,
     absence_deduction_usd: absenceDeduction,
     advance_deduction_usd: advance,
+    shortfall_deduction_usd: shortfallDeductionUsd,
     working_days: workingDays,
     absent_days: absentDays,
     net_salary_usd: Math.round(net * 100) / 100,
     source: 'auto',
     computed_at: new Date().toISOString(),
-    notes,
+    notes: notes.filter(Boolean).join(' · ') || null,
+    ...teamFields,
   };
 }
 
@@ -405,15 +520,23 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  * Compute & upsert entries for every active employee in one shot.
  * Idempotent via UNIQUE(run_id, employee_id).
  *
+ * Requires the run's month-setup to be confirmed first (target/rate
+ * snapshot on payroll_runs) — spec: "قبل بدء الحسبة... يطلب النظام تأكيد
+ * بيانات الشهر". Callers should gate the UI button on
+ * `run.month_setup_confirmed_at` before invoking this.
+ *
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
-export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds }) {
+export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
   const errors = [];
+  if (!run?.month_setup_confirmed_at) {
+    errors.push('⚠️ لم يُؤكَّد "إعداد الشهر" (التارجت/أسعار الصرف) بعد — القيم الافتراضية استُخدمت مؤقتاً. أكِّد الإعداد قبل الاعتماد.');
+  }
 
-  // 1. Active employees (id, name, alias, role)
+  // 1. Active employees (id, name, alias, role, team, flat salary cols)
   const { data: emps, error: empErr } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, is_active, seller_alias')
+    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct')
     .eq('is_active', true)
     .order('employee_name');
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);
@@ -431,16 +554,20 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     }
   }
 
-  // 3. Exchange rates + one sales query for the month + قواعد العمولة
+  // 3. Exchange rates (live, for salary/advance currency conversion only —
+  //    the sales/target pipeline uses the run's OWN frozen rate snapshot
+  //    when present) + one sales+returns query for the month.
   let rateMap = { USD: 1 };
   let salesIndex = new Map();
-  let rules = null;
-  try { rateMap = await fetchExchangeRateMap(); }
-  catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
+  try {
+    rateMap = await fetchExchangeRateMap();
+    // Run-level frozen rates win once confirmed, so re-running an old
+    // month never re-prices it off today's live rate.
+    if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
+    if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
+  } catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
   try { salesIndex = await fetchMonthlySalesIndex(year, month); }
   catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
-  try { rules = await fetchCommissionRules(); }
-  catch (e) { errors.push('تعذّر جلب قواعد العمولة (fallback للنسبة الثابتة): ' + (e?.message || e)); }
 
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
@@ -454,7 +581,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     try {
       const entry = await computeEmployeeEntry({
         emp, settings: settingsById.get(emp.id) || null,
-        runId, year, month, salesIndex, rateMap, rules,
+        runId, year, month, salesIndex, rateMap, run,
       });
       const saved = await upsertPayrollEntry(entry);
       entries.push(saved);
