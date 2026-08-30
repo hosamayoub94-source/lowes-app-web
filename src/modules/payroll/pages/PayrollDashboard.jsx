@@ -550,7 +550,11 @@ export function PayrollDashboard() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                /* نفس شريط التمرير الأفقي الموجود — فقط الآن الصفوف تمرّر
+                   عمودياً داخل صندوق محدود الارتفاع، فيبقى شريطه الأفقي
+                   ظاهراً دائماً بأسفل الصندوق مهما كان الموظف الحالي (بلا
+                   حاجة للنزول لآخر القائمة وبلا شريط تمرير إضافي). */
+                <div className="overflow-x-auto overflow-y-auto max-h-[65vh]">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-surface-alt text-muted text-xs border-b border-border/40">
