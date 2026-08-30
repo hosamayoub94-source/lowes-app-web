@@ -81,7 +81,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
+  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,payroll_commission_exempt,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -140,6 +140,7 @@ const EMPTY_FORM = {
   birthday: '', join_date: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
   commission_pct: '',
+  payroll_commission_exempt: false,
   extra_permissions: [],
   denied_permissions: [],
 };
@@ -326,6 +327,7 @@ export default function AdminUsersScreen() {
       housing_allowance_usd:   p.housing_allowance_usd   ?? '',
       transport_allowance_usd: p.transport_allowance_usd ?? '',
       commission_pct:          p.commission_pct          ?? '',
+      payroll_commission_exempt: p.payroll_commission_exempt ?? false,
       extra_permissions:       Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
       denied_permissions:      Array.isArray(p.denied_permissions) ? p.denied_permissions : [],
     });
@@ -360,6 +362,7 @@ export default function AdminUsersScreen() {
       patch.housing_allowance_usd   = form.housing_allowance_usd   === '' ? 0 : Number(form.housing_allowance_usd);
       patch.transport_allowance_usd = form.transport_allowance_usd === '' ? 0 : Number(form.transport_allowance_usd);
       patch.commission_pct          = form.commission_pct          === '' ? 0 : Number(form.commission_pct);
+      patch.payroll_commission_exempt = !!form.payroll_commission_exempt;
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       patch.denied_permissions      = Array.isArray(form.denied_permissions) ? form.denied_permissions : [];
       patch.seller_type = 'online'; // كل الموظفين online (الموزعون بتطبيق منفصل)
@@ -848,6 +851,12 @@ export default function AdminUsersScreen() {
                         onChange={e => setForm(f => ({ ...f, commission_pct: e.target.value }))}
                         placeholder="10" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
                     </Field>
+                    <label className="flex items-center gap-2 mt-3 text-xs text-muted cursor-pointer">
+                      <input type="checkbox" checked={!!form.payroll_commission_exempt}
+                        onChange={e => setForm(f => ({ ...f, payroll_commission_exempt: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-teal" />
+                      💼 معفى من عمولة/تارجت الرواتب (مو بائع — سوشال/إدارة) — راتب الحسبة الشهرية أساسي + بدلات فقط
+                    </label>
                   </div>
 
                   {/* الصلاحيات: قالب الدور + استثناءات فردية */}

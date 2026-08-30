@@ -369,6 +369,47 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
   const salaryMissing = salary.source === null || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing);
 
+  // ── Commission-exempt staff (owner rule 2026-08-30): social/media/
+  //    admin/management — NOT sellers. Base + allowances only, no
+  //    team requirement, no target/commission/returns pipeline, no
+  //    "missing team" block. Flag lives on the profile and is copied
+  //    onto the entry so a payslip keeps its reason even if the
+  //    profile's flag changes later.
+  if (emp.payroll_commission_exempt) {
+    const notes = [
+      salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
+      '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
+    ];
+    let workingDays = 26, attRef = null;
+    try {
+      const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
+      workingDays = att.workingDays || workingDays;
+      if ((att.presentDays || 0) > 0) {
+        const leaveNote = att.leaveDays ? ` (+${att.leaveDays} إجازة)` : '';
+        attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم${leaveNote}` + (att.absentDays ? ` · غياب ${att.absentDays}` : '');
+      }
+    } catch { /* مرجع فقط */ }
+    notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
+
+    const { usd: advance, missingRate: advMissing } = await fetchAdvanceRepaymentUsd(emp.id, year, month, rateMap);
+    if (advMissing) notes.push('⚠️ سعر صرف ناقص');
+    const net = base + allowances - advance;
+
+    return {
+      run_id: runId, employee_id: emp.id, employee_name: emp.employee_name, role_type: emp.role_type,
+      currency: PAYROLL_CURRENCY, salary_source: salary.source, commission_exempt: true,
+      base_salary_usd: base, allowances_usd: allowances, bonus_usd: 0,
+      commission_usd: 0, commission_pct: 0, sales_total_usd: 0, sales_orders_count: 0,
+      deductions_usd: 0, absence_deduction_usd: 0, advance_deduction_usd: advance,
+      shortfall_deduction_usd: 0, working_days: workingDays, absent_days: 0,
+      net_salary_usd: Math.round(net * 100) / 100, source: 'auto', computed_at: new Date().toISOString(),
+      notes: notes.filter(Boolean).join(' · ') || null,
+      team: null, target_currency: null, target_local: 0, sales_local: 0, sales_avg_local: 0,
+      returns_count: 0, returns_allowed: 0, returns_excess: 0, return_deduction_local: 0,
+      increase_local: 0, adjusted_increase_local: 0, shortfall_local: 0,
+    };
+  }
+
   // ── Team resolution (spec §3: calc method follows the EMPLOYEE'S team,
   //    never the order's market/currency) ──
   const team = resolveTeam(emp.team);
@@ -493,6 +534,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     role_type: emp.role_type,
     currency: PAYROLL_CURRENCY,
     salary_source: salary.source,
+    commission_exempt: false,
     base_salary_usd: base,
     allowances_usd: allowances,
     bonus_usd: 0,
@@ -536,7 +578,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   // 1. Active employees (id, name, alias, role, team, flat salary cols)
   const { data: emps, error: empErr } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct')
+    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt')
     .eq('is_active', true)
     .order('employee_name');
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);

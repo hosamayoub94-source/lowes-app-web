@@ -21,8 +21,11 @@ export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit })
         {(!entry.salary_source) && (
           <span title="الراتب الأساسي غير محدد لهذا الموظف" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-red-bg text-red-fg font-bold align-middle">⚠️ بلا راتب</span>
         )}
-        {(entry.salary_source && !entry.team) && (
+        {(entry.salary_source && !entry.team && !entry.commission_exempt) && (
           <span title="فريق الموظف (سوريا/تركيا) غير محدد — العمولة/التارجت غير مُحتسبين تلقائياً" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-bg text-amber-fg font-bold align-middle">⚠️ بلا فريق</span>
+        )}
+        {entry.commission_exempt && (
+          <span title="معفى من عمولة/تارجت الرواتب — أساسي وبدلات فقط" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-blue-bg text-blue-fg font-bold align-middle">💼 معفى</span>
         )}
       </td>
       <td className="py-3 px-4 text-sm text-muted text-center">

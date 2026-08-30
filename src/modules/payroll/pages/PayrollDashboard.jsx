@@ -342,7 +342,7 @@ export function PayrollDashboard() {
   // ⚠️ موظفون براتب لكن بلا فريق (سوريا/تركيا) محدَّد — التارجت/العمولة/
   // الرواجع لن تُحتسب تلقائياً لهم. يُبرَز منفصلاً لأن السبب مختلف
   // (لا ينقصهم راتب، ينقصهم تصنيف الفريق).
-  const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team);
+  const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team && !e.commission_exempt);
   const blockingEntries = zeroSalaryEntries.length + noTeamEntries.length;
   const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
 
