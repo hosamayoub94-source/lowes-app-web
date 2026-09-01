@@ -9,6 +9,7 @@ import { AuthBoot }      from '@context/AuthBoot';
 import { AppRoutes }     from '@routes/AppRoutes';
 import { MockModeBanner } from '@components/dev/MockModeBanner';
 import { ErrorBoundary } from '@components/ui/ErrorBoundary';
+import { SWUpdateBanner } from '@components/ui/SWUpdateBanner';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
               <AppRoutes />
             </ErrorBoundary>
             <MockModeBanner />
+            <SWUpdateBanner />
           </BrowserRouter>
         </AuthBoot>
       </ThemeBoot>
