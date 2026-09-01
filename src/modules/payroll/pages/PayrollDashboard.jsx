@@ -395,7 +395,11 @@ export function PayrollDashboard() {
       </div>
 
       {/* ── Split layout ───────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* على شاشة كبيرة (xl+): قائمة الدورات تاخد عمود واحد بس وتفاصيل
+          الدورة تاخد الباقي (5 من 6) — عشان تستغل مساحة الشاشة الكبيرة
+          لعرض أكبر عدد من بطاقات الموظفين دفعة وحدة، بدل ما تضل نفس
+          نسبة 1:2 القديمة وتفضى مساحة فاضية. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
 
         {/* Runs list */}
         <div className="md:col-span-1">
@@ -431,7 +435,7 @@ export function PayrollDashboard() {
         </div>
 
         {/* Run detail */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 xl:col-span-5">
           {!run ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl text-muted">
               <div className="w-14 h-14 rounded-2xl bg-surface-alt flex items-center justify-center text-2xl">💼</div>
@@ -562,8 +566,10 @@ export function PayrollDashboard() {
                 /* بطاقة كاملة واحترافية لكل موظف — الترتيب الثابت المعتمد
                    (اسم+مكان العمل، أساسي، تارجت، إنجاز فعلي، فرق التارجت
                    التلقائي، خصومات، عمولة، بدل إنترنت، صافي) ثم الإجراءات.
-                   قائمة عمودية تمرّر داخل صندوق محدود الارتفاع. */
-                <div className="overflow-y-auto max-h-[75vh] p-4 space-y-3">
+                   عمود واحد على الموبايل/التابلت، شبكة عمودين/ثلاثة على
+                   الشاشات الكبيرة — عشان شاشة كبيرة تعرض عدد أكبر من
+                   بطاقات الموظفين دفعة وحدة بدل التمرير الطويل. */
+                <div className="overflow-y-auto max-h-[85vh] p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3 content-start">
                   {entries.map(e => (
                     <EmployeePayrollCard
                       key={e.id}
@@ -576,8 +582,8 @@ export function PayrollDashboard() {
                     />
                   ))}
 
-                  {/* الإجمالي (لكل عملة) */}
-                  <div className="bg-surface-alt/60 border border-border/40 rounded-2xl px-5 py-3 flex items-center justify-between font-bold">
+                  {/* الإجمالي (لكل عملة) — يمتد بعرض الشبكة كاملاً */}
+                  <div className="xl:col-span-2 2xl:col-span-3 bg-surface-alt/60 border border-border/40 rounded-2xl px-5 py-3 flex items-center justify-between font-bold">
                     <span className="text-xs text-muted">الإجمالي (لكل عملة)</span>
                     <span className="text-teal font-extrabold text-sm tabular-nums text-left">
                       {Object.keys(totalsByCurrency).length === 0
