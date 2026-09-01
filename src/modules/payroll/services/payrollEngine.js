@@ -28,6 +28,11 @@
 // on payroll_runs at "month setup" time (month_setup_confirmed_at) so a
 // later change to commission_rules/exchange_rates never re-prices an
 // already-computed month (owner rule 2026-08-30, spec §20).
+//
+// 🔺 التارجت ثابت لا يُقسم (D-081، 1 أيلول 2026): القيمة المثبّتة بإعداد
+// الشهر (تركيا ₺65,000 / سوريا $1,000 افتراضياً) تنطبق كاملةً على كل موظفي
+// البلد بلا أي تخفيض تناسبي — لا لإجازة مدفوعة، لا لعطلة أسبوعية، ولا لشهر
+// عمل جزئي. الراتب الأساسي وحده هو ما يُقسَّم بالتعيين/إغلاق الحساب.
 // =============================================================
 
 import { supabase, supabaseAnon } from '@services/supabase';
@@ -538,13 +543,11 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   };
   let salesUsdDisplay = 0, salesCountDisplay = 0, salesMissing = false, commPct = 0;
 
-  // الحضور يُجلب هون (قبل حسبة التارجت) عشان أيام الإجازة المدفوعة —
-  // إن وُجدت — تُستخدم لتخفيض التارجت نفسه (بعدها بأسطر)، لا الأساسي.
-  // مصدرا الإجازة (owner rule 2026-09-01): تعليم الحضور اليومي اليدوي
-  // (attendance) + شاشة «الطلبات» المعتمدة (employee_requests, leave) —
-  // الاتحاد بينهما (بلا ازدواج) هو عدد أيام الإجازة الفعلي. شاشة الطلبات
-  // هي الأدق (تاريخ محدَّد + موافقة رسمية)، وغالباً هي المصدر الوحيد
-  // الموجود فعلياً (تعليم الحضور اليومي اختياري وغالباً لا يُستخدَم للإجازة).
+  // الحضور وأيام الإجازة — **مرجع عرضي فقط** (D-081، 1 أيلول 2026): يظهران
+  // بملاحظة البطاقة `attRef` ولا يدخلان أي حسبة مالية. لا خصم غياب تلقائي
+  // (قرار مالك 2026-07-02) ولا تخفيض تارجت (D-081 — التارجت ثابت لا يُقسم).
+  // مصدرا الإجازة: تعليم الحضور اليومي اليدوي (attendance) + شاشة «الطلبات»
+  // المعتمدة (employee_requests, leave) — الاتحاد بينهما بلا ازدواج بالعدّ.
   let workingDays = 26, attRef = null, leaveDaysThisMonth = 0;
   const [attResult, leaveResult] = await Promise.allSettled([
     fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
@@ -575,24 +578,22 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
     // Target + % — from the run's FROZEN snapshot if confirmed, else the
     // live commission_rules defaults (so an un-set-up run still previews).
-    let target = team.key === 'syria'
+    //
+    // 🔺 قرار مالك قاطع (2026-09-01، D-081 — يلغي قاعدة 2026-09-01 السابقة):
+    // «التارجت لا يُقسم، هو ثابت متل ما أنا بحدّدو». التارجت المطلوب يبقى
+    // بقيمته الكاملة كما ثُبِّتت بـ«إعداد الشهر» لكل موظف بالبلد، **بلا أي
+    // تقسيم أو تخفيض تناسبي مهما كان السبب** — لا إجازة مدفوعة، لا عطلة
+    // أسبوعية، ولا شهر عمل جزئي (تعيين/إغلاق حساب، مُثبَّت أصلاً فوق).
+    // القيمة الوحيدة التي تغيّر التارجت هي تعديل حسام اليدوي من إعداد الشهر.
+    //
+    // ⚠️ لا تُعِد إدخال أي ضرب بنسبة أيام هون بدون قرار مالك جديد صريح.
+    // السبب الجذري للإلغاء: كاشف الإجازة (attendanceLink.js `isLeaveStatus`)
+    // يطابق كلمة «عطلة» فيشمل «🌟 عطلة أسبوعية» التي يسجّلها الموظف بنفسه —
+    // فكانت العطلة الأسبوعية العادية تخفّض التارجت (30/31 لكل يوم)، مع أن
+    // تارجت الشهر مبني أصلاً على شهر فيه عطله الأسبوعية.
+    const target = team.key === 'syria'
       ? Number(run?.target_syria_usd ?? DEFAULT_RULES.syria.monthly_target_usd) || 0
       : Number(run?.target_turkey_try ?? DEFAULT_RULES.turkey.monthly_target_try) || 0;
-
-    // إجازة مدفوعة (owner rule 2026-09-01): الأساسي يبقى كامل (الإجازة
-    // مدفوعة، لا خصم) — لكن التارجت المطلوب يُخفَّض بنسبة أيام الإجازة من
-    // كامل أيام الشهر التقويمية، لأن الموظف ما كان أصلاً قادر يبيع بهالأيام.
-    // هذا عكس حالة التعيين/الإغلاق الجزئي (الأساسي يُقسَّم، التارجت يبقى
-    // كامل) — الفرق: هون الغياب مدفوع ومؤقت ضمن شهر كامل التوظيف، مش بداية/
-    // نهاية علاقة عمل.
-    if (leaveDaysThisMonth > 0) {
-      const totalDaysInMonth = daysInMonth(year, month);
-      const leaveRatio = Math.max(0, totalDaysInMonth - leaveDaysThisMonth) / totalDaysInMonth;
-      const targetBeforeLeave = target;
-      target = Math.round(target * leaveRatio * 100) / 100;
-      const sym = team.currency === 'USD' ? '$' : '₺';
-      notes.push(`🏖️ إجازة مدفوعة ${leaveDaysThisMonth} يوم من ${totalDaysInMonth} — التارجت مخفَّض من ${sym}${Math.round(targetBeforeLeave).toLocaleString('en-US')} إلى ${sym}${Math.round(target).toLocaleString('en-US')} (الأساسي كامل بلا خصم)`);
-    }
 
     commPct = team.key === 'syria'
       ? Number(run?.above_target_pct_syria ?? DEFAULT_RULES.syria.above_target_pct) || 0
