@@ -423,6 +423,13 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       ? `🗓️ راتب جزئي — إغلاق الحساب باليوم ${prorate.endDay}/${prorate.totalDays} من الشهر (${prorate.daysWorked} يوم × ${(rawBaseUsd / prorate.totalDays).toFixed(2)}$/يوم)`
       : `🗓️ راتب جزئي — مباشرة العمل باليوم ${prorate.startDay}/${prorate.totalDays} من الشهر (${prorate.daysWorked} يوم × ${(rawBaseUsd / prorate.totalDays).toFixed(2)}$/يوم)`;
   }
+  // ⚠️ قرار مالك متعمَّد (2026-09-01): التارجت الشهري (target_local) يبقى
+  // كامل بلا تقسيم حتى لموظف جزئي — فقط الراتب الأساسي يُقسَّم. هذا يعني
+  // موظف اشتغل نص شهر بس وما حقّق نصف التارجت بيتحسم عليه 10% من كامل
+  // النقص، وممكن يطلع صافي راتبه سالب (شوهد فعلياً مع Reham، آب 2026:
+  // أساسي 67.74$ بعد التقسيم − حسم 98.17$ عن نقص تارجت 1000$ الكامل =
+  // -20.43$). هذا متوقَّع ومقصود — لا تُقسَّم target_local/target_try هون
+  // "لتصحيح" النتيجة السالبة بدون قرار جديد صريح من المالك.
 
   // ── Commission-exempt staff (owner rule 2026-08-30): social/media/
   //    admin/management — NOT sellers. Base + allowances only, no

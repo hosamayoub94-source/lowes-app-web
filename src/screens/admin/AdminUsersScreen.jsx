@@ -81,7 +81,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,payroll_commission_exempt,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
+  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,payroll_commission_exempt,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance,resigned_at,employment_status';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -137,7 +137,7 @@ const EMPTY_FORM = {
   employee_name: '', job_title: '', shift_partner: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   seller_type: 'online',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
-  birthday: '', join_date: '',
+  birthday: '', join_date: '', resigned_at: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
   commission_pct: '',
   payroll_commission_exempt: false,
@@ -323,6 +323,7 @@ export default function AdminUsersScreen() {
       admin_notes:   p.admin_notes ?? '',
       birthday:      p.birthday ?? '',
       join_date:     p.join_date ?? '',
+      resigned_at:   p.resigned_at ?? '',
       base_salary_usd:         p.base_salary_usd         ?? '',
       housing_allowance_usd:   p.housing_allowance_usd   ?? '',
       transport_allowance_usd: p.transport_allowance_usd ?? '',
@@ -356,6 +357,10 @@ export default function AdminUsersScreen() {
         patch.admin_notes = form.admin_notes.trim() || null;
         patch.birthday    = form.birthday  || null;
         patch.join_date   = form.join_date || null;
+        // تاريخ إغلاق الحساب — يُحسب عليه آخر شهر جزئي بالرواتب (spec §7).
+        // يُعدَّل هون يدوياً لتصحيحه (مثلاً لو الحساب اتعطّل بدون هالتاريخ
+        // قبل ما يصير التعطيل يسجّله تلقائياً)، بمعزل عن زر "تعطيل" نفسه.
+        patch.resigned_at = form.resigned_at || null;
       }
       // Salary + permissions (safe to send even if columns just added)
       patch.base_salary_usd         = form.base_salary_usd         === '' ? 0 : Number(form.base_salary_usd);
@@ -400,10 +405,24 @@ export default function AdminUsersScreen() {
   };
 
   // ── Toggle active ─────────────────────────────────────────────
+  // "🔴 تعطيل" هو الزر اللي فعلياً بيُستخدم لإيقاف حساب موظف بنص الشهر
+  // (مش بالضرورة زر "👋 وضع كمستقيل" المخصص) — فلازم يسجّل هو نفسه تاريخ
+  // إغلاق الحساب (resigned_at)، وإلا محرك الرواتب ما بعرف يحسب له آخر
+  // شهر جزئي (spec §7) ويستبعده صامتاً بالكامل. لو ما كان عنده تاريخ
+  // إغلاق مسجّل مسبقاً، نسجّل تاريخ اليوم. عالعكس: إعادة التفعيل تمسح أي
+  // تاريخ إغلاق قديم، وإلا يفضل يمنع حسبة رواتبه بالأشهر الجاية بعد
+  // ما يرجع نشط (proration بيقرأ resigned_at بغض النظر عن is_active).
   const toggleActive = async (p) => {
+    const turningOff = !!p.is_active;
+    const patch = { is_active: !p.is_active };
+    if (turningOff && !p.resigned_at) {
+      patch.resigned_at = new Date().toISOString().slice(0, 10);
+    } else if (!turningOff) {
+      patch.resigned_at = null;
+    }
     try {
-      await updateProfile(p.id, { is_active: !p.is_active });
-      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, is_active: !p.is_active } : x));
+      await updateProfile(p.id, patch);
+      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, ...patch } : x));
     } catch (e) { setError(e.message); }
   };
 
@@ -816,8 +835,20 @@ export default function AdminUsersScreen() {
                           className={inputCls}
                         />
                       </Field>
+                      <Field label="تاريخ إغلاق الحساب (إن وُجد)">
+                        <input
+                          type="date"
+                          value={form.resigned_at}
+                          onChange={e => setForm(f => ({ ...f, resigned_at: e.target.value }))}
+                          className={inputCls}
+                        />
+                      </Field>
                     </div>
                     <p className="text-xs text-muted mt-1.5">يُنشر إعلان تلقائي يوم الميلاد وذكرى التعيين 📢</p>
+                    <p className="text-xs text-muted mt-1">
+                      ⚠️ تاريخ إغلاق الحساب هو اللي بيحدد آخر شهر جزئي يُحسَب له بالرواتب — عدّله هون لو الحساب
+                      اتعطّل قبل ما يتسجّل تلقائياً، أو لتصحيحه.
+                    </p>
                   </div>
 
                   {/* Salary */}
