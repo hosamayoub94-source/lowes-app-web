@@ -38,7 +38,7 @@ function Field({ label, children, tone = 'text' }) {
   );
 }
 
-export function EmployeePayrollCard({ entry, run, canEdit, onEdit, onDelete, onStatement }) {
+export function EmployeePayrollCard({ entry, run, canEdit, onEdit, onDelete, onStatement, showStatementLink }) {
   const cur = entry.currency || run?.currency || 'USD';
   const localCur = entry.target_currency || cur;
   const net = calcNetSalary(entry);
@@ -86,7 +86,21 @@ export function EmployeePayrollCard({ entry, run, canEdit, onEdit, onDelete, onS
         </Field>
 
         <Field label="المبيعات / الإنجاز الفعلي">
-          {hasTarget ? formatCurrency(entry.sales_local, localCur) : <span className="text-muted">—</span>}
+          {hasTarget ? (
+            // كشف حركة المبيعات — دايماً ظاهر هون (بغض النظر عن العمولة، حتى
+            // لو 0/تحت التارجت) لكن مقصور على حسام/أماني (showStatementLink،
+            // نفس تقييد DELETE_RUN_ALLOWED بـPayrollDashboard.jsx). زر
+            // العمولة تحت (سطر ~113) يبقى كما هو لكل الأدمن حين العمولة > 0.
+            showStatementLink ? (
+              <button
+                onClick={() => onStatement?.(entry)}
+                title="كشف حركة المبيعات"
+                className="hover:underline decoration-dotted text-start"
+              >
+                {formatCurrency(entry.sales_local, localCur)}
+              </button>
+            ) : formatCurrency(entry.sales_local, localCur)
+          ) : <span className="text-muted">—</span>}
         </Field>
 
         {/* الفرق عن التارجت — تلقائي (زيادة أو نقص، لا كلاهما) */}

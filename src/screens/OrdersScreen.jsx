@@ -1582,11 +1582,20 @@ function ProgressStrip({ status, market }) {
 }
 
 // ── Payment Badge ─────────────────────────────────────────────
-function PaymentBadge({ status, amount, paidAmount, currency }) {
+// ⚠️ orderStatus فقط للعرض — لا يغيّر payment_status نفسه ولا يلمس القيد
+// المحاسبي (handleStatusChange) ولا طلب تحصيل يورتيشي (yurticiRow، سطر
+// ~413) اللذان يبقيان معتمدين على payment_status الحقيقي حصراً (قرار
+// المالك 2026-09-01: الخزينة لا تُقيَّد قبل دخول الفلوس فعلياً). هالشارة
+// تُصحّح فقط الإيحاء المُربك لطلب COD تم تسليمه فعلياً — "غير مدفوع" كانت
+// تُقرأ خطأً كأن مبيعه غير محسوبة، رغم إنها تُحتسب للموظف بمجرد delivered
+// (payrollEngine.js يعتمد status لا payment_status).
+function PaymentBadge({ status, amount, paidAmount, currency, orderStatus }) {
   if (status === 'paid')
     return <span className="text-[10px] font-semibold text-green-fg">💰 مدفوع</span>;
   if (status === 'partial')
     return <span className="text-[10px] font-semibold text-amber-fg">💳 {paidAmount || 0}/{amount} {currency}</span>;
+  if (status === 'unpaid' && (orderStatus === 'delivered' || orderStatus === 'settled'))
+    return <span className="text-[10px] font-semibold text-teal" title="محسوبة لك ضمن المبيعات — بانتظار تحويل الشركة الناقلة المبلغ لخزينة الشركة">✅ محسوبة لك — تسوية شحن معلّقة</span>;
   return <span className="text-[10px] font-semibold text-red-fg">⏳ غير مدفوع</span>;
 }
 
@@ -2056,6 +2065,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
             amount={order.amount}
             paidAmount={order.paid_amount}
             currency={order.currency}
+            orderStatus={order.status}
           />
         </div>
         {canAdvance && (
@@ -3111,17 +3121,26 @@ export default function OrdersScreen({ forcedMarket = null }) {
   }, [userName]);
 
   // Realtime: auto-update order status when cron/function changes it in DB
+  // ⚡ أداء (1 أيلول 2026، بلاغ حسام «التطبيق بطيء وعم يعلّق»): كان كل UPDATE
+  // بجدول orders — من أي موظف، لأي طلب، حتى لو مو ضمن قائمتك الحالية — يبني
+  // Array جديد بـsetOrders فيعيد رسم كل بطاقات القائمة الظاهرة. الإصلاح: لا
+  // إعادة رسم إلا لو الطلب فعلاً موجود بالقائمة الحالية عندك.
   useEffect(() => {
     const channel = supabase
       .channel('orders-status-changes')
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
         (payload) => {
-          // طلب صار محذوفاً (soft-delete من جلسة أخرى/الجدول) → أزِله من القائمة
-          // بدل تحديثه، حتى لا يرجع يظهر.
-          setOrders(prev => payload.new?.deleted_at
-            ? prev.filter(o => o.id !== payload.new.id)
-            : prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o));
+          setOrders(prev => {
+            const idx = prev.findIndex(o => o.id === payload.new?.id);
+            if (idx === -1) return prev; // مو بقائمتك — تجاهل، لا إعادة رسم
+            // طلب صار محذوفاً (soft-delete من جلسة أخرى/الجدول) → أزِله من القائمة
+            // بدل تحديثه، حتى لا يرجع يظهر.
+            if (payload.new.deleted_at) return prev.filter(o => o.id !== payload.new.id);
+            const next = prev.slice();
+            next[idx] = { ...next[idx], ...payload.new };
+            return next;
+          });
         }
       )
       .subscribe();
@@ -3132,6 +3151,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
   // السبب: تغييرات الحالة من جدول سوريا/تركيا تصل القاعدة فوراً (sheet-to-app)
   // لكن realtime على جدول orders غير مُفعّل بالـ publication → كان التطبيق لا
   // يعكسها إلا بريفرش يدوي (شكوى «الحالة تتأخّر/ما بتتغير»). هذا يحلّها.
+  // ⚡ أداء (1 أيلول 2026): كان يبني Array جديد بـsetOrders كل 30 ثانية دايماً
+  // حتى لو ولا صف تغيّر فعلياً — إعادة رسم كاملة للقائمة كل نصف دقيقة بلا
+  // داعٍ. الإصلاح: setOrders يُستدعى فقط إذا في تغيير فعلي (حذف أو حالة/تتبّع).
   const refreshStatuses = useCallback(async () => {
     if (viewArchive) return;
     try {
@@ -3142,13 +3164,22 @@ export default function OrdersScreen({ forcedMarket = null }) {
         .or('archived.is.null,archived.eq.false'));
       if (!data) return;
       const byId = new Map(data.map(o => [o.id, o]));
-      setOrders(prev => prev
-        .filter(o => !byId.get(o.id)?.deleted_at)
-        .map(o => {
+      setOrders(prev => {
+        let changed = false;
+        const next = prev.filter(o => {
+          const del = byId.get(o.id)?.deleted_at;
+          if (del) changed = true;
+          return !del;
+        }).map(o => {
           const u = byId.get(o.id);
-          return (u && (u.status !== o.status || u.tracking_number !== o.tracking_number))
-            ? { ...o, status: u.status, tracking_number: u.tracking_number } : o;
-        }));
+          if (u && (u.status !== o.status || u.tracking_number !== o.tracking_number)) {
+            changed = true;
+            return { ...o, status: u.status, tracking_number: u.tracking_number };
+          }
+          return o;
+        });
+        return changed ? next : prev; // ولا شي تغيّر → نفس المرجع، صفر إعادة رسم
+      });
     } catch { /* best-effort */ }
   }, [viewArchive]);
 

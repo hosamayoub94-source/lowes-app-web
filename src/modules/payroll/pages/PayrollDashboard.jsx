@@ -108,6 +108,9 @@ export function PayrollDashboard() {
   // 2026-08-30)، وليست تابعة لدور "أدمن" العام — أي أدمن آخر لا يرى الزر.
   const DELETE_RUN_ALLOWED = new Set(['hosam ayoub', 'amany alkshki']);
   const canDeleteRun = DELETE_RUN_ALLOWED.has(String(name || '').trim().toLowerCase());
+  // كشف حركة المبيعات دايماً ظاهر (حتى لو عمولة=0) — نفس التقييد الاسمي
+  // فوق بالضبط، طلب صريح من حسام 2026-09-01 (لا علاقة بدور "أدمن" العام).
+  const canAlwaysViewStatement = canDeleteRun;
 
   // ── New Run form
   const [showNewRun, setShowNewRun] = useState(false);
@@ -579,6 +582,7 @@ export function PayrollDashboard() {
                       onEdit={openEditEntry}
                       onDelete={deleteEntry}
                       onStatement={openStatement}
+                      showStatementLink={canAlwaysViewStatement}
                     />
                   ))}
 
