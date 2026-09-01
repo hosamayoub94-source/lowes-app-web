@@ -357,6 +357,54 @@ export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap)
   return { usd: Math.round(usd * 100) / 100, missingRate };
 }
 
+// ── Paid leave (من شاشة «الطلبات» — employee_requests, request_type='leave') ──
+
+// أنواع الإجازة غير المدفوعة — لا تُخفَّض التارجت بسببها (الغياب فيها أصلاً
+// غير مدفوع، فمنطق "ما قدر يبيع لأنه بإجازة مدفوعة" لا ينطبق). القيم مطابقة
+// لـHolidaysScreen.jsx LEAVE_TYPES.
+const UNPAID_LEAVE_TYPES = new Set(['unpaid']);
+
+/**
+ * أيام الإجازة المدفوعة المعتمدة لموظف، ضمن شهر مُحدَّد فقط (تقاطع فترة
+ * الطلب leave_from–leave_to مع حدود الشهر). المصدر الرسمي (owner rule
+ * 2026-09-01): شاشة «الطلبات» — أدق من تعليم الحضور اليومي اليدوي، ولازم
+ * تُدمَج معه بدون ازدواج بالعدّ (كلاهما يُرجعان تواريخ "YYYY-MM-DD").
+ * @returns {Promise<Set<string>>} مجموعة تواريخ ضمن الشهر
+ */
+export async function fetchApprovedPaidLeaveDatesInMonth(employeeId, year, month) {
+  const { from } = monthBounds(year, month);
+  const monthEndStr = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth(year, month)).padStart(2, '0')}`;
+  const dates = new Set();
+  if (!employeeId) return dates;
+
+  const { data, error } = await supabase
+    .from('employee_requests')
+    .select('leave_from, leave_to, leave_type, status, request_type')
+    .eq('employee_id', employeeId)
+    .eq('request_type', 'leave')
+    .eq('status', 'approved')
+    // تقاطع الفترة مع الشهر: بداية الطلب قبل نهاية الشهر، ونهايته بعد بداية الشهر
+    .lte('leave_from', monthEndStr)
+    .gte('leave_to', from);
+
+  if (error || !data) return dates;
+  const mm = String(month).padStart(2, '0');
+  for (const r of data) {
+    if (UNPAID_LEAVE_TYPES.has(String(r.leave_type || '').toLowerCase())) continue;
+    if (!r.leave_from || !r.leave_to) continue;
+    // بعد القصّ، الفترة كاملة ضمن نفس الشهر (from/monthEndStr) — نُعدّد أرقام
+    // الأيام مباشرة (بلا كائنات Date) تفادياً لأي انزياح يوم بفروق التوقيت.
+    const start = r.leave_from < from ? from : r.leave_from;
+    const end = r.leave_to > monthEndStr ? monthEndStr : r.leave_to;
+    const startDay = Number(start.slice(8, 10));
+    const endDay = Number(end.slice(8, 10));
+    for (let d = startDay; d <= endDay; d++) {
+      dates.add(`${year}-${mm}-${String(d).padStart(2, '0')}`);
+    }
+  }
+  return dates;
+}
+
 // ── Salary resolution (dual source — no forced merge) ──────────
 
 /**
@@ -490,6 +538,34 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   };
   let salesUsdDisplay = 0, salesCountDisplay = 0, salesMissing = false, commPct = 0;
 
+  // الحضور يُجلب هون (قبل حسبة التارجت) عشان أيام الإجازة المدفوعة —
+  // إن وُجدت — تُستخدم لتخفيض التارجت نفسه (بعدها بأسطر)، لا الأساسي.
+  // مصدرا الإجازة (owner rule 2026-09-01): تعليم الحضور اليومي اليدوي
+  // (attendance) + شاشة «الطلبات» المعتمدة (employee_requests, leave) —
+  // الاتحاد بينهما (بلا ازدواج) هو عدد أيام الإجازة الفعلي. شاشة الطلبات
+  // هي الأدق (تاريخ محدَّد + موافقة رسمية)، وغالباً هي المصدر الوحيد
+  // الموجود فعلياً (تعليم الحضور اليومي اختياري وغالباً لا يُستخدَم للإجازة).
+  let workingDays = 26, attRef = null, leaveDaysThisMonth = 0;
+  const [attResult, leaveResult] = await Promise.allSettled([
+    fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
+    fetchApprovedPaidLeaveDatesInMonth(emp.id, year, month),
+  ]);
+  const att = attResult.status === 'fulfilled' ? attResult.value : null;
+  const requestLeaveDates = leaveResult.status === 'fulfilled' ? leaveResult.value : new Set();
+  if (att) {
+    workingDays = att.workingDays || workingDays;
+    const leaveDatesUnion = new Set([...(att.leaveDates || []), ...requestLeaveDates]);
+    leaveDaysThisMonth = leaveDatesUnion.size;
+    if ((att.presentDays || 0) > 0) {
+      const leaveNote = leaveDaysThisMonth ? ` (+${leaveDaysThisMonth} إجازة)` : '';
+      attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم${leaveNote}` +
+               (att.absentDays ? ` · غياب ${att.absentDays}` : '');
+    }
+  } else {
+    // حتى لو فشل جلب الحضور، خُد الإجازة المعتمدة من «الطلبات» على الأقل.
+    leaveDaysThisMonth = requestLeaveDates.size;
+  }
+
   if (team) {
     const s = salesInCurrency(salesIndex, emp, team.currency, rateMap);
     salesMissing = s.missingRate;
@@ -499,9 +575,25 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
     // Target + % — from the run's FROZEN snapshot if confirmed, else the
     // live commission_rules defaults (so an un-set-up run still previews).
-    const target = team.key === 'syria'
+    let target = team.key === 'syria'
       ? Number(run?.target_syria_usd ?? DEFAULT_RULES.syria.monthly_target_usd) || 0
       : Number(run?.target_turkey_try ?? DEFAULT_RULES.turkey.monthly_target_try) || 0;
+
+    // إجازة مدفوعة (owner rule 2026-09-01): الأساسي يبقى كامل (الإجازة
+    // مدفوعة، لا خصم) — لكن التارجت المطلوب يُخفَّض بنسبة أيام الإجازة من
+    // كامل أيام الشهر التقويمية، لأن الموظف ما كان أصلاً قادر يبيع بهالأيام.
+    // هذا عكس حالة التعيين/الإغلاق الجزئي (الأساسي يُقسَّم، التارجت يبقى
+    // كامل) — الفرق: هون الغياب مدفوع ومؤقت ضمن شهر كامل التوظيف، مش بداية/
+    // نهاية علاقة عمل.
+    if (leaveDaysThisMonth > 0) {
+      const totalDaysInMonth = daysInMonth(year, month);
+      const leaveRatio = Math.max(0, totalDaysInMonth - leaveDaysThisMonth) / totalDaysInMonth;
+      const targetBeforeLeave = target;
+      target = Math.round(target * leaveRatio * 100) / 100;
+      const sym = team.currency === 'USD' ? '$' : '₺';
+      notes.push(`🏖️ إجازة مدفوعة ${leaveDaysThisMonth} يوم من ${totalDaysInMonth} — التارجت مخفَّض من ${sym}${Math.round(targetBeforeLeave).toLocaleString('en-US')} إلى ${sym}${Math.round(target).toLocaleString('en-US')} (الأساسي كامل بلا خصم)`);
+    }
+
     commPct = team.key === 'syria'
       ? Number(run?.above_target_pct_syria ?? DEFAULT_RULES.syria.above_target_pct) || 0
       : Number(run?.above_target_pct_turkey ?? DEFAULT_RULES.turkey.above_target_pct) || 0;
@@ -569,17 +661,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     commissionUsd = Math.round((s.usd * commPct) / 100 * 100) / 100;
   }
 
-  // الحضور — مرجع فقط، بلا خصم تلقائي (قرار المالك 2026-07-02).
-  let workingDays = 26, attRef = null;
-  try {
-    const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
-    workingDays = att.workingDays || workingDays;
-    if ((att.presentDays || 0) > 0) {
-      const leaveNote = att.leaveDays ? ` (+${att.leaveDays} إجازة)` : '';
-      attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم${leaveNote}` +
-               (att.absentDays ? ` · غياب ${att.absentDays}` : '');
-    }
-  } catch { /* مرجع فقط — لا يوقف الحساب */ }
+  // الحضور جُلب مسبقاً فوق (قبل حسبة التارجت) — مرجع فقط، بلا خصم تلقائي
+  // (قرار المالك 2026-07-02)، عدا تخفيض التارجت عند وجود إجازة مدفوعة.
   const absentDays = 0, absenceDeduction = 0;
 
   // Approved advances due this month (→ USD)
