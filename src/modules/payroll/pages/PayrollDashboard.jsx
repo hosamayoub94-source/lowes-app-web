@@ -18,6 +18,7 @@ import {
 } from '../hooks/usePayroll.js';
 import { PayrollRunCard } from '../components/PayrollRunCard.jsx';
 import { EmployeePayrollCard } from '../components/EmployeePayrollCard.jsx';
+import { PayrollBatchModal } from '../components/PayrollBatchModal.jsx';
 import {
   PAYROLL_STATUS,
   MONTHS_AR,
@@ -152,6 +153,9 @@ export function PayrollDashboard() {
   const [showSetup, setShowSetup] = useState(false);
   const [setupForm, setSetupForm] = useState(null);
   const [setupLoading, setSetupLoading] = useState(false);
+
+  // ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) — طبقة عرض بحتة
+  const [showBatch, setShowBatch] = useState(false);
 
   const openMonthSetup = useCallback(async () => {
     if (!run) return;
@@ -471,6 +475,11 @@ export function PayrollDashboard() {
                   {entries.length > 0 && (
                     <ActionBtn onClick={() => printRunReport(entries, run)} variant="blue">
                       🖨️ طباعة التقرير
+                    </ActionBtn>
+                  )}
+                  {entries.length > 0 && (
+                    <ActionBtn onClick={() => setShowBatch(true)} variant="green">
+                      💵 دفعة الرواتب
                     </ActionBtn>
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
@@ -880,6 +889,11 @@ export function PayrollDashboard() {
             )}
           </div>
         </Modal>
+      )}
+
+      {/* ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) ───────── */}
+      {showBatch && run && (
+        <PayrollBatchModal run={run} entries={entries} onClose={() => setShowBatch(false)} />
       )}
 
     </div>

@@ -77,6 +77,44 @@ function monthBounds(year, month) {
   return { from, to };
 }
 
+/** Number of calendar days in a given month (holidays included — spec §6). */
+function daysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+/**
+ * Pro-rate base salary for an employee who joined or was closed out
+ * mid-month (spec §6-7):
+ *   - يومي = أساسي ÷ عدد أيام الشهر كاملة (بما فيها العطل).
+ *   - يُحتسب فقط من تاريخ المباشرة الفعلي وحتى تاريخ إغلاق الحساب.
+ * Returns null when the employee should get NO entry this month at all —
+ * hired after this month already ended, or account closed before this
+ * month started (their prior months' payslips are untouched either way).
+ * `joinDate`/`resignedAt` are 'YYYY-MM-DD' strings (or falsy).
+ */
+export function computeMonthProration(year, month, joinDate, resignedAt) {
+  const totalDays = daysInMonth(year, month);
+  const mm = String(month).padStart(2, '0');
+  const monthStartStr = `${year}-${mm}-01`;
+  const monthEndStr = `${year}-${mm}-${String(totalDays).padStart(2, '0')}`;
+
+  let startDay = 1;
+  if (joinDate) {
+    if (joinDate > monthEndStr) return null; // لم يباشر العمل بعد هذا الشهر
+    if (joinDate >= monthStartStr) startDay = Number(joinDate.slice(8, 10));
+  }
+  let endDay = totalDays;
+  if (resignedAt) {
+    if (resignedAt < monthStartStr) return null; // الحساب مُغلَق قبل بداية هذا الشهر
+    if (resignedAt <= monthEndStr) endDay = Number(resignedAt.slice(8, 10));
+  }
+  if (endDay < startDay) return null;
+
+  const daysWorked = endDay - startDay + 1;
+  const factor = daysWorked / totalDays;
+  return { totalDays, startDay, endDay, daysWorked, factor, isPartial: factor < 1 };
+}
+
 /** The set of names an employee's orders may be filed under. */
 function employeeNames(emp) {
   return [emp.employee_name, emp.seller_alias]
@@ -365,9 +403,26 @@ function resolveSalary(emp, settings) {
  */
 export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run }) {
   const salary = resolveSalary(emp, settings);
-  const { usd: base,       missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
+  const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
   const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
   const salaryMissing = salary.source === null || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing);
+
+  // ── Pro-rate base salary for a partial-month join/close-out (spec §6-7).
+  //    Divides by the FULL calendar month (holidays included), counts only
+  //    from the actual join date up to the account-close date. `null` means
+  //    this employee shouldn't get an entry at all this month (not yet
+  //    hired, or already closed before it started) — the run just skips
+  //    them, exactly like an employee not selected for this run.
+  const prorate = computeMonthProration(year, month, emp.join_date || null, emp.resigned_at || null);
+  if (prorate === null) return null;
+  let base = rawBaseUsd;
+  let prorateNote = null;
+  if (prorate.isPartial) {
+    base = Math.round(rawBaseUsd * prorate.factor * 100) / 100;
+    prorateNote = emp.resigned_at
+      ? `🗓️ راتب جزئي — إغلاق الحساب باليوم ${prorate.endDay}/${prorate.totalDays} من الشهر (${prorate.daysWorked} يوم × ${(rawBaseUsd / prorate.totalDays).toFixed(2)}$/يوم)`
+      : `🗓️ راتب جزئي — مباشرة العمل باليوم ${prorate.startDay}/${prorate.totalDays} من الشهر (${prorate.daysWorked} يوم × ${(rawBaseUsd / prorate.totalDays).toFixed(2)}$/يوم)`;
+  }
 
   // ── Commission-exempt staff (owner rule 2026-08-30): social/media/
   //    admin/management — NOT sellers. Base + allowances only, no
@@ -379,6 +434,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     const notes = [
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
+      prorateNote,
     ];
     let workingDays = 26, attRef = null;
     try {
@@ -416,6 +472,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const notes = [];
   if (salary.source === null) notes.push('⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي');
   if (!team) notes.push(`⚠️ فريق الموظف غير محدد أو غير معروف (سوريا/تركيا) — لا يمكن حساب التارجت/العمولة تلقائياً`);
+  if (prorateNote) notes.push(prorateNote);
 
   let commissionUsd = 0, shortfallDeductionUsd = 0;
   let teamFields = {
@@ -575,11 +632,16 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     errors.push('⚠️ لم يُؤكَّد "إعداد الشهر" (التارجت/أسعار الصرف) بعد — القيم الافتراضية استُخدمت مؤقتاً. أكِّد الإعداد قبل الاعتماد.');
   }
 
-  // 1. Active employees (id, name, alias, role, team, flat salary cols)
+  // 1. Employees active THIS month (id, name, alias, role, team, flat salary
+  //    cols, + join/resign dates for pro-ration — spec §6-7). Includes an
+  //    employee resigned mid-month so THIS month's partial payslip still
+  //    gets computed; is_active=false with no resignation this month (any
+  //    other/older reason) stays excluded, same as before.
+  const { from: monthFrom, to: monthTo } = monthBounds(year, month);
   const { data: emps, error: empErr } = await supabase
     .from('profiles')
-    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt')
-    .eq('is_active', true)
+    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt, join_date, resigned_at')
+    .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom},resigned_at.lt.${monthTo})`)
     .order('employee_name');
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);
 
@@ -625,6 +687,9 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
         emp, settings: settingsById.get(emp.id) || null,
         runId, year, month, salesIndex, rateMap, run,
       });
+      // null = not employed at all during this month (hired after it ended,
+      // or account closed before it started) — no entry, not an error.
+      if (entry === null) { done++; onProgress?.(done, total); continue; }
       const saved = await upsertPayrollEntry(entry);
       entries.push(saved);
     } catch (e) {
