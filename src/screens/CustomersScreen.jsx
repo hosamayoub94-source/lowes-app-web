@@ -78,8 +78,10 @@ const CAMPAIGNS = [
 // جودته "منخفض" بلوحة Meta)، مهلة حتى 13 نوفمبر 2026 قبل تقييد/تعطيل فعلي.
 // قرار المالك: وقف الإرسال الجماعي فوراً لحد ما تتعافى الجودة، قبل ما نطلب
 // مراجعة من Meta (طلب مراجعة بدون إصلاح السلوك أولاً بيخاطر بحرق الاستئناف).
-// لرفع التجميد لاحقاً: بدّل هاد لـfalse بعد تأكيد تعافي الجودة من لوحة Meta.
-const CAMPAIGN_FROZEN = true;
+// ✅ رُفع التجميد (2 أيلول 2026) — تأكد تعافي الجودة مباشرة من Meta Business Suite:
+// خطا "Lowes 2" رجعوا 🟢 مرتفع، ولا بانر "Sending spam"/امتثال سياسة ظاهر إطلاقاً.
+// راجع D-043 بـ09_Decision_Register.md. تُنصَح البداية بدفعة صغيرة مضبوطة قبل الرجوع لحجم 450-600/يوم.
+const CAMPAIGN_FROZEN = false;
 import { sessionCan, PERMISSIONS } from '@data/permissions';
 import {
   getOrCreateReferralCode, redeemReferralCode, referralInviteMessage,
