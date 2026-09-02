@@ -7,6 +7,8 @@ import { useAuth } from '@hooks/useAuth';
 import PermissionsEditor from '@components/feature/PermissionsEditor';
 // مصدر الحقيقة للأدوار (يشمل أدوار التوزيع + الإدارة) — لا تكرّر القائمة محلياً.
 import { ROLE_LABELS } from '@data/teams';
+// مسميات قسم Media المعتمدة — مصدر واحد مشترك مع شجرة القسم.
+import { MEDIA_JOB_TITLES } from '@data/orgChart';
 
 const ROLE_COLORS = {
   admin:          'bg-purple-bg text-purple-fg',
@@ -79,7 +81,7 @@ GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
 async function fetchProfiles() {
   const { supabase } = await import('@services/supabase');
 
-  const extCols = 'id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance';
+  const extCols = 'id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points,shift_type,work_start,work_end,rest_day,page_name,admin_notes,birthday,join_date,base_salary_usd,housing_allowance_usd,transport_allowance_usd,commission_pct,payroll_commission_exempt,extra_permissions,denied_permissions,seller_type,rep_level,mlm_rank,invite_code,wallet_balance,resigned_at,employment_status';
   const { data, error } = await supabase
     .from('profiles').select(extCols).order('role_type').order('employee_name');
 
@@ -87,20 +89,34 @@ async function fetchProfiles() {
     // Columns not migrated yet — fall back to base columns
     const res = await supabase
       .from('profiles')
-      .select('id,employee_name,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points')
+      .select('id,employee_name,job_title,role_type,team,manager_scope,is_active,avatar_url,created_at,total_points')
       .order('role_type').order('employee_name');
     if (res.error) throw new Error(res.error.message);
     return { profiles: res.data ?? [], hasExtCols: false };
   }
 
   if (error) throw new Error(error.message);
-  return { profiles: data ?? [], hasExtCols: true };
+
+  // shift_partner قد لا يكون مضافاً بعد — يُجلب منفصلاً حتى لا يُسقِط
+  // بقية الأعمدة الموسّعة عند غيابه.
+  let profiles = data ?? [];
+  const sp = await supabase.from('profiles').select('id,shift_partner');
+  if (!sp.error && sp.data) {
+    const byId = new Map(sp.data.map(r => [r.id, r.shift_partner]));
+    profiles = profiles.map(r => ({ ...r, shift_partner: byId.get(r.id) ?? null }));
+  }
+  return { profiles, hasExtCols: true };
 }
 
 async function updateProfile(id, patch) {
   const { supabase } = await import('@services/supabase');
-  const { error } = await supabase
-    .from('profiles').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  const body = { ...patch, updated_at: new Date().toISOString() };
+  let { error } = await supabase.from('profiles').update(body).eq('id', id);
+  // العمود الجديد قد لا يكون مضافاً بعد — تُحفظ بقية الحقول كالمعتاد
+  if (error && /shift_partner|schema cache/i.test(error.message || '')) {
+    const { shift_partner: _omit, ...rest } = body;
+    ({ error } = await supabase.from('profiles').update(rest).eq('id', id));
+  }
   if (error) throw new Error(error.message);
 }
 
@@ -118,12 +134,13 @@ async function adminResetPin(employeeName, newPin) {
 
 // ── Form defaults ─────────────────────────────────────────────
 const EMPTY_FORM = {
-  employee_name: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
+  employee_name: '', job_title: '', shift_partner: '', role_type: 'employee', team: '', manager_scope: '', is_active: true,
   seller_type: 'online',
   shift_type: 'morning', work_start: '09:00', work_end: '17:00', rest_day: '', page_name: '', admin_notes: '',
-  birthday: '', join_date: '',
+  birthday: '', join_date: '', resigned_at: '',
   base_salary_usd: '', housing_allowance_usd: '', transport_allowance_usd: '',
   commission_pct: '',
+  payroll_commission_exempt: false,
   extra_permissions: [],
   denied_permissions: [],
 };
@@ -291,6 +308,8 @@ export default function AdminUsersScreen() {
     setEditUser(p);
     setForm({
       employee_name: p.employee_name ?? '',
+      job_title:     p.job_title ?? '',
+      shift_partner: p.shift_partner ?? '',
       role_type:     p.role_type ?? 'employee',
       seller_type:   p.seller_type ?? 'online',
       team:          p.team ?? '',
@@ -304,10 +323,12 @@ export default function AdminUsersScreen() {
       admin_notes:   p.admin_notes ?? '',
       birthday:      p.birthday ?? '',
       join_date:     p.join_date ?? '',
+      resigned_at:   p.resigned_at ?? '',
       base_salary_usd:         p.base_salary_usd         ?? '',
       housing_allowance_usd:   p.housing_allowance_usd   ?? '',
       transport_allowance_usd: p.transport_allowance_usd ?? '',
       commission_pct:          p.commission_pct          ?? '',
+      payroll_commission_exempt: p.payroll_commission_exempt ?? false,
       extra_permissions:       Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
       denied_permissions:      Array.isArray(p.denied_permissions) ? p.denied_permissions : [],
     });
@@ -320,6 +341,8 @@ export default function AdminUsersScreen() {
     try {
       const patch = {
         employee_name: form.employee_name.trim(),
+        job_title:     form.job_title.trim() || null,
+        shift_partner: form.shift_partner.trim() || null,
         role_type:     form.role_type,
         team:          form.team || null,
         manager_scope: form.manager_scope || null,
@@ -334,12 +357,17 @@ export default function AdminUsersScreen() {
         patch.admin_notes = form.admin_notes.trim() || null;
         patch.birthday    = form.birthday  || null;
         patch.join_date   = form.join_date || null;
+        // تاريخ إغلاق الحساب — يُحسب عليه آخر شهر جزئي بالرواتب (spec §7).
+        // يُعدَّل هون يدوياً لتصحيحه (مثلاً لو الحساب اتعطّل بدون هالتاريخ
+        // قبل ما يصير التعطيل يسجّله تلقائياً)، بمعزل عن زر "تعطيل" نفسه.
+        patch.resigned_at = form.resigned_at || null;
       }
       // Salary + permissions (safe to send even if columns just added)
       patch.base_salary_usd         = form.base_salary_usd         === '' ? 0 : Number(form.base_salary_usd);
       patch.housing_allowance_usd   = form.housing_allowance_usd   === '' ? 0 : Number(form.housing_allowance_usd);
       patch.transport_allowance_usd = form.transport_allowance_usd === '' ? 0 : Number(form.transport_allowance_usd);
       patch.commission_pct          = form.commission_pct          === '' ? 0 : Number(form.commission_pct);
+      patch.payroll_commission_exempt = !!form.payroll_commission_exempt;
       patch.extra_permissions       = Array.isArray(form.extra_permissions) ? form.extra_permissions : [];
       patch.denied_permissions      = Array.isArray(form.denied_permissions) ? form.denied_permissions : [];
       patch.seller_type = 'online'; // كل الموظفين online (الموزعون بتطبيق منفصل)
@@ -377,10 +405,24 @@ export default function AdminUsersScreen() {
   };
 
   // ── Toggle active ─────────────────────────────────────────────
+  // "🔴 تعطيل" هو الزر اللي فعلياً بيُستخدم لإيقاف حساب موظف بنص الشهر
+  // (مش بالضرورة زر "👋 وضع كمستقيل" المخصص) — فلازم يسجّل هو نفسه تاريخ
+  // إغلاق الحساب (resigned_at)، وإلا محرك الرواتب ما بعرف يحسب له آخر
+  // شهر جزئي (spec §7) ويستبعده صامتاً بالكامل. لو ما كان عنده تاريخ
+  // إغلاق مسجّل مسبقاً، نسجّل تاريخ اليوم. عالعكس: إعادة التفعيل تمسح أي
+  // تاريخ إغلاق قديم، وإلا يفضل يمنع حسبة رواتبه بالأشهر الجاية بعد
+  // ما يرجع نشط (proration بيقرأ resigned_at بغض النظر عن is_active).
   const toggleActive = async (p) => {
+    const turningOff = !!p.is_active;
+    const patch = { is_active: !p.is_active };
+    if (turningOff && !p.resigned_at) {
+      patch.resigned_at = new Date().toISOString().slice(0, 10);
+    } else if (!turningOff) {
+      patch.resigned_at = null;
+    }
     try {
-      await updateProfile(p.id, { is_active: !p.is_active });
-      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, is_active: !p.is_active } : x));
+      await updateProfile(p.id, patch);
+      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, ...patch } : x));
     } catch (e) { setError(e.message); }
   };
 
@@ -679,6 +721,39 @@ export default function AdminUsersScreen() {
                   {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t || '—'}</option>)}
                 </select>
               </Field>
+              {/* المسمى الوظيفي — نص حر يحفظ ما هو مكتوب سلفاً كما هو،
+                  مع أزرار سريعة لمسميات قسم Media المعتمدة (D-075).
+                  لا يمسّ الدور ولا الصلاحيات ولا الفريق. */}
+              <Field label="المسمى الوظيفي">
+                <input
+                  type="text"
+                  value={form.job_title}
+                  onChange={e => setForm(f => ({ ...f, job_title: e.target.value }))}
+                  placeholder="مثال: Graphic Designer"
+                  className={inputCls}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {MEDIA_JOB_TITLES.map(t => {
+                    const on = form.job_title.trim().toLowerCase() === t.title_en.toLowerCase();
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, job_title: t.title_en }))}
+                        title={t.title_ar}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold border transition ${
+                          on ? 'border-teal bg-teal/10 text-teal'
+                             : 'border-border bg-surface-alt text-muted hover:text-text'
+                        }`}>
+                        {t.title_en}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted mt-1.5">
+                  مسميات قسم Media المعتمدة — اضغط لتثبيت المسمى، أو اكتب أي مسمى آخر لبقية الأقسام.
+                </p>
+              </Field>
               <Field label="نطاق الإشراف (للمدراء)">
                 <input type="text" value={form.manager_scope} onChange={e => setForm(f => ({ ...f, manager_scope: e.target.value }))} placeholder="مثال: إسطنبول" className={inputCls} />
               </Field>
@@ -718,6 +793,23 @@ export default function AdminUsersScreen() {
                   {/* Page name */}
                   <div className="border-t border-border pt-3">
                     <p className="text-xs font-semibold text-muted mb-3">📱 السوشال ميديا</p>
+                    {/* شركاء الدوام — الشريك هنا، والرقم/الصفحة بالحقل أدناه
+                        (page_name القائم مسبقاً، يُستخدم كما هو بلا تكرار).
+                        المجموعة تتكوّن تلقائياً ممّن يشتركون بنفس الرقم/الصفحة. */}
+                    <div className="mb-3">
+                    <Field label="الشريك بالدوام">
+                      <input
+                        type="text"
+                        value={form.shift_partner}
+                        onChange={e => setForm(f => ({ ...f, shift_partner: e.target.value }))}
+                        placeholder="اسم الشريك (أو الشريكين مفصولين بفاصلة)"
+                        className={inputCls}
+                      />
+                      <p className="text-[10px] text-muted mt-1.5">
+اختياري — الموظف يضيف شريكه بنفسه من ملفه الشخصي ← «شركاء الوردية»، وهو المسار الأساسي. املأ هنا فقط للتحديد نيابةً عنه. المجموعة تتكوّن ممّن يشتركون بنفس الرقم أو الصفحة أدناه.
+                      </p>
+                    </Field>
+                    </div>
                     <Field label="اسم الصفحة">
                       <input type="text" value={form.page_name} onChange={e => setForm(f => ({ ...f, page_name: e.target.value }))} placeholder="@username أو اسم الصفحة" className={inputCls} />
                     </Field>
@@ -743,8 +835,20 @@ export default function AdminUsersScreen() {
                           className={inputCls}
                         />
                       </Field>
+                      <Field label="تاريخ إغلاق الحساب (إن وُجد)">
+                        <input
+                          type="date"
+                          value={form.resigned_at}
+                          onChange={e => setForm(f => ({ ...f, resigned_at: e.target.value }))}
+                          className={inputCls}
+                        />
+                      </Field>
                     </div>
                     <p className="text-xs text-muted mt-1.5">يُنشر إعلان تلقائي يوم الميلاد وذكرى التعيين 📢</p>
+                    <p className="text-xs text-muted mt-1">
+                      ⚠️ تاريخ إغلاق الحساب هو اللي بيحدد آخر شهر جزئي يُحسَب له بالرواتب — عدّله هون لو الحساب
+                      اتعطّل قبل ما يتسجّل تلقائياً، أو لتصحيحه.
+                    </p>
                   </div>
 
                   {/* Salary */}
@@ -778,6 +882,12 @@ export default function AdminUsersScreen() {
                         onChange={e => setForm(f => ({ ...f, commission_pct: e.target.value }))}
                         placeholder="10" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
                     </Field>
+                    <label className="flex items-center gap-2 mt-3 text-xs text-muted cursor-pointer">
+                      <input type="checkbox" checked={!!form.payroll_commission_exempt}
+                        onChange={e => setForm(f => ({ ...f, payroll_commission_exempt: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-teal" />
+                      💼 معفى من عمولة/تارجت الرواتب (مو بائع — سوشال/إدارة) — راتب الحسبة الشهرية أساسي + بدلات فقط
+                    </label>
                   </div>
 
                   {/* الصلاحيات: قالب الدور + استثناءات فردية */}

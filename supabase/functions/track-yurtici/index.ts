@@ -16,9 +16,14 @@ const WS_USER = Deno.env.get('YURTICI_COD_USER') || Deno.env.get('YURTICI_NORMAL
 const WS_PASS = Deno.env.get('YURTICI_COD_PASS') || Deno.env.get('YURTICI_NORMAL_PASS');
 
 const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
-// حالات يملكها الفريق (مرتجعات): لا يدوسها يورتيتشي — يحترم قرار الفريق ويمنع
-// ترفرف «مُسلَّم ↔ راجع» مع مُصالِح Apps Script (نفس حارس pollYurticiStatuses).
-const RETURN_GUARD = ['returning', 'returned', 'not_received', 'cancelled', 'settled'];
+// حالات مُؤكَّدة يدوياً بلا رؤية يورتيتشي عن سببها (تسوية COD/إلغاء بالتطبيق) أو
+// وصول فعلي مادي لمخزننا (returned = استلمنا الطرد فعلياً) — يورتيتشي لا يعرف
+// هذا الحدث عن بُعد فلا يجوز أن يدوسه. 'returning' و'not_received' استُبعدتا
+// عمداً (كانت هذه بؤرة العطل): هما محطتان وسيطتان تتابع يورتيتشي تحديثها —
+// حبسهما هنا كان يوقف رحلة الطلب فعلياً ويفرض تدخّلاً يدوياً بعد أول محاولة
+// توصيل فاشلة أو أول رجوع للمركز، رغم أن الشحنة قد تُسلَّم لاحقاً أو ترجع فعلياً
+// للمخزن. إصلاح D-047 التلقائي — 23 آب 2026.
+const RETURN_GUARD = ['returned', 'cancelled', 'settled'];
 
 // CORS — بدونها يفشل نداء التطبيق من المتصفح (preflight) صامتاً عبر .catch،
 // فالتتبّع التلقائي من شاشة الطلبات لا يعمل إلا من cron. أضفناها 11 يونيو 2026.
@@ -40,9 +45,13 @@ function mapStatus(opStatus: string, text: string): string | null {
   const t = (text || '').toLocaleLowerCase('tr');
   if (s === 'CNL' || t.includes('iptal')) return 'cancelled';
   if (s === 'NOP' || t.includes('işlem görmemiş')) return null;            // أُنشئت ولم تُشحن بعد
-  if (t.includes('teslim edildi') || t.includes('teslim edilmiş')) return 'delivered';
+  // الإرجاع/الفشل لهما الأولوية على «teslim edildi»: نص رجوع شحنة يذكر غالباً
+  // «Şubeye Teslim Edildi» (سُلِّمت للفرع كجزء من مسار الإرجاع) وهذا ليس تسليماً
+  // للزبون — لو فحصنا teslim edildi أولاً لقلبناها خطأً «تم التسليم». نفس ترتيب
+  // mapPublic أدناه (كان يفتقر لهذه الأولوية — إصلاح D-047، 23 آب 2026).
   if (t.includes('teslim edilemedi') || t.includes('bulunamadı') || t.includes('adreste yok')) return 'not_received';
   if (t.includes('iade')) return 'returning';
+  if (t.includes('teslim edildi') || t.includes('teslim edilmiş')) return 'delivered';
   if (t.includes('dağıtım')) return 'on_way';
   if (t.includes('şube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
   if (t.includes('çıkış') || t.includes('kabul') || t.includes('taşıma') || t.includes('yola çık')) return 'shipped';
@@ -73,9 +82,15 @@ async function queryBatch(keys: string[], keyType = 0): Promise<Record<string, {
     const k = keyType === 1 ? invoiceKey : cargoKey;
     if (!k) continue;
     const opStatus = (b.match(/<operationStatus>(.*?)<\/operationStatus>/)?.[1] || '').trim();
-    // آخر حركة (إن وُجدت) أدقّ من operationMessage العام
+    // آخر حركة (إن وُجدت) أدقّ من عمل مطابقة على تاريخ الحركات كله مجموعاً —
+    // كان الكود يجمع كل operationMessage التاريخية بنص واحد رغم أن هذا التعليق
+    // يقول عكس ذلك؛ خطر فعلي: شحنة رجعت للمركز ثم استلمها الزبون لاحقاً من
+    // المركز يبقى نصها القديم «iade» موجوداً بالتجميع فتُصنَّف «راجع للمركز» رغم
+    // أن آخر حركة فعلية هي التسليم. إصلاح D-047، 23 آب 2026: نعتمد آخر حركة فقط.
     const moves = b.match(/<operationMessage>(.*?)<\/operationMessage>/g) || [];
-    const text = moves.map(m => m.replace(/<\/?operationMessage>/g, '')).join(' ');
+    const text = moves.length
+      ? moves[moves.length - 1].replace(/<\/?operationMessage>/g, '')
+      : '';
     const trackingNo = (b.match(/<cargoTrackingNumber>(.*?)<\/cargoTrackingNumber>/)?.[1]
       || b.match(/<documentNo>(.*?)<\/documentNo>/)?.[1] || '').trim();
     if (!out[k] || (!out[k].opStatus && opStatus)) out[k] = { opStatus, text, trackingNo };
@@ -164,7 +179,7 @@ Deno.serve(async (req) => {
 
       const patch: any = {};
       if (hit.trackingNo && hit.trackingNo !== o.tracking_number) patch.tracking_number = hit.trackingNo;
-      // لا يدوس يورتيتشي حالةً يملكها الفريق (مرتجع/لم يُستلم) — يمنع الترفرف. (رقم التتبّع يُحدَّث دائماً.)
+      // لا يدوس يورتيتشي حالةً مؤكَّدة يدوياً (راجع فعلياً لمخزننا/تسوية/إلغاء). رقم التتبّع يُحدَّث دائماً.
       if (newStatus && newStatus !== o.status && !RETURN_GUARD.includes(o.status)) { patch.status = newStatus; patch.updated_by = 'يورتيتشي-تلقائي'; }
       if (Object.keys(patch).length === 0) continue;
 
@@ -206,7 +221,7 @@ Deno.serve(async (req) => {
       if (!r.ok) continue;
       const j = await r.json();
       const newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
-      // لا يدوس يورتيتشي حالةً يملكها الفريق (مرتجع/لم يُستلم) — يمنع الترفرف.
+      // لا يدوس يورتيتشي حالةً مؤكَّدة يدوياً (راجع فعلياً لمخزننا/تسوية/إلغاء).
       if (!newStatus || newStatus === o.status || RETURN_GUARD.includes(o.status)) continue;
       const { error: e2 } = await supabase.from('orders')
         .update({ status: newStatus, updated_by: 'يورتيتشي-تلقائي', updated_at: new Date().toISOString() })

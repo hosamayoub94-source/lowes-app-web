@@ -25,15 +25,15 @@ export function homeArchetype(role) {
 
 // Ordered list of block keys per archetype.
 export const HOME_LAYOUT = {
-  seller:        ['attendance', 'myTasks', 'myTarget', 'announcement', 'celebration', 'training'],
-  manager:       ['attendance', 'myTasks', 'teamStatus', 'salesChart', 'attendanceChart', 'leaderboard', 'currency', 'announcement'],
-  sales_manager: ['attendance', 'myTasks', 'salesChart', 'leaderboard', 'currency', 'campaignsLink', 'announcement'],
-  media:         ['attendance', 'myTasks', 'campaignsLink', 'announcement', 'training'],
-  social:        ['attendance', 'myTasks', 'announcement', 'training'],
-  storage:       ['attendance', 'myTasks', 'lowStock', 'announcement'],
-  accountant:    ['attendance', 'myTasks', 'currency', 'announcement'],
-  hr:            ['attendance', 'myTasks', 'teamStatus', 'attendanceChart', 'announcement'],
-  marketing:     ['attendance', 'myTasks', 'campaignsLink', 'announcement', 'training'],
+  seller:        ['attendance', 'myTasks', 'partnerGroup', 'myTarget', 'announcement', 'celebration', 'training'],
+  manager:       ['attendance', 'myTasks', 'partnerGroup', 'teamStatus', 'salesChart', 'attendanceChart', 'leaderboard', 'currency', 'announcement'],
+  sales_manager: ['attendance', 'myTasks', 'partnerGroup', 'salesChart', 'leaderboard', 'currency', 'campaignsLink', 'announcement'],
+  media:         ['attendance', 'myTasks', 'partnerGroup', 'campaignsLink', 'announcement', 'training'],
+  social:        ['attendance', 'myTasks', 'partnerGroup', 'announcement', 'training'],
+  storage:       ['attendance', 'myTasks', 'partnerGroup', 'lowStock', 'announcement'],
+  accountant:    ['attendance', 'myTasks', 'partnerGroup', 'currency', 'announcement'],
+  hr:            ['attendance', 'myTasks', 'partnerGroup', 'teamStatus', 'attendanceChart', 'announcement'],
+  marketing:     ['attendance', 'myTasks', 'partnerGroup', 'campaignsLink', 'announcement', 'training'],
 };
 
 export function homeBlocksForRole(role) {

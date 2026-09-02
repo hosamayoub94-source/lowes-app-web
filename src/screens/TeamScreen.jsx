@@ -13,6 +13,7 @@ import { fetchAllRows } from '@utils/fetchAllRows';
 import { ROLE_LABELS } from '@data/teams';
 import EmployeeProfileModal from '@components/ui/EmployeeProfileModal';
 import ShiftScheduleScreen from '@screens/ShiftScheduleScreen';
+import SocialTeamTree from '@components/feature/SocialTeamTree';
 
 // ── Data fetching ─────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ export default function TeamScreen() {
   const [search, setSearch]         = useState('');
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [view, setView]             = useState('team'); // 'team' | 'schedule'
+  const [view, setView]             = useState('team'); // 'team' | 'schedule' | 'media-tree'
 
   useEffect(() => {
     fetchAllProfiles()
@@ -227,9 +228,11 @@ export default function TeamScreen() {
         subtitle={`${profiles.length} موظف نشط في ${teamOptions.length} فريق`}
       />
 
-      {/* Tabs: team directory / shift schedule (merged) */}
+      {/* Tabs: team directory / shift schedule / Media org tree (read-only —
+          كانت شجرة قسم Media حصراً بشاشة إدارية admin/manager/social_manager؛
+          هذا التبويب يعرضها للجميع بلا أي صلاحية إضافية، بلا أزرار إدارة). */}
       <div className="flex gap-2">
-        {[['team', '👥 الفريق'], ['schedule', '🗓️ الورديات']].map(([k, l]) => (
+        {[['team', '👥 الفريق'], ['schedule', '🗓️ الورديات'], ['media-tree', '🗂️ شجرة Media']].map(([k, l]) => (
           <button key={k} onClick={() => setView(k)}
             className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition ${view === k ? 'border-teal bg-teal text-navy' : 'border-border text-muted hover:border-teal/40'}`}>
             {l}
@@ -237,7 +240,9 @@ export default function TeamScreen() {
         ))}
       </div>
 
-      {view === 'schedule' ? <ShiftScheduleScreen /> : (<>
+      {view === 'schedule' ? <ShiftScheduleScreen />
+        : view === 'media-tree' ? <SocialTeamTree />
+        : (<>
 
       {/* Filters */}
       {profiles.length > 0 && (

@@ -112,6 +112,48 @@ const usePayrollStore = create()(
       });
     },
 
+    /**
+     * "✅ اعتماد وإغلاق الرواتب" — spec §18/19: this is the ONLY action
+     * that (a) locks the run out of "اختبار" editing and (b) triggers
+     * archiving that month's delivered/returned orders. A run that is
+     * only computed/previewed (Draft) never reaches either effect.
+     */
+    async approveAndCloseRun(id) {
+      const run = get().runs.find(r => r.id === id);
+      const approved = await get().approveRun(id);
+      if (run) {
+        try {
+          const { archivePayrollPeriod } = await import('../services/archiveLink.js');
+          const { count } = await archivePayrollPeriod(run.period_year, run.period_month);
+          await get().updateRun(id, { archived_at: new Date().toISOString() });
+          return { ...approved, _archivedCount: count };
+        } catch (e) {
+          // الاعتماد نفسه نجح — فشل الأرشفة يُبلَّغ لكن لا يُرجَّع الاعتماد.
+          set({ error: 'تم الاعتماد لكن تعذّرت الأرشفة التلقائية: ' + (e?.message || e) });
+        }
+      }
+      return approved;
+    },
+
+    /**
+     * "⚙️ إعداد الشهر" — spec §1/17: freeze the target/exchange-rate
+     * values that THIS run will use, before the engine can be run.
+     * Re-callable while the run is still Draft (test mode allows editing).
+     */
+    async confirmMonthSetup(id, setup) {
+      const userId = get()._userId;
+      return get().updateRun(id, {
+        target_syria_usd:        setup.target_syria_usd,
+        target_turkey_try:       setup.target_turkey_try,
+        above_target_pct_syria:  setup.above_target_pct_syria,
+        above_target_pct_turkey: setup.above_target_pct_turkey,
+        rate_usd_try:            setup.rate_usd_try,
+        rate_usd_syp:            setup.rate_usd_syp,
+        month_setup_confirmed_at: new Date().toISOString(),
+        month_setup_confirmed_by: userId,
+      });
+    },
+
     async markRunPaid(id) {
       return get().updateRun(id, { status: PAYROLL_STATUS.PAID, paid_at: new Date().toISOString() });
     },

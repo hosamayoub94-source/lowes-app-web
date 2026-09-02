@@ -29,17 +29,30 @@ var YK_TABS = ['LOWES_TR', 'STRONG_TR'];
 
 function yk_mapStatus(st, delivered) {
   var t = String(st || '').toLocaleLowerCase('tr');
-  if (delivered === true || delivered === 'true' || t.indexOf('teslim edildi') >= 0) return 'تم التسليم ✅';
+  // الإرجاع/الفشل/الإلغاء لهما الأولوية على «teslim edildi»: نص رجوع شحنة يذكر
+  // غالباً «Şubeye Teslim Edildi» (سُلِّمت للفرع كجزء من مسار الإرجاع) وهذا ليس
+  // تسليماً للزبون — فحص teslim edildi أولاً كان يقلبها خطأً «تم التسليم».
+  // نفس ترتيب mapStatus/mapPublic بـtrack-yurtici (إصلاح D-047، 23 آب 2026).
   if (t.indexOf('teslim edilemedi') >= 0 || t.indexOf('bulunamad') >= 0 || t.indexOf('adreste yok') >= 0) return 'لم يتم الاستلام 📭';
   if (t.indexOf('iade') >= 0) return 'راجع للمركز ↩️';
   if (t.indexOf('iptal') >= 0) return 'ملغي ❌';
+  if (delivered === true || delivered === 'true' || t.indexOf('teslim edildi') >= 0) return 'تم التسليم ✅';
   if (t.indexOf('dağıt') >= 0 || t.indexOf('dagit') >= 0) return 'قيد التوصيل 🛵';
   if (t.indexOf('şube') >= 0 || t.indexOf('sube') >= 0 || t.indexOf('aktarma') >= 0 || t.indexOf('transfer') >= 0 || t.indexOf('merkez') >= 0) return 'في المركز 🏢';
   if (t.indexOf('taşı') >= 0 || t.indexOf('tasi') >= 0 || t.indexOf('yola') >= 0 || t.indexOf('çık') >= 0 || t.indexOf('cik') >= 0 || t.indexOf('kabul') >= 0) return 'في النقل 🚚';
   return null; // NOP / işlem görmemiş / غير معروف → لا تغيّر
 }
 
-function yk_isTerminal(s) { return /تم التسليم|ملغ|راجع|تسوية|مرتجع/.test(String(s || '')); }
+// «راجع للمركز» محطة وسيطة تتابعها Yurtiçi (قد تتحوّل لاحقاً لتسليم فعلي أو
+// لرجوع مادي فعلي لمخزننا) — ليست نهائية. «راجع» وحدها (بلا «للمركز») تعني
+// استلمنا الطرد فعلياً بمخزننا (تُكتَب يدوياً/بمسار آخر) وهذه هي النهائية.
+// كانت الحالتان مطابقتين لنفس الـregex فتتوقّف متابعة «راجع للمركز» للأبد —
+// إصلاح D-047، 23 آب 2026.
+function yk_isTerminal(s) {
+  var str = String(s || '');
+  if (/راجع/.test(str) && !/للمركز/.test(str)) return true;
+  return /تم التسليم|ملغ|تسوية|مرتجع/.test(str);
+}
 
 function pollYurticiStatuses() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();

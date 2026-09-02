@@ -14,6 +14,8 @@ import { useAuth }  from '@hooks/useAuth';
 import { useTheme } from '@hooks/useTheme';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAnon } from '@services/supabase';
+import { resolveCheckInContext } from '@services/shiftPartnersService';
+import MyPartnerGroupCard from '@components/feature/MyPartnerGroupCard';
 import { ROLES }    from '@data/teams';
 import { homeBlocksForRole } from '@data/homeLayout';
 import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
@@ -289,13 +291,27 @@ function AttendanceCard({ name, team }) {
     setSaving(true);
     const now = nowHHMM();
     const dateVal = todaySlash();
-    const { error } = await supabase.from('attendance').insert({
+    // نفس منطق شاشة الحضور: الوردية تُفهم من مجموعة شركاء الدوام ووقت
+    // التسجيل الفعلي، والتأخير بسماحية داخلية لا تُعرض للموظف (D-073).
+    // بلا مجموعة → قيَم محايدة وسلوك هذه الشاشة كما كان تماماً.
+    const ctx = await resolveCheckInContext(name, now, dateVal.replace(/\//g, '-'));
+
+    const base = {
       employee_name: name, team: team ?? null,
       date: dateVal, day: arabicDay(),
       type: 'in', time_in: now, time_out: null,
       hours: 0, status: '✅ حاضر', recorded_at: now,
-      delay_minutes: 0, was_late: false, method: 'app',
-    });
+      delay_minutes: ctx.delayMinutes, was_late: ctx.wasLate, method: 'app',
+    };
+    // أعمدة الوردية اختيارية — قبل تطبيق الترحيل نُعيد المحاولة بدونها
+    const withShift = ctx.shift
+      ? { ...base, shift_key: ctx.shift.key, shift_start: ctx.shift.start, shift_group_id: ctx.group?.id ?? null }
+      : base;
+
+    let { error } = await supabase.from('attendance').insert(withShift);
+    if (error && withShift !== base && /shift_key|shift_start|shift_group_id|schema cache/i.test(error.message || '')) {
+      ({ error } = await supabase.from('attendance').insert(base));
+    }
     if (error) { window.alert('تعذّر تسجيل الدخول: ' + error.message); setSaving(false); return; }
     await load();
     setSaving(false);
@@ -1036,6 +1052,7 @@ export default function HomeScreen() {
   const renderBlock = (key) => {
     switch (key) {
       case 'attendance':      return <AttendanceCard name={name} team={team} />;
+      case 'partnerGroup':    return <MyPartnerGroupCard name={name} />;
       case 'myTasks':         return <MyTasksCard name={name} userId={userId} />;
       case 'myTarget':        return <MyTargetCard name={name} />;
       case 'announcement':    return <AnnouncementCard />;
@@ -1129,7 +1146,7 @@ export default function HomeScreen() {
           );
         }
         if (isChart(key) && isChart(rest[i - 1])) return null; // already rendered as pair
-        return <div key={key}>{renderBlock(key)}</div>;
+        return <div key={key} className="empty:hidden">{renderBlock(key)}</div>;
       })}
 
     </div>

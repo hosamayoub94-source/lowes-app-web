@@ -4,7 +4,10 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
-import { runPayrollForMonth, fetchEmployeeSalesStatement } from '../services/payrollEngine.js';
+import {
+  runPayrollForMonth, fetchEmployeeSalesStatement,
+  fetchCommissionRules, fetchExchangeRateMap, DEFAULT_RULES,
+} from '../services/payrollEngine.js';
 import {
   usePayrollBootstrap,
   usePayrollDashboard,
@@ -14,7 +17,8 @@ import {
   usePayrollLoading,
 } from '../hooks/usePayroll.js';
 import { PayrollRunCard } from '../components/PayrollRunCard.jsx';
-import { EntryRow } from '../components/EntryRow.jsx';
+import { EmployeePayrollCard } from '../components/EmployeePayrollCard.jsx';
+import { PayrollBatchModal } from '../components/PayrollBatchModal.jsx';
 import {
   PAYROLL_STATUS,
   MONTHS_AR,
@@ -46,6 +50,7 @@ function ActionBtn({ onClick, disabled, children, variant = 'blue' }) {
   const cls = {
     blue:  'bg-blue-bg text-blue-fg border-blue/20 hover:opacity-80',
     green: 'bg-green-bg text-green-fg border-green/20 hover:opacity-80',
+    red:   'bg-red-bg text-red-fg border-red/20 hover:opacity-80',
   }[variant];
   return (
     <button
@@ -89,16 +94,23 @@ function Modal({ title, onClose, children, footer }) {
 
 // ─── Main component ───────────────────────────────────────────
 export function PayrollDashboard() {
-  const { id, role } = useAuth();
+  const { id, role, name } = useAuth();
   usePayrollBootstrap(id);
 
   const { runs, kpis, isLoading } = usePayrollDashboard();
-  const { run, entries, isLoading: loadingEntries, isSubmitting, approveRun, markRunPaid } = useRunDetail();
+  const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid } = useRunDetail();
   const selectedRunId = useSelectedRunId();
-  const { selectRun, createRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
+  const { selectRun, createRun, deleteRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
   const loading = usePayrollLoading();
 
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  // حذف دورة/مسودة رواتب — صلاحية مقصورة على هذين الاسمين فقط (طلب المالك
+  // 2026-08-30)، وليست تابعة لدور "أدمن" العام — أي أدمن آخر لا يرى الزر.
+  const DELETE_RUN_ALLOWED = new Set(['hosam ayoub', 'amany alkshki']);
+  const canDeleteRun = DELETE_RUN_ALLOWED.has(String(name || '').trim().toLowerCase());
+  // كشف حركة المبيعات دايماً ظاهر (حتى لو عمولة=0) — نفس التقييد الاسمي
+  // فوق بالضبط، طلب صريح من حسام 2026-09-01 (لا علاقة بدور "أدمن" العام).
+  const canAlwaysViewStatement = canDeleteRun;
 
   // ── New Run form
   const [showNewRun, setShowNewRun] = useState(false);
@@ -119,6 +131,17 @@ export function PayrollDashboard() {
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
 
+  const handleDeleteRun = useCallback(async () => {
+    if (!run) return;
+    if (!window.confirm(`حذف مسودة رواتب ${periodLabel(run.period_year, run.period_month)} نهائياً؟ سيُحذف معها كل إدخالات الموظفين بهذه الدورة — لا يمكن التراجع.`)) return;
+    try {
+      await deleteRun(run.id);
+      setCommMsg('✅ حُذفت المسودة.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  }, [run, deleteRun]);
+
   // ── One-click payroll engine
   const [engineRunning, setEngineRunning] = useState(false);
   const [engineProgress, setEngineProgress] = useState(null); // { done, total }
@@ -128,13 +151,75 @@ export function PayrollDashboard() {
   const [statementData, setStatementData] = useState(null); // { orders, total, count }
   const [statementLoading, setStatementLoading] = useState(false);
 
+  // ── Month setup (⚙️ إعداد الشهر) — target/rate confirmation, required
+  //    before "⚡ تشغيل الدورة" (spec §1/17: لا حسبة قبل تأكيد بيانات الشهر).
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupForm, setSetupForm] = useState(null);
+  const [setupLoading, setSetupLoading] = useState(false);
+
+  // ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) — طبقة عرض بحتة
+  const [showBatch, setShowBatch] = useState(false);
+
+  const openMonthSetup = useCallback(async () => {
+    if (!run) return;
+    setSetupLoading(true);
+    setShowSetup(true);
+    try {
+      // Prefill from the run's own frozen snapshot if it already has one,
+      // else from live commission_rules/exchange_rates as a starting point.
+      if (run.month_setup_confirmed_at) {
+        setSetupForm({
+          target_syria_usd: run.target_syria_usd,
+          target_turkey_try: run.target_turkey_try,
+          above_target_pct_syria: run.above_target_pct_syria,
+          above_target_pct_turkey: run.above_target_pct_turkey,
+          rate_usd_try: run.rate_usd_try ?? '',
+          rate_usd_syp: run.rate_usd_syp ?? '',
+        });
+      } else {
+        const [rules, rateMap] = await Promise.all([
+          fetchCommissionRules().catch(() => DEFAULT_RULES),
+          fetchExchangeRateMap().catch(() => ({ USD: 1 })),
+        ]);
+        setSetupForm({
+          target_syria_usd: run.target_syria_usd ?? rules.syria.monthly_target_usd,
+          target_turkey_try: run.target_turkey_try ?? rules.turkey.monthly_target_try,
+          above_target_pct_syria: run.above_target_pct_syria ?? rules.syria.above_target_pct,
+          above_target_pct_turkey: run.above_target_pct_turkey ?? rules.turkey.above_target_pct,
+          rate_usd_try: rateMap.TRY > 0 ? Math.round((1 / rateMap.TRY) * 100) / 100 : '',
+          rate_usd_syp: rateMap.SYP > 0 ? Math.round((1 / rateMap.SYP) * 100) / 100 : '',
+        });
+      }
+    } finally {
+      setSetupLoading(false);
+    }
+  }, [run]);
+
+  const handleSaveMonthSetup = async () => {
+    if (!setupForm) return;
+    setSetupLoading(true);
+    try {
+      const clean = Object.fromEntries(
+        Object.entries(setupForm).map(([k, v]) => [k, v === '' || v == null ? null : Number(v)])
+      );
+      await confirmMonthSetup(clean);
+      setShowSetup(false);
+      setCommMsg('✅ تم تأكيد إعداد الشهر — يمكنك الآن تشغيل الدورة.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
   /**
    * ⚡ One-click: compute the whole run automatically for every active
-   * employee — base + allowances + sales commission − absence − advances.
-   * Manually-edited entries are preserved (not overwritten).
+   * employee — base + allowances + sales commission − shortfall/returns
+   * penalties − advances. Manually-edited entries are preserved.
    */
   const handleRunEngine = useCallback(async () => {
     if (!run) return;
+    if (!run.month_setup_confirmed_at) { openMonthSetup(); return; }
     setEngineRunning(true);
     setEngineProgress({ done: 0, total: 0 });
     setCommMsg(null);
@@ -145,6 +230,7 @@ export function PayrollDashboard() {
         year: run.period_year,
         month: run.period_month,
         skipEmployeeIds: skip,
+        run,
         onProgress: (done, total) => setEngineProgress({ done, total }),
       });
       await loadEntries(run.id); // refresh from DB
@@ -157,7 +243,19 @@ export function PayrollDashboard() {
       setEngineRunning(false);
       setEngineProgress(null);
     }
-  }, [run, entries, loadEntries]);
+  }, [run, entries, loadEntries, openMonthSetup]);
+
+  const handleApproveAndClose = useCallback(async () => {
+    if (!run) return;
+    setCommMsg(null);
+    try {
+      const res = await approveAndCloseRun();
+      const archNote = res?._archivedCount ? ` · 🗄️ أُرشِف ${res._archivedCount} طلب` : '';
+      setCommMsg(`✅ اعتُمدت الرواتب وأُغلقت الدورة${archNote}`);
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  }, [run, approveAndCloseRun]);
 
   const openStatement = useCallback(async (entry) => {
     setStatementFor(entry);
@@ -234,6 +332,7 @@ export function PayrollDashboard() {
       bonus_usd: entry.bonus_usd,
       deductions_usd: entry.deductions_usd,
       absence_deduction_usd: entry.absence_deduction_usd ?? 0,
+      shortfall_deduction_usd: entry.shortfall_deduction_usd ?? 0,
       advance_deduction_usd: entry.advance_deduction_usd,
       absent_days: entry.absent_days,
       working_days: entry.working_days,
@@ -260,8 +359,15 @@ export function PayrollDashboard() {
   }, {});
 
   // ⚠️ موظفون بلا راتب أساسي مُدخل (base=0) — يحصلون على صفر بصمت.
-  // نُبرزهم بوضوح قبل الاعتماد لمنع دفع/تسجيل ناقص (تدقيق 2026-07-02).
+  // نُبرزهم بوضوح، وهذا الآن يمنع الاعتماد فعلياً (لا تحذير فقط —
+  // spec: "لا تبدأ الحسبة النهائية بشكل ناقص أو صامت").
   const zeroSalaryEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) === 0);
+  // ⚠️ موظفون براتب لكن بلا فريق (سوريا/تركيا) محدَّد — التارجت/العمولة/
+  // الرواجع لن تُحتسب تلقائياً لهم. يُبرَز منفصلاً لأن السبب مختلف
+  // (لا ينقصهم راتب، ينقصهم تصنيف الفريق).
+  const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team && !e.commission_exempt);
+  const blockingEntries = zeroSalaryEntries.length + noTeamEntries.length;
+  const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -292,7 +398,11 @@ export function PayrollDashboard() {
       </div>
 
       {/* ── Split layout ───────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* على شاشة كبيرة (xl+): قائمة الدورات تاخد عمود واحد بس وتفاصيل
+          الدورة تاخد الباقي (5 من 6) — عشان تستغل مساحة الشاشة الكبيرة
+          لعرض أكبر عدد من بطاقات الموظفين دفعة وحدة، بدل ما تضل نفس
+          نسبة 1:2 القديمة وتفضى مساحة فاضية. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
 
         {/* Runs list */}
         <div className="md:col-span-1">
@@ -328,7 +438,7 @@ export function PayrollDashboard() {
         </div>
 
         {/* Run detail */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 xl:col-span-5">
           {!run ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl text-muted">
               <div className="w-14 h-14 rounded-2xl bg-surface-alt flex items-center justify-center text-2xl">💼</div>
@@ -339,16 +449,29 @@ export function PayrollDashboard() {
               {/* Run header */}
               <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-extrabold text-text text-lg tracking-tight">
+                  <h2 className="font-extrabold text-text text-lg tracking-tight flex items-center gap-2">
                     {periodLabel(run.period_year, run.period_month)}
+                    {run.status === PAYROLL_STATUS.DRAFT && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-bg text-amber-fg font-bold align-middle">
+                        🧪 حسبة اختبار – غير معتمدة
+                      </span>
+                    )}
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
                     {entries.length} موظف
                     {entries.length > 0 && <span className="text-teal font-semibold mr-2"> · {formatCurrency(runTotal)}</span>}
+                    {run.month_setup_confirmed_at
+                      ? <span className="text-green-fg font-semibold mr-2"> · ⚙️ الشهر مُعَدّ</span>
+                      : <span className="text-amber-fg font-semibold mr-2"> · ⚙️ إعداد الشهر غير مؤكَّد</span>}
                   </p>
                   {commMsg && <p className={`text-xs mt-1 font-semibold ${commMsg.startsWith('✅') ? 'text-green-fg' : 'text-amber-fg'}`}>{commMsg}</p>}
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                    <ActionBtn onClick={openMonthSetup} disabled={engineRunning} variant="blue">
+                      ⚙️ إعداد الشهر
+                    </ActionBtn>
+                  )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={handleRunEngine} disabled={engineRunning} variant="green">
                       {engineRunning
@@ -361,9 +484,14 @@ export function PayrollDashboard() {
                       🖨️ طباعة التقرير
                     </ActionBtn>
                   )}
+                  {entries.length > 0 && (
+                    <ActionBtn onClick={() => setShowBatch(true)} variant="green">
+                      💵 دفعة الرواتب
+                    </ActionBtn>
+                  )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
-                    <ActionBtn onClick={approveRun} disabled={isSubmitting} variant="blue">
-                      ✓ اعتماد
+                    <ActionBtn onClick={handleApproveAndClose} disabled={isSubmitting || !canApprove} variant="blue">
+                      ✅ اعتماد وإغلاق الرواتب
                     </ActionBtn>
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.APPROVED && (
@@ -371,18 +499,43 @@ export function PayrollDashboard() {
                       💳 تسجيل دفع
                     </ActionBtn>
                   )}
+                  {/* حذف المسودة — صلاحية مقصورة على hosam ayoub / Amany alkshki فقط */}
+                  {canDeleteRun && run.status === PAYROLL_STATUS.DRAFT && (
+                    <ActionBtn onClick={handleDeleteRun} disabled={isSubmitting} variant="red">
+                      🗑️ حذف المسودة
+                    </ActionBtn>
+                  )}
                 </div>
               </div>
 
-              {/* ⚠️ تنبيه: موظفون بلا راتب أساسي مُدخل (يُحتسب لهم صفر) */}
+              {/* ⚠️ بوابة حاسمة: موظفون بلا راتب أساسي — تمنع الاعتماد فعلياً */}
               {!loadingEntries && zeroSalaryEntries.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ {zeroSalaryEntries.length} موظف بلا راتب أساسي مُدخل — <b>الاعتماد معطَّل</b> حتى تُدخل رواتبهم
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">
+                    عيّن رواتبهم من «الإعدادات → رواتب الموظفين» أو «إدارة → الموظفين» ثم أعد تشغيل الدورة:
+                    <span className="font-semibold"> {zeroSalaryEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{zeroSalaryEntries.length > 6 ? ' …' : ''}</span>
+                  </p>
+                </div>
+              )}
+              {/* ⚠️ بوابة حاسمة: موظفون بلا فريق (سوريا/تركيا) محدَّد */}
+              {!loadingEntries && noTeamEntries.length > 0 && (
                 <div className="mx-5 mt-4 rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3">
                   <p className="text-sm font-bold text-amber-700">
-                    ⚠️ {zeroSalaryEntries.length} موظف بلا راتب أساسي مُدخل — سيُحتسب لهم <b>صفر</b>
+                    ⛔ {noTeamEntries.length} موظف بلا فريق محدَّد (سوريا/تركيا) — <b>الاعتماد معطَّل</b>؛ التارجت/العمولة/الرواجع تحتاج فريقاً معروفاً
                   </p>
                   <p className="text-[11px] text-amber-700/80 mt-0.5">
-                    عيّن رواتبهم من «الإعدادات → رواتب الموظفين» قبل الاعتماد:
-                    <span className="font-semibold"> {zeroSalaryEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{zeroSalaryEntries.length > 6 ? ' …' : ''}</span>
+                    عيّن الفريق من «إدارة → الموظفين» ثم أعد تشغيل الدورة:
+                    <span className="font-semibold"> {noTeamEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{noTeamEntries.length > 6 ? ' …' : ''}</span>
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && entries.length > 0 && !run.month_setup_confirmed_at && (
+                <div className="mx-5 mt-4 rounded-xl border border-blue-400/40 bg-blue-50 px-4 py-3">
+                  <p className="text-sm font-bold text-blue-700">
+                    ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
                   </p>
                 </div>
               )}
@@ -407,54 +560,43 @@ export function PayrollDashboard() {
                   )}
                   {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
                     <p className="text-[11px] text-muted mt-1">
-                      يحسب الأساسي + البدلات + عمولة <b>فوق التارجت</b> (قواعد العمولات بشاشة الطلبات: تركيا ₺65k ثم 5%) − السلف.
-                      الغياب والرواجع <b>يدويّان</b> — عدّلهما لكل موظف من ✏️.
+                      يحسب لكل موظف حسب <b>فريقه</b> (سوريا $ / تركيا ₺): الأساسي + البدلات + عمولة <b>فوق التارجت</b> بعد خصم الرواجع الزائدة عن 3% − حسم عدم تحقيق التارجت (10% من النقص) − السلف.
+                      الغياب <b>يدوي</b> — عدّله لكل موظف من ✏️. تحتاج تأكيد «⚙️ إعداد الشهر» أولاً.
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-surface-alt text-muted text-xs border-b border-border/40">
-                        <th className="py-2.5 px-4 text-right font-semibold">الموظف</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">العمل</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">غياب</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">الأساسي</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">البدلات</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">العمولة</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">خصومات</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">الصافي</th>
-                        <th className="py-2.5 px-4 text-center font-semibold">إجراء</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map(e => (
-                        <EntryRow
-                          key={e.id}
-                          entry={e}
-                          run={run}
-                          canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
-                          onEdit={openEditEntry}
-                          onDelete={deleteEntry}
-                          onStatement={openStatement}
-                        />
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-surface-alt/60 border-t border-border/40 font-bold">
-                        <td className="py-3 px-4 text-right text-xs text-muted" colSpan={7}>الإجمالي (لكل عملة)</td>
-                        <td className="py-3 px-4 text-center text-teal font-extrabold text-sm tabular-nums whitespace-nowrap">
-                          {Object.keys(totalsByCurrency).length === 0
-                            ? formatCurrency(0)
-                            : Object.entries(totalsByCurrency).map(([c, v]) => (
-                                <div key={c}>{formatCurrency(v, c)}</div>
-                              ))}
-                        </td>
-                        {isAdmin && run.status === PAYROLL_STATUS.DRAFT && <td />}
-                      </tr>
-                    </tfoot>
-                  </table>
+                /* بطاقة كاملة واحترافية لكل موظف — الترتيب الثابت المعتمد
+                   (اسم+مكان العمل، أساسي، تارجت، إنجاز فعلي، فرق التارجت
+                   التلقائي، خصومات، عمولة، بدل إنترنت، صافي) ثم الإجراءات.
+                   عمود واحد على الموبايل/التابلت، شبكة عمودين/ثلاثة على
+                   الشاشات الكبيرة — عشان شاشة كبيرة تعرض عدد أكبر من
+                   بطاقات الموظفين دفعة وحدة بدل التمرير الطويل. */
+                <div className="overflow-y-auto max-h-[85vh] p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3 content-start">
+                  {entries.map(e => (
+                    <EmployeePayrollCard
+                      key={e.id}
+                      entry={e}
+                      run={run}
+                      canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
+                      onEdit={openEditEntry}
+                      onDelete={deleteEntry}
+                      onStatement={openStatement}
+                      showStatementLink={canAlwaysViewStatement}
+                    />
+                  ))}
+
+                  {/* الإجمالي (لكل عملة) — يمتد بعرض الشبكة كاملاً */}
+                  <div className="xl:col-span-2 2xl:col-span-3 bg-surface-alt/60 border border-border/40 rounded-2xl px-5 py-3 flex items-center justify-between font-bold">
+                    <span className="text-xs text-muted">الإجمالي (لكل عملة)</span>
+                    <span className="text-teal font-extrabold text-sm tabular-nums text-left">
+                      {Object.keys(totalsByCurrency).length === 0
+                        ? formatCurrency(0)
+                        : Object.entries(totalsByCurrency).map(([c, v]) => (
+                            <div key={c}>{formatCurrency(v, c)}</div>
+                          ))}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -580,6 +722,22 @@ export function PayrollDashboard() {
             )}
           </div>
 
+          {/* مرجع الفريق/التارجت/الرواجع — من آخر تشغيل تلقائي للدورة */}
+          {editEntry?.team && (
+            <div className="rounded-xl border border-border bg-surface-alt p-3 space-y-1 text-[11px] text-muted">
+              <p className="font-bold text-text text-xs mb-1">
+                📊 مرجع الحسبة التلقائية ({editEntry.team === 'syria' ? 'سوريا $' : 'تركيا ₺'})
+                {editEntry.salary_source && <span className="mr-1 text-teal"> · مصدر الراتب: {editEntry.salary_source === 'employee_salary_settings' ? 'إعدادات الرواتب' : 'بيانات الموظف'}</span>}
+              </p>
+              <p>التارجت: {editEntry.target_local?.toLocaleString('en-US')} · المبيعات: {editEntry.sales_local?.toLocaleString('en-US')} · المتوسط: {editEntry.sales_avg_local?.toFixed(2)}</p>
+              {Number(editEntry.increase_local) > 0 ? (
+                <p>الزيادة: {editEntry.increase_local?.toLocaleString('en-US')} · رواجع {editEntry.returns_count}/{editEntry.returns_allowed} مسموح ({editEntry.returns_excess} زائد) · خصم رواجع: {editEntry.return_deduction_local?.toFixed(2)} · الزيادة المعدّلة: {editEntry.adjusted_increase_local?.toFixed(2)}</p>
+              ) : Number(editEntry.shortfall_local) > 0 ? (
+                <p>النقص عن التارجت: {editEntry.shortfall_local?.toLocaleString('en-US')} → حسم 10% = {editEntry.shortfall_deduction_usd?.toFixed(2)}$</p>
+              ) : null}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {[
               { key: 'base_salary_usd',       label: 'الراتب الأساسي' },
@@ -587,6 +745,7 @@ export function PayrollDashboard() {
               { key: 'commission_usd',         label: 'عمولة المبيعات' },
               { key: 'bonus_usd',              label: 'مكافأة يدوية' },
               { key: 'absence_deduction_usd',  label: 'خصم الغياب' },
+              { key: 'shortfall_deduction_usd', label: 'حسم عدم تحقيق التارجت' },
               { key: 'deductions_usd',         label: 'خصومات أخرى' },
               { key: 'advance_deduction_usd',  label: 'خصم السلفة' },
               { key: 'absent_days',            label: 'أيام غياب' },
@@ -622,6 +781,61 @@ export function PayrollDashboard() {
           </div>
         </Modal>
       )}
+      {/* ── Month Setup Modal (⚙️ إعداد الشهر) ─────────────────── */}
+      {showSetup && (
+        <Modal
+          title="⚙️ إعداد الشهر — تأكيد التارجت وأسعار الصرف"
+          onClose={() => setShowSetup(false)}
+          footer={
+            <>
+              <button
+                onClick={handleSaveMonthSetup}
+                disabled={setupLoading || !setupForm}
+                className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition"
+              >
+                {setupLoading ? '…جار الحفظ' : '✓ تأكيد وحفظ'}
+              </button>
+              <button
+                onClick={() => setShowSetup(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted hover:text-text transition"
+              >
+                إلغاء
+              </button>
+            </>
+          }
+        >
+          {!setupForm ? (
+            <div className="py-8 text-center text-muted text-sm">جار التحميل…</div>
+          ) : (
+            <>
+              <p className="text-[11px] text-muted">
+                هذه القيم تُجمَّد لهذه الدورة فقط — تعديلها لاحقاً بشهر قادم لن يُغيّر حسبة هذا الشهر بعد اعتماده.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: 'target_syria_usd', label: 'تارجت سوريا ($)' },
+                  { key: 'target_turkey_try', label: 'تارجت تركيا (₺)' },
+                  { key: 'above_target_pct_syria', label: 'نسبة العمولة فوق التارجت — سوريا (%)' },
+                  { key: 'above_target_pct_turkey', label: 'نسبة العمولة فوق التارجت — تركيا (%)' },
+                  { key: 'rate_usd_try', label: '1 USD = ? TRY' },
+                  { key: 'rate_usd_syp', label: '1 USD = ? SYP' },
+                ].map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="text-xs font-semibold text-muted mb-1.5 block">{label}</label>
+                    <input
+                      type="number"
+                      value={setupForm[key] ?? ''}
+                      onChange={e => setSetupForm(f => ({ ...f, [key]: e.target.value === '' ? '' : Number(e.target.value) }))}
+                      className={INP}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
+
       {/* ── Sales Statement Modal (كشف حركة المبيعات) ────────── */}
       {statementFor && (
         <Modal
@@ -631,7 +845,7 @@ export function PayrollDashboard() {
           <div className="space-y-3">
             <p className="text-xs text-muted">
               الطلبات المحصّلة لـ<span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> —
-              العمولة تُحسب على <b>ما فوق التارجت فقط</b> (قواعد العمولات من شاشة الطلبات — مثلاً تركيا: فوق ₺65,000 → {Number(statementFor.commission_pct ?? 0) || 5}%).
+              العمولة تُحسب حسب فريق الموظف ({statementFor.team === 'syria' ? 'سوريا $' : statementFor.team === 'turkey' ? 'تركيا ₺' : 'غير محدد'}) على <b>ما فوق التارجت بعد خصم الرواجع الزائدة</b>، بنسبة {Number(statementFor.commission_pct ?? 0)}%.
             </p>
 
             {statementLoading ? (
@@ -685,6 +899,11 @@ export function PayrollDashboard() {
             )}
           </div>
         </Modal>
+      )}
+
+      {/* ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) ───────── */}
+      {showBatch && run && (
+        <PayrollBatchModal run={run} entries={entries} onClose={() => setShowBatch(false)} />
       )}
 
     </div>

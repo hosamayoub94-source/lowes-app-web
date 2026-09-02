@@ -18,6 +18,15 @@ export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit })
         {entry.source === 'auto' && (
           <span className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-teal/10 text-teal font-bold align-middle">تلقائي</span>
         )}
+        {(!entry.salary_source) && (
+          <span title="الراتب الأساسي غير محدد لهذا الموظف" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-red-bg text-red-fg font-bold align-middle">⚠️ بلا راتب</span>
+        )}
+        {(entry.salary_source && !entry.team && !entry.commission_exempt) && (
+          <span title="فريق الموظف (سوريا/تركيا) غير محدد — العمولة/التارجت غير مُحتسبين تلقائياً" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-bg text-amber-fg font-bold align-middle">⚠️ بلا فريق</span>
+        )}
+        {entry.commission_exempt && (
+          <span title="معفى من عمولة/تارجت الرواتب — أساسي وبدلات فقط" className="ms-1.5 text-[9px] px-1.5 py-0.5 rounded bg-blue-bg text-blue-fg font-bold align-middle">💼 معفى</span>
+        )}
       </td>
       <td className="py-3 px-4 text-sm text-muted text-center">
         {entry.working_days ?? '—'}
@@ -52,7 +61,9 @@ export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit })
       </td>
       <td className="py-3 px-4 text-sm text-center tabular-nums">
         {totalDeductions > 0
-          ? <span className="text-red-fg font-semibold">-{formatCurrency(totalDeductions, cur)}</span>
+          ? <span className="text-red-fg font-semibold" title={Number(entry.shortfall_deduction_usd ?? 0) > 0 ? `يشمل حسم عدم تحقيق التارجت: ${formatCurrency(entry.shortfall_deduction_usd, cur)}` : undefined}>
+              -{formatCurrency(totalDeductions, cur)}
+            </span>
           : <span className="text-muted">—</span>}
       </td>
       <td className="py-3 px-4 text-sm font-extrabold text-center text-teal tabular-nums">

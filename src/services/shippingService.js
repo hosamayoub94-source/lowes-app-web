@@ -47,6 +47,57 @@ export function mergeShipping(channels, market) {
   return [...new Set([...base, ...db])];
 }
 
+// =============================================================
+// سوريا — القائمة الرسمية المقفلة + الترتيب المعتمد للطباعة
+// (تدقيق 24 آب 2026، D-0xx). راجع Weekly_Reviews/القائمة السابقة كانت مفتوحة
+// (ComboBox حر) وسمحت بأي نص، وخلطت أيضاً بين قنوات محاسبية داخلية (مصروف
+// مواصلات، معرض بيع، حساب توزيع) وشركات شحن حقيقية لأن الكل كان مصنَّفاً
+// kind='shipping' بجدول accounting_channels. الفحص الفعلي (بلا افتراض أسماء):
+// لا واحدة من الثلاثة التالية ظهرت كـshipping_company بأي طلب عميل إطلاقاً —
+// قيودها المحاسبية كلها داخلية (تكسي/بنزين، مصروف معرض، استلام بضاعة توزيع).
+// =============================================================
+export const SYRIA_NON_SHIPPING_CHANNEL_NAMES = ['مواصلات', 'معرض دمشق', 'كاندي'];
+
+// ترتيب الطباعة المعتمد — الأولوية الست، ثم «الباقي» (شركات معتمدة أخرى، غير
+// مذكورة هنا)، ثم «أخرى» دائماً أخيراً.
+export const SYRIA_SHIPPING_PRIORITY = ['قدموس', 'الكرم', 'بابل', 'الموتور', 'ايزلا', 'توصيل جرمانا'];
+
+// مطابقة مرنة لالتقاط الصيغ القديمة المخزَّنة بطلبات سابقة (كرم/شركة الكرم،
+// بابل اكسبرس، توصيل ميتور، مسافات زائدة...) تحت شركتها الصحيحة — تُستخدم فقط
+// وقت الطباعة/الفرز، ولا تُعدِّل القيمة المحفوظة بالطلب نفسه أبداً.
+const SYRIA_ALIAS_PATTERNS = {
+  'قدموس':        /قدموس/i,
+  'الكرم':        /كرم/i,
+  'بابل':         /بابل/i,
+  'الموتور':      /موتور|ميتور/i,
+  'ايزلا':        /ايزلا|إيزلا/i,
+  'توصيل جرمانا': /جرمانا/i,
+};
+
+// القائمة الرسمية المعروضة بقائمة اختيار الطلب (سوريا فقط): الأولوية الست،
+// ثم أي شركة شحن سورية أخرى معتمدة بقنوات المحاسبة (بعد استبعاد الجهات غير
+// الشحنية أعلاه)، ثم «أخرى» دائماً أخيراً — الخيار الوحيد الذي يسمح بالكتابة.
+export function syriaShippingOptions(channels) {
+  const merged = mergeShipping(channels, 'syria')
+    .filter((n) => !SYRIA_NON_SHIPPING_CHANNEL_NAMES.includes(n) && n !== 'أخرى');
+  const rest = merged.filter((n) => !SYRIA_SHIPPING_PRIORITY.includes(n));
+  return [...SYRIA_SHIPPING_PRIORITY, ...rest, 'أخرى'];
+}
+
+// يحدّد مجموعة الطباعة لطلب سوريا واحد: إحدى الأولوية الست، أو اسم شركة معتمدة
+// أخرى («الباقي»)، أو 'أخرى' (نص غير معروف — يشمل ما كتبه الموظف فعلياً عند
+// اختياره «أخرى» بالنموذج). `restNames` = خرج syriaShippingOptions بدون الأولوية
+// وبدون 'أخرى'.
+export function syriaCarrierGroupKey(shippingCompany, restNames = []) {
+  const raw = String(shippingCompany || '').trim();
+  if (!raw) return 'أخرى';
+  for (const canon of SYRIA_SHIPPING_PRIORITY) {
+    if (SYRIA_ALIAS_PATTERNS[canon].test(raw)) return canon;
+  }
+  const hit = restNames.find((n) => n.toLowerCase() === raw.toLowerCase());
+  return hit || 'أخرى';
+}
+
 // Tiny shared store so the order modal reads carriers once per session and
 // admin edits can nudge a refresh without a full page reload.
 export const useShippingStore = create((set, get) => ({

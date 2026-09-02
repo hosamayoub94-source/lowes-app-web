@@ -17,8 +17,13 @@ const PRESENT_STATUSES = new Set(['present', 'late', 'on_break', 'checked_out'])
 // شبه فارغ (بقايا مخطط قديم keyed بـuser_id) — نُبقيه fallback فقط.
 // (توحيد مصدر الحضور — تدقيق 2026-07-02.)
 const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-const isPresentStatus = (s) => { const t = String(s || ''); return t.includes('حاضر') || t.includes('خروج') || t.includes('present') || t.includes('late'); };
-const isLeaveStatus   = (s) => { const t = String(s || ''); return t.includes('إجازة') || t.includes('اجازة') || t.includes('leave') || t.includes('off'); };
+// «متأخر» حضور لا غياب — الموظف داوم، والتأخير محمول بـwas_late/delay_minutes.
+// بلا هذا الشرط أي صف حالته «متأخر» (من الشيت أو أي مصدر) يسقط من الحضور
+// والإجازة معاً فيُحتسب غياباً ويُخصم من راتبه يوم اشتغله فعلاً.
+const isPresentStatus = (s) => { const t = String(s || ''); return t.includes('حاضر') || t.includes('خروج') || t.includes('متأخر') || t.includes('present') || t.includes('late'); };
+// «عطلة» يوم مُبرَّر كالإجازة — يشمل «🌟 عطلة أسبوعية» التي يسجّلها الموظف
+// بنفسه. لا تُحتسب غياباً ولا تُخصم من الراتب (D-073).
+const isLeaveStatus   = (s) => { const t = String(s || ''); return t.includes('إجازة') || t.includes('اجازة') || t.includes('عطلة') || t.includes('leave') || t.includes('off'); };
 const isLateStatus    = (s) => String(s || '').includes('late') || String(s || '').includes('متأخر');
 const dayKey = (d) => String(d ?? '').replace(/-/g, '/').slice(0, 10); // «YYYY/MM/DD»
 
@@ -45,7 +50,10 @@ async function summaryFromLiveAttendance(employeeName, year, month, workingDays)
   const presentDays = present.size;
   const leaveDays   = leave.size;
   const absentDays  = Math.max(0, workingDays - presentDays - leaveDays);
-  return { workingDays, presentDays, absentDays, lateDays: late.size, leaveDays, source: 'attendance' };
+  // leaveDates بصيغة "YYYY-MM-DD" (dayKey يخزّنها بـ"/") — تُستخدم لدمجها مع
+  // تواريخ طلبات الإجازة المعتمدة (employee_requests) بدون ازدواج بالعدّ.
+  const leaveDates = [...leave].map(k => k.replace(/\//g, '-'));
+  return { workingDays, presentDays, absentDays, lateDays: late.size, leaveDays, leaveDates, source: 'attendance' };
 }
 
 // Read mock-mode flag lazily to avoid circular imports at module load.
@@ -98,7 +106,7 @@ export async function fetchMonthlyAttendanceSummary(userId, year, month, employe
   const workingDays  = workingDates.length;
 
   const empty = (extra = {}) => ({
-    workingDays, presentDays: 0, absentDays: workingDays, lateDays: 0, ...extra,
+    workingDays, presentDays: 0, absentDays: workingDays, lateDays: 0, leaveDates: [], ...extra,
   });
 
   try {
@@ -139,7 +147,8 @@ export async function fetchMonthlyAttendanceSummary(userId, year, month, employe
             if (isPresentStatus(r.status)) { present.add(k); if (r.was_late || isLateStatus(r.status)) late.add(k); }
             else if (isLeaveStatus(r.status)) leave.add(k);
           }
-          return { workingDays, presentDays: present.size, absentDays: Math.max(0, workingDays - present.size - leave.size), lateDays: late.size, leaveDays: leave.size, source: 'attendance' };
+          const leaveDates = [...leave].map(k => k.replace(/\//g, '-'));
+          return { workingDays, presentDays: present.size, absentDays: Math.max(0, workingDays - present.size - leave.size), lateDays: late.size, leaveDays: leave.size, leaveDates, source: 'attendance' };
         }
       }
       // لا سجلّ حضور لهذا الموظف هذا الشهر

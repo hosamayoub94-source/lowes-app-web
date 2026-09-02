@@ -3,6 +3,7 @@
 // Tables: wh_warehouses, wh_stock, wh_movements (PIN-auth, open RLS).
 // All stock mutations also write a wh_movements audit row.
 // =============================================================
+// أنواع الحركات: receive | allocate | adjust | reserve | release | reverse | waste (D-076)
 import { supabase } from './supabase';
 
 // List active warehouses (central first, then sales, then others).
@@ -126,6 +127,33 @@ export async function adjustStock({ productId, warehouseId, newQuantity, perform
   await _logMovement({
     product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: warehouseId,
     quantity: qty, type: 'adjust', reason: reason || 'جرد/تصحيح', performed_by: performedBy || null,
+  });
+}
+
+// ── إتلاف (D-076) ────────────────────────────────────────────
+// أسباب مغلقة لتمييز الخسارة الفعلية عن خطأ العدّ (بعكس "± جرد" الحر).
+export const WASTE_REASONS = [
+  { value: 'broken',  label: 'كسر' },
+  { value: 'spilled', label: 'انسكاب أو تسرّب' },
+  { value: 'damaged', label: 'تلف عام' },
+  { value: 'expired', label: 'انتهاء صلاحية' },
+];
+
+// إتلاف كمية من منتج بمخزن: خصم ذرّي (نفس آلية الاستلام) + حركة 'waste' بسبب
+// إلزامي من قائمة مغلقة. يمنع تجاوز الكمية المتاحة فعلياً (لا رصيد سالب هنا).
+// لا يمسّ الطلبات/الحجز ولا الرواتب — حركة مخزون بحتة.
+export async function writeOffStock({ productId, warehouseId, quantity, reasonCode, note, performedBy }) {
+  const qty = Number(quantity);
+  if (!qty || qty <= 0) throw new Error('أدخل كمية صحيحة');
+  const reasonMeta = WASTE_REASONS.find(r => r.value === reasonCode);
+  if (!reasonMeta) throw new Error('اختر سبب الإتلاف');
+  const have = await _currentQty(warehouseId, productId);
+  if (qty > have) throw new Error(`الكمية المتاحة بهذا المخزن ${have} فقط`);
+  await _applyDelta(warehouseId, productId, -qty);
+  const reason = note ? `${reasonMeta.label} — ${note}` : reasonMeta.label;
+  await _logMovement({
+    product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: null,
+    quantity: qty, type: 'waste', reason, performed_by: performedBy || null,
   });
 }
 
@@ -317,8 +345,8 @@ export async function syncOrderStock(order, performedBy) {
 // مسموح فقط لحركات receive/allocate (الإدخالات اليدوية). للمسؤولين فقط (gated بالشاشة).
 export async function reverseMovement(movement, performedBy) {
   if (!movement?.id) throw new Error('حركة غير صالحة');
-  if (!['receive', 'allocate'].includes(movement.type))
-    throw new Error('يمكن التراجع فقط عن الاستلام أو التخصيص (الجرد يُصحَّح بجرد جديد).');
+  if (!['receive', 'allocate', 'waste'].includes(movement.type))
+    throw new Error('يمكن التراجع فقط عن الاستلام أو التخصيص أو الإتلاف (الجرد يُصحَّح بجرد جديد).');
   // idempotency: هل تم التراجع عنها سابقاً؟
   const { data: existing } = await supabase
     .from('wh_movements').select('id').eq('reverses_id', movement.id).limit(1);
@@ -328,17 +356,21 @@ export async function reverseMovement(movement, performedBy) {
   if (movement.type === 'receive') {
     // الأصل: null → to (+qty). العكس: انقص qty من to.
     await _applyDelta(movement.to_warehouse_id, movement.product_id, -qty);
+  } else if (movement.type === 'waste') {
+    // الأصل: from (−qty) → null. العكس: أرجِع qty إلى from.
+    await _applyDelta(movement.from_warehouse_id, movement.product_id, qty);
   } else {
     // allocate: from (−qty) → to (+qty). العكس: أرجِع لـfrom، انقص من to.
     await _applyDelta(movement.from_warehouse_id, movement.product_id, qty);
     await _applyDelta(movement.to_warehouse_id,   movement.product_id, -qty);
   }
+  const TYPE_AR = { receive: 'استلام', allocate: 'تخصيص', waste: 'إتلاف' };
   await _logMovement({
     product_id: movement.product_id,
     from_warehouse_id: movement.to_warehouse_id || null,   // عكس الاتجاه (تدقيق)
     to_warehouse_id:   movement.from_warehouse_id || null,
     quantity: qty, type: 'reverse',
-    reason: `تراجع عن ${movement.type === 'receive' ? 'استلام' : 'تخصيص'}`,
+    reason: `تراجع عن ${TYPE_AR[movement.type] || movement.type}`,
     performed_by: performedBy || null,
     reverses_id: movement.id,
   });

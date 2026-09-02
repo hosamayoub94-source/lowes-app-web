@@ -17,13 +17,14 @@ import { supabase }          from '@services/supabase';
 import { useAuthStore }      from '@stores/authStore';
 import { sendNotification }  from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
+// خريطة أيام العطلة الأسبوعية — مصدر واحد مشترك مع تقرير الدوام وشاشة الحضور
+import { REST_DAY_INDEX }    from '@services/shiftPartnersService';
 
 function todaySlash() {
   const d = new Date();
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 }
 
-const REST_DAY_INDEX = { 'الأحد': 0, 'الاثنين': 1, 'الثلاثاء': 2, 'الأربعاء': 3, 'الخميس': 4, 'الجمعة': 5, 'السبت': 6 };
 const LATE_GRACE_MINUTES = 30; // فترة سماح بعد بداية الدوام قبل ما نعتبره "تأخّر"
 const LATEST_REMINDER_HOUR = 20; // ما نزعج بعد 8 مساءً حتى لو دوامه أبكر (نافذة أمان إضافية)
 
@@ -49,15 +50,17 @@ async function checkAttendance(session) {
 
     if (now.getHours() >= LATEST_REMINDER_HOUR) return; // خارج نافذة معقولة لإزعاج أي حدا
 
+    // 'weekly_off' = سجّل اليوم كعطلته الأسبوعية المرنة — لا يُطلب منه تسجيل
+    // حضور بيوم عطلته، تماماً كصاحب اليوم المثبّت أعلاه (D-073).
     const { data } = await supabase
       .from('attendance')
       .select('id')
       .eq('employee_name', session.name)
       .eq('date', todaySlash())
-      .eq('type', 'in')
-      .maybeSingle();
+      .in('type', ['in', 'weekly_off'])
+      .limit(1);
 
-    if (data) return; // already checked in
+    if (data?.length) return; // سجّل حضوره أو أعلن عطلته
 
     await sendNotification({
       userId:   session.id,

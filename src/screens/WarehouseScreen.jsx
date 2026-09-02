@@ -9,16 +9,17 @@ import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS } from '@data/permissions';
 import {
-  getStockMatrix, receiveStock, allocateStock, adjustStock,
+  getStockMatrix, receiveStock, allocateStock, adjustStock, writeOffStock,
   listMovements, createWarehouse, updateWarehouse,
   listSellersWithWarehouse, assignSellerWarehouse, reverseMovement,
+  WASTE_REASONS,
 } from '@services/warehouseService';
 
 const TYPE_LABEL = { central: '🏛️ مستودع', sales: '📦 مبيعات', wholesale: '🏪 جملة', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
 // ترتيب هرمي ضمن كل سوق: مستودع كبير → مبيعات → جملة → مناديب → مرتجعات
 const TYPE_RANK = { central: 0, sales: 1, wholesale: 2, distributor: 3, returns: 4 };
 const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
-const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع', reverse: '↩️ تراجع' };
+const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع', reverse: '↩️ تراجع', waste: '🗑️ إتلاف' };
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
 
 // ── Management panel: create sub-warehouses + assign sellers + movement log ──
@@ -103,7 +104,7 @@ function ManagePanel({ warehouses, onChanged, userName, canReverse }) {
         <div className="space-y-1 max-h-80 overflow-y-auto">
           <p className="text-[11px] text-muted pb-1">تصحيح خطأ؟ اضغط «↩️ تراجع» على حركة الاستلام/التخصيص — يعكس أثرها على المخزون ويُسجَّل.</p>
           {moves.length === 0 ? <p className="text-xs text-muted text-center py-4">لا حركات</p> : moves.map(m => {
-            const reversible = canReverse && ['receive', 'allocate'].includes(m.type);
+            const reversible = canReverse && ['receive', 'allocate', 'waste'].includes(m.type);
             const isReversed = reversedIds.has(m.id);
             return (
               <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs border-b border-border/40">
@@ -125,7 +126,7 @@ function ManagePanel({ warehouses, onChanged, userName, canReverse }) {
 }
 
 function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, initialFrom, initialTo }) {
-  // mode: 'receive' | 'allocate' | 'adjust'
+  // mode: 'receive' | 'allocate' | 'adjust' | 'waste'
   const central = warehouses.find(w => w.type === 'central');
   const [productId, setProductId]   = useState(products[0]?.id ?? '');
   const [fromWh, setFromWh]         = useState(initialFrom ?? central?.id ?? warehouses[0]?.id ?? '');
@@ -133,6 +134,7 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, ini
   const [warehouseId, setWarehouseId] = useState(central?.id ?? warehouses[0]?.id ?? '');
   const [qty, setQty]   = useState('');
   const [reason, setReason] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -142,6 +144,7 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, ini
       if (mode === 'receive')  await onSubmit({ productId, warehouseId, quantity: qty, reason });
       if (mode === 'allocate') await onSubmit({ productId, fromWarehouseId: fromWh, toWarehouseId: toWh, quantity: qty });
       if (mode === 'adjust')   await onSubmit({ productId, warehouseId, newQuantity: qty, reason });
+      if (mode === 'waste')    await onSubmit({ productId, warehouseId, quantity: qty, reasonCode, note: reason });
       onClose();
     } catch (e) { setErr(e.message); }
     finally { setSaving(false); }
@@ -183,6 +186,16 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, ini
           </div>
         )}
 
+        {mode === 'waste' && (
+          <div>
+            <label className="text-xs font-bold text-muted block mb-1.5">سبب الإتلاف</label>
+            <select value={reasonCode} onChange={e => setReasonCode(e.target.value)} className={INP}>
+              <option value="">— اختر السبب —</option>
+              {WASTE_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+        )}
+
         <div>
           <label className="text-xs font-bold text-muted block mb-1.5">
             {mode === 'adjust' ? 'الكمية الجديدة (المطلقة)' : 'الكمية'}
@@ -202,7 +215,7 @@ function ActionModal({ title, warehouses, products, mode, onClose, onSubmit, ini
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
-          <button onClick={submit} disabled={saving || !productId || !qty}
+          <button onClick={submit} disabled={saving || !productId || !qty || (mode === 'waste' && !reasonCode)}
             className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
             {saving ? '…' : 'تأكيد'}
           </button>
@@ -324,6 +337,7 @@ export default function WarehouseScreen() {
   const handleReceive  = async (p) => { await receiveStock({ ...p, performedBy: userName }); await load(); };
   const handleAllocate = async (p) => { await allocateStock({ ...p, performedBy: userName }); await load(); };
   const handleAdjust   = async (p) => { await adjustStock({ ...p, performedBy: userName }); await load(); };
+  const handleWaste    = async (p) => { await writeOffStock({ ...p, performedBy: userName }); await load(); };
 
   const grandTotals = useMemo(() => {
     const totals = {};
@@ -371,7 +385,10 @@ export default function WarehouseScreen() {
             </>
           )}
           {(canCentral || canSales) && (
-            <button onClick={() => setModal('adjust')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">± جرد</button>
+            <>
+              <button onClick={() => setModal('adjust')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">± جرد</button>
+              <button onClick={() => setModal('waste')} className="px-3 py-2 rounded-xl bg-red-bg text-red-fg text-xs font-bold hover:opacity-80 transition">🗑️ إتلاف</button>
+            </>
           )}
           <button onClick={() => navigate('/guide')} className="px-3 py-2 rounded-xl bg-surface-alt text-muted text-xs font-bold hover:text-text transition border border-border">📖 دليل</button>
           {canCentral && (
@@ -482,6 +499,7 @@ export default function WarehouseScreen() {
       {modal === 'receive'  && <ActionModal title="📥 استلام بضاعة" mode="receive"  warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleReceive} />}
       {modal === 'allocate' && <ActionModal title="⇄ تخصيص بين المخازن" mode="allocate" warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleAllocate} />}
       {modal === 'adjust'   && <ActionModal title="± جرد / تصحيح" mode="adjust"   warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleAdjust} />}
+      {modal === 'waste'    && <ActionModal title="🗑️ إتلاف بضاعة" mode="waste"   warehouses={warehouses} products={products} onClose={() => setModal(null)} onSubmit={handleWaste} />}
 
       {/* تزويد مخزن فرعي من المستودع المركزي لسوقه (تخصيص مُسبق) */}
       {replenishWh && (
