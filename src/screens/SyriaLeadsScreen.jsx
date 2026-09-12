@@ -9,7 +9,10 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@hooks/useAuth';
-import { listLeads, updateLeadStatus, STATUS_LABELS, tierGroup, waLink } from '@services/syriaLeadsService';
+import {
+  listLeads, updateLeadStatus, createLead, STATUS_LABELS, tierGroup, waLink,
+  PROVINCES, PROVINCE_LABELS_AR, CATEGORIES,
+} from '@services/syriaLeadsService';
 
 const STATUS_COLOR = {
   not_contacted:  'text-muted bg-surface-alt border-border',
@@ -116,6 +119,9 @@ function LeadCard({ lead, myName, onSaved, dense }) {
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <p className="font-extrabold text-sm text-text">{lead.name}</p>
         <div className="flex gap-1.5 items-center">
+          {lead.added_manually && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-teal bg-teal/10 border-teal/30">✋ أضافه {lead.added_by || 'الفريق'}</span>
+          )}
           <span className="text-[10px] font-bold text-muted">Score {lead.score}</span>
           <StatusBadge status={lead.status} />
         </div>
@@ -131,6 +137,110 @@ function LeadCard({ lead, myName, onSaved, dense }) {
   );
 }
 
+function Field({ label, children }) {
+  return (
+    <div>
+      <p className="text-xs font-bold text-muted mb-1.5">{label}</p>
+      {children}
+    </div>
+  );
+}
+const inputCls = "w-full bg-surface-alt border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-teal transition";
+
+function AddLeadModal({ onClose, onSaved, myName }) {
+  const [form, setForm] = useState({
+    name: '', category: CATEGORIES[0], province: 'Damascus', city: '', district: '', address: '',
+    contact_person: '', phone: '', whatsapp: '', instagram: '', facebook: '', reason: '', initialStatus: 'not_contacted',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const save = async () => {
+    setError(null);
+    if (!form.name.trim()) { setError('اسم المحل مطلوب'); return; }
+    setSaving(true);
+    try {
+      await createLead(form, myName);
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      setError(e?.message || 'حدث خطأ — حاول مجدداً');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4" dir="rtl">
+      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+          <div>
+            <h3 className="text-base font-extrabold text-text">إضافة Lead جديد</h3>
+            <p className="text-[11px] text-muted mt-0.5">معرفة شخصية بالفريق — مصدر واحد، فيتصنّف تلقائياً B كحد أقصى.</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-surface-alt text-muted hover:text-text flex items-center justify-center text-lg transition shrink-0">✕</button>
+        </div>
+
+        <div className="px-5 pb-5 space-y-3 overflow-y-auto">
+          <Field label="اسم المحل/العيادة *">
+            <input className={inputCls} value={form.name} onChange={set('name')} placeholder="مثلاً: صيدلية النور" />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="الفئة">
+              <select className={inputCls} value={form.category} onChange={set('category')}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="المحافظة *">
+              <select className={inputCls} value={form.province} onChange={set('province')}>
+                {PROVINCES.map(p => <option key={p} value={p}>{PROVINCE_LABELS_AR[p]}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="المدينة/المنطقة"><input className={inputCls} value={form.city} onChange={set('city')} /></Field>
+            <Field label="الحي/التفصيل"><input className={inputCls} value={form.district} onChange={set('district')} /></Field>
+          </div>
+          <Field label="العنوان"><input className={inputCls} value={form.address} onChange={set('address')} /></Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="رقم الهاتف"><input className={inputCls} value={form.phone} onChange={set('phone')} placeholder="09xxxxxxxx" /></Field>
+            <Field label="واتساب"><input className={inputCls} value={form.whatsapp} onChange={set('whatsapp')} placeholder="09xxxxxxxx" /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="إنستغرام"><input className={inputCls} value={form.instagram} onChange={set('instagram')} placeholder="@handle" /></Field>
+            <Field label="فيسبوك"><input className={inputCls} value={form.facebook} onChange={set('facebook')} placeholder="رابط الصفحة" /></Field>
+          </div>
+          <Field label="الشخص المسؤول/المالك"><input className={inputCls} value={form.contact_person} onChange={set('contact_person')} /></Field>
+
+          <Field label="من وين عرفناها / ملاحظة">
+            <textarea className={inputCls} rows={2} value={form.reason} onChange={set('reason')} placeholder="مثلاً: زبونة سابقة، عرّفتني عليها ديانا شخصياً..." />
+          </Field>
+
+          <Field label="حالة التواصل الحالية">
+            <select className={inputCls} value={form.initialStatus} onChange={set('initialStatus')}>
+              {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </Field>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-3 rounded-2xl bg-teal text-navy font-extrabold text-sm hover:bg-teal/90 active:scale-95 transition disabled:opacity-50"
+          >
+            {saving ? 'جارٍ الحفظ...' : '+ إضافة Lead'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SyriaLeadsScreen() {
   const { name } = useAuth();
   const [leads, setLeads]     = useState([]);
@@ -139,6 +249,7 @@ export default function SyriaLeadsScreen() {
   const [province, setProvince] = useState('all');
   const [tier, setTier]       = useState('all');
   const [status, setStatus]   = useState('all');
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,11 +287,17 @@ export default function SyriaLeadsScreen() {
 
   return (
     <div className="space-y-5 pb-6" dir="rtl">
-      <div className="pt-1">
-        <h1 className="text-2xl font-extrabold text-text">ليدز سوريا B2B</h1>
-        <p className="text-xs text-muted mt-0.5">
-          مرشحون محتملون (صيدليات/عيادات/مراكز تجميل/موزعين) — بحث حقيقي متعدد المصادر، لا بيانات مُختلَقة.
-        </p>
+      <div className="flex items-start justify-between gap-3 pt-1">
+        <div>
+          <h1 className="text-2xl font-extrabold text-text">ليدز سوريا B2B</h1>
+          <p className="text-xs text-muted mt-0.5">
+            مرشحون محتملون (صيدليات/عيادات/مراكز تجميل/موزعين) — بحث حقيقي متعدد المصادر، لا بيانات مُختلَقة.
+          </p>
+        </div>
+        <button
+          onClick={() => setAddOpen(true)}
+          className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+        >+ إضافة Lead</button>
       </div>
 
       <div className="grid grid-cols-4 gap-2.5">
@@ -238,6 +355,10 @@ export default function SyriaLeadsScreen() {
             <LeadCard key={l.id} lead={l} myName={name} onSaved={load} dense={tierGroup(l.priority) === 'raw'} />
           ))}
         </div>
+      )}
+
+      {addOpen && (
+        <AddLeadModal myName={name} onClose={() => setAddOpen(false)} onSaved={load} />
       )}
     </div>
   );
