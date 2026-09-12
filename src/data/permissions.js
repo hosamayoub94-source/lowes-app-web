@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   VIEW_MEDIA_BUYER_BOARD: 'view_media_buyer_board', // media-buyer analytics dashboard
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
   SEND_WHATSAPP:        'send_whatsapp',         // open/reply to WhatsApp chats with customers (official number)
+  VIEW_SYRIA_LEADS:     'view_syria_leads',      // Syria B2B leads database (pharmacies/clinics/distributors) — view + update contact status
 };
 
 // Human labels (for the admin UI)
@@ -63,6 +64,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.VIEW_MEDIA_BUYER_BOARD]: 'لوحة الميديا باير (تحليل أداء الحملات)',
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
   [PERMISSIONS.SEND_WHATSAPP]:        'التواصل مع العملاء عبر واتساب الرسمي',
+  [PERMISSIONS.VIEW_SYRIA_LEADS]:     'قاعدة بيانات ليدز سوريا B2B',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -90,6 +92,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
   [PERMISSIONS.MANAGE_GUIDES]:       'إضافة وتعديل أدلة استخدام التطبيق (تظهر في الدليل ولوزي تعرفها).',
   [PERMISSIONS.SEND_WHATSAPP]:       'فتح محادثة والرد على العملاء عبر رقم واتساب الرسمي — الموظف بدون هالصلاحية ما يشوف الشاشة إطلاقاً، ومع الصلاحية يشوف بس محادثاته هو (الأدمن/المدير يشوفوا الكل).',
+  [PERMISSIONS.VIEW_SYRIA_LEADS]:    'رؤية قاعدة بيانات مرشحي B2B بسوريا (صيدليات/عيادات/مراكز تجميل/موزعين) وتحديث حالة التواصل معهم. الموظف بدونها ما يشوف الشاشة إطلاقاً.',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -106,6 +109,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST, PERMISSIONS.VIEW_MEDIA_BUYER_BOARD] },
   { key: 'whatsapp',   icon: '💬', label: 'واتساب العملاء',
     permissions: [PERMISSIONS.SEND_WHATSAPP] },
+  { key: 'syria_leads', icon: '📇', label: 'ليدز سوريا B2B',
+    permissions: [PERMISSIONS.VIEW_SYRIA_LEADS] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_GUIDES] },
 ];

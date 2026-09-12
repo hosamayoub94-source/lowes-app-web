@@ -68,6 +68,9 @@ export const ROUTES = {
   ADVANCES:  '/advances',
   REVIEWS:   '/reviews',
 
+  // Syria B2B Leads
+  SYRIA_LEADS: '/syria-leads',
+
   // Product Catalog
   ADMIN_PRODUCTS: '/admin/products',
 

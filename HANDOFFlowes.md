@@ -3,6 +3,28 @@
 
 ---
 
+### 🗓️ جلسة 12 أيلول 2026 — 📇 دمج «ليدز سوريا B2B» بالتطبيق (كان صفحة Artifact مستقلة)
+
+**الطلب (حسام):** مشروع Syria B2B Lead Intelligence Database (بحث/تحقق/Scoring لمرشحين محتملين بسوريا — صيدليات، عيادات جلدية، مراكز تجميل، متاجر/موزعو مستحضرات — لصالح فريق مبيعات Lowe's Profesyonel) كان يشتغل كصفحة Artifact مستقلة بقاعدة بيانات خاصة (Pilot دمشق+طرطوس، 66 Lead). **طلب دمجه هنا** ليصير الوصول محكوماً بصلاحيات التطبيق (يقرر هو مين يشوف الشاشة) بدل رابط خارجي مفتوح لأي حامل رابط.
+
+**التنفيذ:**
+| الملف | الدور |
+|---|---|
+| 🆕 `supabase/migrations/20260912_syria_b2b_leads.sql` | جدول `syria_b2b_leads` — كل حقول البحث (اسم/فئة/هاتف/واتساب/إنستغرام/Score/تحقّق/سبب) + حقول التواصل الفعلي (status/notes/assigned_to/status_updated_at/status_updated_by). RLS مسموحة (`USING/WITH CHECK true`) — نفس نمط attendance/referral_codes (الأمان الفعلي بمستوى التطبيق لا DB، لأن الدخول PIN لا Supabase Auth). |
+| 🆕 `src/services/syriaLeadsService.js` | `listLeads()` · `updateLeadStatus(id, {status,notes,assigned_to}, updatedByName)` — يكتب فقط حقول التواصل، أبداً لا يلمس الحقول البحثية. |
+| 🆕 `src/screens/SyriaLeadsScreen.jsx` | فلاتر (محافظة/مستوى ثقة/حالة تواصل/بحث) + بطاقة لكل Lead بأزرار اتصال/واتساب/إنستغرام/فيسبوك جاهزة + محرّر حالة (Status + ملاحظة + حفظ). |
+| ✏️ `src/data/permissions.js` | صلاحية جديدة `VIEW_SYRIA_LEADS` — **لا تُمنح لأي دور افتراضياً** (إلا admin عبر `ALL`)؛ حسام يمنحها لموظفين محدَّدين من `/admin/users` (`extra_permissions`) — هذا بالضبط طلبه: "عندي صلاحية أعطيها لأشخاص معينة". |
+| ✏️ `src/data/navigation.js` | عنصر قائمة `syria-leads` (مجموعة "المبيعات") — `roles:[A], perm:P.VIEW_SYRIA_LEADS` (يطابق AppRoutes.jsx كما تقتضي القاعدة الموثَّقة أعلى `admin-whatsapp`). |
+| ✏️ `src/routes/paths.js` + `src/routes/AppRoutes.jsx` | `ROUTES.SYRIA_LEADS = '/syria-leads'` + `<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}>` — نفس نمط شاشة واتساب العملاء تماماً. |
+
+**⚠️ خطوة يدوية وحيدة متبقية (لا أملك صلاحيتها):** إنشاء الجدول فعلياً يحتاج تنفيذ ملف الترحيل أعلاه على قاعدة الإنتاج — يحتاج إما `SUPABASE_SERVICE_ROLE` (غير موجود بأي env محلي، ولا يُطلب من محادثة Claude كتابته) أو لصق محتوى الملف بـSupabase Dashboard → SQL Editor مباشرة (لا حاجة لأي مفتاح سرّي لهالخطوة، حسام عنده صلاحية Owner على المشروع). بعدها تُستورَد الـ66 Lead الموجودة فعلياً (Artifact) عبر REST بالمفتاح العام (`sb_publishable_...`، RLS مسموحة).
+
+**قرار تصميمي:** فصلت حقول "البحث" (تُملأ من خارج التطبيق بمنهجية صارمة لا اختلاق — راجع `SYRIA_B2B_LEADS/methodology.md` بمركز القيادة) عن حقول "التواصل الفعلي" (يحدّثها فريق المبيعات من الشاشة) بنفس الجدول — بحيث تحديث بحثي أسبوعي مستقبلي (`update()` لا `set()`) ما يمحي حالة تواصل حقيقية سجّلها الفريق.
+
+**ABOS:** `09_Decision_Register.md` § D-093 · `05_Project_Portfolio.md` § P03.
+
+---
+
 ### 🗓️ جلسة 22–23 آب 2026 — 👥 شركاء الدوام والورديات + العطلة الأسبوعية + هيكل قسم Media
 
 **الطلب (حسام):** نظام يفهم مع مَن يعمل كل موظف ويشتقّ ورديته من عدد شركائه ووقت تسجيله، ويميّز يوم عطلته عن غيابه — **بأقل تعديل ممكن وبلا إعادة بناء**. ثم توسّع الطلب لهيكل قسم Media وتبويب مستقل للشركاء.
@@ -68,6 +90,35 @@ GRANT UPDATE (job_title)     ON public.profiles TO authenticated;
 3. **التحقق البصري يعتمد على المالك** — التطبيق محمي بـPIN ولا تُدخَل اعتمادات من جلسة محادثة.
 
 **ABOS:** D-073 (Executing) · D-074 (Draft — الرواتب) · D-075 (مُنفَّذ ومتحقَّق منه بصرياً) · D-011 (Archived — عادت Claudine للعمل) · `03_People_System.md` § هيكل قسم Media المعتمد.
+
+---
+
+### 🗓️ جلسة 2 أيلول 2026 — 🔒 تنبيه أمني Supabase على مشروعين — 7 أخطاء RLS/SECURITY DEFINER، كلها مُصلَحة ومُتحقَّقة حياً
+
+**المصدر:** إيميل تلقائي من Supabase ("Action required: security vulnerabilities detected") وصل حسام، يذكر مشروعين:
+
+| المشروع | الاسم الحقيقي بلوحة Supabase | الأخطاء |
+|---|---|---|
+| `fghdumrgimoeqsafdhhh` | **lowes-attendance** (هذا التطبيق) | 6 |
+| `kesoqnwyydycuyifqfhl` | **lowes-production** = شبكة النجوم (`lowes-classic`، ريبو منفصل) | 1 |
+
+⚠️ **تصحيح لملاحظة سابقة بهذا الملف:** الذاكرة القديمة كانت تفترض `fghdumrgimoeqsafdhhh` = "lowes-app-web"، لكن لوحة Supabase نفسها تسمّيه **"lowes-attendance"** — مؤكَّد حياً من شريط العنوان بالمتصفح.
+
+**أخطاء lowes-attendance (fghdumrgimoeqsafdhhh) — 6 → 0:**
+1. `activity_logs_archive` — RLS معطّلة + تعرض عمود `session_id` (حسّاس) عبر API. جدول أرشيف داخلي بحت (يُكتَب فقط من `archive_old_logs()` procedure)، لا كود بالتطبيق يقرأه. **الإصلاح:** `ENABLE ROW LEVEL SECURITY` بلا أي policy.
+2-3. `handler_name_backup_20260607` و`ad_campaigns_backup_20260607` — RLS معطّلة. باكبان ميتان من migration تنظيف 7 يونيو (`cleanup_orphan_tables.sql`)، غير مرجعيَّين بأي كود حي. نفس الإصلاح.
+4-5. `sales_value_summary` و`customer_stats` (views) — علَم "Security Definer View" (يتجاوزان RLS الجدول الأصلي `orders`). تحقّقت أولاً: كلا الـviews مبنيان حصراً على `orders`، وسياسة `orders_select`/`orders_select_all` مسموحة أصلاً لـ`{public}` — فتحويلهما لـ`SECURITY INVOKER` لن يفوّت أي بيانات. **الإصلاح:** `ALTER VIEW ... SET (security_invoker = true)` للاثنين.
+
+**خطأ lowes-production/شبكة النجوم (kesoqnwyydycuyifqfhl) — 1 → 0 (تفاصيل كاملة بـ`lowes-classic/AI/DECISIONS.md` § D-075):**
+- جدول `profiles` بلا RLS إطلاقاً — إثبات حي: anon بلا جلسة سحب أسماء/هواتف حقيقية لمسوّقات فعليات. فحصت `lowes-classic/app.js`: لا استعلام مباشر على `profiles`، كل وصول عبر 3 دوال `SECURITY DEFINER` (`login_email`/`auth_my_app_id`/`auth_my_role`) تتجاوز RLS دائماً. **الإصلاح (بموافقة حسام الصريحة — DDL على مشروع شبكة النجوم محظور تلقائياً بلا إذن مباشر):** `ENABLE ROW LEVEL SECURITY` بلا policy.
+
+**التحقّق (كل خطوة عبر REST بمفتاح anon الحقيقي، قبل وبعد — لا افتراض):**
+- `customer_stats`/`sales_value_summary` (lowes-attendance): لسّا يرجعان بيانات صحيحة بعد التحويل.
+- `activity_logs_archive`/الباكبين/`profiles`: صاروا يرجعون `[]` بدل البيانات الحقيقية.
+- `login_email` (شبكة النجوم): لسّا يرجع `200` طبيعي (دالة الدخول لم تتأثر).
+- كلا لوحتي Security Advisor: **0 أخطاء** (كانتا 6 و1).
+
+**من قرّر:** حسام (تأكيد التنفيذ على شبكة النجوم) + Claude (التشخيص الكامل عبر قراءة الكود الفعلي بالريبوين + التحقّق الحي قبل/بعد + التنفيذ المباشر على lowes-attendance).
 
 ---
 

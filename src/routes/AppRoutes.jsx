@@ -70,6 +70,7 @@ const PartnerGroupsScreen      = lazy(() => import(/* webpackChunkName: "partner
 const ShiftPartnersScreen      = lazy(() => import(/* webpackChunkName: "shift-partners"   */ '@screens/admin/ShiftPartnersScreen'));
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
+const SyriaLeadsScreen         = lazy(() => import(/* webpackChunkName: "syria-leads"      */ '@screens/SyriaLeadsScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
 const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
@@ -404,6 +405,14 @@ export function AppRoutes() {
           />
           <Route path={ROUTES.ADVANCES} element={<AdvanceRequestsScreen />} />
           <Route path={ROUTES.REVIEWS}  element={<PerformanceReviewScreen />} />
+          <Route
+            path={ROUTES.SYRIA_LEADS}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}>
+                <SyriaLeadsScreen />
+              </ProtectedRoute>
+            }
+          />
           <Route path={ROUTES.ORDERS}         element={<OrdersRedirect />} />
           <Route path={ROUTES.ORDERS_SYRIA}   element={<OrdersScreen forcedMarket="syria" />} />
           <Route path={ROUTES.ORDERS_TURKEY}  element={<OrdersScreen forcedMarket="turkey" />} />
