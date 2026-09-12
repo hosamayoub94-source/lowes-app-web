@@ -1939,7 +1939,7 @@ function StatusTimeline({ orderId }) {
   );
 }
 
-function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync, onCreateShipment }) {
+function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDelete, canAdvance, onRetrySync, onCreateShipment, onCreateBabelShipment }) {
   const [changing, setChanging] = useState(false);
   const [creatingShip, setCreatingShip] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -2097,6 +2097,16 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
             {creatingShip ? '⏳ جارٍ إنشاء الشحنة…' : '🚚 أنشئ شحنة يورتيتشي'}
           </button>
         )
+      )}
+
+      {/* بابل اكسبرس: إنشاء شحنة عبر API (سوريا فقط، لمن اختار بابل ولا يوجد رقم تتبع بعد) */}
+      {canAdvance && order.market === 'syria' && /بابل|babel/i.test(order.shipping_company || '') && !order.tracking_number && onCreateBabelShipment && (
+        <button
+          onClick={async () => { setCreatingShip(true); try { await onCreateBabelShipment(order); } finally { setCreatingShip(false); } }}
+          disabled={creatingShip}
+          className="w-full py-2 rounded-xl bg-navy text-cream text-xs font-extrabold hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center gap-2">
+          {creatingShip ? '⏳ جارٍ إنشاء الشحنة…' : '🚚 أنشئ شحنة بابل اكسبرس'}
+        </button>
       )}
 
       {/* سوريا: زر «تم التجهيز ← في النقل» للطلبات في حالة التجهيز */}
@@ -3550,6 +3560,22 @@ export default function OrdersScreen({ forcedMarket = null }) {
     }
   };
 
+  // إنشاء شحنة بابل اكسبرس للطلب (سوريا) عبر API الرسمي → AWB مباشر + reference=order_id.
+  const handleCreateBabelShipment = async (order) => {
+    const pend = toast.info?.('⏳ جاري إنشاء شحنة بابل اكسبرس…', { duration: 8000 });
+    try {
+      const { data, error } = await supabase.functions.invoke('create-babel-shipment', { body: { orderId: order.id } });
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      if (error) throw error;
+      if (!data?.ok) { toast.error?.(`⚠️ تعذّر الإنشاء: ${data?.message || data?.error || 'خطأ'}`, { duration: 9000 }); return; }
+      toast.success?.(`✅ أُنشئت شحنة بابل · ${data.awb}${data.cod ? ` · تحصيل ${data.codAmount}` : ''}`);
+      setOrders(p => p.map(o => o.id === order.id ? { ...o, tracking_number: data.awb, shipping_company: 'بابل اكسبرس' } : o));
+    } catch (e) {
+      if (pend && toast.dismiss) toast.dismiss(pend);
+      toast.error?.('⚠️ تعذّر إنشاء الشحنة: ' + (e?.message || e));
+    }
+  };
+
   const handleSave = async (formRaw, existingId) => {
     // Fold the seller name to its canonical active-profile spelling so new/edited
     // orders never re-fragment the leaderboard (e.g. "Haneen" → "Haneen Mohamad").
@@ -4348,6 +4374,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
               onDelete={handleDelete}
               onRetrySync={handleRetrySync}
               onCreateShipment={handleCreateShipment}
+              onCreateBabelShipment={handleCreateBabelShipment}
               canDelete={canDeleteOrder(o)} />
           ))}
           {filtered.length > visibleCount && (

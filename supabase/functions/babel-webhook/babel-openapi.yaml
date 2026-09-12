@@ -1,0 +1,1265 @@
+openapi: 3.0.3
+info:
+  title: Babel Express Webservice API
+  version: "1.0.2"
+  description: |
+    Production endpoint exposed by `https://www.babel-express.com/api/v1/webservice.php`. <br>
+    Sandbox environment exposed by `https://sandbox.babel-express.com/api/v1/webservice.php`.
+
+servers:
+  - url: https://www.babel-express.com/api/v1/webservice.php
+  - url: https://sandbox.babel-express.com/api/v1/webservice.php
+
+paths:
+  /getCities:
+    post:
+      summary: List cities available for shipments
+      description: Retrieves the list of cities accessible to the authenticated reseller.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetCitiesRequest"
+            example: {}
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCitiesSuccess"
+              example:
+                status: success
+                cities:
+                  - id: 1
+                    name: دمشق
+                  - id: 2
+                    name: حلب
+        "400":
+          description: Error response (invalid input or other failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                errorMessage: Unknown Request
+
+  /getAreas:
+    post:
+      summary: List areas within a city
+      description: Returns the areas associated with the specified city.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetAreasRequest"
+            example:
+              cityID: 2
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAreasSuccess"
+              example:
+                status: success
+                areas:
+                  - id: 1
+                    name: مدينة حلب
+                  - id: 3
+                    name: أتارب
+                  - id: 4
+                    name: أخترين
+        "400":
+          description: Error response (invalid input or other failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                errorMessage: cityID field is required
+
+  /getNeighbourhoods:
+    post:
+      summary: List neighbourhoods within an area
+      description: Returns the neighbourhoods associated with the specified area.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetNeighbourhoodsRequest"
+            example:
+              areaID: 1
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetNeighbourhoodsSuccess"
+              example:
+                status: success
+                neighbourhoods:
+                  - id: 1
+                    name: أبو جرش
+                  - id: 2
+                    name: أبو رمانة
+                  - id: 3
+                    name: أسد الدين
+        "400":
+          description: Error response (invalid input or other failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                errorMessage: areaID field is required
+
+  /findNeighbourhoodByCoordinates:
+    post:
+      summary: Find a neighbourhood by map coordinates
+      description: Attempts to locate the closest neighbourhood to the provided latitude and longitude.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindNeighbourhoodByCoordinatesRequest"
+            example:
+              coordinates:
+                lat: 36.19828997401451
+                lng: 37.093564647278704
+      responses:
+        "200":
+          description: Neighbourhood found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindNeighbourhoodByCoordinatesSuccess"
+              example:
+                status: success
+                neighbourhood:
+                  id: 100
+                  name: حلب الجديدة
+        "400":
+          description: Error response (invalid input or neighbourhood not found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                errorMessage: Not found a close neighbourhood
+
+  /findNeighbourhoodByAddress:
+    post:
+      summary: Find a neighbourhood by address text
+      description: Matches a free-form address string to the most relevant city, area, and neighbourhood.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindNeighbourhoodByAddressRequest"
+            example:
+              address: "دمشق أبو رمانة"
+      responses:
+        "200":
+          description: Address matched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindNeighbourhoodByAddressSuccess"
+              example:
+                status: success
+                city:
+                  id: 1
+                  name: دمشق
+                area:
+                  id: 1
+                  name: محافظة دمشق
+                neighbourhood:
+                  id: 2
+                  name: أبو رمانة
+        "400":
+          description: Error response (invalid input or address not found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                errorMessage: Address not found
+
+  /createShipment:
+    post:
+      summary: Create a new shipment
+      description: Validates and submits a shipment for creation. On success, returns the generated AWB.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShipmentRequest"
+            example:
+              shipment:
+                receiver:
+                  name: "احمد سعيد"
+                  phone:
+                    country: "90"
+                    phone: "5393029693"
+                  address: "جمعية التموين بناء 12 طابق ارضي"
+                  neighbourhood:
+                    coordinates:
+                      lat: 36.19828997401451
+                      lng: 37.093564647278704
+                type: box
+                parts:
+                  - weight: 2
+                  - weight: 3
+                contents: "ملابس"
+                reference: "1231234"
+                deliveryType: address
+                pickupType: address
+                cod:
+                  amount: 100
+                  currency: "USD"
+                payer: reseller
+      responses:
+        "200":
+          description: Shipment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateShipmentSuccess"
+              example:
+                status: success
+                awb: "2300456789"
+                partBarcodes:
+                  - "PB-0000-XXXXX"
+                  - "PB-1111-YYYYY"
+        "400":
+          description: Validation failure or creation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                validationFailure:
+                  value:
+                    status: error
+                    errorMessage: "Missing receiver.phone field"
+                creationFailure:
+                  value:
+                    status: error
+                    errorMessage: "shipment creation error: Invalid service #123#"
+
+  /createReturnShipment:
+    post:
+      summary: Create a new returned shipment
+      description: |
+        Validates and submits a request to create a return shipment.
+        The original shipment should be delivered successfully before creating a return shipment.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReturnShipmentRequest"
+            example:
+              shipment:
+                awb: "1234567890"
+                deliveryType: address
+                pickupType: address
+                payer: reseller
+      responses:
+        "200":
+          description: Return shipment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReturnShipmentSuccess"
+              example:
+                status: success
+                awb: "2300456789"
+        "400":
+          description: Validation failure or creation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                validationFailure:
+                  value:
+                    status: error
+                    errorMessage: "Missing shipment.awb field"
+                creationFailure:
+                  value:
+                    status: error
+                    errorMessage: "shipment creation error: Invalid service #123#"
+
+  /calculatePrice:
+    post:
+      summary: Estimate the shipping charge for a delivery
+      description: Validates the delivery specification and returns the calculated shipping cost.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalculatePriceRequest"
+            example:
+              delivery:
+                receiver:
+                  neighbourhood:
+                    id: 1001
+                type: box
+                parts:
+                  - weight: 2.5
+                deliveryType: address
+                payer: receiver
+      responses:
+        "200":
+          description: Price calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalculatePriceSuccess"
+              example:
+                status: success
+                price: 19500
+                currency: SYP
+                details:
+                  pickup: 0
+                  dropoff: 1500
+                  shipping: 18000
+        "400":
+          description: Validation failure or calculation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                validationFailure:
+                  value:
+                    status: error
+                    errorMessage: "delivery.receiver.neighbourhood is required"
+                calculationFailure:
+                  value:
+                    status: error
+                    errorMessage: "Unknown Request"
+
+  /getAWBLink:
+    post:
+      summary: Retrieve the printable AWB link
+      description: Returns a secure URL for downloading or printing the AWB PDF for a shipment.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AWBRequest"
+            example:
+              awb: "2300456789"
+      responses:
+        "200":
+          description: AWB link returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAWBLinkSuccess"
+              example:
+                status: success
+                url: "https://www.babel-express.com/api/v1/documents/awb.php?uid=abcd1234"
+        "400":
+          description: Validation failure or shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingAwb:
+                  value:
+                    status: error
+                    errorMessage: "AWB is required"
+                notFound:
+                  value:
+                    status: error
+                    errorMessage: "Shipment not found"
+
+  /getAWBPdf:
+    post:
+      summary: Retrieve the AWB as a base64-encoded PDF
+      description: Returns the airway bill (AWB) document encoded in base64 for the specified shipment.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AWBRequest"
+            example:
+              awb: "2300456789"
+      responses:
+        "200":
+          description: AWB PDF returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAWBPdfSuccess"
+              example:
+                status: success
+                base64: "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9n..."
+        "400":
+          description: Validation failure or shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingAwb:
+                  value:
+                    status: error
+                    errorMessage: "awb is required"
+                notFound:
+                  value:
+                    status: error
+                    errorMessage: "Shipment not found"
+
+  /deleteShipment:
+    post:
+      summary: Delete a shipment
+      description: Cancels a shipment created by the authenticated reseller.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AWBRequest"
+            example:
+              awb: "2300456789"
+      responses:
+        "200":
+          description: Shipment deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteShipmentSuccess"
+              example:
+                status: success
+        "400":
+          description: Validation failure or shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingAwb:
+                  value:
+                    status: error
+                    errorMessage: "awb is required"
+                notFound:
+                  value:
+                    status: error
+                    errorMessage: "Shipment not found"
+
+  /trackShipment:
+    post:
+      summary: Track the status of a shipment
+      description: Retrieves the latest tracking timeline for a shipment created by the authenticated reseller.
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AWBRequest"
+            example:
+              awb: "260101631112"
+      responses:
+        "200":
+          description: Tracking data returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackShipmentSuccess"
+              example:
+                status: success
+                tracking:
+                  step: 4
+                  isDelivered: true
+                  deliverDate: 1780843930
+                  awb: "260101631112"
+                  shipmentStatus:
+                    text: "تم التسليم"
+                    color: success
+                  updates:
+                    - text: "تم تكوين الشحنة"
+                      time: 1780834093
+                      location: ""
+                      color: default
+                    - text: "وصلت الشحنة الى نقطة التحويل"
+                      time: 1780840875
+                      location: "البغطاسية, مدينة حمص"
+                      color: default
+                    - text: "خرجت الشحنة للتسليم"
+                      time: 1780841651
+                      location: "البغطاسية, مدينة حمص"
+                      color: info
+                    - text: "تم تسليم الشحنة"
+                      time: 1780843930
+                      location: "جورة الشياح, مدينة حمص"
+                      color: success
+                  from:
+                    neighbourhood: "البغطاسية"
+                    area: "مدينة حمص"
+                    city: "حمص"
+                    name: "أ********* ل*************** ل********* ا***********"
+                  to:
+                    neighbourhood: "جورة الشياح"
+                    area: "مدينة حمص"
+                    city: "حمص"
+                    name: "ا******* ش*********"
+                  isMapAvailable: true
+                  lastLocation:
+                    lat: 36.19829
+                    lng: 37.09356
+        "400":
+          description: Validation failure or shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingAwb:
+                  value:
+                    status: error
+                    errorMessage: "awb is required"
+                notFound:
+                  value:
+                    status: error
+                    errorMessage: "Shipment not found"
+
+  /registerWebhook:
+    post:
+      summary: Register or update webhook settings
+      description: |
+        Saves webhook settings for the authenticated reseller account.
+
+        Rules:
+        - `webhook.enabled` and `webhook.key` are required.
+        - `webhook.key` should be at least `32` characters long and will be used to sign webhook messages
+        - If `webhook.enabled = true`:
+          - `webhook.url` is required and must use `https`.
+          - the API sends a test POST payload `{ "type": "test" }` to `webhook.url`.
+          - URL validation passes only if the endpoint returns HTTP `200` status code.
+          - `webhook.subscribedEvents` is required and must contain at least one valid event.
+
+        For event names and more information about webhooks messages please visit:
+        https://www.babel-express.com/api/v1/documents/webservice/webhooks.html
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterWebhookRequest"
+            examples:
+              enabled:
+                value:
+                  webhook:
+                    enabled: true
+                    url: "https://example.com/babel/webhook"
+                    key: "my-shared-secret-my-shared-secret"
+                    subscribedEvents:
+                      - ArrivedToHub
+                      - EnRoute
+                      - DeliveryContact
+                      - DeliveryFailed
+                      - CreatedFollowupShipment
+                      - OutForDelivery
+                      - Delivered
+                      - ReturnedToSender
+                      - Disposed
+                      - ShipmentLost
+              disabled:
+                value:
+                  webhook:
+                    enabled: false
+                    key: "my-shared-secret"
+      responses:
+        "200":
+          description: Webhook settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterWebhookSuccess"
+              example:
+                status: success
+        "400":
+          description: Validation failure or unauthorized account type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                unauthorized:
+                  value:
+                    status: error
+                    errorMessage: "unauthorized"
+                invalidScheme:
+                  value:
+                    status: error
+                    errorMessage: "url scheme should be https"
+                urlValidationError:
+                  value:
+                    status: error
+                    errorMessage: "url validation error - Connection timed out"
+                invalidHttpStatus:
+                  value:
+                    status: error
+                    errorMessage: "request status validation error - 404"
+                emptySubscribedEvents:
+                  value:
+                    status: error
+                    errorMessage: "subscribedEvents should not be empty"
+                requestException:
+                  value:
+                    status: error
+                    errorMessage: "request exception"
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Use your Babel Express reseller username and password.
+
+  schemas:
+    GetCitiesRequest:
+      type: object
+      additionalProperties: true
+
+    GetCitiesSuccess:
+      type: object
+      required: [status, cities]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        cities:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    GetAreasRequest:
+      type: object
+      required: [cityID]
+      properties:
+        cityID:
+          type: integer
+          description: Identifier of the city.
+      additionalProperties: false
+
+    GetAreasSuccess:
+      type: object
+      required: [status, areas]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        areas:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    GetNeighbourhoodsRequest:
+      type: object
+      required: [areaID]
+      properties:
+        areaID:
+          type: integer
+          description: Identifier of the area.
+      additionalProperties: false
+
+    GetNeighbourhoodsSuccess:
+      type: object
+      required: [status, neighbourhoods]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        neighbourhoods:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    FindNeighbourhoodByCoordinatesRequest:
+      type: object
+      required: [coordinates]
+      properties:
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+      additionalProperties: false
+
+    FindNeighbourhoodByCoordinatesSuccess:
+      type: object
+      required: [status, neighbourhood]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        neighbourhood:
+          type: object
+          additionalProperties: true
+
+    Coordinates:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          format: double
+          description: Latitude in decimal degrees.
+        lng:
+          type: number
+          format: double
+          description: Longitude in decimal degrees.
+      additionalProperties: false
+
+    FindNeighbourhoodByAddressRequest:
+      type: object
+      required: [address]
+      properties:
+        address:
+          type: string
+          description: Free-form address text.
+      additionalProperties: false
+
+    FindNeighbourhoodByAddressSuccess:
+      type: object
+      required: [status, city, area, neighbourhood]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        city:
+          type: object
+          additionalProperties: true
+        area:
+          type: object
+          additionalProperties: true
+        neighbourhood:
+          type: object
+          additionalProperties: true
+
+    CreateShipmentRequest:
+      type: object
+      required: [shipment]
+      properties:
+        shipment:
+          type: object
+          required:
+            - receiver
+            - type
+            - parts
+            - contents
+            - deliveryType
+            - pickupType
+            - cod
+            - payer
+          properties:
+            sender:
+              $ref: "#/components/schemas/ShipmentReceiver"
+              description: If omitted, pickup is from reseller primary address.
+            receiver:
+              $ref: "#/components/schemas/ShipmentReceiver"
+            type:
+              type: string
+              enum: [box, envelope]
+            parts:
+              type: array
+              minItems: 1
+              description: |
+                Package breakdown. Each part must include `weight` in kilograms.
+                When `type = envelope`, `weight` must be `1`.
+              items:
+                $ref: "#/components/schemas/ShipmentPart"
+            contents:
+              type: string
+            reference:
+              type: string
+              description: Optional unique client reference.
+            deliveryType:
+              type: string
+              enum: [address, hub]
+            pickupType:
+              type: string
+              enum: [address, hub]
+            cod:
+              $ref: "#/components/schemas/CashOnDelivery"
+            payer:
+              type: string
+              enum: [sender, receiver, reseller]
+          additionalProperties: true
+      additionalProperties: false
+
+    CreateReturnShipmentRequest:
+      type: object
+      required: [shipment]
+      properties:
+        shipment:
+          type: object
+          required: [awb, pickupType, deliveryType, payer]
+          properties:
+            awb:
+              type: string
+            deliveryType:
+              type: string
+              enum: [address, hub]
+            pickupType:
+              type: string
+              enum: [address, hub]
+            payer:
+              type: string
+              enum: [sender, receiver, reseller]
+          additionalProperties: true
+      additionalProperties: false
+
+    ShipmentReceiver:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+        phone:
+          $ref: "#/components/schemas/ReceiverPhone"
+        address:
+          type: string
+          description: Physical address text.
+        neighbourhood:
+          $ref: "#/components/schemas/ReceiverNeighbourhood"
+      additionalProperties: false
+
+    ShipmentNeighbourhoodReceiver:
+      type: object
+      required: [neighbourhood]
+      properties:
+        neighbourhood:
+          $ref: "#/components/schemas/ReceiverNeighbourhood"
+      additionalProperties: false
+
+    ReceiverPhone:
+      type: object
+      required: [country, phone]
+      properties:
+        country:
+          type: string
+          description: Country dial code (e.g. `963`).
+        phone:
+          type: string
+          description: Local phone number without country code.
+      additionalProperties: false
+
+    ReceiverNeighbourhood:
+      oneOf:
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+          additionalProperties: false
+        - type: object
+          required: [coordinates]
+          properties:
+            coordinates:
+              $ref: "#/components/schemas/Coordinates"
+          additionalProperties: false
+      description: Supply either neighbourhood `id` or `coordinates`.
+
+    ShipmentPart:
+      type: object
+      required: [weight]
+      properties:
+        weight:
+          type: number
+          format: float
+      additionalProperties: false
+
+    CashOnDelivery:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          format: float
+          description: Set to `0` to disable COD.
+        currency:
+          type: string
+      additionalProperties: false
+
+    CalculatePriceRequest:
+      type: object
+      required: [delivery]
+      properties:
+        delivery:
+          type: object
+          required: [receiver, type, parts, deliveryType]
+          properties:
+            sender:
+              $ref: "#/components/schemas/ShipmentNeighbourhoodReceiver"
+            receiver:
+              $ref: "#/components/schemas/ShipmentNeighbourhoodReceiver"
+            type:
+              type: string
+              enum: [box, envelope]
+            parts:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/ShipmentPart"
+            deliveryType:
+              type: string
+              enum: [address, hub]
+            pickupType:
+              type: string
+              enum: [address, hub]
+            payer:
+              type: string
+              enum: [sender, receiver, reseller]
+          additionalProperties: false
+      additionalProperties: false
+
+    CalculatePriceSuccess:
+      type: object
+      required: [status, price, currency, details]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        price:
+          type: number
+          format: float
+        currency:
+          type: string
+        details:
+          type: object
+          required: [pickup, dropoff, shipping]
+          properties:
+            pickup:
+              type: number
+              format: float
+            dropoff:
+              type: number
+              format: float
+            shipping:
+              type: number
+              format: float
+          additionalProperties: false
+      additionalProperties: false
+
+    AWBRequest:
+      type: object
+      required: [awb]
+      properties:
+        awb:
+          type: string
+      additionalProperties: false
+
+    GetAWBLinkSuccess:
+      type: object
+      required: [status, url]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        url:
+          type: string
+          format: uri
+
+    GetAWBPdfSuccess:
+      type: object
+      required: [status, base64]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        base64:
+          type: string
+
+    DeleteShipmentSuccess:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        message:
+          type: string
+
+    TrackShipmentSuccess:
+      type: object
+      required: [status, tracking]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        tracking:
+          $ref: "#/components/schemas/Tracking"
+      additionalProperties: false
+
+    Tracking:
+      type: object
+      required:
+        - step
+        - isDelivered
+        - awb
+        - shipmentStatus
+        - updates
+        - from
+        - to
+        - isMapAvailable
+      properties:
+        step:
+          type: integer
+        isDelivered:
+          type: boolean
+        deliverDate:
+          type: integer
+          format: int64
+        awb:
+          type: string
+        shipmentStatus:
+          $ref: "#/components/schemas/TrackingStatus"
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrackingUpdate"
+        from:
+          $ref: "#/components/schemas/TrackingParty"
+        to:
+          $ref: "#/components/schemas/TrackingParty"
+        isMapAvailable:
+          type: boolean
+        lastLocation:
+          $ref: "#/components/schemas/Coordinates"
+      additionalProperties: true
+
+    TrackingStatus:
+      type: object
+      required: [text, color, code]
+      properties:
+        text:
+          type: string
+        color:
+          type: string
+        code:
+          type: string
+          enum:
+            - Created
+            - ArrivedToHub
+            - EnRoute
+            - DeliveryContact
+            - DeliveryFailed
+            - CreatedFollowupShipment
+            - OutForDelivery
+            - Delivered
+            - ReturnedToSender
+            - Disposed
+            - ShipmentLost
+          description: |
+            Event type.
+            - `Created`: Shipment is created
+            - `ArrivedToHub`: Shipment reaches any hub.
+            - `EnRoute`: Shipment leaves a hub going to another hub.
+            - `DeliveryContact`: We try to contact the consignee.
+            - `DeliveryFailed`: Delivery fails.
+            - `CreatedFollowupShipment`: Babel Express creates a follow-up shipment (a return shipment, or a change-of-consignee shipment).
+            - `OutForDelivery`: The shipment is out for delivery (last-mile delivery).
+            - `Delivered`: The shipment is delivered.
+            - `ReturnedToSender`: The shipment is successfully returned to sender.
+            - `Disposed`: The shipment is disposed.
+            - `ShipmentLost`: The shipment is marked as lost.
+      additionalProperties: false
+
+    TrackingUpdate:
+      type: object
+      required: [text, time, location, color, code]
+      properties:
+        text:
+          type: string
+        time:
+          type: integer
+          format: int64
+        location:
+          type: string
+        color:
+          type: string
+        code:
+          type: string
+          enum:
+            - Created
+            - ArrivedToHub
+            - EnRoute
+            - DeliveryContact
+            - DeliveryFailed
+            - CreatedFollowupShipment
+            - OutForDelivery
+            - Delivered
+            - ReturnedToSender
+            - Disposed
+            - ShipmentLost
+          description: |
+            Event type.
+            - `Created`: Shipment is created
+            - `ArrivedToHub`: Shipment reaches any hub.
+            - `EnRoute`: Shipment leaves a hub going to another hub.
+            - `DeliveryContact`: We try to contact the consignee.
+            - `DeliveryFailed`: Delivery fails.
+            - `CreatedFollowupShipment`: Babel Express creates a follow-up shipment (a return shipment, or a change-of-consignee shipment).
+            - `OutForDelivery`: The shipment is out for delivery (last-mile delivery).
+            - `Delivered`: The shipment is delivered.
+            - `ReturnedToSender`: The shipment is successfully returned to sender.
+            - `Disposed`: The shipment is disposed.
+            - `ShipmentLost`: The shipment is marked as lost.
+
+      additionalProperties: false
+
+    TrackingParty:
+      type: object
+      required: [neighbourhood, area, city, name]
+      properties:
+        neighbourhood:
+          type: string
+        area:
+          type: string
+        city:
+          type: string
+        name:
+          type: string
+      additionalProperties: false
+
+    CreateShipmentSuccess:
+      type: object
+      required: [status, awb, partBarcodes]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        awb:
+          type: string
+        partBarcodes:
+          type: array
+          items:
+            type: string
+
+    CreateReturnShipmentSuccess:
+      type: object
+      required: [status, awb]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        awb:
+          type: string
+
+    RegisterWebhookRequest:
+      type: object
+      required: [webhook]
+      properties:
+        webhook:
+          $ref: "#/components/schemas/WebhookConfig"
+      additionalProperties: false
+
+    WebhookConfig:
+      oneOf:
+        - $ref: "#/components/schemas/WebhookEnabledConfig"
+        - $ref: "#/components/schemas/WebhookDisabledConfig"
+
+    WebhookEnabledConfig:
+      type: object
+      required: [enabled, key, url, subscribedEvents]
+      properties:
+        enabled:
+          type: boolean
+          enum: [true]
+        key:
+          type: string
+          description: Webhook secret key.
+        url:
+          type: string
+          format: uri
+          description: HTTPS endpoint that receives webhook POST requests.
+        subscribedEvents:
+          type: array
+          minItems: 1
+          description: |
+            Webhook event names.
+            Allowed values are documented at:
+            https://www.babel-express.com/api/v1/documents/webservice/webhooks.html
+          items:
+            type: string
+      additionalProperties: false
+
+    WebhookDisabledConfig:
+      type: object
+      required: [enabled, key]
+      properties:
+        enabled:
+          type: boolean
+          enum: [false]
+        key:
+          type: string
+          description: Webhook secret key.
+      additionalProperties: false
+
+    RegisterWebhookSuccess:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success]
+
+    ErrorResponse:
+      type: object
+      required: [status, errorMessage]
+      properties:
+        status:
+          type: string
+          enum: [error]
+        errorMessage:
+          type: string
