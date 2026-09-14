@@ -3,6 +3,7 @@
 // (chunk rebuild marker: distribution roles in role picker — 2026-06-08)
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@services/supabase';
 import { useAuth } from '@hooks/useAuth';
 import PermissionsEditor from '@components/feature/PermissionsEditor';
 // مصدر الحقيقة للأدوار (يشمل أدوار التوزيع + الإدارة) — لا تكرّر القائمة محلياً.
@@ -460,14 +461,12 @@ export default function AdminUsersScreen() {
     if (typed == null) return;                       // ألغى
     if (typed.trim() !== p.employee_name) { window.alert('الاسم غير مطابق — أُلغي الحذف.'); return; }
     try {
-      const URL  = import.meta.env.VITE_SUPABASE_URL;
-      const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const res = await fetch(`${URL}/functions/v1/manage-employee`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${ANON}`, apikey: ANON, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', requesterRole: role, target_id: p.id }),
+      // R-21 fix (14 Sep 2026): manage-employee derives the caller's real role
+      // server-side from a verified session -- invoke() attaches it automatically.
+      const { data, error } = await supabase.functions.invoke('manage-employee', {
+        body: { action: 'delete', target_id: p.id },
       });
-      const data = await res.json();
+      if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.message || 'تعذّر الحذف');
       setProfiles(ps => ps.filter(x => x.id !== p.id));
     } catch (e) { setError(e.message); }
@@ -484,22 +483,19 @@ export default function AdminUsersScreen() {
     if (addPin && !/^\d{4}$/.test(addPin)) { setAddError('الرمز السري لازم 4 أرقام'); return; }
     setAddSaving(true); setAddError(null);
     try {
-      const URL  = import.meta.env.VITE_SUPABASE_URL;
-      const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const res = await fetch(`${URL}/functions/v1/manage-employee`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${ANON}`, apikey: ANON, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // R-21 fix (14 Sep 2026): same as delete above -- real role comes from
+      // the caller's own verified session server-side, not this body.
+      const { data, error } = await supabase.functions.invoke('manage-employee', {
+        body: {
           action: 'add',
-          requesterRole: role,
           employee_name: addForm.employee_name.trim(),
           role_type: addForm.role_type,
           team: addForm.team || null,
           pin: addPin || undefined,
           seller_type: 'online',
-        }),
+        },
       });
-      const data = await res.json();
+      if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.message || 'تعذّر إنشاء الموظف');
       setProfiles(ps => [data.profile, ...ps]);
       setShowAdd(false); setAddForm(EMPTY_FORM); setAddPin('');

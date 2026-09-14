@@ -14,6 +14,25 @@
 // المشرفة الجديدة تحصل على mlm_group خاص بها.
 //
 // Deploy: supabase functions deploy manage-employee --no-verify-jwt
+//
+// R-21 fix (14 Sep 2026, owner-directed emergency close of a live P0):
+// requesterRole/requesterId used to come straight from the request body --
+// the ONLY gate was `MANAGE_ROLES.includes(requesterRole)`, a string the
+// caller supplies themselves. Live-proven (zero real mutation, action:'add'
+// with no employee_name so it dead-ends at a harmless validation error):
+// claiming requesterRole:"admin" with nothing else -- no session, no PIN,
+// no prior credential of any kind -- reached the authorized branch that a
+// garbage role string correctly gets rejected from. That's full
+// unauthenticated privilege escalation: create an account with any role,
+// including admin, with an attacker-chosen PIN.
+// Fix: requesterRole/requesterId are now derived from a real, verified
+// Supabase Auth session (auth.getUser) and that session's own profiles.role_type
+// -- never from anything the client sends. Every downstream use of
+// requesterRole/requesterId below is unchanged and now operates on trusted
+// values. Caller map verified against both repos:
+// AdminUsersScreen.jsx + SocialTeamScreen.jsx switched to
+// supabase.functions.invoke() (attaches the real session automatically)
+// instead of a manual fetch with the anon key.
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -47,17 +66,36 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { action, requesterRole, requesterId, employee_name, team, job_title, pin, target_id,
+    const { action, employee_name, team, job_title, pin, target_id,
             role_type, seller_type, rep_level, mlm_rank, sponsor_id, group_id, store_id } = body;
-
-    if (!MANAGE_ROLES.includes(requesterRole)) {
-      return json({ ok: false, error: 'forbidden', message: 'ليس لديك صلاحية إدارة المستخدمين' }, 200);
-    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
     );
+
+    // Strict, fail-closed identity check -- see the R-21 note above. Nothing
+    // the client sends is trusted for who-is-calling; only a real session.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) {
+      return json({ ok: false, error: 'unauthorized', message: 'يلزم تسجيل دخول صالح' }, 200);
+    }
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) {
+      return json({ ok: false, error: 'unauthorized', message: 'يلزم تسجيل دخول صالح' }, 200);
+    }
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('role_type')
+      .eq('id', user.id)
+      .maybeSingle();
+    const requesterRole = callerProfile?.role_type ?? null;
+    const requesterId = user.id;
+
+    if (!requesterRole || !MANAGE_ROLES.includes(requesterRole)) {
+      return json({ ok: false, error: 'forbidden', message: 'ليس لديك صلاحية إدارة المستخدمين' }, 200);
+    }
 
     const isSocial = requesterRole === 'social_manager';
     const allowed = CAN_CREATE[requesterRole];

@@ -3,6 +3,33 @@
 
 ---
 
+### 🗓️ جلسة 14 أيلول 2026 (تتمة) — 🔴 R-21: ثغرتا privilege escalation حقيقيتان أُثبتتا حيّاً وأُغلقتا (manage-employee + admin-reset-pin)
+
+**السياق:** أثناء بناء خريطة مستدعين لـR-13/R-14 (WhatsApp)، اكتُشف نمط مشابه بدالة `manage-employee` — دور المستدعي يأتي من جسم الطلب لا من جلسة حقيقية. طلب حسام تدقيقاً VERIFY→PROVE فقط (صفر إصلاح، صفر mutation حقيقي، أهداف وهمية غير موجودة فقط)، ثم بعد التقرير أمر صراحةً بالانتقال للإصلاح الفوري نظراً للخطورة.
+
+**R-21a — `manage-employee`:** `requesterRole` غير محمي بأي جلسة — مسبار آمن (action:add بلا employee_name) أثبت أن `requesterRole:"admin"` بلا أي اعتماد يصل لمنطق الإنشاء الفعلي. **privilege escalation كامل: إنشاء حساب admin جديد بـPIN يختاره المهاجم.**
+
+**R-21b — `admin-reset-pin` (الأخطر):** فحص الدور يُتخطّى بصمت عند فشل `auth.getUser()` على bearer موجود — مثبَت حيّاً مرّتين بمفتاح المشروع العام وحده على `employeeName` وهمي: `200 {ok:true}`، تحديث `service_role` فعلي. **account takeover كامل لأي موظف حقيقي.**
+
+**الإصلاح:**
+| الملف | التغيير |
+|---|---|
+| ✏️ `supabase/functions/manage-employee/index.ts` | `requesterRole`/`requesterId` يُشتقّان الآن حصراً من `auth.getUser()` + `profiles.role_type` — صفر ثقة بالعميل |
+| ✏️ `supabase/functions/admin-reset-pin/index.ts` | إعادة كتابة fail-closed كاملة — حُذف مسار `callerName` غير القابل للإثبات |
+| ✏️ `src/screens/admin/AdminUsersScreen.jsx` | استدعاءا حذف/إضافة موظف صارا عبر `supabase.functions.invoke()` بدل fetch بمفتاح anon |
+| ✏️ `src/screens/SocialTeamScreen.jsx` | نفس التحويل |
+
+**تحقّق حيّ بعد النشر:** نفس المسابير المستغَلّة سابقاً → `unauthorized`/`401` بدل النجاح.
+
+**⚠️ إفصاح — درس من R-20 طُبِّق هنا فعلياً:** قبل الحكم بـ"صفر مستدعٍ" لـ`admin-reset-pin`، بحثت باسمها صراحةً بكلا الريبوهين (`lowes-app-web` و`lowes-classic`) — صفر مستدعٍ فعلاً، صفر خطر توافق.
+
+**⚠️ إفصاح — متبقٍّ لحسام:** حسابا `Amany alkshki` و`Reem alkshki` (admin) بلا هوية Supabase Auth مُزوَّدة (`auth.users`) — سيُرفَضان الآن من هاتين الدالتين. السكربت الموجود أصلاً `npm run auth:provision` يحلّ هذا (idempotent، يتجاوز الحسابات المُزوَّدة أصلاً) — **لم أُشغّله** (يحتاج `SUPABASE_SERVICE_ROLE_KEY` محلياً بـ`.env.local`، لم ألمسه بنفسي).
+
+**⚠️ إفصاح — نافذة انقطاع قصيرة مقصودة:** ~دقيقتان بين نشر الدوال والواجهة (تغيير عقد متزامن حقيقي، لا حالة وسيطة آمنة ممكنة هنا خلافاً لوسيطات WhatsApp).
+
+**ABOS / lowes-classic:** `lowes-classic/AI/RISK_REGISTER.md § R-21` · `lowes-classic/AI/DECISIONS.md` (2026-09-14 تتمة سابعة عشرة).
+
+---
 ### 🗓️ جلسة 14 أيلول 2026 — 🔒 R-13/R-14: إغلاق ثغرة WhatsApp الحقيقية عبر مشروعَي Supabase معاً + تصحيح ذاتي (R-20)
 
 **السياق:** تدقيق أمني من `lowes-classic` (المدير التقني الدائم) وجد أن `whatsapp-send`/`whatsapp-upload-media`/`whatsapp-delete-conversation` على `kesoqnwyydycuyifqfhl` كانت قابلة للاستدعاء من أي شخص على الإنترنت بمفتاح `anon` العام (بلا أي تحقّق هوية داخلي). المستدعيان الحقيقيان الوحيدان لهذه الدوال هما هذا المشروع بالذات: `src/services/whatsappService.js` (متصفّح) و`supabase/functions/_shared/notifyWhatsAppStatus.ts` (سيرفر-لسيرفر، عبر `babel-webhook`/`track-babel`/`track-karam`/`track-ptt`/`track-yurtici`).

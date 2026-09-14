@@ -4,16 +4,11 @@
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@services/supabase';
-import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import SocialTeamTree from '@components/feature/SocialTeamTree';
 import { MEDIA_JOB_TITLES, mediaTitleOf } from '@data/orgChart';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 export default function SocialTeamScreen() {
-  const { role } = useAuth();
   const toast = useToast();
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,13 +30,14 @@ export default function SocialTeamScreen() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // R-21 fix (14 Sep 2026): requesterRole used to be a client-supplied string here
+  // -- manage-employee now derives the caller's real role server-side from a
+  // verified session. supabase.functions.invoke() attaches that session's
+  // Authorization header automatically (no anon key, no client-asserted role).
   const call = async (body) => {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-employee`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, requesterRole: role }),
-    });
-    return res.json();
+    const { data, error } = await supabase.functions.invoke('manage-employee', { body });
+    if (error) return { ok: false, message: error.message };
+    return data;
   };
 
   const addEmployee = async () => {
