@@ -2,8 +2,7 @@
 // يرسل رسالة واتساب للعميل عند تغيّر حالة شحنته تلقائياً (من أي من دوال التتبّع:
 // track-babel/track-karam/track-ptt/track-yurtici). يستخدم رقم لوويز الرسمي
 // (+13204416777) المستضاف بمشروع Supabase آخر (kesoqnwyydycuyifqfhl / lowes-production)
-// عبر edge function whatsapp-send الموجودة هناك فعلياً — لا Twilio secrets هون إطلاقاً،
-// فقط استدعاء HTTP بمفتاح anon العام (غير سرّي) لذاك المشروع.
+// عبر edge function whatsapp-send الموجودة هناك فعلياً.
 //
 // 1 أغسطس 2026 — أُنشئ أول مرة لربط تتبّع الشحن بإشعارات واتساب تلقائية.
 // 1 أغسطس 2026 (تحديث): واتساب بزنس يرفض أي نص حرّ لعميل لم يراسلنا خلال آخر 24
@@ -11,12 +10,15 @@
 // من Meta. حوّلنا الإرسال لاستخدام Content Templates (Twilio Content API، ContentSid +
 // ContentVariables) بدل النص الحر. القوالب مُقدَّمة لمراجعة Meta (٤٨ ساعة عادة) — بعد
 // الموافقة تشتغل تلقائياً بدون أي تغيير إضافي بالكود.
+//
+// 14 أيلول 2026 (R-13 fix): كان الاستدعاء بمفتاح anon فقط — تبيّن أن هذا كان ثغرة
+// حقيقية (anon ليس سرّاً، أي شخص كان يقدر يستدعي whatsapp-send مباشرة). صار الآن
+// يحمل LOWES_WHATSAPP_INTERNAL_API_KEY (سرّ حقيقي، مخزَّن فقط كمتغيّر بيئة Edge
+// Function على كلا المشروعين — لا يصل لأي متصفّح). راجع
+// lowes-classic/AI/Architecture/TrustBoundary-WhatsApp-CrossProject.md.
 
 const WA_PROJECT_URL = "https://kesoqnwyydycuyifqfhl.supabase.co/functions/v1/whatsapp-send";
-// مفتاح anon عام لمشروع lowes-production — مصمَّم ليكون عاماً (نفس القيمة الموجودة
-// أصلاً بكود app.js لتطبيق lowes-classic، SB_ANON)، وليس سراً.
-const WA_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtlc29xbnd5eWR5Y3V5aWZxZmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjQzMDMsImV4cCI6MjA5NDUwMDMwM30.7muMlaq4MhWdJicSqzupLBZqTvaLbhWjieQuaQvCvBg";
+const WA_INTERNAL_KEY = Deno.env.get("LOWES_WHATSAPP_INTERNAL_API_KEY") || "";
 
 // Content SID لكل قالب معتمَد (Twilio Content Template Builder، لغة عربية، فئة Utility).
 // {{1}} = اسم العميل، {{2}} = رقم الطلب، {{3}} = رقم الطلب مكرَّر (زر رابط
@@ -75,13 +77,13 @@ export async function notifyWhatsAppStatus(order: OrderForWhatsApp, newStatus: s
     const contentVariables: Record<string, string> = { "1": name, "2": orderNo, "3": orderNo };
     await fetch(WA_PROJECT_URL, {
       method: "POST",
-      headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Internal-Key": WA_INTERNAL_KEY },
       body: JSON.stringify({ phone, contentSid, contentVariables }),
     });
     if (newStatus === "delivered" && UNBOXING_VIDEO_READY) {
       await fetch(WA_PROJECT_URL, {
         method: "POST",
-        headers: { apikey: WA_ANON_KEY, Authorization: `Bearer ${WA_ANON_KEY}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Internal-Key": WA_INTERNAL_KEY },
         body: JSON.stringify({ phone, contentSid: UNBOXING_VIDEO_SID, contentVariables: { "1": name, "2": orderNo } }),
       });
     }

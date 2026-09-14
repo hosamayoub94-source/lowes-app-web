@@ -4,7 +4,7 @@
 > آخر تحديث: 24 آب 2026 · خاضع لـ`ABOS_CONSTITUTION.md` § المادة 13
 
 ## 0) اقرأ ABOS أولاً — إلزامي قبل أي عمل
-**مسار ABOS المطلق:** `C:\Users\LOQ\Desktop\LOWES — مركز القيادة\`
+**مسار ABOS المطلق:** `C:\Users\acer\Desktop\LOWES — مركز القيادة\`
 **ترتيب القراءة:** ABOS_PHILOSOPHY ← ABOS_CONSTITUTION ← ABOS_Architecture_Freeze_v2.0 ← الملفات 01–11 حسب الحاجة.
 **للبحث السريع:** ابدأ بـ`11_Knowledge_Index.md`. لا تعتمد على ذاكرتك ولا على أي ملف بهذا المجلد كمصدر حقائق (المادة 1).
 

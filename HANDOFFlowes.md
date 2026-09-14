@@ -3,6 +3,47 @@
 
 ---
 
+### 🗓️ جلسة 14 أيلول 2026 — 🔒 R-13/R-14: إغلاق ثغرة WhatsApp الحقيقية عبر مشروعَي Supabase معاً + تصحيح ذاتي (R-20)
+
+**السياق:** تدقيق أمني من `lowes-classic` (المدير التقني الدائم) وجد أن `whatsapp-send`/`whatsapp-upload-media`/`whatsapp-delete-conversation` على `kesoqnwyydycuyifqfhl` كانت قابلة للاستدعاء من أي شخص على الإنترنت بمفتاح `anon` العام (بلا أي تحقّق هوية داخلي). المستدعيان الحقيقيان الوحيدان لهذه الدوال هما هذا المشروع بالذات: `src/services/whatsappService.js` (متصفّح) و`supabase/functions/_shared/notifyWhatsAppStatus.ts` (سيرفر-لسيرفر، عبر `babel-webhook`/`track-babel`/`track-karam`/`track-ptt`/`track-yurtici`).
+
+**التصميم المعتمَد (حسام):** مفتاح `anon` ليس سرّاً — أي بديل ثابت بكود المتصفّح مكشوف بنفس الطريقة. الحلّ: سرّ حقيقي (`LOWES_WHATSAPP_INTERNAL_API_KEY`) يعيش فقط كمتغيّر بيئة Edge Function على المشروعين، زائد دوال وسيطة (proxy) جديدة على هذا المشروع تتحقّق من جلسة مستخدم حقيقي هنا (الشاشات أصلاً محمية بـ`ProtectedRoute.jsx`) قبل أن تُرحِّل الطلب سيرفرياً بالسرّ.
+
+**التنفيذ هنا:**
+| الملف | الدور |
+|---|---|
+| 🆕 `supabase/functions/whatsapp-send-proxy/index.ts` | يتحقّق من جلسة حقيقية ثم يُرحِّل لـ`kesoqnwyydycuyifqfhl/whatsapp-send` بترويسة `X-Internal-Key` |
+| 🆕 `supabase/functions/whatsapp-upload-media-proxy/index.ts` | نفس النمط لـ`whatsapp-upload-media` |
+| 🆕 `supabase/functions/whatsapp-delete-conversation-proxy/index.ts` | نفس النمط لـ`whatsapp-delete-conversation` — **أُضيفت بعد اكتشاف R-20 أدناه** |
+| ✏️ `supabase/functions/_shared/notifyWhatsAppStatus.ts` | استُبدل مفتاح anon بالسرّ الجديد — أُعيد نشر الدوال الخمس المستوردة له |
+| ✏️ `src/services/whatsappService.js` | **9 مواقع استدعاء** (6 لـwhatsapp-send/upload-media + 3 لـwhatsapp-delete-conversation) حُوِّلت من `fetch(...WA_HEADERS)` المباشر إلى `supabase.functions.invoke('...-proxy')` (يُرفق جلسة المستخدم الحقيقية تلقائياً) |
+
+**⚠️ R-20 — تصحيح ذاتي اكتُشف أثناء بناء خريطة المستدعين:** `whatsappService.js` كان فيه أصلاً 3 دوال مصدَّرة (`deleteWhatsAppConversation`/`deleteWhatsAppMessage`/`transferWhatsAppConversation`) موصولة بشاشة `AdminWhatsAppScreen.jsx` الحيّة، تستدعي `whatsapp-delete-conversation` بمفتاح anon. تلك الدالة أُصلحت بـ`lowes-classic` بجلسة سابقة (R-15) بتقرير خاطئ "صفر مستدعٍ شرعي" — البحث وقتها لم يشمل هذا الملف باسم الدالة تحديداً. **النتيجة الفعلية: أزرار حذف/نقل محادثة بالشاشة الإدارية كانت تفشل بـ401 لعدّة ساعات.** أُلحق الإصلاح بنفس التغيير (proxy ثالث + تحديث الاستدعاءات الثلاثة).
+
+**تحقّق حيّ:** `npm run lint`/`build` نظيفان → نُشر (`vercel --prod --archive=tgz`، الأليَس `lowes-app-web.vercel.app` تؤكّد) → مسبار anon-فقط على الدوال الثلاث بـ`kesoqnwyydycuyifqfhl` رجع `401` (كان ينفّذ فعلياً قبل الإصلاح). مسار السرّ الداخلي مُثبَت حيّاً (دورة توليد/استخدام/إلغاء آمنة، صفر طباعة للقيمة).
+
+**⚠️ فجوة تحقّق متبقّية:** جلسة مستخدم حقيقية end-to-end عبر الوسيطات الثلاث لم تُختبَر مباشرة (لا جلسة دخول متوفّرة لهذه الجلسة). يحتاج فتح شاشة واتساب بحساب حقيقي مرّة واحدة للتأكيد.
+
+**ABOS / lowes-classic:** `lowes-classic/AI/RISK_REGISTER.md § R-13/R-14/R-20` · `lowes-classic/AI/DECISIONS.md` (2026-09-14) · `lowes-classic/AI/Architecture/TrustBoundary-WhatsApp-CrossProject.md`.
+
+---
+### 🗓️ جلسة 12 أيلول 2026 (3) — ✋ إضافة يدوية لـ«ليدز سوريا B2B» من الفريق (Alice/ديانا)
+
+**الطلب (حسام):** بعد منح صلاحية `VIEW_SYRIA_LEADS` لـAlice وديانا — "هلق بدي نضيف امكانية نضيف نحنا داتا جديدة": تمكين الفريق من إدخال Lead يعرفونه شخصياً مباشرة من الشاشة، لا الاعتماد فقط على محرك البحث الأسبوعي الآلي.
+
+**التنفيذ:**
+| الملف | الدور |
+|---|---|
+| 🆕 `supabase/migrations/20260912020000_syria_leads_manual_entry.sql` | يوسّع `CHECK` على عمود `verified` بقيمة جديدة `manual_team_entry` (بلا حذف أي قيمة قائمة) + عمودان `added_by text` و`added_manually boolean DEFAULT false` + فهرس. طُبِّق حياً عبر `npx supabase db query --linked`. |
+| ✏️ `src/services/syriaLeadsService.js` | `createLead({name, category, province, ...}, addedByName)` جديدة: تتحقّق من الاسم/المحافظة، تحسب `priority`/`score` تلقائياً ومقفولة عند **B كحد أقصى** (معرفة الفريق الشخصية = مصدر واحد بالتعريف — نفس قاعدة "لا A بلا مصدرين" المطبَّقة بمحرك البحث الآلي)، `score = min(65, 40 + عدد وسائل التواصل×8 + وجود مسؤول×5)`. تُدرَج بـ`verified:'manual_team_entry'` و`added_manually:true`. |
+| ✏️ `src/screens/SyriaLeadsScreen.jsx` | زر «+ إضافة Lead» بالهيدر يفتح `AddLeadModal` (نموذج كامل: اسم*/فئة/محافظة*/مدينة/حي/عنوان/هاتف/واتساب/إنستغرام/فيسبوك/مسؤول/سبب/حالة أولية). بطاقة الـLead تعرض بادج «✋ أضافه {الاسم}» عندما `added_manually`. |
+
+**تحقّق حي كامل قبل أي commit:** `npm run lint`/`build` نظيفان → دُفع `17cf55b` → deployment جاهز (`dpl_HqeQYckDia3rPhzv2qqpw8JU6B3o`) → **اختبار حي فعلي بالمتصفح الحقيقي (حساب hosam ayoub):** فتحت النموذج، أدخلت Lead اختباري (طرطوس/صيدلية/هاتف/مسؤول)، الحفظ رفع العداد الإجمالي 66→67 و"يحتاج تأكيد" 27→28 (تصنيف B صحيح)، البحث أظهر البطاقة ببادج "hosam ayoub ✋ أضافه" وScore=53 (٤٠+٨+٥ — مطابق للمعادلة تماماً) والسبب والتاجات (Tartous/صيدلية) كلها صحيحة. **حُذف فوراً بعدها** (`DELETE ... WHERE name LIKE 'TEST-DELETE-ME%'` عبر `supabase db query`) — تأكدت أن العداد رجع 66/27 بالضبط، صفر أثر على الـ66 Lead الحقيقية.
+
+**ABOS:** `09_Decision_Register.md` § D-093 · `05_Project_Portfolio.md` § P03 (استمرار).
+
+---
+
 ### 🗓️ جلسة 12 أيلول 2026 (2) — 🚚 إكمال ربط بابل اكسبرس الرسمي (API مباشر + Webhook) — كان شغل حسام غير مكتمل
 
 **الحالة عند البدء:** حسام كان بدأ الربط بنفسه (`create-babel-shipment` و`babel-webhook` منشورتان فعلاً حياً بالـSupabase، وزر «أنشئ شحنة بابل اكسبرس» موصول بـ`OrdersScreen.jsx`) لكن **بلا commit** وبلا تأكيد إنه الحلقة كاملة تشتغل فعلياً من طرف لطرف.

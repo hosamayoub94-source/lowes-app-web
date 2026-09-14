@@ -143,15 +143,27 @@ export const SUGGESTED_TAGS = ['عميل جديد', 'متابعة', 'VIP', 'شك
 // line: "main" (+13204416777 — عملاء/تتبّع) أو "campaign" (+12768772635 —
 // حملات جماعية) — كلاهما مسجَّلان ONLINE فعلياً على Twilio منذ 5 أغسطس 2026.
 // media: { mediaUrl, mediaContentType } اختياري — رد صوتي/صورة (يحتاج uploadWhatsAppMedia أولاً)
-export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {
-  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
-    method: 'POST',
-    headers: WA_HEADERS,
-    body: JSON.stringify({ phone, body: body || undefined, byUser, line, ...(media || {}) }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر إرسال الرسالة');
+// R-13/R-14 fix (14 Sep 2026): تُنادى الآن عبر دالة وسيطة (proxy) على هذا المشروع نفسه
+// (fghdumrgimoeqsafdhhh) بدل استدعاء kesoqnwyydycuyifqfhl مباشرة بمفتاح anon —
+// راجع lowes-classic/AI/Architecture/TrustBoundary-WhatsApp-CrossProject.md. مفتاح anon
+// لم يكن سرّاً أصلاً؛ الوسيطة تتحقّق من جلسة مستخدم حقيقية على هذا المشروع (الشاشة
+// أصلاً محمية بـProtectedRoute)، ثم تُرحِّل الطلب سيرفرياً حاملةً سرّاً حقيقياً.
+// supabase.functions.invoke يُرفق تلقائياً Authorization بتوكن الجلسة الحقيقية الحالية.
+async function callWhatsAppSendProxy(payload) {
+  const { data, error } = await supabase.functions.invoke('whatsapp-send-proxy', { body: payload });
+  if (error) throw new Error(error.message || 'تعذّر إرسال الرسالة');
+  if (!data?.ok) throw new Error(data?.error || 'تعذّر إرسال الرسالة');
   return data;
+}
+async function callWhatsAppUploadMediaProxy(payload) {
+  const { data, error } = await supabase.functions.invoke('whatsapp-upload-media-proxy', { body: payload });
+  if (error) throw new Error(error.message || 'تعذّر رفع الملف');
+  if (!data?.ok) throw new Error(data?.error || 'تعذّر رفع الملف');
+  return data;
+}
+
+export async function sendWhatsAppReply(phone, body, byUser, line = 'main', media = null) {
+  return callWhatsAppSendProxy({ phone, body: body || undefined, byUser, line, ...(media || {}) });
 }
 
 // يرفع ملف صوت/صورة (Blob) لـbucket عام ويرجع رابطه — تمهيداً لإرساله عبر sendWhatsAppReply.
@@ -163,13 +175,7 @@ export async function uploadWhatsAppMedia(blob, ext) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
-  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-upload-media`, {
-    method: 'POST',
-    headers: WA_HEADERS,
-    body: JSON.stringify({ base64, contentType: blob.type, ext }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر رفع الملف');
+  const data = await callWhatsAppUploadMediaProxy({ base64, contentType: blob.type, ext });
   return { mediaUrl: data.url, mediaContentType: data.contentType };
 }
 
@@ -179,40 +185,29 @@ export async function uploadWhatsAppMedia(blob, ext) {
 // "could not find a Channel". يُعاد لما يُسجَّل رقم فعلي.
 // يحذف كل تاريخ محادثة رقم مُعيَّن من عرضنا المحلي فقط (سجلات Twilio نفسها
 // تبقى، هذا فقط "حذف محادثة" متل أي تطبيق شات عادي).
-export async function deleteWhatsAppConversation(phone, toNumber) {
-  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
-    method: 'POST',
-    headers: WA_HEADERS,
-    body: JSON.stringify({ action: 'deleteConversation', phone, toNumber }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر حذف المحادثة');
+// R-15 correction (14 Sep 2026): كانت هذه الثلاثة تُستدعى بمفتاح anon مباشرة — نفس
+// عائلة R-13/R-14، عبر دالة وسيطة تتحقّق من جلسة حقيقية على هذا المشروع ثم تُرحِّل
+// سيرفرياً بالسرّ الداخلي. راجع lowes-classic/AI/Architecture/TrustBoundary-WhatsApp-CrossProject.md.
+async function callWhatsAppDeleteConversationProxy(payload) {
+  const { data, error } = await supabase.functions.invoke('whatsapp-delete-conversation-proxy', { body: payload });
+  if (error) throw new Error(error.message || 'فشل العملية');
+  if (!data?.ok) throw new Error(data?.error || 'فشل العملية');
   return data;
+}
+
+export async function deleteWhatsAppConversation(phone, toNumber) {
+  return callWhatsAppDeleteConversationProxy({ action: 'deleteConversation', phone, toNumber });
 }
 
 // يحذف رسالة صادرة واحدة (رسالتنا نحن — لا يُحذَف رد العميل، هو ملكه).
 export async function deleteWhatsAppMessage(id) {
-  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
-    method: 'POST',
-    headers: WA_HEADERS,
-    body: JSON.stringify({ action: 'deleteMessage', id }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر حذف الرسالة');
-  return data;
+  return callWhatsAppDeleteConversationProxy({ action: 'deleteMessage', id });
 }
 
 // ينقل تاريخ محادثة كامل لرقم جديد (العميل غيّر رقمه واستمر عليه) — يبقى
 // بنفس الشاشة، بس تحت رقم مختلف من الآن فصاعداً.
 export async function transferWhatsAppConversation(fromPhone, toPhone, toNumber) {
-  const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-delete-conversation`, {
-    method: 'POST',
-    headers: WA_HEADERS,
-    body: JSON.stringify({ action: 'transferConversation', fromPhone, toPhone, toNumber }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'تعذّر نقل المحادثة');
-  return data;
+  return callWhatsAppDeleteConversationProxy({ action: 'transferConversation', fromPhone, toPhone, toNumber });
 }
 
 // ردود جاهزة (مؤتمتة يدوياً — سارة/رودي يضغطوا بدل ما يكتبوا من الصفر) —
@@ -594,16 +589,10 @@ export async function sendBulkCampaign(customers, contentSid, {
     }
     let result;
     try {
-      const res = await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
-        method: 'POST',
-        headers: WA_HEADERS,
-        body: JSON.stringify({
-          phone, contentSid, byUser: 'bulk-campaign', line: 'campaign',
-          contentVariables: { '1': c.name || 'عميلنا العزيز', ...(extraVars || {}) },
-        }),
+      const data = await callWhatsAppSendProxy({
+        phone, contentSid, byUser: 'bulk-campaign', line: 'campaign',
+        contentVariables: { '1': c.name || 'عميلنا العزيز', ...(extraVars || {}) },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || 'فشل الإرسال');
       result = { phone, ok: true, sid: data.sid };
       sent++;
     } catch (e) {
@@ -785,11 +774,7 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
     const orderNo = String(order?.order_id ?? order?.id ?? '');
     // {{3}} = رقم الطلب مكرَّر — يغذّي زر "تتبّع الشحنة" الديناميكي (كل القوالب v2 الآن).
     const contentVariables = { '1': name, '2': orderNo, '3': orderNo };
-    await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
-      method: 'POST',
-      headers: WA_HEADERS,
-      body: JSON.stringify({ phone, contentSid, contentVariables }),
-    });
+    await callWhatsAppSendProxy({ phone, contentSid, contentVariables });
   } catch {
     /* best-effort — لا نوقف تحديث الحالة الأصلي مهما حصل */
   }
@@ -812,13 +797,9 @@ async function sendUnboxingVideoRequest(order) {
     if (!phone) return;
     const name = order?.customer_name || 'عميلنا العزيز';
     const orderNo = String(order?.order_id ?? order?.id ?? '');
-    await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
-      method: 'POST',
-      headers: WA_HEADERS,
-      body: JSON.stringify({
-        phone, contentSid: UNBOXING_VIDEO_SID,
-        contentVariables: { '1': name, '2': orderNo },
-      }),
+    await callWhatsAppSendProxy({
+      phone, contentSid: UNBOXING_VIDEO_SID,
+      contentVariables: { '1': name, '2': orderNo },
     });
   } catch {
     /* best-effort */
@@ -848,13 +829,9 @@ export async function sendOrderReceivedMessage(order) {
     const orderNo = String(order?.order_id ?? order?.id ?? '');
     const itemsSummary = (order?.items || []).map(it => `${it.name} ×${it.qty}`).join('، ') || '—';
     const total = order?.amount ? `${Number(order.amount).toLocaleString()} ${order.currency || ''}`.trim() : '—';
-    await fetch(`${WA_PROJECT_URL}/functions/v1/whatsapp-send`, {
-      method: 'POST',
-      headers: WA_HEADERS,
-      body: JSON.stringify({
-        phone, contentSid: ORDER_RECEIVED_SID,
-        contentVariables: { '1': name, '2': orderNo, '3': itemsSummary, '4': total },
-      }),
+    await callWhatsAppSendProxy({
+      phone, contentSid: ORDER_RECEIVED_SID,
+      contentVariables: { '1': name, '2': orderNo, '3': itemsSummary, '4': total },
     });
   } catch {
     /* best-effort — ما يوقف حفظ الطلب مهما صار */
