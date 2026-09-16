@@ -5,6 +5,7 @@
 // =============================================================
 
 import { memo, useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from '@utils/classNames';
 import { Button } from '@components/ui/Button';
 import { EmptyState } from '@components/ui/EmptyState';
@@ -53,6 +54,11 @@ const TASK_TYPES = [
   { value: 'page_management',    label: '📱 إدارة صفحة' },
   { value: 'other',              label: '📌 أخرى' },
 ];
+
+// «مهامي» = مُسنَدة لي أو أُشرِكت بها (tag). assigned_to قد يكون كائناً أو نصّ id.
+const isMine = (t, userId) =>
+  (t.assigned_to?.id ?? t.assigned_to) === userId ||
+  (Array.isArray(t.tagged_ids) && t.tagged_ids.includes(userId));
 
 // القيم تطابق عمود team في جدول profiles بالـ DB
 const TEAM_OPTIONS = [
@@ -694,11 +700,11 @@ function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewCh
 
 function TasksPage() {
   const {
-    filteredTasks, loading, error, actionLoading, filters, stats,
+    tasks, filteredTasks, loading, error, actionLoading, filters, stats,
     selectedTask, employees, unseenCount, drawerOpen,
     loadTasks, openTask, closeDrawer, setFilter, toggleFilter,
     resetFilters, changeStatus, changeProgress, postComment, addTask, editTask, deleteTask, clearError,
-    uploadAttachment, removeAttachment,
+    uploadAttachment, removeAttachment, tagUser, untagUser,
   } = useTasks();
 
   const { can } = usePermissions();
@@ -720,6 +726,24 @@ function TasksPage() {
   const userRole = useAuthStore((s) => s.session?.role || s.session?.role_type || '');
   const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters]);
   const handleRefresh = useCallback(() => loadTasks(), [loadTasks]);
+
+  // ── Deep link from a notification: /tasks?task=<id>[&tab=comments] ──
+  // يفتح الدرج على المهمة المعنية مرة واحدة ثم يزيل البارامترات من الرابط.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkTask = searchParams.get('task');
+  const deepLinkTab  = searchParams.get('tab');
+  const [drawerInitialTab, setDrawerInitialTab] = useState('details');
+  useEffect(() => {
+    if (loading || !deepLinkTask) return;
+    if (tasks.some((t) => t.id === deepLinkTask)) {
+      setDrawerInitialTab(deepLinkTab === 'comments' ? 'comments' : 'details');
+      openTask(deepLinkTask);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('task'); next.delete('tab');
+    setSearchParams(next, { replace: true });
+  }, [loading, deepLinkTask]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!drawerOpen) setDrawerInitialTab('details'); }, [drawerOpen]);
 
   // Quick-create a project from the task modal (admin). Creator is auto-added
   // as a member so it shows up as their tab; tasks reload to pick it up.
@@ -770,7 +794,7 @@ function TasksPage() {
     let list;
     if (!activeTab || activeTab === 'all') list = filteredTasks;
     // assigned_to قد يكون كائناً {id} أو نصّ id مباشرة — نطابق الحالتين.
-    else if (activeTab === 'mine') list = filteredTasks.filter((t) => (t.assigned_to?.id ?? t.assigned_to) === userId);
+    else if (activeTab === 'mine') list = filteredTasks.filter((t) => isMine(t, userId));
     else if (activeTab === 'team') list = filteredTasks.filter((t) => t.team && t.team === viewerTeam);
     else if (activeTab.startsWith('project:')) {
       const pid = activeTab.slice('project:'.length);
@@ -783,7 +807,7 @@ function TasksPage() {
     let count;
     if (t.key === 'completed') count = filteredTasks.filter((x) => effectiveStatus(x) === 'completed').length;
     else if (t.key === 'all') count = filteredTasks.filter((x) => effectiveStatus(x) !== 'completed').length;
-    else if (t.key === 'mine') count = filteredTasks.filter((x) => (x.assigned_to?.id ?? x.assigned_to) === userId && effectiveStatus(x) !== 'completed').length;
+    else if (t.key === 'mine') count = filteredTasks.filter((x) => isMine(x, userId) && effectiveStatus(x) !== 'completed').length;
     else if (t.key === 'team') count = filteredTasks.filter((x) => x.team && x.team === viewerTeam && effectiveStatus(x) !== 'completed').length;
     else if (t.key.startsWith('project:')) {
       const pid = t.key.slice('project:'.length);
@@ -882,8 +906,11 @@ function TasksPage() {
         onRemoveAttachment={removeAttachment}
         onEditTask={editTask}
         onDeleteTask={deleteTask}
+        onTagUser={tagUser}
+        onUntagUser={untagUser}
         actionLoading={actionLoading}
         employees={employees}
+        initialTab={drawerInitialTab}
       />
     </div>
   );

@@ -96,6 +96,7 @@ export function mapTask(row) {
     team: row.team || null,
     project_id: row.project_id || null,
     is_sensitive: !!row.is_sensitive,
+    tagged_ids: Array.isArray(row.tagged_ids) ? row.tagged_ids : [],
     assigned_to: mapProfile(row.assignee) || (row.assignee_id ? { id: row.assignee_id } : null) || (row.assigned_to ? { id: row.assigned_to, name: row.assigned_to } : null),
     created_by: mapProfile(row.creator) || (row.created_by ? { id: row.created_by } : null),
     seen: Array.isArray(row.seen_by) ? row.seen_by.length > 0 : !!row.seen,
@@ -118,7 +119,7 @@ const WRITABLE = [
   'seen_by', 'attachments', 'tags',
   'platform', 'task_type', 'attachments_note', 'completion_note',
   'link', 'team',
-  'project_id', 'is_sensitive',
+  'project_id', 'is_sensitive', 'tagged_ids',
   'assignee_id',
 ];
 

@@ -28,6 +28,7 @@ export const ACTIVITY_TYPE = {
   PROGRESS_UPDATED: 'progress_updated',
   COMMENT:          'comment',
   ASSIGNED:         'assigned',
+  TAGGED:           'tagged',
 };
 
 // ── Status metadata — tone maps to Badge component tones ──────
@@ -56,6 +57,8 @@ export const ACTIVITY_META = {
   progress_updated: { label: 'تحديث التقدم',   icon: '▶',  colorClass: 'bg-amber-bg text-amber-fg' },
   comment:          { label: 'تعليق',           icon: '💬', colorClass: 'bg-purple-bg text-purple-fg'},
   assigned:         { label: 'تعيين',           icon: '👤', colorClass: 'bg-green-bg text-green-fg' },
+  tagged:           { label: 'إضافة مشارك',     icon: '🏷️', colorClass: 'bg-green-bg text-green-fg' },
+  untagged:         { label: 'إزالة مشارك',     icon: '🏷️', colorClass: 'bg-amber-bg text-amber-fg' },
 };
 
 // ── Progress tone thresholds ──────────────────────────────────

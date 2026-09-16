@@ -48,6 +48,8 @@ export function useTasks({ realtime = true } = {}) {
   const clearError       = useTaskStore((s) => s.clearError);
   const uploadAttachment = useTaskStore((s) => s.uploadAttachment);
   const removeAttachment = useTaskStore((s) => s.removeAttachment);
+  const tagUser          = useTaskStore((s) => s.tagUser);
+  const untagUser        = useTaskStore((s) => s.untagUser);
 
   // ── Initial load ──────────────────────────────────────────
   useEffect(() => {
@@ -128,6 +130,8 @@ export function useTasks({ realtime = true } = {}) {
     clearError,
     uploadAttachment: handleUploadAttachment,
     removeAttachment: handleRemoveAttachment,
+    tagUser,
+    untagUser,
   };
 }
 

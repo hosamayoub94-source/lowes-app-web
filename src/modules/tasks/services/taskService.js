@@ -33,7 +33,7 @@ const TASK_SELECT = `
   due_date, due_time, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, assignee_id, created_by,
   platform, task_type, attachments_note, completion_note, link, team,
-  project_id, is_sensitive,
+  project_id, is_sensitive, tagged_ids,
   assignee:profiles!tasks_assignee_id_fkey ( id, employee_name, avatar_url, role_type, team ),
   creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
@@ -115,6 +115,7 @@ export async function fetchTasks(params = {}) {
       `assignee_id.eq.${viewerId}`,
       `assigned_to.eq.${viewerId}`,
       `created_by.eq.${viewerId}`,
+      `tagged_ids.cs.{${viewerId}}`, // مشارك مُشار إليه (tag) على المهمة
     ];
     if (Array.isArray(projectIds) && projectIds.length) {
       clauses.push(`project_id.in.(${projectIds.join(',')})`);
@@ -317,6 +318,53 @@ export async function markTaskSeen(id, userId) {
     .eq('id', id);
   if (error) throw error;
   return true;
+}
+
+// -------------------------------------------------------------
+// Participants (tag) — إضافة/إزالة مشارك على المهمة بدون تغيير
+// المسؤول الأصلي أو إنشاء مهمة جديدة. Idempotent على المصفوفة.
+// -------------------------------------------------------------
+
+async function _setTagged(taskId, mutate, { actorId, action_type, action_label, metadata } = {}) {
+  if (USE_MOCK_DATA) {
+    _mockStore = _mockStore.map((t) =>
+      t.id === taskId ? { ...t, tagged_ids: mutate(Array.isArray(t.tagged_ids) ? t.tagged_ids : []) } : t,
+    );
+    return _mockStore.find((t) => t.id === taskId);
+  }
+  const { data: row, error: readErr } = await supabase
+    .from('tasks').select('tagged_ids').eq('id', taskId).single();
+  if (readErr) throw readErr;
+  const current = Array.isArray(row?.tagged_ids) ? row.tagged_ids : [];
+  const next = mutate(current);
+  if (next.length === current.length && next.every((id) => current.includes(id))) {
+    return null; // لا تغيير
+  }
+  const { data, error } = await supabase
+    .from('tasks').update({ tagged_ids: next }).eq('id', taskId).select(TASK_SELECT).single();
+  if (error) throw error;
+  logActivity({ task_id: taskId, user_id: actorId || null, action_type, action_label, metadata }).catch(() => {});
+  return mapTask(data);
+}
+
+/** Tag a profile as a participant on the task. Returns updated task, or null if already tagged. */
+export function tagUserOnTask(taskId, userId, { actorId, userName } = {}) {
+  if (!userId) return Promise.resolve(null);
+  return _setTagged(
+    taskId,
+    (cur) => (cur.includes(userId) ? cur : [...cur, userId]),
+    { actorId, action_type: 'tagged', action_label: `أُضيف مشارك: ${userName || ''}`.trim(), metadata: { user_id: userId } },
+  );
+}
+
+/** Remove a tagged participant. Returns updated task, or null if not tagged. */
+export function untagUserOnTask(taskId, userId, { actorId, userName } = {}) {
+  if (!userId) return Promise.resolve(null);
+  return _setTagged(
+    taskId,
+    (cur) => cur.filter((id) => id !== userId),
+    { actorId, action_type: 'untagged', action_label: `أُزيل مشارك: ${userName || ''}`.trim(), metadata: { user_id: userId } },
+  );
 }
 
 // -------------------------------------------------------------

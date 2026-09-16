@@ -19,6 +19,8 @@ import {
   removeTaskAttachment,
   deleteTask,
   listAssignableProfiles,
+  tagUserOnTask,
+  untagUserOnTask,
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
 import { resolvePermissions, PERMISSIONS } from '@data/permissions';
@@ -125,7 +127,16 @@ export const useTaskStore = create()(
       try {
         const viewer = await resolveViewer();
         const tasks = await fetchTasks(viewer);
-        set({ tasks });
+        // fetchTasks لا يحمل comments/activity (تُجلب بـfetchTask عند فتح الدرج).
+        // الاستبدال الكامل كان يمسح تعليقات المهمة المفتوحة عند أي حدث realtime
+        // (بما فيه تعليق المستخدم نفسه) — نعيد جلبها للمهمة المفتوحة فقط.
+        const { selectedTaskId, drawerOpen } = get();
+        if (drawerOpen && selectedTaskId && tasks.some((t) => t.id === selectedTaskId)) {
+          const full = await fetchTask(selectedTaskId).catch(() => null);
+          set({ tasks: tasks.map((t) => (t.id === selectedTaskId && full ? { ...t, ...full } : t)) });
+        } else {
+          set({ tasks });
+        }
       } catch {
         /* silent */
       }
@@ -203,28 +214,99 @@ export const useTaskStore = create()(
           actionLoading: false,
         }));
 
-        // Fire push notification to the task owner (if someone else commented)
+        // Notify everyone involved in the task except the commenter:
+        // منشئ المهمة (حتى يعرف أن هناك سؤالاً) + المسؤول عنها + المشاركون (tagged).
+        // assigned_to/created_by كائنات {id,...} من mapTask — نأخذ .id صراحةً.
         try {
           const task = get().tasks.find((t) => t.id === taskId);
-          const recipientId = task?.assigned_to ?? task?.created_by ?? null;
-          if (recipientId && recipientId !== userId) {
+          const recipientIds = [
+            ...new Set([
+              task?.created_by?.id ?? null,
+              task?.assigned_to?.id ?? null,
+              ...(Array.isArray(task?.tagged_ids) ? task.tagged_ids : []),
+            ]),
+          ].filter((id) => id && id !== userId);
+          if (recipientIds.length) {
             const { sendNotification } = await import('@modules/notifications/services/notificationService');
             const commenterName = comment?.author?.name ?? 'أحد الزملاء';
-            await sendNotification({
+            await Promise.allSettled(recipientIds.map((recipientId) => sendNotification({
               userId:     recipientId,
               type:       'task_commented', // يطابق NOTIFICATION_TYPE.TASK_COMMENTED — كان 'task_comment' فيفوت خريطة التوجيه/الأيقونة
-              title:      `💬 تعليق جديد على مهمتك`,
+              title:      `💬 تعليق جديد على مهمة`,
               message:    `علّق ${commenterName} على: ${task?.title ?? 'مهمة'}`,
               entityType: 'task',
               entityId:   taskId,
               skipDedup:  true,
-            });
+            })));
           }
         } catch { /* silent — notifications are best-effort */ }
 
         return comment;
       } catch (err) {
         set({ actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
+    /**
+     * Tag a participant on a task (المهمة الأصلية لا تتغيّر — يُضاف فقط
+     * لمصفوفة tagged_ids). يُشعر المُشار إليه بـtask_tagged.
+     */
+    tagUser: async (taskId, userId, { actorId, userName } = {}) => {
+      const prev = get().tasks;
+      set((s) => ({
+        tasks: s.tasks.map((t) =>
+          t.id === taskId && !(t.tagged_ids || []).includes(userId)
+            ? { ...t, tagged_ids: [...(t.tagged_ids || []), userId] }
+            : t,
+        ),
+        actionLoading: true,
+      }));
+      try {
+        const updated = await tagUserOnTask(taskId, userId, { actorId, userName });
+        set((s) => ({
+          tasks: updated ? s.tasks.map((t) => (t.id === taskId ? { ...t, ...updated, comments: t.comments, activity: t.activity } : t)) : s.tasks,
+          actionLoading: false,
+        }));
+        if (updated && userId !== actorId) {
+          const task = get().tasks.find((t) => t.id === taskId);
+          import('@modules/notifications/services/notificationService').then(({ sendNotification }) => {
+            sendNotification({
+              userId,
+              type:       'task_tagged',
+              title:      `🏷️ أُشرِكت بمهمة`,
+              message:    task?.title ?? 'تمت إضافتك كمشارك على مهمة',
+              entityType: 'task',
+              entityId:   taskId,
+              skipDedup:  false,
+            }).catch(() => {});
+          }).catch(() => {});
+        }
+        return updated;
+      } catch (err) {
+        set({ tasks: prev, actionLoading: false, error: err?.message });
+        throw err;
+      }
+    },
+
+    /** Remove a tagged participant (no notification). */
+    untagUser: async (taskId, userId, { actorId, userName } = {}) => {
+      const prev = get().tasks;
+      set((s) => ({
+        tasks: s.tasks.map((t) =>
+          t.id === taskId ? { ...t, tagged_ids: (t.tagged_ids || []).filter((id) => id !== userId) } : t,
+        ),
+        actionLoading: true,
+      }));
+      try {
+        const updated = await untagUserOnTask(taskId, userId, { actorId, userName });
+        set((s) => ({
+          tasks: updated ? s.tasks.map((t) => (t.id === taskId ? { ...t, ...updated, comments: t.comments, activity: t.activity } : t)) : s.tasks,
+          actionLoading: false,
+        }));
+        return updated;
+      } catch (err) {
+        set({ tasks: prev, actionLoading: false, error: err?.message });
         throw err;
       }
     },
@@ -277,7 +359,9 @@ export const useTaskStore = create()(
         set((s) => ({ tasks: [task, ...s.tasks], actionLoading: false }));
 
         // Notify the assigned employee (if different from creator)
-        const assignedTo = task.assigned_to ?? task.assignee_id ?? null;
+        // mapTask يرجّع assigned_to ككائن {id,...} لا كـUUID — كان يُمرَّر الكائن
+        // نفسه لـuser_id فيفشل الإدراج بصمت (صفر إشعارات إسناد بالإنتاج).
+        const assignedTo = task.assigned_to?.id ?? task.assignee_id ?? null;
         if (assignedTo && assignedTo !== actorId) {
           import('@modules/notifications/services/notificationService').then(({ sendNotification }) => {
             sendNotification({

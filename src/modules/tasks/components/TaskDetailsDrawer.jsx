@@ -133,7 +133,83 @@ function TabBar({ active, onChange, commentCount }) {
 }
 
 // ── Details tab ───────────────────────────────────────────────
-function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment, onRemoveAttachment, actionLoading }) {
+// ── Participants (tag) — مشاركون إضافيون على المهمة ──────────
+// لا يغيّر المسؤول الأصلي ولا ينشئ مهمة جديدة. يظهر زر الإضافة فقط لمن يحق
+// له: المسؤول عن المهمة، أو منشئها، أو من يملك ASSIGN_TASKS.
+function ParticipantsRow({ task, employees = [], canTag, onTag, onUntag, actionLoading }) {
+  const [picking, setPicking] = useState(false);
+  const [pick, setPick]       = useState('');
+  const tagged = Array.isArray(task.tagged_ids) ? task.tagged_ids : [];
+  const byId   = new Map(employees.map((e) => [e.id, e]));
+  const excluded = new Set([...tagged, task.assigned_to?.id, task.created_by?.id].filter(Boolean));
+  const options  = employees.filter((e) => e.id && !excluded.has(e.id));
+
+  const submit = async () => {
+    if (!pick) return;
+    const emp = byId.get(pick);
+    await onTag?.(pick, emp?.name || '');
+    setPick(''); setPicking(false);
+  };
+
+  if (!tagged.length && !canTag) return null;
+
+  return (
+    <InfoRow label="مشاركون">
+      <div className="flex flex-col items-end gap-2">
+        {tagged.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {tagged.map((id) => {
+              const emp = byId.get(id);
+              const name = emp?.name || 'مستخدم';
+              return (
+                <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-surface-alt border border-border ps-1 pe-2 py-0.5 text-xs text-text">
+                  <Avatar name={name} src={emp?.avatar} size="xs" />
+                  <span className="max-w-[120px] truncate">{name}</span>
+                  {canTag && (
+                    <button
+                      type="button"
+                      onClick={() => onUntag?.(id, name)}
+                      disabled={actionLoading}
+                      className="text-muted hover:text-red-fg leading-none"
+                      aria-label={`إزالة ${name}`}
+                    >×</button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {canTag && !picking && (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            disabled={actionLoading}
+            className="text-xs font-semibold text-teal hover:underline"
+          >
+            + إضافة مشارك
+          </button>
+        )}
+        {canTag && picking && (
+          <div className="flex items-center gap-1.5">
+            <select
+              value={pick}
+              onChange={(e) => setPick(e.target.value)}
+              className="rounded-lg border border-border bg-surface-alt px-2 py-1 text-xs text-text max-w-[180px]"
+              aria-label="اختر مشاركاً"
+            >
+              <option value="">— اختر موظفاً —</option>
+              {options.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <Button size="sm" variant="teal" onClick={submit} disabled={!pick || actionLoading} loading={actionLoading}>إضافة</Button>
+            <button type="button" onClick={() => { setPicking(false); setPick(''); }} className="text-xs text-muted">إلغاء</button>
+          </div>
+        )}
+      </div>
+    </InfoRow>
+  );
+}
+
+function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment, onRemoveAttachment, actionLoading, employees = [], canTag = false, onTag, onUntag }) {
   const effStatus = effectiveStatus(task);
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[task.priority] || null;
@@ -218,6 +294,14 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
             </div>
           </InfoRow>
         )}
+        <ParticipantsRow
+          task={task}
+          employees={employees}
+          canTag={canTag}
+          onTag={onTag}
+          onUntag={onUntag}
+          actionLoading={actionLoading}
+        />
         {task.created_by && (
           <InfoRow label="أنشأ بواسطة">
             <div className="flex items-center gap-2 justify-end">
@@ -428,8 +512,11 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   onRemoveAttachment,
   onEditTask,
   onDeleteTask,
+  onTagUser,
+  onUntagUser,
   actionLoading = false,
   employees = [],
+  initialTab = 'details', // 'comments' عند القدوم من إشعار تعليق
 }) {
   const [activeTab, setActiveTab] = useState('details');
   const [editMode, setEditMode]   = useState(false);
@@ -438,6 +525,10 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   const canEdit   = can(PERMISSIONS.EDIT_TASK);
   const canDelete = can(PERMISSIONS.DELETE_TASK);
   const userId    = useAuthStore((s) => s.session?.id);
+  // من يحق له إضافة مشارك: المسؤول عن المهمة، منشئها، أو من يملك ASSIGN_TASKS.
+  const canTag    = !!task && !!userId && (
+    task.assigned_to?.id === userId || task.created_by?.id === userId || can(PERMISSIONS.ASSIGN_TASKS)
+  );
 
   // Lock scroll
   useEffect(() => {
@@ -457,8 +548,8 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
 
   // Reset tab + edit mode on open
   useEffect(() => {
-    if (open) { setActiveTab('details'); setEditMode(false); setConfirmDelete(false); }
-  }, [open, task?.id]);
+    if (open) { setActiveTab(initialTab || 'details'); setEditMode(false); setConfirmDelete(false); }
+  }, [open, task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveEdit = useCallback(async (patch) => {
     if (!onEditTask) return;
@@ -481,6 +572,15 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   const handleProgressChange = useCallback(
     (progress) => onProgressChange?.(task.id, progress),
     [onProgressChange, task?.id],
+  );
+
+  const handleTag = useCallback(
+    (targetId, targetName) => onTagUser?.(task.id, targetId, { actorId: userId, userName: targetName }),
+    [onTagUser, task?.id, userId],
+  );
+  const handleUntag = useCallback(
+    (targetId, targetName) => onUntagUser?.(task.id, targetId, { actorId: userId, userName: targetName }),
+    [onUntagUser, task?.id, userId],
   );
 
   const handleAddComment = useCallback(
@@ -598,6 +698,10 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
                   onUploadAttachment={onUploadAttachment}
                   onRemoveAttachment={onRemoveAttachment}
                   actionLoading={actionLoading}
+                  employees={employees}
+                  canTag={canTag}
+                  onTag={handleTag}
+                  onUntag={handleUntag}
                 />
               )}
               {activeTab === 'comments' && (

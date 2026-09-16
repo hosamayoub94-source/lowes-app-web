@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPE = {
   TASK_COMPLETED:     'task_completed',
   TASK_COMMENTED:     'task_commented',
   TASK_STATUS_CHANGE: 'task_status_change',
+  TASK_TAGGED:        'task_tagged',
   // Attendance
   ATTENDANCE_ALERT:   'attendance_alert',
   ABSENCE_ALERT:      'absence_alert',
@@ -43,6 +44,7 @@ export const TYPE_META = {
   task_completed:      { icon: '✅', label: 'مهمة مكتملة',        colorClass: 'text-teal       bg-teal/10'   },
   task_commented:      { icon: '💬', label: 'تعليق جديد',         colorClass: 'text-blue-fg    bg-blue-bg'   },
   task_status_change:  { icon: '🔄', label: 'تغيير حالة مهمة',    colorClass: 'text-blue-fg    bg-blue-bg'   },
+  task_tagged:         { icon: '🏷️', label: 'أُشرِكت بمهمة',       colorClass: 'text-blue-fg    bg-blue-bg'   },
   attendance_alert:    { icon: '📅', label: 'تنبيه حضور',         colorClass: 'text-amber-fg   bg-amber-bg'  },
   absence_alert:       { icon: '🚫', label: 'غياب',               colorClass: 'text-red-fg     bg-red-bg'    },
   vacation_approved:   { icon: '🏖️', label: 'إجازة معتمدة',       colorClass: 'text-teal       bg-teal/10'   },
@@ -75,6 +77,7 @@ export const TYPE_SEVERITY = {
   task_completed:      'info',
   task_commented:      'info',
   task_status_change:  'info',
+  task_tagged:         'info',
   attendance_alert:    'warning',
   absence_alert:       'warning',
   vacation_approved:   'info',
@@ -112,6 +115,7 @@ export const TYPE_ROUTE = {
   task_completed:      '/tasks',
   task_commented:      '/tasks',
   task_status_change:  '/tasks',
+  task_tagged:         '/tasks',
   attendance_alert:    '/attendance',
   absence_alert:       '/attendance',
   vacation_approved:   '/requests',
@@ -135,6 +139,12 @@ export const TYPE_ROUTE = {
  */
 export function resolveNotifRoute(notification) {
   const base = TYPE_ROUTE[notification?.type] ?? '/';
+  // إشعارات المهام تفتح المهمة نفسها (TasksPage يقرأ ?task= ويفتح الدرج)،
+  // وتعليقات المهام تفتح مباشرة على تبويب التعليقات.
+  if (base === '/tasks' && notification?.entity_type === 'task' && notification?.entity_id) {
+    const tab = notification.type === 'task_commented' ? '&tab=comments' : '';
+    return `/tasks?task=${encodeURIComponent(notification.entity_id)}${tab}`;
+  }
   if (base === '/orders') {
     const market = notification?.metadata?.market;
     const marketPath = market === 'syria' ? '/orders/syria' : market === 'turkey' ? '/orders/turkey' : '/orders';
