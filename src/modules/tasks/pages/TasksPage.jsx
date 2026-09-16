@@ -81,6 +81,19 @@ const EMPTY_FORM = {
   project_id: '', is_sensitive: false,
 };
 
+// خانة الرابط عامة (Instagram/TikTok/Drive/واتساب/أي https). يرجع:
+// '' إن فارغ · الرابط المطبَّع إن صالح · false إن غير صالح.
+function normalizeLink(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`;
+  try {
+    const u = new URL(withScheme);
+    if (!/^https?:$/.test(u.protocol) || !u.hostname.includes('.')) return false;
+    return withScheme;
+  } catch { return false; }
+}
+
 const INPUT_CLS = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 
 function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects = [], canMarkSensitive = false, onCreateProject }) {
@@ -136,7 +149,13 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    onSubmit(form, pendingFiles);
+    // الرابط: خانة عامة لأي URL — نضيف https:// إن كان ناقصاً ونرفض النص غير الصالح
+    const link = normalizeLink(form.link);
+    if (link === false) {
+      window.alert('الرابط غير صحيح — أدخل رابطاً كاملاً مثل https://instagram.com/...');
+      return;
+    }
+    onSubmit({ ...form, link }, pendingFiles);
   };
 
   const handleClose = () => {
@@ -329,10 +348,11 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
                 </svg>
               </span>
               <input
-                type="url"
+                type="text"
+                inputMode="url"
                 value={form.link}
                 onChange={(e) => set('link', e.target.value)}
-                placeholder="https://drive.google.com/..."
+                placeholder="https://... (Instagram، TikTok، Drive، واتساب، أي رابط)"
                 className={cn(INPUT_CLS, 'pe-9')}
               />
             </div>
