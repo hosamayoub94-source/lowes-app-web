@@ -310,6 +310,19 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
             </div>
           </InfoRow>
         )}
+        {task.link && (
+          <InfoRow label="الرابط">
+            <a
+              href={task.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-teal hover:underline break-all"
+              dir="ltr"
+            >
+              🔗 {task.link.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)}{task.link.replace(/^https?:\/\/(www\.)?/, '').length > 60 ? '…' : ''}
+            </a>
+          </InfoRow>
+        )}
         {task.due_date && (
           <InfoRow label="تاريخ الاستحقاق">
             <div className="text-end">

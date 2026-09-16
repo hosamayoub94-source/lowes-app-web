@@ -67,7 +67,7 @@ export const TaskCard = memo(function TaskCard({
 
   if (!task) return null;
 
-  const { title, description, priority, progress, due_date, created_at, assigned_to, comments_count, seen, tags, platform, task_type } = task;
+  const { title, description, priority, progress, due_date, created_at, assigned_to, comments_count, seen, tags, platform, task_type, link } = task;
   const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[priority] || null;
   const platformMeta = platform ? PLATFORM_META[platform] : null;
@@ -168,6 +168,18 @@ export const TaskCard = memo(function TaskCard({
 
             {/* Right meta: comments + countdown */}
             <div className="flex items-center gap-3 shrink-0">
+              {link && (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 px-2 py-0.5 rounded-full hover:underline whitespace-nowrap"
+                  aria-label="فتح الرابط"
+                >
+                  🔗 رابط
+                </a>
+              )}
               <CommentsBadge count={comments_count} />
               {due_date && (
                 <span className={cn('text-xs font-medium whitespace-nowrap', countdownColor)}>
