@@ -5,9 +5,7 @@
 -- 1) report_ad_results.image_urls — صور يرفعها الموظف لإعلان وصلت منه رسائل.
 -- 2) cron كل 5 دقائق يستدعي edge function shift-report-reminder:
 --    −30 دقيقة قبل نهاية الوردية → تذكير · +30 بعدها بلا تقرير → تنبيه.
---    ⚠️ استبدل <VITE_SUPABASE_ANON_KEY> بالمفتاح العام من .env.local قبل التشغيل.
---    (نفس نمط migration_v12_lozy_kpi_coach_cron — anon key كافٍ لأن الدالة
---     منشورة --no-verify-jwt وتستخدم service_role داخلياً.)
+--    بلا Authorization header: الدالة منشورة --no-verify-jwt (مطبَّق حيّاً 16 أيلول 2026)
 -- =============================================================
 
 ALTER TABLE public.report_ad_results
@@ -26,7 +24,6 @@ select cron.schedule(
   select net.http_post(
     url     := 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/shift-report-reminder',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer <VITE_SUPABASE_ANON_KEY>',
       'Content-Type',  'application/json'
     ),
     body := '{}'::jsonb
