@@ -160,12 +160,26 @@ export async function replaceAdResults(reportId, rows) {
       currency:      r.currency || 'TRY',
       star_rating:   r.star_rating || null,
       notes:         r.notes || null,
+      // صور الإعلان ضمن التقرير (report_ad_results.image_urls text[]) — فقط مع رسائل > 0
+      image_urls:    (Number(r.messages) > 0 && Array.isArray(r.image_urls)) ? r.image_urls.filter(Boolean) : [],
     }));
   if (clean.length) {
     const { error } = await supabase.from('report_ad_results').insert(clean);
     if (error) throw error;
   }
   return clean.length;
+}
+
+// رفع صورة إعلان ضمن تقرير الموظف — نفس bucket العام chat-files المستخدم
+// لصور الإعلانات (CampaignsScreen.uploadAdImage)، تحت مسار report-evidence/.
+export async function uploadReportAdImage(file, employeeName, date, adId) {
+  const safeName = (file.name || 'img').replace(/[^\w.-]/g, '_').slice(-40);
+  const safeEmp  = String(employeeName || 'emp').replace(/[^\w؀-ۿ-]/g, '_').slice(0, 40);
+  const path = `report-evidence/${date}/${safeEmp}/${adId}/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from('chat-files')
+    .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  if (error) throw error;
+  return supabase.storage.from('chat-files').getPublicUrl(path).data.publicUrl;
 }
 
 // =============================================================

@@ -8,8 +8,13 @@ import { useAuth } from '@hooks/useAuth';
 import { Hero, Card, CardTitle, Button, EmptyState, StatCard } from '@components/ui';
 import {
   getMyCampaignsAndAds, getDayReport, upsertDailyReport, replaceAdResults, todayISO,
-  getMyOrdersDaySummary,
+  getMyOrdersDaySummary, uploadReportAdImage,
 } from '@services/campaignAnalyticsService';
+// التاريخ الافتراضي = يوم الوردية لا اليوم التقويمي: موظف وردية 18:00→01:00
+// يسجّل تقريره 00:40 كان يُحفظ على تاريخ اليوم الجديد فيظهر «لم يسجّل».
+import { shiftDateISO } from '@utils/date';
+
+const MAX_AD_IMAGES = 4;
 
 const CURS = ['TRY', 'SYP', 'USD'];
 const CUR_SYM = { TRY: '₺', SYP: 'ل.س', USD: '$' };
@@ -37,7 +42,7 @@ export default function DailyReportScreen() {
   const { name: userName, team } = useAuth();
   const defCur = team && /سوريا|syria/i.test(team) ? 'SYP' : 'TRY';
 
-  const [date, setDate]       = useState(todayISO());
+  const [date, setDate]       = useState(shiftDateISO());
   const [campaigns, setCampaigns] = useState([]);
   const [ads, setAds]         = useState([]);
   const [rows, setRows]       = useState({});   // ad_id → { messages, confirmations, amount, currency, star_rating, notes }
@@ -45,6 +50,25 @@ export default function DailyReportScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [msg, setMsg]         = useState(null);
+  const [uploadingAd, setUploadingAd] = useState(null); // ad_id قيد رفع صورة
+
+  // صور الإعلان ضمن التقرير — مسموحة فقط لإعلان وصلت منه رسائل (messages > 0)
+  // ومن حملة مسنَدة للموظف (قائمة ads أصلاً محصورة بحملاته).
+  const addAdImage = async (adId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setMsg({ type: 'err', text: 'الملف يجب أن يكون صورة' }); return; }
+    if (!ads.some(a => a.id === adId)) return;
+    const cur = rows[adId]?.image_urls || [];
+    if (cur.length >= MAX_AD_IMAGES) { setMsg({ type: 'err', text: `الحد الأقصى ${MAX_AD_IMAGES} صور لكل إعلان` }); return; }
+    setUploadingAd(adId); setMsg(null);
+    try {
+      const url = await uploadReportAdImage(file, userName, date, adId);
+      setRows(p => ({ ...p, [adId]: { ...(p[adId] || {}), image_urls: [...(p[adId]?.image_urls || []), url] } }));
+    } catch (e) { setMsg({ type: 'err', text: 'تعذّر رفع الصورة: ' + (e.message || e) }); }
+    finally { setUploadingAd(null); }
+  };
+  const removeAdImage = (adId, url) =>
+    setRows(p => ({ ...p, [adId]: { ...(p[adId] || {}), image_urls: (p[adId]?.image_urls || []).filter(u => u !== url) } }));
 
   // ملخّص طلبات اليوم الفعلية (تلقائي من جدول orders) — قراءة فقط، للمقارنة.
   const [ordSum, setOrdSum]   = useState({ count: 0, sales: { TRY: 0, SYP: 0, USD: 0 }, items: [], delivered: 0 });
@@ -80,6 +104,7 @@ export default function DailyReportScreen() {
           messages: res.messages || '', confirmations: res.confirmations || '',
           amount: pickAmount(res.amount_try, res.amount_syp, res.amount_usd),
           currency: res.currency || defCur, star_rating: res.star_rating || 0, notes: res.notes || '',
+          image_urls: Array.isArray(res.image_urls) ? res.image_urls : [],
         };
       }
       setRows(r);
@@ -143,6 +168,8 @@ export default function DailyReportScreen() {
           messages: Number(r.messages) || 0, confirmations: Number(r.confirmations) || 0,
           amount_try: r.currency === 'TRY' ? amt : 0, amount_syp: r.currency === 'SYP' ? amt : 0, amount_usd: r.currency === 'USD' ? amt : 0,
           currency: r.currency, star_rating: r.star_rating || null, notes: (r.notes || '').trim() || null,
+          // الصور تُحفظ فقط مع رسائل > 0 — بلا رسائل لا صور (قاعدة حسام)
+          image_urls: (Number(r.messages) || 0) > 0 ? (r.image_urls || []).slice(0, MAX_AD_IMAGES) : [],
         };
       }).filter(Boolean);
       await replaceAdResults(reportId, adRows);
@@ -243,6 +270,26 @@ export default function DailyReportScreen() {
                       </label>
                     </div>
                     <input value={r.notes ?? ''} onChange={e => setRow(a.id, { notes: e.target.value })} className={inputCls} placeholder="📝 ملاحظة عن الإعلان (اختياري)…" />
+                    {/* صور الإعلان — تظهر فقط عندما وصلت رسائل من هذا الإعلان */}
+                    {(Number(r.messages) || 0) > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(r.image_urls || []).map(u => (
+                          <div key={u} className="relative w-14 h-14 rounded-lg overflow-hidden border border-border">
+                            <img src={u} alt="" className="w-full h-full object-cover" />
+                            <button type="button" onClick={() => removeAdImage(a.id, u)} title="إزالة"
+                              className="absolute top-0 left-0 w-5 h-5 bg-black/60 text-white text-[10px] leading-none rounded-br-lg">✕</button>
+                          </div>
+                        ))}
+                        {(r.image_urls || []).length < MAX_AD_IMAGES && (
+                          <label className={'w-14 h-14 rounded-lg border-2 border-dashed border-teal/40 text-teal text-[10px] flex flex-col items-center justify-center cursor-pointer hover:bg-teal/5 ' + (uploadingAd === a.id ? 'opacity-60 pointer-events-none' : '')}>
+                            <span className="text-base leading-none">{uploadingAd === a.id ? '⏳' : '📷'}</span>
+                            <span>صورة</span>
+                            <input type="file" accept="image/*" className="hidden" disabled={uploadingAd === a.id}
+                              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; addAdImage(a.id, f); }} />
+                          </label>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

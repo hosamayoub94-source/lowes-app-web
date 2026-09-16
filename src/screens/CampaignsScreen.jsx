@@ -25,7 +25,12 @@ import { PERMISSIONS }             from '@data/permissions';
 import { supabase }                from '@services/supabase';
 
 // ── helpers ────────────────────────────────────────────────────
-function todayISO() { return new Date().toISOString().slice(0, 10); }
+// محلي لا UTC — toISOString كان يُرجع «أمس» بين 00:00 و03:00 بتوقيت الفريق
+// فيختلّ عدّاد «الالتزام اليوم» مقارنةً بـreport_date المحلي.
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' });

@@ -15,7 +15,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth }   from '@hooks/useAuth';
 import { supabase }  from '@services/supabase';
-import { todaySlash } from '@utils/date';
+// يوم الوردية لا اليوم التقويمي: وردية 18:00→01:00 المفتوحة بعد منتصف
+// الليل كانت تظهر «لم يسجّل» لأن الاستعلام كان على تاريخ اليوم الجديد.
+import { shiftDateSlash } from '@utils/date';
 
 export function useMyAttendanceToday() {
   const { name: employeeName } = useAuth();
@@ -42,7 +44,7 @@ export function useMyAttendanceToday() {
           .from('attendance')
           .select('type, time_in')
           .eq('employee_name', employeeName)
-          .eq('date', todaySlash())
+          .eq('date', shiftDateSlash())
           .in('type', ['in', 'out']);
 
         if (cancelled) return;

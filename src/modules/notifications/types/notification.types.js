@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPE = {
   TASK_TAGGED:        'task_tagged',
   // Attendance
   ATTENDANCE_ALERT:   'attendance_alert',
+  REPORT_REMINDER:    'report_reminder', // تذكير تقرير الحملات (قبل/بعد نهاية الوردية)
   ABSENCE_ALERT:      'absence_alert',
   VACATION_APPROVED:  'vacation_approved',
   REQUEST_SUBMITTED:  'request_submitted',
@@ -46,6 +47,7 @@ export const TYPE_META = {
   task_status_change:  { icon: '🔄', label: 'تغيير حالة مهمة',    colorClass: 'text-blue-fg    bg-blue-bg'   },
   task_tagged:         { icon: '🏷️', label: 'أُشرِكت بمهمة',       colorClass: 'text-blue-fg    bg-blue-bg'   },
   attendance_alert:    { icon: '📅', label: 'تنبيه حضور',         colorClass: 'text-amber-fg   bg-amber-bg'  },
+  report_reminder:     { icon: '🧾', label: 'تذكير التقرير',       colorClass: 'text-amber-fg   bg-amber-bg'  },
   absence_alert:       { icon: '🚫', label: 'غياب',               colorClass: 'text-red-fg     bg-red-bg'    },
   vacation_approved:   { icon: '🏖️', label: 'إجازة معتمدة',       colorClass: 'text-teal       bg-teal/10'   },
   request_submitted:   { icon: '📝', label: 'طلب جديد',           colorClass: 'text-amber-fg   bg-amber-bg'  },
@@ -79,6 +81,7 @@ export const TYPE_SEVERITY = {
   task_status_change:  'info',
   task_tagged:         'info',
   attendance_alert:    'warning',
+  report_reminder:     'warning',
   absence_alert:       'warning',
   vacation_approved:   'info',
   request_submitted:   'warning',
@@ -117,6 +120,7 @@ export const TYPE_ROUTE = {
   task_status_change:  '/tasks',
   task_tagged:         '/tasks',
   attendance_alert:    '/attendance',
+  report_reminder:     '/daily-report',
   absence_alert:       '/attendance',
   vacation_approved:   '/requests',
   request_submitted:   '/requests',

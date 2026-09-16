@@ -57,3 +57,28 @@ export function diffDays(a, b) {
   const ms = (new Date(b)).getTime() - (new Date(a)).getTime();
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
+
+// ── يوم الوردية (لا اليوم التقويمي) ─────────────────────────
+// نفس قاعدة تسجيل الحضور (AttendanceScreen.doCheckIn): يوم العمل يبدأ
+// 06:00 صباحاً — أي وقت قبلها هو تتمة وردية الليلة الماضية، فالوردية
+// 18:00→01:00 لا تنتهي عند 00:00. تُستخدم للويدجت والتقرير اليومي.
+export const SHIFT_DAY_START_HOUR = 6;
+
+/** تاريخ يوم الوردية الحالي كـDate (منتصف ليل ذلك اليوم). */
+export function shiftDate(now = new Date()) {
+  const d = new Date(now);
+  if (d.getHours() < SHIFT_DAY_START_HOUR) d.setDate(d.getDate() - 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** يوم الوردية بصيغة YYYY-MM-DD (daily_reports.report_date). */
+export function shiftDateISO(now = new Date()) {
+  const d = shiftDate(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** يوم الوردية بصيغة YYYY/MM/DD (attendance.date). */
+export function shiftDateSlash(now = new Date()) {
+  return shiftDateISO(now).replace(/-/g, '/');
+}
