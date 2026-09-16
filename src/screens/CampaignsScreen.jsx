@@ -682,7 +682,7 @@ export default function CampaignsScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayISO(); // محلي — نفس report_date
       // مصدر الأرقام = report_ad_results (النظام الفعلي) + daily_reports اليوم
       // للالتزام. (ad_daily_logs مهجور — التسجيل انتقل لشاشة «تقريري اليومي».)
       const [cmpRes, adsRes, rarRes, empRes, drRes] = await Promise.allSettled([
