@@ -5,7 +5,8 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Hero, Card, CardTitle, EmptyState, StatCard } from '@components/ui';
-import { loadCampaignAnalytics, todayISO, daysAgoISO, monthStartISO } from '@services/campaignAnalyticsService';
+import { loadCampaignAnalytics, todayISO, daysAgoISO, monthStartISO, SOURCE_KIND_BY_KEY, addSourcePlatform } from '@services/campaignAnalyticsService';
+import { useAuth } from '@hooks/useAuth';
 import { DailyTrendChart, HBarChart, SourceSplitDonut } from './mediaBuyer/charts';
 
 const CUR_SYM = { try: '₺', syp: 'ل.س', usd: '$' };
@@ -16,6 +17,16 @@ const fmtSales = (s) => ['usd', 'try', 'syp'].filter(c => s?.[c] > 0).map(c => `
 // واحد (from=to بنفس التاريخ) لكن بلا اختصار جاهز بضغطة وحدة.
 const PERIODS = [['today', 'اليوم'], ['yesterday', 'أمس'], ['7d', '7 أيام'], ['month', 'هذا الشهر'], ['custom', 'مخصّص']];
 const SRC_COLORS = { ad: '#0d7377', old: '#d97706', other: '#64748b' };
+// ترتيب/تسمية أنواع مصدر التثبيت التفصيلي (D-085)
+const DETAIL_KINDS = [
+  { key: 'active_ad', label: 'إعلانات نشطة', icon: '📣' },
+  { key: 'old_ad',    label: 'إعلانات قديمة (متوقفة)', icon: '🕰️' },
+  { key: 'page',      label: 'صفحاتنا (بدون إعلان)', icon: '📱' },
+  { key: 'story',     label: 'ستوري', icon: '📖' },
+  { key: 'referral',  label: 'توصية زبون', icon: '🤝' },
+  { key: 'old_customer', label: 'زبون قديم (إعادة شراء)', icon: '👤' },
+  { key: 'other',     label: 'مصدر آخر', icon: '🌐' },
+];
 
 export default function MediaBuyerBoardScreen() {
   const [period, setPeriod] = useState('month');
@@ -25,6 +36,15 @@ export default function MediaBuyerBoardScreen() {
   const [campaignId, setCampaignId] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // إضافة منصة جديدة لقائمة «صفحاتنا» (قابلة للتوسعة — D-085)
+  const { name: userName } = useAuth();
+  const [newPlatform, setNewPlatform] = useState('');
+  const [platMsg, setPlatMsg] = useState(null);
+  const addPlatform = async () => {
+    if (!newPlatform.trim()) return;
+    try { await addSourcePlatform(newPlatform, userName); setPlatMsg('✅ أُضيفت «' + newPlatform.trim() + '» — تظهر للموظفين فوراً'); setNewPlatform(''); }
+    catch (e) { setPlatMsg('تعذّر: ' + (e.message || e)); }
+  };
 
   const range = useMemo(() => {
     if (period === 'today')     return { from: todayISO(), to: todayISO() };
@@ -199,6 +219,89 @@ export default function MediaBuyerBoardScreen() {
                   const done = data.compliance.reportedToday.includes(n);
                   return <span key={n} className={'px-2 py-1 rounded-lg text-[11px] font-semibold ' + (done ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg')}>{done ? '✅' : '⏳'} {n}</span>;
                 })}
+            </div>
+          </Card>
+
+          {/* مصدر التثبيت بالتفصيل (D-085) — من report_source_results */}
+          <Card padding="md">
+            <CardTitle className="text-sm mb-2">🔎 مصدر التثبيتات بالتفصيل
+              <span className="text-[10px] font-normal text-muted"> · من أين جاء كل تثبيت (من التقرير اليومي)</span>
+            </CardTitle>
+            {!data.sourceDetail?.hasData && (data.sourceDetail?.byKind || []).every(k => !k.count) ? (
+              <p className="py-3 text-xs text-muted text-center">لا تفاصيل مصادر في هذه الفترة بعد — تظهر بعد أن يسجّل الموظفون تقاريرهم بالنموذج الجديد.</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {DETAIL_KINDS.map(k => {
+                    const v = (data.sourceDetail?.byKind || []).find(x => x.kind === k.key);
+                    if (!v || (!v.count && !(v.sales.usd + v.sales.try + v.sales.syp))) return null;
+                    return (
+                      <div key={k.key} className="rounded-xl border border-border p-2.5">
+                        <p className="text-[11px] text-muted">{k.icon} {k.label}</p>
+                        <p className="text-base font-extrabold text-text tabular-nums">{fmt(v.count)} <span className="text-[10px] font-normal text-muted">تثبيت</span></p>
+                        <p className="text-[11px] text-teal font-bold">{fmtSales(v.sales)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(data.sourceDetail?.oldAds || []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-text mb-1">🕰️ إعلانات قديمة (متوقفة) لسا تبيع</p>
+                    <div className="divide-y divide-border/50">
+                      {data.sourceDetail.oldAds.map(a => (
+                        <div key={a.id} className="py-2 flex items-center gap-2 text-xs">
+                          {a.image && <img src={a.image} alt="" className="w-9 h-9 rounded object-cover shrink-0" />}
+                          <span className="text-text font-semibold truncate flex-1">{a.ad_name}<span className="text-muted font-normal"> · {a.campaign_name}</span></span>
+                          <span className="text-muted shrink-0">✅{fmt(a.count)}</span>
+                          <span className="text-teal font-bold shrink-0">{fmtSales(a.sales)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(data.sourceDetail?.pages || []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-text mb-1">📱 صفحاتنا حسب المنصة</p>
+                    <div className="divide-y divide-border/50">
+                      {data.sourceDetail.pages.map(pg => (
+                        <div key={pg.id} className="py-1.5 flex items-center gap-2 text-xs">
+                          <span className="text-text font-semibold flex-1">{pg.label}</span>
+                          <span className="text-muted shrink-0">✅{fmt(pg.count)}</span>
+                          <span className="text-teal font-bold shrink-0">{fmtSales(pg.sales)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(data.sourceDetail?.byEmployee || []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-text mb-1">👥 لكل موظف — من خارج الإعلانات النشطة</p>
+                    <div className="divide-y divide-border/50">
+                      {data.sourceDetail.byEmployee.map(e => (
+                        <div key={e.name} className="py-1.5 text-xs">
+                          <span className="font-semibold text-text">{e.name}</span>
+                          <span className="text-muted"> · </span>
+                          {Object.entries(e.byKind).map(([k, v]) => (
+                            <span key={k} className="inline-block me-2 text-muted">{SOURCE_KIND_BY_KEY[k]?.icon || '•'} {SOURCE_KIND_BY_KEY[k]?.label || k}: <b className="text-text">{fmt(v.count)}</b></span>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-muted">➕ منصة جديدة لقائمة «صفحاتنا»:</span>
+              <input value={newPlatform} onChange={e => setNewPlatform(e.target.value)} placeholder="مثال: YouTube، Snapchat…"
+                className="border border-border rounded-xl px-2 py-1.5 text-xs bg-surface text-text w-44" />
+              <button type="button" onClick={addPlatform} disabled={!newPlatform.trim()}
+                className="text-xs px-3 py-1.5 rounded-xl bg-teal/10 text-teal font-bold disabled:opacity-40">إضافة</button>
+              {platMsg && <span className="text-[11px] text-muted">{platMsg}</span>}
             </div>
           </Card>
 

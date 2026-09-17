@@ -70,11 +70,98 @@ export async function getDayReport(userName, date) {
     .order('created_at', { ascending: false });
   const report = (reps ?? [])[0] || null;
   let results = [];
+  let sources = [];
   if (report) {
-    const { data } = await supabase.from('report_ad_results').select('*').eq('report_id', report.id);
+    const [{ data }, srcRes] = await Promise.all([
+      supabase.from('report_ad_results').select('*').eq('report_id', report.id),
+      // أسطر مصادر التثبيت التفصيلية (D-085) — الجدول قد لا يكون مطبَّقاً بعد → []
+      supabase.from('report_source_results').select('*').eq('report_id', report.id).then(r => r, () => ({ data: [] })),
+    ]);
     results = data ?? [];
+    sources = srcRes?.data ?? [];
   }
-  return { report, results };
+  return { report, results, sources };
+}
+
+// ── مصدر التثبيت التفصيلي (D-085) ────────────────────────────
+// أنواع المصادر خارج الإعلانات النشطة — ثابتة بالكود. المنصات (page) قابلة
+// للتوسعة من جدول report_source_platforms.
+export const SOURCE_KINDS = [
+  { key: 'old_ad',       label: 'إعلان قديم (متوقف)',      icon: '🕰️' },
+  { key: 'page',         label: 'صفحاتنا (بدون إعلان)',    icon: '📱' },
+  { key: 'story',        label: 'ستوري',                   icon: '📖' },
+  { key: 'referral',     label: 'توصية زبون',              icon: '🤝' },
+  { key: 'old_customer', label: 'زبون قديم (إعادة شراء)',  icon: '👤' },
+  { key: 'other',        label: 'مصدر آخر',                icon: '🌐' },
+];
+export const SOURCE_KIND_BY_KEY = Object.fromEntries(SOURCE_KINDS.map(k => [k.key, k]));
+
+/** المنصات الفعّالة (Instagram/Facebook/TikTok + أي منصة تُضاف لاحقاً). */
+export async function getSourcePlatforms() {
+  try {
+    const { data, error } = await supabase.from('report_source_platforms')
+      .select('key, label, icon, sort_order').eq('is_active', true).order('sort_order');
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
+
+/** إضافة منصة جديدة (من لوحة الميديا باير). المفتاح يُشتق من الاسم. */
+export async function addSourcePlatform(label, createdBy = null) {
+  const clean = String(label || '').trim();
+  if (!clean) throw new Error('اسم المنصة فارغ');
+  const key = clean.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '_').replace(/^_+|_+$/g, '') || `p_${Date.now().toString(36)}`;
+  const { error } = await supabase.from('report_source_platforms')
+    .insert({ key, label: clean, icon: '📱', sort_order: 100, created_by: createdBy });
+  if (error) throw error;
+  return key;
+}
+
+/** الحملات المتوقفة وإعلاناتها — لاختيار «إعلان قديم» كمصدر تثبيت. */
+export async function getInactiveCampaignsAndAds() {
+  const { data: camps } = await supabase
+    .from('campaigns')
+    .select('id, name, team, members, is_active, created_at')
+    .eq('is_active', false)
+    .order('created_at', { ascending: false });
+  const list = camps ?? [];
+  const ids = list.map(c => c.id);
+  let ads = [];
+  if (ids.length) {
+    const { data } = await supabase
+      .from('campaign_ads')
+      .select('id, campaign_id, ad_name, ad_image_url, sort_order')
+      .in('campaign_id', ids)
+      .order('sort_order', { ascending: true });
+    ads = data ?? [];
+  }
+  return { campaigns: list, ads };
+}
+
+/** استبدال أسطر مصادر التثبيت لتقرير: حذف الكل ثم إدراج غير الصفرية. */
+export async function replaceSourceResults(reportId, rows) {
+  await supabase.from('report_source_results').delete().eq('report_id', reportId);
+  const clean = (rows ?? [])
+    .filter(r => r.kind && (Number(r.count) > 0 || Number(r.amount_try) > 0 || Number(r.amount_syp) > 0 || Number(r.amount_usd) > 0))
+    .map(r => ({
+      report_id:    reportId,
+      kind:         r.kind,
+      campaign_id:  r.campaign_id || null,
+      ad_id:        r.ad_id || null,
+      platform_key: r.platform_key || null,
+      label:        (r.label || '').trim() || null,
+      count:        Number(r.count) || 0,
+      amount_try:   Number(r.amount_try) || 0,
+      amount_syp:   Number(r.amount_syp) || 0,
+      amount_usd:   Number(r.amount_usd) || 0,
+      currency:     r.currency || null,
+      notes:        (r.notes || '').trim() || null,
+    }));
+  if (clean.length) {
+    const { error } = await supabase.from('report_source_results').insert(clean);
+    if (error) throw error;
+  }
+  return clean.length;
 }
 
 // ── ملخّص طلبات الموظف الفعلية ليوم معيّن (من جدول orders) ──────────
@@ -448,9 +535,58 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, 30);
 
+  // ── مصدر التثبيت التفصيلي (D-085) — من report_source_results ──
+  // إضافي بحت: لا يغيّر أي رقم أعلاه. الجدول قد لا يكون مطبَّقاً → قسم فارغ.
+  let srcRows = [];
+  if (reportIds.length) {
+    try {
+      const chunks = [];
+      for (let i = 0; i < reportIds.length; i += 200) chunks.push(reportIds.slice(i, i + 200));
+      const parts = await Promise.all(chunks.map(ch =>
+        supabase.from('report_source_results')
+          .select('report_id, kind, campaign_id, ad_id, platform_key, label, count, amount_try, amount_syp, amount_usd')
+          .in('report_id', ch)));
+      srcRows = parts.flatMap(p => p.data ?? []);
+    } catch { srcRows = []; }
+  }
+  if (campaignId) srcRows = srcRows.filter(r => !r.campaign_id || r.campaign_id === campaignId);
+  const activeAdConf  = results.reduce((n, r) => n + Number(r.confirmations || 0), 0);
+  const activeAdSales = results.reduce((a, r) => addCur(a, rowCur(r)), zeroCur());
+  const byKind = { active_ad: { kind: 'active_ad', count: activeAdConf, sales: activeAdSales } };
+  const oldAdsAgg = {}, pagesAgg = {}, srcByEmp = {};
+  for (const r of srcRows) {
+    const k = (byKind[r.kind] ??= { kind: r.kind, count: 0, sales: zeroCur() });
+    k.count += Number(r.count || 0); addCur(k.sales, rowCur(r));
+    if (r.kind === 'old_ad') {
+      const id = r.ad_id || r.label || 'unknown';
+      const a = (oldAdsAgg[id] ??= { id, ad_name: adById[r.ad_id]?.ad_name || r.label || '—', image: adById[r.ad_id]?.ad_image_url || null,
+        campaign_name: campById[r.campaign_id]?.name || (r.label || '').split(' · ')[0] || '—', count: 0, sales: zeroCur() });
+      a.count += Number(r.count || 0); addCur(a.sales, rowCur(r));
+    }
+    if (r.kind === 'page') {
+      const id = r.platform_key || r.label || 'page';
+      const p = (pagesAgg[id] ??= { id, label: r.label || r.platform_key || '—', count: 0, sales: zeroCur() });
+      p.count += Number(r.count || 0); addCur(p.sales, rowCur(r));
+    }
+    const emp = reportById[r.report_id]?.employee_name;
+    if (emp) {
+      const e = (srcByEmp[emp] ??= { name: emp, byKind: {} });
+      const ek = (e.byKind[r.kind] ??= { count: 0, sales: zeroCur() });
+      ek.count += Number(r.count || 0); addCur(ek.sales, rowCur(r));
+    }
+  }
+  const sumSales = (s) => s.usd + s.try + s.syp;
+  const sourceDetail = {
+    byKind:   Object.values(byKind),
+    oldAds:   Object.values(oldAdsAgg).sort((a, b) => b.count - a.count || sumSales(b.sales) - sumSales(a.sales)),
+    pages:    Object.values(pagesAgg).sort((a, b) => b.count - a.count),
+    byEmployee: Object.values(srcByEmp),
+    hasData:  srcRows.length > 0,
+  };
+
   return {
     range: { from: fromD, to: toD },
-    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary, recentNotes,
+    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary, recentNotes, sourceDetail,
     filters: {
       campaigns: campaigns.filter(c => c.is_active !== false).map(c => ({ id: c.id, name: c.name })),
       teams: [...new Set(campaigns.map(c => c.team).filter(Boolean))],

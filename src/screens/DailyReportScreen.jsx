@@ -9,6 +9,7 @@ import { Hero, Card, CardTitle, Button, EmptyState, StatCard } from '@components
 import {
   getMyCampaignsAndAds, getDayReport, upsertDailyReport, replaceAdResults, todayISO,
   getMyOrdersDaySummary, uploadReportAdImage,
+  getInactiveCampaignsAndAds, getSourcePlatforms, replaceSourceResults, SOURCE_KINDS,
 } from '@services/campaignAnalyticsService';
 // التاريخ الافتراضي = يوم الوردية لا اليوم التقويمي: موظف وردية 18:00→01:00
 // يسجّل تقريره 00:40 كان يُحفظ على تاريخ اليوم الجديد فيظهر «لم يسجّل».
@@ -46,7 +47,17 @@ export default function DailyReportScreen() {
   const [campaigns, setCampaigns] = useState([]);
   const [ads, setAds]         = useState([]);
   const [rows, setRows]       = useState({});   // ad_id → { messages, confirmations, amount, currency, star_rating, notes }
-  const [other, setOther]     = useState({ oldCount: '', oldAmount: '', oldCur: defCur, otherCount: '', otherAmount: '', otherCur: defCur });
+  // مصادر التثبيت من خارج الإعلانات النشطة (D-085): سطر لكل مصدر —
+  // { kind, campaign_id, ad_id, platform_key, label, count, amount, currency, notes }
+  const [srcRows, setSrcRows] = useState([]);
+  const [oldCamps, setOldCamps] = useState({ campaigns: [], ads: [] }); // الحملات المتوقفة وإعلاناتها
+  const [platforms, setPlatforms] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    getInactiveCampaignsAndAds().then(d => { if (alive) setOldCamps(d); }).catch(() => {});
+    getSourcePlatforms().then(d => { if (alive) setPlatforms(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [msg, setMsg]         = useState(null);
@@ -97,7 +108,7 @@ export default function DailyReportScreen() {
   const loadDay = useCallback(async () => {
     setLoading(true); setMsg(null);
     try {
-      const { report, results } = await getDayReport(userName, date);
+      const { report, results, sources } = await getDayReport(userName, date);
       const r = {};
       for (const res of results) {
         r[res.ad_id] = {
@@ -108,21 +119,42 @@ export default function DailyReportScreen() {
         };
       }
       setRows(r);
-      setOther(report ? {
-        oldCount: report.old_customer_count || '',
-        oldAmount: pickAmount(report.old_customer_amount_try, report.old_customer_amount_syp, report.old_customer_amount_usd),
-        oldCur: pickCur(report.old_customer_amount_try, report.old_customer_amount_syp, report.old_customer_amount_usd, defCur),
-        otherCount: report.other_source_count || '',
-        otherAmount: pickAmount(report.other_source_amount_try, report.other_source_amount_syp, report.other_source_amount_usd),
-        otherCur: pickCur(report.other_source_amount_try, report.other_source_amount_syp, report.other_source_amount_usd, defCur),
-      } : { oldCount: '', oldAmount: '', oldCur: defCur, otherCount: '', otherAmount: '', otherCur: defCur });
+      if (sources && sources.length) {
+        setSrcRows(sources.map(sr => ({
+          kind: sr.kind, campaign_id: sr.campaign_id || null, ad_id: sr.ad_id || null, platform_key: sr.platform_key || null,
+          label: sr.label || '', count: sr.count || '', amount: pickAmount(sr.amount_try, sr.amount_syp, sr.amount_usd),
+          currency: pickCur(sr.amount_try, sr.amount_syp, sr.amount_usd, sr.currency || defCur), notes: sr.notes || '',
+        })));
+      } else if (report) {
+        // تقرير قديم (قبل D-085): نُظهر خانتي الرأس كسطرين قابلين للتعديل
+        const legacy = [];
+        const oldAmt = pickAmount(report.old_customer_amount_try, report.old_customer_amount_syp, report.old_customer_amount_usd);
+        const othAmt = pickAmount(report.other_source_amount_try, report.other_source_amount_syp, report.other_source_amount_usd);
+        if (Number(report.old_customer_count) || oldAmt)
+          legacy.push({ kind: 'old_customer', campaign_id: null, ad_id: null, platform_key: null, label: '', count: report.old_customer_count || '',
+            amount: oldAmt, currency: pickCur(report.old_customer_amount_try, report.old_customer_amount_syp, report.old_customer_amount_usd, defCur), notes: '' });
+        if (Number(report.other_source_count) || othAmt)
+          legacy.push({ kind: 'other', campaign_id: null, ad_id: null, platform_key: null, label: '', count: report.other_source_count || '',
+            amount: othAmt, currency: pickCur(report.other_source_amount_try, report.other_source_amount_syp, report.other_source_amount_usd, defCur), notes: '' });
+        setSrcRows(legacy);
+      } else setSrcRows([]);
     } catch { /* */ }
     finally { setLoading(false); }
   }, [userName, date, defCur]);
   useEffect(() => { loadDay(); }, [loadDay]);
 
   const setRow  = (adId, patch) => setRows(p => ({ ...p, [adId]: { ...(p[adId] || { messages: '', confirmations: '', amount: '', currency: defCur, star_rating: 0, notes: '' }), ...patch } }));
-  const setO    = (patch) => setOther(o => ({ ...o, ...patch }));
+  const newSrcRow = (kind = 'old_ad') => ({ kind, campaign_id: null, ad_id: null, platform_key: null, label: '', count: '', amount: '', currency: defCur, notes: '' });
+  const setSrc    = (i, patch) => setSrcRows(rs => rs.map((r, j) => j === i ? { ...r, ...patch } : r));
+  const delSrc    = (i) => setSrcRows(rs => rs.filter((_, j) => j !== i));
+  const oldAdsByCampaign = useMemo(() => { const m = {}; for (const a of oldCamps.ads) (m[a.campaign_id] ??= []).push(a); return m; }, [oldCamps]);
+  // لقطة نصية للعرض بلوحة الميديا باير — تبقى حتى لو زال الربط
+  const srcLabel = (r) => {
+    if (r.kind === 'old_ad') { const c = oldCamps.campaigns.find(x => x.id === r.campaign_id); const a = oldCamps.ads.find(x => x.id === r.ad_id); return [c?.name, a?.ad_name].filter(Boolean).join(' · '); }
+    if (r.kind === 'page')   { const pf = platforms.find(x => x.key === r.platform_key); return pf?.label || ''; }
+    if (r.kind === 'other')  return (r.label || '').trim();
+    return SOURCE_KINDS.find(k => k.key === r.kind)?.label || r.kind;
+  };
   const adsByCampaign = useMemo(() => { const m = {}; for (const a of ads) (m[a.campaign_id] ??= []).push(a); return m; }, [ads]);
 
   // ملخّص حيّ
@@ -135,10 +167,17 @@ export default function DailyReportScreen() {
       confirmations += Number(r.confirmations) || 0;
       sales[r.currency] = (sales[r.currency] || 0) + (Number(r.amount) || 0);
     }
-    sales[other.oldCur]   = (sales[other.oldCur]   || 0) + (Number(other.oldAmount)   || 0);
-    sales[other.otherCur] = (sales[other.otherCur] || 0) + (Number(other.otherAmount) || 0);
+    for (const r of srcRows) sales[r.currency] = (sales[r.currency] || 0) + (Number(r.amount) || 0);
     return { messages, confirmations, sales };
-  }, [ads, rows, other]);
+  }, [ads, rows, srcRows]);
+  const srcHeader = useMemo(() => {
+    const agg = (pred) => { const o = { count: 0, TRY: 0, SYP: 0, USD: 0 }; for (const r of srcRows) if (pred(r)) { o.count += Number(r.count) || 0; o[r.currency] = (o[r.currency] || 0) + (Number(r.amount) || 0); } return o; };
+    const old = agg(r => r.kind === 'old_customer'), oth = agg(r => r.kind !== 'old_customer');
+    return {
+      old_customer_count: old.count, old_customer_amount_try: old.TRY, old_customer_amount_syp: old.SYP, old_customer_amount_usd: old.USD,
+      other_source_count: oth.count, other_source_amount_try: oth.TRY, other_source_amount_syp: oth.SYP, other_source_amount_usd: oth.USD,
+    };
+  }, [srcRows]);
 
   const save = async () => {
     setSaving(true); setMsg(null);
@@ -149,14 +188,9 @@ export default function DailyReportScreen() {
         employee_name: userName, team: team || 'عام', report_date: date,
         total_messages: totals.messages, total_confirmations: totals.confirmations,
         total_sales_try: totals.sales.TRY, total_sales_syp: totals.sales.SYP, total_sales_usd: totals.sales.USD,
-        old_customer_count: Number(other.oldCount) || 0,
-        old_customer_amount_try: other.oldCur === 'TRY' ? Number(other.oldAmount) || 0 : 0,
-        old_customer_amount_syp: other.oldCur === 'SYP' ? Number(other.oldAmount) || 0 : 0,
-        old_customer_amount_usd: other.oldCur === 'USD' ? Number(other.oldAmount) || 0 : 0,
-        other_source_count: Number(other.otherCount) || 0,
-        other_source_amount_try: other.otherCur === 'TRY' ? Number(other.otherAmount) || 0 : 0,
-        other_source_amount_syp: other.otherCur === 'SYP' ? Number(other.otherAmount) || 0 : 0,
-        other_source_amount_usd: other.otherCur === 'USD' ? Number(other.otherAmount) || 0 : 0,
+        // خانتا الرأس القديمتان تُشتقّان من الأسطر التفصيلية (D-085) — لوحة الميديا
+        // باير الحالية ورسومها تقرأهما كما كانت، بلا أي تغيير.
+        ...srcHeader,
         default_currency: defCur,
       };
       const reportId = await upsertDailyReport(header);
@@ -173,6 +207,12 @@ export default function DailyReportScreen() {
         };
       }).filter(Boolean);
       await replaceAdResults(reportId, adRows);
+      await replaceSourceResults(reportId, srcRows.map(r => ({
+        kind: r.kind, campaign_id: r.kind === 'old_ad' ? r.campaign_id : null, ad_id: r.kind === 'old_ad' ? r.ad_id : null,
+        platform_key: r.kind === 'page' ? r.platform_key : null, label: srcLabel(r), count: Number(r.count) || 0,
+        amount_try: r.currency === 'TRY' ? Number(r.amount) || 0 : 0, amount_syp: r.currency === 'SYP' ? Number(r.amount) || 0 : 0, amount_usd: r.currency === 'USD' ? Number(r.amount) || 0 : 0,
+        currency: r.currency, notes: r.notes,
+      })));
       setMsg({ type: 'ok', text: '✅ حُفظ تقرير اليوم' });
     } catch (e) { setMsg({ type: 'err', text: 'تعذّر الحفظ: ' + (e.message || e) }); }
     finally { setSaving(false); }
@@ -296,27 +336,84 @@ export default function DailyReportScreen() {
             </Card>
           ))}
 
-          {/* مصادر أخرى */}
+          {/* مصادر التثبيت من خارج الإعلانات النشطة (D-085) — سطر لكل مصدر:
+              إعلان قديم متوقف (بصورته) / صفحاتنا (منصة) / ستوري / توصية / زبون قديم / آخر */}
           <Card padding="md" className="space-y-3">
-            <CardTitle className="text-sm">🔀 مبيعات من مصادر أخرى (خارج الإعلانات)</CardTitle>
-            {[['old', '👤 عميل سابق', 'oldCount', 'oldAmount', 'oldCur'], ['other', '🌐 مصدر آخر', 'otherCount', 'otherAmount', 'otherCur']].map(([k, label, ck, ak, curk]) => (
-              <div key={k} className="grid grid-cols-3 gap-2 items-end">
-                <label className="block">
-                  <span className="text-[10px] text-muted block mb-0.5">{label} — عدد</span>
-                  <input type="number" min="0" value={other[ck]} onChange={e => setO({ [ck]: e.target.value })} className={numCls} style={numStyle} placeholder="0" />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] text-muted block mb-0.5">القيمة</span>
-                  <input type="number" min="0" value={other[ak]} onChange={e => setO({ [ak]: e.target.value })} className={numCls} style={numStyle} placeholder="0" />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] text-muted block mb-0.5">العملة</span>
-                  <select value={other[curk]} onChange={e => setO({ [curk]: e.target.value })} className={inputCls}>
-                    {CURS.map(cur => <option key={cur} value={cur}>{cur}</option>)}
-                  </select>
-                </label>
-              </div>
-            ))}
+            <CardTitle className="text-sm">🔎 تثبيتات من خارج الإعلانات النشطة
+              <span className="text-[10px] font-normal text-muted"> · من أين جاء التثبيت؟</span>
+            </CardTitle>
+            {srcRows.length === 0 && <p className="text-xs text-muted">لا شيء بعد — أضف سطراً لكل مصدر تثبيت (إعلان قديم، صفحة، ستوري…).</p>}
+            {srcRows.map((r, i) => {
+              const kindMeta = SOURCE_KINDS.find(k => k.key === r.kind);
+              const campAds  = r.campaign_id ? (oldAdsByCampaign[r.campaign_id] || []) : [];
+              const pickedAd = campAds.find(a => a.id === r.ad_id);
+              return (
+                <div key={i} className="rounded-xl border border-border p-3 space-y-2 bg-surface-alt/40">
+                  <div className="flex items-center gap-2">
+                    <select value={r.kind} onChange={e => setSrc(i, { kind: e.target.value, campaign_id: null, ad_id: null, platform_key: null, label: '' })} className={inputCls + ' flex-1'}>
+                      {SOURCE_KINDS.map(k => <option key={k.key} value={k.key}>{k.icon} {k.label}</option>)}
+                    </select>
+                    <button type="button" onClick={() => delSrc(i)} title="حذف السطر" className="w-8 h-8 rounded-lg bg-red-bg text-red-fg text-sm shrink-0">🗑️</button>
+                  </div>
+
+                  {r.kind === 'old_ad' && (
+                    <div className="space-y-2">
+                      <select value={r.campaign_id || ''} onChange={e => setSrc(i, { campaign_id: e.target.value || null, ad_id: null })} className={inputCls}>
+                        <option value="">— اختر الحملة المتوقفة —</option>
+                        {oldCamps.campaigns.map(c => <option key={c.id} value={c.id}>{c.name}{c.team ? ' · ' + c.team : ''}</option>)}
+                      </select>
+                      {r.campaign_id && (campAds.length === 0
+                        ? <p className="text-[11px] text-muted">لا إعلانات محفوظة لهذه الحملة.</p>
+                        : <div className="flex flex-wrap gap-2">
+                            {campAds.map(a => (
+                              <button key={a.id} type="button" onClick={() => setSrc(i, { ad_id: a.id })} title={a.ad_name}
+                                className={'w-16 rounded-lg border-2 overflow-hidden text-[10px] text-center ' + (r.ad_id === a.id ? 'border-teal ring-2 ring-teal/30' : 'border-border hover:border-teal/40')}>
+                                {a.ad_image_url ? <img src={a.ad_image_url} alt="" className="w-16 h-16 object-cover" /> : <div className="w-16 h-16 flex items-center justify-center text-xl">🖼️</div>}
+                                <span className="block truncate px-1 py-0.5 text-text">{a.ad_name}</span>
+                              </button>
+                            ))}
+                          </div>)}
+                      {pickedAd && <p className="text-[11px] text-teal">✓ {pickedAd.ad_name}</p>}
+                    </div>
+                  )}
+
+                  {r.kind === 'page' && (
+                    <select value={r.platform_key || ''} onChange={e => setSrc(i, { platform_key: e.target.value || null })} className={inputCls}>
+                      <option value="">— اختر المنصة —</option>
+                      {platforms.map(pf => <option key={pf.key} value={pf.key}>{pf.icon || '📱'} {pf.label}</option>)}
+                    </select>
+                  )}
+
+                  {r.kind === 'other' && (
+                    <input value={r.label} onChange={e => setSrc(i, { label: e.target.value })} className={inputCls} placeholder="اكتب المصدر (مثال: صديق، معرض، جوجل…)" />
+                  )}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="block">
+                      <span className="text-[10px] text-muted block mb-0.5">✅ تثبيتات</span>
+                      <input type="number" min="0" value={r.count} onChange={e => setSrc(i, { count: e.target.value })} className={numCls} style={numStyle} placeholder="0" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] text-muted block mb-0.5">💵 القيمة</span>
+                      <input type="number" min="0" value={r.amount} onChange={e => setSrc(i, { amount: e.target.value })} className={numCls} style={numStyle} placeholder="0" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] text-muted block mb-0.5">العملة</span>
+                      <select value={r.currency} onChange={e => setSrc(i, { currency: e.target.value })} className={inputCls}>
+                        {CURS.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  {kindMeta && r.kind !== 'other' && <input value={r.notes} onChange={e => setSrc(i, { notes: e.target.value })} className={inputCls} placeholder="📝 ملاحظة (اختياري)…" />}
+                </div>
+              );
+            })}
+            <div className="flex flex-wrap gap-1.5">
+              {SOURCE_KINDS.map(k => (
+                <button key={k.key} type="button" onClick={() => setSrcRows(rs => [...rs, newSrcRow(k.key)])}
+                  className="text-[11px] px-2.5 py-1.5 rounded-full border border-teal/40 text-teal hover:bg-teal/5">➕ {k.icon} {k.label}</button>
+              ))}
+            </div>
           </Card>
 
           {msg && <p className={'text-sm rounded-xl px-3 py-2 ' + (msg.type === 'ok' ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg')}>{msg.text}</p>}
