@@ -21,6 +21,17 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// الإعلان يُؤرشف تلقائياً بعد 48 ساعة من إضافته (المثبّت أيضاً)
+const ARCHIVE_AFTER_MS = 48 * 3600 * 1000;
+const isArchived = (item, now = Date.now()) => now - new Date(item.created_at).getTime() >= ARCHIVE_AFTER_MS;
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
+  const time = d.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${date} · ${time}`;
+}
+
 const EMOJIS = ['📢', '🎉', '⚠️', '✅', '📌', '💡', '🏆', '🔔', '📝', '🚀', '❤️', '🌟'];
 
 const CATEGORY_COLORS = {
@@ -39,7 +50,7 @@ const CATEGORY_COLORS = {
 };
 
 // ── AnnouncementCard ──────────────────────────────────────────
-function AnnouncementCard({ item, canManage, onPin, onDelete }) {
+function AnnouncementCard({ item, canManage, onPin, onDelete, archived = false }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = item.body?.length > 180;
   const displayBody = isLong && !expanded ? item.body.slice(0, 180) + '…' : item.body;
@@ -48,20 +59,29 @@ function AnnouncementCard({ item, canManage, onPin, onDelete }) {
   return (
     <div
       className={`relative rounded-2xl border p-4 transition-shadow hover:shadow-soft ${
-        item.is_pinned
-          ? 'border-teal/40 bg-teal/5'
-          : 'border-border bg-surface'
+        archived
+          ? 'border-border/60 bg-surface-alt/40 opacity-80'
+          : item.is_pinned
+            ? 'border-teal/40 bg-teal/5'
+            : 'border-border bg-surface'
       }`}
     >
+      {/* Archived ribbon */}
+      {archived && (
+        <span className="absolute top-3 left-3 text-[10px] font-bold text-muted bg-surface-alt px-2 py-0.5 rounded-full">
+          🗄️ مؤرشف
+        </span>
+      )}
+
       {/* Pinned ribbon */}
-      {item.is_pinned && (
+      {!archived && item.is_pinned && (
         <span className="absolute top-3 left-3 text-[10px] font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-full">
           📌 مثبّت
         </span>
       )}
 
       {/* Header */}
-      <div className={`flex items-start gap-3 ${item.is_pinned ? 'mt-5' : ''}`}>
+      <div className={`flex items-start gap-3 ${archived || item.is_pinned ? 'mt-5' : ''}`}>
         <span
           className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${badgeClass}`}
         >
@@ -71,7 +91,7 @@ function AnnouncementCard({ item, canManage, onPin, onDelete }) {
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-text text-sm leading-snug">{item.title}</h3>
           <p className="text-xs text-muted mt-0.5">
-            {item.created_by} · {timeAgo(item.created_at)}
+            {item.created_by} · {archived ? formatDateTime(item.created_at) : timeAgo(item.created_at)}
           </p>
         </div>
 
@@ -111,7 +131,7 @@ function AnnouncementCard({ item, canManage, onPin, onDelete }) {
 
       {/* WhatsApp Share Button */}
       <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between">
-        <span className="text-[10px] text-muted">{timeAgo(item.created_at)}</span>
+        <span className="text-[10px] text-muted">{archived ? formatDateTime(item.created_at) : timeAgo(item.created_at)}</span>
         <a
           href={`https://wa.me/?text=${encodeURIComponent(`📢 *${item.title}*\n\n${item.body ?? ''}\n\n— لويز Professional`)}`}
           target="_blank"
@@ -312,6 +332,13 @@ export default function AnnouncementsScreen() {
   const [dbMissing,     setDbMissing]     = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [filter,        setFilter]        = useState('all'); // 'all' | 'pinned'
+  const [now,           setNow]           = useState(() => Date.now());
+
+  // إعادة حساب الأرشفة كل دقيقة كي ينزل الإعلان للأرشيف تلقائياً بلا تحديث الصفحة
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // ── Fetch ──────────────────────────────────────────────────
   const fetchAnnouncements = async () => {
@@ -367,7 +394,14 @@ export default function AnnouncementsScreen() {
     ? items.filter(i => i.is_pinned)
     : items;
 
-  const pinnedCount  = items.filter(i => i.is_pinned).length;
+  // الحالية: أقل من 48 ساعة (المثبّت أولاً ثم الأحدث) · الأرشيف: الأقدم من 48 ساعة مرتّب بالتاريخ الأحدث أولاً
+  const byDateDesc = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+  const active   = displayed.filter(i => !isArchived(i, now))
+    .sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0) || byDateDesc(a, b));
+  const archived = displayed.filter(i => isArchived(i, now)).sort(byDateDesc);
+  const archivedCount = items.filter(i => isArchived(i, now)).length;
+
+  const pinnedCount  = items.filter(i => i.is_pinned && !isArchived(i, now)).length;
   const newThisWeek  = items.filter(i => {
     const diff = (Date.now() - new Date(i.created_at)) / 86400000;
     return diff <= 7;
@@ -385,9 +419,15 @@ export default function AnnouncementsScreen() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-3">
           <div className="bg-surface border border-border rounded-2xl px-4 py-2.5 text-center min-w-[80px]">
-            <p className="text-2xl font-black text-text">{items.length}</p>
-            <p className="text-xs text-muted">إعلان</p>
+            <p className="text-2xl font-black text-text">{items.length - archivedCount}</p>
+            <p className="text-xs text-muted">إعلان حالي</p>
           </div>
+          {archivedCount > 0 && (
+            <div className="bg-surface border border-border rounded-2xl px-4 py-2.5 text-center min-w-[80px]">
+              <p className="text-2xl font-black text-muted">{archivedCount}</p>
+              <p className="text-xs text-muted">مؤرشف</p>
+            </div>
+          )}
           <div className="bg-surface border border-border rounded-2xl px-4 py-2.5 text-center min-w-[80px]">
             <p className="text-2xl font-black text-teal">{newThisWeek}</p>
             <p className="text-xs text-muted">هذا الأسبوع</p>
@@ -456,16 +496,39 @@ export default function AnnouncementsScreen() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {displayed.map(item => (
-            <AnnouncementCard
-              key={item.id}
-              item={item}
-              canManage={isManager}
-              onPin={handlePin}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="space-y-5">
+          {active.length > 0 && (
+            <div className="space-y-3">
+              {active.map(item => (
+                <AnnouncementCard
+                  key={item.id}
+                  item={item}
+                  canManage={isManager}
+                  onPin={handlePin}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+
+          {archived.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 pt-2">
+                <span className="text-xs font-bold text-muted whitespace-nowrap">🗄️ الأرشيف — أقدم من 48 ساعة ({archived.length})</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              {archived.map(item => (
+                <AnnouncementCard
+                  key={item.id}
+                  item={item}
+                  archived
+                  canManage={isManager}
+                  onPin={handlePin}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
