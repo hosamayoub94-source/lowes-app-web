@@ -22,6 +22,7 @@ import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { shiftDateSlash } from '@utils/date';
 
 // ── Daily motivation quotes ─────────────────────────────────────
 const MOTIVATIONS = [
@@ -261,36 +262,58 @@ function ChartTooltip({ active, payload, label, prefix = '', suffix = '' }) {
 // ── Attendance Quick Card ────────────────────────────────────────
 // Uses real schema: type="in"|"out" rows, date="YYYY/MM/DD", time_in column
 function AttendanceCard({ name, team }) {
-  // { checkIn: "HH:MM"|null, checkOut: "HH:MM"|null }
+  // { checkIn: "HH:MM"|null, checkOut: "HH:MM"|null, shiftDate: "YYYY/MM/DD"|null }
+  // الوردية وحدة واحدة لا يقطعها منتصف الليل (D-087): وردية 20:00→01:00
+  // دخولها 20:00 وخروجها 01:00 بنفس اليوم. لذلك نقرأ اليوم وأمس معاً ونبحث عن
+  // «الوردية المفتوحة» = آخر دخول لم يأتِ بعده خروج — نفس قاعدة شاشة الحضور.
   const [att, setAtt]         = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
+  const [loadErr, setLoadErr] = useState(false);
 
   const load = useCallback(async () => {
     if (!name) { setLoading(false); return; }
-    const { data } = await supabase
+    const today = todaySlash();
+    const { data, error } = await supabase
       .from('attendance')
-      .select('type,time_in')
+      .select('date,type,time_in,created_at')
       .eq('employee_name', name)
-      .eq('date', todaySlash())
-      .in('type', ['in', 'out']);
-    if (data) {
-      const inRow  = data.find(r => r.type === 'in');
-      const outRow = data.find(r => r.type === 'out');
-      setAtt({ checkIn: inRow?.time_in ?? null, checkOut: outRow?.time_in ?? null });
+      .in('date', [shiftDateSlash(), today])
+      .in('type', ['in', 'out'])
+      .order('created_at');
+    if (error || !data) {
+      // لا نعرض «لم تسجّل بعد» عند فشل القراءة — قد يكون مسجّلاً فعلاً
+      setLoadErr(true); setLoading(false); return;
+    }
+    setLoadErr(false);
+    // آخر دخول بلا خروج بعده (زمنياً) = وردية مفتوحة، أياً كان تاريخها
+    let lastIn = null, outAfter = null;
+    for (const r of data) {
+      if (r.type === 'in')       { lastIn = r; outAfter = null; }
+      else if (r.type === 'out' && lastIn) { outAfter = r; }
+    }
+    if (lastIn && !outAfter) {
+      setAtt({ checkIn: lastIn.time_in, checkOut: null, shiftDate: lastIn.date });
+    } else {
+      // لا وردية مفتوحة: نعرض وردية اليوم المكتملة إن وُجدت، وإلا «لم تسجّل»
+      const todayIn  = [...data].reverse().find(r => r.type === 'in'  && r.date === today);
+      const todayOut = [...data].reverse().find(r => r.type === 'out' && r.date === today);
+      setAtt({ checkIn: todayIn?.time_in ?? null, checkOut: todayOut?.time_in ?? null, shiftDate: today });
     }
     setLoading(false);
   }, [name]);
 
   useEffect(() => { load(); }, [load]);
 
-  const arabicDay = () => new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' });
+  // اسم اليوم من تاريخ الوردية لا من لحظة الضغط (بعد منتصف الليل يختلفان)
+  const arabicDay = (slash) => new Date(slash.replace(/\//g, '-') + 'T00:00:00').toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' });
 
   const checkIn = async () => {
-    if (saving || att?.checkIn) return;
+    if (saving || (att?.checkIn && !att?.checkOut)) return;
     setSaving(true);
     const now = nowHHMM();
-    const dateVal = todaySlash();
+    // قبل 06:00 صباحاً = تتمة ليلة أمس (نفس قاعدة شاشة الحضور)
+    const dateVal = shiftDateSlash();
     // نفس منطق شاشة الحضور: الوردية تُفهم من مجموعة شركاء الدوام ووقت
     // التسجيل الفعلي، والتأخير بسماحية داخلية لا تُعرض للموظف (D-073).
     // بلا مجموعة → قيَم محايدة وسلوك هذه الشاشة كما كان تماماً.
@@ -298,7 +321,7 @@ function AttendanceCard({ name, team }) {
 
     const base = {
       employee_name: name, team: team ?? null,
-      date: dateVal, day: arabicDay(),
+      date: dateVal, day: arabicDay(dateVal),
       type: 'in', time_in: now, time_out: null,
       hours: 0, status: '✅ حاضر', recorded_at: now,
       delay_minutes: ctx.delayMinutes, was_late: ctx.wasLate, method: 'app',
@@ -321,13 +344,15 @@ function AttendanceCard({ name, team }) {
     if (saving || !att?.checkIn || att?.checkOut) return;
     setSaving(true);
     const now = nowHHMM();
-    const dateVal = todaySlash();
+    // الخروج يُنسب ليوم الدخول (الوردية المفتوحة) لا لتاريخ اللحظة — وردية
+    // 20:00→01:00 تبقى يوماً واحداً حتى بعد منتصف الليل
+    const dateVal = att.shiftDate || shiftDateSlash();
     const [hi,mi] = (att.checkIn).split(':').map(Number);
     const [ho,mo] = now.split(':').map(Number);
     let mins = (ho*60+mo)-(hi*60+mi); if(mins<0) mins+=1440;
     const { error } = await supabase.from('attendance').insert({
       employee_name: name, team: team ?? null,
-      date: dateVal, day: arabicDay(),
+      date: dateVal, day: arabicDay(dateVal),
       type: 'out', time_in: now, time_out: now,
       hours: +(mins/60).toFixed(2), status: '🚪 خروج',
       recorded_at: now, delay_minutes: 0, was_late: false, method: 'app',
@@ -364,6 +389,11 @@ function AttendanceCard({ name, team }) {
               <p className="text-base font-extrabold text-teal">⏳ في العمل</p>
               <p className="text-xs text-muted mt-0.5">دخول: {att.checkIn}</p>
             </div>
+          ) : loadErr ? (
+            <div>
+              <p className="text-base font-extrabold text-amber-600">⚠️ تعذّر التحقق من حالتك</p>
+              <button onClick={load} className="text-xs text-teal font-bold mt-0.5 underline">أعد المحاولة</button>
+            </div>
           ) : (
             <div>
               <p className="text-base font-extrabold text-text">لم تسجّل بعد</p>
@@ -373,7 +403,7 @@ function AttendanceCard({ name, team }) {
         </div>
 
         <div className="shrink-0">
-          {!loading && !isComplete && (
+          {!loading && !loadErr && !isComplete && (
             isCheckedIn ? (
               <button onClick={checkOut} disabled={saving}
                 className="px-4 py-2 rounded-xl bg-navy text-white text-sm font-bold hover:bg-navy/90 disabled:opacity-50 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]">
