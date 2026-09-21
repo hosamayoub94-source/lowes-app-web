@@ -32,7 +32,17 @@ async function babel(path: string, body: unknown, auth: string): Promise<{ ok: b
   return { ok: res.ok && data?.status === 'success', data };
 }
 
-Deno.serve(async (req: Request) => {
+// PHASE 0 CONTAINMENT (21 Sep 2026, see LOWES_REMEDIATION_PRIORITY.md RA-03 /
+// PHASE_0_CANCELAWB_REPORT.md): `cancelAwb` had zero authentication/authorization
+// and zero legitimate caller anywhere in either app — any anon-key holder could
+// cancel any real Babel shipment by AWB. Handler extracted to a named function
+// (no other behavior change) purely so this containment gate can be unit-tested
+// without hitting the real carrier API. Gate: requires `X-Internal-Key` header to
+// match secret `LOWES_BABEL_CANCEL_INTERNAL_KEY`. That secret is NOT currently
+// provisioned on the Supabase project, so `expectedKey` is undefined and this
+// branch fails closed (denies every request) until a controlled decision is made
+// to provision the secret and re-enable authorized manual cleanup.
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });
 
@@ -74,7 +84,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // إلغاء طارئ بالـawb مباشرة (تنظيف يدوي عند تعارض أو خطأ من طرف بابل).
+    // PHASE 0 CONTAINMENT: كان بلا أي تحقق هوية — أي حامل مفتاح anon يقدر يلغي
+    // أي شحنة حقيقية بمجرد معرفة/تخمين AWB. الآن يتطلب ترويسة X-Internal-Key
+    // مطابقة لسرّ LOWES_BABEL_CANCEL_INTERNAL_KEY — غير مضبوط حالياً بالمشروع،
+    // فهذا الفرع يرفض كل الطلبات افتراضياً (fail-closed) لحين قرار مستقبلي.
     if (cancelAwb) {
+      const providedKey = req.headers.get('X-Internal-Key');
+      const expectedKey = Deno.env.get('LOWES_BABEL_CANCEL_INTERNAL_KEY');
+      if (!expectedKey || providedKey !== expectedKey) {
+        return json({ ok: false, error: 'unauthorized', message: 'يتطلب مفتاح داخلي مصرَّح لإلغاء شحنة مباشرة بالـAWB' }, 401);
+      }
       const del = await babel('/deleteShipment', { awb: cancelAwb }, auth);
       return json({ ok: del.ok, babel: del.data });
     }
@@ -169,4 +188,6 @@ Deno.serve(async (req: Request) => {
     console.error('[create-babel-shipment]', err);
     return json({ ok: false, error: String(err) }, 500);
   }
-});
+}
+
+Deno.serve(handler);

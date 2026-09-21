@@ -3,7 +3,10 @@
 // يستدعي Claude API كمساعد ذكي لموظفي لويز Professional
 //
 // Required Secret: ANTHROPIC_API_KEY
-// Deploy: supabase functions deploy ai-assistant --no-verify-jwt
+// Deploy: supabase functions deploy ai-assistant
+// (⚠️ NOT --no-verify-jwt anymore — that flag is exactly what let R-22 happen.
+// The function now requires and validates a real Authorization bearer token
+// itself, but there is no reason to also disable the platform's own gate.)
 // =============================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -292,6 +295,16 @@ const ROLE_PERMS: Record<string, string[]> = {
   social_manager: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.VIEW_ALL_ATTENDANCE,PERMS.VIEW_ANALYTICS],
   media_buyer: [PERMS.ASSIGN_TASKS,PERMS.EDIT_TASK,PERMS.DELETE_TASK,PERMS.MANAGE_ORDERS,PERMS.VIEW_ANALYTICS],
   employee: [],
+  // PHASE 1A FIX (21 Sep 2026, see PHASE_1A_AI_ASSISTANT_SECURITY_DESIGN.md §3):
+  // this table was a stale mirror of src/data/permissions.js, missing the 4
+  // newer management roles entirely — a real accountant/hr_manager would have
+  // silently gotten ZERO tools (including VIEW_FINANCE) once identity is no
+  // longer spoofable. Only the PERMS that exist in THIS file's own enum are
+  // wired (permissions.js has more granular ones with no matching AI tool yet).
+  accountant: [PERMS.VIEW_FINANCE, PERMS.MANAGE_PAYROLL],
+  hr_manager: [PERMS.VIEW_ALL_ATTENDANCE, PERMS.APPROVE_LEAVES, PERMS.MANAGE_PAYROLL],
+  warehouse_manager: [],
+  marketing_manager: [PERMS.VIEW_ANALYTICS],
 };
 function resolvePerms(role: string, extra: string[] = [], denied: string[] = []): Set<string> {
   if (role === 'admin') return new Set(ALL_PERMS);
@@ -571,18 +584,60 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { messages, userId, userName, userRole, isManager, extraPermissions, deniedPermissions } = await req.json();
+    const { messages } = await req.json();
 
-    if (!messages?.length || !userId) {
-      return new Response(JSON.stringify({ error: 'messages and userId required' }),
+    if (!messages?.length) {
+      return new Response(JSON.stringify({ error: 'messages required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ── Supabase admin client to fetch employee context ───────────
+    // ── Supabase admin client — used for identity resolution below AND
+    // for every subsequent data query in this function ────────────
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
     );
+
+    // ── SECURITY FIX (21 Sep 2026 — closes R-22, see
+    // PHASE_1A_AI_ASSISTANT_SECURITY_DESIGN.md Option B) ───────────
+    // userId/userRole/extraPermissions/deniedPermissions used to be
+    // trusted straight from the request body — anyone holding the
+    // public anon key could claim userRole:"admin" and read real
+    // accounting data (confirmed live in a prior audit). They are now
+    // derived EXCLUSIVELY from a real, verified Supabase Auth session
+    // (Authorization header) plus the matching `profiles` row. Nothing
+    // from the request body can influence who the caller is or what
+    // they're allowed to do.
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'unauthorized', message: 'جلسة دخول صالحة مطلوبة' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: 'unauthorized', message: 'جلسة دخول صالحة مطلوبة' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, employee_name, role_type, is_active, extra_permissions, denied_permissions')
+      .eq('id', authData.user.id)
+      .maybeSingle();
+    if (profileErr || !profile || profile.is_active === false) {
+      return new Response(JSON.stringify({ error: 'unauthorized', message: 'حساب غير صالح' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const userId    = profile.id;
+    const userName  = profile.employee_name;
+    const userRole  = profile.role_type;
+    const isManager = ['admin', 'manager', 'sales_manager'].includes(userRole);
+    // Same fix, second half: these also used to come straight from the
+    // request body (a low-privilege role could grant itself extra
+    // permissions, e.g. VIEW_FINANCE, independently of the identity spoof
+    // above). Now sourced only from the verified profile row.
+    const extraPermissions  = profile.extra_permissions  ?? [];
+    const deniedPermissions = profile.denied_permissions ?? [];
 
     // Fetch employee's live data in parallel
     const today = new Date();

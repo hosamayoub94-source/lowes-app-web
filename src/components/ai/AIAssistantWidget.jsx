@@ -320,12 +320,24 @@ export function AIAssistantWidget() {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+      // SECURITY FIX (21 Sep 2026 — closes R-22, see
+      // PHASE_1A_AI_ASSISTANT_SECURITY_DESIGN.md Option B): the function no
+      // longer trusts userId/userRole/permissions from the request body at
+      // all — it derives identity from a real Supabase Auth session. We must
+      // therefore send that session's own access token, not the public anon
+      // key. `supabase.auth.getSession()` reads whatever the SDK already has
+      // persisted (real session or null — it does NOT resolve the "manual
+      // session" fallback some accounts use, which has no real Supabase Auth
+      // token by design; those accounts will get a clear "sign-in required"
+      // error from the function until their account is provisioned with a
+      // real identity — a known, deliberate consequence, not a bug).
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const bearerToken = authSession?.access_token || ANON_KEY;
+
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
         method:  'POST',
-        headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, userId, userName, userRole: role, isManager, todayVisits,
-          extraPermissions:  session?.extra_permissions  ?? [],
-          deniedPermissions: session?.denied_permissions ?? [] }),
+        headers: { 'Authorization': `Bearer ${bearerToken}`, 'apikey': ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, todayVisits }),
       });
 
       if (!res.ok) { serverError = true; throw new Error(`HTTP ${res.status}`); }
