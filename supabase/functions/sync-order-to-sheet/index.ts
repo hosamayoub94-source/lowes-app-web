@@ -90,7 +90,17 @@ Deno.serve(async (req: Request) => {
     if (o.last_synced_at) {
       const age = Date.now() - new Date(o.last_synced_at).getTime();
       if (age >= 0 && age < COOLDOWN_MS) {
-        // throttled = تمّت المزامنة مؤخراً (لا فشل) — نعيد ok:true حتى لا يُعلَّم الطلب بـ«فشل»
+        // بگ حقيقي اكتُشف 25 أيلول 2026 (بلاغ حسام: عدد «تجهيز» بالتطبيق لا يطابق
+        // الجدول): لو الحالة تغيّرت مرّتين خلال أقل من 3 ثوانٍ (مثلاً تجهيز←شحن
+        // بسرعة)، النداء الثاني كان يُتخطّى هنا ويرجّع ok:true بصمت — بدون تعليم
+        // الطلب بأي شكل — فتبقى قيمة sync_status القديمة «synced» (من المزامنة
+        // الأولى الناجحة) ولا يلتقطها أي شيء لاحقاً؛ الجدول يتجمّد على الحالة
+        // الوسيطة القديمة للأبد. الإصلاح: نُعلِّم الطلب sync_status='failed' هون
+        // فتلتقطه دالة retry-failed-syncs الموجودة أصلاً (cron كل 10 دقائق) وتعيد
+        // المزامنة تلقائياً بعد انتهاء نافذة التبريد — بلا حاجة لبنية جديدة.
+        await supabase.from('orders')
+          .update({ sync_status: 'failed', sync_error: 'throttled_pending_retry' })
+          .eq('id', orderId).then(() => {}, () => {});
         return json({ ok: true, skipped: 'throttled', retryAfterMs: COOLDOWN_MS - age }, 200);
       }
     }
