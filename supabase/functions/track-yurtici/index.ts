@@ -46,11 +46,18 @@ function mapStatus(opStatus: string, text: string): string | null {
   if (s === 'CNL' || t.includes('iptal')) return 'cancelled';
   if (s === 'NOP' || t.includes('işlem görmemiş')) return null;            // أُنشئت ولم تُشحن بعد
   // الإرجاع/الفشل لهما الأولوية على «teslim edildi»: نص رجوع شحنة يذكر غالباً
-  // «Şubeye Teslim Edildi» (سُلِّمت للفرع كجزء من مسار الإرجاع) وهذا ليس تسليماً
-  // للزبون — لو فحصنا teslim edildi أولاً لقلبناها خطأً «تم التسليم». نفس ترتيب
-  // mapPublic أدناه (كان يفتقر لهذه الأولوية — إصلاح D-047، 23 آب 2026).
+  // «iade». نفس ترتيب mapPublic أدناه (إصلاح D-047، 23 آب 2026).
   if (t.includes('teslim edilemedi') || t.includes('bulunamadı') || t.includes('adreste yok')) return 'not_received';
   if (t.includes('iade')) return 'returning';
+  // «Şubeye Teslim Edildi» (سُلِّمت للفرع) نص مشترك بين حالتين مختلفتين تماماً:
+  // (أ) وصول الطرد لفرع تسليم عادي بانتظار استلام الزبون منه — تسليم فعلي صحيح
+  // لاحقاً. (ب) تسليم الطرد للفرع كمحطة وسيطة أثناء رحلة **الإرجاع** الفعلي —
+  // ليس تسليماً للزبون إطلاقاً. النص وحده لا يميّز بينهما (فحص فعلي 25 أيلول
+  // 2026 عبر بيانات حقيقية: طلب TL-29591 رجع فعلاً لنا وسُجِّل «تم التسليم»
+  // خطأً). فحص Receiver/Sender بالـAPI العام (mapPublic) هو الإشارة الموثوقة
+  // الوحيدة لدينا — SOAP لا يعطينا هذا الحقل فنكتفي هنا بتصنيفها «في المركز»
+  // (محطة وسيطة غير نهائية) بدل افتراض التسليم، لحين وصول حالة أوضح.
+  if (t.includes('şube') && (t.includes('teslim edildi') || t.includes('teslim edilmiş'))) return 'at_center';
   if (t.includes('teslim edildi') || t.includes('teslim edilmiş')) return 'delivered';
   if (t.includes('dağıtım')) return 'on_way';
   if (t.includes('şube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
@@ -128,15 +135,29 @@ async function syncSheet(orderId: string) {
   } catch { /* best-effort */ }
 }
 
+// اسم المُرسِل الثابت الذي يستخدمه حسابنا بيورتيتشي لكل شحنات تركيا (مقنَّع
+// من الـAPI العام بنفس الصيغة الحرفية دوماً — تحقّق حيّ 25 أيلول 2026 على 6
+// شحنات مختلفة). لو ظهر هالاسم بحقل «Receiver» فهذا يعني الطرد رجع فعلياً
+// إلينا (نحن الراسل الأصلي) لا أنه وصل الزبون — انظر تعليق mapPublic تحت.
+const YURTICI_OUR_SENDER_MASKED = 'YO** ŞA**';
+
 // يحوّل ShipmentStatus (نص API يورتيتشي العام) → مفتاح حالة التطبيق.
-function mapPublic(shipmentStatus: string, isDelivered: unknown): string | null {
+// receiver: حقل Receiver من نفس استجابة الـAPI — الإشارة الموثوقة الوحيدة
+// لتمييز «تسليم للزبون» عن «رجوع الطرد لنا» (كلاهما IsDelivered=true ونص
+// «TESLİM EDİLDİ» متطابق — مُثبَت حيّاً 25 أيلول 2026: طلب TL-29591 رجع فعلياً
+// لمخزننا لكن يورتيتشي سجّله IsDelivered=true بنفس نص التسليم العادي).
+function mapPublic(shipmentStatus: string, isDelivered: unknown, receiver?: string): string | null {
   const t = (shipmentStatus || '').toLocaleLowerCase('tr');
+  const isDeliveredFlag = isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi');
+  // الطرد رجع فعلياً إلينا (المُستلِم بهالحركة = نحن الراسل الأصلي) — لا نُحسبها
+  // «تم التسليم» (بيقلبها مبيعة/تسليم زائف للبائعة). بلاغ حسام 25 أيلول 2026.
+  if (isDeliveredFlag && (receiver || '').trim().startsWith(YURTICI_OUR_SENDER_MASKED)) return 'returned';
   // الإرجاع/الفشل/الإلغاء لها الأولوية على IsDelivered: «İADE EDİLDİ» (راجع) يرجّع
   // IsDelivered=true لكنه إرجاع لا تسليم — لا نخلطهما (كان يقلب المرتجعات «مُسلَّم»).
   if (t.includes('iade')) return 'returning';
   if (t.includes('teslim edilemedi') || t.includes('bulunamad') || t.includes('adreste yok')) return 'not_received';
   if (t.includes('iptal')) return 'cancelled';
-  if (isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi')) return 'delivered';
+  if (isDeliveredFlag) return 'delivered';
   if (t.includes('dağıt') || t.includes('dagit')) return 'on_way';
   if (t.includes('şube') || t.includes('sube') || t.includes('aktarma') || t.includes('transfer') || t.includes('merkez')) return 'at_center';
   if (t.includes('taşı') || t.includes('tasi') || t.includes('yola') || t.includes('çık') || t.includes('cik') || t.includes('kabul')) return 'shipped';
@@ -174,12 +195,7 @@ Deno.serve(async (req) => {
     for (const o of batch) {
       const hit = map[o.yurtici_cargo_key];
       if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
-      let newStatus = mapStatus(hit.opStatus, hit.text);
-      // الطلب أصلاً بمسار إرجاع (راجع للمركز/لم يُستلَم) ويورتيتشي الآن يقول
-      // «teslim edildi» → هذا تسليم الطرد لنا (الراسل) لا للزبون («Şubeye Teslim
-      // Edildi» أثناء مسار الإرجاع تحوي نفس نص التسليم العادي). لو قبلناها
-      // «تم التسليم» بيتحسب مبيعة/تسليم زائف للبائعة. بلاغ حسام 25 أيلول 2026.
-      if (newStatus === 'delivered' && (o.status === 'returning' || o.status === 'not_received')) newStatus = 'returned';
+      const newStatus = mapStatus(hit.opStatus, hit.text);
       results.push({ order: o.order_id, opStatus: hit.opStatus, mapped: newStatus, current: o.status });
 
       const patch: any = {};
@@ -225,10 +241,7 @@ Deno.serve(async (req) => {
       const r = await fetch(`https://www.yurticikargo.com/service/shipmentstracking?id=${encodeURIComponent(o.tracking_number)}&language=tr`);
       if (!r.ok) continue;
       const j = await r.json();
-      let newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
-      // نفس حارس مسار SOAP أعلاه: طلب بمسار إرجاع + يورتيتشي يقول «teslim edildi»
-      // = رجع لنا، مو تسليم للزبون. بلاغ حسام 25 أيلول 2026.
-      if (newStatus === 'delivered' && (o.status === 'returning' || o.status === 'not_received')) newStatus = 'returned';
+      const newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered, j.Receiver);
       // لا يدوس يورتيتشي حالةً مؤكَّدة يدوياً (راجع فعلياً لمخزننا/تسوية/إلغاء).
       if (!newStatus || newStatus === o.status || RETURN_GUARD.includes(o.status)) continue;
       const { error: e2 } = await supabase.from('orders')
