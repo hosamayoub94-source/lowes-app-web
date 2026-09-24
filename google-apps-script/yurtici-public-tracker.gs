@@ -80,6 +80,10 @@ function pollYurticiStatuses() {
         if (resp.getResponseCode() !== 200) { errors++; continue; }
         var j = JSON.parse(resp.getContentText());
         var ar = yk_mapStatus(j.ShipmentStatus, j.IsDelivered);
+        // الصف أصلاً بمسار إرجاع (راجع للمركز/لم يتم الاستلام) ويورتيتشي الآن
+        // يقول «teslim edildi» → تسليم الطرد لنا (الراسل) لا للزبون. بلاغ حسام
+        // 25 أيلول 2026 — نفس حارس track-yurtici/index.ts.
+        if (ar === 'تم التسليم ✅' && /راجع للمركز|لم يتم الاستلام/.test(cur)) ar = 'راجع';
         if (!ar || ar === cur) continue;
         sh.getRange(i + 2, cStatus).setValue(ar);
         UrlFetchApp.fetch(YK_SHEET_TO_APP, {

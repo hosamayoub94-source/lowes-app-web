@@ -174,7 +174,12 @@ Deno.serve(async (req) => {
     for (const o of batch) {
       const hit = map[o.yurtici_cargo_key];
       if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
-      const newStatus = mapStatus(hit.opStatus, hit.text);
+      let newStatus = mapStatus(hit.opStatus, hit.text);
+      // الطلب أصلاً بمسار إرجاع (راجع للمركز/لم يُستلَم) ويورتيتشي الآن يقول
+      // «teslim edildi» → هذا تسليم الطرد لنا (الراسل) لا للزبون («Şubeye Teslim
+      // Edildi» أثناء مسار الإرجاع تحوي نفس نص التسليم العادي). لو قبلناها
+      // «تم التسليم» بيتحسب مبيعة/تسليم زائف للبائعة. بلاغ حسام 25 أيلول 2026.
+      if (newStatus === 'delivered' && (o.status === 'returning' || o.status === 'not_received')) newStatus = 'returned';
       results.push({ order: o.order_id, opStatus: hit.opStatus, mapped: newStatus, current: o.status });
 
       const patch: any = {};
@@ -220,7 +225,10 @@ Deno.serve(async (req) => {
       const r = await fetch(`https://www.yurticikargo.com/service/shipmentstracking?id=${encodeURIComponent(o.tracking_number)}&language=tr`);
       if (!r.ok) continue;
       const j = await r.json();
-      const newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
+      let newStatus = mapPublic(j.ShipmentStatus, j.IsDelivered);
+      // نفس حارس مسار SOAP أعلاه: طلب بمسار إرجاع + يورتيتشي يقول «teslim edildi»
+      // = رجع لنا، مو تسليم للزبون. بلاغ حسام 25 أيلول 2026.
+      if (newStatus === 'delivered' && (o.status === 'returning' || o.status === 'not_received')) newStatus = 'returned';
       // لا يدوس يورتيتشي حالةً مؤكَّدة يدوياً (راجع فعلياً لمخزننا/تسوية/إلغاء).
       if (!newStatus || newStatus === o.status || RETURN_GUARD.includes(o.status)) continue;
       const { error: e2 } = await supabase.from('orders')
