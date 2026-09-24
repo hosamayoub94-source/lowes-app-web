@@ -75,7 +75,7 @@ var STATUS_AR = {
   shipped: 'في النقل 🚚', on_way: 'قيد التوصيل 🛵', special_delivery: 'توصيل خاص 🚗',
   prepaid: 'مسبق الدفع 💳', delivered: 'تم التسليم ✅',
   waiting: 'بالانتظار ⏳', not_received: 'لم يتم الاستلام 📭',
-  returning: 'راجع للمركز ↩️', returned: 'راجع 🔁', settled: 'تمت التسوية 🤝',
+  returning: 'راجع للمركز ↩️', returned: 'تم الاسترجاع 🔁', settled: 'تمت التسوية 🤝',
   cancelled: 'ملغي ❌',
 };
 
@@ -353,7 +353,7 @@ function _statusKey(ar) {
   if (/تسوية|settled/i.test(ar)) return 'settled';
   if (/لم يتم الاستلام|not.?received/i.test(ar)) return 'not_received';
   if (/راجع للمركز|return.?center/i.test(ar)) return 'returning';
-  if (/راجع|return/i.test(ar)) return 'returned';
+  if (/استرجاع|راجع|return/i.test(ar)) return 'returned';
   if (/انتظار|متابعة|wait/i.test(ar)) return 'waiting';
   if (/تحضير.*موتور|motor.?prep/i.test(ar)) return 'motor_prep';
   if (/موتور|motor/i.test(ar)) return 'motor';

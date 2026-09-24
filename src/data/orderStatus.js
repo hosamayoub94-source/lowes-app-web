@@ -19,7 +19,7 @@ export const STATUSES = {
   waiting:      { label: 'بالانتظار/متابعة',  icon: '⏳', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
   not_received: { label: 'لم يتم الاستلام',   icon: '📭', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
   returning:    { label: 'راجع للمركز',       icon: '↩️', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  returned:     { label: 'راجع',              icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  returned:     { label: 'تم الاسترجاع',       icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
   settled:      { label: 'تمت التسوية',       icon: '🤝', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
   cancelled:    { label: 'ملغي',              icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
 };

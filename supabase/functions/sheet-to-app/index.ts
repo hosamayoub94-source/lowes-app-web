@@ -60,7 +60,7 @@ const STATUS_MAP: Record<string, string> = {
   'بالانتظار': 'waiting',      'waiting': 'waiting',
   'لم يتم الاستلام': 'not_received', 'not_received': 'not_received',
   'راجع للمركز': 'returning',  'returning': 'returning',
-  'راجع': 'returned',           'returned': 'returned',
+  'راجع': 'returned', 'تم الاسترجاع': 'returned', 'returned': 'returned',
   'تمت التسوية': 'settled',    'settled': 'settled',
   'ملغي': 'cancelled', 'الغاء': 'cancelled', 'الإلغاء': 'cancelled', 'cancelled': 'cancelled',
 };
@@ -84,7 +84,7 @@ const STATUS_AR: Record<string, string> = {
   pending:'وارد جديد', preparing:'في التجهيز', ready:'جاهز', motor:'قيد توصيل الموتور',
   motor_prep:'تحضير الموتور', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
   special_delivery:'توصيل خاص', prepaid:'مسبق الدفع', delivered:'تم التسليم',
-  waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع',
+  waiting:'بالانتظار', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'تم الاسترجاع',
   settled:'تمت التسوية', cancelled:'ملغي',
 };
 

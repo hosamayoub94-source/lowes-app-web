@@ -48,7 +48,7 @@ const corsHeaders = {
 
 const STATUS_AR: Record<string, string> = {
   preparing:'في التجهيز', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
-  delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع', cancelled:'ملغي',
+  delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'تم الاسترجاع', cancelled:'ملغي',
 };
 
 // ترجمة حالة الكرم (نص عربي من شارة المرحلة) → حالتنا.

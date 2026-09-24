@@ -25,7 +25,7 @@ const RETURN_GUARD = ['returning', 'returned', 'not_received', 'cancelled', 'set
 
 const STATUS_AR: Record<string, string> = {
   preparing:'في التجهيز', at_center:'في المركز', shipped:'في النقل', on_way:'قيد التوصيل',
-  delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'راجع', cancelled:'ملغي',
+  delivered:'تم التسليم', not_received:'لم يتم الاستلام', returning:'راجع للمركز', returned:'تم الاسترجاع', cancelled:'ملغي',
 };
 
 // أحداث بابل → حالتنا. أحداث بلا مطابقة واضحة (DeliveryContact نتيجة محاولة
