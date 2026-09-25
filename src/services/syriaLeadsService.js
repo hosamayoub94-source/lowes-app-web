@@ -45,6 +45,100 @@ export const PROVINCE_LABELS_AR = {
 
 export const CATEGORIES = ['صيدلية', 'عيادة جلدية', 'مركز تجميل', 'متجر/مورد مستحضرات', 'موزّع'];
 
+// ── المتاجر الأونلاين (lead_type = 'online') ─────────────────
+export const ONLINE_CATEGORIES = ['منصة متعددة البائعين', 'متجر أونلاين — تجميل', 'متجر أونلاين — عام', 'صيدلية أونلاين'];
+export const CHANNEL_LABELS = {
+  website: '🌐 موقع', marketplace: '🏬 منصة', app: '📱 تطبيق', instagram: '📷 إنستغرام', facebook: '👍 فيسبوك',
+};
+
+// تواجد Lowe's على المتجر/المنصة — الهدف: "نكون بكل المتاجر".
+export const PRESENCE_LABELS = {
+  not_listed:     'غير موجودين',
+  contacted:      'تواصلنا',
+  in_talks:       'قيد الاتفاق',
+  listed:         'موجودين ✅',
+  rejected:       'رفض',
+  not_applicable: 'غير مناسب',
+};
+
+/** تحديث تواجد Lowe's على متجر أونلاين — حقول الفريق فقط، لا يلمس البحث. */
+export async function updateLeadPresence(id, { lowes_presence, lowes_listing_url }, updatedByName) {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('syria_b2b_leads')
+    .update({
+      lowes_presence,
+      lowes_listing_url: lowes_listing_url?.trim() || null,
+      presence_updated_at: now,
+      presence_updated_by: updatedByName || null,
+      updated_at: now,
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+/** جديد = اكتُشف خلال آخر 7 أيام. */
+export function isNewLead(lead, now = Date.now()) {
+  return !!lead.discovered_at && now - new Date(lead.discovered_at).getTime() < 7 * DAY;
+}
+/** قديم التحقق = لم يُتحقق منه منذ 90 يوماً (أو أبداً). */
+export function isStale(lead, now = Date.now()) {
+  const t = lead.last_verified_at || lead.created_at;
+  return !t || now - new Date(t).getTime() > 90 * DAY;
+}
+export function hasDirectContact(l) {
+  return !!(l.phone || l.whatsapp);
+}
+export function hasAnyContact(l) {
+  return !!(l.phone || l.whatsapp || l.instagram || l.facebook || l.email || l.telegram || l.website);
+}
+
+/**
+ * مؤشرات مفيدة للإدارة من نفس البيانات (بلا مصدر خارجي):
+ * تغطية المحافظات، قابلية التواصل، مسار التحويل، التواجد بالمتاجر الأونلاين،
+ * وأولويات "ابدأ بهدول".
+ */
+export function computeInsights(leads) {
+  const now = Date.now();
+  const byProvince = {};
+  const funnel = { not_contacted: 0, contacted: 0, interested: 0, not_interested: 0, customer: 0 };
+  const byCategory = {};
+  let direct = 0, anyContact = 0, stale = 0, fresh7 = 0;
+  const online = leads.filter(l => l.lead_type === 'online');
+  const presence = Object.fromEntries(Object.keys(PRESENCE_LABELS).map(k => [k, 0]));
+  for (const l of leads) {
+    const p = l.province || '—';
+    const row = (byProvince[p] ??= { total: 0, direct: 0, contacted: 0, customers: 0, online: 0 });
+    row.total++;
+    if (hasDirectContact(l)) { row.direct++; direct++; }
+    if (hasAnyContact(l)) anyContact++;
+    if ((l.status || 'not_contacted') !== 'not_contacted') row.contacted++;
+    if (l.status === 'customer') row.customers++;
+    if (l.lead_type === 'online') row.online++;
+    funnel[l.status || 'not_contacted'] = (funnel[l.status || 'not_contacted'] || 0) + 1;
+    byCategory[l.category || '—'] = (byCategory[l.category || '—'] || 0) + 1;
+    if (isStale(l, now)) stale++;
+    if (isNewLead(l, now)) fresh7++;
+  }
+  for (const l of online) presence[l.lowes_presence || 'not_listed']++;
+  const missingProvinces = PROVINCES.filter(p => p !== 'Nationwide' && !byProvince[p]);
+  // "ابدأ بهدول": أعلى Score لم يُتواصل معهم ولديهم تواصل مباشر
+  const startWith = leads
+    .filter(l => (l.status || 'not_contacted') === 'not_contacted' && hasDirectContact(l))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 8);
+  // منصات تقبل بائعين ولسنا عليها بعد = أسرع طريق للتواجد
+  const sellerPlatformsGap = online
+    .filter(l => l.accepts_sellers && !['listed', 'not_applicable', 'rejected'].includes(l.lowes_presence || 'not_listed'))
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+  return {
+    total: leads.length, direct, anyContact, stale, fresh7,
+    byProvince, funnel, byCategory, missingProvinces, startWith,
+    online: { total: online.length, presence, listed: presence.listed, sellerPlatformsGap },
+  };
+}
+
 function normalizeInstagram(v) {
   const s = (v || '').trim();
   if (!s) return '';
@@ -70,17 +164,18 @@ function telLink(phone) {
  * مصدرين" المطبَّقة بمحرك البحث، حتى لو الفريق واثق 100% من الشخص.
  */
 export async function createLead({ name, category, province, city, district, address,
-  contact_person, phone, whatsapp, instagram, facebook, reason, initialStatus }, addedByName) {
+  contact_person, phone, whatsapp, instagram, facebook, reason, initialStatus,
+  lead_type, website, email, telegram, channel, sells_beauty, accepts_sellers }, addedByName) {
   if (!name?.trim()) throw new Error('اسم المحل مطلوب');
   if (!province) throw new Error('المحافظة مطلوبة');
 
   const ig = normalizeInstagram(instagram);
   const fb = normalizeFacebook(facebook);
-  const contactMethods = [phone, whatsapp, ig, fb].filter(Boolean).length;
+  const contactMethods = [phone, whatsapp, ig, fb, email, telegram].filter(Boolean).length;
   const priority = contactMethods >= 1 ? 'B' : 'C';
   const score = Math.min(65, 40 + contactMethods * 8 + (contact_person ? 5 : 0));
 
-  const id = `SYR-ADD-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`;
+  const id = `SYR-${lead_type === 'online' ? 'ONA' : 'ADD'}-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`;
   const now = new Date().toISOString();
   const status = initialStatus || 'not_contacted';
 
@@ -101,6 +196,15 @@ export async function createLead({ name, category, province, city, district, add
     status_updated_by: status !== 'not_contacted' ? addedByName : null,
     added_by: addedByName || null,
     added_manually: true,
+    lead_type: lead_type === 'online' ? 'online' : 'physical',
+    website: website?.trim() || null,
+    email: email?.trim() || null,
+    telegram: telegram?.trim() || null,
+    channel: channel || null,
+    sells_beauty: typeof sells_beauty === 'boolean' ? sells_beauty : null,
+    accepts_sellers: typeof accepts_sellers === 'boolean' ? accepts_sellers : null,
+    discovery_source: 'manual_team_entry',
+    discovered_at: now, last_verified_at: now,
     created_at: now, updated_at: now,
   };
 
