@@ -3404,10 +3404,25 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const [exportingYurtici, setExportingYurtici] = useState(false);
   const exportYurticiExcel = async () => {
     const base = orders.filter(o => o.market === 'turkey' && o.archived !== true && !o.deleted_at);
+    // ⚠️ 25 أيلول 2026 (بلاغ حسام — بگ متكرر، مش أول مرة): طلب ممكن ينشحن يدوياً
+    // مباشرة من موقع يورتيتشي (بلا المرور بزر «توليد ملف» هون) — عندها الطلب
+    // بياخد رقم تتبّع حقيقي (لو انرفع تقرير التتبّع) أو يبقى بلا رقم لحد التسليم
+    // الفعلي، بس بالحالتين شحنة حقيقية موجودة أصلاً بيورتيتشي. لو الحالة لسا
+    // «تجهيز» بالتطبيق (محدّش حدّثها يدوياً) وضغط حدا الزر هون، كان الطلب يظهر
+    // بالملف الجديد فيتشحن **مرتين** عند الرفع. الحارس القديم كان يتحقّق من
+        // yurtici_cargo_key بس (تُملأ فقط عبر API الإنشاء بالتطبيق) — ما كان يغطّي
+    // الشحن اليدوي أبداً. الآن: أي طلب معه رقم تتبّع **أو** cargo key (من أي
+    // مصدر) يُستبعَد نهائياً من الملف — لا مجرد تحذير يُتجاوَز بالخطأ.
     const ship = base.filter(o =>
       ['pending', 'preparing', 'ready'].includes(o.status) &&
+      !String(o.tracking_number || '').trim() && !o.yurtici_cargo_key &&
       !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '')
     );
+    const alreadyShipped = base.filter(o =>
+      ['pending', 'preparing', 'ready'].includes(o.status) &&
+      (String(o.tracking_number || '').trim() || o.yurtici_cargo_key) &&
+      !/موتور|motor/i.test(o.shipping_company || '') && !/موتور|motor/i.test(o.pickup_type || '')
+    ).length;
     if (!ship.length) {
       const isMotor   = base.filter(o => /موتور|motor/i.test(o.shipping_company || '') || /موتور|motor/i.test(o.pickup_type || '')).length;
       const statusList = base.length
@@ -3417,11 +3432,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (base.length === 0) parts.push('لا يوجد طلبات تركيا نشطة');
       else parts.push(`حالاتها: ${statusList}`);
       if (isMotor) parts.push(`${isMotor} موتور مستثنى`);
+      if (alreadyShipped) parts.push(`${alreadyShipped} لها شحنة/رقم تتبّع مسبقاً (مستثناة — راجع «رفع تقرير التتبّع» لو شُحنت يدوياً)`);
       toast.info?.(`لا يوجد طلب تجهيز قابل للتصدير · ${parts.join(' · ')}`, { duration: 12000 });
       return;
     }
-    const withKey = ship.filter(o => o.yurtici_cargo_key).length;
-    const warn = withKey ? `\n⚠️ ${withKey} منها لها cargo key مسبقاً — لو رفعتها مرة ثانية ستُنشئ شحنة مكررة.` : '';
+    const warn = alreadyShipped ? `\n⚠️ ${alreadyShipped} طلب تجهيز آخر معه رقم تتبّع/cargo key مسبقاً — استُبعد تلقائياً (شحنة موجودة أصلاً، أرفعتها يدوياً؟).` : '';
     if (!window.confirm(`توليد ملف يورتيتشي لـ${ship.length} طلب تركيا؟ ارفعه عبر «Dosya İle Gönderi».${warn}`)) return;
     setExportingYurtici(true);
     try {
