@@ -171,7 +171,9 @@ if (MODE !== 'go') { console.log('\n(dry run — nothing written. Run with "go" 
 
 const ANON = envKey();
 if (!ANON) { console.error('Missing VITE_SUPABASE_ANON_KEY'); process.exit(1); }
-const H = { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' };
+// Accept/Content-Profile: public — بدونه PostgREST يفترض مخطط graphql_public
+// ويرجّع "Could not find the table 'graphql_public.orders'" (تحقّقت منه حياً).
+const H = { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json', 'Accept-Profile': 'public', 'Content-Profile': 'public' };
 
 // تخطّي الموجود مسبقاً (إعادة تشغيل آمنة)
 const existing = new Set();
