@@ -298,7 +298,7 @@ function ProductCard({ p, onEdit, onMovements, onStock, canManage, warehouses = 
 // ── Main screen ────────────────────────────────────────────────
 // ── Movement statement (كشف حركة) for one product ──────────────
 const MOVE_LBL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع' };
-const MARKET_FILTERS = [['all', '🌍 الكل'], ['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا']];
+const MARKET_FILTERS = [['all', '🌍 الكل'], ['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا'], ['uae', '🇦🇪 الإمارات']];
 function MovementModal({ product, onClose }) {
   const [moves, setMoves]   = useState(null);
   const [whMeta, setWhMeta] = useState({}); // id -> { name, market }
@@ -414,7 +414,7 @@ function ReorderPanel() {
         supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
         supabase.from('wh_movements').select('product_id, quantity, type, created_at').eq('type', 'reserve').gte('created_at', since),
       ]);
-      const syria = new Set((whRes.data || []).filter(w => w.market !== 'turkey').map(w => w.id));
+      const syria = new Set((whRes.data || []).filter(w => !w.market || w.market === 'syria').map(w => w.id));
       const qty = {};
       (stockRes.data || []).forEach(s => { if (syria.has(s.warehouse_id)) qty[s.product_id] = (qty[s.product_id] || 0) + Number(s.quantity || 0); });
       const sold30 = {};
@@ -556,7 +556,7 @@ function StockActionModal({ product, performedBy, onClose, onDone }) {
     (async () => {
       // Syria warehouses only (exclude Turkey)
       const { data } = await supabase.from('wh_warehouses').select('id, name, type, market').eq('is_active', true);
-      const list = (data || []).filter(w => w.market !== 'turkey');
+      const list = (data || []).filter(w => !w.market || w.market === 'syria');
       setWhs(list);
       setWhId(list.find(w => w.type === 'central')?.id || list[0]?.id || '');
     })();
@@ -723,7 +723,7 @@ export default function InventoryScreen() {
         if (prodRes.error.code === '42P01') { setDbMissing(true); return; }
         throw new Error(prodRes.error.message);
       }
-      const syriaList = (whRes.data || []).filter(w => w.market !== 'turkey')
+      const syriaList = (whRes.data || []).filter(w => !w.market || w.market === 'syria')
         .sort((a, b) => (a.type === 'central' ? -1 : b.type === 'central' ? 1 : 0));
       const syriaWh = new Set(syriaList.map(w => w.id));
       setSyriaWhList(syriaList);

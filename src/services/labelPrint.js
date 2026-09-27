@@ -77,7 +77,7 @@ function addressLine(o) {
 //  (inventory_daily_log) لمراقبة الحركة عبر الزمن. best-effort:
 //  لا تُفشِل الطباعة إن كان الجدول غير موجود بعد (SQL لم يُطبَّق).
 // ────────────────────────────────────────────────────────────────
-const MARKET_LBL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
+const MARKET_LBL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', uae: '🇦🇪 الإمارات' };
 
 const normName = (s) => String(s || '').trim().toLowerCase();
 

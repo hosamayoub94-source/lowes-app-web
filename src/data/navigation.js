@@ -45,6 +45,7 @@ export const NAV_ITEMS = [
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
   { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
+  { id: 'orders-uae',    label: 'طلبات الإمارات', icon: '🇦🇪', path: '/orders/uae', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
   // roles: [A] فقط بشكل افتراضي — الوصول الفعلي لموظفين محدَّدين عبر منح
   // صلاحية VIEW_SYRIA_LEADS يدوياً من /admin/users (roles/perm لازم يتطابقا
@@ -155,7 +156,7 @@ const ROLE_BOTTOM_TABS = {
 export function bottomTabsForRole(role, permSet = null, userMarket = null) {
   if (!role) return [];
   // «orders» في الشريط السفلي = ماكنة سوق المستخدم (سوريا/تركيا).
-  const ordersId = `orders-${userMarket === 'syria' ? 'syria' : 'turkey'}`;
+  const ordersId = `orders-${userMarket === 'syria' || userMarket === 'uae' ? userMarket : 'turkey'}`;
   const all = navItemsForRole(role, permSet);
   const byId = Object.fromEntries(all.map(i => [i.id, i]));
   const curated = ROLE_BOTTOM_TABS[role];

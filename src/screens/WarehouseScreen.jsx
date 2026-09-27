@@ -18,7 +18,7 @@ import {
 const TYPE_LABEL = { central: '🏛️ مستودع', sales: '📦 مبيعات', wholesale: '🏪 جملة', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
 // ترتيب هرمي ضمن كل سوق: مستودع كبير → مبيعات → جملة → مناديب → مرتجعات
 const TYPE_RANK = { central: 0, sales: 1, wholesale: 2, distributor: 3, returns: 4 };
-const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا' };
+const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', uae: '🇦🇪 الإمارات' };
 const MOVE_LABEL = { receive: '📥 استلام', allocate: '⇄ تحويل', adjust: '± جرد', reserve: '🛒 حجز طلب', release: '↩️ إرجاع مرتجع', reverse: '↩️ تراجع', waste: '🗑️ إتلاف' };
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30';
 

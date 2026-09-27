@@ -107,7 +107,8 @@ function OrdersRedirect() {
   const { order_market, team } = useAuth();
   const location = useLocation();
   const m = order_market ?? (team && String(team).includes('سوريا') ? 'syria' : 'turkey');
-  return <Navigate to={m === 'syria' ? ROUTES.ORDERS_SYRIA : ROUTES.ORDERS_TURKEY} replace state={location.state} />;
+  const to = m === 'syria' ? ROUTES.ORDERS_SYRIA : m === 'uae' ? ROUTES.ORDERS_UAE : ROUTES.ORDERS_TURKEY;
+  return <Navigate to={to} replace state={location.state} />;
 }
 
 export function AppRoutes() {
@@ -416,6 +417,7 @@ export function AppRoutes() {
           <Route path={ROUTES.ORDERS}         element={<OrdersRedirect />} />
           <Route path={ROUTES.ORDERS_SYRIA}   element={<OrdersScreen forcedMarket="syria" />} />
           <Route path={ROUTES.ORDERS_TURKEY}  element={<OrdersScreen forcedMarket="turkey" />} />
+          <Route path={ROUTES.ORDERS_UAE}     element={<OrdersScreen forcedMarket="uae" />} />
           <Route path="/mystery-shopper" element={
             <ProtectedRoute roles={MANAGEMENT}>
               <MysteryShopperScreen />

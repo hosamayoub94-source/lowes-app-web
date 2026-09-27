@@ -21,6 +21,7 @@ const SERVICE_KEY   = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_S
 const VALID_TOKENS = [
   Deno.env.get('SHEET_SYNC_TOKEN'),
   Deno.env.get('TURKEY_SHEET_SYNC_TOKEN'),
+  Deno.env.get('UAE_SHEET_SYNC_TOKEN'),
   'LOWES-TURKEY-2026',
   'LOWES-SYRIA-2026',
 ].filter(Boolean);
@@ -115,7 +116,7 @@ async function notifySeller(supabase: any, order: any, newStatus: string, source
 function buildOrderRecord(row: any, batchMarket: string, createdBy: string) {
   const status   = resolveStatus(row.status_ar || row.status || '') ?? 'pending';
   const market   = row.market || batchMarket;
-  const currency = row.currency || (market === 'syria' ? 'SYP' : 'TRY');
+  const currency = row.currency || (market === 'syria' ? 'SYP' : market === 'uae' ? 'AED' : 'TRY');
   return {
     order_id:         String(row.order_id).trim(),
     market,

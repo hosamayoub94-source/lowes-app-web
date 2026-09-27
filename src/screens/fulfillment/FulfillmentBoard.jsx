@@ -22,7 +22,7 @@ export function nextStatusFor(o) {
     return (o.market === 'turkey' && isMotor(o)) ? 'motor_prep' : 'preparing';
   }
   // تم التجهيز → خرج من المخزن
-  if (o.market === 'syria') return 'shipped';
+  if (o.market === 'syria' || o.market === 'uae') return 'shipped';
   if (isMotor(o)) return 'motor';
   if (isCenterPickup(o)) return 'at_center';
   return 'shipped';
@@ -197,7 +197,7 @@ export default function FulfillmentBoard({ orders, market, userName, onAdvance, 
   const [accessible, setAccessibleState] = useState(getA11y);
   const toggleAccessible = () => setAccessibleState(v => { const nv = !v; setA11y(nv); return nv; });
 
-  const marketLabel = market === 'syria' ? '🇸🇾 سوريا' : market === 'turkey' ? '🇹🇷 تركيا' : '🌍 كل الأسواق';
+  const marketLabel = market === 'syria' ? '🇸🇾 سوريا' : market === 'turkey' ? '🇹🇷 تركيا' : market === 'uae' ? '🇦🇪 الإمارات' : '🌍 كل الأسواق';
 
   // طابور التجهيز: سوقي فقط + الحالات القابلة للعمل.
   const queue = useMemo(() => orders.filter(o =>

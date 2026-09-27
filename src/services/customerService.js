@@ -239,7 +239,7 @@ export function customerWaLink(phone, market, text) {
   const digits = phoneKey(phone);
   if (!digits) return null;
   const local = digits.replace(/^0+/, '');
-  const cc = market === 'turkey' ? '90' : '963';
+  const cc = market === 'turkey' ? '90' : market === 'uae' ? '971' : '963';
   const full = local.startsWith(cc) ? local : cc + local;
   const q = text ? `?text=${encodeURIComponent(text)}` : '';
   return `https://wa.me/${full}${q}`;
@@ -287,7 +287,15 @@ function normalizeSyrianPhone(raw) {
   return `+963${d}`;
 }
 
-const PHONE_NORMALIZERS = { turkey: normalizeTurkishPhone, syria: normalizeSyrianPhone };
+// أرقام الإمارات المحلية: 05X + 7 أرقام (0501234567) أو بلا صفر (501234567) — +971.
+function normalizeUaePhone(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length < 7) return null;
+  if (d.startsWith('971') && d.length >= 11) return `+${d}`;
+  return `+971${d.replace(/^0+/, '')}`;
+}
+
+const PHONE_NORMALIZERS = { turkey: normalizeTurkishPhone, syria: normalizeSyrianPhone, uae: normalizeUaePhone };
 
 function triggerCSVDownload(phones, filename) {
   const csv = 'phone\n' + phones.join('\n');

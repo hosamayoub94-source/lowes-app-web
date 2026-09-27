@@ -93,6 +93,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const SECTIONS = [
   { key: 'syria',  label: '🇸🇾 لويز سوريا', market: 'syria',  brand: 'lowes'  },
   { key: 'turkey', label: '🇹🇷 لويز تركيا', market: 'turkey', brand: 'lowes'  },
+  { key: 'uae',    label: '🇦🇪 لويز الإمارات', market: 'uae', brand: 'lowes'  },
   { key: 'strong', label: '💪 سترونغ',       market: null,     brand: 'strong' },
   { key: 'all',    label: '🌍 الكل',          market: null,     brand: null     },
 ];
@@ -121,7 +122,8 @@ function loyaltyTier(stars) {
 
 function custMarket(c) {
   return (c.markets || []).includes('syria') ? 'syria'
-       : (c.markets || []).includes('turkey') ? 'turkey' : 'syria';
+       : (c.markets || []).includes('turkey') ? 'turkey'
+       : (c.markets || []).includes('uae') ? 'uae' : 'syria';
 }
 
 function WaIcon({ size = 15 }) {
@@ -175,7 +177,9 @@ function CustomerModal({ c, sellerName, onClose }) {
   // details + their last order's products.
   const reorder = () => {
     const lo = lastOrder || {};
-    navigate('/orders', { state: { reorder: {
+    // افتح ماكنة سوق العميل مباشرة (وإلا /orders يحوّل لسوق البائع ويقفل السوق عليه).
+    const reMkt = lo.market || mkt;
+    navigate(['syria', 'turkey', 'uae'].includes(reMkt) ? `/orders/${reMkt}` : '/orders', { state: { reorder: {
       market: lo.market || mkt,
       brand:  lo.brand || 'lowes',
       customer_name: c.name || lo.customer_name || '',
@@ -623,6 +627,7 @@ function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect, alrea
   if (Number(c.total_syp) > 0) totals.push(`${fmt(c.total_syp)} SYP`);
   if (Number(c.total_usd) > 0) totals.push(`${fmt(c.total_usd)} USD`);
   if (Number(c.total_try) > 0) totals.push(`${fmt(c.total_try)} TRY`);
+  if (Number(c.total_aed) > 0) totals.push(`${fmt(c.total_aed)} AED`);
   const wa = customerWaLink(c.phone, mkt);
   const idle = daysSince(c.last_order);
 
@@ -1052,7 +1057,7 @@ export default function CustomersScreen() {
 
       {/* Meta export — الإدارة + الميديا باير. سوريا/تركيا حسب market، سترونغ
           حسب brand (عملاؤها بتركيا فعلياً رغم أنها بلا market مضبوط بالقسم). */}
-      {canExportMeta && (section === 'turkey' || section === 'syria' || section === 'strong') && (
+      {canExportMeta && (section === 'turkey' || section === 'syria' || section === 'uae' || section === 'strong') && (
         <div className="flex gap-2 items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2">
           <span className="text-xs font-bold text-blue-700 dark:text-blue-300 flex-1">📊 تصدير Meta Ads ({sec.label})</span>
           <button

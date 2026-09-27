@@ -215,12 +215,14 @@ export async function fetchMonthlySalesIndex(year, month) {
       .select('handler_name, amount, currency, status, market, payment_method')
       .gte('order_date', from)
       .lt('order_date', to)
+      .neq('market', 'uae')   // الإمارات بلا عمولة حالياً (قرار 27 أيلول 2026)
       .in('status', COMMISSIONABLE_STATUSES)),
     fetchAllRows(() => supabase
       .from('orders')
       .select('handler_name')
       .gte('order_date', from)
       .lt('order_date', to)
+      .neq('market', 'uae')
       .eq('status', RETURN_STATUS)),
   ]);
 

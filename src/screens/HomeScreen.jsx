@@ -691,6 +691,7 @@ function toUsdRate(amount, currency, rates) {
   const cur = String(currency || 'SYP').toUpperCase();
   if (cur === 'USD') return a;
   if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
+  if (cur === 'AED') return a / 3.6725;
   return a / (Number(rates?.syp_per_usd) || 14000);
 }
 function MyTargetCard({ name }) {
@@ -720,6 +721,8 @@ function MyTargetCard({ name }) {
       const orders = oRes.value?.data ?? [];
       let syriaUsd = 0, turkeyTry = 0, hasSyria = false, hasTurkey = false;
       orders.forEach(o => {
+        // الإمارات: بلا هدف/عمولة حالياً (قرار 27 أيلول 2026) — لا تُخلط بهدف سوريا.
+        if (o.market === 'uae') return;
         const isTurkey = (o.market === 'turkey') || /try|تركي|₺/i.test(o.currency || '');
         if (isTurkey) {
           hasTurkey = true;

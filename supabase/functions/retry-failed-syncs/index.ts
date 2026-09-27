@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
       .from('orders')
       .select('id, order_id, market, status')
       .eq('sync_status', 'failed')
-      .in('market', ['syria', 'turkey'])
+      .in('market', ['syria', 'turkey', 'uae'])
       .not('status', 'in', `(${TERMINAL_STATUSES.join(',')})`)
       .is('archived', false)
       .is('deleted_at', null)

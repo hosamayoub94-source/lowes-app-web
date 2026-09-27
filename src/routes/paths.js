@@ -99,6 +99,7 @@ export const ROUTES = {
   ORDERS: '/orders',
   ORDERS_SYRIA: '/orders/syria',
   ORDERS_TURKEY: '/orders/turkey',
+  ORDERS_UAE: '/orders/uae',
 
   // Warehouses
   WAREHOUSES: '/warehouses',

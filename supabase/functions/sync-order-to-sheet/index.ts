@@ -69,8 +69,8 @@ Deno.serve(async (req: Request) => {
     // الصفّ يدوياً من الجدول — وهذا جوهر باگ «الحذف يرجع» (البند ١).
     if (o.deleted_at) return json({ ok: true, skipped: 'deleted_no_readd' }, 200);
 
-    // Only Syria + Turkey have sheets (team isolation)
-    if (o.market !== 'syria' && o.market !== 'turkey') return json({ ok: true, skipped: 'no_sheet' }, 200);
+    // Syria + Turkey + UAE have sheets (team isolation)
+    if (o.market !== 'syria' && o.market !== 'turkey' && o.market !== 'uae') return json({ ok: true, skipped: 'no_sheet' }, 200);
     // Skip archived/imported rows (they never re-sync)
     if (o.archived === true) return json({ ok: true, skipped: 'archived' }, 200);
     // ⚠️ حتى 28 يوليو 2026 كنا نتخطّى دفع الطلبات المُنتهية (تسليم/تسوية/راجع)
@@ -124,6 +124,59 @@ Deno.serve(async (req: Request) => {
       });
     } catch { /* fall back to original name */ }
     const enName = (n: string) => toEn[norm(n)] || n;
+
+    // ── UAE: جدول «تنزيل طلبات UEA» — تاب «شحنات الامارات» (27 أيلول 2026) ──
+    // نفس شكل حمولة تركيا (سكربت google-apps-script/uae-sales-sync.gs مبني على
+    // سكربت تركيا). مطابقة أسماء المنتجات لأعمدة الجرد تتم داخل السكربت نفسه
+    // (يقرأ أسماء الأعمدة من صف الجرد بالجدول) لأن تسميات الجدول تختلف عن name_en.
+    if (o.market === 'uae') {
+      const UAE_URL   = Deno.env.get('UAE_SHEET_SYNC_URL');
+      const UAE_TOKEN = Deno.env.get('UAE_SHEET_SYNC_TOKEN') ?? 'LOWES-UAE-2026';
+      if (!UAE_URL) return json({ ok: false, error: 'uae_sheet_not_configured' }, 200);
+      const UAE_PICKUP_MAP: Record<string, string> = {
+        'عنوان المنزل': '🏠 "عنوان منزل"',
+        'عنوان منزل':   '🏠 "عنوان منزل"',
+        'عنوان العمل':  '🏢 "عنوان عمل"',
+        'عنوان عمل':    '🏢 "عنوان عمل"',
+        'استلام من المركز': '📦 "استلام من المركز 🏢"',
+      };
+      const uaePickup = (p: unknown) => UAE_PICKUP_MAP[String(p ?? '').trim()] ?? p;
+      const uaePayload = {
+        token: UAE_TOKEN,
+        order: {
+          order_id:        o.order_id,
+          order_date:      o.order_date || o.created_at,
+          customer_name:   o.customer_name,
+          phone_1:         o.phone_1 || o.wa_number,
+          phone_2:         o.phone_2,
+          city:            o.city,
+          district:        o.district,
+          address:         o.address,
+          amount:          o.amount,
+          status:          o.status,
+          handler_name:    o.handler_name,
+          payment_method:  o.payment_method,
+          pickup_type:     uaePickup(o.pickup_type),
+          notes:           o.notes,
+          items:           Array.isArray(o.items) ? o.items.map((it: any) => ({ name: enName(it.name), qty: it.qty })) : [],
+        },
+      };
+      const uaeRes = await fetch(UAE_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(uaePayload), redirect: 'follow',
+      });
+      const uaeOut = await parseSheetResponse(uaeRes);
+      await supabase.from('orders')
+        .update({
+          sheet_synced:    !!uaeOut.ok,
+          sheet_synced_at: uaeOut.ok ? new Date().toISOString() : null,
+          sync_status:     uaeOut.ok ? 'synced' : 'failed',
+          sync_error:      uaeOut.ok ? null : String(uaeOut.error || 'sheet error').slice(0, 300),
+          last_synced_at:  uaeOut.ok ? new Date().toISOString() : undefined,
+        })
+        .eq('id', orderId);
+      return json(uaeOut, 200);
+    }
 
     // ── Turkey: route to the Turkey spreadsheet (Strong / LOWE'S tab) ──
     if (o.market === 'turkey') {

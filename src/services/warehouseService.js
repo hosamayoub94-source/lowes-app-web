@@ -171,7 +171,13 @@ async function _resolveSourceWarehouse(order) {
       .select('warehouse_id')
       .eq('employee_name', order.handler_name)
       .maybeSingle();
-    if (prof?.warehouse_id) return prof.warehouse_id;
+    if (prof?.warehouse_id) {
+      // مخزن البائع يُعتمد فقط إذا كان من نفس سوق الطلب — بائعة تركيا تبيع
+      // أيضاً للإمارات؛ طلبها الإماراتي لازم يُخصم من مخزن دبي لا مخزنها التركي.
+      const { data: own } = await supabase
+        .from('wh_warehouses').select('market').eq('id', prof.warehouse_id).maybeSingle();
+      if (!own?.market || own.market === order.market) return prof.warehouse_id;
+    }
   }
   // 2) default sales warehouse for the market
   const { data: wh } = await supabase
@@ -310,7 +316,9 @@ async function _releaseOrder(order, performedBy) {
 // مصادر خارجية تملك مخزونها بنفسها — طلباتها لا تُخصَم هنا إطلاقاً.
 // شبكة النجوم (lowes-classic) تخصم مخزون تركيا عند اعتماد المشرفة على نفس
 // البضاعة الفعلية؛ الخصم هنا كمان = خصم مزدوج بكل قطعة.
-const EXTERNALLY_STOCKED_SOURCES = new Set(['star_network']);
+// uae_sheet_import: طلبات الإمارات المستوردة من الجدول (27 أيلول 2026) — بضاعتها
+// طلعت قبل تتبّع مخزن دبي بالتطبيق، فأي تغيير حالة لاحق لازم ما يخصمها مرة ثانية.
+const EXTERNALLY_STOCKED_SOURCES = new Set(['star_network', 'uae_sheet_import']);
 
 // ⚠️ لا تنقل هذا الفحص لمواقع الاستدعاء: `handleSave` بشاشة الطلبات يمرّر
 // `{ id, ...form }` و`form` قائمة سماح صريحة لا تحوي `source` — فأول تعديل

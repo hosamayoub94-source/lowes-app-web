@@ -77,7 +77,7 @@ export function TeamHub({ teamKey }) {
   const active = sortTasks(tasks.filter((t) => effectiveStatus(t) !== 'completed')).slice(0, 6);
 
   const tools = cfg.tools.map((t) =>
-    t.path ? t : { ...t, path: order_market === 'turkey' ? ROUTES.ORDERS_TURKEY : ROUTES.ORDERS_SYRIA },
+    t.path ? t : { ...t, path: order_market === 'turkey' ? ROUTES.ORDERS_TURKEY : order_market === 'uae' ? ROUTES.ORDERS_UAE : ROUTES.ORDERS_SYRIA },
   );
 
   return (

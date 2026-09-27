@@ -10,7 +10,7 @@ import { supabase, supabaseAnon } from './supabase';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const SYNCABLE_MARKETS = ['syria', 'turkey'];
+const SYNCABLE_MARKETS = ['syria', 'turkey', 'uae'];
 export const isSyncable = (o) => o && SYNCABLE_MARKETS.includes(o.market) && o.archived !== true && !o.deleted_at;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -139,7 +139,7 @@ export async function restoreOrder(order, by) {
     .update({ deleted_at: null, deleted_by: null, updated_by: by || null, updated_at: new Date().toISOString() })
     .eq('id', order.id);
   if (error) throw new Error(error.message);
-  if (['syria', 'turkey'].includes(order.market) && order.archived !== true) syncToSheet(order.id);
+  if (SYNCABLE_MARKETS.includes(order.market) && order.archived !== true) syncToSheet(order.id);
 }
 
 // قائمة الطلبات المحذوفة (soft-deleted) — للمدير.

@@ -358,6 +358,7 @@ function normalizeLocalPhone(raw, market) {
   if (p.startsWith('+')) return p;
   if (p.startsWith('00')) return `+${p.slice(2)}`;
   p = p.replace(/^0+/, '');
+  if (market === 'uae') return p.startsWith('971') ? `+${p}` : `+971${p}`;
   return (market === 'turkey' ? '+90' : '+963') + p;
 }
 
@@ -765,6 +766,9 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
   // شبكة النجوم تراسل العميل بنفسها عن نفس الطلب — رسالتان من رقمين
   // مختلفين عن طلب واحد (والرقم موسوم spam من Meta منذ 16 آب 2026).
   if (order?.source === 'star_network') return;
+  // الإمارات: فريقها يراسل العملاء يدوياً (عمود «واتساب» بالجدول) — لا رسائل
+  // قوالب تلقائية من الرقم الرسمي لحين قرار صريح (27 أيلول 2026).
+  if (order?.market === 'uae') return;
   try {
     const contentSid = TEMPLATE_SID[newStatus];
     if (!contentSid) return;
@@ -821,6 +825,7 @@ const ORDER_RECEIVED_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أ�
 // 2026. best-effort دائماً — ما يوقف حفظ الطلب مهما صار.
 export async function sendOrderReceivedMessage(order) {
   if (order?.source === 'star_network') return;   // المصدر راسل العميل أصلاً
+  if (order?.market === 'uae') return;            // الإمارات: مراسلة يدوية (راجع أعلاه)
   if (!ORDER_RECEIVED_READY) return;
   try {
     const phone = normalizeLocalPhone(order?.phone_1, order?.market);

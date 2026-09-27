@@ -21,6 +21,7 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller, getCustomerOrders } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
+import { MARKET_LABEL, MARKET_CURRENCY, AED_PER_USD, phoneCcForMarket } from '@data/markets';
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import { notifyOrderStatusWhatsApp, sendOrderReceivedMessage } from '@services/whatsappService';
@@ -98,7 +99,7 @@ async function notifyNewOrderToFulfillment(order) {
     await sendBulkNotifications(ids, {
       type:       NOTIFICATION_TYPE.ORDER_NEW,
       title:      `📥 طلب جديد ${order.order_id || ''}`,
-      message:    `${order.customer_name || 'عميل'} — ${order.market === 'turkey' ? 'تركيا' : 'سوريا'}`,
+      message:    `${order.customer_name || 'عميل'} — ${MARKET_LABEL[order.market] || order.market}`,
       entityType: 'order',
       entityId:   order.id,
       metadata:   { order_id: order.order_id, market: order.market },
@@ -110,7 +111,7 @@ async function notifyNewOrderToFulfillment(order) {
 // STATUSES + قوائم الحالات per-market تُستورد من @data/orderStatus.
 
 // ── Commission helpers ────────────────────────────────────────
-const CURRENCY_SYMBOLS = { TRY: '₺', SYP: 'ل.س', USD: '$' };
+const CURRENCY_SYMBOLS = { TRY: '₺', SYP: 'ل.س', USD: '$', AED: 'د.إ' };
 const THIS_MONTH = new Date().toISOString().slice(0, 7); // '2026-06'
 
 // Convert any order amount to USD using admin-set rates (units per 1 USD).
@@ -121,6 +122,7 @@ function toUSD(amount, currency, rates) {
   if (cur === 'USD') return a;
   if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
   if (cur === 'SYP') return a / (Number(rates?.syp_per_usd) || 14000);
+  if (cur === 'AED') return a / (Number(rates?.aed_per_usd) || AED_PER_USD);
   return 0;
 }
 
@@ -261,8 +263,8 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
 
   // USD sales total — catalog-priced (offer-immune), precomputed in byEmployee.
   // Falls back to amount→USD only if byEmployee didn't set it.
-  const usdTotal = emp.usdTotal != null
-    ? emp.usdTotal
+  const usdTotal = emp.usdCommTotal != null
+    ? emp.usdCommTotal
     : emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
   // Target progress — in the market's own currency: Turkey TRY vs TRY target,
   // Syria catalog-USD vs USD target (so the bar matches how commission is judged).
@@ -495,7 +497,7 @@ function commissionBreakdown(emp, rulesById, adj) {
 
   if (market === 'syria') {
     const target = Number(rules.monthly_target_usd) || 0;
-    const sales  = Number(emp.usdTotal) || 0;
+    const sales  = Number(emp.usdCommTotal ?? emp.usdTotal) || 0;
     const aboveComm = Math.max(0, sales - target) * (Number(rules.above_target_pct) || 0) / 100;
     return { cur: 'USD', aboveComm, prepaidTier1: 0, prepaidTier2: 0, manualAdj, net: aboveComm + manualAdj, prepaidCount, reachedPrepaid: false };
   }
@@ -775,7 +777,9 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       map[name].totals[cur] = (map[name].totals[cur] || 0) + Number(o.amount || 0);
       if (cur === 'TRY' && isPrepaid(o)) map[name].prepaidTry += Number(o.amount || 0);
       const mk = o.market || 'turkey';
-      map[name].marketCount[mk] = (map[name].marketCount[mk] || 0) + 1;
+      // الإمارات بلا عمولة حالياً (قرار حسام 27 أيلول 2026) — لا تحدد «سوق» الموظف
+      // بحساب العمولة إلا إذا كل تسليماته إمارات.
+      if (mk !== 'uae') map[name].marketCount[mk] = (map[name].marketCount[mk] || 0) + 1;
       (o.items || []).forEach(it => {
         const k = it.name || '—';
         map[name].products[k] = (map[name].products[k] || 0) + Number(it.qty || 1);
@@ -783,8 +787,11 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     }
     const list = Object.values(map).map(emp => {
       emp.usdTotal = emp.orders.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
+      // أساس العمولة: بلا طلبات الإمارات (بلا عمولة حالياً).
+      emp.usdCommTotal = emp.orders.filter(o => o.market !== 'uae').reduce((s, o) => s + orderUsd(o, prices, rates), 0);
       // dominant market = the one with the most delivered orders
-      emp.market = Object.entries(emp.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'turkey';
+      emp.market = Object.entries(emp.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0]
+        || (emp.orders.some(o => o.market === 'uae') ? 'uae' : 'turkey');
       return emp;
     });
     // Sort by USD total (the unified metric) descending
@@ -815,10 +822,10 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const pnl = useMemo(() => {
     const blank = () => ({ qty: 0, revenue: 0, cogs: 0, ship: 0, ad: 0 });
     const total = blank();
-    const perMarket = { turkey: blank(), syria: blank() };
+    const perMarket = { turkey: blank(), syria: blank(), uae: blank() };
     const missing = new Set();
     for (const o of delivered) {
-      const mk = o.market === 'syria' ? 'syria' : 'turkey';
+      const mk = o.market === 'syria' || o.market === 'uae' ? o.market : 'turkey';
       const rev = orderUsd(o, prices, rates);
       total.revenue += rev; perMarket[mk].revenue += rev;
       for (const it of (o.items || [])) {
@@ -875,6 +882,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         ['صافي الربح/الخسارة', Math.round(pnl.net)],
         ['صافي تركيا', Math.round(pnl.perMarket.turkey.net)],
         ['صافي سوريا', Math.round(pnl.perMarket.syria.net)],
+        ['صافي الإمارات', Math.round(pnl.perMarket.uae.net)],
         ...(pnl.missing.length ? [[`⚠️ منتجات بلا تكلفة`, pnl.missing.length]] : []),
       ];
 
@@ -898,7 +906,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       const employees = byEmployee.map(e => {
         const c = commissionBreakdown(e, rulesById, adjustments.find(a => a.employee_name === e.name));
         const row = {
-          'الموظف': e.name, 'السوق': e.market === 'syria' ? 'سوريا' : 'تركيا',
+          'الموظف': e.name, 'السوق': MARKET_LABEL[e.market] || 'تركيا',
           'عدد التسليمات': e.orders.length, 'المبيعات (USD)': Math.round(e.usdTotal),
         };
         Object.entries(e.totals).forEach(([cur, v]) => { row[`مبيعات ${cur}`] = v; });
@@ -1094,8 +1102,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           </div>
 
           {/* تركيا مقابل سوريا */}
-          <div className="grid grid-cols-2 gap-2">
-            {[['turkey', '🇹🇷 تركيا'], ['syria', '🇸🇾 سوريا']].map(([mk, label]) => {
+          <div className="grid grid-cols-3 gap-2">
+            {[['turkey', '🇹🇷 تركيا'], ['syria', '🇸🇾 سوريا'], ['uae', '🇦🇪 الإمارات']].map(([mk, label]) => {
               const m = pnl.perMarket[mk];
               if (!m.qty) return <div key={mk} className="bg-surface-alt rounded-xl px-3 py-2 text-center text-[11px] text-muted">{label}: لا تسليمات</div>;
               return (
@@ -1458,6 +1466,7 @@ const RELEASE_STATUSES  = ['returning', 'returned', 'cancelled'];
 const TEAM_MARKET = {
   'تركيا': 'turkey', 'تيم تركيا': 'turkey',
   'سوريا': 'syria',  'تيم سوريا': 'syria',
+  'الإمارات': 'uae', 'الامارات': 'uae', 'دبي': 'uae',
 };
 function teamToMarket(team) {
   if (!team) return null;
@@ -1469,14 +1478,20 @@ function teamToMarket(team) {
 
 const SYRIA_COMPANIES  = ['بابل اكسبرس', 'شركة الكرم', 'سامتاك', 'ضد الدفع', 'واصل', 'أخرى'];
 const TURKEY_COMPANIES = ['yurtiçi', 'Aras', 'ptt', 'توصيل الموتور', 'أخرى'];
-const CURRENCIES       = ['TRY', 'SYP', 'USD'];
+const CURRENCIES       = ['TRY', 'SYP', 'USD', 'AED'];
 const PICKUP_TYPES     = ['استلام من المركز', 'عنوان المنزل', 'عنوان العمل'];
+
+// القيم الافتراضية لكل سوق عند إنشاء طلب/تبديل السوق.
+function marketDefaults(market) {
+  if (market === 'uae')   return { currency: 'AED', shipping_company: 'مندوب توصيل', payment_method: 'دفع عند الباب 💵🏡', pickup_type: 'عنوان المنزل' };
+  if (market === 'syria') return { currency: 'SYP', shipping_company: 'الكرم', payment_method: 'دفع عند الاستلام', pickup_type: 'استلام من المركز' };
+  return { currency: 'TRY', shipping_company: 'Yurtiçi Kargo', payment_method: 'دفع عند الباب 💵', pickup_type: 'استلام من المركز' };
+}
 
 function waLink(phone, market) {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, '');
-  if (market === 'turkey') return `https://wa.me/90${digits.replace(/^0/, '')}`;
-  return `https://wa.me/963${digits.replace(/^0/, '')}`;
+  return `https://wa.me/${phoneCcForMarket(market)}${digits.replace(/^0/, '')}`;
 }
 // رقم الطلب (order_id) يُولَّد تلقائياً بقاعدة البيانات: تريغر BEFORE INSERT
 // (assign_order_code) يعطي كوداً تسلسلياً ذرّياً لكل فريق (market+brand):
@@ -1879,7 +1894,7 @@ function InvoiceModal({ order, onClose }) {
 // ── Sync status badge (+ retry) ───────────────────────────────
 function SyncBadge({ order, onRetry }) {
   const [busy, setBusy] = useState(false);
-  if (!['syria', 'turkey'].includes(order.market) || order.archived === true) return null;
+  if (!isSyncable(order)) return null;
   // fallback: لو العمود غير موجود بعد، استنتج من sheet_synced.
   const st = order.sync_status || (order.sheet_synced ? 'synced' : 'pending');
   const handle = async (e) => {
@@ -1973,7 +1988,7 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : <SyriaFlag />} {order.order_id}</span>
+            <span className="text-[10px] font-bold text-muted">{order.market === 'turkey' ? '🇹🇷' : order.market === 'uae' ? '🇦🇪' : <SyriaFlag />} {order.order_id}</span>
             {order.source === 'star_network' && (
               <span title={`نسخة من شبكة النجوم — المصدر ${order.external_id || ''}`}
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-amber-bg text-amber-fg border border-amber/30">
@@ -2109,8 +2124,8 @@ function OrderCard({ order, onStatusChange, onEdit, onInvoice, onDelete, canDele
         </button>
       )}
 
-      {/* سوريا: زر «تم التجهيز ← في النقل» للطلبات في حالة التجهيز */}
-      {canAdvance && order.market === 'syria' && order.status === 'preparing' && (
+      {/* سوريا/الإمارات: زر «تم التجهيز ← في النقل» للطلبات في حالة التجهيز */}
+      {canAdvance && (order.market === 'syria' || order.market === 'uae') && order.status === 'preparing' && (
         <button
           onClick={() => handleSetStatus('shipped')}
           disabled={changing}
@@ -2285,7 +2300,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     district:         order.district         ?? '',
     address:          order.address          ?? '',
     amount:           order.amount           ?? '',
-    currency:         order.currency         ?? 'TRY',
+    currency:         order.currency         ?? (MARKET_CURRENCY[order.market] || 'TRY'),
     payment_method:   order.payment_method   ?? 'دفع عند الباب 💵',
     payment_status:   order.payment_status   ?? 'unpaid',
     paid_amount:      order.paid_amount      ?? '',
@@ -2302,24 +2317,20 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
     market:        forcedMarket || prefill.market || 'turkey',
-    brand:         (forcedMarket || prefill.market) === 'syria' ? 'lowes' : (prefill.brand || 'lowes'), // سوريا = لويز دائماً
+    brand:         (forcedMarket || prefill.market) === 'turkey' || !(forcedMarket || prefill.market) ? (prefill.brand || 'lowes') : 'lowes', // سوريا/الإمارات = لويز دائماً
     status:        statusKeysForMarket(forcedMarket || prefill.market || 'turkey')[0] || 'pending',
-    currency:      (forcedMarket || prefill.market) === 'syria' ? 'SYP' : 'TRY',
+    ...marketDefaults(forcedMarket || prefill.market || 'turkey'),
     customer_name: prefill.customer_name || '',
     phone_1:       prefill.phone_1 || '',
     wa_number:     prefill.wa_number || '',
     city:          prefill.city || '',
     address:       prefill.address || '',
-    shipping_company: (forcedMarket || prefill.market) === 'syria' ? 'الكرم' : 'Yurtiçi Kargo',
-    payment_method:   (forcedMarket || prefill.market) === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
   } : {
     ...EMPTY_FORM,
     handler_name: userName ?? '',
     market:   myMarket,
     status:   statusKeysForMarket(myMarket)[0] || 'pending',  // أول حالة بالسوق (تركيا تبدأ «في التجهيز»)
-    currency: myMarket === 'syria' ? 'SYP' : 'TRY',
-    shipping_company: myMarket === 'syria' ? 'الكرم' : 'Yurtiçi Kargo',
-    payment_method:   myMarket === 'syria' ? 'دفع عند الاستلام' : 'دفع عند الباب 💵',
+    ...marketDefaults(myMarket),
   });
 
   const [items,    setItems]    = useState(
@@ -2378,11 +2389,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
       return {
         ...p,
         market,
-        brand: market === 'syria' ? 'lowes' : p.brand,         // سوريا ما فيها سترونغ
+        brand: market === 'turkey' ? p.brand : 'lowes',         // سوريا/الإمارات ما فيها سترونغ
         status: statusKeysForMarket(market)[0] || p.status,     // حالة صالحة لهذا السوق
-        currency: market === 'turkey' ? 'TRY' : 'SYP',
-        shipping_company: market === 'turkey' ? 'Yurtiçi Kargo' : 'الكرم',
-        payment_method: market === 'turkey' ? 'دفع عند الباب 💵' : 'دفع عند الاستلام',
+        ...marketDefaults(market),
         // تنظيف حقول عنوان السوق السابق حتى لا تُحفَظ بيانات خاطئة
         city: '', district: '', address: '', sy_neighborhood: '',
         mahalle: '', sokak: '', bno: '', daire: '', tracking_number: '',
@@ -2518,12 +2527,12 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
           {/* Market — مقفل في ماكنة السوق المخصّصة (سوريا/تركيا) */}
           {forcedMarket ? (
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-sm font-bold text-text">
-              <span className="flex items-center gap-1">{form.market === 'turkey' ? <>🇹🇷 طلب تركيا</> : <><SyriaFlag /> طلب سوريا</>}</span>
+              <span className="flex items-center gap-1">{form.market === 'turkey' ? <>🇹🇷 طلب تركيا</> : form.market === 'uae' ? <>🇦🇪 طلب الإمارات</> : <><SyriaFlag /> طلب سوريا</>}</span>
               <span className="text-[10px] text-muted font-normal">(مقفل على هذه الماكنة)</span>
             </div>
           ) : (
             <div className="flex gap-2">
-              {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: <SyriaFlag /> }].map(m => (
+              {[{ key: 'turkey', label: 'تركيا', flag: '🇹🇷' }, { key: 'syria', label: 'سوريا', flag: <SyriaFlag /> }, { key: 'uae', label: 'الإمارات', flag: '🇦🇪' }].map(m => (
                 <button key={m.key} onClick={() => handleMarketChange(m.key)}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition flex items-center justify-center gap-1
                     ${form.market === m.key ? 'border-teal bg-teal/10 text-teal' : 'border-border text-muted hover:border-teal/40'}`}>
@@ -2607,8 +2616,20 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
               </div>
             )}
             <input value={form.wa_number} onChange={e => set('wa_number', e.target.value)} className={INP}
-              placeholder={`واتساب ${form.market === 'turkey' ? '(بدون +90)' : '(بدون +963)'}`} />
-            {form.market === 'turkey' ? (
+              placeholder={`واتساب (بدون +${phoneCcForMarket(form.market)})`} />
+            {form.market === 'uae' ? (
+              <>
+                {/* الإمارات: الامارة → المنطقة → العنوان (نفس أعمدة جدول شحنات الامارات) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <ComboBox value={form.city} onChange={v => set('city', v)}
+                    options={citiesForMarket('uae')} className={INP} placeholder="الامارة (اختر أو اكتب)" />
+                  <input value={form.district} onChange={e => set('district', e.target.value)} className={INP}
+                    placeholder="المنطقة" />
+                </div>
+                <input value={form.address} onChange={e => set('address', e.target.value)} className={INP}
+                  placeholder="العنوان التفصيلي (شارع، مبنى، ملاحظة)" />
+              </>
+            ) : form.market === 'turkey' ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <ComboBox value={form.city} onChange={v => { set('city', v); set('district', ''); }}
@@ -2693,8 +2714,8 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
               </div>
               <div>
                 <label className={LBL}>العملة</label>
-                {form.market === 'turkey' ? (
-                  <div className="border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-muted">TRY</div>
+                {form.market === 'turkey' || form.market === 'uae' ? (
+                  <div className="border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-muted">{form.market === 'uae' ? 'AED' : 'TRY'}</div>
                 ) : (
                   <select value={form.currency} onChange={e => set('currency', e.target.value)} className={INP}>
                     {CURRENCIES.map(c => <option key={c}>{c}</option>)}
@@ -3319,7 +3340,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     recordStatusChange({ orderId: id, from: fromStatus, to: newStatus, by: userName, source: 'app' });
     setOrders(p => p.map(o => o.id === id ? { ...o, status: newStatus, updated_at: statusChangedAt, updated_by: userName } : o));
     // Re-sync to the sheet so status/tracking changes update the existing row
-    if (order && (order.market === 'syria' || order.market === 'turkey') && order.archived !== true) syncOrderToSheet(id);
+    if (order && isSyncable(order)) syncOrderToSheet(id);
     // Notify the seller their order advanced (best-effort, fire-and-forget)
     if (order) notifySellerStatusChange(order, newStatus, userName);
     // إشعار واتساب للعميل بصوت البراند (best-effort، لا يوقف باقي التأثيرات الجانبية)
@@ -3332,7 +3353,10 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // COD unpaid = الفلوس لسا مع السائق/يورتيشي → لا نسجّل دخلاً الآن.
     // نسجّل فقط: مدفوع مسبق (prepaid) أو COD مدفوع جزئياً/كلياً قبل التسليم.
     const _skipCodAccounting = isCodOrder(order) && order.payment_status === 'unpaid';
-    if (newStatus === 'delivered' && order && Number(order.amount) > 0 && !_skipCodAccounting) {
+    // الدرهم (AED) ما له خزينة/عمود بدفاتر المحاسبة (usd/try/syp فقط) — تسجيله
+    // هنا كان سيدخل كـ«cash_syp» بمبلغ صفر (قيد خاطئ). يُسجَّل يدوياً لحين إضافة خزينة AED.
+    const _skipAedAccounting = String(order?.currency || '').toUpperCase() === 'AED';
+    if (newStatus === 'delivered' && order && Number(order.amount) > 0 && !_skipCodAccounting && !_skipAedAccounting) {
       try {
         const cur     = (order.currency || 'SYP').toUpperCase();
         const orderNum = order.order_id || order.order_number || order.id?.slice(0, 8) || '—';
@@ -3649,7 +3673,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     }
 
     // ثابت إلزامي: سوريا ما فيها سترونغ — أي طلب سوري دائماً lowes (يصحّح القديم عند التعديل أيضاً).
-    if (form.market === 'syria' && form.brand !== 'lowes') form.brand = 'lowes';
+    if ((form.market === 'syria' || form.market === 'uae') && form.brand !== 'lowes') form.brand = 'lowes';
 
     let savedId = existingId;
     if (existingId) {
@@ -3676,7 +3700,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // مزامنة الجدول عند الإنشاء أو التعديل — مع تأكيد فوري للموظف
     // (حتى لا يضطر يفتح الجدول يدوياً ليتأكّد أن الطلب نزل).
     const syncId = savedId || existingId;
-    if (syncId && (form.market === 'syria' || form.market === 'turkey')) {
+    if (syncId && ['syria', 'turkey', 'uae'].includes(form.market)) {
       const verb = existingId ? 'تحديث' : 'تنزيل';
       const pending = toast.info?.(`⏳ جاري ${verb} الطلب على الجدول…`, { duration: 8000 });
       try {
@@ -3730,7 +3754,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!canDeleteOrder(o)) { window.alert('لا تملك صلاحية حذف هذا الطلب. (الموظف يحذف طلبه بنفس يوم الإنشاء فقط.)'); return; }
     if (!window.confirm(`حذف طلب «${o.customer_name || o.order_id}»؟ (حذف ناعم — يبقى بالأرشيف ويُزامَن كملغي بالجدول.)`)) return;
     try {
-      if ((o.market === 'syria' || o.market === 'turkey') && o.archived !== true) syncOrderStock({ ...o, status: 'cancelled' }, userName);
+      if (['syria', 'turkey', 'uae'].includes(o.market) && o.archived !== true) syncOrderStock({ ...o, status: 'cancelled' }, userName);
       recordStatusChange({ orderId: o.id, from: o.status, to: 'cancelled', by: userName, source: 'app' });
       await softDeleteOrder(o, userName);   // deleted_at + status=cancelled + sync to sheet
       setOrders(p => p.filter(x => x.id !== o.id));
@@ -4019,6 +4043,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
             {isFulfillment ? '📦 طلبات التجهيز'
               : lockedMarket === 'syria'  ? <><SyriaFlag /> طلبات سوريا</>
               : lockedMarket === 'turkey' ? "🇹🇷 طلبات تركيا — LOWE'S وسترونغ"
+              : lockedMarket === 'uae'    ? '🇦🇪 طلبات الإمارات'
               : 'إدارة الطلبات'}
           </h1>
           <p className="text-xs text-muted mt-0.5">
@@ -4230,6 +4255,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
             const mk = [
               { key: 'turkey', label: 'طلبات تركيا', icon: '🇹🇷' },
               { key: 'syria',  label: 'طلبات سوريا', icon: <SyriaFlag /> },
+              { key: 'uae',    label: 'طلبات الإمارات', icon: '🇦🇪' },
             ].sort((a, b) => (a.key === userMarket ? -1 : b.key === userMarket ? 1 : 0));
             return [...mk, { key: 'all', label: 'الكل', icon: '🌍' }];
           })().map(m => (
@@ -4344,7 +4370,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
           {deletedOrders.map(o => (
             <div key={o.id} className="bg-surface border border-red/20 rounded-2xl p-3 flex items-center justify-between gap-2 opacity-80">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-text truncate">{o.market === 'turkey' ? '🇹🇷' : <SyriaFlag />} {o.customer_name || o.order_id}</p>
+                <p className="text-sm font-bold text-text truncate">{o.market === 'turkey' ? '🇹🇷' : o.market === 'uae' ? '🇦🇪' : <SyriaFlag />} {o.customer_name || o.order_id}</p>
                 <p className="text-[10px] text-muted">حُذف: {o.deleted_at ? new Date(o.deleted_at).toLocaleString('ar', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}{o.deleted_by ? ` · ${o.deleted_by}` : ''}</p>
               </div>
               <button onClick={() => handleRestore(o)}

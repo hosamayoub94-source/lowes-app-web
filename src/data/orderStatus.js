@@ -39,7 +39,12 @@ const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_cen
 // بلا وجود بقائمة السوق (لم يقدر الفريق يختارهما يدوياً قبل هذا).
 const SYRIA_STATUSES  = ['pending','preparing','shipped','at_center','on_way','delivered','waiting','settled','cancelled'];
 
-export const STATUS_KEYS_BY_MARKET = { turkey: TURKEY_STATUSES, syria: SYRIA_STATUSES };
+// الإمارات (27 أيلول 2026): نفس مسميات جدول «شحنات الامارات» (في التجهيز/في النقل/
+// تم التسليم/لم يتم الاستلام/بالانتظار/تمت التسوية) + استرجاع/إلغاء. أول عنصر =
+// الحالة الافتراضية لطلب جديد ('pending' بالآخر لنفس سبب تركيا).
+const UAE_STATUSES = ['preparing','shipped','on_way','delivered','not_received','waiting','settled','returned','cancelled','pending'];
+
+export const STATUS_KEYS_BY_MARKET = { turkey: TURKEY_STATUSES, syria: SYRIA_STATUSES, uae: UAE_STATUSES };
 
 // مفاتيح الحالات المعروضة لسوق معيّن (أو الكل عند 'all'/غير معروف).
 export function statusKeysForMarket(market) {
@@ -49,7 +54,8 @@ export function statusKeysForMarket(market) {
 // خطوط التقدّم (شريط المراحل) لكل سوق — مسار خطّي فقط.
 const TURKEY_STAGES = ['preparing','at_center','shipped','on_way','delivered'];
 const SYRIA_STAGES  = ['pending','preparing','shipped','at_center','on_way','delivered'];
-export const STAGES_BY_MARKET = { turkey: TURKEY_STAGES, syria: SYRIA_STAGES };
+const UAE_STAGES    = ['preparing','shipped','on_way','delivered'];
+export const STAGES_BY_MARKET = { turkey: TURKEY_STAGES, syria: SYRIA_STAGES, uae: UAE_STAGES };
 
 export function stagesForMarket(market) {
   return STAGES_BY_MARKET[market] || ['pending','preparing','ready','shipped','delivered'];

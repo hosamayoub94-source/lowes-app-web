@@ -257,7 +257,7 @@ export default function ManagerBoardScreen() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {Object.entries(orders.byMarket).map(([mk, m]) => (
                 <div key={mk} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
-                  <p className="text-xs font-bold text-text mb-1">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk}</p>
+                  <p className="text-xs font-bold text-text mb-1">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk === 'uae' ? '🇦🇪 الإمارات' : mk}</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
                     <span>🚚 {m.delivered.orders} طلب مسلَّم</span>
                     <span>🔢 {m.delivered.units} قطعة مسلَّمة</span>
@@ -281,7 +281,7 @@ export default function ManagerBoardScreen() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {Object.entries(inventory.byMarket).map(([mk, m]) => (
               <div key={mk} className="bg-surface-alt rounded-lg px-3 py-2.5 border border-border/50">
-                <p className="text-xs font-bold text-text mb-1.5">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk}</p>
+                <p className="text-xs font-bold text-text mb-1.5">{mk === 'syria' ? '🟩 سوريا' : mk === 'turkey' ? '🇹🇷 تركيا' : mk === 'uae' ? '🇦🇪 الإمارات' : mk}</p>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
                   <span className="text-green-fg font-bold">⬇️ دخل {m.in} قطعة</span>
                   <span className="text-red-fg font-bold">⬆️ خرج {m.out} قطعة</span>

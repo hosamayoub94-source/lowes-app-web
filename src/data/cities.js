@@ -38,6 +38,11 @@ export const TURKEY_SHIPPING = [
   'Horoz Lojistik', 'FedEx', 'DHL', 'أخرى',
 ];
 
+// الإمارات — الإمارات السبع (نفس قيم عمود «الامارة» بجدول شحنات الامارات).
+export const UAE_EMIRATES = ['ابو ظبي', 'دبي', 'الشارقة', 'عجمان', 'ام القيوين', 'رأس الخيمة', 'الفجيرة', 'العين'];
+export const UAE_SHIPPING = ['مندوب توصيل', 'أخرى'];
+export const UAE_PAYMENT  = ['دفع عند الباب 💵🏡', 'دفع مسبق 💳💰'];
+
 export const SYRIA_PAYMENT  = ['Cash on Delivery 📦', 'دفع عند الاستلام', 'Sham Cash', 'تحويل', 'أخرى'];
 export const TURKEY_PAYMENT = ['دفع عند الباب 💵', 'دفع مسبق 💳', 'تحويل بنكي', 'Papara', 'أخرى'];
 
@@ -47,12 +52,15 @@ const isIstanbul = (city) => /istanbul|إسطنبول|اسطنبول|استان�
 export function citiesForMarket(market) {
   if (market === 'syria')  return SYRIA_CITIES;
   if (market === 'turkey') return TURKEY_CITIES;
+  if (market === 'uae')    return UAE_EMIRATES;
   return [];
 }
 export function shippingForMarket(market) {
+  if (market === 'uae') return UAE_SHIPPING;
   return market === 'turkey' ? TURKEY_SHIPPING : SYRIA_SHIPPING;
 }
 export function paymentForMarket(market) {
+  if (market === 'uae') return UAE_PAYMENT;
   return market === 'turkey' ? TURKEY_PAYMENT : SYRIA_PAYMENT;
 }
 

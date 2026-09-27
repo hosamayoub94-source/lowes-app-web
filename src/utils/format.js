@@ -25,7 +25,7 @@ export function colorFromString(str = '') {
 
 /** Currency symbol per currency code — matches legacy getCurrencySymbol(). */
 export function currencySymbol(code = 'USD') {
-  const map = { USD: '$', SYP: 'ل.س', TRY: '₺', EUR: '€', GBP: '£', SAR: 'ر.س' };
+  const map = { USD: '$', SYP: 'ل.س', TRY: '₺', EUR: '€', GBP: '£', SAR: 'ر.س', AED: 'د.إ' };
   return map[code] || code;
 }
 

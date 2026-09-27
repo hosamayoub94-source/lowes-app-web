@@ -151,7 +151,7 @@ export function resolveNotifRoute(notification) {
   }
   if (base === '/orders') {
     const market = notification?.metadata?.market;
-    const marketPath = market === 'syria' ? '/orders/syria' : market === 'turkey' ? '/orders/turkey' : '/orders';
+    const marketPath = market === 'syria' ? '/orders/syria' : market === 'turkey' ? '/orders/turkey' : market === 'uae' ? '/orders/uae' : '/orders';
     const q = notification?.metadata?.order_code ?? notification?.metadata?.order_id;
     return q ? `${marketPath}?q=${encodeURIComponent(q)}` : marketPath;
   }
