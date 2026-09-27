@@ -412,3 +412,34 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ── دوال بلا Supabase JWT (تُستدعى من Apps Script/شركات شحن/webhooks خارجية
+# بلا رأس Authorization — أمانها الحقيقي هو فحص توكن داخل الجسم نفسه). قيّدتها
+# هنا صراحة لأن `supabase functions deploy` بلا اسم يعيد الكل لـtrue افتراضياً
+# لو لم يُذكر هنا — هذا بالضبط ما كسر مزامنة الجدول↔التطبيق لكل الأسواق من
+# 26 أيلول 12:29 حتى تشخيصها واكتشافها هنا 27 أيلول (شحنات UAE، سوريا، تركيا
+# كلها كانت تفشل صامتاً بـ401). راجع HANDOFFlowes.md لتفاصيل الاكتشاف.
+[functions.sheet-to-app]
+verify_jwt = false
+[functions.retry-failed-syncs]
+verify_jwt = false
+[functions.track-babel]
+verify_jwt = false
+[functions.track-ptt]
+verify_jwt = false
+[functions.track-karam]
+verify_jwt = false
+[functions.babel-webhook]
+verify_jwt = false
+[functions.ai-assistant]
+verify_jwt = false
+[functions.social-content]
+verify_jwt = false
+[functions.generate-quiz]
+verify_jwt = false
+[functions.lozy-kpi-coach]
+verify_jwt = false
+[functions.daily-analytics-snapshot]
+verify_jwt = false
+[functions.shift-report-reminder]
+verify_jwt = false
