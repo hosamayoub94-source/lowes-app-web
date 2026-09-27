@@ -40,7 +40,7 @@ export const COMPANY = {
   // قناة واتساب الرسمية (بُثّ من جهة واحدة — إعلانات/عروض) — أعطاها المالك 5 أغسطس 2026
   whatsappChannelUrl: 'https://whatsapp.com/channel/0029Valm1KVLikg8bHy1j71r',
   // خدمة العملاء لكل سوق (تظهر على البوليصة)
-  customerService: { syria: '0931471996', turkey: '+90 551 817 77 98' },
+  customerService: { syria: '0931402023', turkey: '+90 551 817 77 98' },
 };
 
 // ── الألوان الرسمية (Color Palette) — غير قابلة للتغيير ──────
