@@ -50,33 +50,9 @@ const MIGRATION_SQL = `ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS page_name   text,
   ADD COLUMN IF NOT EXISTS admin_notes text;`;
 
-// SQL for admin PIN reset function (run once in Supabase SQL Editor)
-const RESET_PIN_SQL = `-- دالة تغيير PIN من قبل الأدمن — نسخة محدّثة تشمل profiles.pin
-CREATE OR REPLACE FUNCTION admin_reset_pin(
-  target_employee_name text,
-  new_pin text
-) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  target_id uuid;
-BEGIN
-  SELECT id INTO target_id FROM profiles
-  WHERE employee_name = target_employee_name LIMIT 1;
-  IF target_id IS NULL THEN RETURN false; END IF;
-
-  -- تحديث profiles.pin (المصدر الحقيقي لتسجيل الدخول)
-  UPDATE profiles SET pin = new_pin WHERE id = target_id;
-
-  -- تحديث Supabase Auth password (best-effort)
-  BEGIN
-    UPDATE auth.users
-    SET encrypted_password = crypt('lp:' || new_pin, gen_salt('bf', 10))
-    WHERE email = target_id::text || '@auth.lowes-pro.local';
-  EXCEPTION WHEN OTHERS THEN NULL; END;
-
-  RETURN true;
-END;$$;
-REVOKE ALL ON FUNCTION admin_reset_pin FROM public;
-GRANT EXECUTE ON FUNCTION admin_reset_pin TO authenticated, anon;`;
+// D-090 · step 2: the old admin_reset_pin SQL snippet (and its setup banner)
+// was removed on purpose — running it re-opened a public PIN-reset hole.
+// PIN changes go through the pin-change Edge Function only.
 
 // ── Data layer ────────────────────────────────────────────────
 async function fetchProfiles() {
@@ -121,15 +97,29 @@ async function updateProfile(id, patch) {
   if (error) throw new Error(error.message);
 }
 
-async function adminResetPin(employeeName, newPin) {
+// D-090 · step 2: the only path is the pin-change Edge Function (admin mode).
+// It requires a real Supabase Auth session of someone listed in pin_admins,
+// updates profiles.pin + the Auth password together, and refuses to touch
+// another pin_admin's PIN. The old admin_reset_pin RPC is no longer used.
+const PIN_CHANGE_ERRORS = {
+  unauthorized:     'لازم تكون داخل بحساب حقيقي (مش جلسة يدوية) لتغيّر PIN موظف',
+  forbidden:        'ما عندك صلاحية تغيير PIN الموظفين',
+  protected_target: 'ما بيصير تغيّر PIN أدمن تاني — كل أدمن بيغيّر PIN تبعه من ملفه الشخصي',
+  use_self_mode:    'غيّر PIN تبعك من ملفك الشخصي',
+  not_found:        'الموظف غير موجود',
+};
+async function adminResetPin(employee, newPin) {
   if (!/^\d{4}$/.test(String(newPin))) throw new Error('PIN يجب أن يكون 4 أرقام');
   const { supabase } = await import('@services/supabase');
-  const { data, error } = await supabase.rpc('admin_reset_pin', {
-    target_employee_name: employeeName,
-    new_pin: String(newPin),
+  const { data, error } = await supabase.functions.invoke('pin-change', {
+    body: { mode: 'admin', target_id: employee.id, new_pin: String(newPin) },
   });
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error('الموظف غير موجود');
+  // invoke() يرجّع error لأي رد غير 2xx — نقرأ الجسم لرسالة أوضح إن وُجد
+  let code = data?.error;
+  if (error && !code) {
+    try { code = (await error.context?.json?.())?.error; } catch { /* ignore */ }
+  }
+  if (error || !data?.ok) throw new Error(PIN_CHANGE_ERRORS[code] || 'فشل تغيير PIN');
   return true;
 }
 
@@ -200,7 +190,7 @@ function PinResetModal({ employee, onClose }) {
     if (!/^\d{4}$/.test(newPin)) { setErr('PIN يجب أن يكون 4 أرقام'); return; }
     setSaving(true); setErr(null);
     try {
-      await adminResetPin(employee.employee_name, newPin);
+      await adminResetPin(employee, newPin);
       setDone(true);
     } catch (e) {
       setErr(e.message);
@@ -239,11 +229,6 @@ function PinResetModal({ employee, onClose }) {
             {err && (
               <div className="text-xs text-red-fg bg-red-bg border border-red/20 rounded-lg px-3 py-2">
                 ⚠️ {err}
-                {err.includes('function') && (
-                  <p className="mt-1 text-[10px]">
-                    نفّذ SQL التالي في Supabase أولاً (زر «إعداد مطلوب» أعلى الصفحة)
-                  </p>
-                )}
               </div>
             )}
             <div className="flex gap-2">
@@ -282,7 +267,6 @@ export default function AdminUsersScreen() {
   const [saveError, setSaveError]     = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
   const [showMigration, setShowMigration]   = useState(true);
-  const [showPinSetup, setShowPinSetup]     = useState(true);
   const [pinResetUser, setPinResetUser]     = useState(null);
 
   const load = useCallback(async () => {
@@ -535,14 +519,6 @@ export default function AdminUsersScreen() {
           desc="لتفعيل حقول الوردية والصفحة والملاحظات، نفّذ هذا SQL في Supabase:"
           sql={MIGRATION_SQL}
           onDismiss={() => setShowMigration(false)}
-        />
-      )}
-      {isAdmin && showPinSetup && (
-        <SQLBanner
-          title="إعداد تغيير PIN (مرة واحدة فقط)"
-          desc="لتفعيل ميزة تغيير PIN من قبل الأدمن، نفّذ هذا SQL في Supabase SQL Editor:"
-          sql={RESET_PIN_SQL}
-          onDismiss={() => setShowPinSetup(false)}
         />
       )}
 

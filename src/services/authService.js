@@ -273,9 +273,10 @@ export async function getMyProfile() {
 }
 
 // -------------------------------------------------------------
-// Self-service PIN change.
-// Updates both profiles.pin (source of truth) and Supabase Auth
-// password (if the user has an auth account).
+// Self-service PIN change — via the pin-change Edge Function only
+// (D-090 · step 2). The server verifies the current PIN and updates
+// profiles.pin + the Supabase Auth password together (all-or-nothing).
+// The browser no longer writes profiles.pin directly.
 // -------------------------------------------------------------
 export async function changeMyPin(currentPin, newPin) {
   if (!/^\d{4}$/.test(String(newPin))) {
@@ -295,24 +296,22 @@ export async function changeMyPin(currentPin, newPin) {
 
   if (!profileId) throw new Error('لم يتم التعرف على المستخدم');
 
-  // Verify the CURRENT pin server-side before allowing a change — prevents a
-  // hijacked/left-open session from silently resetting the PIN.
   const me = await getProfileById(profileId);
   if (!me?.employee_name) throw new Error('تعذّر التحقق من المستخدم');
-  const check = await verifyPinServerSide(me.employee_name, currentPin);
-  if (!check?.ok) throw new Error('الرمز السري الحالي غير صحيح');
 
-  // Update profiles.pin (always works via anon key + USING(true) RLS)
-  const { error: pinErr } = await supabase
-    .from('profiles')
-    .update({ pin: String(newPin).trim() })
-    .eq('id', profileId);
-  if (pinErr) throw new Error('فشل تحديث PIN');
-
-  // Also update Supabase Auth password if there's an auth session
-  try {
-    await supabase.auth.updateUser({ password: derivePass(newPin) });
-  } catch { /* ignore — no auth account */ }
-
+  // The CURRENT pin is verified server-side inside pin-change — a
+  // hijacked/left-open session can't reset the PIN without knowing it.
+  const { data, error } = await supabase.functions.invoke('pin-change', {
+    body: {
+      mode: 'self',
+      employee_name: me.employee_name,
+      current_pin: String(currentPin).trim(),
+      new_pin: String(newPin).trim(),
+    },
+  });
+  if (error) throw new Error('فشل تحديث PIN');
+  if (!data?.ok) {
+    throw new Error(data?.error === 'wrong_pin' ? 'الرمز السري الحالي غير صحيح' : 'فشل تحديث PIN');
+  }
   return true;
 }
