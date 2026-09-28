@@ -114,7 +114,7 @@ export const TaskFilters = memo(function TaskFilters({
         </QuickChip>
         {/* المهام المكتملة لها تبويب مستقل بالأعلى («✅ مكتملة») — لا حاجة لشريحة هنا. */}
         {/* Status quick chips */}
-        {['in_progress', 'pending'].map((s) => (
+        {['in_progress', 'in_review', 'pending'].map((s) => (
           <QuickChip
             key={s}
             active={filters.status === s}

@@ -54,7 +54,7 @@ function StatItem({ label, value, colorClass, icon }) {
 // ── Main ──────────────────────────────────────────────────────
 export const TaskStatsBar = memo(function TaskStatsBar({ stats, className = '' }) {
   if (!stats) return null;
-  const { total, pending, inProgress, completed, cancelled, overdue, completionPct } = stats;
+  const { total, pending, inProgress, inReview = 0, completed, cancelled, overdue, completionPct } = stats;
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -99,6 +99,7 @@ export const TaskStatsBar = memo(function TaskStatsBar({ stats, className = '' }
             <ProgressBar value={completionPct} max={100} tone="teal" size="md" />
             <div className="flex items-center gap-4 flex-wrap">
               <StatItem label="قيد الانتظار" value={pending}   colorClass="text-muted"    icon="⏳" />
+              <StatItem label="قيد المراجعة" value={inReview}  colorClass="text-purple-fg" icon="👀" />
               <StatItem label="ملغاة"         value={cancelled} colorClass="text-muted"    icon="⛔" />
               {overdue > 0 && (
                 <StatItem label="متأخرة"      value={overdue}   colorClass="text-red-fg"   icon="🔥" />

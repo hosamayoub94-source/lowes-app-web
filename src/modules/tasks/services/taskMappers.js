@@ -83,6 +83,7 @@ export function mapTask(row) {
     status: row.status || 'pending',
     priority: row.priority || 'medium',
     progress: typeof row.progress === 'number' ? row.progress : 0,
+    start_date: row.start_date || null, // عمود date اختياري — المهام القديمة null
     due_date: row.due_date || null,
     due_time: row.due_time || null,
     created_at: row.created_at || null,
@@ -115,7 +116,7 @@ export function mapTask(row) {
 // -------------------------------------------------------------
 const WRITABLE = [
   'title', 'description', 'status', 'priority', 'progress',
-  'due_date', 'due_time', 'completed_at',
+  'start_date', 'due_date', 'due_time', 'completed_at',
   'seen_by', 'attachments', 'tags',
   'platform', 'task_type', 'attachments_note', 'completion_note',
   'link', 'team',

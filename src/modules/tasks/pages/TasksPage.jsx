@@ -21,7 +21,8 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskStatsBar } from '../components/TaskStatsBar';
 import { TaskFilters } from '../components/TaskFilters';
 import { TaskDetailsDrawer } from '../components/TaskDetailsDrawer';
-import { countActiveFilters, effectiveStatus } from '../utils/taskUtils';
+import { countActiveFilters, effectiveStatus, isOverdue, startAfterDue } from '../utils/taskUtils';
+import { PLATFORM_OPTIONS as PLATFORMS, TASK_TYPE_OPTIONS as TASK_TYPES, TEAM_META, baseStatus } from '../types/task.types';
 
 // ── Create task modal ─────────────────────────────────────────────
 
@@ -32,51 +33,24 @@ const PRIORITIES = [
   { value: 'low',    label: '▽ منخفضة' },
 ];
 
-const PLATFORMS = [
-  { value: 'instagram', label: '📸 Instagram' },
-  { value: 'tiktok',    label: '🎵 TikTok' },
-  { value: 'facebook',  label: '👥 Facebook' },
-  { value: 'youtube',   label: '▶️ YouTube' },
-  { value: 'snapchat',  label: '👻 Snapchat' },
-  { value: 'other',     label: '🌐 أخرى' },
-];
-
-const TASK_TYPES = [
-  { value: 'graphic_design',     label: '🎨 تصميم جرافيك' },
-  { value: 'post_story_design',  label: '🖼️ بوست / ستوري' },
-  { value: 'video_editing',      label: '🎬 مونتاج فيديو' },
-  { value: 'content_writing',    label: '✍️ كتابة محتوى' },
-  { value: 'photo_editing',      label: '📷 تعديل صور' },
-  { value: 'content_scheduling', label: '📅 جدولة محتوى' },
-  { value: 'performance_report', label: '📊 تقرير أداء' },
-  { value: 'design_revision',    label: '✏️ تعديل تصميم' },
-  { value: 'ad_campaign',        label: '📢 حملة إعلانية' },
-  { value: 'page_management',    label: '📱 إدارة صفحة' },
-  { value: 'other',              label: '📌 أخرى' },
-];
-
 // «مهامي» = مُسنَدة لي أو أُشرِكت بها (tag). assigned_to قد يكون كائناً أو نصّ id.
 const isMine = (t, userId) =>
   (t.assigned_to?.id ?? t.assigned_to) === userId ||
   (Array.isArray(t.tagged_ids) && t.tagged_ids.includes(userId));
 
-// القيم تطابق عمود team في جدول profiles بالـ DB
+// القيم تطابق عمود team في جدول profiles بالـ DB (المصدر: TEAM_META)
 const TEAM_OPTIONS = [
-  { value: '',       label: '— كل التيمات —' },
-  { value: 'ميديا',  label: '📱 تيم السوشال ميديا' },
-  { value: 'سوريا',  label: '🇸🇾 تيم سوريا' },
-  { value: 'تركيا',  label: '🇹🇷 تيم تركيا' },
+  { value: '', label: '— كل التيمات —' },
+  ...Object.entries(TEAM_META).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` })),
 ];
 
-const TEAM_DISPLAY = {
-  'ميديا':  { icon: '📱', label: 'سوشال' },
-  'سوريا':  { icon: '🇸🇾', label: 'سوريا' },
-  'تركيا':  { icon: '🇹🇷', label: 'تركيا' },
-};
+const TEAM_DISPLAY = Object.fromEntries(
+  Object.entries(TEAM_META).map(([k, m]) => [k, { icon: m.icon, label: m.short }]),
+);
 
 const EMPTY_FORM = {
   title: '', description: '', priority: 'medium',
-  due_date: '', due_time: '', assigned_to: '',
+  start_date: '', due_date: '', due_time: '', assigned_to: '',
   platform: '', task_type: '', link: '', team: '',
   project_id: '', is_sensitive: false,
 };
@@ -149,6 +123,10 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+    if (startAfterDue(form.start_date, form.due_date)) {
+      window.alert('تاريخ البدء لا يمكن أن يكون بعد موعد التسليم.');
+      return;
+    }
     // الرابط: خانة عامة لأي URL — نضيف https:// إن كان ناقصاً ونرفض النص غير الصالح
     const link = normalizeLink(form.link);
     if (link === false) {
@@ -218,19 +196,32 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
             </div>
           </div>
 
-          {/* Priority + Due date */}
+          {/* Priority */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted">الأولوية</label>
+            <select value={form.priority} onChange={(e) => set('priority', e.target.value)} className={INPUT_CLS}>
+              {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+
+          {/* Start date + Due date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted">الأولوية</label>
-              <select value={form.priority} onChange={(e) => set('priority', e.target.value)} className={INPUT_CLS}>
-                {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              <label className="text-xs font-semibold text-muted">تاريخ البدء <span className="font-normal text-muted/70">(اختياري)</span></label>
+              <input
+                type="date"
+                value={form.start_date}
+                max={form.due_date || undefined}
+                onChange={(e) => set('start_date', e.target.value)}
+                className={INPUT_CLS}
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">تاريخ الاستحقاق</label>
               <input
                 type="date"
                 value={form.due_date}
+                min={form.start_date || undefined}
                 onChange={(e) => set('due_date', e.target.value)}
                 className={INPUT_CLS}
               />
@@ -428,10 +419,12 @@ function CreateTaskModal({ open, onClose, onSubmit, saving, employees, projects 
 // ── Kanban View ───────────────────────────────────────────────
 const KANBAN_COLS = [
   { key:'pending',     label:'⏳ قيد الانتظار', color:'border-amber-300 bg-amber-50/50',   dot:'bg-amber-400' },
-  { key:'in_progress', label:'🔄 جارية',         color:'border-teal/30 bg-teal/5',          dot:'bg-teal'      },
-  { key:'in_review',   label:'👀 مراجعة',         color:'border-violet-300 bg-violet-50/50', dot:'bg-violet-400'},
-  { key:'done',        label:'✅ منجزة',          color:'border-emerald-300 bg-emerald-50/50',dot:'bg-emerald-500'},
+  { key:'in_progress', label:'🔄 قيد التنفيذ',   color:'border-teal/30 bg-teal/5',          dot:'bg-teal'      },
+  { key:'in_review',   label:'👀 قيد المراجعة',  color:'border-violet-300 bg-violet-50/50', dot:'bg-violet-400'},
+  { key:'done',        label:'✅ مكتملة',         color:'border-emerald-300 bg-emerald-50/50',dot:'bg-emerald-500'},
 ];
+// العمود ← الحالة التي تُكتب بالقاعدة عند الإفلات (مكتملة تُكتب completed لا done)
+const COL_TO_STATUS = { pending:'pending', in_progress:'in_progress', in_review:'in_review', done:'completed' };
 const STATUS_COL_MAP = {
   pending:'pending', open:'pending', 'قيد الانتظار':'pending',
   in_progress:'in_progress', 'جارية':'in_progress', 'قيد التنفيذ':'in_progress',
@@ -444,10 +437,14 @@ const PRIORITY_COLOR = { urgent:'text-red-500', high:'text-orange-500', medium:'
 const PRIORITY_ICON  = { urgent:'⚡', high:'▲', medium:'△', low:'▽' };
 
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-function fmtDueDateShort(iso) { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS_AR[d.getMonth()]}`; }
+// التاريخ التقويمي كما أُدخل (أول 10 أحرف) — بلا إزاحة منطقة زمنية
+function fmtDueDateShort(iso) {
+  const m = iso && String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[3])} ${MONTHS_AR[Number(m[2]) - 1]}` : '';
+}
 
 function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
-  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','in_review','cancelled'].includes(task.status);
+  const overdue = isOverdue(task);
   return (
     <div
       draggable
@@ -484,9 +481,14 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
             {TEAM_DISPLAY[task.team]?.icon ?? '⚙️'} {TEAM_DISPLAY[task.team]?.label ?? task.team}
           </span>
         )}
+        {task.start_date && (
+          <span className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full" title="تاريخ البدء">
+            🚀 {fmtDueDateShort(task.start_date)}
+          </span>
+        )}
         {task.due_date && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
-            {isOverdue ? '⚠️' : '📅'} {fmtDueDateShort(task.due_date)}
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${overdue ? 'bg-red-100 text-red-600' : 'bg-surface-alt text-muted'}`}>
+            {overdue ? '⚠️ متأخرة ·' : '📅'} {fmtDueDateShort(task.due_date)}
           </span>
         )}
         {task.link && (
@@ -519,7 +521,8 @@ function KanbanView({ tasks, onOpen, onStatusChange }) {
     const m = {};
     KANBAN_COLS.forEach(c => { m[c.key] = []; });
     tasks.forEach(t => {
-      const col = STATUS_COL_MAP[t.status] ?? 'pending';
+      // الحالة المخزّنة (المتأخرة تبقى بعمودها الأصلي مع شارة ⚠️)
+      const col = STATUS_COL_MAP[baseStatus(t)] ?? 'pending';
       m[col].push(t);
     });
     return m;
@@ -544,9 +547,9 @@ function KanbanView({ tasks, onOpen, onStatusChange }) {
   const handleColDrop = useCallback((e, colKey) => {
     e.preventDefault();
     if (!draggingTask) return;
-    const srcCol = STATUS_COL_MAP[draggingTask.status] ?? 'pending';
+    const srcCol = STATUS_COL_MAP[baseStatus(draggingTask)] ?? 'pending';
     if (srcCol !== colKey) {
-      onStatusChange?.(draggingTask.id, colKey);
+      onStatusChange?.(draggingTask.id, COL_TO_STATUS[colKey] ?? colKey);
     }
     setDraggingTask(null);
     setDragOverCol(null);
@@ -843,6 +846,7 @@ function TasksPage() {
         title:       form.title.trim(),
         description: form.description.trim() || null,
         priority:    form.priority,
+        start_date:  form.start_date || null,
         due_date:    form.due_date || null,
         due_time:    form.due_time || null,
         status:      'pending',
@@ -930,6 +934,7 @@ function TasksPage() {
         onUntagUser={untagUser}
         actionLoading={actionLoading}
         employees={employees}
+        projects={myProjects}
         initialTab={drawerInitialTab}
       />
     </div>

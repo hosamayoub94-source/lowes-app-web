@@ -5,32 +5,55 @@
 // =============================================================
 
 import { TASK_STATUS } from '../types/task.types';
+import { taskDeadline, localDayStart } from './taskDeadline';
+
+export { taskDeadline, datePart, localDayStart } from './taskDeadline';
 
 // ── Date helpers ──────────────────────────────────────────────
 
 /** Returns true if a task status counts as finished (done OR completed) */
 const isFinishedStatus = (s) => s === TASK_STATUS.COMPLETED || s === 'done';
 
-/** Returns true if task is past its due_date and not completed/cancelled */
+/**
+ * Returns true if task is past its deadline (taskDeadline: التاريخ المحلي +
+ * due_time أو نهاية اليوم) and not completed/cancelled/in review.
+ * «قيد المراجعة» لا تُحسب متأخرة: المسؤول سلّم وبانتظار مراجعة المدير.
+ */
 export function isOverdue(task) {
-  if (!task.due_date) return false;
-  if (isFinishedStatus(task.status) || task.status === TASK_STATUS.CANCELLED) return false;
-  return new Date(task.due_date) < new Date();
+  const s = task?.status;
+  if (isFinishedStatus(s) || s === TASK_STATUS.CANCELLED || s === TASK_STATUS.IN_REVIEW) return false;
+  const deadline = taskDeadline(task);
+  if (!deadline) return false;
+  return deadline < new Date();
 }
 
-/** Compute effective status — auto-promotes to overdue when past due */
+/**
+ * Compute effective status — auto-promotes to overdue when past due.
+ * «متأخرة» حالة عرض محسوبة فقط؛ task.status يبقى الحالة المخزّنة بالقاعدة.
+ */
 export function effectiveStatus(task) {
   if (isOverdue(task)) return TASK_STATUS.OVERDUE;
   // Normalise legacy 'done' → 'completed' so the rest of the tasks module sees one value
   if (task.status === 'done') return TASK_STATUS.COMPLETED;
+  // قيمة 'overdue' مخزّنة قديماً (لم تعد تُكتب) ولم يحن موعدها — تُعرض كقيد الانتظار
+  if (task.status === TASK_STATUS.OVERDUE) return TASK_STATUS.PENDING;
   return task.status;
 }
 
-/** Days remaining until due_date. Negative = overdue. */
+/** تاريخ البدء بعد موعد التسليم؟ (مقارنة التاريخ التقويمي فقط) */
+export function startAfterDue(start, due) {
+  const s = localDayStart(start);
+  const d = localDayStart(due);
+  return !!(s && d && s > d);
+}
+
+/** Calendar days remaining until due_date (local). Negative = overdue. */
 export function daysUntilDue(due_date) {
-  if (!due_date) return null;
-  const diff = new Date(due_date).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const due = localDayStart(due_date);
+  if (!due) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 /** Human-readable countdown label (Arabic) */
@@ -58,10 +81,12 @@ export function dueDateColorClass(due_date, status) {
   return 'text-muted';
 }
 
-/** Short date label (Arabic locale) */
+/** Short date label (Arabic locale) — تاريخ صرف (due/start) يُعرض كما أُدخل بلا إزاحة منطقة زمنية */
 export function shortDate(isoDate) {
   if (!isoDate) return '';
-  return new Date(isoDate).toLocaleDateString('ar-EG', {
+  const pureDate = /^\d{4}-\d{2}-\d{2}(T00:00:00(\.0+)?(\+00:00|Z))?$/.test(String(isoDate));
+  const day = pureDate ? localDayStart(isoDate) : new Date(isoDate);
+  return day.toLocaleDateString('ar-EG', {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 }
@@ -170,13 +195,14 @@ function getPriorityWeight(priority) {
  */
 export function computeStats(tasks) {
   if (!tasks?.length) {
-    return { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, overdue: 0, completionPct: 0 };
+    return { total: 0, pending: 0, inProgress: 0, inReview: 0, completed: 0, cancelled: 0, overdue: 0, completionPct: 0 };
   }
 
   const counts = {
     total:      tasks.length,
     pending:    0,
     inProgress: 0,
+    inReview:   0,
     completed:  0,
     cancelled:  0,
     overdue:    0,
@@ -186,6 +212,7 @@ export function computeStats(tasks) {
     const eff = effectiveStatus(task);
     if (eff === TASK_STATUS.PENDING)     counts.pending++;
     else if (eff === TASK_STATUS.IN_PROGRESS) counts.inProgress++;
+    else if (eff === TASK_STATUS.IN_REVIEW)   counts.inReview++;
     else if (eff === TASK_STATUS.COMPLETED)   counts.completed++;
     else if (eff === TASK_STATUS.CANCELLED)   counts.cancelled++;
     else if (eff === TASK_STATUS.OVERDUE)     counts.overdue++;

@@ -11,7 +11,7 @@
 // =============================================================
 import { supabase } from '@services/supabase';
 import { MOCK_TASKS, MOCK_EMPLOYEES } from '../data/mockTasks';
-import { effectiveStatus } from '../utils/taskUtils';
+import { taskDeadline, datePart } from '../utils/taskDeadline';
 import { ACTIVITY_TYPE } from '../types/task.types';
 import { mapTask, mapComment, mapActivity, toTaskInsert, toTaskUpdate } from './taskMappers';
 
@@ -30,7 +30,7 @@ export const USE_MOCK_DATA = explicit === 'true';
 // -------------------------------------------------------------
 const TASK_SELECT = `
   id, title, description, status, priority, progress,
-  due_date, due_time, completed_at, created_at, updated_at,
+  start_date, due_date, due_time, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, assignee_id, created_by,
   platform, task_type, attachments_note, completion_note, link, team,
   project_id, is_sensitive, tagged_ids,
@@ -53,10 +53,9 @@ const ACTIVITY_SELECT = `
 // Mock helpers (in-memory store)
 // -------------------------------------------------------------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// task.status يبقى الحالة المخزّنة دائماً؛ «متأخرة» تُحسب عند العرض فقط
+// (effectiveStatus) حتى لا تضيع الحالة الأصلية ولا تُكتب overdue بالقاعدة.
 let _mockStore = MOCK_TASKS.map((t) => ({ ...t }));
-const refreshMock = () => {
-  _mockStore = _mockStore.map((t) => ({ ...t, status: effectiveStatus(t) }));
-};
 const newId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const findEmp = (id) => MOCK_EMPLOYEES.find((e) => e.id === id) || null;
 
@@ -86,7 +85,6 @@ export async function fetchTasks(params = {}) {
 
   if (USE_MOCK_DATA) {
     await sleep(280);
-    refreshMock();
     let tasks = [..._mockStore];
     if (restrict) {
       const projSet = new Set(projectIds);
@@ -132,7 +130,7 @@ export async function fetchTasks(params = {}) {
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []).map(mapTask).map((t) => ({ ...t, status: effectiveStatus(t) }));
+  return (data || []).map(mapTask);
 }
 
 /** Get a single task with its comments and activity loaded. */
@@ -141,7 +139,7 @@ export async function fetchTask(id) {
     await sleep(120);
     const task = _mockStore.find((t) => t.id === id);
     if (!task) throw new Error('Task not found');
-    return { ...task, status: effectiveStatus(task) };
+    return { ...task };
   }
 
   const [{ data: taskRow, error: tErr }, { data: comments }, { data: activity }] = await Promise.all([
@@ -154,7 +152,6 @@ export async function fetchTask(id) {
   task.comments = (comments || []).map(mapComment);
   task.comments_count = task.comments.length;
   task.activity = (activity || []).map(mapActivity);
-  task.status = effectiveStatus(task);
   return task;
 }
 
@@ -229,6 +226,8 @@ export async function updateTask(id, patch, { actorId } = {}) {
 }
 
 export async function updateTaskStatus(id, status, opts) {
+  // «متأخرة» محسوبة من الموعد — لا تُكتب كحالة بالقاعدة أبداً
+  if (status === 'overdue') throw new Error('«متأخرة» حالة تلقائية ولا يمكن اختيارها يدوياً');
   const isDone = status === 'completed' || status === 'done';
   if (isDone) {
     const completedAt = new Date().toISOString();
@@ -252,8 +251,10 @@ export const updateTaskDueDate  = (id, due_date, opts) => updateTask(id, { due_d
 // ── Points helpers ────────────────────────────────────────────
 function calcTaskPoints(task, completedAt) {
   const base = (() => {
-    if (!task?.due_date) return 15;
-    const due = new Date(task.due_date + 'T23:59:59');
+    // نفس موعد حساب «متأخرة» (taskDeadline). كان due_date يصل كـISO كامل
+    // فيصير `due_date + 'T23:59:59'` تاريخاً غير صالح ← كل مهمة تُحسب «متأخرة» (5).
+    const due = taskDeadline(task);
+    if (!due) return 15;
     const hoursLeft = (due - new Date(completedAt)) / 3_600_000;
     if (hoursLeft >= 24) return 20; // early
     if (hoursLeft >= 0)  return 15; // on time
@@ -549,7 +550,14 @@ async function emitActivityForUpdate({ before, patch, taskId, actorId }) {
       metadata: { from: before.assigned_to?.id || null, to: patch.assigned_to || null },
     });
   }
-  if ('due_date' in patch && patch.due_date !== before.due_date) {
+  if ('start_date' in patch && (patch.start_date || null) !== (before.start_date || null)) {
+    events.push({
+      action_type: 'start_date_changed',
+      action_label: 'تعديل تاريخ البدء',
+      metadata: { from: before.start_date || null, to: patch.start_date || null },
+    });
+  }
+  if ('due_date' in patch && datePart(patch.due_date) !== datePart(before.due_date)) {
     events.push({
       action_type: 'due_date_changed',
       action_label: 'تعديل تاريخ التسليم',

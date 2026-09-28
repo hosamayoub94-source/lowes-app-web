@@ -11,7 +11,7 @@ import { Avatar } from '@components/ui/Avatar';
 import { ProgressBar } from '@components/ui/ProgressBar';
 import { STATUS_META, PRIORITY_META, PLATFORM_META, TASK_TYPE_META, progressTone } from '../types/task.types';
 import { useCountdown } from '../hooks/useCountdown';
-import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
+import { shortDate, timeAgo, effectiveStatus, daysUntilDue } from '../utils/taskUtils';
 
 // ── Sub-components ────────────────────────────────────────────
 
@@ -181,6 +181,12 @@ export const TaskCard = memo(function TaskCard({
                 </a>
               )}
               <CommentsBadge count={comments_count} />
+              {/* تاريخ البدء — يظهر فقط إن لم يحن بعد (عند الحاجة) */}
+              {task.start_date && daysUntilDue(task.start_date) > 0 && !isCompleted && (
+                <span className="text-[10px] text-muted whitespace-nowrap" title="تاريخ البدء">
+                  🚀 يبدأ {shortDate(task.start_date)}
+                </span>
+              )}
               {due_date && (
                 <span className={cn('text-xs font-medium whitespace-nowrap', countdownColor)}>
                   {countdown || shortDate(due_date)}

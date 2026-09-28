@@ -10,6 +10,7 @@ import { EmptyState }              from '@components/ui/EmptyState';
 import { useAuth }                 from '@hooks/useAuth';
 import { supabase }                from '@services/supabase';
 import { fetchAllRows }            from '@utils/fetchAllRows';
+import { isOverdue }               from '@modules/tasks/utils/taskUtils';
 
 // ── Helpers ────────────────────────────────────────────────────
 function monthOptions() {
@@ -103,7 +104,7 @@ export default function TaskReportScreen() {
       const [taskRes, profRes] = await Promise.allSettled([
         fetchAllRows(() => supabase
           .from('tasks')
-          .select('id, title, status, assigned_to, due_date, created_at')
+          .select('id, title, status, assigned_to, due_date, due_time, created_at')
           .gte('created_at', from + 'T00:00:00')
           .lte('created_at', to + 'T23:59:59')),
         fetchAllRows(() => supabase.from('profiles').select('id, employee_name, team')),
@@ -116,11 +117,11 @@ export default function TaskReportScreen() {
         (profRes.value || []).forEach(p => { profs[p.id] = p; });
       }
 
-      const now = new Date();
       const isDone = (s) => s === 'done' || s === 'completed';
       const enriched = tasks.map(t => ({
         ...t,
-        isLate: !isDone(t.status) && t.status !== 'cancelled' && t.due_date && new Date(t.due_date) < now,
+        // منطق التأخير الموحّد لوحدة المهام (التاريخ المحلي + due_time أو نهاية اليوم)
+        isLate: isOverdue(t),
         employee_name: profs[t.assigned_to]?.employee_name || t.assigned_to || '—',
         team: profs[t.assigned_to]?.team || '—',
       }));

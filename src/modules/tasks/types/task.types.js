@@ -4,13 +4,16 @@
 // NOT scattered in UI components.
 // =============================================================
 
+import { taskDeadline } from '../utils/taskDeadline';
+
 // ── Status ────────────────────────────────────────────────────
 export const TASK_STATUS = {
   PENDING:     'pending',
   IN_PROGRESS: 'in_progress',
+  IN_REVIEW:   'in_review',
   COMPLETED:   'completed',
   CANCELLED:   'cancelled',
-  OVERDUE:     'overdue',
+  OVERDUE:     'overdue', // محسوبة تلقائياً من الموعد — لا تُختار يدوياً ولا تُكتب بالقاعدة
 };
 
 // ── Priority ──────────────────────────────────────────────────
@@ -36,6 +39,7 @@ export const ACTIVITY_TYPE = {
 export const STATUS_META = {
   pending:     { label: 'قيد الانتظار', tone: 'neutral', icon: '⏳', colorClass: 'text-muted'    },
   in_progress: { label: 'قيد التنفيذ',  tone: 'blue',    icon: '🔄', colorClass: 'text-blue-fg'  },
+  in_review:   { label: 'قيد المراجعة', tone: 'purple',  icon: '👀', colorClass: 'text-purple-fg'},
   completed:   { label: 'مكتملة',        tone: 'green',   icon: '✅', colorClass: 'text-green-fg' },
   cancelled:   { label: 'ملغاة',         tone: 'neutral', icon: '⛔', colorClass: 'text-muted'    },
   overdue:     { label: 'متأخرة',        tone: 'red',     icon: '🔥', colorClass: 'text-red-fg'   },
@@ -59,6 +63,7 @@ export const ACTIVITY_META = {
   assigned:         { label: 'تعيين',           icon: '👤', colorClass: 'bg-green-bg text-green-fg' },
   tagged:           { label: 'إضافة مشارك',     icon: '🏷️', colorClass: 'bg-green-bg text-green-fg' },
   untagged:         { label: 'إزالة مشارك',     icon: '🏷️', colorClass: 'bg-amber-bg text-amber-fg' },
+  start_date_changed: { label: 'تاريخ البدء',   icon: '🚀', colorClass: 'bg-blue-bg text-blue-fg'   },
 };
 
 // ── Progress tone thresholds ──────────────────────────────────
@@ -71,10 +76,21 @@ export function progressTone(pct) {
 }
 
 // ── Status options for select UI ─────────────────────────────
-export const STATUS_OPTIONS = Object.entries(STATUS_META).map(([value, meta]) => ({
+// الحالات التي يختارها المستخدم يدوياً — «متأخرة» مستبعدة لأنها تُحسب
+// تلقائياً من موعد التسليم (effectiveStatus).
+export const MANUAL_STATUSES = ['pending', 'in_progress', 'in_review', 'completed', 'cancelled'];
+export const STATUS_OPTIONS = MANUAL_STATUSES.map((value) => ({
   value,
-  label: `${meta.icon} ${meta.label}`,
+  label: `${STATUS_META[value].icon} ${STATUS_META[value].label}`,
 }));
+
+/** الحالة الأساسية المخزّنة (بلا «متأخرة» المحسوبة)؛ done القديمة ← completed. */
+export function baseStatus(task) {
+  const s = task?.status;
+  if (s === 'done') return 'completed';
+  if (!s || s === 'overdue') return 'pending';
+  return s;
+}
 
 // ── Priority options for select UI ───────────────────────────
 export const PRIORITY_OPTIONS = Object.entries(PRIORITY_META).map(([value, meta]) => ({
@@ -92,6 +108,14 @@ export const PLATFORM_META = {
   other:     { label: 'أخرى',      icon: '🌐' },
 };
 
+// ── Team metadata — القيم تطابق عمود team بجدول profiles ─────
+// مصدر واحد لنموذجي الإنشاء والتعديل (كان التعديل يستعمل social/sales/ops).
+export const TEAM_META = {
+  'ميديا': { label: 'تيم السوشال ميديا', short: 'سوشال', icon: '📱' },
+  'سوريا': { label: 'تيم سوريا',          short: 'سوريا', icon: '🇸🇾' },
+  'تركيا': { label: 'تيم تركيا',          short: 'تركيا', icon: '🇹🇷' },
+};
+
 // ── Task type metadata ────────────────────────────────────────
 export const TASK_TYPE_META = {
   graphic_design:     { label: 'تصميم جرافيك',    icon: '🎨' },
@@ -106,6 +130,10 @@ export const TASK_TYPE_META = {
   page_management:    { label: 'إدارة صفحة',      icon: '📱' },
   other:              { label: 'أخرى',             icon: '📌' },
 };
+
+// ── Option lists for create/edit forms (نفس القيم والتسميات) ──
+export const PLATFORM_OPTIONS  = Object.entries(PLATFORM_META).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` }));
+export const TASK_TYPE_OPTIONS = Object.entries(TASK_TYPE_META).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` }));
 
 // ── Employee level system ─────────────────────────────────────
 export const EMPLOYEE_LEVELS = [
@@ -124,8 +152,8 @@ export function getEmployeeLevel(points = 0) {
 export function calcTaskPointsPreview(task) {
   if (!task) return 15;
   const base = (() => {
-    if (!task.due_date) return 15;
-    const due = new Date(task.due_date + 'T23:59:59');
+    const due = taskDeadline(task);
+    if (!due) return 15;
     const hoursLeft = (due - new Date()) / 3_600_000;
     if (hoursLeft >= 24) return 20;
     if (hoursLeft >= 0)  return 15;

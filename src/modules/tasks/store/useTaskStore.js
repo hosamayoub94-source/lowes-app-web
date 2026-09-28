@@ -314,6 +314,10 @@ export const useTaskStore = create()(
     /** Edit an existing task's fields */
     editTask: async (taskId, patch, actorId) => {
       const prev = get().tasks;
+      const before = prev.find((t) => t.id === taskId);
+      // assigned_to كائن {id,...} من mapTask، أو نصّ id (المسار التفاؤلي/وضع mock)
+      const idOf = (v) => (v && typeof v === 'object' ? v.id : v) || null;
+      const prevAssigneeId = idOf(before?.assigned_to);
       set((s) => ({
         tasks: s.tasks.map((t) =>
           t.id === taskId ? { ...t, ...patch, updated_at: new Date().toISOString() } : t,
@@ -326,6 +330,24 @@ export const useTaskStore = create()(
           tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
           actionLoading: false,
         }));
+
+        // إشعار المسؤول الجديد عند تغيير الإسناد فعلياً فقط (لا عند حفظ بلا تغيير،
+        // ولا عند إزالة المسؤول، ولا إن أسند المستخدم المهمة لنفسه).
+        const newAssigneeId = idOf(updated?.assigned_to);
+        if ('assigned_to' in patch && newAssigneeId && newAssigneeId !== prevAssigneeId && newAssigneeId !== actorId) {
+          import('@modules/notifications/services/notificationService').then(({ sendNotification }) => {
+            sendNotification({
+              userId:     newAssigneeId,
+              type:       'task_assigned',
+              title:      `📋 أُسندت إليك مهمة`,
+              message:    `تم إسناد المهمة إليك: ${updated.title ?? before?.title ?? 'مهمة'}`,
+              entityType: 'task',
+              entityId:   taskId,
+              // الإسناد تغيّر فعلاً — لا نكتم إشعاراً ثانياً لنفس الشخص بنفس اليوم (A→B→A)
+              skipDedup:  true,
+            }).catch(() => {});
+          }).catch(() => {});
+        }
         return updated;
       } catch (err) {
         set({ tasks: prev, actionLoading: false, error: err?.message });

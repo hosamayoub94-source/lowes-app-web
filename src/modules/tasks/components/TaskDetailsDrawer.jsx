@@ -14,8 +14,11 @@ import { Avatar } from '@components/ui/Avatar';
 import { Button } from '@components/ui/Button';
 import { ProgressBar } from '@components/ui/ProgressBar';
 import { Select } from '@components/ui/Input';
-import { STATUS_META, PRIORITY_META, STATUS_OPTIONS, PLATFORM_META, TASK_TYPE_META, progressTone, calcTaskPointsPreview } from '../types/task.types';
-import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
+import {
+  STATUS_META, PRIORITY_META, STATUS_OPTIONS, PLATFORM_META, TASK_TYPE_META, TEAM_META,
+  PLATFORM_OPTIONS, TASK_TYPE_OPTIONS, baseStatus, progressTone, calcTaskPointsPreview,
+} from '../types/task.types';
+import { shortDate, timeAgo, effectiveStatus, datePart, startAfterDue } from '../utils/taskUtils';
 import { useCountdown } from '../hooks/useCountdown';
 import { usePermissions } from '@hooks/usePermissions';
 import { useAuthStore } from '@stores/authStore';
@@ -218,6 +221,9 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
   const { label: countdown, colorClass: countdownColor } = useCountdown(task.due_date, effStatus);
   const isCompleted = effStatus === 'completed' || effStatus === 'done';
   const pointsPreview = calcTaskPointsPreview(task);
+  // قائمة تغيير الحالة تعرض الحالة المخزّنة؛ «متأخرة» تُحسب تلقائياً ولا تُختار
+  const storedStatus = baseStatus(task);
+  const isOverdueNow = effStatus === 'overdue';
 
   const handleStatusChange = (e) => onStatusChange(e.target.value);
 
@@ -323,6 +329,18 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
             </a>
           </InfoRow>
         )}
+        {task.team && (
+          <InfoRow label="التيم">
+            <span className="text-sm font-semibold text-text">
+              {TEAM_META[task.team] ? `${TEAM_META[task.team].icon} ${TEAM_META[task.team].label}` : task.team}
+            </span>
+          </InfoRow>
+        )}
+        {task.start_date && (
+          <InfoRow label="تاريخ البدء">
+            <span className="text-sm font-semibold text-text">{shortDate(task.start_date)}</span>
+          </InfoRow>
+        )}
         {task.due_date && (
           <InfoRow label="تاريخ الاستحقاق">
             <div className="text-end">
@@ -353,16 +371,19 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
       {/* Change status */}
       <Section title="تغيير الحالة" icon="↻">
         <Select
-          value={effStatus}
+          value={storedStatus}
           onChange={handleStatusChange}
-          disabled={actionLoading || effStatus === 'cancelled'}
+          disabled={actionLoading || storedStatus === 'cancelled'}
           aria-label="تغيير حالة المهمة"
         >
           {STATUS_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </Select>
-        {effStatus === 'cancelled' && (
+        {isOverdueNow && (
+          <p className="text-xs text-red-fg">🔥 تجاوزت موعد التسليم — تُعرض «متأخرة» تلقائياً حتى تكتمل أو تُرسل للمراجعة.</p>
+        )}
+        {storedStatus === 'cancelled' && (
           <p className="text-xs text-muted">المهام الملغاة لا يمكن تغيير حالتها.</p>
         )}
       </Section>
@@ -390,11 +411,11 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
 }
 
 // ── Edit form ─────────────────────────────────────────────────
+// نفس قيم عمود team بـprofiles ونموذج الإنشاء (كانت social/sales/ops فتُكتب
+// قيم لا تطابق أي فريق وتختفي المهمة من تبويب «فريقي»).
 const TEAM_OPTS = [
   { value: '', label: '— بدون تيم —' },
-  { value: 'social', label: '📱 سوشال ميديا' },
-  { value: 'sales',  label: '💼 مبيعات' },
-  { value: 'ops',    label: '⚙️ عمليات' },
+  ...Object.entries(TEAM_META).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` })),
 ];
 const PRIO_OPTS = [
   { value: 'urgent', label: '⚡ عاجلة' },
@@ -404,16 +425,21 @@ const PRIO_OPTS = [
 ];
 const IC = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal/40';
 
-function EditTaskForm({ task, employees, onSave, onCancel, loading }) {
+function EditTaskForm({ task, employees, projects = [], onSave, onCancel, loading }) {
   const [form, setForm] = useState({
     title:       task.title || '',
     description: task.description || '',
     priority:    task.priority || 'medium',
-    due_date:    task.due_date || '',
+    start_date:  datePart(task.start_date) || '',
+    // due_date يصل ISO كاملاً من القاعدة — حقل date يحتاج YYYY-MM-DD
+    due_date:    datePart(task.due_date) || '',
     due_time:    task.due_time || '',
     assigned_to: task.assigned_to?.id || '',
     team:        task.team || '',
     link:        task.link || '',
+    platform:    task.platform || '',
+    task_type:   task.task_type || '',
+    project_id:  task.project_id || '',
   });
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -421,18 +447,43 @@ function EditTaskForm({ task, employees, onSave, onCancel, loading }) {
     ? (employees || []).filter((e) => e.team === form.team)
     : (employees || []);
 
+  // قيمة قديمة غير موجودة بالقوائم تبقى ظاهرة ومحفوظة ما لم يغيّرها المستخدم
+  const teamOpts = form.team && !TEAM_META[form.team] && form.team === task.team
+    ? [...TEAM_OPTS, { value: task.team, label: `${task.team} (قيمة قديمة)` }]
+    : TEAM_OPTS;
+  const projectOpts = task.project_id && !projects.some((p) => p.id === task.project_id)
+    ? [...projects, { id: task.project_id, name: 'المشروع الحالي', icon: '📁' }]
+    : projects;
+
+  // تغيير التيم يُفرغ المسؤول فقط إن لم يكن من التيم الجديد (نفس سلوك الإنشاء)
+  const handleTeamChange = (teamVal) => {
+    set('team', teamVal);
+    if (teamVal && form.assigned_to) {
+      const emp = (employees || []).find((e) => e.id === form.assigned_to);
+      if (emp && emp.team !== teamVal) set('assigned_to', '');
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+    if (startAfterDue(form.start_date, form.due_date)) {
+      window.alert('تاريخ البدء لا يمكن أن يكون بعد موعد التسليم.');
+      return;
+    }
     onSave({
       title:       form.title.trim(),
       description: form.description.trim() || null,
       priority:    form.priority,
+      start_date:  form.start_date || null,
       due_date:    form.due_date || null,
       due_time:    form.due_time || null,
       assigned_to: form.assigned_to || null,
       team:        form.team || null,
       link:        form.link.trim() || null,
+      platform:    form.platform || null,
+      task_type:   form.task_type || null,
+      project_id:  form.project_id || null,
     });
   };
 
@@ -454,14 +505,47 @@ function EditTaskForm({ task, employees, onSave, onCancel, loading }) {
           </select>
         </div>
         <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">وقت الاستحقاق</label>
+          <input type="time" value={form.due_time} onChange={(e) => set('due_time', e.target.value)} className={IC} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">تاريخ البدء</label>
+          <input type="date" value={form.start_date} max={form.due_date || undefined} onChange={(e) => set('start_date', e.target.value)} className={IC} />
+        </div>
+        <div className="space-y-1">
           <label className="text-xs font-semibold text-muted">تاريخ الاستحقاق</label>
-          <input type="date" value={form.due_date} onChange={(e) => set('due_date', e.target.value)} className={IC} />
+          <input type="date" value={form.due_date} min={form.start_date || undefined} onChange={(e) => set('due_date', e.target.value)} className={IC} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">المنصة</label>
+          <select value={form.platform} onChange={(e) => set('platform', e.target.value)} className={IC}>
+            <option value="">— المنصة —</option>
+            {PLATFORM_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-muted">نوع المهمة</label>
+          <select value={form.task_type} onChange={(e) => set('task_type', e.target.value)} className={IC}>
+            <option value="">— النوع —</option>
+            {TASK_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
         </div>
       </div>
       <div className="space-y-1">
+        <label className="text-xs font-semibold text-muted">المشروع</label>
+        <select value={form.project_id} onChange={(e) => set('project_id', e.target.value)} className={IC}>
+          <option value="">— بلا مشروع (مهمة عامة) —</option>
+          {projectOpts.map((p) => <option key={p.id} value={p.id}>{p.icon ? `${p.icon} ` : ''}{p.name}</option>)}
+        </select>
+      </div>
+      <div className="space-y-1">
         <label className="text-xs font-semibold text-muted">التيم</label>
-        <select value={form.team} onChange={(e) => { set('team', e.target.value); set('assigned_to', ''); }} className={IC}>
-          {TEAM_OPTS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        <select value={form.team} onChange={(e) => handleTeamChange(e.target.value)} className={IC}>
+          {teamOpts.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
       {employees && employees.length > 0 && (
@@ -529,6 +613,7 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   onUntagUser,
   actionLoading = false,
   employees = [],
+  projects = [],
   initialTab = 'details', // 'comments' عند القدوم من إشعار تعليق
 }) {
   const [activeTab, setActiveTab] = useState('details');
@@ -697,6 +782,7 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
             <EditTaskForm
               task={task}
               employees={employees}
+              projects={projects}
               onSave={handleSaveEdit}
               onCancel={() => setEditMode(false)}
               loading={actionLoading}
