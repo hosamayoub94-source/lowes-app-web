@@ -4,13 +4,11 @@
 import { useNavigate }  from 'react-router-dom';
 import { useTaskStore } from '@modules/tasks/store/useTaskStore';
 import { ROUTES }       from '@routes/paths';
-import { isOverdue as isTaskOverdue, daysUntilDue } from '@modules/tasks/utils/taskUtils';
 
 const STATUS_DOT = {
   done:        '✅',
   completed:   '✅',
   in_progress: '🔵',
-  in_review:   '🟣',
   pending:     '⚪',
   blocked:     '🔴',
 };
@@ -22,10 +20,16 @@ export function TasksWidget() {
   const tasks    = useTaskStore((s) => s.tasks);
   const loading  = useTaskStore((s) => s.loading);
 
-  // موعد اليوم/التأخير من منطق المهام الموحّد (التاريخ المحلي + due_time أو نهاية اليوم)
-  const todayTasks = tasks.filter((t) => t?.due_date && daysUntilDue(t.due_date) === 0);
+  const now      = new Date();
+  const today    = now.toDateString();
 
-  const overdue = tasks.filter((t) => t && isTaskOverdue(t));
+  const todayTasks = tasks.filter((t) =>
+    t?.due_date && new Date(t.due_date).toDateString() === today
+  );
+
+  const overdue = tasks.filter((t) =>
+    t?.due_date && new Date(t.due_date) < now && !isFinished(t?.status)
+  );
 
   const done    = todayTasks.filter((t) => isFinished(t.status)).length;
   const total   = todayTasks.length;
@@ -69,7 +73,7 @@ export function TasksWidget() {
 
       <ul className="space-y-1">
         {[...overdue.slice(0, 2), ...todayTasks.filter((t) => !isFinished(t.status)).slice(0, 3)].map((t) => {
-          const isOverdue = isTaskOverdue(t);
+          const isOverdue = new Date(t.due_date) < now && !isFinished(t.status);
           return (
             <li
               key={t.id}
