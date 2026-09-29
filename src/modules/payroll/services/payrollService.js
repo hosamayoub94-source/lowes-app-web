@@ -191,6 +191,35 @@ export async function upsertPayrollEntry(entry) {
   return { ...data, employee_name: employee_name ?? '', role_type: role_type ?? '' };
 }
 
+/**
+ * D-090 البند 15 (دورة أيلول 2026 وما بعد): حفظ كل بنود الحسبة بطلب واحد =
+ * جملة INSERT … ON CONFLICT واحدة بـPostgres ← ذرّية: إمّا تُحفظ كل البنود
+ * أو لا يُحفظ أي بند (أي خطأ بصف واحد يُرجع الجملة كلها). كل البنود يجب
+ * أن تحمل نفس الأعمدة — supabase-js يملأ العمود الغائب بـnull.
+ */
+export async function upsertPayrollEntriesAtomic(entries) {
+  if (!entries?.length) return [];
+  if (USE_MOCK) {
+    const saved = [];
+    for (const e of entries) saved.push(await upsertPayrollEntry(e));
+    return saved;
+  }
+  const { supabase } = await import('@services/supabase');
+  // حقول عرض/join فقط — ليست أعمدة بـpayroll_entries
+  const rows = entries.map(({ employee_name: _n, role_type: _r, profiles: _p, ...dbEntry }) => dbEntry);
+  const { data, error } = await supabase
+    .from('payroll_entries')
+    .upsert(rows, { onConflict: 'run_id,employee_id' })
+    .select();
+  if (error) throw new Error(error.message);
+  const byEmp = new Map(entries.map(e => [e.employee_id, e]));
+  return (data ?? []).map(row => ({
+    ...row,
+    employee_name: byEmp.get(row.employee_id)?.employee_name ?? '',
+    role_type: byEmp.get(row.employee_id)?.role_type ?? '',
+  }));
+}
+
 export async function deletePayrollEntry(id) {
   if (USE_MOCK) {
     _mockEntries = _mockEntries.filter(e => e.id !== id);

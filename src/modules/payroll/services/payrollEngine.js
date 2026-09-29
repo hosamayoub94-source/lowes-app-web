@@ -38,6 +38,7 @@
 import { supabase, supabaseAnon } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
+import { isNewSystemRun, buildRunRateMap } from './runRates.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -316,8 +317,11 @@ export async function fetchCommissionRules() {
  * Detailed per-employee sales statement (for the "كشف حركة المبيعات" modal).
  * Returns the actual collected orders (all currencies) with USD value, so
  * the owner can verify what fed the commission.
+ *
+ * D-090 البند 15: دورة أيلول 2026 وما بعد → سعر الدورة فقط (سعر ناقص =
+ * خطأ ظاهر بالكشف، لا fallback). الدورات الأقدم → السلوك الحالي كما هو.
  */
-export async function fetchEmployeeSalesStatement(emp, year, month) {
+export async function fetchEmployeeSalesStatement(emp, year, month, run) {
   const { from, to } = monthBounds(year, month);
   const names = employeeNames(emp);
   if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
@@ -328,7 +332,9 @@ export async function fetchEmployeeSalesStatement(emp, year, month) {
       .gte('order_date', from).lt('order_date', to)
       .in('status', COMMISSIONABLE_STATUSES)
       .order('order_date', { ascending: true })),
-    fetchExchangeRateMap(),
+    isNewSystemRun(run)
+      ? Promise.resolve().then(() => buildRunRateMap(run))
+      : fetchExchangeRateMap(),
   ]);
 
   const orders = (ordersData || [])
@@ -525,6 +531,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       team: null, target_currency: null, target_local: 0, sales_local: 0, sales_avg_local: 0,
       returns_count: 0, returns_allowed: 0, returns_excess: 0, return_deduction_local: 0,
       increase_local: 0, adjusted_increase_local: 0, shortfall_local: 0,
+      // داخلي فقط (لا يُحفظ — يُنزع قبل upsert): عملة بلا سعر بالدورة
+      _rateMissing: Boolean(salaryMissing || advMissing),
     };
   }
 
@@ -703,6 +711,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     computed_at: new Date().toISOString(),
     notes: notes.filter(Boolean).join(' · ') || null,
     ...teamFields,
+    // داخلي فقط (لا يُحفظ — يُنزع قبل upsert): عملة بلا سعر بالدورة
+    _rateMissing: Boolean(salesMissing || advMissing || salaryMissing),
   };
 }
 
@@ -717,9 +727,23 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  * بيانات الشهر". Callers should gate the UI button on
  * `run.month_setup_confirmed_at` before invoking this.
  *
+ * D-090 البند 15 — دورة أيلول 2026 وما بعد (isNewSystemRun):
+ *   • سعرا الدورة (rate_usd_try / rate_usd_syp) هما المصدر الوحيد للتحويل —
+ *     لا قراءة لـexchange_rates إطلاقاً، ولا fallback لأي سعر حي/قديم.
+ *   • سعر ناقص/صفر/سالب → خطأ قبل أي قراءة أو كتابة.
+ *   • الكل يُحسب بالذاكرة أولاً؛ أي بند بعملة بلا سعر → توقف بلا حفظ أي شيء.
+ * الدورات الأقدم (ومنها مسودة آب) → المسار الحالي كما هو حرفياً.
+ *
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
+  const isNew = isNewSystemRun(run);
+  let runRateMap = null;
+  if (isNew) {
+    if (!run?.month_setup_confirmed_at) throw new Error('⛔ أكّد «⚙️ إعداد الشهر» أولاً — لم يُحفظ أي شيء.');
+    runRateMap = buildRunRateMap(run); // يرمي عند سعر ناقص — قبل أي قراءة أو كتابة
+  }
+
   const errors = [];
   if (!run?.month_setup_confirmed_at) {
     errors.push('⚠️ لم يُؤكَّد "إعداد الشهر" (التارجت/أسعار الصرف) بعد — القيم الافتراضية استُخدمت مؤقتاً. أكِّد الإعداد قبل الاعتماد.');
@@ -744,7 +768,12 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     const { data: settings, error: sErr } = await supabase
       .from('employee_salary_settings')
       .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active');
-    if (sErr) errors.push('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
+    if (sErr) {
+      // D-090 (أيلول 2026 وما بعد): بلا إعدادات الرواتب تنقلب الرواتب لمصدر
+      // احتياطي بصمت — لا حسبة ولا حفظ. الدورات الأقدم: تنبيه كما قبل.
+      if (isNew) throw new Error('⛔ تعذّر جلب إعدادات الرواتب — لم تُحسب الدورة ولم يُحفظ أي راتب: ' + sErr.message);
+      errors.push('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
+    }
     for (const s of (settings || [])) {
       // keep the active/most-relevant row per employee
       if (!settingsById.has(s.employee_id) || s.is_active) settingsById.set(s.employee_id, s);
@@ -756,40 +785,86 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   //    when present) + one sales+returns query for the month.
   let rateMap = { USD: 1 };
   let salesIndex = new Map();
-  try {
-    rateMap = await fetchExchangeRateMap();
-    // Run-level frozen rates win once confirmed, so re-running an old
-    // month never re-prices it off today's live rate.
-    if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
-    if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
-  } catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
+  if (isNew) {
+    // D-090 البند 15: سعرا الدورة فقط — لا exchange_rates.
+    rateMap = runRateMap;
+  } else {
+    try {
+      rateMap = await fetchExchangeRateMap();
+      // Run-level frozen rates win once confirmed, so re-running an old
+      // month never re-prices it off today's live rate.
+      if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
+      if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
+    } catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
+  }
   try { salesIndex = await fetchMonthlySalesIndex(year, month); }
-  catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
+  catch (e) {
+    // D-090 (أيلول 2026 وما بعد): بلا مبيعات تصير العمولات صفراً والحسم كاملاً
+    // بصمت — لا حسبة ولا حفظ. الدورات الأقدم: تنبيه كما قبل.
+    if (isNew) throw new Error('⛔ تعذّر جلب المبيعات — لم تُحسب الدورة ولم يُحفظ أي راتب: ' + (e?.message || e));
+    errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0');
+  }
 
-  const { upsertPayrollEntry } = await import('./payrollService.js');
+  const { upsertPayrollEntry, upsertPayrollEntriesAtomic } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
   const entries = [];
   let done = 0;
   const total = (emps || []).length;
 
-  for (const emp of (emps || [])) {
-    if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
-    try {
-      const entry = await computeEmployeeEntry({
-        emp, settings: settingsById.get(emp.id) || null,
-        runId, year, month, salesIndex, rateMap, run,
-      });
-      // null = not employed at all during this month (hired after it ended,
-      // or account closed before it started) — no entry, not an error.
-      if (entry === null) { done++; onProgress?.(done, total); continue; }
-      const saved = await upsertPayrollEntry(entry);
-      entries.push(saved);
-    } catch (e) {
-      errors.push(`${emp.employee_name}: ${e?.message || e}`);
+  if (isNew) {
+    // احسب الكل بالذاكرة أولاً — لا حفظ لحسبة ناقصة.
+    const computed = [];
+    const computeFailures = [];
+    for (const emp of (emps || [])) {
+      if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
+      try {
+        const entry = await computeEmployeeEntry({
+          emp, settings: settingsById.get(emp.id) || null,
+          runId, year, month, salesIndex, rateMap, run,
+        });
+        if (entry !== null) computed.push(entry);
+      } catch (e) {
+        computeFailures.push(`${emp.employee_name}: ${e?.message || e}`);
+      }
+      done++;
+      onProgress?.(done, total);
     }
-    done++;
-    onProgress?.(done, total);
+    const gaps = computed.filter(e => e._rateMissing);
+    if (gaps.length) {
+      throw new Error(`⛔ عملة بلا سعر صرف بالدورة عند: ${gaps.map(e => e.employee_name).join('، ')} — لم يُحفظ أي شيء.`);
+    }
+    // all-or-nothing: موظف تعذّرت حسبته = نتائج الدورة ناقصة → لا حفظ.
+    if (computeFailures.length) {
+      throw new Error(`⛔ تعذّرت حسبة بعض الموظفين — لم يُحفظ أي بند:\n${computeFailures.join('\n')}`);
+    }
+    // حفظ ذرّي بطلب واحد: إمّا كل البنود أو لا شيء.
+    const rows = computed.map(({ _rateMissing, ...entry }) => entry);
+    try {
+      entries.push(...await upsertPayrollEntriesAtomic(rows));
+    } catch (e) {
+      throw new Error(`⛔ فشل حفظ نتائج الدورة — لم يُحفظ أي بند من هذه الحسبة (${e?.message || e}). أعد التشغيل.`);
+    }
+  } else {
+    for (const emp of (emps || [])) {
+      if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
+      try {
+        const computedEntry = await computeEmployeeEntry({
+          emp, settings: settingsById.get(emp.id) || null,
+          runId, year, month, salesIndex, rateMap, run,
+        });
+        // null = not employed at all during this month (hired after it ended,
+        // or account closed before it started) — no entry, not an error.
+        if (computedEntry === null) { done++; onProgress?.(done, total); continue; }
+        const { _rateMissing, ...entry } = computedEntry; // داخلي — لا يُحفظ
+        const saved = await upsertPayrollEntry(entry);
+        entries.push(saved);
+      } catch (e) {
+        errors.push(`${emp.employee_name}: ${e?.message || e}`);
+      }
+      done++;
+      onProgress?.(done, total);
+    }
   }
 
   const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary_usd) || 0), 0);

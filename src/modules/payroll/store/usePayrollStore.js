@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS } from '../types/payroll.types.js';
+import { isNewSystemRun, validateRunRates } from '../services/runRates.js';
 
 const INITIAL_STATE = {
   runs: [],
@@ -139,8 +140,19 @@ const usePayrollStore = create()(
      * "⚙️ إعداد الشهر" — spec §1/17: freeze the target/exchange-rate
      * values that THIS run will use, before the engine can be run.
      * Re-callable while the run is still Draft (test mode allows editing).
+     *
+     * D-090 البند 15 (دورة أيلول 2026 وما بعد فقط): الحفظ مسموح والدورة
+     * مسودة فقط، والسعران إلزاميان (رقم موجب). الدورات الأقدم كما هي.
      */
     async confirmMonthSetup(id, setup) {
+      const run = get().runs.find(r => r.id === id);
+      if (isNewSystemRun(run)) {
+        if (run.status !== PAYROLL_STATUS.DRAFT) {
+          throw new Error('⛔ سعر الصرف يُعدَّل فقط والدورة مسودة.');
+        }
+        const v = validateRunRates(setup);
+        if (!v.ok) throw new Error(`⛔ أدخل يدوياً: ${v.missing.join('، ')} — رقم أكبر من صفر.`);
+      }
       const userId = get()._userId;
       return get().updateRun(id, {
         target_syria_usd:        setup.target_syria_usd,

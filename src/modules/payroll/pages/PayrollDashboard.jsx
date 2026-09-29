@@ -8,6 +8,7 @@ import {
   runPayrollForMonth, fetchEmployeeSalesStatement,
   fetchCommissionRules, fetchExchangeRateMap, DEFAULT_RULES,
 } from '../services/payrollEngine.js';
+import { isNewSystemRun, validateRunRates, parseRate, isRunStale } from '../services/runRates.js';
 import {
   usePayrollBootstrap,
   usePayrollDashboard,
@@ -176,6 +177,18 @@ export function PayrollDashboard() {
           rate_usd_try: run.rate_usd_try ?? '',
           rate_usd_syp: run.rate_usd_syp ?? '',
         });
+      } else if (isNewSystemRun(run)) {
+        // D-090 البند 15: سعرا الدورة يدويان — لا تعبئة من أي سعر حي/قديم.
+        // يظهر فقط ما حُفظ على هذه الدورة نفسها، وإلا تبقى الخانة فارغة.
+        const rules = await fetchCommissionRules().catch(() => DEFAULT_RULES);
+        setSetupForm({
+          target_syria_usd: run.target_syria_usd ?? rules.syria.monthly_target_usd,
+          target_turkey_try: run.target_turkey_try ?? rules.turkey.monthly_target_try,
+          above_target_pct_syria: run.above_target_pct_syria ?? rules.syria.above_target_pct,
+          above_target_pct_turkey: run.above_target_pct_turkey ?? rules.turkey.above_target_pct,
+          rate_usd_try: run.rate_usd_try ?? '',
+          rate_usd_syp: run.rate_usd_syp ?? '',
+        });
       } else {
         const [rules, rateMap] = await Promise.all([
           fetchCommissionRules().catch(() => DEFAULT_RULES),
@@ -197,6 +210,13 @@ export function PayrollDashboard() {
 
   const handleSaveMonthSetup = async () => {
     if (!setupForm) return;
+    if (isNewSystemRun(run)) {
+      const v = validateRunRates(setupForm);
+      if (!v.ok) {
+        setCommMsg(`⛔ أدخل يدوياً: ${v.missing.join('، ')} — رقم أكبر من صفر. لم يُحفظ الإعداد.`);
+        return;
+      }
+    }
     setSetupLoading(true);
     try {
       const clean = Object.fromEntries(
@@ -220,6 +240,11 @@ export function PayrollDashboard() {
   const handleRunEngine = useCallback(async () => {
     if (!run) return;
     if (!run.month_setup_confirmed_at) { openMonthSetup(); return; }
+    if (isNewSystemRun(run) && !validateRunRates(run).ok) {
+      setCommMsg(`⛔ سعر الصرف للدورة ناقص: ${validateRunRates(run).missing.join('، ')} — أدخله من «⚙️ إعداد الشهر». لم تُشغَّل الحسبة.`);
+      openMonthSetup();
+      return;
+    }
     setEngineRunning(true);
     setEngineProgress({ done: 0, total: 0 });
     setCommMsg(null);
@@ -264,7 +289,7 @@ export function PayrollDashboard() {
     try {
       const data = await fetchEmployeeSalesStatement(
         { id: entry.employee_id, employee_name: entry.employee_name },
-        run.period_year, run.period_month,
+        run.period_year, run.period_month, run,
       );
       setStatementData(data);
     } catch (e) {
@@ -345,6 +370,10 @@ export function PayrollDashboard() {
     // absence, currency…) are preserved, then recompute net from all parts.
     const merged = { ...editEntry, ...entryForm, source: 'manual' };
     merged.net_salary_usd = calcNetSalary(merged);
+    // D-090 البند 15 (أيلول 2026 وما بعد): الحفظ اليدوي مراجعة بشرية للبند
+    // بعد آخر إعداد للشهر — وإلا يبقى «أقدم من السعر» ويمنع الاعتماد للأبد
+    // (المحرّك يتخطّى البنود اليدوية). الدورات الأقدم كما هي.
+    if (isNewSystemRun(run)) merged.computed_at = new Date().toISOString();
     await upsertEntry(merged);
     setEditEntry(null);
     setEntryForm({});
@@ -367,7 +396,13 @@ export function PayrollDashboard() {
   // (لا ينقصهم راتب، ينقصهم تصنيف الفريق).
   const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team && !e.commission_exempt);
   const blockingEntries = zeroSalaryEntries.length + noTeamEntries.length;
-  const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
+  // D-090 البند 15 (أيلول 2026 وما بعد فقط): سعرا الدورة إلزاميان، ولا اعتماد
+  // إذا حُفظ إعداد الشهر (السعر) بعد آخر حسبة. الدورات الأقدم: الشروط كما هي.
+  const isNewRun = isNewSystemRun(run);
+  const runRatesCheck = isNewRun ? validateRunRates(run) : { ok: true, missing: [] };
+  const runStale = isNewRun && entries.length > 0 && isRunStale(run, entries);
+  const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0
+    && runRatesCheck.ok && !runStale;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -536,6 +571,21 @@ export function PayrollDashboard() {
                 <div className="mx-5 mt-4 rounded-xl border border-blue-400/40 bg-blue-50 px-4 py-3">
                   <p className="text-sm font-bold text-blue-700">
                     ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
+                  </p>
+                </div>
+              )}
+              {/* D-090 البند 15 — دورة أيلول 2026 وما بعد فقط */}
+              {!loadingEntries && isNewRun && !runRatesCheck.ok && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ سعر الصرف للدورة ناقص ({runRatesCheck.missing.join('، ')}) — <b>الحسبة والاعتماد معطَّلان</b> حتى تُدخله يدوياً من «⚙️ إعداد الشهر».
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && isNewRun && runRatesCheck.ok && runStale && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-bold text-amber-700">
+                    ⛔ تغيّر إعداد الشهر (سعر الصرف) بعد آخر حسبة — <b>الاعتماد معطَّل</b> حتى تُعيد تشغيل الدورة (والبنود اليدوية تُعاد مراجعتها وحفظها).
                   </p>
                 </div>
               )}
@@ -811,25 +861,35 @@ export function PayrollDashboard() {
               <p className="text-[11px] text-muted">
                 هذه القيم تُجمَّد لهذه الدورة فقط — تعديلها لاحقاً بشهر قادم لن يُغيّر حسبة هذا الشهر بعد اعتماده.
               </p>
+              {isNewRun && (
+                <p className="text-[11px] font-semibold text-amber-fg">
+                  سعرا الصرف يُدخلان يدوياً لهذه الدورة فقط — لا يُؤخذ أي سعر تلقائياً. بدونهما لا حسبة ولا اعتماد.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { key: 'target_syria_usd', label: 'تارجت سوريا ($)' },
                   { key: 'target_turkey_try', label: 'تارجت تركيا (₺)' },
                   { key: 'above_target_pct_syria', label: 'نسبة العمولة فوق التارجت — سوريا (%)' },
                   { key: 'above_target_pct_turkey', label: 'نسبة العمولة فوق التارجت — تركيا (%)' },
-                  { key: 'rate_usd_try', label: '1 USD = ? TRY' },
-                  { key: 'rate_usd_syp', label: '1 USD = ? SYP' },
-                ].map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="text-xs font-semibold text-muted mb-1.5 block">{label}</label>
-                    <input
-                      type="number"
-                      value={setupForm[key] ?? ''}
-                      onChange={e => setSetupForm(f => ({ ...f, [key]: e.target.value === '' ? '' : Number(e.target.value) }))}
-                      className={INP}
-                    />
-                  </div>
-                ))}
+                  { key: 'rate_usd_try', label: isNewRun ? 'سعر تركيا — 1$ = ? ₺ (إلزامي، يدوي)' : '1 USD = ? TRY', rate: true },
+                  { key: 'rate_usd_syp', label: isNewRun ? 'سعر سوريا — 1$ = ? ل.س (إلزامي، يدوي)' : '1 USD = ? SYP', rate: true },
+                ].map(({ key, label, rate }) => {
+                  const manualRate = isNewRun && rate;
+                  const invalid = manualRate && !parseRate(setupForm[key]);
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-semibold text-muted mb-1.5 block">{label}</label>
+                      <input
+                        type="number"
+                        value={setupForm[key] ?? ''}
+                        onChange={e => setSetupForm(f => ({ ...f, [key]: e.target.value === '' ? '' : Number(e.target.value) }))}
+                        {...(manualRate ? { min: '0', step: 'any', required: true, placeholder: 'أدخل السعر يدوياً' } : {})}
+                        className={`${INP}${invalid ? ' border-red-400' : ''}`}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
