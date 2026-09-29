@@ -12,6 +12,7 @@ import { useShippingStore, syriaShippingOptions, syriaCarrierGroupKey, SYRIA_SHI
 
 const JOIN_URL = 'https://app.lowesprofesyonel.com/join';
 const IG_URL   = COMPANY.instagramSkincareUrl;
+const IG_URL_SYRIA = COMPANY.labelInstagramSyriaUrl;
 
 // رسائل شخصية — ثابتة حسب رقم الطلب (إعادة الطباعة = نفس الرسالة)
 const MESSAGES = [
@@ -255,7 +256,7 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     <div class="qr-item"><img src="${igQrDataUrl}" alt="انستغرام" /><div class="qr-lbl">📸 تابعي</div></div>
     <div class="foot-txt">
       <div class="star-cta">⭐ انضمي لشبكة النجوم واكسبي عمولة حتى 50%</div>
-      <div class="ig">📸 ${esc(COMPANY.instagramSkincare)} · 📞 ${esc(csPhone)}</div>
+      <div class="ig">📸 ${esc(o.market === 'syria' ? COMPANY.labelInstagramSyria : COMPANY.instagramSkincare)} · 📞 ${esc(csPhone)}</div>
       <div class="cs">📧 ${esc(COMPANY.email)}</div>
       <div class="slogan">${esc(BRAND.sloganAr)}</div>
     </div>
@@ -316,9 +317,10 @@ export async function buildLabelsHTML(orders) {
 
   const qrOpts = { width: 200, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } };
   // توليد QR انستا + شبكة النجوم — PNG عبر canvas (مربعات مملوءة للطباعة)
-  const [igQrDataUrl, joinQrDataUrl] = await Promise.all([
+  const [igQrDataUrl, joinQrDataUrl, igSyriaQrDataUrl] = await Promise.all([
     QRCode.toDataURL(IG_URL,   qrOpts),
     QRCode.toDataURL(JOIN_URL, qrOpts),
+    QRCode.toDataURL(IG_URL_SYRIA, qrOpts),
   ]);
 
   const now = new Date();
@@ -359,7 +361,7 @@ export async function buildLabelsHTML(orders) {
       : '';
     const fillerCount = isLast ? (mergeMarket ? oddBlank : blankCells) : 0;
     const fillers = Array.from({ length: fillerCount }, () => '<div class="label-empty"></div>').join('');
-    const labels = page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, igQrDataUrl)).join('');
+    const labels = page.map((o) => labelHTML(o, globalIdx++, total, dateStr, joinQrDataUrl, o.market === 'syria' ? igSyriaQrDataUrl : igQrDataUrl)).join('');
     return `
     <section class="sheet">
       ${mergeBlock}${fillers}${labels}
