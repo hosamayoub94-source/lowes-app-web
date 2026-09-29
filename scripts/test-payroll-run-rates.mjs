@@ -103,6 +103,7 @@ function builder(table) {
     },
     neq(c, v) { q.filters.push(['neq', c, v]); return api; },
     in(c, v) { q.filters.push(['in', c, v]); return api; },
+    is(c, v) { q.filters.push(['is', c, v]); return api; },
     gte() { return api; }, lt() { return api; }, lte() { return api; },
     or() { return api; }, order() { return api; }, range() { return api; },
     upsert(row) { q.op = 'upsert'; q.payload = row; return api; },
@@ -146,10 +147,20 @@ await build({
 const E = await import(pathToFileURL(outfile).href);
 
 // بيانات وهمية: بائعة تركية (أساسي $130) مبيعاتها ₺10,000 + موظف معفى.
-function setStub({ salaryCurrency = null, failUpsert = false, throwOnEq = null, errorTables = [] } = {}) {
+// ترشيح عام كقاعدة البيانات (eq / neq / in / is null) — لطلبات المرحلة 3
+const applyFilters = (rows, filters) => rows.filter(r => filters.every(([op, c, v]) =>
+  op === 'eq' ? r[c] === v
+  : op === 'neq' ? (r[c] != null && r[c] !== v)
+  : op === 'in' ? v.includes(r[c])
+  : op === 'is' ? (v === null ? r[c] == null : r[c] === v)
+  : true));
+
+function setStub({ salaryCurrency = null, failUpsert = false, throwOnEq = null, errorTables = [], orders = null, profiles = null } = {}) {
   globalThis.__stub = {
     calls: [], failUpsert, throwOnEq, errorTables,
     data(q) {
+      if (q.table === 'orders' && orders) return applyFilters(orders, q.filters);
+      if (q.table === 'profiles' && profiles) return profiles;
       switch (q.table) {
         case 'profiles': return [
           { id: 'emp-t', employee_name: 'Test Seller', role_type: 'employee', is_active: true, seller_alias: null,
@@ -162,10 +173,10 @@ function setStub({ salaryCurrency = null, failUpsert = false, throwOnEq = null, 
         case 'employee_salary_settings': return salaryCurrency
           ? [{ employee_id: 'emp-x', base_salary: 200, currency: salaryCurrency, internet_allowance: 0, food_allowance: 0, sales_commission_pct: 0, is_active: true }]
           : [];
-        case 'orders': {
-          const isReturns = q.filters.some(f => f[0] === 'eq' && f[1] === 'status');
-          return isReturns ? [] : [{ handler_name: 'Test Seller', amount: 10000, currency: 'TRY', status: 'delivered', market: 'turkey', payment_method: 'cod', order_id: 'T-1' }];
-        }
+        case 'orders':
+          // seller_id لمسار أيلول+؛ المسار القديم يتجاهله ويحسب بالاسم كما قبل
+          return applyFilters([{ handler_name: 'Test Seller', seller_id: 'emp-t', amount: 10000, currency: 'TRY', status: 'delivered',
+            market: 'turkey', payment_method: 'cod', order_id: 'T-1', deleted_at: null, source: null }], q.filters);
         case 'exchange_rates': return [{ from_cur: 'USD', to_cur: 'TRY', rate: 46.8 }];
         default: return [];
       }
@@ -291,6 +302,75 @@ console.log('\n[3] runPayrollForMonth — الدورات قبل أيلول (ال
   const st = setStub({ salaryCurrency: 'EUR' });
   const res = await E.runPayrollForMonth({ runId: 'run-a', year: 2026, month: 8, run: run(2026, 8, { rate_usd_try: 48, rate_usd_syp: 131 }) });
   ok(res.count === 2 && upserts(st).length === 2, 'آب مع عملة ناقصة: يكمل ويحفظ كما قبل (بلا توقف)');
+}
+
+console.log('\n[3ب] المرحلة 3 — قواعد حسبة أيلول 2026 وما بعد');
+{
+  const P = (id, name, team, extra = {}) => ({ id, employee_name: name, role_type: 'employee', is_active: true, seller_alias: null,
+    team, base_salary_usd: 130, housing_allowance_usd: 0, transport_allowance_usd: 0, commission_pct: 0,
+    payroll_commission_exempt: false, join_date: null, resigned_at: null, ...extra });
+  const profiles = [P('emp-t', 'Test Seller', 'تركيا'), P('emp-s', 'Syria Seller', 'سوريا', { seller_alias: 'SyS' })];
+  const O = (id, o) => ({ order_id: id, market: 'turkey', currency: 'TRY', payment_method: 'cod', source: null, deleted_at: null, ...o });
+  const orders = [
+    O('D1',  { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'delivered', amount: 70000 }),
+    O('S1',  { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'settled', amount: 5000 }),            // خارج
+    O('NR1', { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'not_received', amount: 2000 }),       // مرتجع
+    O('RT1', { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'returned', amount: 2000 }),           // ليس مرتجعاً
+    O('RG1', { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'returning', amount: 2000 }),          // ليس مرتجعاً
+    O('DEL', { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'delivered', amount: 9000, deleted_at: '2026-09-10' }), // محذوف
+    O('NOS', { seller_id: null, handler_name: 'Test Seller', status: 'delivered', amount: 4000 }),             // بلا بائع ← مراجعة
+    O('STU', { seller_id: null, handler_name: 'شبكة النجوم', status: 'delivered', amount: 2100, source: 'star_network' }), // مراجعة
+    O('STL', { seller_id: 'emp-t', handler_name: 'شبكة النجوم', status: 'delivered', amount: 3000, source: 'star_network' }), // يدخل
+    O('UAE', { seller_id: 'emp-t', handler_name: 'Test Seller', status: 'delivered', amount: 800, market: 'uae', currency: 'AED' }), // خارج
+    O('OUT', { seller_id: 'ghost', handler_name: 'Ex Employee', status: 'delivered', amount: 1500 }),          // بائع خارج الرواتب
+    O('MIS', { seller_id: 'emp-t', handler_name: 'Someone Else', status: 'delivered', amount: 1000 }),         // اسم مختلف ← يُحسب + مراجعة
+    O('SY1', { seller_id: 'emp-s', handler_name: 'SyS', status: 'delivered', amount: 1200, market: 'syria', currency: 'USD' }),
+  ];
+  const septRun = run(2026, 9, { rate_usd_try: 50, rate_usd_syp: 125, above_target_pct_syria: 5, above_target_pct_turkey: 5 });
+  const st = setStub({ orders, profiles });
+  const res = await E.runPayrollForMonth({ runId: 'run-x', year: 2026, month: 9, run: septRun });
+  const ups = upserts(st);
+  const t = ups.find(u => u.employee_id === 'emp-t');
+  const s = ups.find(u => u.employee_id === 'emp-s');
+  // تركيا: delivered بـseller_id = 70000 + 3000 (نجوم مربوطة) + 1000 (اسم مختلف) = ₺74,000 من 3 طلبات
+  ok(t && t.sales_local === 74000 && t.sales_orders_count === 3, 'المبيع = delivered فقط وبـseller_id (settled/محذوف/إمارات/بلا بائع خارج) = ₺74,000 من 3', `got ${t?.sales_local}/${t?.sales_orders_count}`);
+  ok(t && t.returns_count === 1, 'المرتجع = not_received فقط (returned/returning خارج) = 1', `got ${t?.returns_count}`);
+  // المسموح = ceil(3×3%) = 1 ← لا زائد؛ الزيادة 9,000 × 5% = ₺450 ÷ 50 = $9
+  ok(t && t.returns_excess === 0 && Math.abs(t.commission_usd - 9) < 0.011, 'عمولة تركيا = (74,000 − 65,000) × 5% ÷ 50 = $9', `got ${t?.commission_usd}`);
+  // سوريا 5%: 1,200 − 1,000 = 200 × 5% = $10
+  ok(s && Math.abs(s.commission_usd - 10) < 0.011 && s.commission_pct === 5, 'عمولة سوريا 5% = $10 (بالكنية seller_alias لا تهم — الربط بـseller_id)', `got ${s?.commission_usd}/${s?.commission_pct}`);
+  const rv = res.review || [];
+  const why = Object.fromEntries(rv.map(r => [r.order_id, r.reason]));
+  ok(why.NOS === 'no_seller' && why.STU === 'star_unlinked' && why.OUT === 'seller_outside' && why.MIS === 'name_mismatch'
+     && rv.length === 4, 'قائمة المراجعة: بلا بائع / نجوم غير مربوطة / بائع خارج الرواتب / اسم مختلف (4 فقط)', JSON.stringify(why));
+  ok(res.count === 2 && upsertCalls(st).length === 1, 'قائمة المراجعة لا تمنع الحفظ (الاعتماد) — حُفظ البندان', `count=${res.count}`);
+  ok(!tables(st).includes('exchange_rates'), 'ولا exchange_rates');
+  const ordersQ = st.calls.find(c => c.table === 'orders');
+  ok(ordersQ && ordersQ.filters.some(f => f[0] === 'is' && f[1] === 'deleted_at' && f[2] === null)
+     && ordersQ.filters.some(f => f[0] === 'in' && f[1] === 'status' && f[2].join() === 'delivered,not_received'),
+     'استعلام الطلبات: deleted_at IS NULL + status IN (delivered, not_received)');
+  // الكشف بنفس القواعد
+  const st2 = setStub({ orders, profiles });
+  const stm = await E.fetchEmployeeSalesStatement({ id: 'emp-t', employee_name: 'Test Seller' }, 2026, 9, septRun);
+  ok(stm.count === 3 && Math.abs(stm.totalUsd - 74000 / 50) < 0.011 && !tables(st2).includes('exchange_rates'),
+     'كشف المبيعات بنفس القواعد: 3 طلبات = $1,480', `got ${stm.count}/${stm.totalUsd}`);
+  // الدالة المستقلة للوحة المراجعة
+  setStub({ orders, profiles });
+  const rv2 = await E.fetchOrdersNeedingReview(2026, 9);
+  ok(rv2.length === 4, 'fetchOrdersNeedingReview (للوحة الشاشة) = نفس الـ4');
+}
+{
+  // نفس البيانات على دورة آب (قديمة): المسار القديم كما هو — بالاسم، settled داخل، returned مرتجع
+  const orders = [
+    { order_id: 'A1', seller_id: null, handler_name: 'Test Seller', status: 'delivered', amount: 10000, currency: 'TRY', market: 'turkey', deleted_at: null },
+    { order_id: 'A2', seller_id: null, handler_name: 'Test Seller', status: 'settled', amount: 5000, currency: 'TRY', market: 'turkey', deleted_at: null },
+    { order_id: 'A3', seller_id: null, handler_name: 'Test Seller', status: 'returned', amount: 1000, currency: 'TRY', market: 'turkey', deleted_at: null },
+  ];
+  const st = setStub({ orders });
+  const res = await E.runPayrollForMonth({ runId: 'run-a', year: 2026, month: 8, run: run(2026, 8, { rate_usd_try: 48, rate_usd_syp: 131 }) });
+  const t = upserts(st).find(u => u.employee_id === 'emp-t');
+  ok(t && t.sales_local === 15000 && t.sales_orders_count === 2 && t.returns_count === 1 && !('review' in res),
+     'آب: المسار القديم كما هو (بالاسم + settled داخل + returned مرتجع، بلا قائمة مراجعة)', `got ${t?.sales_local}/${t?.sales_orders_count}/${t?.returns_count}`);
 }
 
 console.log('\n[4] fetchEmployeeSalesStatement');

@@ -1,13 +1,15 @@
 // =============================================================
 // PayrollDashboard — Payroll Hub (theme-aware v2)
 // =============================================================
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
 import {
   runPayrollForMonth, fetchEmployeeSalesStatement,
   fetchCommissionRules, fetchExchangeRateMap, DEFAULT_RULES,
+  fetchOrdersNeedingReview, NEW_SYSTEM_SYRIA_PCT,
 } from '../services/payrollEngine.js';
+import { fetchCanFinalize, fetchRunEvents } from '../services/payrollService.js';
 import { isNewSystemRun, validateRunRates, parseRate, isRunStale } from '../services/runRates.js';
 import {
   usePayrollBootstrap,
@@ -99,7 +101,7 @@ export function PayrollDashboard() {
   usePayrollBootstrap(id);
 
   const { runs, kpis, isLoading } = usePayrollDashboard();
-  const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid } = useRunDetail();
+  const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid, reopenRun } = useRunDetail();
   const selectedRunId = useSelectedRunId();
   const { selectRun, createRun, deleteRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
   const loading = usePayrollLoading();
@@ -184,7 +186,8 @@ export function PayrollDashboard() {
         setSetupForm({
           target_syria_usd: run.target_syria_usd ?? rules.syria.monthly_target_usd,
           target_turkey_try: run.target_turkey_try ?? rules.turkey.monthly_target_try,
-          above_target_pct_syria: run.above_target_pct_syria ?? rules.syria.above_target_pct,
+          // D-090 البند 11: عمولة سوريا 5% عند تحقيق التارجت (عمود الدورة يبدأ 0 افتراضياً)
+          above_target_pct_syria: NEW_SYSTEM_SYRIA_PCT,
           above_target_pct_turkey: run.above_target_pct_turkey ?? rules.turkey.above_target_pct,
           rate_usd_try: run.rate_usd_try ?? '',
           rate_usd_syp: run.rate_usd_syp ?? '',
@@ -404,6 +407,56 @@ export function PayrollDashboard() {
   const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0
     && runRatesCheck.ok && !runStale;
 
+  // ── D-090 المرحلتان 2 و3 — دورات أيلول 2026 وما بعد فقط ──────────────
+  //    الاعتماد/إعادة الفتح/الدفع عبر دوال القاعدة (حسام وأماني)، سجل الأحداث،
+  //    و«طلبات تحتاج مراجعة» (عرض فقط — لا تمنع الاعتماد).
+  const [canFinalize, setCanFinalize] = useState(false);
+  const [runEvents, setRunEvents] = useState([]);
+  const [review, setReview] = useState({ loading: false, items: [], error: null });
+  const runId = run?.id, runYear = run?.period_year, runMonth = run?.period_month, runStatus = run?.status;
+  useEffect(() => {
+    if (!isNewRun || !runId) return undefined;
+    let alive = true;
+    fetchCanFinalize().then(v => { if (alive) setCanFinalize(v); });
+    fetchRunEvents(runId).then(ev => { if (alive) setRunEvents(ev); });
+    setReview({ loading: true, items: [], error: null });
+    fetchOrdersNeedingReview(runYear, runMonth)
+      .then(items => { if (alive) setReview({ loading: false, items, error: null }); })
+      .catch(e => { if (alive) setReview({ loading: false, items: [], error: e?.message || String(e) }); });
+    return () => { alive = false; };
+  }, [isNewRun, runId, runYear, runMonth, runStatus]);
+
+  const handleNewRunPaid = async () => {
+    setCommMsg(null);
+    try {
+      await markRunPaid();
+      setCommMsg('✅ سُجّل الدفع.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  };
+
+  const handleReopenRun = async () => {
+    const reason = window.prompt('سبب إعادة فتح الدورة (إجباري — 5 أحرف على الأقل):', '');
+    if (reason == null) return;
+    if (reason.trim().length < 5) { setCommMsg('⛔ سبب إعادة الفتح إجباري (5 أحرف على الأقل).'); return; }
+    setCommMsg(null);
+    try {
+      await reopenRun(reason.trim());
+      setCommMsg('✅ أُعيد فتح الدورة وسُجّل السبب.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  };
+
+  const REVIEW_REASONS = {
+    no_seller: 'بلا بائع (seller_id) — لا تُحسب لأحد',
+    star_unlinked: 'شبكة النجوم بلا بائع — خارج رواتب الموظفين',
+    seller_outside: 'البائع المسجّل خارج رواتب هذا الشهر',
+    name_mismatch: 'اسم المعالج ≠ البائع المسجّل (تُحسب للبائع المسجّل)',
+  };
+  const EVENT_LABELS = { approve: '✅ اعتماد', reopen: '↩️ إعادة فتح', pay: '💳 دفع' };
+
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
 
@@ -524,14 +577,30 @@ export function PayrollDashboard() {
                       💵 دفعة الرواتب
                     </ActionBtn>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {isAdmin && !isNewRun && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={handleApproveAndClose} disabled={isSubmitting || !canApprove} variant="blue">
                       ✅ اعتماد وإغلاق الرواتب
                     </ActionBtn>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.APPROVED && (
+                  {isAdmin && !isNewRun && run.status === PAYROLL_STATUS.APPROVED && (
                     <ActionBtn onClick={markRunPaid} disabled={isSubmitting} variant="green">
                       💳 تسجيل دفع
+                    </ActionBtn>
+                  )}
+                  {/* أيلول 2026+: حسام وأماني فقط (القاعدة تفرض ذلك أيضاً) */}
+                  {isNewRun && canFinalize && run.status === PAYROLL_STATUS.DRAFT && (
+                    <ActionBtn onClick={handleApproveAndClose} disabled={isSubmitting || !canApprove} variant="blue">
+                      ✅ اعتماد وإغلاق الرواتب
+                    </ActionBtn>
+                  )}
+                  {isNewRun && canFinalize && run.status === PAYROLL_STATUS.APPROVED && (
+                    <ActionBtn onClick={handleNewRunPaid} disabled={isSubmitting} variant="green">
+                      💳 تسجيل دفع
+                    </ActionBtn>
+                  )}
+                  {isNewRun && canFinalize && run.status === PAYROLL_STATUS.APPROVED && (
+                    <ActionBtn onClick={handleReopenRun} disabled={isSubmitting} variant="red">
+                      ↩️ إعادة فتح (بسبب)
                     </ActionBtn>
                   )}
                   {/* حذف المسودة — صلاحية مقصورة على hosam ayoub / Amany alkshki فقط */}
@@ -580,6 +649,45 @@ export function PayrollDashboard() {
                   <p className="text-sm font-bold text-red-700">
                     ⛔ سعر الصرف للدورة ناقص ({runRatesCheck.missing.join('، ')}) — <b>الحسبة والاعتماد معطَّلان</b> حتى تُدخله يدوياً من «⚙️ إعداد الشهر».
                   </p>
+                </div>
+              )}
+              {/* D-090 المرحلة 3 — طلبات تحتاج مراجعة (عرض فقط، لا تمنع الاعتماد) */}
+              {isNewRun && (review.loading || review.error || review.items.length > 0) && (
+                <div className="mx-5 mt-4 rounded-xl border border-border bg-surface-alt px-4 py-3">
+                  <p className="text-sm font-bold text-text">
+                    🔎 طلبات تحتاج مراجعة{review.items.length ? ` (${review.items.length})` : ''} — للمراجعة فقط، لا تمنع الاعتماد ولا يُخمَّن بائعها
+                  </p>
+                  {review.loading && <p className="text-[11px] text-muted mt-1">جار التحميل…</p>}
+                  {review.error && <p className="text-[11px] text-amber-fg mt-1">⚠️ تعذّر تحميل القائمة: {review.error}</p>}
+                  {review.items.length > 0 && (
+                    <div className="mt-2 max-h-48 overflow-y-auto text-[11px]">
+                      {review.items.map(o => (
+                        <div key={`${o.order_id}-${o.reason}`} className="flex flex-wrap gap-x-3 py-0.5 border-b border-border/30">
+                          <span className="font-semibold text-text">{o.order_id}</span>
+                          <span className="text-muted">{o.status}</span>
+                          <span className="text-muted">{o.amount} {o.currency}</span>
+                          <span className="text-muted">المعالج: {o.handler_name || '—'}{o.seller_name ? ` · البائع: ${o.seller_name}` : ''}</span>
+                          <span className="text-amber-fg">{REVIEW_REASONS[o.reason] || o.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* D-090 المرحلة 2 — سجل أحداث الدورة (حسام وأماني) */}
+              {isNewRun && runEvents.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-border bg-surface-alt px-4 py-3 text-[11px]">
+                  <p className="text-sm font-bold text-text mb-1">🧾 سجل الدورة</p>
+                  {runEvents.map(ev => (
+                    <div key={ev.id} className="py-0.5">
+                      <span className="font-semibold">{EVENT_LABELS[ev.action] || ev.action}</span>
+                      <span className="text-muted"> · {new Date(ev.at).toLocaleString('en-GB')}</span>
+                      {ev.reason && <span className="text-muted"> · السبب: {ev.reason}</span>}
+                      {ev.changes?.employees?.length > 0 && (
+                        <span className="text-muted"> · تغيّر {ev.changes.employees.length} موظف ({ev.changes.total_net_before} → {ev.changes.total_net_after}$)</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
               {!loadingEntries && isNewRun && runRatesCheck.ok && runStale && (

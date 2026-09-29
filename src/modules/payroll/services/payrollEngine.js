@@ -260,6 +260,125 @@ export async function fetchMonthlySalesIndex(year, month) {
   return index;
 }
 
+// ── D-090 المرحلة 3 — قواعد حسبة أيلول 2026 وما بعد (isNewSystemRun فقط) ──
+// الدورات الأقدم لا تمرّ بشيء من هذا القسم إطلاقاً — تبقى على
+// COMMISSIONABLE_STATUSES / RETURN_STATUS / الربط بالاسم كما هي.
+//   • المبيع = delivered فقط (settled/returned/returning/غيرها خارج الحسبة)
+//   • المرتجع = not_received فقط
+//   • الربط بـseller_id وحده — لا تخمين بالاسم
+//   • star_network: المربوط بـseller_id يدخل حسب حالته، وغير المربوط خارج الرواتب
+//   • deleted_at IS NULL، والإمارات خارج العمولة كما هي
+//   • طلب بلا seller_id / بائع خارج الرواتب / اسم معالج مختلف ← قائمة مراجعة
+//     فقط، لا تمنع الاعتماد (قرار حسام 29 أيلول 2026)
+export const NEW_SALE_STATUS = 'delivered';
+export const NEW_RETURN_STATUS = 'not_received';
+export const NEW_SYSTEM_SYRIA_PCT = 5;   // D-090 البند 11
+
+/** طلبات الشهر اللازمة للحسبة والمراجعة (أيلول 2026+). */
+export async function fetchMonthlyOrdersForRun(year, month) {
+  const { from, to } = monthBounds(year, month);
+  return fetchAllRows(() => supabase
+    .from('orders')
+    .select('order_id, seller_id, handler_name, amount, currency, status, source, market, payment_method')
+    .gte('order_date', from)
+    .lt('order_date', to)
+    .neq('market', 'uae')
+    .is('deleted_at', null)
+    .in('status', [NEW_SALE_STATUS, NEW_RETURN_STATUS]));
+}
+
+/** فهرس المبيعات والمرتجعات حسب seller_id (أيلول 2026+). الطلب بلا seller_id لا يدخل. */
+export function buildSalesIndexBySeller(rows) {
+  const isPrepaid = (pm) => {
+    const p = String(pm || '');
+    return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
+  };
+  const index = new Map();
+  const bucketOf = (id) => {
+    let b = index.get(id);
+    if (!b) { b = { byCur: {}, prepaidTry: 0, returnsCount: 0 }; index.set(id, b); }
+    return b;
+  };
+  for (const o of (rows || [])) {
+    if (!o.seller_id) continue;
+    const b = bucketOf(o.seller_id);
+    if (o.status === NEW_SALE_STATUS) {
+      const cur = o.currency || 'USD';
+      const slot = b.byCur[cur] || { total: 0, count: 0 };
+      slot.total += Number(o.amount) || 0;
+      slot.count += 1;
+      b.byCur[cur] = slot;
+      if (cur === 'TRY' && isPrepaid(o.payment_method)) b.prepaidTry += Number(o.amount) || 0;
+    } else if (o.status === NEW_RETURN_STATUS) {
+      b.returnsCount += 1;
+    }
+  }
+  return index;
+}
+
+/** مبيعات موظف (بـseller_id = emp.id) محوّلة لعملة فريقه — نفس شكل salesInCurrency. */
+export function salesForEmployeeById(index, emp, targetCur, rateMap) {
+  let value = 0, count = 0, missingRate = false, tryTotal = 0;
+  const bucket = index.get(emp.id);
+  if (bucket) {
+    for (const [cur, slot] of Object.entries(bucket.byCur || {})) {
+      const { value: v, missing } = convert(slot.total, cur, targetCur, rateMap);
+      value += v; count += slot.count;
+      if (missing) missingRate = true;
+      if (cur === 'TRY') tryTotal += slot.total;
+    }
+  }
+  return {
+    value: Math.round(value * 100) / 100, count, missingRate,
+    tryTotal, prepaidTry: bucket?.prepaidTry || 0, returnsCount: bucket?.returnsCount || 0,
+  };
+}
+
+/**
+ * طلبات تحتاج مراجعة (أيلول 2026+) — للعرض فقط، لا تمنع الاعتماد، بلا تخمين:
+ *   no_seller       : طلب بلا seller_id (غير star_network) — لا يُحسب لأحد
+ *   star_unlinked   : star_network بلا seller_id — خارج رواتب الموظفين
+ *   seller_outside  : seller_id لموظف غير موجود/خارج رواتب هذا الشهر
+ *   name_mismatch   : اسم المعالج لا يطابق البائع المسجّل (يُحسب للبائع المسجّل)
+ * @param {object[]} rows      نتيجة fetchMonthlyOrdersForRun
+ * @param {object[]} payrollEmps موظفو رواتب الشهر (id, employee_name, seller_alias)
+ */
+export function buildOrdersReview(rows, payrollEmps) {
+  const byId = new Map((payrollEmps || []).map(e => [e.id, e]));
+  const out = [];
+  for (const o of (rows || [])) {
+    const base = {
+      order_id: o.order_id, status: o.status, amount: o.amount, currency: o.currency || 'USD',
+      handler_name: o.handler_name || null, seller_id: o.seller_id || null, source: o.source || null,
+    };
+    if (!o.seller_id) {
+      out.push({ ...base, reason: o.source === 'star_network' ? 'star_unlinked' : 'no_seller' });
+      continue;
+    }
+    const emp = byId.get(o.seller_id);
+    if (!emp) { out.push({ ...base, reason: 'seller_outside' }); continue; }
+    // star_network المربوط: المعالج اسمه «شبكة النجوم» دائماً — ليس تعارضاً
+    const hn = normalizeName(o.handler_name);
+    if (o.source !== 'star_network' && hn && !employeeNames(emp).includes(hn)) {
+      out.push({ ...base, reason: 'name_mismatch', seller_name: emp.employee_name });
+    }
+  }
+  return out;
+}
+
+/** قائمة المراجعة لشهر دورة أيلول 2026+ (قراءة فقط — للوحة الشاشة). */
+export async function fetchOrdersNeedingReview(year, month) {
+  const { from: monthFrom, to: monthTo } = monthBounds(year, month);
+  const [rows, empsRes] = await Promise.all([
+    fetchMonthlyOrdersForRun(year, month),
+    supabase.from('profiles')
+      .select('id, employee_name, seller_alias')
+      .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom},resigned_at.lt.${monthTo})`),
+  ]);
+  if (empsRes.error) throw new Error(empsRes.error.message);
+  return buildOrdersReview(rows, empsRes.data || []);
+}
+
 /**
  * Employee's collected sales for a month, converted to the given target
  * currency across ALL currencies/markets — sales pipeline runs entirely
@@ -323,6 +442,26 @@ export async function fetchCommissionRules() {
  */
 export async function fetchEmployeeSalesStatement(emp, year, month, run) {
   const { from, to } = monthBounds(year, month);
+
+  // D-090 المرحلة 3 (أيلول 2026+): نفس قواعد الحسبة — seller_id، delivered فقط،
+  // بلا المحذوف ولا الإمارات، وسعر الدورة فقط.
+  if (isNewSystemRun(run)) {
+    const [rows, rateMap] = await Promise.all([
+      fetchAllRows(() => supabaseAnon.from('orders')
+        .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market, source')
+        .eq('seller_id', emp.id)
+        .gte('order_date', from).lt('order_date', to)
+        .neq('market', 'uae')
+        .is('deleted_at', null)
+        .eq('status', NEW_SALE_STATUS)
+        .order('order_date', { ascending: true })),
+      Promise.resolve().then(() => buildRunRateMap(run)),
+    ]);
+    const orders = (rows || []).map(o => ({ ...o, usd_value: toUsd(o.amount, o.currency || 'USD', rateMap).usd }));
+    const totalUsd = Math.round(orders.reduce((s, o) => s + o.usd_value, 0) * 100) / 100;
+    return { orders, totalUsd, count: orders.length };
+  }
+
   const names = employeeNames(emp);
   if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
 
@@ -462,7 +601,7 @@ function resolveSalary(emp, settings) {
  * @param {object} opts.run        payroll_runs row — its frozen target/pct/rate snapshot is
  *                                 authoritative once month_setup_confirmed_at is set.
  */
-export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run }) {
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run, salesFn = salesInCurrency }) {
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
   const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
@@ -580,7 +719,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   }
 
   if (team) {
-    const s = salesInCurrency(salesIndex, emp, team.currency, rateMap);
+    // salesFn: salesInCurrency (المسار القديم، بالاسم) أو salesForEmployeeById (أيلول 2026+)
+    const s = salesFn(salesIndex, emp, team.currency, rateMap);
     salesMissing = s.missingRate;
     // Display total in USD regardless of team (KPI cards / statement modal expect USD)
     salesUsdDisplay = team.currency === 'USD' ? s.value : convert(s.value, team.currency, 'USD', rateMap).value;
@@ -666,7 +806,9 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     // No team resolvable → cannot run the target/returns pipeline at all.
     // Fall back to the OLD flat commission_pct × total USD sales so the
     // entry isn't silently zeroed, but flag it loudly (already pushed above).
-    const s = salesUsdFromIndex(salesIndex, emp, rateMap);
+    const s = salesFn === salesInCurrency
+      ? salesUsdFromIndex(salesIndex, emp, rateMap)
+      : (({ value, count, missingRate }) => ({ usd: value, count, missingRate }))(salesFn(salesIndex, emp, 'USD', rateMap));
     salesUsdDisplay = s.usd; salesCountDisplay = s.count; salesMissing = s.missingRate;
     commPct = salary.commissionPctFallback;
     commissionUsd = Math.round((s.usd * commPct) / 100 * 100) / 100;
@@ -797,12 +939,20 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
       if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
     } catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
   }
-  try { salesIndex = await fetchMonthlySalesIndex(year, month); }
-  catch (e) {
-    // D-090 (أيلول 2026 وما بعد): بلا مبيعات تصير العمولات صفراً والحسم كاملاً
-    // بصمت — لا حسبة ولا حفظ. الدورات الأقدم: تنبيه كما قبل.
-    if (isNew) throw new Error('⛔ تعذّر جلب المبيعات — لم تُحسب الدورة ولم يُحفظ أي راتب: ' + (e?.message || e));
-    errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0');
+  let review = [];
+  if (isNew) {
+    // D-090 المرحلة 3: قواعد أيلول 2026+ (seller_id، delivered، not_received، بلا المحذوف).
+    let orderRows;
+    try { orderRows = await fetchMonthlyOrdersForRun(year, month); }
+    catch (e) {
+      // بلا مبيعات تصير العمولات صفراً والحسم كاملاً بصمت — لا حسبة ولا حفظ.
+      throw new Error('⛔ تعذّر جلب المبيعات — لم تُحسب الدورة ولم يُحفظ أي راتب: ' + (e?.message || e));
+    }
+    salesIndex = buildSalesIndexBySeller(orderRows);
+    review = buildOrdersReview(orderRows, emps || []);
+  } else {
+    try { salesIndex = await fetchMonthlySalesIndex(year, month); }
+    catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
   }
 
   const { upsertPayrollEntry, upsertPayrollEntriesAtomic } = await import('./payrollService.js');
@@ -821,7 +971,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
       try {
         const entry = await computeEmployeeEntry({
           emp, settings: settingsById.get(emp.id) || null,
-          runId, year, month, salesIndex, rateMap, run,
+          runId, year, month, salesIndex, rateMap, run, salesFn: salesForEmployeeById,
         });
         if (entry !== null) computed.push(entry);
       } catch (e) {
@@ -868,5 +1018,8 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   }
 
   const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary_usd) || 0), 0);
-  return { count: entries.length, totalNet, entries, errors };
+  // أيلول 2026+: قائمة «طلبات تحتاج مراجعة» (للعرض فقط — لا تمنع الاعتماد)
+  return isNew
+    ? { count: entries.length, totalNet, entries, errors, review }
+    : { count: entries.length, totalNet, entries, errors };
 }

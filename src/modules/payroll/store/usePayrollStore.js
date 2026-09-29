@@ -121,6 +121,8 @@ const usePayrollStore = create()(
      */
     async approveAndCloseRun(id) {
       const run = get().runs.find(r => r.id === id);
+      // D-090 المرحلة 2 (أيلول 2026+): الاعتماد عبر payroll_approve_run فقط
+      if (isNewSystemRun(run)) return get()._approveNewSystemRun(run);
       const approved = await get().approveRun(id);
       if (run) {
         try {
@@ -167,7 +169,53 @@ const usePayrollStore = create()(
     },
 
     async markRunPaid(id) {
+      const run = get().runs.find(r => r.id === id);
+      // D-090 المرحلة 2 (أيلول 2026+): الدفع عبر payroll_mark_paid فقط
+      if (isNewSystemRun(run)) {
+        return get()._newSystemRunAction(id, svc => svc.markRunPaidRpc(id));
+      }
       return get().updateRun(id, { status: PAYROLL_STATUS.PAID, paid_at: new Date().toISOString() });
+    },
+
+    // ── D-090 المرحلة 2 — دورات أيلول 2026 وما بعد فقط ─────────────────────
+
+    /** إعادة فتح دورة معتمدة (لا مدفوعة) — سبب إجباري، والقاعدة تسجّل مين/إيمت/اللقطة. */
+    async reopenRun(id, reason) {
+      const run = get().runs.find(r => r.id === id);
+      if (!isNewSystemRun(run)) throw new Error('إعادة الفتح لدورات أيلول 2026 وما بعد فقط.');
+      return get()._newSystemRunAction(id, svc => svc.reopenRunRpc(id, reason));
+    },
+
+    /** اعتماد عبر RPC ثم الأرشفة الحالية كما هي (archived_at مرة واحدة). */
+    async _approveNewSystemRun(run) {
+      const approved = await get()._newSystemRunAction(run.id, svc => svc.approveRunRpc(run.id));
+      try {
+        const { archivePayrollPeriod } = await import('../services/archiveLink.js');
+        const { count } = await archivePayrollPeriod(run.period_year, run.period_month);
+        const archived = await get().updateRun(run.id, { archived_at: new Date().toISOString() });
+        return { ...archived, _archivedCount: count };
+      } catch (e) {
+        // الاعتماد نفسه نجح — فشل الأرشفة يُبلَّغ لكن لا يُرجَّع الاعتماد.
+        set({ error: 'تم الاعتماد لكن تعذّرت الأرشفة التلقائية: ' + (e?.message || e) });
+        return approved;
+      }
+    },
+
+    /** ينفّذ دالة القاعدة ثم يعيد قراءة الدورة من القاعدة (الحالة/المجاميع). */
+    async _newSystemRunAction(id, rpcCall) {
+      get()._setLoading('action', true);
+      try {
+        const svc = await import('../services/payrollService.js');
+        await rpcCall(svc);
+        const fresh = await svc.fetchPayrollRun(id);
+        set(s => ({ runs: s.runs.map(r => (r.id === id ? fresh : r)) }));
+        return fresh;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      } finally {
+        get()._setLoading('action', false);
+      }
     },
 
     async deleteRun(id) {

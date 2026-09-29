@@ -220,6 +220,39 @@ export async function upsertPayrollEntriesAtomic(entries) {
   }));
 }
 
+// ── D-090 المرحلة 2 (أيلول 2026+): الاعتماد وإعادة الفتح والدفع عبر دوال
+//    القاعدة فقط — حسام وأماني بحساب Auth (payroll_can_finalize). الدورات
+//    الأقدم لا تمرّ بهذه الدوال إطلاقاً.
+async function callPayrollRpc(name, args) {
+  if (USE_MOCK) throw new Error('غير متاح بوضع البيانات التجريبية.');
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) throw new Error(error.message);
+  return data;
+}
+export const approveRunRpc  = (runId)         => callPayrollRpc('payroll_approve_run', { p_run_id: runId });
+export const reopenRunRpc   = (runId, reason) => callPayrollRpc('payroll_reopen_run',  { p_run_id: runId, p_reason: reason });
+export const markRunPaidRpc = (runId)         => callPayrollRpc('payroll_mark_paid',   { p_run_id: runId });
+
+/** هل المستخدم الحالي (حساب Auth) مخوَّل بالاعتماد؟ أي خطأ = لا. */
+export async function fetchCanFinalize() {
+  try { return (await callPayrollRpc('payroll_can_finalize', {})) === true; }
+  catch { return false; }
+}
+
+/** سجل أحداث دورة (اعتماد/إعادة فتح/دفع) — يقرأه حسام وأماني فقط؛ غيرهم = قائمة فارغة. */
+export async function fetchRunEvents(runId) {
+  if (USE_MOCK) return [];
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase
+    .from('payroll_run_events')
+    .select('id, action, actor, at, reason, changes')
+    .eq('run_id', runId)
+    .order('id', { ascending: true });
+  if (error) return [];
+  return data ?? [];
+}
+
 export async function deletePayrollEntry(id) {
   if (USE_MOCK) {
     _mockEntries = _mockEntries.filter(e => e.id !== id);
