@@ -35,8 +35,8 @@ export const COMPANY = {
   phoneAlt: '+90 850 762 8131',
   instagram: '@lowes.profesyonel.tr',
   // صفحة الانستغرام المُستَرجعة (تغيّر الحساب) — تُستخدم بالـQR على بوليصات الشحن
-  instagramSkincare:    '@lowes_profesyonel',
-  instagramSkincareUrl: 'https://www.instagram.com/lowes_profesyonel/',
+  instagramSkincare:    '@lowes.profesyonal_',
+  instagramSkincareUrl: 'https://www.instagram.com/lowes.profesyonal_',
   // قناة واتساب الرسمية (بُثّ من جهة واحدة — إعلانات/عروض) — أعطاها المالك 5 أغسطس 2026
   whatsappChannelUrl: 'https://whatsapp.com/channel/0029Valm1KVLikg8bHy1j71r',
   // خدمة العملاء لكل سوق (تظهر على البوليصة)
