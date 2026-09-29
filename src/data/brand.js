@@ -35,8 +35,8 @@ export const COMPANY = {
   phoneAlt: '+90 850 762 8131',
   instagram: '@lowes.profesyonel.tr',
   // صفحة الانستغرام المُستَرجعة (تغيّر الحساب) — تُستخدم بالـQR على بوليصات الشحن
-  instagramSkincare:    '@lowes_profesyonel',
-  instagramSkincareUrl: 'https://www.instagram.com/lowes_profesyonel/',
+  instagramSkincare:    '@lowes.profesyonal_',
+  instagramSkincareUrl: 'https://www.instagram.com/lowes.profesyonal_',
   // إنستغرام بوليصات شحن سوريا فقط (labelPrint.js) — لا يُستخدم بأي مكان آخر
   labelInstagramSyria:    '@lowes.profesyonal_',
   labelInstagramSyriaUrl: 'https://www.instagram.com/lowes.profesyonal_',
