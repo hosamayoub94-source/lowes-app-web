@@ -3,7 +3,7 @@
 //   الطابور 1 (46) → مراجعة بشرية 8 أسئلة → أحكام → قائمة التجربة (حتى 30، بلا حشو) → متابعة تشغيلية → نتائج + تقرير قرار.
 // Nothing is sent from here: "نسخ رسالة" only copies text. Storage: `store` (browser storage + JSON export).
 // =============================================================
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import * as V from '@services/creatorReview';
 import * as PL from '@services/creatorPilot';
 import ReviewCard from './ReviewCard';
@@ -30,6 +30,16 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const [activeWave, setActiveWave] = useState(null);
   const [team, setTeam] = useState(reviewerNames.join('\n'));
   const [showWhy, setShowWhy] = useState(false);
+
+  const [sync, setSync] = useState(null); // shared-table status: { ok, error, at }
+  const reload = useCallback(() => { setQueue(store.loadQueue()); setReviews(store.loadReviews()); setWaves(store.loadWaves()); membersRef.current = store.loadMembers(); setMembersState(membersRef.current); setAssign(store.loadAssign()); setIssues(store.loadIssues()); }, [store]);
+  useEffect(() => {
+    if (!store.sync) return undefined;
+    let alive = true;
+    const run = () => store.sync().then(r => { if (!alive) return; setSync({ ok: r.ok, error: r.error, at: new Date() }); if (r.ok) reload(); });
+    run(); const t = setInterval(run, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, [store, reload]);
 
   const strict = meta.pilot;
   const scoped = useMemo(() => (meta.pilot ? queue.filter(q => q.queue_tier === 1) : queue), [queue, meta.pilot]);
@@ -152,6 +162,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
         <div className="h-2 bg-surface-alt rounded-full overflow-hidden"><div className="h-full bg-green-500" style={{ width: `${progress.pct}%` }} /></div>
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           <Pill>تمت مراجعة {progress.reviewed}/{progress.total}</Pill>
+          {sync && <Pill>{sync.ok ? '☁ متزامن مع الفريق' : '⚠ غير متزامن: ' + (sync.error || '')}</Pill>}
           {Object.entries(progress.verdicts).map(([k, n]) => <Pill key={k} cls={VERDICT_COLOR[k]}>{V.VERDICT_LABEL_AR[k]}: {n}</Pill>)}
           {progress.median_seconds !== null && <Pill>وسيط الوقت {progress.median_seconds}s ({progress.within_target}/{progress.timed} ضمن 90s)</Pill>}
         </div>
