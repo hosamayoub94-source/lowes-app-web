@@ -413,6 +413,9 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}>
                 <SyriaLeadsScreen />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path={ROUTES.CREATORS_WORKBENCH}
             element={
@@ -426,9 +429,6 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
                 <CreatorIntelligenceScreen />
-              </ProtectedRoute>
-            }
-          />
               </ProtectedRoute>
             }
           />
