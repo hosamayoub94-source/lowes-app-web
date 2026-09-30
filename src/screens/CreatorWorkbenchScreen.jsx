@@ -5,9 +5,7 @@
 // The local store stays the instant/offline layer; JSON export/import remains as a manual backup.
 // Permission: VIEW_CREATOR_INTELLIGENCE to open · MANAGE_CREATOR_RESEARCH to review · MANAGE_CREATOR_CAMPAIGNS to run waves/outreach.
 // =============================================================
-import { useMemo, useState, useEffect } from 'react';
-import { listEmployees } from '@services/employeeService';
-import { Link } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';import { Link } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { PERMISSIONS as P } from '@data/permissions';
@@ -22,7 +20,14 @@ export default function CreatorWorkbenchScreen() {
   const { can } = usePermissions();
   const store = useMemo(() => createSyncedStore(createLocalStore(window.localStorage), supabaseClient(supabase), name || ''), [name]);
   const [employees, setEmployees] = useState([]);
-  useEffect(() => { let alive = true; listEmployees().then(l => { if (alive) setEmployees(l); }).catch(() => { /* picker shows a notice */ }); return () => { alive = false; }; }, []);
+  // Reviewers are login accounts: profiles.employee_name is exactly what useAuth().name returns (admins are in profiles, not in `employees`).
+  useEffect(() => {
+    let alive = true;
+    supabase.from('profiles').select('employee_name,role_type').eq('is_active', true).order('employee_name')
+      .then(({ data }) => { if (alive && data) setEmployees([...data].sort((a, b) => (b.role_type === 'admin') - (a.role_type === 'admin')).map(p => ({ name: p.employee_name }))); })
+      .catch(() => { /* picker shows a notice */ });
+    return () => { alive = false; };
+  }, []);
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-3" dir="rtl">
       <Link to={ROUTES.CREATORS} className="text-xs font-bold text-blue-600">← صناع المحتوى</Link>
