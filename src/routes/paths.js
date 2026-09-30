@@ -70,6 +70,8 @@ export const ROUTES = {
 
   // Syria B2B Leads
   SYRIA_LEADS: '/syria-leads',
+  CREATORS: '/creators',
+  CREATORS_WORKBENCH: '/creators/workbench',
 
   // Product Catalog
   ADMIN_PRODUCTS: '/admin/products',

@@ -37,6 +37,10 @@ export const PERMISSIONS = {
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
   SEND_WHATSAPP:        'send_whatsapp',         // open/reply to WhatsApp chats with customers (official number)
   VIEW_SYRIA_LEADS:     'view_syria_leads',      // Syria B2B leads database (pharmacies/clinics/distributors) — view + update contact status
+  VIEW_CREATOR_INTELLIGENCE:   'view_creator_intelligence',   // صناع المحتوى: عرض القاعدة والتقارير
+  MANAGE_CREATOR_DATA:          'manage_creator_data',          // إضافة/تعديل/استيراد صناع المحتوى
+  MANAGE_CREATOR_RESEARCH:      'manage_creator_research',      // مصادر البحث وجودة البيانات
+  MANAGE_CREATOR_CAMPAIGNS:     'manage_creator_campaigns',     // حملات PR/UGC والتوزيع على الفريق
 };
 
 // Human labels (for the admin UI)
@@ -65,6 +69,14 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
   [PERMISSIONS.SEND_WHATSAPP]:        'التواصل مع العملاء عبر واتساب الرسمي',
   [PERMISSIONS.VIEW_SYRIA_LEADS]:     'قاعدة بيانات ليدز سوريا B2B',
+  [PERMISSIONS.VIEW_CREATOR_INTELLIGENCE]: 'رؤية قاعدة صناع المحتوى (مؤثرين/UGC/بلوجرز) ومصادر بياناتهم.',
+  [PERMISSIONS.MANAGE_CREATOR_DATA]:        'إضافة وتعديل واستيراد بيانات صناع المحتوى.',
+  [PERMISSIONS.MANAGE_CREATOR_RESEARCH]:    'إدارة مصادر البحث وتقييم جودة البيانات.',
+  [PERMISSIONS.MANAGE_CREATOR_CAMPAIGNS]:   'إنشاء حملات PR/UGC وتوزيع المؤثرين على الفريق ومتابعة التواصل.',
+  [PERMISSIONS.VIEW_CREATOR_INTELLIGENCE]: 'صناع المحتوى — عرض',
+  [PERMISSIONS.MANAGE_CREATOR_DATA]:        'صناع المحتوى — إدارة البيانات والاستيراد',
+  [PERMISSIONS.MANAGE_CREATOR_RESEARCH]:    'صناع المحتوى — البحث والمصادر',
+  [PERMISSIONS.MANAGE_CREATOR_CAMPAIGNS]:   'صناع المحتوى — الحملات والتوزيع',
 };
 
 // One-line Arabic descriptions — shown in the admin permissions editor so
@@ -111,6 +123,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.SEND_WHATSAPP] },
   { key: 'syria_leads', icon: '📇', label: 'ليدز سوريا B2B',
     permissions: [PERMISSIONS.VIEW_SYRIA_LEADS] },
+  { key: 'creators', icon: '🎥', label: 'صناع المحتوى',
+    permissions: [PERMISSIONS.VIEW_CREATOR_INTELLIGENCE, PERMISSIONS.MANAGE_CREATOR_DATA, PERMISSIONS.MANAGE_CREATOR_RESEARCH, PERMISSIONS.MANAGE_CREATOR_CAMPAIGNS] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
     permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_GUIDES] },
 ];

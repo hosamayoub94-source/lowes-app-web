@@ -51,6 +51,7 @@ export const NAV_ITEMS = [
   // صلاحية VIEW_SYRIA_LEADS يدوياً من /admin/users (roles/perm لازم يتطابقا
   // مع AppRoutes.jsx، نفس نمط admin-whatsapp أعلاه).
   { id: 'syria-leads',  label: 'ليدز سوريا B2B', icon: '📇', path: '/syria-leads', roles: [A],            group: 'sales', perm: P.VIEW_SYRIA_LEADS },
+  { id: 'creators',      label: 'صناع المحتوى', icon: '🎥', path: '/creators', roles: [A],            group: 'sales', perm: P.VIEW_CREATOR_INTELLIGENCE },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
   { id: 'performance',  label: 'أدائي (KPI)', icon: '🎯', path: '/performance', roles: ALL,                group: 'self' },
