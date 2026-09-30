@@ -31,6 +31,11 @@ A.saveAssign({ c1: 'A', c2: 'B', c3: 'A' }); await tick();
 await B.sync();
 ok(B.loadAssign().c2 === 'B' && B.loadAssign().c1 === 'A', 'assignment shared');
 
+// team selection (exact app user names) is shared
+A.saveTeam(['hosam ayoub', 'Amany']); await tick();
+await B.sync();
+ok(JSON.stringify(B.loadTeam()) === JSON.stringify(['hosam ayoub', 'Amany']), 'team shared');
+
 // review by B is seen by A; append-only (same key not duplicated)
 const rev = { ...emptyReview('c2', 'B'), active: 'yes', fit_lowes: 'yes', segment: 'skincare_beauty', skincare_fit: 'yes', face_on_camera: 'yes', talks_to_camera: 'yes', does_review: 'yes', does_unboxing: 'no', ugc_quality: 'low', pr_signal: 'none', action: 'gift', city: null, no_public_contact: true };
 const sv = B.saveReview(rev); await tick();

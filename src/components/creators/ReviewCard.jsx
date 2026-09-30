@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as V from '@services/creatorReview';
 import { SYRIA_CITIES, tierOf } from '@services/creatorLogic';
-import { CITY_AR, SEG_AR, CONTACT_AR, PLAT_AR, TRI_OPTS, fmtN } from './uiData';
+import { CITY_AR, SEG_AR, CONTACT_AR, PLAT_AR, TRI_OPTS, fmtN, missingAr } from './uiData';
 import { Pill, Btn, VerdictPill, Seg, Q } from './ui';
 
 export default function ReviewCard({ item, prior, reviewer, position, strict, onSave, onSkip }) {
@@ -125,7 +125,7 @@ export default function ReviewCard({ item, prior, reviewer, position, strict, on
           <span className={`text-[11px] font-bold ${comp.complete ? 'text-green-700' : 'text-amber-700'}`}>{comp.done}/8 أسئلة</span>
           <span className="text-[11px] text-muted">الحكم المتوقع:</span>
           {verdict.labels.map(l => <VerdictPill key={l} v={l} />)}
-          {verdict.missing.length > 0 && <span className="text-[11px] text-amber-700" dir="ltr">missing: {verdict.missing.join(', ')}</span>}
+          {verdict.missing.length > 0 && <span className="text-[11px] text-amber-700">ناقص: {verdict.missing.map(missingAr).join(' · ')}</span>}
         </div>
         {errors.length > 0 && <p className="text-[11px] text-red-600" dir="ltr">{errors.join(' · ')}</p>}
         <div className="flex gap-2"><Btn kind="good" onClick={submit}>حفظ + التالي</Btn><Btn onClick={onSkip}>تخطي</Btn></div>

@@ -19,6 +19,8 @@ export function localRows(local) {
   local.loadMembers().forEach(m => rows.push({ kind: 'member', id: memberKey(m), data: m }));
   Object.entries(local.loadAssign()).forEach(([cid, to]) => rows.push({ kind: 'assign', id: cid, data: { to } }));
   local.loadIssues().forEach(i => rows.push({ kind: 'issue', id: i.id, data: i }));
+  const team = local.loadTeam ? local.loadTeam() : [];
+  if (team.length) rows.push({ kind: 'meta', id: 'team', data: { names: team } });
   return rows;
 }
 
@@ -37,6 +39,8 @@ export function applyRemote(local, rows) {
   const asg = { ...local.loadAssign() }; rows.filter(r => r.kind === 'assign').forEach(r => { if (r.data?.to) asg[r.id] = r.data.to; });
   local.saveAssign(asg);
   by('issue').filter(i => validateIssue(i).ok).forEach(i => local.saveIssue(i));
+  const team = rows.find(r => r.kind === 'meta' && r.id === 'team');
+  if (team && Array.isArray(team.data?.names) && local.saveTeam) local.saveTeam(team.data.names); // last writer wins
   return { queue: queue.size, reviews: revs.length, members: by('member').length };
 }
 
@@ -85,6 +89,7 @@ export function createSyncedStore(local, client, who = '') {
     saveMembers: m => afterSave(local.saveMembers(m)),
     saveIssue: i => afterSave(local.saveIssue(i)),
     saveAssign: a => afterSave(local.saveAssign(a)),
+    saveTeam: n => afterSave(local.saveTeam(n)),
     importAll(json) { return afterSave(local.importAll(json)); },
   };
 }

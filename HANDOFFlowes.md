@@ -3312,3 +3312,10 @@ finance → المحاسبة
 ---
 
 *آخر تحديث: 31 مايو 2026*
+
+## 2026-09-30 — Creator Workbench: تخزين مشترك (بأمر حسام «نفذ»)
+- **جدول جديد فقط:** `creator_workbench_items (kind,id,data)` — migration `20260930140000` (محلي، غير مرفوع لـgit)، طُبّق عبر `supabase db query --linked` (نفّذه حسام). RLS مفتوحة كنمط syria_b2b_leads؛ البوابة الفعلية: صلاحية VIEW_CREATOR_INTELLIGENCE.
+- **بيانات:** 103 صف `kind=queue` عبر `scripts/creators/seed-workbench-queue.mjs` (يحتاج `Accept-Profile: public`). لا جداول creator_* الكبيرة ولا seed الـ4312 سطر.
+- **كود:** `creatorWorkbenchSync.js` (مزامنة كل 30ث، دمج: مراجعات append-only، الأطول تاريخاً يربح للمتابعة)، commit `2bc7a62` (غير مدفوع). اختبار `test-creator-sync.mjs` 10/10.
+- **نشر:** `vercel deploy --prod --archive=tgz` (بدون archive يفشل: 15769 ملف) → `lowes-app-6kc5uxs8b-lowes1.vercel.app`، alias على lowes-app-web.vercel.app. تحقق Chrome: `/syria-leads` 66 ليد ✔، `/creators/workbench` يعرض الـ46 بلا رفع ملف بعد مسح localStorage ✔. الرجوع: alias على `lowes-app-ikw1qgjl2-lowes1.vercel.app`.
+- **مفتوح:** جداول creator_* الكبيرة ما زالت غير مطبّقة (`/creators` يعطي خطأ الجدول المفقود المتوقع).

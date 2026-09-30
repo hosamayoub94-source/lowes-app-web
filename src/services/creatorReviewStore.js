@@ -5,7 +5,7 @@ import { mergeReviewSets, validateReview } from './creatorReview.js';
 import { validateIssue } from './creatorPilot.js';
 
 const V = 1;
-export const KEYS = { queue: 'cw_queue', reviews: 'cw_reviews', waves: 'cw_waves', members: 'cw_members', assign: 'cw_assign', meta: 'cw_meta', issues: 'cw_issues' };
+export const KEYS = { queue: 'cw_queue', reviews: 'cw_reviews', waves: 'cw_waves', members: 'cw_members', assign: 'cw_assign', meta: 'cw_meta', issues: 'cw_issues', team: 'cw_team' };
 
 export function createLocalStore(storage, prefix = 'lowes:creators:v' + V + ':') {
   const get = (k, d) => { try { const s = storage.getItem(prefix + k); return s ? JSON.parse(s) : d; } catch { return d; } };
@@ -34,6 +34,8 @@ export function createLocalStore(storage, prefix = 'lowes:creators:v' + V + ':')
     },
     loadMeta: () => get(KEYS.meta, {}),
     saveMeta: m => set(KEYS.meta, { ...get(KEYS.meta, {}), ...m }),
+    loadTeam: () => get(KEYS.team, []), // exact app user names (employees.name) that review / run outreach
+    saveTeam: names => set(KEYS.team, [...new Set((names || []).map(s => String(s).trim()).filter(Boolean))]),
     loadAssign: () => get(KEYS.assign, {}),
     saveAssign: a => set(KEYS.assign, a),
     exportAll: () => ({ version: V, exported_at: new Date().toISOString(), queue_count: get(KEYS.queue, []).length, reviews: get(KEYS.reviews, []), waves: get(KEYS.waves, []), members: get(KEYS.members, []), assign: get(KEYS.assign, {}), issues: get(KEYS.issues, []), meta: get(KEYS.meta, {}) }),

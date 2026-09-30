@@ -11,7 +11,7 @@ import { ResultsPanel, IssuesPanel, ReportPanel } from './PilotPanels';
 import { SLOT_AR, VERDICT_COLOR, fmtN, download } from './uiData';
 import { Pill, Btn, VerdictPill } from './ui';
 
-export default function CreatorWorkbench({ reviewer, store, canReview = true, canOutreach = true, reviewers: reviewerNames = [] }) {
+export default function CreatorWorkbench({ reviewer, store, canReview = true, canOutreach = true, employees = [] }) {
   const [tab, setTab] = useState('queue');
   const [queue, setQueue] = useState(() => store.loadQueue());
   const [reviews, setReviews] = useState(() => store.loadReviews());
@@ -28,11 +28,11 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const [quotas, setQuotas] = useState(V.DEFAULT_WAVE_QUOTAS);
   const [waveName, setWaveName] = useState('Pilot 01 — Retinol');
   const [activeWave, setActiveWave] = useState(null);
-  const [team, setTeam] = useState(reviewerNames.join('\n'));
+  const [teamNames, setTeamNames] = useState(() => store.loadTeam?.() || []); // exact app user names, shared with the team
   const [showWhy, setShowWhy] = useState(false);
 
   const [sync, setSync] = useState(null); // shared-table status: { ok, error, at }
-  const reload = useCallback(() => { setQueue(store.loadQueue()); setReviews(store.loadReviews()); setWaves(store.loadWaves()); membersRef.current = store.loadMembers(); setMembersState(membersRef.current); setAssign(store.loadAssign()); setIssues(store.loadIssues()); }, [store]);
+  const reload = useCallback(() => { setQueue(store.loadQueue()); setReviews(store.loadReviews()); setWaves(store.loadWaves()); membersRef.current = store.loadMembers(); setMembersState(membersRef.current); setAssign(store.loadAssign()); setIssues(store.loadIssues()); setTeamNames(store.loadTeam?.() || []); }, [store]);
   useEffect(() => {
     if (!store.sync) return undefined;
     let alive = true;
@@ -43,6 +43,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
 
   const strict = meta.pilot;
   const scoped = useMemo(() => (meta.pilot ? queue.filter(q => q.queue_tier === 1) : queue), [queue, meta.pilot]);
+  const assigned = useMemo(() => new Map(scoped.filter(q => assign[q.id]).map(q => [q.id, assign[q.id]])), [scoped, assign]);
   const flash = t => { setMsg(t); setTimeout(() => setMsg(null), 6000); };
   // any failed browser-storage write is logged automatically as a persistence issue
   const setMembers = v => { membersRef.current = v; setMembersState(v); };
@@ -60,7 +61,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const usedElsewhere = useMemo(() => new Set(members.filter(m => m.wave_id !== activeWave).map(m => m.creator_id)), [members, activeWave]);
   const pilotPlan = useMemo(() => PL.buildPilot(reviewedItems, alloc, { maxTotal: 30, onlyTier: meta.pilot ? 1 : null, excludeIds: [...usedElsewhere] }), [reviewedItems, alloc, meta.pilot, usedElsewhere]);
   const wavePreview = useMemo(() => V.buildWave(reviewedItems, quotas, { excludeIds: [...usedElsewhere] }), [reviewedItems, quotas, usedElsewhere]);
-  const teamNames = useMemo(() => team.split('\n').map(s => s.trim()).filter(Boolean), [team]);
+  const toggleTeam = name => { const next = teamNames.includes(name) ? teamNames.filter(n => n !== name) : [...teamNames, name]; setTeamNames(next); store.saveTeam?.(next); };
   const waveMembers = useMemo(() => members.filter(m => m.wave_id === activeWave), [members, activeWave]);
   const fn = useMemo(() => V.funnel(waveMembers), [waveMembers]);
   const actions = useMemo(() => V.nextActions(waveMembers), [waveMembers]);
@@ -299,20 +300,34 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
         <div className="space-y-2 text-xs">
           <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
             <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={meta.pilot} onChange={e => setPilot(e.target.checked)} />وضع التجربة: الطابور 1 فقط + مراجعة صارمة (8 أسئلة كاملة وإلا Needs Review)</label>
-            <p className="font-extrabold">1) الفريق — اسم بكل سطر</p>
-            <textarea value={team} onChange={e => setTeam(e.target.value)} rows={4} className="w-full bg-surface-alt border border-border rounded-xl px-2 py-1.5" />
-            <p className="font-extrabold">2) تحميل الطابور (workbench_queue.json)</p>
-            <input type="file" accept=".json,application/json" onChange={loadQueueFile} />
-            {scoped.length > 0 && <Btn onClick={redistribute}>إعادة توزيع الطابور على الفريق</Btn>}
+            <p className="font-extrabold">1) الفريق — اختر المراجعين (حسابات النظام)</p>
+            <div className="flex flex-wrap gap-2">
+              {employees.map(e => (
+                <label key={e.name} className={`flex items-center gap-1 rounded-xl border px-2 py-1 cursor-pointer ${teamNames.includes(e.name) ? 'bg-surface-alt border-navy font-bold' : 'bg-surface'}`}>
+                  <input type="checkbox" checked={teamNames.includes(e.name)} onChange={() => toggleTeam(e.name)} />{e.name}
+                </label>
+              ))}
+              {teamNames.filter(n => !employees.some(e => e.name === n)).map(n => (
+                <label key={n} className="flex items-center gap-1 rounded-xl border px-2 py-1 bg-surface-alt border-navy font-bold cursor-pointer"><input type="checkbox" checked onChange={() => toggleTeam(n)} />{n}</label>
+              ))}
+              {!employees.length && !teamNames.length && <span className="text-muted">تعذّر تحميل قائمة المستخدمين</span>}
+            </div>
+            <p className="text-[11px] text-muted">الاختيار يُحفظ ويظهر لكل الفريق. التوزيع يعتمد على هذه الأسماء نفسها، فيعمل فلتر «حساباتي فقط» لكل مراجع.</p>
+            {scoped.length > 0 && <Btn kind="primary" onClick={redistribute} disabled={!teamNames.length}>{assigned.size ? 'إعادة توزيع الطابور على الفريق' : 'توزيع الطابور على الفريق'}</Btn>}
+            <p className="text-[11px] text-muted">{scoped.length} مبدع في الطابور · {teamNames.map(n => `${n}: ${[...assigned.values()].filter(v => v === n).length}`).join(' · ') || 'لم يُحدَّد فريق بعد'}</p>
+            <details className="text-muted">
+              <summary className="cursor-pointer font-bold">خيار احتياطي للمسؤول: تحميل الطابور من ملف</summary>
+              <div className="pt-2 space-y-1"><p>الطابور يُحمَّل تلقائياً من قاعدة البيانات. استخدم الملف فقط لاستبدال الطابور (workbench_queue.json).</p><input type="file" accept=".json,application/json" onChange={loadQueueFile} /></div>
+            </details>
           </div>
           <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
-            <p className="font-extrabold">3) حفظ ودمج (البيانات محلية بهذا المتصفح)</p>
-            <p className="text-muted">كل مراجع يصدّر ملفه يومياً؛ المسؤول يستورد الملفات (أو يستخدم merge-workbench-exports). صدّر قبل مسح المتصفح.</p>
+            <p className="font-extrabold">2) النسخ الاحتياطي والتصدير</p>
+            <p className="text-muted">العمل يُحفظ تلقائياً ويتزامن مع الفريق. التصدير للنسخ الاحتياطي أو لتوليد التقارير فقط.</p>
             <div className="flex flex-wrap gap-2">
               <Btn kind="primary" onClick={() => download(`creator-workbench-${reviewer}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(store.exportAll(), null, 1), 'application/json')}>⬇ تصدير الكل (JSON)</Btn>
               <label className="text-xs font-bold rounded-xl px-3 py-2 border bg-surface cursor-pointer">⬆ استيراد ودمج<input type="file" accept=".json" onChange={importAll} className="hidden" /></label>
               <Btn onClick={() => download('creator-reviews.csv', V.reviewsToCsv(reviewedItems))}>⬇ المراجعات (CSV)</Btn>
-              <Btn kind="danger" onClick={() => { if (window.confirm('مسح كل بيانات الـWorkbench من هذا المتصفح؟ (صدّر أولاً)')) { store.clearAll(); setQueue([]); setReviews([]); setWaves([]); setMembers([]); setAssign({}); setIssues([]); setCurrent(null); } }}>مسح المحلي</Btn>
+              <Btn kind="danger" onClick={() => { if (window.confirm('مسح نسخة هذا المتصفح؟ بيانات الفريق المشتركة لا تُمسح وتعود عند المزامنة.')) { store.clearAll(); setQueue([]); setReviews([]); setWaves([]); setMembers([]); setAssign({}); setIssues([]); setTeamNames([]); setCurrent(null); } }}>مسح نسخة هذا المتصفح</Btn>
             </div>
             <p className="text-[11px] text-muted">{reviews.length} مراجعة · {waves.length} موجة · {members.length} عضو · {issues.length} ملاحظة · صفوف مرفوضة عند الدمج: {meta.merge_rejected || 0}</p>
           </div>

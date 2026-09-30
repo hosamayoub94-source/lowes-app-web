@@ -14,3 +14,13 @@ export function download(name, text, type = 'text/csv;charset=utf-8') {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
 
+
+// Reviewer-facing Arabic text for the verdict's "missing" codes (raw codes stay in the data; only the display changes).
+const MISSING_AR = { active: 'هل الحساب نشط', fit_lowes: 'ملاءمة LOWE\'S', action: 'التوصية (هدية/UGC/مدفوع/لا شيء)', skincare_fit: 'ملاءمة العناية بالبشرة', contact: 'وسيلة تواصل' };
+export function missingAr(code) {
+  if (MISSING_AR[code]) return MISSING_AR[code];
+  const m = /^answer:q(\d)$/.exec(code);
+  if (m) return `سؤال ${m[1]}`;
+  if (String(code).startsWith('ugc_evidence')) return 'دليل UGC (وجه + كلام/مراجعة/unboxing + جودة + رابط فيديو)';
+  return code;
+}
