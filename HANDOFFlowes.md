@@ -3324,3 +3324,7 @@ finance → المحاسبة
 - (1) إعادة التوزيع/اختيار الفريق/تحميل الطابور: **للأدمن فقط** (واجهة فقط؛ الـRLS على الجدول ما زالت مفتوحة بقرار حسام) + تأكيد قبل إعادة التوزيع. (2) رفض سريع (غير نشط / خاص / غير مناسب) يحفظ مراجعة Not Relevant بلا الـ8 أسئلة ويمكن تعديلها. (3) فرز وفلاتر: متابعون (فرز + شرائح)، منصة، فئة، مراجع. (4) تقدّم لكل مراجع (hosam 0/16 · Amany 0/15 · claudine 0/15).
 - لا migration ولا seed ولا لمس لمراجعات حقيقية (0 مراجعة وقت النشر). اختبارات: sync 11، quickreject 14، باقي الـ creator 266، routes 78 — كلها ✔. نشر `lowes-app-judttwd9k-lowes1.vercel.app` + alias. تحقق Chrome: /syria-leads 66 ✔، فلاتر حيّة (متابعون >100K=3، <5K=12، claudine=15، skincare=4، tiktok=1) ✔، أزرار الرفض السريع ظاهرة ✔.
 - رجوع: alias على `lowes-app-npgz886bh-lowes1.vercel.app`.
+
+## 2026-10-01 — نشر ميزة إضافة/حذف المبدعين + Discovery Pool محلي
+- نُشر كود `a7deec3` (src مطابق حتى HEAD) → `lowes-app-9e474qy7q-lowes1.vercel.app` + alias. المحاولة الأولى فشلت `fetch failed` بسبب رفع `data/` (25MB) → أُضيف `.vercelignore` (data/، supabase/data/...). تحقق Chrome: /syria-leads 66 ✔، workbench 0/46 + ☁ متزامن ✔، 46 زر حذف + نموذج الإضافة ✔. رجوع: alias على `lowes-app-judttwd9k-lowes1.vercel.app`.
+- لا migration ولا seed. Discovery Pool (2,260 حساب جديد بعد dedup) محلي فقط في `data/creators/syria/discovery/` — منفصل عن عينة الـ46. البروتوكول: `docs/CREATOR_DISCOVERY_PROTOCOL_V1.md`.

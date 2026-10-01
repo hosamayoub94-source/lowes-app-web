@@ -1,0 +1,20 @@
+# Files never uploaded to Vercel (the site is built from src/ + public/ only).
+# Local research data (creator discovery pools, raw directory HTML, seed files) — internal, not for upload.
+data/
+supabase/data/
+scripts/data/
+scripts/babel-autosync/chrome-profile/
+scripts/babel-autosync/node_modules/
+# Same as .gitignore (a .vercelignore replaces it for the CLI)
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+.env
+.env.*
+.vercel
+supabase/.temp
+supabase/.branches
+_trial*.txt
+_trial*.mjs
