@@ -3328,3 +3328,9 @@ finance → المحاسبة
 ## 2026-10-01 — نشر ميزة إضافة/حذف المبدعين + Discovery Pool محلي
 - نُشر كود `a7deec3` (src مطابق حتى HEAD) → `lowes-app-9e474qy7q-lowes1.vercel.app` + alias. المحاولة الأولى فشلت `fetch failed` بسبب رفع `data/` (25MB) → أُضيف `.vercelignore` (data/، supabase/data/...). تحقق Chrome: /syria-leads 66 ✔، workbench 0/46 + ☁ متزامن ✔، 46 زر حذف + نموذج الإضافة ✔. رجوع: alias على `lowes-app-judttwd9k-lowes1.vercel.app`.
 - لا migration ولا seed. Discovery Pool (2,260 حساب جديد بعد dedup) محلي فقط في `data/creators/syria/discovery/` — منفصل عن عينة الـ46. البروتوكول: `docs/CREATOR_DISCOVERY_PROTOCOL_V1.md`.
+
+## 2026-10-01 — طابور «اكتشاف» منفصل + دفعة B001 (50)
+- واجهة: قاطع «عينة التجربة الأصلية (46)» / «اكتشاف — دفعات بعد بدء التجربة (50)». الاكتشاف = review-only (تبويبات: الطابور/مراجعة/ملاحظات/البيانات) فلا يدخل بتقرير التجربة. السجلات `cohort:'discovery'`, `queue_tier:5`, `batch:'B001'`. إعادة التوزيع صارت **دمج** (لا تمسح توزيع الطابور الآخر).
+- بيانات: `seed-discovery-batch.mjs B001` → dedup حيّ مقابل كل صفوف queue (إضافة+محذوف) ثم 50 queue + 50 assign فقط. الجدول 103→153. لا migration. الفريق المشترك وقت التنفيذ = `claudine karam` فقط (غُيّر 13:35Z بحساب hosam ayoub) فصارت الـ50 كلها لها — إعادة توزيع من تبويب البيانات (أدمن).
+- حادثة نشر: `julyjzhb9` فشل بناءً لأن `.vercelignore` فيه `data/` غير مثبّت استثنى `src/**/data`؛ لم يُبدَّل alias. الإصلاح `/data/` مثبّت بالجذر (commit 6787c1f) → `akj9a2akc` Ready + alias. تحقق Chrome: /syria-leads 66، الأصلي 0/46 دون تغيير، اكتشاف 0/50.
+- رجوع: alias على `lowes-app-9e474qy7q-lowes1.vercel.app`.
