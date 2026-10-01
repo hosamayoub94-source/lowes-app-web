@@ -13,10 +13,11 @@ import { createLocalStore } from '@services/creatorReviewStore';
 import { createSyncedStore, supabaseClient } from '@services/creatorWorkbenchSync';
 import { supabase } from '@services/supabase';
 import { ROUTES } from '@routes/paths';
+import { ROLES } from '@data/teams';
 import CreatorWorkbench from '@components/creators/CreatorWorkbench';
 
 export default function CreatorWorkbenchScreen() {
-  const { name } = useAuth();
+  const { name, role } = useAuth();
   const { can } = usePermissions();
   const store = useMemo(() => createSyncedStore(createLocalStore(window.localStorage), supabaseClient(supabase), name || ''), [name]);
   const [employees, setEmployees] = useState([]);
@@ -35,6 +36,7 @@ export default function CreatorWorkbenchScreen() {
         reviewer={name || 'مراجع'}
         store={store}
         employees={employees}
+        isAdmin={role === ROLES.ADMIN}
         canReview={can(P.MANAGE_CREATOR_RESEARCH) || can(P.MANAGE_CREATOR_DATA)}
         canOutreach={can(P.MANAGE_CREATOR_CAMPAIGNS)}
       />

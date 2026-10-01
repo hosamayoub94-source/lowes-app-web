@@ -8,10 +8,14 @@ import * as V from '@services/creatorReview';
 import * as PL from '@services/creatorPilot';
 import ReviewCard from './ReviewCard';
 import { ResultsPanel, IssuesPanel, ReportPanel } from './PilotPanels';
-import { SLOT_AR, VERDICT_COLOR, fmtN, download } from './uiData';
+import { SLOT_AR, VERDICT_COLOR, PLAT_AR, fmtN, download } from './uiData';
 import { Pill, Btn, VerdictPill } from './ui';
 
-export default function CreatorWorkbench({ reviewer, store, canReview = true, canOutreach = true, employees = [] }) {
+const FOLLOWER_BANDS = { lt5k: [0, 5000], '5k20k': [5000, 20000], '20k100k': [20000, 100000], gt100k: [100000, Infinity] };
+const FOLLOWER_BAND_AR = { lt5k: 'أقل من 5K', '5k20k': '5K – 20K', '20k100k': '20K – 100K', gt100k: 'أكثر من 100K' };
+const selCls = 'bg-surface border border-border rounded-lg px-2 py-1';
+
+export default function CreatorWorkbench({ reviewer, store, canReview = true, canOutreach = true, employees = [], isAdmin = false }) {
   const [tab, setTab] = useState('queue');
   const [queue, setQueue] = useState(() => store.loadQueue());
   const [reviews, setReviews] = useState(() => store.loadReviews());
@@ -22,7 +26,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const [issues, setIssues] = useState(() => store.loadIssues());
   const [meta, setMeta] = useState(() => ({ pilot: true, merge_rejected: 0, ...store.loadMeta() }));
   const [current, setCurrent] = useState(null);
-  const [filter, setFilter] = useState({ tier: 'all', status: 'all', verdict: 'all', mine: false });
+  const [filter, setFilter] = useState({ tier: 'all', status: 'all', verdict: 'all', mine: false, sort: 'default', followers: 'all', platform: 'all', category: 'all', who: 'all' });
   const [msg, setMsg] = useState(null);
   const [alloc, setAlloc] = useState(PL.PILOT_ALLOCATION);
   const [quotas, setQuotas] = useState(V.DEFAULT_WAVE_QUOTAS);
@@ -61,7 +65,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const usedElsewhere = useMemo(() => new Set(members.filter(m => m.wave_id !== activeWave).map(m => m.creator_id)), [members, activeWave]);
   const pilotPlan = useMemo(() => PL.buildPilot(reviewedItems, alloc, { maxTotal: 30, onlyTier: meta.pilot ? 1 : null, excludeIds: [...usedElsewhere] }), [reviewedItems, alloc, meta.pilot, usedElsewhere]);
   const wavePreview = useMemo(() => V.buildWave(reviewedItems, quotas, { excludeIds: [...usedElsewhere] }), [reviewedItems, quotas, usedElsewhere]);
-  const toggleTeam = name => { const next = teamNames.includes(name) ? teamNames.filter(n => n !== name) : [...teamNames, name]; setTeamNames(next); store.saveTeam?.(next); };
+  const toggleTeam = name => { if (!isAdmin) return; const next = teamNames.includes(name) ? teamNames.filter(n => n !== name) : [...teamNames, name]; setTeamNames(next); store.saveTeam?.(next); };
   const waveMembers = useMemo(() => members.filter(m => m.wave_id === activeWave), [members, activeWave]);
   const fn = useMemo(() => V.funnel(waveMembers), [waveMembers]);
   const actions = useMemo(() => V.nextActions(waveMembers), [waveMembers]);
@@ -73,8 +77,19 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
     if (filter.status === 'reviewed' && !has) return false;
     if (filter.verdict !== 'all') { if (!has || V.deriveVerdict(latest.get(q.id), q, { strict }).primary !== filter.verdict) return false; }
     if (filter.mine && assign[q.id] && assign[q.id] !== reviewer) return false;
+    if (filter.who !== 'all' && assign[q.id] !== filter.who) return false;
+    if (filter.followers !== 'all') { const f = q.follower_count; const [lo, hi] = FOLLOWER_BANDS[filter.followers]; if (f == null || f < lo || f >= hi) return false; }
+    if (filter.platform !== 'all' && !q.platforms.some(p => p.platform === filter.platform)) return false;
+    if (filter.category !== 'all' && (q.main_category || '—') !== filter.category) return false;
     return true;
-  }), [scoped, latest, filter, assign, reviewer, strict]);
+  }).sort((a, b) => (filter.sort === 'followers_desc' ? (b.follower_count ?? -1) - (a.follower_count ?? -1) : filter.sort === 'followers_asc' ? (a.follower_count ?? Infinity) - (b.follower_count ?? Infinity) : 0)), [scoped, latest, filter, assign, reviewer, strict]);
+  const categories = useMemo(() => [...new Set(scoped.map(q => q.main_category || '—'))].sort(), [scoped]);
+  const platformsInQueue = useMemo(() => [...new Set(scoped.flatMap(q => q.platforms.map(p => p.platform)))].sort(), [scoped]);
+  // independent progress per reviewer: reviewed / assigned (a creator counts as done once anyone reviewed it)
+  const perReviewer = useMemo(() => {
+    const names = [...new Set([...teamNames, ...assigned.values()])];
+    return names.map(n => { const mine = scoped.filter(q => assign[q.id] === n); return { name: n, total: mine.length, done: mine.filter(q => latest.has(q.id)).length }; });
+  }, [teamNames, assigned, scoped, assign, latest]);
 
   const nextPending = useCallback(fromId => {
     const pend = scoped.filter(q => !latest.has(q.id) && (!filter.mine || !assign[q.id] || assign[q.id] === reviewer));
@@ -94,6 +109,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
 
   const loadQueueFile = async e => {
     const file = e.target.files?.[0]; if (!file) return;
+    if (!isAdmin) { flash('تحميل الطابور للمسؤول فقط'); e.target.value = ''; return; }
     try {
       const j = JSON.parse(await file.text());
       const recs = j.records || j;
@@ -115,7 +131,10 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
     } else { const i = PL.newIssue({ type: 'export_merge', text: 'فشل استيراد ملف: ' + r.error, by: reviewer }); store.saveIssue(i); setIssues(store.loadIssues()); flash('فشل الاستيراد: ' + r.error); }
     e.target.value = '';
   };
-  const redistribute = () => { persist(V.assignReviewers(scoped, teamNames.length ? teamNames : [reviewer]), setAssign, store.saveAssign, 'التوزيع'); flash('أُعيد توزيع الطابور'); };
+  const redistribute = () => {
+    if (!isAdmin) { flash('إعادة التوزيع للمسؤول فقط'); return; }
+    if (assigned.size && !window.confirm(`سيُعاد توزيع ${scoped.length} مبدع على ${teamNames.length} مراجعين وتتغير المسؤوليات الحالية للجميع. متابعة؟`)) return;
+    persist(V.assignReviewers(scoped, teamNames.length ? teamNames : [reviewer]), setAssign, store.saveAssign, 'التوزيع'); flash('أُعيد توزيع الطابور'); };
   const addIssue = i => { const r = store.saveIssue(i); if (r.ok) setIssues(store.loadIssues()); else flash('تعذّر حفظ الملاحظة'); };
 
   const memberFor = (waveId, cid, slot, kind) => {
@@ -164,6 +183,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           <Pill>تمت مراجعة {progress.reviewed}/{progress.total}</Pill>
           {sync && <Pill>{sync.ok ? '☁ متزامن مع الفريق' : '⚠ غير متزامن: ' + (sync.error || '')}</Pill>}
+          {perReviewer.map(p => <Pill key={p.name} cls="bg-green-50 text-green-700 border-green-200">{p.name}: {p.done}/{p.total}</Pill>)}
           {Object.entries(progress.verdicts).map(([k, n]) => <Pill key={k} cls={VERDICT_COLOR[k]}>{V.VERDICT_LABEL_AR[k]}: {n}</Pill>)}
           {progress.median_seconds !== null && <Pill>وسيط الوقت {progress.median_seconds}s ({progress.within_target}/{progress.timed} ضمن 90s)</Pill>}
         </div>
@@ -181,6 +201,11 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
                 <select value={filter.status} onChange={e => setFilter({ ...filter, status: e.target.value })} className="bg-surface border border-border rounded-lg px-2 py-1"><option value="all">الكل</option><option value="pending">لم تُراجَع</option><option value="reviewed">تمت مراجعتها</option></select>
                 <select value={filter.verdict} onChange={e => setFilter({ ...filter, verdict: e.target.value })} className="bg-surface border border-border rounded-lg px-2 py-1"><option value="all">كل الأحكام</option>{V.VERDICTS.map(v => <option key={v} value={v}>{V.VERDICT_LABEL_AR[v]}</option>)}</select>
                 <label className="flex items-center gap-1"><input type="checkbox" checked={filter.mine} onChange={e => setFilter({ ...filter, mine: e.target.checked })} />حساباتي فقط</label>
+                <select aria-label="الفرز" value={filter.sort} onChange={e => setFilter({ ...filter, sort: e.target.value })} className={selCls}><option value="default">ترتيب الطابور</option><option value="followers_desc">المتابعون: الأكثر أولاً</option><option value="followers_asc">المتابعون: الأقل أولاً</option></select>
+                <select aria-label="المتابعون" value={filter.followers} onChange={e => setFilter({ ...filter, followers: e.target.value })} className={selCls}><option value="all">كل المتابعين</option>{Object.entries(FOLLOWER_BAND_AR).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                <select aria-label="المنصة" value={filter.platform} onChange={e => setFilter({ ...filter, platform: e.target.value })} className={selCls}><option value="all">كل المنصات</option>{platformsInQueue.map(p => <option key={p} value={p}>{PLAT_AR[p] || p}</option>)}</select>
+                <select aria-label="الفئة" value={filter.category} onChange={e => setFilter({ ...filter, category: e.target.value })} className={selCls}><option value="all">كل الفئات</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                <select aria-label="المراجع" value={filter.who} onChange={e => setFilter({ ...filter, who: e.target.value })} className={selCls}><option value="all">كل المراجعين</option>{perReviewer.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}</select>
                 {canReview && <Btn kind="primary" onClick={() => { const nx = nextPending(null); if (nx) openReview(nx); else flash('لا يوجد شيء للمراجعة'); }}>ابدأ المراجعة ←</Btn>}
               </div>
               <p className="text-[11px] text-muted">{list.length} نتيجة</p>
@@ -304,21 +329,22 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
             <div className="flex flex-wrap gap-2">
               {employees.map(e => (
                 <label key={e.name} className={`flex items-center gap-1 rounded-xl border px-2 py-1 cursor-pointer ${teamNames.includes(e.name) ? 'bg-surface-alt border-navy font-bold' : 'bg-surface'}`}>
-                  <input type="checkbox" checked={teamNames.includes(e.name)} onChange={() => toggleTeam(e.name)} />{e.name}
+                  <input type="checkbox" disabled={!isAdmin} checked={teamNames.includes(e.name)} onChange={() => toggleTeam(e.name)} />{e.name}
                 </label>
               ))}
               {teamNames.filter(n => !employees.some(e => e.name === n)).map(n => (
-                <label key={n} className="flex items-center gap-1 rounded-xl border px-2 py-1 bg-surface-alt border-navy font-bold cursor-pointer"><input type="checkbox" checked onChange={() => toggleTeam(n)} />{n}</label>
+                <label key={n} className="flex items-center gap-1 rounded-xl border px-2 py-1 bg-surface-alt border-navy font-bold cursor-pointer"><input type="checkbox" disabled={!isAdmin} checked onChange={() => toggleTeam(n)} />{n}</label>
               ))}
               {!employees.length && !teamNames.length && <span className="text-muted">تعذّر تحميل قائمة المستخدمين</span>}
             </div>
+            {!isAdmin && <p className="text-[11px] font-bold text-amber-700">اختيار الفريق وتوزيع الطابور للمسؤول فقط.</p>}
             <p className="text-[11px] text-muted">الاختيار يُحفظ ويظهر لكل الفريق. التوزيع يعتمد على هذه الأسماء نفسها، فيعمل فلتر «حساباتي فقط» لكل مراجع.</p>
-            {scoped.length > 0 && <Btn kind="primary" onClick={redistribute} disabled={!teamNames.length}>{assigned.size ? 'إعادة توزيع الطابور على الفريق' : 'توزيع الطابور على الفريق'}</Btn>}
+            {scoped.length > 0 && <Btn kind="primary" onClick={redistribute} disabled={!isAdmin || !teamNames.length}>{assigned.size ? 'إعادة توزيع الطابور على الفريق' : 'توزيع الطابور على الفريق'}</Btn>}
             <p className="text-[11px] text-muted">{scoped.length} مبدع في الطابور · {teamNames.map(n => `${n}: ${[...assigned.values()].filter(v => v === n).length}`).join(' · ') || 'لم يُحدَّد فريق بعد'}</p>
-            <details className="text-muted">
+            {isAdmin && <details className="text-muted">
               <summary className="cursor-pointer font-bold">خيار احتياطي للمسؤول: تحميل الطابور من ملف</summary>
               <div className="pt-2 space-y-1"><p>الطابور يُحمَّل تلقائياً من قاعدة البيانات. استخدم الملف فقط لاستبدال الطابور (workbench_queue.json).</p><input type="file" accept=".json,application/json" onChange={loadQueueFile} /></div>
-            </details>
+            </details>}
           </div>
           <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
             <p className="font-extrabold">2) النسخ الاحتياطي والتصدير</p>

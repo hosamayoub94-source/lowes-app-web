@@ -24,6 +24,15 @@ export default function ReviewCard({ item, prior, reviewer, position, strict, on
     if (!v.ok) { setErrors(v.errors); return; }
     setErrors([]); onSave(review);
   };
+  // One-tap rejection: a clearly unsuitable account is saved as Not Relevant without the 8 answers (the verdict rules reject on active=no / fit=no).
+  const QUICK = { inactive: ['غير نشط', { active: 'no', slow_reason: 'no_recent_posts' }], private: ['خاص / مقفول', { active: 'no', slow_reason: 'private_or_locked' }], unfit: ['غير مناسب للبراند', { fit_lowes: 'no' }] };
+  const quickReject = kind => {
+    const [label, patch] = QUICK[kind];
+    const review = { ...V.emptyReview(item.id, reviewer), ...patch, seconds: sec, reviewed_at: new Date().toISOString(), reviewer, notes: `رفض سريع: ${label}` };
+    const v = V.validateReview(review);
+    if (!v.ok) { setErrors(v.errors); return; }
+    setErrors([]); onSave(review);
+  };
   const addContact = () => set('contacts', [...(draft.contacts || []), { type: 'whatsapp', value: '', source_url: item.platforms[0]?.profile_url || '' }]);
   const upContact = (i, patch) => set('contacts', draft.contacts.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const timeCls = sec <= 60 ? 'text-green-700' : sec <= V.REVIEW_SECONDS_TARGET ? 'text-amber-600' : 'text-red-600';
@@ -128,7 +137,10 @@ export default function ReviewCard({ item, prior, reviewer, position, strict, on
           {verdict.missing.length > 0 && <span className="text-[11px] text-amber-700">ناقص: {verdict.missing.map(missingAr).join(' · ')}</span>}
         </div>
         {errors.length > 0 && <p className="text-[11px] text-red-600" dir="ltr">{errors.join(' · ')}</p>}
-        <div className="flex gap-2"><Btn kind="good" onClick={submit}>حفظ + التالي</Btn><Btn onClick={onSkip}>تخطي</Btn></div>
+        <div className="flex flex-wrap gap-2 items-center"><Btn kind="good" onClick={submit}>حفظ + التالي</Btn><Btn onClick={onSkip}>تخطي</Btn>
+          <span className="text-[11px] text-muted ms-auto">رفض سريع (بدون الأسئلة):</span>
+          {Object.entries(QUICK).map(([k, [label]]) => <Btn key={k} kind="danger" onClick={() => quickReject(k)} title="يُحفظ كـ Not Relevant ويمكن تعديله لاحقاً">{label}</Btn>)}
+        </div>
       </div>
     </div>
   );
