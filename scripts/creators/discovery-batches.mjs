@@ -24,7 +24,7 @@ fs.writeFileSync(path.join(OUT, 'needs_review.csv'), csv(plan.needsReview));
 fs.writeFileSync(path.join(OUT, 'batch_plan.json'), JSON.stringify({ generated_at: new Date().toISOString(), size, totals: plan.totals, tiers: plan.tierSummary, notes: plan.notes, batches: plan.batches.map(({ rows, ...b }) => ({ ...b, accounts: rows.map(r => `${r.platform}:${r.username}`) })) }, null, 1));
 
 const md = [`# Discovery batches — plan`, `Generated ${new Date().toISOString().slice(0, 10)} · batch size ${size} · local only (nothing entered the review queue)`, '',
-  `Pool ${plan.totals.pool} · already in review queue ${plan.totals.already_queued} · eligible ${plan.totals.eligible} · **needs review (kept apart): ${plan.totals.needs_review}** · batches ${plan.totals.batches}`, '',
+  `Pool ${plan.totals.pool} · already in review queue ${plan.totals.already_queued} · owned-audience trial (separate path, not batched) ${plan.totals.owned_trial} · eligible ${plan.totals.eligible} · **needs review (kept apart): ${plan.totals.needs_review}** · batches ${plan.totals.batches}`, '',
   '| Tier | Priority | Accounts | Batches | Content buckets (balancing only) |', '|---|---|---:|---:|---|'];
 for (const t of plan.tierSummary) md.push(`| ${t.label} | ${t.priority} | ${t.accounts} | ${plan.batches.filter(b => b.tier === t.tier).length} | ${Object.entries(t.buckets).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ') || '—'} |`);
 md.push('', '## Needs Review (never auto-queued, never deleted)');

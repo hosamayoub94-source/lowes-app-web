@@ -101,7 +101,8 @@ const tierOfLogicKey = f => (f < 1000 ? 'under_1k' : f < 5000 ? '1k_5k' : f < 10
 /** Builds the plan: batches of `size` per tier (never mixing tiers), plus the review list and honest shortages. */
 export function planBatches(rows, { size = 50, startAt = 1 } = {}) {
   const queued = rows.filter(r => r.status === 'queued'); // already placed in the review queue (earlier batch) — never planned again
-  const { eligible, needsReview } = splitReviewFlags(rows.filter(r => r.status !== 'queued'));
+  const ownedTrial = rows.filter(r => r.status !== 'queued' && r.discovery?.type === 'owned_audience'); // separate trial path: never mixed into the regular batches
+  const { eligible, needsReview } = splitReviewFlags(rows.filter(r => r.status !== 'queued' && r.discovery?.type !== 'owned_audience'));
   const byTier = new Map(TIERS.map(t => [t.key, []]));
   eligible.forEach(r => byTier.get(tierOf(r.followers ?? null).key).push(r));
   const batches = []; const tierSummary = [];
@@ -119,5 +120,5 @@ export function planBatches(rows, { size = 50, startAt = 1 } = {}) {
   tierSummary.forEach(t => { if (t.priority !== 'low' && t.accounts && Object.keys(t.buckets).length < 4) notes.push(`${t.label}: only ${Object.keys(t.buckets).length} content bucket(s) available — batches there cannot be balanced`); });
   const t1 = tierSummary[0]; if (t1.accounts < size * 3) notes.push(`500–2.5K: only ${t1.accounts} eligible accounts in the pool (public directories rank by size) — this tier needs another source`);
   const dup = new Set(); batches.forEach(b => b.rows.forEach(r => { const k = rowKey(r); if (dup.has(k)) throw new Error('duplicate across batches: ' + k); dup.add(k); }));
-  return { size, tierSummary, batches, needsReview, notes, totals: { pool: rows.length, already_queued: queued.length, eligible: eligible.length, needs_review: needsReview.length, batches: batches.length } };
+  return { size, tierSummary, batches, needsReview, notes, ownedTrial, totals: { pool: rows.length, already_queued: queued.length, owned_trial: ownedTrial.length, eligible: eligible.length, needs_review: needsReview.length, batches: batches.length } };
 }
