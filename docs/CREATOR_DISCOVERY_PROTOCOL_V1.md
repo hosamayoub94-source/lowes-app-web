@@ -34,6 +34,18 @@ Categories: Beauty, Skincare, Makeup, Hair, Fashion, Lifestyle, Women, Motherhoo
 
 Result of the first sweep: **61 new unique accounts** (0 already in the database), 31 under 10K, 10 `strong` + 29 `medium` Syria signal, 22 `weak`/`query_only` flagged for verification. City is known for only 28 of them.
 
+## Second sweep — public directories (2026-10-01)
+| Source | Access | Result |
+|---|---|---|
+| StarNgage Pro public rankings (`starngage.pro/ranking/<platform>/Syria/<topic>`) | robots.txt: no Disallow, no content-signal. Plain GET, honest UA, 1 req / 3 s, stop on non-200. Collector: `collect-starngage-public.mjs`, raw HTML kept in `data/creators/syria/raw/starngage/`. | Instagram "All": 1,000 (all ≥ 22.8K followers). TikTok: 604. YouTube: 228. Topic pages reach smaller accounts (Instagram Food/Home ≈ 2.7–3.8K, TikTok topics ≈ 2.7–5K) but each topic list is short (29–111 per topic). Location "SY" is the provider's own inference → `medium` signal unless the bio names Syria/a Syrian city (`strong`). Provider topics are stored as `provider_topics`, never as our `category`. Follower counts are the provider's snapshot (date not stated). |
+| Modash public pages | Already collected in Wave 1 (`micro` re-parsed: 20 rows, overlap with the seed). Other slugs (beauty, lifestyle, cities) return 404. | No new pages exist. |
+| upgrow.com/find-influencers/syria | public | **0** Syrian influencers ("still building our database"). |
+| starngage.com (old domain) | 403 | not used. |
+
+Merged pool after both sweeps (`discovery-merge.mjs`): **2,260 new unique accounts** (33 already in the database removed, 398 cross-source duplicates collapsed, 9 same-username cross-platform pairs reported for review — not merged). Under 10K followers: 399 (Instagram 199, TikTok 46, YouTube 154). City known for 145 (117 from the creator's own bio, exactly one city named). 133 flagged `possible_non_creator` (news/shop/quotes/salon/clinic words) — kept for human decision.
+
+**Coverage gap (reported, not padded):** the 500–2.5K band is thin (≈123 accounts) because public directories rank by size; micro creators need the manual "add creator" route, brand-collaboration tags, or a licensed provider.
+
 ## Recommended next layers (to reach thousands)
 1. Hashtag / location pages and "related profiles" are rich but sit behind login — use only through an allowed provider or manual human browsing (reviewers can add accounts through the workbench "add creator" form).
 2. Syrian brands/stores that tag creators in collaborations (brand pages are public and name creators) — query by brand, not by niche.
