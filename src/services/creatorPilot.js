@@ -185,7 +185,7 @@ export function pilotReport({ queue = [], reviews = [], members = [], issues = [
   const qualified = rows.filter(x => QUALIFIED.includes(x.v.primary)).length;
   const secs = rows.map(x => x.r.seconds).filter(s => s !== null && s !== undefined).sort((a, b) => a - b);
   const data = {
-    scope_total: queue.length, reviewed: rows.length, not_yet_reviewed: queue.length - rows.length, complete_8_of_8: rows.filter(x => x.comp.complete).length,
+    scope_total: queue.length, manually_added: queue.filter(q => q.added_manually).length, reviewed: rows.length, not_yet_reviewed: queue.length - rows.length, complete_8_of_8: rows.filter(x => x.comp.complete).length,
     qualified, needs_review: primary.needs_review || 0, rejected: primary.not_relevant || 0, by_primary: primary, by_label: labels,
     review_seconds: { median: secs.length ? secs[Math.floor(secs.length / 2)] : null, over_90s: secs.filter(s => s > 90).length, timed: secs.length },
   };
@@ -222,7 +222,7 @@ export function pilotReportMarkdown(rep) {
 Generated ${rep.generated_at}. **The pilot is evidence collection, not a verdict on any segment.** Every rate shows its denominator; groups with fewer than ${MIN_SAMPLE} contacted creators are descriptive only. Follower count is not a decision input.
 
 ## DATA
-- Queue in scope: ${d.scope_total} · Reviewed: **${d.reviewed}** (8/8 answered: ${d.complete_8_of_8}) · Not yet reviewed: ${d.not_yet_reviewed}
+- Queue in scope: ${d.scope_total}${d.manually_added ? ` (of which ${d.manually_added} added manually by the team after the pilot started — research data for them is not available)` : ''} · Reviewed: **${d.reviewed}** (8/8 answered: ${d.complete_8_of_8}) · Not yet reviewed: ${d.not_yet_reviewed}
 - Qualified (PR Ready / UGC Ready / Expert / Paid Inquiry): **${d.qualified}** · Needs Review: **${d.needs_review}** · Rejected (Not Relevant): **${d.rejected}**
 - Labels (a creator can hold several): ${kv(d.by_label)}
 - Review time: median ${d.review_seconds.median ?? '—'} s, ${d.review_seconds.over_90s} of ${d.review_seconds.timed} timed reviews over 90 s

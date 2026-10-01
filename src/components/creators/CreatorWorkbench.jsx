@@ -6,9 +6,11 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import * as V from '@services/creatorReview';
 import * as PL from '@services/creatorPilot';
+import * as Q from '@services/creatorQueueEdit';
+import { SYRIA_CITIES } from '@services/creatorLogic';
 import ReviewCard from './ReviewCard';
 import { ResultsPanel, IssuesPanel, ReportPanel } from './PilotPanels';
-import { SLOT_AR, VERDICT_COLOR, PLAT_AR, fmtN, download } from './uiData';
+import { SLOT_AR, VERDICT_COLOR, PLAT_AR, CITY_AR, fmtN, download } from './uiData';
 import { Pill, Btn, VerdictPill } from './ui';
 
 const FOLLOWER_BANDS = { lt5k: [0, 5000], '5k20k': [5000, 20000], '20k100k': [20000, 100000], gt100k: [100000, Infinity] };
@@ -46,7 +48,10 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   }, [store, reload]);
 
   const strict = meta.pilot;
-  const scoped = useMemo(() => (meta.pilot ? queue.filter(q => q.queue_tier === 1) : queue), [queue, meta.pilot]);
+  const scoped = useMemo(() => (meta.pilot ? queue.filter(q => q.queue_tier === 1) : queue).filter(q => !q.removed), [queue, meta.pilot]);
+  const removedList = useMemo(() => queue.filter(q => q.removed), [queue]);
+  const [removing, setRemoving] = useState(null); // { id, reason } — inline confirmation before a creator leaves the queue
+  const [addForm, setAddForm] = useState({ profile_url: '', display_name: '', followers: '', main_category: '', city: '', source: '', note: '', assign_to: '' });
   const assigned = useMemo(() => new Map(scoped.filter(q => assign[q.id]).map(q => [q.id, assign[q.id]])), [scoped, assign]);
   const flash = t => { setMsg(t); setTimeout(() => setMsg(null), 6000); };
   // any failed browser-storage write is logged automatically as a persistence issue
@@ -135,6 +140,26 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
     if (!isAdmin) { flash('إعادة التوزيع للمسؤول فقط'); return; }
     if (assigned.size && !window.confirm(`سيُعاد توزيع ${scoped.length} مبدع على ${teamNames.length} مراجعين وتتغير المسؤوليات الحالية للجميع. متابعة؟`)) return;
     persist(V.assignReviewers(scoped, teamNames.length ? teamNames : [reviewer]), setAssign, store.saveAssign, 'التوزيع'); flash('أُعيد توزيع الطابور'); };
+  // team edits to the queue (admin): add a creator by hand / remove (soft, reversible) / restore
+  const addCreator = () => {
+    if (!isAdmin) { flash('إضافة المبدعين للمسؤول فقط'); return; }
+    const r = Q.buildManualRecord(addForm, queue, reviewer);
+    if (!r.ok) { flash('تعذّرت الإضافة: ' + r.errors.join(' · ')); return; }
+    const load = n => [...assigned.values()].filter(v => v === n).length;
+    const who = addForm.assign_to || [...teamNames].sort((a, b) => load(a) - load(b))[0] || reviewer;
+    persist([...queue, r.record], setQueue, store.saveQueue, 'الطابور');
+    persist({ ...assign, [r.record.id]: who }, setAssign, store.saveAssign, 'التوزيع');
+    setAddForm({ profile_url: '', display_name: '', followers: '', main_category: '', city: '', source: '', note: '', assign_to: '' });
+    flash(`أُضيف «${r.record.display_name}» وأُسند إلى ${who}`);
+  };
+  const confirmRemove = () => {
+    if (!isAdmin || !removing) return;
+    const rec = queue.find(q => q.id === removing.id); if (!rec) { setRemoving(null); return; }
+    persist(queue.map(q => (q.id === rec.id ? Q.removeFromQueue(q, reviewer, removing.reason) : q)), setQueue, store.saveQueue, 'الطابور');
+    if (current === rec.id) setCurrent(null);
+    flash(`أُزيل «${rec.display_name}» من الطابور (يمكن استعادته من تبويب البيانات)`); setRemoving(null);
+  };
+  const restoreCreator = id => { if (!isAdmin) return; persist(queue.map(q => (q.id === id ? Q.restoreToQueue(q) : q)), setQueue, store.saveQueue, 'الطابور'); flash('أُعيد المبدع إلى الطابور'); };
   const addIssue = i => { const r = store.saveIssue(i); if (r.ok) setIssues(store.loadIssues()); else flash('تعذّر حفظ الملاحظة'); };
 
   const memberFor = (waveId, cid, slot, kind) => {
@@ -208,6 +233,13 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
                 <select aria-label="المراجع" value={filter.who} onChange={e => setFilter({ ...filter, who: e.target.value })} className={selCls}><option value="all">كل المراجعين</option>{perReviewer.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}</select>
                 {canReview && <Btn kind="primary" onClick={() => { const nx = nextPending(null); if (nx) openReview(nx); else flash('لا يوجد شيء للمراجعة'); }}>ابدأ المراجعة ←</Btn>}
               </div>
+              {removing && (() => { const rec = queue.find(q => q.id === removing.id); return rec && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2 text-xs" role="alertdialog">
+                  <p className="font-bold">إزالة «{rec.display_name}» من الطابور؟</p>
+                  {latest.has(rec.id) && <p className="text-red-700">له مراجعة محفوظة: تبقى محفوظة لكنه سيُستثنى من أرقام التجربة والتقرير.</p>}
+                  <select value={removing.reason} onChange={e => setRemoving({ ...removing, reason: e.target.value })} className={selCls}>{Q.REMOVE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}</select>
+                  <div className="flex gap-2"><Btn kind="danger" onClick={confirmRemove}>تأكيد الإزالة</Btn><Btn onClick={() => setRemoving(null)}>إلغاء</Btn></div>
+                </div>); })()}
               <p className="text-[11px] text-muted">{list.length} نتيجة</p>
               {list.map(q => {
                 const r = latest.get(q.id); const v = r ? V.deriveVerdict(r, q, { strict }) : null; const comp = r ? V.reviewCompleteness(r) : null;
@@ -219,6 +251,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
                     </div>
                     {v ? <VerdictPill v={v.primary} /> : <Pill>بانتظار المراجعة</Pill>}
                     {canReview && <Btn onClick={() => openReview(q.id)}>{r ? 'تعديل' : 'راجع'}</Btn>}
+                    {isAdmin && <Btn kind="danger" title="إزالة من الطابور (قابلة للاستعادة)" onClick={() => setRemoving({ id: q.id, reason: Q.REMOVE_REASONS[0] })}>حذف</Btn>}
                   </div>
                 );
               })}
@@ -346,6 +379,33 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
               <div className="pt-2 space-y-1"><p>الطابور يُحمَّل تلقائياً من قاعدة البيانات. استخدم الملف فقط لاستبدال الطابور (workbench_queue.json).</p><input type="file" accept=".json,application/json" onChange={loadQueueFile} /></div>
             </details>}
           </div>
+          {isAdmin && (
+            <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
+              <p className="font-extrabold">إضافة مبدع جديد إلى الطابور</p>
+              <p className="text-[11px] text-muted">يُحفظ مع اسمك وتاريخ الإضافة ومصدر الاكتشاف، ويُعلَّم «أُضيف يدوياً» ليظهر بالتقرير. المجهول يبقى فارغاً (لا تخمّن).</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[['display_name', 'الاسم *'], ['profile_url', 'رابط البروفايل * (Instagram/TikTok…)'], ['followers', 'المتابعون (اتركه فارغاً إن لم تعرف)'], ['source', 'مصدر الاكتشاف * (رابط أو وصف)']].map(([k, ph]) => (
+                  <input key={k} value={addForm[k]} onChange={e => setAddForm({ ...addForm, [k]: e.target.value })} placeholder={ph} aria-label={ph} dir="auto" className="bg-surface-alt border border-border rounded-xl px-2 py-1.5" />
+                ))}
+                <select aria-label="الفئة" value={addForm.main_category} onChange={e => setAddForm({ ...addForm, main_category: e.target.value })} className={selCls}><option value="">الفئة (اختياري)</option>{Q.MANUAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                <select aria-label="المدينة" value={addForm.city} onChange={e => setAddForm({ ...addForm, city: e.target.value })} className={selCls}><option value="">المدينة (اختياري)</option>{SYRIA_CITIES.map(c => <option key={c} value={c}>{CITY_AR[c] || c}</option>)}</select>
+                <select aria-label="إسناد إلى" value={addForm.assign_to} onChange={e => setAddForm({ ...addForm, assign_to: e.target.value })} className={selCls}><option value="">إسناد تلقائي (الأقل حملاً)</option>{teamNames.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                <input value={addForm.note} onChange={e => setAddForm({ ...addForm, note: e.target.value })} placeholder="ملاحظة (اختياري)" aria-label="ملاحظة" dir="auto" className="bg-surface-alt border border-border rounded-xl px-2 py-1.5" />
+              </div>
+              <Btn kind="primary" onClick={addCreator}>+ إضافة إلى الطابور</Btn>
+              {removedList.length > 0 && (
+                <div className="pt-2 space-y-1">
+                  <p className="font-bold">المحذوفون ({removedList.length}) — قابلون للاستعادة</p>
+                  {removedList.map(q => (
+                    <div key={q.id} className="flex items-center gap-2 bg-surface-alt rounded-xl px-2 py-1">
+                      <span className="flex-1 min-w-0 truncate">{q.display_name} <span className="text-muted">· {q.removed.reason} · {q.removed.by || ''}</span></span>
+                      <Btn onClick={() => restoreCreator(q.id)}>استعادة</Btn>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">
             <p className="font-extrabold">2) النسخ الاحتياطي والتصدير</p>
             <p className="text-muted">العمل يُحفظ تلقائياً ويتزامن مع الفريق. التصدير للنسخ الاحتياطي أو لتوليد التقارير فقط.</p>

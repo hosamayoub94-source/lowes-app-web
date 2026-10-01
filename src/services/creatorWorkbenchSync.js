@@ -6,6 +6,7 @@
 //   members longer history wins · assign remote wins · issues first-wins.
 import { mergeReviewSets, validateReview } from './creatorReview.js';
 import { validateIssue } from './creatorPilot.js';
+import { recordStamp } from './creatorQueueEdit.js';
 
 export const reviewKey = r => `${r.creator_id}|${r.reviewer}|${r.reviewed_at}`;
 export const memberKey = m => `${m.wave_id}|${m.creator_id}`;
@@ -27,7 +28,8 @@ export function localRows(local) {
 /** Merge remote rows into the local store. Returns counts. */
 export function applyRemote(local, rows) {
   const by = k => rows.filter(r => r.kind === k).map(r => r.data);
-  const queue = new Map(local.loadQueue().map(q => [q.id, q])); by('queue').forEach(q => queue.set(q.id, q));
+  const queue = new Map(local.loadQueue().map(q => [q.id, q]));
+  by('queue').forEach(q => { const cur = queue.get(q.id); if (!cur || recordStamp(q) >= recordStamp(cur)) queue.set(q.id, q); }); // remote wins unless the local add/remove/restore is newer
   if (queue.size) local.saveQueue([...queue.values()]);
   const revs = by('review').filter(r => validateReview(r).ok);
   if (revs.length) local.replaceReviews(mergeReviewSets(local.loadReviews(), revs));
