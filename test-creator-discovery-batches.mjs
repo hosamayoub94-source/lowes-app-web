@@ -50,5 +50,11 @@ ok(rec.sources[0].provider === 'discovery' && rec.sources[0].note === 'e', 'disc
 const recs = [1, 2, 3, 4, 5, 6].map(i => poolRowToQueueRecord(R('instagram', 'u' + i, 1000, []), { batch: 'B001' }));
 const am = assignReviewers(recs, ['A', 'B', 'C']); ok(Object.keys(am).length === 6 && ['A', 'B', 'C'].every(n => Object.values(am).filter(v => v === n).length === 2), 'batch spreads evenly over the team');
 
+// rows already placed in the review queue are kept in the pool but never planned again; numbering continues after the placed batches
+const withQueued = [R('instagram', 'q1', 1000, [], { status: 'queued', queued_batch: 'B001' }), R('instagram', 'n1', 1100), R('instagram', 'n2', 1200)];
+const p2 = planBatches(withQueued, { size: 50, startAt: 2 });
+ok(p2.totals.already_queued === 1 && p2.batches.flatMap(b => b.rows).every(r => r.username !== 'q1'), 'queued rows are not planned again');
+ok(p2.batches[0].id === 'B002', 'batch numbering continues after B001');
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

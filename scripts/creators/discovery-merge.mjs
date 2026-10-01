@@ -25,7 +25,22 @@ const known = new Set(JSON.parse(fs.readFileSync(path.join(DIR, 'known_handles.j
 const queueFile = path.resolve('data/creators/syria/seed/workbench_queue.json');
 if (fs.existsSync(queueFile)) JSON.parse(fs.readFileSync(queueFile, 'utf8')).records.forEach(r => r.platforms.forEach(p => known.add(key(p.platform, p.handle))));
 
-const SMALL = [[500, 1000, '500-1K'], [1000, 2500, '1K-2.5K'], [2500, 5000, '2.5K-5K'], [5000, 10000, '5K-10K'], [10000, 25000, '10K-25K'], [25000, 50000, '25K-50K'], [50000, Infinity, '50K+']];
+// Final dedup against the LIVE review queue (read-only REST; every cohort, removed creators included).
+//   pilot / manual rows  -> `known`  (never re-added)
+//   discovery-cohort rows -> `placed` (stay in the pool, marked status:'queued' + batch, excluded from new batches)
+const placed = new Map(); let liveQueueRows = 0; let liveError = null;
+try {
+  const URL_ = 'https://fghdumrgimoeqsafdhhh.supabase.co'; const KEY = 'sb_publishable_iYn5Rc00ZmdLPUBH5_09fg_eLiok3UO';
+  for (let from = 0; ; from += 1000) {
+    const res = await fetch(`${URL_}/rest/v1/creator_workbench_items?select=id,data&kind=eq.queue&order=id`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Accept-Profile': 'public', Range: `${from}-${from + 999}` } });
+    if (!res.ok) throw new Error(`live queue read failed ${res.status}`);
+    const page = await res.json(); liveQueueRows += page.length;
+    for (const r of page) for (const p of r.data.platforms || []) { const k = key(p.platform, p.handle); if (r.data.cohort === 'discovery') placed.set(k, r.data.batch || 'discovery'); else known.add(k); }
+    if (page.length < 1000) break;
+  }
+} catch (e) { liveError = String(e.message || e); console.error('WARNING: live queue not checked —', liveError); }
+
+const SMALL =[[500, 1000, '500-1K'], [1000, 2500, '1K-2.5K'], [2500, 5000, '2.5K-5K'], [5000, 10000, '5K-10K'], [10000, 25000, '10K-25K'], [25000, 50000, '25K-50K'], [50000, Infinity, '50K+']];
 const band = f => (f == null ? 'unknown' : f < 500 ? 'under-500' : SMALL.find(([lo, hi]) => f >= lo && f < hi)[2]);
 
 const out = []; const seen = new Map(); const skipped = { already_known: [], duplicate_in_run: [], invalid: [] };
@@ -49,7 +64,7 @@ for (const f of files) {
       platform, username: handle, display_name: name, profile_url: parsed.url, followers: followers ?? null, follower_band: band(followers ?? null), tier: tierOf(followers)?.key ?? 'unknown',
       category: category || null, provider_topics: topicsOf(evidence), also_found_in: [],
       ...(city ? { city, city_source: 'discovery_source' } : bioCity(evidence) ? { city: bioCity(evidence), city_source: 'creator_bio' } : { city: null }), syria_signal: signal, discovery: { type: sourceType, url: sourceUrl, evidence, source_batch: f, searched_at: b.searched_at, tool: b.tool },
-      status: 'discovered', needs_verification: signal === 'weak' || signal === 'query_only' || followers == null,
+      status: placed.has(k) ? 'queued' : 'discovered', ...(placed.has(k) ? { queued_batch: placed.get(k) } : {}), needs_verification: signal === 'weak' || signal === 'query_only' || followers == null,
       // evidence-based flag only (words in handle/name/bio) — the row is kept; a human decides
       possible_non_creator: NON_CREATOR.test(`${handle} ${name} ${evidence}`) || undefined,
     };
@@ -67,6 +82,7 @@ const stats = {
   city_from_creator_bio: out.filter(r => r.city_source === 'creator_bio').length,
   by_platform: count(out, r => r.platform), by_follower_band: count(out, r => r.follower_band), by_category: count(out, r => r.category), by_city: count(out, r => r.city),
   by_syria_signal: count(out, r => r.syria_signal), by_source_type: count(out, r => r.discovery.type), needs_verification: out.filter(r => r.needs_verification).length,
+  live_queue_checked: liveError ? `NOT CHECKED (${liveError})` : `${liveQueueRows} rows`, already_in_review_queue_as_discovery: out.filter(r => r.status === 'queued').length,
   micro_pool_under_10k: out.filter(r => r.followers != null && r.followers < 10000).length,
   possible_non_creator: out.filter(r => r.possible_non_creator).length, cross_platform_possible_links: crossPlatform,
 };

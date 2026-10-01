@@ -55,3 +55,18 @@ Merged pool after both sweeps (`discovery-merge.mjs`): **2,260 new unique accoun
 
 ## Files (local only)
 `batch_NN.json` raw rows · `discovery_pool.json` / `.csv` merged pool · `skipped.json` · `known_handles.json` (dedup base).
+
+## Third sweep (2026-10-01, after B001 went to review) — measured result
+Rate-limit rule applied: manual search stopped at the second HTTP 429 (no retry loop); the StarNgage topic collector ran to completion at 1 request / 3 s with 0 refusals.
+- Raw rows collected: 630 (16 remaining StarNgage topics × Instagram/TikTok/YouTube + 8 web-search rows).
+- **New unique accounts: 212** (all Instagram). Already in the 2,260 pool: 397 · already in seed / database: 8 · repeated inside this run: 13.
+- New by follower band: 500–2.5K **35** · 2.5–5K 20 · 5–10K 34 · 10–25K 123 (no 25K+ — the rankings were already exhausted).
+- Pool: 2,472 (B001's 50 stay in the pool marked `queued`, never planned again). Needs-review list: 170 (146 possible non-creators, 24 same username on two platforms).
+- Conclusion: public web/directory sources are saturated for 500–2.5K (+35 in a full sweep). Do not keep pressing them; move to the micro-creator sources below.
+
+## Micro-creator source plan (replaces repeating the same queries)
+1. The company's own audience: followers/engagers/taggers of the brand accounts (export from the company's Meta Business Suite — owner data, no scraping).
+2. Official Meta Graph API `business_discovery` from the company's Instagram Business account: look up a username and read public followers_count / media of professional accounts — verification and enrichment at scale (not discovery, and only for professional accounts).
+3. Brand-collaboration graph: Syrian brands/stores that repost or tag creators (collect via the same API tagged-media endpoints on our own account, or by hand from public brand pages).
+4. The team's manual "add creator" form (already live), prioritising 500–2.5K, with a source on every row.
+5. A licensed discovery provider only as a small paid test measured on this protocol's dedup/evidence rules (not on claimed database size).

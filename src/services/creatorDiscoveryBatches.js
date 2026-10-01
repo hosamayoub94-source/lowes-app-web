@@ -99,8 +99,9 @@ export function poolRowToQueueRecord(row, { batch, now = new Date() } = {}) {
 const tierOfLogicKey = f => (f < 1000 ? 'under_1k' : f < 5000 ? '1k_5k' : f < 10000 ? '5k_10k' : f < 25000 ? '10k_25k' : f < 50000 ? '25k_50k' : f < 100000 ? '50k_100k' : f < 250000 ? '100k_250k' : f < 500000 ? '250k_500k' : f < 1000000 ? '500k_1m' : '1m_plus');
 
 /** Builds the plan: batches of `size` per tier (never mixing tiers), plus the review list and honest shortages. */
-export function planBatches(rows, { size = 50 } = {}) {
-  const { eligible, needsReview } = splitReviewFlags(rows);
+export function planBatches(rows, { size = 50, startAt = 1 } = {}) {
+  const queued = rows.filter(r => r.status === 'queued'); // already placed in the review queue (earlier batch) — never planned again
+  const { eligible, needsReview } = splitReviewFlags(rows.filter(r => r.status !== 'queued'));
   const byTier = new Map(TIERS.map(t => [t.key, []]));
   eligible.forEach(r => byTier.get(tierOf(r.followers ?? null).key).push(r));
   const batches = []; const tierSummary = [];
@@ -111,12 +112,12 @@ export function planBatches(rows, { size = 50 } = {}) {
     for (let i = 0; i < list.length; i += size) {
       const rowsOf = list.slice(i, i + size);
       const bc = {}; rowsOf.forEach(r => { const b = bucketOf(r); bc[b] = (bc[b] || 0) + 1; });
-      batches.push({ id: `B${String(batches.length + 1).padStart(3, '0')}`, tier: t.key, tier_label: t.label, priority: t.priority, size: rowsOf.length, buckets: bc, rows: rowsOf });
+      batches.push({ id: `B${String(startAt + batches.length).padStart(3, '0')}`, tier: t.key, tier_label: t.label, priority: t.priority, size: rowsOf.length, buckets: bc, rows: rowsOf });
     }
   }
   const notes = [];
   tierSummary.forEach(t => { if (t.priority !== 'low' && t.accounts && Object.keys(t.buckets).length < 4) notes.push(`${t.label}: only ${Object.keys(t.buckets).length} content bucket(s) available — batches there cannot be balanced`); });
   const t1 = tierSummary[0]; if (t1.accounts < size * 3) notes.push(`500–2.5K: only ${t1.accounts} eligible accounts in the pool (public directories rank by size) — this tier needs another source`);
   const dup = new Set(); batches.forEach(b => b.rows.forEach(r => { const k = rowKey(r); if (dup.has(k)) throw new Error('duplicate across batches: ' + k); dup.add(k); }));
-  return { size, tierSummary, batches, needsReview, notes, totals: { pool: rows.length, eligible: eligible.length, needs_review: needsReview.length, batches: batches.length } };
+  return { size, tierSummary, batches, needsReview, notes, totals: { pool: rows.length, already_queued: queued.length, eligible: eligible.length, needs_review: needsReview.length, batches: batches.length } };
 }
