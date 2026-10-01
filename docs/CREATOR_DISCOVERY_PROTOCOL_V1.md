@@ -70,3 +70,21 @@ Rate-limit rule applied: manual search stopped at the second HTTP 429 (no retry 
 3. Brand-collaboration graph: Syrian brands/stores that repost or tag creators (collect via the same API tagged-media endpoints on our own account, or by hand from public brand pages).
 4. The team's manual "add creator" form (already live), prioritising 500–2.5K, with a source on every row.
 5. A licensed discovery provider only as a small paid test measured on this protocol's dedup/evidence rules (not on claimed database size).
+
+## Owned-audience discovery (plan #1) — what is actually possible (checked 2026-10-01)
+Official access checked through the connected Meta Ads tools (read-only): the company's ad accounts and Facebook Pages are reachable
+(Lowe's profesyonel, La Rovén Beauty/Glow/Isera, Lowes store, Rashm, Lowe's uea), but **no Instagram account is linked to any of the six company ad
+accounts tested** (`ig_accounts: []`, i.e. no `instagram_basic` permission) — so posts, tags, mentions and comments cannot be read through the API today.
+Instagram also never exports follower identities. Therefore nothing was pulled automatically.
+
+What the team can do officially, by hand, from their own accounts (the Instagram app / Meta Business Suite):
+- the **Tagged** tab and **Mentions** of each brand account (public accounts that tagged us),
+- accounts that **commented** on our recent public posts / reels,
+- brand-collaboration partners and past gifting/UGC contacts we already know,
+- (inquiries) only the public handle — never message contents.
+Fill `docs/owned_audience_template.csv` and run:
+`node scripts/creators/import-owned-audience.mjs <file.csv>` → `discovery-merge.mjs` (full dedup) → `discovery-batches.mjs`.
+Rules: discovery source only; no automatic contact, no adding anyone to audiences or lists; our audience is NOT proof of being Syrian
+(signal = `weak` unless the team states a city); every account still goes through Verification and human review.
+To unlock automatic reading later: link the Instagram professional accounts to the Business portfolio and grant the app `instagram_basic` /
+`instagram_manage_comments` (owner action in Meta Business Settings), then the tagged/mentioned/comments endpoints become a repeatable source.
