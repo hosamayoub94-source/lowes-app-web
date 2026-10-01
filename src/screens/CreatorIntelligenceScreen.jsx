@@ -535,6 +535,7 @@ export default function CreatorIntelligenceScreen() {
   const prPool = useMemo(() => applyFilters(filtered, { tier: ['1k_5k', '5k_10k', '10k_25k', '25k_50k', 'under_1k'] }).filter(r => ['high', 'medium'].includes(r.pr_fit) || ['high', 'medium'].includes(r.ugc_potential) || r.creator_type === 'ugc'), [filtered]);
   const paidPool = useMemo(() => filtered.filter(r => r.paid_collaboration === 'yes' || r.is_celebrity || (r.follower_count ?? 0) >= 50000), [filtered]);
 
+  const notSetUp = !!err && /schema cache|could not find the table|does not exist|relation .* does not exist/i.test(err);
   const TABS = [['db', 'قاعدة البيانات'], ['pr', 'PR / UGC'], ['paid', 'Paid'], ['camp', 'الحملات'], ['res', 'البحث']];
   return (
     <div className="p-4 space-y-3 max-w-3xl mx-auto" dir="rtl">
@@ -546,9 +547,17 @@ export default function CreatorIntelligenceScreen() {
           <button className="text-[11px] font-bold border border-border rounded-lg px-2 py-1 bg-surface" onClick={load}>↻</button>
         </div>
       </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-1">{TABS.map(([k, l]) => <Chip key={k} active={view === k} onClick={() => setView(k)}>{l}</Chip>)}</div>
+      {!notSetUp && <div className="flex gap-1.5 overflow-x-auto pb-1">{TABS.map(([k, l]) => <Chip key={k} active={view === k} onClick={() => setView(k)}>{l}</Chip>)}</div>}
       {loading && <p className="text-center text-xs text-muted py-10">جارٍ التحميل…</p>}
-      {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{err} — تأكد أن الـmigration مطبَّق.</p>}
+      {/* The full creator database tables are intentionally not applied yet (owner decision): show a calm pointer, not a SQL error. */}
+      {notSetUp && (
+        <div className="bg-surface border border-border rounded-2xl p-4 space-y-2 text-xs" role="status">
+          <p className="text-sm font-extrabold text-text">لوحة قاعدة بيانات المبدعين الكاملة غير مفعّلة بعد</p>
+          <p className="text-muted">هذا قرار إداري وليس عطلاً. العمل الحالي (مراجعة المبدعين، الطابور، دفعات الاكتشاف، التوزيع على الفريق) كله على شاشة «مراجعة وتواصل المبدعين».</p>
+          <Link to={ROUTES.CREATORS_WORKBENCH} className="inline-block font-bold bg-navy text-white rounded-xl px-4 py-2">افتح مراجعة وتواصل المبدعين ←</Link>
+        </div>
+      )}
+      {err && !notSetUp && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{err}</p>}
       {!loading && !err && (
         <>
           {['db', 'pr', 'paid'].includes(view) && <FilterPanel filter={filter} setFilter={setFilter} assignees={assignees} campaigns={campaigns} categories={categories} />}
