@@ -3319,3 +3319,8 @@ finance → المحاسبة
 - **كود:** `creatorWorkbenchSync.js` (مزامنة كل 30ث، دمج: مراجعات append-only، الأطول تاريخاً يربح للمتابعة)، commit `2bc7a62` (غير مدفوع). اختبار `test-creator-sync.mjs` 10/10.
 - **نشر:** `vercel deploy --prod --archive=tgz` (بدون archive يفشل: 15769 ملف) → `lowes-app-6kc5uxs8b-lowes1.vercel.app`، alias على lowes-app-web.vercel.app. تحقق Chrome: `/syria-leads` 66 ليد ✔، `/creators/workbench` يعرض الـ46 بلا رفع ملف بعد مسح localStorage ✔. الرجوع: alias على `lowes-app-ikw1qgjl2-lowes1.vercel.app`.
 - **مفتوح:** جداول creator_* الكبيرة ما زالت غير مطبّقة (`/creators` يعطي خطأ الجدول المفقود المتوقع).
+
+## 2026-10-01 — Creator Workbench: 4 تعديلات قبل بدء المراجعة الحقيقية (commit `dff81a1`، غير مدفوع لـGitHub)
+- (1) إعادة التوزيع/اختيار الفريق/تحميل الطابور: **للأدمن فقط** (واجهة فقط؛ الـRLS على الجدول ما زالت مفتوحة بقرار حسام) + تأكيد قبل إعادة التوزيع. (2) رفض سريع (غير نشط / خاص / غير مناسب) يحفظ مراجعة Not Relevant بلا الـ8 أسئلة ويمكن تعديلها. (3) فرز وفلاتر: متابعون (فرز + شرائح)، منصة، فئة، مراجع. (4) تقدّم لكل مراجع (hosam 0/16 · Amany 0/15 · claudine 0/15).
+- لا migration ولا seed ولا لمس لمراجعات حقيقية (0 مراجعة وقت النشر). اختبارات: sync 11، quickreject 14، باقي الـ creator 266، routes 78 — كلها ✔. نشر `lowes-app-judttwd9k-lowes1.vercel.app` + alias. تحقق Chrome: /syria-leads 66 ✔، فلاتر حيّة (متابعون >100K=3، <5K=12، claudine=15، skincare=4، tiktok=1) ✔، أزرار الرفض السريع ظاهرة ✔.
+- رجوع: alias على `lowes-app-npgz886bh-lowes1.vercel.app`.
