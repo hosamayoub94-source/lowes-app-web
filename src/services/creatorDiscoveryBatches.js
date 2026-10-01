@@ -75,6 +75,29 @@ export function balanceTier(rows) {
   return out;
 }
 
+/** Pool row -> workbench queue record (cohort 'discovery'). Deterministic id (re-running never duplicates). Nothing is invented:
+ *  category stays null (the balancing bucket is NOT a confirmed category), unknown stays null, contacts empty, review is mandatory. */
+export function poolRowToQueueRecord(row, { batch, now = new Date() } = {}) {
+  const at = new Date(now).toISOString();
+  const id = `CRT-DSC-${row.platform.slice(0, 2).toUpperCase()}-${String(row.username).toLowerCase()}`;
+  const f = row.followers ?? null;
+  return {
+    id, queue_tier: 5, cohort: 'discovery', batch: batch || null,
+    display_name: row.display_name || row.username, bio: null,
+    platforms: [{ platform: row.platform, handle: String(row.username).toLowerCase(), profile_url: row.profile_url, followers: f }],
+    follower_count: f, tier: f === null ? 'unknown' : tierOfLogicKey(f), main_category: null, subcategories: [], creator_type: null,
+    creator_city: row.city || null, audience_syria_pct: null, activity_status: 'unknown', activity_basis: 'discovery pool — not verified', last_post_at: null,
+    pools: [], pr_fit: 'unknown', ugc_potential: 'unknown', accepts_gifting: 'unknown', paid_status: 'unknown', contacts: [], best_contact_rank: null,
+    priority_score: null, data_quality_score: null,
+    why_text: `اكتشاف (${row.discovery?.type || 'directory'}) — إشارة سوريا: ${row.syria_signal}${(row.provider_topics || []).length ? ' · تصنيف المصدر: ' + row.provider_topics.join(', ') : ''}`,
+    warnings: ['discovery pool: unverified', ...(row.needs_verification ? ['needs verification'] : [])], provider_topics: row.provider_topics || [],
+    sample_posts: [], hashtags: [], verification_level: 'C', needs_manual_review: true, duplicate_group: null, growth_status: 'unknown', is_celebrity: false, creator_status: 'discovered',
+    sources: [{ provider: 'discovery', source_type: row.discovery?.type || null, source_url: row.discovery?.url || null, note: row.discovery?.evidence || null, observed_at: row.discovery?.searched_at || at, tool: row.discovery?.tool || null }],
+    added_by: 'discovery-pool', added_at: at,
+  };
+}
+const tierOfLogicKey = f => (f < 1000 ? 'under_1k' : f < 5000 ? '1k_5k' : f < 10000 ? '5k_10k' : f < 25000 ? '10k_25k' : f < 50000 ? '25k_50k' : f < 100000 ? '50k_100k' : f < 250000 ? '100k_250k' : f < 500000 ? '250k_500k' : f < 1000000 ? '500k_1m' : '1m_plus');
+
 /** Builds the plan: batches of `size` per tier (never mixing tiers), plus the review list and honest shortages. */
 export function planBatches(rows, { size = 50 } = {}) {
   const { eligible, needsReview } = splitReviewFlags(rows);

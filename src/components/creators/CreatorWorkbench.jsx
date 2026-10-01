@@ -48,8 +48,13 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   }, [store, reload]);
 
   const strict = meta.pilot;
-  const scoped = useMemo(() => (meta.pilot ? queue.filter(q => q.queue_tier === 1) : queue).filter(q => !q.removed), [queue, meta.pilot]);
-  const removedList = useMemo(() => queue.filter(q => q.removed), [queue]);
+  // Two separate cohorts, never mixed in numbers: the original pilot queue vs the Discovery batches (cohort:'discovery').
+  const [cohort, setCohortState] = useState(() => { try { return window.localStorage.getItem('lowes:creators:v1:cw_cohort') === 'discovery' ? 'discovery' : 'pilot'; } catch { return 'pilot'; } });
+  const setCohort = c => { setCohortState(c); setTab('queue'); setCurrent(null); try { window.localStorage.setItem('lowes:creators:v1:cw_cohort', c); } catch { /* per-browser preference only */ } };
+  const inCohort = useCallback(q => (cohort === 'discovery' ? q.cohort === 'discovery' : !q.cohort), [cohort]);
+  const scoped = useMemo(() => queue.filter(inCohort).filter(q => (cohort === 'discovery' || !meta.pilot ? true : q.queue_tier === 1)).filter(q => !q.removed), [queue, meta.pilot, cohort, inCohort]);
+  const cohortCounts = useMemo(() => ({ pilot: queue.filter(q => !q.cohort && !q.removed && (!meta.pilot || q.queue_tier === 1)).length, discovery: queue.filter(q => q.cohort === 'discovery' && !q.removed).length }), [queue, meta.pilot]);
+  const removedList = useMemo(() => queue.filter(q => q.removed && inCohort(q)), [queue, inCohort]);
   const [removing, setRemoving] = useState(null); // { id, reason } — inline confirmation before a creator leaves the queue
   const [addForm, setAddForm] = useState({ profile_url: '', display_name: '', followers: '', main_category: '', city: '', source: '', note: '', assign_to: '' });
   const assigned = useMemo(() => new Map(scoped.filter(q => assign[q.id]).map(q => [q.id, assign[q.id]])), [scoped, assign]);
@@ -139,7 +144,7 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
   const redistribute = () => {
     if (!isAdmin) { flash('إعادة التوزيع للمسؤول فقط'); return; }
     if (assigned.size && !window.confirm(`سيُعاد توزيع ${scoped.length} مبدع على ${teamNames.length} مراجعين وتتغير المسؤوليات الحالية للجميع. متابعة؟`)) return;
-    persist(V.assignReviewers(scoped, teamNames.length ? teamNames : [reviewer]), setAssign, store.saveAssign, 'التوزيع'); flash('أُعيد توزيع الطابور'); };
+    persist({ ...assign, ...V.assignReviewers(scoped, teamNames.length ? teamNames : [reviewer]) }, setAssign, store.saveAssign, 'التوزيع'); flash('أُعيد توزيع الطابور'); }; // merge: never drop the other cohort's assignments
   // team edits to the queue (admin): add a creator by hand / remove (soft, reversible) / restore
   const addCreator = () => {
     if (!isAdmin) { flash('إضافة المبدعين للمسؤول فقط'); return; }
@@ -147,8 +152,9 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
     if (!r.ok) { flash('تعذّرت الإضافة: ' + r.errors.join(' · ')); return; }
     const load = n => [...assigned.values()].filter(v => v === n).length;
     const who = addForm.assign_to || [...teamNames].sort((a, b) => load(a) - load(b))[0] || reviewer;
-    persist([...queue, r.record], setQueue, store.saveQueue, 'الطابور');
-    persist({ ...assign, [r.record.id]: who }, setAssign, store.saveAssign, 'التوزيع');
+    const rec = cohort === 'discovery' ? { ...r.record, queue_tier: 5, cohort: 'discovery', batch: 'manual' } : r.record; // added inside Discovery stays in Discovery
+    persist([...queue, rec], setQueue, store.saveQueue, 'الطابور');
+    persist({ ...assign, [rec.id]: who }, setAssign, store.saveAssign, 'التوزيع');
     setAddForm({ profile_url: '', display_name: '', followers: '', main_category: '', city: '', source: '', note: '', assign_to: '' });
     flash(`أُضيف «${r.record.display_name}» وأُسند إلى ${who}`);
   };
@@ -194,7 +200,9 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
     flash('وُزّعت الحسابات بالتساوي');
   };
 
-  const TABS = [['queue', 'الطابور'], ['review', 'مراجعة'], ['waves', 'التجربة'], ['outreach', 'المتابعة'], ['results', 'النتائج'], ['issues', 'ملاحظات'], ['report', 'التقرير'], ['data', 'البيانات']];
+  const ALL_TABS = [['queue', 'الطابور'], ['review', 'مراجعة'], ['waves', 'التجربة'], ['outreach', 'المتابعة'], ['results', 'النتائج'], ['issues', 'ملاحظات'], ['report', 'التقرير'], ['data', 'البيانات']];
+  // Discovery cohort = review only. Pilot waves / outreach / results / report stay about the original 46 so the numbers never mix.
+  const TABS = cohort === 'discovery' ? ALL_TABS.filter(([k]) => ['queue', 'review', 'issues', 'data'].includes(k)) : ALL_TABS;
   const curItem = current ? scoped.find(q => q.id === current) : null;
 
   return (
@@ -213,6 +221,11 @@ export default function CreatorWorkbench({ reviewer, store, canReview = true, ca
           {progress.median_seconds !== null && <Pill>وسيط الوقت {progress.median_seconds}s ({progress.within_target}/{progress.timed} ضمن 90s)</Pill>}
         </div>
       </div>
+      <div className="flex gap-1.5 flex-wrap" role="group" aria-label="الطابور">
+        <button type="button" onClick={() => setCohort('pilot')} className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${cohort === 'pilot' ? 'bg-navy text-white border-navy' : 'bg-surface text-text border-border'}`}>عينة التجربة الأصلية ({cohortCounts.pilot})</button>
+        <button type="button" onClick={() => setCohort('discovery')} className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${cohort === 'discovery' ? 'bg-navy text-white border-navy' : 'bg-surface text-text border-border'}`}>اكتشاف — دفعات بعد بدء التجربة ({cohortCounts.discovery})</button>
+      </div>
+      {cohort === 'discovery' && <p className="text-[11px] bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">مبدعون مكتشفون بعد بدء التجربة. نتائجهم منفصلة تماماً عن عينة الـ46 الأصلية ولا تدخل بتقرير التجربة. المراجعة هنا نفسها (8 أسئلة)، ولا يوجد تواصل/موجات.</p>}
       <div className="flex gap-1.5 overflow-x-auto pb-1">{TABS.map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} className={`text-xs font-bold px-3 py-1.5 rounded-lg border whitespace-nowrap ${tab === k ? 'bg-navy text-white border-navy' : 'bg-surface text-text border-border'}`}>{l}</button>)}</div>
       {msg && <p className="text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2" role="status">{msg}</p>}
 

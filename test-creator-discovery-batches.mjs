@@ -1,5 +1,6 @@
 // Discovery batches: tier order, category balance, review flags kept apart, no duplicates, no padding. Run: node test-creator-discovery-batches.mjs
-import { planBatches, balanceTier, bucketOf, tierOf, splitReviewFlags } from './src/services/creatorDiscoveryBatches.js';
+import { planBatches, balanceTier, bucketOf, tierOf, splitReviewFlags, poolRowToQueueRecord } from './src/services/creatorDiscoveryBatches.js';
+import { assignReviewers } from './src/services/creatorReview.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('FAIL:', m); } };
@@ -37,6 +38,17 @@ ok(plan.notes.some(n => n.includes('500–2.5K')), 'shortage in the smallest tie
 
 // deterministic
 ok(JSON.stringify(planBatches(pool, { size: 2 }).batches.map(b => b.rows.map(r => r.username))) === JSON.stringify(plan.batches.map(b => b.rows.map(r => r.username))), 'deterministic');
+
+// pool row -> queue record: separate cohort, nothing invented, deterministic id
+const pr = R('instagram', 'Some.User', 1800, ['Beauty and Self Care'], { profile_url: 'https://www.instagram.com/some.user', display_name: 'Some User', city: 'aleppo' });
+const rec = poolRowToQueueRecord(pr, { batch: 'B001', now: new Date('2026-10-01T10:00:00Z') });
+ok(rec.id === 'CRT-DSC-IN-some.user' && rec.cohort === 'discovery' && rec.batch === 'B001' && rec.queue_tier === 5, 'discovery record: id/cohort/batch/tier 5 (never tier 1 = pilot)');
+ok(rec.main_category === null && rec.contacts.length === 0 && rec.audience_syria_pct === null && rec.verification_level === 'C' && rec.needs_manual_review === true, 'nothing invented; review mandatory');
+ok(rec.creator_city === 'aleppo' && rec.follower_count === 1800 && rec.tier === '1k_5k' && rec.platforms[0].handle === 'some.user', 'known facts carried, handle normalised');
+ok(poolRowToQueueRecord(R('tiktok', 'x', null, []), {}).follower_count === null && poolRowToQueueRecord(R('tiktok', 'x', null, []), {}).tier === 'unknown', 'unknown followers stay null');
+ok(rec.sources[0].provider === 'discovery' && rec.sources[0].note === 'e', 'discovery source kept as evidence');
+const recs = [1, 2, 3, 4, 5, 6].map(i => poolRowToQueueRecord(R('instagram', 'u' + i, 1000, []), { batch: 'B001' }));
+const am = assignReviewers(recs, ['A', 'B', 'C']); ok(Object.keys(am).length === 6 && ['A', 'B', 'C'].every(n => Object.values(am).filter(v => v === n).length === 2), 'batch spreads evenly over the team');
 
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

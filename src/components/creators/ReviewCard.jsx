@@ -44,7 +44,7 @@ export default function ReviewCard({ item, prior, reviewer, position, strict, on
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
             <p className="text-base font-extrabold text-text">{item.display_name}</p>
-            <p className="text-[11px] text-muted">{position} · طابور {item.queue_tier} · {tierOf(item.follower_count)?.label || 'متابعون غير معروفين'} · {fmtN(item.follower_count)} متابع</p>
+            <p className="text-[11px] text-muted">{position} · {item.cohort === 'discovery' ? `اكتشاف ${item.batch || ''}` : `طابور ${item.queue_tier}`} · {tierOf(item.follower_count)?.label || 'متابعون غير معروفين'} · {fmtN(item.follower_count)} متابع</p>
           </div>
           <div className={`text-lg font-extrabold tabular-nums ${timeCls}`} title="هدف المراجعة 60–90 ثانية">{sec}s</div>
         </div>
