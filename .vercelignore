@@ -1,10 +1,11 @@
 # Files never uploaded to Vercel (the site is built from src/ + public/ only).
-# Local research data (creator discovery pools, raw directory HTML, seed files) — internal, not for upload.
-data/
-supabase/data/
-scripts/data/
-scripts/babel-autosync/chrome-profile/
-scripts/babel-autosync/node_modules/
+# IMPORTANT: patterns are anchored with a leading "/" so they only match at the project root.
+# (An unanchored "data/" would also remove src/data and src/modules/*/data that the build needs.)
+/data/
+/supabase/data/
+/scripts/data/
+/scripts/babel-autosync/chrome-profile/
+/scripts/babel-autosync/node_modules/
 # Same as .gitignore (a .vercelignore replaces it for the CLI)
 node_modules
 dist
@@ -14,7 +15,7 @@ dist-ssr
 .env
 .env.*
 .vercel
-supabase/.temp
-supabase/.branches
+/supabase/.temp
+/supabase/.branches
 _trial*.txt
 _trial*.mjs
