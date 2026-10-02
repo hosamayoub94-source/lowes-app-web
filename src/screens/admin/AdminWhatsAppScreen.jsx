@@ -22,15 +22,16 @@ import {
   fetchWhatsAppMessages, fetchRecentWhatsAppMessages, sendWhatsAppReply, uploadWhatsAppMedia,
   deleteWhatsAppConversation, deleteWhatsAppMessage, transferWhatsAppConversation,
   fetchWhatsAppOwners, claimWhatsAppConversation, setWhatsAppConversationOwner,
-  normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, extractTemplateName, QUICK_REPLIES, WA_LINES,
+  normalizeWaPhone, formatWaBody, isOrderTrackingBody, isCampaignBody, trackingStatusOfBody, extractTemplateName, QUICK_REPLIES, WA_LINES,
   TRACKING_QUICK_REPLIES, getLatestOrderForWaPhone, trackingLinkMessage,
   setConversationTags, SUGGESTED_TAGS,
   getPhoneCampaignSends, markCampaignConversion,
 } from '@services/whatsappService';
 import { listActiveProfiles } from '@services/authService';
 import { WhatsAppAnalyticsPanel } from './whatsapp/AnalyticsPanel';
-import { VirtualThreadList, buildThreadListItems } from './whatsapp/VirtualThreadList';
+import { VirtualThreadList } from './whatsapp/VirtualThreadList';
 import { ThreadSearchBar } from './whatsapp/ThreadSearchBar';
+import { ThreadTabs, TrackingStatusChips } from './whatsapp/ThreadTabs';
 import { ChatHeader } from './whatsapp/ChatHeader';
 import { TagBar } from './whatsapp/TagBar';
 import { ReassignSheet } from './whatsapp/ReassignSheet';
@@ -201,6 +202,17 @@ export default function AdminWhatsAppScreen() {
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassigning, setReassigning] = useState(false);
   const [tagFilter, setTagFilter] = useState(null); // وسم مُختار للفلترة (null = الكل)
+  // تبويب القائمة الجانبية: 'convo' (محادثات) | 'tracking' (تتبّع الطلبات الآلي) | 'campaign' (حملات).
+  // يُحفَظ محلياً كي يرجع الموظف لنفس التبويب بعد تحديث الصفحة.
+  const [listTab, setListTab] = useState(() => {
+    try { const v = localStorage.getItem('wa_list_tab'); return ['convo', 'tracking', 'campaign'].includes(v) ? v : 'convo'; } catch { return 'convo'; }
+  });
+  const [trackStatus, setTrackStatus] = useState(null); // نوع إشعار التتبّع المُختار (null = الكل)
+  const changeListTab = useCallback((key) => {
+    setListTab(key);
+    setTrackStatus(null);
+    try { localStorage.setItem('wa_list_tab', key); } catch { /* كاش بحت */ }
+  }, []);
   const [tagInput, setTagInput] = useState('');
   const [savingTag, setSavingTag] = useState(false);
   // حملات واتساب يلي انبعتلها المحادثة المفتوحة + حالة تحويلها لمبيع فعلي
@@ -507,31 +519,46 @@ export default function AdminWhatsAppScreen() {
   // "غير مردودة أولاً" — آخر رسالة بالمحادثة من العميل (لسا محدا ردّ) ترفع
   // فوق، مع الحفاظ على ترتيب الأحدث ضمن كل مجموعة. طلب مالك 5 أغسطس 2026:
   // ما تضيع محادثة عميل بانتظار رد وسط قائمة طويلة.
-  const sortUnansweredFirst = (list) => unansweredFirst
-    ? [...list].sort((a, b) => (b.direction === 'in') - (a.direction === 'in'))
-    : list;
-  const sortedConvoThreads = useMemo(() => sortUnansweredFirst(convoThreads), [convoThreads, unansweredFirst]);
-  const sortedCampaignThreads = useMemo(() => sortUnansweredFirst(campaignThreads), [campaignThreads, unansweredFirst]);
-  const sortedTrackingThreads = useMemo(() => sortUnansweredFirst(trackingThreads), [trackingThreads, unansweredFirst]);
 
-  // نسخة عرض من كل قائمة (فوق) — بس بتضيف preview نصي جاهز لصفوف القائمة
-  // الجانبية (ThreadListRow عرض بحت، ما بتستورد formatWaBody بنفسها).
-  const withPreview = (list) => list.map(t => ({
-    ...t,
-    preview: t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40),
-  }));
-  const previewConvoThreads = useMemo(() => withPreview(sortedConvoThreads), [sortedConvoThreads]);
-  const previewCampaignThreads = useMemo(() => withPreview(sortedCampaignThreads), [sortedCampaignThreads]);
-  const previewTrackingThreads = useMemo(() => withPreview(sortedTrackingThreads), [sortedTrackingThreads]);
+  // عدّادات التبويبات (من القوائم المفلترة بالبحث/الوسم) + شارة "بانتظار رد" لتبويب
+  // المحادثات = عدد ما آخر رسالته من العميل ولسا ما انفتحت (نفس النقطة الحمراء بالصف).
+  const convoUnanswered = useMemo(
+    () => convoThreads.filter(t => t.direction === 'in' && seenMap[t.phone] !== t.id).length,
+    [convoThreads, seenMap],
+  );
+  const listTabs = useMemo(() => [
+    { key: 'convo', icon: '💬', label: 'محادثات', count: convoThreads.length, badge: convoUnanswered },
+    { key: 'tracking', icon: '📦', label: 'تتبّع', count: trackingThreads.length, badge: 0 },
+    { key: 'campaign', icon: '📢', label: 'حملات', count: campaignThreads.length, badge: 0 },
+  ], [convoThreads.length, convoUnanswered, trackingThreads.length, campaignThreads.length]);
 
-  // مصفوفة مسطّحة واحدة (عناوين أقسام + صفوف) للقائمة الافتراضية
-  // (VirtualThreadList) — راجع تعليق ذاك الملف لسبب الحاجة (1000+ محادثة
-  // حقيقية بلا افتراضية كانت تجمّد سكرول الآيفون تحديداً).
-  const threadListItems = useMemo(() => buildThreadListItems([
-    { key: 'convo', label: '💬 المحادثات', threads: previewConvoThreads },
-    { key: 'campaign', label: '📢 الحملات', threads: previewCampaignThreads },
-    { key: 'tracking', label: '📦 تتبّع الطلبات (آلي)', threads: previewTrackingThreads },
-  ]), [previewConvoThreads, previewCampaignThreads, previewTrackingThreads]);
+  // عدّادات رقاقات نوع إشعار التتبّع (تبويب التتبّع فقط).
+  const trackingStatusCounts = useMemo(() => {
+    const c = {};
+    for (const t of trackingThreads) { const k = trackingStatusOfBody(t.body); if (k) c[k] = (c[k] || 0) + 1; }
+    return c;
+  }, [trackingThreads]);
+
+  // محادثات التبويب النشط فقط (بدل رسم الأقسام الثلاثة سوا) + preview نصي جاهز
+  // لصفوف القائمة (ThreadListRow عرض بحت، ما بتستورد formatWaBody بنفسها).
+  const activeThreads = useMemo(() => {
+    let list = listTab === 'tracking' ? trackingThreads : listTab === 'campaign' ? campaignThreads : convoThreads;
+    if (listTab === 'tracking' && trackStatus) list = list.filter(t => trackingStatusOfBody(t.body) === trackStatus);
+    const ordered = unansweredFirst
+      ? [...list].sort((a, b) => (b.direction === 'in') - (a.direction === 'in'))
+      : list;
+    return ordered.map(t => ({
+      ...t,
+      preview: t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40),
+    }));
+  }, [listTab, trackStatus, trackingThreads, campaignThreads, convoThreads, unansweredFirst]);
+
+  // مصفوفة صفوف للقائمة الافتراضية (VirtualThreadList) — راجع تعليق ذاك الملف لسبب
+  // الحاجة (1000+ محادثة حقيقية بلا افتراضية كانت تجمّد سكرول الآيفون تحديداً).
+  const threadListItems = useMemo(
+    () => activeThreads.map(t => ({ type: 'thread', key: t.phone, thread: t })),
+    [activeThreads],
+  );
 
   // محادثة عائدة لموظف تاني (مو إله ولا لعضو بفريقه) — موظف عادي ما يشوف
   // رسائلها حتى لو وصل رقمها بالـURL أو كتبه يدوياً بـ"محادثة جديدة".
@@ -932,6 +959,7 @@ export default function AdminWhatsAppScreen() {
         <div className="flex gap-3 items-start h-[calc(100dvh-3.5rem-7rem-8.5rem)] md:h-[calc(100dvh-3.5rem-2rem-8.5rem)]">
           {/* قائمة المحادثات — على الموبايل تختفي لما تكون محادثة مفتوحة (شاشة وحدة بالمرة، متل أي تطبيق شات) */}
           <div className={`bg-surface border border-border/60 rounded-card w-full md:w-72 shrink-0 h-full min-w-0 flex flex-col min-h-0 ${openPhone ? 'hidden md:flex' : 'flex animate-in fade-in slide-in-from-right-4 duration-200'}`}>
+            <ThreadTabs tabs={listTabs} active={listTab} onChange={changeListTab} />
             <ThreadSearchBar
               search={search}
               onSearchChange={setSearch}
@@ -941,14 +969,27 @@ export default function AdminWhatsAppScreen() {
               tagFilter={tagFilter}
               onTagFilterChange={setTagFilter}
             />
-            {filteredThreads.length === 0 && (
+            {listTab === 'tracking' && (
+              <TrackingStatusChips
+                counts={trackingStatusCounts}
+                active={trackStatus}
+                onChange={setTrackStatus}
+                total={trackingThreads.length}
+              />
+            )}
+            {activeThreads.length === 0 && (
               <EmptyState
-                icon="💬"
-                title={threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج'}
+                icon={listTab === 'tracking' ? '📦' : listTab === 'campaign' ? '📢' : '💬'}
+                title={threads.length === 0 ? 'لا رسائل بعد' : 'لا نتائج بهالتبويب'}
+                description={
+                  threads.length > 0 && filteredThreads.length > 0
+                    ? `فيه ${filteredThreads.length} محادثة بتبويبات تانية — بدّل التبويب من فوق.`
+                    : undefined
+                }
                 className="border-0 bg-transparent py-8"
               />
             )}
-            {filteredThreads.length > 0 && (
+            {activeThreads.length > 0 && (
               <VirtualThreadList
                 items={threadListItems}
                 openPhone={openPhone}

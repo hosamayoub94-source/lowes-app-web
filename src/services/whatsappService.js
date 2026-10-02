@@ -496,6 +496,22 @@ export function isOrderTrackingBody(body) {
   return !!m && ORDER_TRACKING_SIDS.has(m[1]);
 }
 
+// نوع إشعار التتبّع الآلي (shipped/on_way/delivered/…/received/unboxing) من جسم
+// رسالة قالب — لرقاقات التصفية بتبويب "تتبّع الطلبات". null لو مو إشعار تتبّع.
+const TRACKING_SID_TO_STATUS = (() => {
+  const m = {};
+  for (const [k, sid] of Object.entries(TEMPLATE_SID)) if (k !== 'promo') m[sid] = k;
+  for (const [k, sid] of Object.entries(LEGACY_TEMPLATE_SID_V1)) m[sid] = k;
+  m['HXb29d16c967c8d7f651502eff3fa40f76'] = 'received';
+  m['HX7a1399acb1734201f34faec6a8152559'] = 'unboxing';
+  return m;
+})();
+export function trackingStatusOfBody(body) {
+  if (!body) return null;
+  const m = body.match(/^\[template:([^\]]+)\]/);
+  return (m && TRACKING_SID_TO_STATUS[m[1]]) || null;
+}
+
 // محادثة أصلها حملة جماعية (قالب promo أو checkin) — تُفصَل عن كل من
 // "المحادثات" العضوية و"تتبّع الطلبات" الآلي. طلب مالك 5 أغسطس 2026: تتبّع
 // الطلبات مسؤولية Haya حصراً، ومحادثات الحملة لازم تنفصل عن هالقسمين.
