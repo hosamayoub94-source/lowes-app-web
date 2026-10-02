@@ -154,8 +154,13 @@ function mapPublic(shipmentStatus: string, isDelivered: unknown, receiver?: stri
   if (isDeliveredFlag && (receiver || '').trim().startsWith(YURTICI_OUR_SENDER_MASKED)) return 'returned';
   // الإرجاع/الفشل/الإلغاء لها الأولوية على IsDelivered: «İADE EDİLDİ» (راجع) يرجّع
   // IsDelivered=true لكنه إرجاع لا تسليم — لا نخلطهما (كان يقلب المرتجعات «مُسلَّم»).
-  if (t.includes('iade')) return 'returning';
+  // ⚠️ 2 تشرين الأول 2026: «فشل التسليم» يُفحَص قبل «إرجاع» — نفس ترتيب mapStatus (SOAP)
+  // أعلاه وyk_mapStatus بـgoogle-apps-script/yurtici-public-tracker.gs. النص المركّب
+  // «TESLİM EDİLEMEDİ(İADE İSTEĞİ)» (فشل تسليم + طلب إرجاع) كان هنا يُفسَّر returning بينما
+  // السكربت يفسّره not_received، فيتبادلان الحالة كل 10 دقائق (368/415 تحويلة بـ48 ساعة).
+  // أي تعديل لهذا الترتيب لازم يُطبَّق على النسخ الثلاث معاً.
   if (t.includes('teslim edilemedi') || t.includes('bulunamad') || t.includes('adreste yok')) return 'not_received';
+  if (t.includes('iade')) return 'returning';
   if (t.includes('iptal')) return 'cancelled';
   if (isDeliveredFlag) return 'delivered';
   if (t.includes('dağıt') || t.includes('dagit')) return 'on_way';
