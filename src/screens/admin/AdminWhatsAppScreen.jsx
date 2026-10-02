@@ -1137,7 +1137,7 @@ export default function AdminWhatsAppScreen() {
                   className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2 min-h-0"
                   onScroll={(e) => {
                     const el = e.currentTarget;
-                    const far = el.scrollHeight - el.scrollTop - el.clientHeight > 240;
+                    const far = el.scrollHeight - el.scrollTop - el.clientHeight > 120;
                     setShowJump(prev => (prev === far ? prev : far));
                   }}
                 >
