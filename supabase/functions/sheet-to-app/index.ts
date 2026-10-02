@@ -7,6 +7,7 @@
 // =============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
 
 // SECURITY: the service-role key is auto-injected by the Supabase Edge runtime —
 // never hardcode it (the previous literal is in git history and MUST be rotated).
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
       // اقرأ الحالة الحالية أولاً (للخط الزمني + إشعار البائع + تجنّب كتابة نفس القيمة)
       const { data: cur } = await supabase
         .from('orders')
-        .select('id, status, handler_name, customer_name, deleted_at')
+        .select('id, order_id, status, handler_name, customer_name, deleted_at, phone_1, market')
         .eq('order_id', order_id)
         .maybeSingle();
 
@@ -230,6 +231,12 @@ Deno.serve(async (req) => {
           changed_by: 'الجدول', source: 'sheet',
         }).then(() => {}, () => {});
         await notifySeller(supabase, cur, newStatus, 'الجدول');
+        // واتساب للعميل (تركيا فقط): تغيير الحالة من الجدول (يدوي أو سكربت تتبّع يورتيتشي) كان
+        // الاستثناء الوحيد بلا إشعار — 124 طلب تسليم بـ14 يوم لم تصلهم رسالة التسليم/فيديو
+        // فتح الطرد (2 تشرين الأول 2026). الحارس بـwhatsapp-send (claim 24س لكل هاتف+قالب+طلب)
+        // يمنع أي تكرار. سوريا/الإمارات خارج النطاق عمداً: واتساب سوريا محظور (D-022) والإمارات
+        // لها ترقيم هاتف مختلف لا يعالجه normalizePhone.
+        if (cur.market === 'turkey') await notifyWhatsAppStatus(cur, newStatus, 'turkey');
       }
 
       // Sync back to sheet so status bar updates
