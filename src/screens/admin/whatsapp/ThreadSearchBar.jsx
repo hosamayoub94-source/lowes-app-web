@@ -4,6 +4,7 @@
 // =============================================================
 export function ThreadSearchBar({
   search, onSearchChange, unansweredFirst, onToggleUnanswered, allTags, tagFilter, onTagFilterChange,
+  showUnanswered = true, showTags = true, // تبويب التتبّع الآلي: لا ردود عملاء ولا وسوم فريق، فنخبّيهم
 }) {
   return (
     <div className="p-2 border-b border-border/40 shrink-0 space-y-1.5">
@@ -14,13 +15,13 @@ export function ThreadSearchBar({
         onChange={(e) => onSearchChange(e.target.value)}
         dir="ltr"
       />
-      <button
+      {showUnanswered && <button
         onClick={onToggleUnanswered}
         className={`w-full text-[11px] font-bold rounded-lg px-2 py-1.5 border transition ${unansweredFirst ? 'border-teal bg-teal/10 text-teal-700' : 'border-border/60 text-muted'}`}
       >
         🔴 غير مردودة أولاً {unansweredFirst ? '✓' : ''}
-      </button>
-      {allTags.length > 0 && (
+      </button>}
+      {showTags && allTags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           <button
             onClick={() => onTagFilterChange(null)}

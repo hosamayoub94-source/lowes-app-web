@@ -208,9 +208,12 @@ export default function AdminWhatsAppScreen() {
     try { const v = localStorage.getItem('wa_list_tab'); return ['convo', 'tracking', 'campaign'].includes(v) ? v : 'convo'; } catch { return 'convo'; }
   });
   const [trackStatus, setTrackStatus] = useState(null); // نوع إشعار التتبّع المُختار (null = الكل)
+  const [showOldCampaigns, setShowOldCampaigns] = useState(false); // حملات أقدم من 30 يوم بلا أي رد — مخفية افتراضياً
+  const [showJump, setShowJump] = useState(false); // زر "آخر رسالة" بالمحادثة المفتوحة
   const changeListTab = useCallback((key) => {
     setListTab(key);
     setTrackStatus(null);
+    if (key === 'tracking') setTagFilter(null); // فلتر الوسوم مخفي بالتتبّع — لا يبقى فعّالاً بدون ما يشوفه الموظف
     try { localStorage.setItem('wa_list_tab', key); } catch { /* كاش بحت */ }
   }, []);
   const [tagInput, setTagInput] = useState('');
@@ -526,11 +529,23 @@ export default function AdminWhatsAppScreen() {
     () => convoThreads.filter(t => t.direction === 'in' && seenMap[t.phone] !== t.id).length,
     [convoThreads, seenMap],
   );
+  // حملات أقدم من 30 يوم ولا عميل ردّ عليها (آخر رسالة صادرة) = ضجيج، بنخبّيها
+  // افتراضياً مع زر لعرضها. اللي ردّ عليه عميل بيضل ظاهر مهما كان قديم.
+  const campaignSplit = useMemo(() => {
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    const fresh = [], old = [];
+    for (const t of campaignThreads) {
+      if (t.direction === 'out' && new Date(t.created_at).getTime() < cutoff) old.push(t); else fresh.push(t);
+    }
+    return { fresh, old };
+  }, [campaignThreads]);
+  const campaignShown = showOldCampaigns ? campaignThreads : campaignSplit.fresh;
+
   const listTabs = useMemo(() => [
     { key: 'convo', icon: '💬', label: 'محادثات', count: convoThreads.length, badge: convoUnanswered },
     { key: 'tracking', icon: '📦', label: 'تتبّع', count: trackingThreads.length, badge: 0 },
-    { key: 'campaign', icon: '📢', label: 'حملات', count: campaignThreads.length, badge: 0 },
-  ], [convoThreads.length, convoUnanswered, trackingThreads.length, campaignThreads.length]);
+    { key: 'campaign', icon: '📢', label: 'حملات', count: campaignShown.length, badge: 0 },
+  ], [convoThreads.length, convoUnanswered, trackingThreads.length, campaignShown.length]);
 
   // عدّادات رقاقات نوع إشعار التتبّع (تبويب التتبّع فقط).
   const trackingStatusCounts = useMemo(() => {
@@ -542,7 +557,7 @@ export default function AdminWhatsAppScreen() {
   // محادثات التبويب النشط فقط (بدل رسم الأقسام الثلاثة سوا) + preview نصي جاهز
   // لصفوف القائمة (ThreadListRow عرض بحت، ما بتستورد formatWaBody بنفسها).
   const activeThreads = useMemo(() => {
-    let list = listTab === 'tracking' ? trackingThreads : listTab === 'campaign' ? campaignThreads : convoThreads;
+    let list = listTab === 'tracking' ? trackingThreads : listTab === 'campaign' ? campaignShown : convoThreads;
     if (listTab === 'tracking' && trackStatus) list = list.filter(t => trackingStatusOfBody(t.body) === trackStatus);
     const ordered = unansweredFirst
       ? [...list].sort((a, b) => (b.direction === 'in') - (a.direction === 'in'))
@@ -551,7 +566,7 @@ export default function AdminWhatsAppScreen() {
       ...t,
       preview: t.media_url && !t.body ? '📎 مرفق' : formatWaBody(t.body).slice(0, 40),
     }));
-  }, [listTab, trackStatus, trackingThreads, campaignThreads, convoThreads, unansweredFirst]);
+  }, [listTab, trackStatus, trackingThreads, campaignShown, convoThreads, unansweredFirst]);
 
   // مصفوفة صفوف للقائمة الافتراضية (VirtualThreadList) — راجع تعليق ذاك الملف لسبب
   // الحاجة (1000+ محادثة حقيقية بلا افتراضية كانت تجمّد سكرول الآيفون تحديداً).
@@ -581,6 +596,7 @@ export default function AdminWhatsAppScreen() {
   // يفتح المحادثة على آخر رسالة مباشرة (تحت) بدل أول رسالة (فوق) — طلب صريح.
   useEffect(() => {
     if (openPhone) bottomRef.current?.scrollIntoView({ block: 'end' });
+    setShowJump(false);
   }, [openPhone, thread.length]);
 
   // بحث نص داخل المحادثة المفتوحة — "متل الواتساب" (طلب مالك 5 أغسطس 2026).
@@ -968,7 +984,19 @@ export default function AdminWhatsAppScreen() {
               allTags={allTags}
               tagFilter={tagFilter}
               onTagFilterChange={setTagFilter}
+              showUnanswered={listTab !== 'tracking'}
+              showTags={listTab !== 'tracking'}
             />
+            {listTab === 'campaign' && campaignSplit.old.length > 0 && (
+              <button
+                onClick={() => setShowOldCampaigns(v => !v)}
+                className="mx-2 my-1.5 text-[11px] font-bold rounded-lg px-2 py-1.5 border border-border/60 text-muted hover:border-navy/40 shrink-0"
+              >
+                {showOldCampaigns
+                  ? `إخفاء الحملات القديمة بلا رد (${campaignSplit.old.length})`
+                  : `🗂️ مخفي ${campaignSplit.old.length} حملة أقدم من 30 يوم بلا رد — عرضها`}
+              </button>
+            )}
             {listTab === 'tracking' && (
               <TrackingStatusChips
                 counts={trackingStatusCounts}
@@ -1105,7 +1133,14 @@ export default function AdminWhatsAppScreen() {
                   </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2 min-h-0">
+                <div
+                  className="flex-1 overflow-y-auto flex flex-col gap-2 mb-2 min-h-0"
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    const far = el.scrollHeight - el.scrollTop - el.clientHeight > 240;
+                    setShowJump(prev => (prev === far ? prev : far));
+                  }}
+                >
                   {displayThread.length === 0 && msgSearch && (
                     <p className="text-center text-xs text-muted py-4">لا نتائج لـ«{msgSearch}»</p>
                   )}
@@ -1129,6 +1164,14 @@ export default function AdminWhatsAppScreen() {
                       </div>
                     );
                   })}
+                  {showJump && (
+                    <button
+                      onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+                      className="sticky bottom-2 self-center shrink-0 rounded-full bg-navy text-white text-[11px] font-bold px-3 py-1.5 shadow-lg"
+                    >
+                      ⬇ آخر رسالة
+                    </button>
+                  )}
                   <div ref={bottomRef} />
                 </div>
 
