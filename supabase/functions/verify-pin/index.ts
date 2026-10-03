@@ -48,9 +48,40 @@ Deno.serve(async (req: Request) => {
     if (!storedPin)                  return json({ ok: false, error: 'no_pin_set' }, 200);
     if (storedPin !== enteredPin)    return json({ ok: false, error: 'wrong_pin' }, 200);
 
+    // ── Real Supabase Auth identity (3 Oct 2026) ───────────────────────────
+    // Accounts without an auth.users row fall back to a "manual session" on the
+    // client (no JWT). The hardened functions (ai-assistant = R-22,
+    // whatsapp-send-proxy / upload / delete = R-13/R-15, manage-employee, pin-change)
+    // require a real session, so those accounts got 401 → "Edge Function returned a
+    // non-2xx status code" / "Louzy unavailable" (Haya Almarouf, 3 Oct 2026; 6 of 49
+    // profiles had no auth user). The PIN has just been verified, so this is the one
+    // place that may create the identity — with the exact convention the other 43
+    // accounts already use and the client already signs in with
+    // (email <profileId>@auth.lowes-pro.local, password "lp:<pin>"). Existing identities
+    // are never touched. Best-effort: a failure here must never block the login.
+    let authIdentity: 'exists' | 'created' | 'failed' = 'failed';
+    try {
+      const { data: existing } = await supabase.auth.admin.getUserById(profile.id);
+      if (existing?.user) {
+        authIdentity = 'exists';
+      } else {
+        const { error: createErr } = await supabase.auth.admin.createUser({
+          id: profile.id,
+          email: `${profile.id}@auth.lowes-pro.local`,
+          password: `lp:${enteredPin}`,
+          email_confirm: true,
+          user_metadata: { name: profile.employee_name, team: profile.team ?? null, role_type: profile.role_type ?? null },
+        });
+        if (createErr) console.error('[verify-pin] auth provision failed', profile.employee_name, createErr.message);
+        authIdentity = createErr ? 'failed' : 'created';
+      }
+    } catch (e) {
+      console.error('[verify-pin] auth provision error', profile.employee_name, String(e));
+    }
+
     // Strip pin before returning the profile to the client
     const { pin: _omit, ...safeProfile } = profile;
-    return json({ ok: true, profile: safeProfile }, 200);
+    return json({ ok: true, profile: safeProfile, authIdentity }, 200);
 
   } catch (err) {
     console.error('[verify-pin]', err);

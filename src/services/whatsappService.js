@@ -149,15 +149,30 @@ export const SUGGESTED_TAGS = ['عميل جديد', 'متابعة', 'VIP', 'شك
 // لم يكن سرّاً أصلاً؛ الوسيطة تتحقّق من جلسة مستخدم حقيقية على هذا المشروع (الشاشة
 // أصلاً محمية بـProtectedRoute)، ثم تُرحِّل الطلب سيرفرياً حاملةً سرّاً حقيقياً.
 // supabase.functions.invoke يُرفق تلقائياً Authorization بتوكن الجلسة الحقيقية الحالية.
+// supabase.functions.invoke يرجّع دائماً "Edge Function returned a non-2xx status code" عند أي
+// رد غير 2xx — بلا السبب الحقيقي. هاي تقرأ كود الرد وجسمه (3 تشرين الأول 2026): 401 = جلسة
+// يدوية بلا هوية حقيقية (حساب لسا ما انفعّل — يحلها خروج ثم دخول بالـPIN)، غيره = رسالة
+// الخطأ الفعلية من Twilio/الوسيط (مثلاً خارج نافذة الـ24 ساعة) بدل الرسالة العامة.
+async function invokeErrorMessage(error, fallback) {
+  const res = error?.context;
+  const status = res?.status;
+  if (status === 401) return 'حسابك محتاج تفعيل مرة وحدة 🔑 سجّلي خروج ثم ادخلي من جديد بالـPIN.';
+  try {
+    const body = await res.clone().json();
+    if (body?.error) return String(body.error);
+  } catch { /* الجسم مو JSON */ }
+  return error?.message || fallback;
+}
+
 async function callWhatsAppSendProxy(payload) {
   const { data, error } = await supabase.functions.invoke('whatsapp-send-proxy', { body: payload });
-  if (error) throw new Error(error.message || 'تعذّر إرسال الرسالة');
+  if (error) throw new Error(await invokeErrorMessage(error, 'تعذّر إرسال الرسالة'));
   if (!data?.ok) throw new Error(data?.error || 'تعذّر إرسال الرسالة');
   return data;
 }
 async function callWhatsAppUploadMediaProxy(payload) {
   const { data, error } = await supabase.functions.invoke('whatsapp-upload-media-proxy', { body: payload });
-  if (error) throw new Error(error.message || 'تعذّر رفع الملف');
+  if (error) throw new Error(await invokeErrorMessage(error, 'تعذّر رفع الملف'));
   if (!data?.ok) throw new Error(data?.error || 'تعذّر رفع الملف');
   return data;
 }
@@ -190,7 +205,7 @@ export async function uploadWhatsAppMedia(blob, ext) {
 // سيرفرياً بالسرّ الداخلي. راجع lowes-classic/AI/Architecture/TrustBoundary-WhatsApp-CrossProject.md.
 async function callWhatsAppDeleteConversationProxy(payload) {
   const { data, error } = await supabase.functions.invoke('whatsapp-delete-conversation-proxy', { body: payload });
-  if (error) throw new Error(error.message || 'فشل العملية');
+  if (error) throw new Error(await invokeErrorMessage(error, 'فشل العملية'));
   if (!data?.ok) throw new Error(data?.error || 'فشل العملية');
   return data;
 }

@@ -307,6 +307,7 @@ export function AIAssistantWidget() {
     // credit/quota issue) from a real network failure, so we don't mislead the
     // user with "تأكد من الإنترنت" when the internet is fine.
     let serverError = false;
+    let needsRelogin = false; // 401 = جلسة يدوية بلا هوية Supabase Auth حقيقية
     try {
       let todayVisits = 0;
       try {
@@ -340,6 +341,7 @@ export function AIAssistantWidget() {
         body: JSON.stringify({ messages: history, todayVisits }),
       });
 
+      if (res.status === 401) { needsRelogin = true; throw new Error('HTTP 401'); }
       if (!res.ok) { serverError = true; throw new Error(`HTTP ${res.status}`); }
       const data  = await res.json();
       const reply = data?.reply ?? 'عذراً، ما قدرت أفهم. حاولي مجدداً 😊';
@@ -351,9 +353,11 @@ export function AIAssistantWidget() {
       if (!open) setUnread(u => u + 1);
     } catch {
       setMessages(withUser);
-      setError(serverError
-        ? 'لوزي مش متوفرة هلّق 🌸 في خلل مؤقت بالخدمة — جرّبي بعد شوي، وإذا ضلّت بلّغي الأدمن.'
-        : 'فشل الاتصال. تأكد من الإنترنت وحاولي مجدداً 🌐');
+      setError(needsRelogin
+        ? 'حسابك محتاج تفعيل مرة وحدة 🔑 سجّلي خروج ثم ادخلي من جديد بالـPIN، وبترجع لوزي تشتغل.'
+        : serverError
+          ? 'لوزي مش متوفرة هلّق 🌸 في خلل مؤقت بالخدمة — جرّبي بعد شوي، وإذا ضلّت بلّغي الأدمن.'
+          : 'فشل الاتصال. تأكد من الإنترنت وحاولي مجدداً 🌐');
     } finally {
       setLoading(false);
     }
