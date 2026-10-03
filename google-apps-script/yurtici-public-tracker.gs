@@ -84,10 +84,17 @@ function pollYurticiStatuses() {
   // sheet cell, so an order can be 'returning' in the app while the cell still reads a
   // shipping status — yurtici would then re-assert 'delivered' and cause a flicker.)
   var YK_APP = {};
+  // ⚠️ 3 تشرين الأول 2026: بدون الهيدر Accept-Profile: public يطلب PostgREST الـschema الافتراضي
+  // للمشروع وهو graphql_public (تحقّق: curl بلا الهيدر → 404 «Could not find the table
+  // 'graphql_public.orders'»، ومعه → 200 + 349 طلب). الرد كان كائن خطأ لا مصفوفة فيرمي
+  // .forEach وكان الـcatch الفاضي يبلعه → YK_APP فاضية → هذا الحارس (سطر returning/not_received…
+  // أدناه) ما اشتغل أبداً. الآن: الهيدر + تسجيل أي فشل بدل إخفائه.
   try {
-    var __r = UrlFetchApp.fetch(YK_APP_ORDERS, { headers: { apikey: YK_ANON, Authorization: 'Bearer ' + YK_ANON }, muteHttpExceptions: true });
-    JSON.parse(__r.getContentText()).forEach(function (o) { if (o.order_id) YK_APP[String(o.order_id).trim()] = o.status; });
-  } catch (e) {}
+    var __r = UrlFetchApp.fetch(YK_APP_ORDERS, { headers: { apikey: YK_ANON, Authorization: 'Bearer ' + YK_ANON, 'Accept-Profile': 'public' }, muteHttpExceptions: true });
+    var __rows = JSON.parse(__r.getContentText());
+    if (!Array.isArray(__rows)) throw new Error('guard fetch http=' + __r.getResponseCode() + ' ' + String(__r.getContentText()).slice(0, 120));
+    __rows.forEach(function (o) { if (o.order_id) YK_APP[String(o.order_id).trim()] = o.status; });
+  } catch (e) { Logger.log('pollYurtici GUARD DISABLED: ' + e); }
   YK_TABS.forEach(function (name) {
     var sh = ss.getSheetByName(name);
     if (!sh) return;
