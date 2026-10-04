@@ -71,8 +71,8 @@ const ShiftPartnersScreen      = lazy(() => import(/* webpackChunkName: "shift-p
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
 const SyriaLeadsScreen         = lazy(() => import(/* webpackChunkName: "syria-leads"      */ '@screens/SyriaLeadsScreen'));
-const CreatorWorkbenchScreen = lazy(() => import(/* webpackChunkName: "creators-workbench" */ '@screens/CreatorWorkbenchScreen'));
-const CreatorIntelligenceScreen = lazy(() => import(/* webpackChunkName: "creators" */ '@screens/CreatorIntelligenceScreen'));
+// Window 1: Creator screens frozen (no read/write/sync). Old screens kept in src/screens, unrouted, for rollback.
+const CreatorFrozenScreen = lazy(() => import(/* webpackChunkName: "creators-frozen" */ '@screens/CreatorFrozenScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
 const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
@@ -420,7 +420,7 @@ export function AppRoutes() {
             path={ROUTES.CREATORS_WORKBENCH}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
-                <CreatorWorkbenchScreen />
+                <CreatorFrozenScreen />
               </ProtectedRoute>
             }
           />
@@ -428,7 +428,7 @@ export function AppRoutes() {
             path={ROUTES.CREATORS}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
-                <CreatorIntelligenceScreen />
+                <CreatorFrozenScreen />
               </ProtectedRoute>
             }
           />
