@@ -3367,3 +3367,16 @@ finance → المحاسبة
 - **الملف `supabase/migrations/20260930140000_creator_workbench_items.sql`** الأصلي (غير متتبَّع) بقي مكانه ولم يُلمس؛ نسخة baseline المُعادة من الإنتاج في باتش `creator-phase-0b-0c.patch` **لم تُطبَّق** (حُذفت نسخة الباتش من مجلد المشروع، الأصل في Downloads). القرار بين الملفين مؤجّل.
 - **غير مُثبَت:** فحص المتصفح كأدمن لـ`/creators` و`/syria-leads` (على حسام). الأخيرة تأكّد وجود حزمتها فقط.
 - ملاحظة: commits `2bc7a62`/`dff81a1` المذكورة أعلاه «غير مدفوعة» ظهر الآن أنها على GitHub (`git log origin/main..main` أرجع `4b42abd` فقط).
+
+### 2026-10-04 (2) — إضافة على إدخال Window 1: تحقق المتصفح + ملاحظات + SQL الطوارئ
+- **Window 1 مكتملة ومتحقَّق منها بالمتصفح (Chrome بجلسة أدمن):** `/creators` و`/creators/workbench` يعرضان «قسم صناع المحتوى متوقف مؤقتاً»؛ `/syria-leads` تعرض 66 ليد (4 جاهز · 27 يحتاج تأكيد · 26 تواصلنا)؛ لا أخطاء console بصفحة الليدز؛ لا طلبات شبكة لأي جدول creator من شاشة التجميد. (لقطة الشاشة انهارت مرة بتجمّد المتصفح فاعتُمد نص الصفحة؛ المظهر البصري لم يُرَ.) هذا يحلّ بند «غير مُثبَت» بالإدخال أعلاه.
+- **الإقفال طُبّق بـ`execute_sql` وليس كـmigration** → غير مسجَّل بسجل الـmigrations ولا بالـrepo. تسجيله + إصلاح سجل الـmigrations مؤجَّلان لـ**Checkpoint B** (قرار المراجعة، لا يُنفَّذ الآن).
+- **SQL الرجوع — للطوارئ فقط (يعيد الثغرة: anon يقرأ/يكتب/يحذف/يمسح الجدول):** نفس سطور الـpolicy والـGRANT بنسخة الـbaseline (`creator-phase-0b-0c.patch`، ملف `20260930140000_creator_workbench_items.sql`):
+  ```sql
+  DROP POLICY IF EXISTS "creator_workbench_items_all" ON public.creator_workbench_items;
+  CREATE POLICY "creator_workbench_items_all" ON public.creator_workbench_items AS PERMISSIVE FOR ALL TO public USING (true) WITH CHECK (true);
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public.creator_workbench_items TO anon, authenticated, service_role;
+  ```
+  (للرجوع الكامل للواجهة القديمة يلزم أيضاً alias على `lowes-app-d7vc5viqu-lowes1.vercel.app`.)
+- **ملاحظة منفصلة غير مرتبطة بالعمل:** من شبكة المتصفح: 503 على HEAD لـ`attendance_records` و`notifications`، و409 على POST لـ`notifications`. الجداول لم تُلمس بـWindow 1؛ السبب غير مفحوص — مهمة لاحقة مستقلة.
+- **الملفات غير المتتبَّعة** (`supabase/migrations/20260930*.sql` ×4، `supabase/data/20260930_creator_syria_seed.sql`، `data/`، `LOWES_ERP_TECHNICAL_HANDOFF.md`) لم تُلمس؛ قرارها بـCheckpoint B.
