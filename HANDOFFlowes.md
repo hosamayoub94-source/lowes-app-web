@@ -3380,3 +3380,10 @@ finance → المحاسبة
   (للرجوع الكامل للواجهة القديمة يلزم أيضاً alias على `lowes-app-d7vc5viqu-lowes1.vercel.app`.)
 - **ملاحظة منفصلة غير مرتبطة بالعمل:** من شبكة المتصفح: 503 على HEAD لـ`attendance_records` و`notifications`، و409 على POST لـ`notifications`. الجداول لم تُلمس بـWindow 1؛ السبب غير مفحوص — مهمة لاحقة مستقلة.
 - **الملفات غير المتتبَّعة** (`supabase/migrations/20260930*.sql` ×4، `supabase/data/20260930_creator_syria_seed.sql`، `data/`، `LOWES_ERP_TECHNICAL_HANDOFF.md`) لم تُلمس؛ قرارها بـCheckpoint B.
+
+### 2026-10-05 — عرض Creator للقراءة فقط جوّا التطبيق (بطلب حسام بعد ما لقى القائمة فاضية)
+- **السبب:** بعد إقفال الجدول (Window 1) شاشة `/creators` صارت رسالة توقف فقط؛ حسام طلب رؤية الداتا داخل التطبيق «بدون مخاطر».
+- **الحل:** Edge Function جديدة `creator-workbench-read` على `fghdumrgimoeqsafdhhh` (v1، `verify_jwt=true`): تتحقق من جلسة حقيقية عبر `auth.getUser`، تشترط `profiles.role_type='admin'` من القاعدة (لا من الطلب)، تقرأ بـservice_role فقط `kind in (queue,assign,meta)`، بلا كتابة ولا قبول جدول/فلتر من العميل. شاشة `CreatorReadOnlyScreen` على `/creators` و`/creators/workbench` (شريط «متوقف مؤقتاً — عرض للقراءة فقط» + بحث + فلتر مجموعة/مسؤول). الجدول بقي مقفلاً لـanon/authenticated. الكتابة/المراجعة/المزامنة **ما رجعت** (Phase 3).
+- **الكود:** commit `52c67de`. **النشر:** `lowes-app-am2j1kbfl-lowes1.vercel.app`، الدومين صار يخدم `index-D6Y1kgHQ.js` وفيه `CreatorReadOnlyScreen-CwERCkTQ.js`. **نقطة الرجوع (التجميد فقط):** النشرة السابقة `lowes-app-bnwvtxgdr` (commit `4b42abd`).
+- **تحقق (Chrome، جلسة أدمن):** `/creators` تعرض `153 / 153` (103 original + 50 discovery) بكل الأعمدة والفلاتر؛ استدعاء الدالة بلا Authorization يُرفض.
+- **غير مُختبَر:** رفض حساب غير أدمن بجلسة حقيقية (403)؛ حساب بجلسة يدوية (401).
