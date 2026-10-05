@@ -25,6 +25,25 @@ function fmt(n) {
   return String(n);
 }
 
+// Link to the creator's own profile: stored URL first (legacy rows), else built from platform + handle.
+function profileUrl(r) {
+  if (/^https?:\/\//i.test(r.profile_url || '')) return r.profile_url;
+  const h = encodeURIComponent(String(r.handle || '').replace(/^@+/, ''));
+  if (!h) return '';
+  switch (r.platform) {
+    case 'instagram': return `https://www.instagram.com/${h}/`;
+    case 'tiktok': return `https://www.tiktok.com/@${h}`;
+    case 'youtube': return `https://www.youtube.com/@${h}`;
+    case 'facebook': return `https://www.facebook.com/${h}`;
+    default: return '';
+  }
+}
+function ProfileLink({ row, className = '' }) {
+  const url = profileUrl(row);
+  if (!url) return null;
+  return <a href={url} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-xs font-bold text-blue-600 ${className}`}>فتح الحساب ↗</a>;
+}
+
 async function call(action, payload = {}) {
   const { data, error } = await supabase.functions.invoke('creator-prospects', { body: { action, ...payload } });
   if (error) {
@@ -120,7 +139,7 @@ function EditModal({ row, owners, categories, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-2" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 space-y-3" dir="rtl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="font-black text-base">{isNew ? 'إضافة حساب' : 'تعديل الحساب'}</h2>
+          <h2 className="font-black text-base">{isNew ? 'إضافة حساب' : 'تعديل الحساب'} {!isNew && <ProfileLink row={f} className="mr-2" />}</h2>
           <button onClick={onClose} className="text-gray-400 text-lg">✕</button>
         </div>
         {row.deleted_at && <div className="rounded-lg bg-red-50 text-red-700 text-xs p-2">هذا الحساب محذوف. <button className="underline font-bold" onClick={restore}>استرجاع</button></div>}
@@ -346,7 +365,8 @@ export default function CreatorProspectsScreen() {
             {shown.map(r => (
               <div key={r.id} className={`rounded-xl border bg-white p-3 flex items-start gap-2 ${r.deleted_at ? 'opacity-60' : ''}`}>
                 {!r.deleted_at && <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="mt-1" />}
-                <button className="flex-1 min-w-0 text-right" onClick={() => setEdit(r)}>
+                <div className="flex-1 min-w-0">
+                <button className="w-full text-right" onClick={() => setEdit(r)}>
                   <div className="font-bold text-sm text-gray-900 truncate">{r.name || r.handle}</div>
                   <div className="text-xs text-gray-500 truncate" dir="ltr">@{r.handle} · {r.platform}</div>
                   <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
@@ -361,6 +381,8 @@ export default function CreatorProspectsScreen() {
                     {r.owner && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{r.owner}</span>}
                   </div>
                 </button>
+                <ProfileLink row={r} className="mt-1.5" />
+                </div>
                 <div className="text-left shrink-0">
                   <div className="text-base font-black text-gray-900">{fmt(r.followers)}</div>
                   <div className="text-[10px] text-gray-400">{bandOf(r.followers) || 'متابع'}</div>
