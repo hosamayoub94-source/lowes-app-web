@@ -70,7 +70,8 @@ async function readFile(file) {
   const isCsv = /\.csv$/i.test(file.name);
   const wb = isCsv ? XLSX.read(await file.text(), { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  return mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: true }));
+  // raw:false => formatted text ("3.2%", "12,500"): raw numbers would turn "3.2%" into 0.032 and silently store 0.03.
+  return mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }));
 }
 function downloadTemplate() {
   const csv = '﻿handle,name,platform,followers,engagement,location,category,priority,fit,source,notes\n@example_handle,اسم المبدع,instagram,12500,3.2%,Damascus,skincare,P1,روتين عناية,بحث يدوي,ملاحظة اختيارية\n';
