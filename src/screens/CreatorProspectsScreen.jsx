@@ -104,7 +104,7 @@ function downloadTemplate() {
 const inputCls = 'border rounded-lg px-2 py-1.5 text-sm w-full';
 function Field({ label, children }) { return <label className="block text-xs text-gray-600">{label}{children}</label>; }
 
-function EditModal({ row, owners, categories, onClose, onSaved }) {
+function EditModal({ row, owners, categories, onClose, onSaved, pos, total, hasPrev, hasNext, onNav }) {
   const isNew = !row.id;
   const [f, setF] = useState({ platform: 'instagram', status: 'new', verified: false, ...row });
   const [busy, setBusy] = useState(false);
@@ -112,7 +112,7 @@ function EditModal({ row, owners, categories, onClose, onSaved }) {
   const [hist, setHist] = useState(null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
 
-  async function save() {
+  async function save(goNext = false) {
     setBusy(true); setErr('');
     const keys = ['handle', 'platform', 'name', 'location', 'followers', 'engagement_pct', 'category', 'priority', 'status', 'owner', 'verified', 'fit', 'evidence', 'source', 'notes'];
     const body = {}; keys.forEach(k => { body[k] = f[k] === undefined ? null : f[k]; });
@@ -122,7 +122,7 @@ function EditModal({ row, owners, categories, onClose, onSaved }) {
       setErr(res.error === 'duplicate' ? `مكرر: الحساب موجود أصلاً${res.duplicate?.name ? ` (${res.duplicate.name})` : ''}${res.duplicate?.deleted ? ' — ومحذوف، استرجعه من «المحذوف»' : ''}.` : res.error);
       return;
     }
-    onSaved(res.row);
+    onSaved(res.row, false, goNext);
   }
   async function del() {
     if (!window.confirm('حذف هذا الحساب؟ (حذف ناعم، بتقدر ترجّعه من «المحذوف»)')) return;
@@ -140,6 +140,13 @@ function EditModal({ row, owners, categories, onClose, onSaved }) {
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 space-y-3" dir="rtl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="font-black text-base">{isNew ? 'إضافة حساب' : 'تعديل الحساب'} {!isNew && <ProfileLink row={f} className="mr-2" />}</h2>
+          {!isNew && total > 0 && (
+            <div className="flex items-center gap-1 text-xs mr-auto ml-2">
+              <button disabled={!hasPrev || busy} onClick={() => onNav(-1)} className="px-2 py-1 rounded-lg border disabled:opacity-30">→ السابق</button>
+              <span className="text-gray-500 px-1">{pos} / {total}</span>
+              <button disabled={!hasNext || busy} onClick={() => onNav(1)} className="px-2 py-1 rounded-lg border disabled:opacity-30">التالي ←</button>
+            </div>
+          )}
           <button onClick={onClose} className="text-gray-400 text-lg">✕</button>
         </div>
         {row.deleted_at && <div className="rounded-lg bg-red-50 text-red-700 text-xs p-2">هذا الحساب محذوف. <button className="underline font-bold" onClick={restore}>استرجاع</button></div>}
@@ -170,7 +177,8 @@ function EditModal({ row, owners, categories, onClose, onSaved }) {
         <Field label="ملاحظات"><textarea className={inputCls} rows={3} value={f.notes || ''} onChange={e => set('notes', e.target.value)} /></Field>
         {err && <div className="rounded-lg bg-red-50 text-red-700 text-sm p-2">{err}</div>}
         <div className="flex gap-2 items-center">
-          <button disabled={busy} onClick={save} className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-50">{busy ? '…' : 'حفظ'}</button>
+          <button disabled={busy} onClick={() => save(false)} className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-50">{busy ? '…' : 'حفظ'}</button>
+          {!isNew && hasNext && <button disabled={busy} onClick={() => save(true)} className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-bold disabled:opacity-50">حفظ والتالي ←</button>}
           {!isNew && !row.deleted_at && <button disabled={busy} onClick={del} className="px-4 py-2 rounded-xl border border-red-300 text-red-700 text-sm font-bold">حذف</button>}
           {!isNew && <button onClick={loadHist} className="text-xs text-blue-600 mr-auto">سجل التغييرات</button>}
         </div>
@@ -307,11 +315,22 @@ export default function CreatorProspectsScreen() {
 
   const setFilter = (k, v) => setF(p => ({ ...p, [k]: v }));
   const toggle = id => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  function onSaved(row, removed) {
+  function onSaved(row, removed, goNext) {
+    const idx = shown.findIndex(r => r.id === row.id);
+    const next = goNext && idx >= 0 ? shown[idx + 1] : null;
     setRows(prev => (prev || []).map(r => (r.id === row.id ? row : r)).concat((prev || []).some(r => r.id === row.id) ? [] : [row]));
     if (removed) setRows(prev => (showDeleted ? prev : (prev || []).filter(r => r.id !== row.id)));
-    setEdit(null);
+    setEdit(next || null);
   }
+  async function quickStatus(r, status) {
+    if (r.status === status) return;
+    const res = await call('update', { id: r.id, patch: { status } });
+    if (!res.ok) { setMsg(res.error); return; }
+    setRows(prev => (prev || []).map(x => (x.id === r.id ? res.row : x)));
+    setMsg(`${r.name || r.handle} ← ${STATUS_AR[status]}`);
+  }
+  const editIdx = edit && edit.id ? shown.findIndex(r => r.id === edit.id) : -1;
+  const navTo = dir => { const t = shown[editIdx + dir]; if (t) setEdit(t); };
   async function applyBulk() {
     const patch = {}; Object.entries(bulk).forEach(([k, v]) => { if (v) patch[k] = v; });
     if (!Object.keys(patch).length || !sel.size) return;
@@ -381,7 +400,16 @@ export default function CreatorProspectsScreen() {
                     {r.owner && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{r.owner}</span>}
                   </div>
                 </button>
-                <ProfileLink row={r} className="mt-1.5" />
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <ProfileLink row={r} />
+                  {!r.deleted_at && (
+                    <span className="flex gap-1 mr-auto">
+                      <button onClick={() => quickStatus(r, 'approved')} title="معتمد" className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${r.status === 'approved' ? 'bg-emerald-600 text-white border-emerald-600' : 'text-emerald-700 border-emerald-300'}`}>✓ معتمد</button>
+                      <button onClick={() => quickStatus(r, 'reviewing')} title="قيد المراجعة" className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${r.status === 'reviewing' ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 border-amber-300'}`}>⏳</button>
+                      <button onClick={() => quickStatus(r, 'rejected')} title="مرفوض" className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${r.status === 'rejected' ? 'bg-red-600 text-white border-red-600' : 'text-red-700 border-red-300'}`}>✕ رفض</button>
+                    </span>
+                  )}
+                </div>
                 </div>
                 <div className="text-left shrink-0">
                   <div className="text-base font-black text-gray-900">{fmt(r.followers)}</div>
@@ -393,7 +421,7 @@ export default function CreatorProspectsScreen() {
           {shown.length === 0 && <div className="text-sm text-gray-500 text-center py-8">ما في نتائج بهالفلاتر.</div>}
         </>
       )}
-      {edit && <EditModal row={edit} owners={owners} categories={categories} onClose={() => setEdit(null)} onSaved={(row, removed) => { onSaved(row, removed); if (!edit.id) load(); }} />}
+      {edit && <EditModal key={edit.id || 'new'} row={edit} owners={owners} categories={categories} onClose={() => setEdit(null)} onSaved={(row, removed, goNext) => { onSaved(row, removed, goNext); if (!edit.id) load(); }} pos={editIdx + 1} total={editIdx >= 0 ? shown.length : 0} hasPrev={editIdx > 0} hasNext={editIdx >= 0 && editIdx < shown.length - 1} onNav={navTo} />}
       {importing && <ImportModal onClose={() => setImporting(false)} onDone={load} />}
     </div>
   );
