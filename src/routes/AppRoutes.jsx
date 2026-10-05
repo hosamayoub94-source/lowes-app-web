@@ -71,8 +71,8 @@ const ShiftPartnersScreen      = lazy(() => import(/* webpackChunkName: "shift-p
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
 const SyriaLeadsScreen         = lazy(() => import(/* webpackChunkName: "syria-leads"      */ '@screens/SyriaLeadsScreen'));
-// Creator screens: write/sync frozen (Window 1); /creators and /creators/workbench show a read-only list via the creator-workbench-read edge function. CreatorFrozenScreen kept as a fallback.
-const CreatorReadOnlyScreen = lazy(() => import(/* webpackChunkName: "creators-readonly" */ '@screens/CreatorReadOnlyScreen'));
+// Creator screens: managed list (add/edit/delete/import) via the admin-only creator-prospects edge function; legacy workbench write/sync stays frozen (Window 1).
+const CreatorProspectsScreen = lazy(() => import(/* webpackChunkName: "creators-prospects" */ '@screens/CreatorProspectsScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
 const AdminProductsScreen      = lazy(() => import(/* webpackChunkName: "admin-products"   */ '@screens/admin/AdminProductsScreen'));
 const AdminLozyScreen          = lazy(() => import(/* webpackChunkName: "admin-lozy"       */ '@screens/admin/AdminLozyScreen'));
@@ -420,7 +420,7 @@ export function AppRoutes() {
             path={ROUTES.CREATORS_WORKBENCH}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
-                <CreatorReadOnlyScreen />
+                <CreatorProspectsScreen />
               </ProtectedRoute>
             }
           />
@@ -428,7 +428,7 @@ export function AppRoutes() {
             path={ROUTES.CREATORS}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
-                <CreatorReadOnlyScreen />
+                <CreatorProspectsScreen />
               </ProtectedRoute>
             }
           />
