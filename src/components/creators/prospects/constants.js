@@ -59,3 +59,8 @@ export function contactUrl(row) {
 // Name-only manual entries are stored under a placeholder handle until the real account is found.
 export const isPending = (r) => String(r?.handle || "").startsWith("pending_");
 export const shownHandle = (r) => (isPending(r) ? "بلا حساب بعد" : `@${r.handle}`);
+
+// Nothing recorded yet (no type, no content, no skincare focus, no decision) => "not checked yet", not "bad".
+// A low score on such a row means "unknown", so the card shows a neutral badge instead of red.
+export const isUnreviewed = (r) =>
+  !r?.creator_type && !(r?.content_types || []).length && !(r?.skincare_focus || []).length && ['needs_review', 'discovered', 'new', 'reviewing'].includes(r?.status);

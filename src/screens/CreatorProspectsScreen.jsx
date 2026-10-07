@@ -45,6 +45,7 @@ export default function CreatorProspectsScreen() {
   const [importing, setImporting] = useState(null); // true | { rows, label }
   const [sel, setSel] = useState(new Set());
   const [bulk, setBulk] = useState({ status: '', owner: '' });
+  const [startReview, setStartReview] = useState(false);
   const reqId = useRef(0);
 
   // debounce: no request per keystroke
@@ -61,6 +62,9 @@ export default function CreatorProspectsScreen() {
     setRes((prev) => (append && prev ? { ...r, rows: [...prev.rows, ...r.rows] } : r));
   }, [q, filters, sort, showDeleted]);
   useEffect(() => { fetchPage(1, false); }, [fetchPage]);
+  // «ابدأ المراجعة»: once the needs-review list has loaded, open the first account in review mode.
+  useEffect(() => { if (startReview && res && !loading) { setStartReview(false); if (res.rows.length) setEdit(res.rows[0]); } }, [startReview, res, loading]);
+  function beginReview() { setTab('list'); setQInput(''); setFilters({ ...EMPTY, status: 'needs_review' }); setSort('best'); setRes(null); setStartReview(true); }
 
   const schema = res?.schema || 'v1';
   const v2 = schema === 'v2';
@@ -97,6 +101,8 @@ export default function CreatorProspectsScreen() {
     const next = goNext && idx >= 0 ? rows[idx + 1] : null;
     patchRow(row, removed && !showDeleted);
     setEdit(next || null);
+    if (goNext && !next && res && rows.length < res.total) setMsg('خلصت هالدفعة ✓ — اضغط «عرض المزيد» بأسفل الصفحة وكمّل.');
+    else if (goNext && !next) setMsg('خلصت المراجعة لهالقائمة ✓');
   }
   async function applyBulk() {
     const patch = {};
@@ -136,6 +142,13 @@ export default function CreatorProspectsScreen() {
       {err && <div className="rounded-lg bg-red-50 text-red-700 text-sm p-3">{err}</div>}
       {msg && <div className="rounded-lg bg-emerald-50 text-emerald-800 text-sm p-2 flex"><span className="flex-1">{msg}</span><button onClick={() => setMsg('')} className="text-emerald-700" aria-label="إغلاق">✕</button></div>}
 
+      {tab === 'list' && !q && (res?.counts?.status?.needs_review || 0) > 0 && filters.status !== 'needs_review' && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-wrap items-center gap-2">
+          <div className="text-sm text-amber-900 ml-auto"><b>{res.counts.status.needs_review}</b> حساب بانتظار المراجعة — افتح الحساب، علّم شو بيصوّر، وقرّر. بياخد دقيقة لكل حساب.</div>
+          <button onClick={beginReview} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-black">ابدأ المراجعة ←</button>
+        </div>
+      )}
+
       {tab === 'discover' && (
         <DiscoveryPanel schema={schema} onAdded={(row) => patchRow(row)} onImport={(preset) => setImporting(preset)} />
       )}
@@ -171,7 +184,7 @@ export default function CreatorProspectsScreen() {
                 key={r.id} row={r} v2={v2}
                 selected={sel.has(r.id)} onSelect={() => toggle(r.id)}
                 onOpen={() => setDetail(r)} onEdit={() => setEdit(r)}
-                onSave={() => toggleSave(r)} onStatus={(s) => quickStatus(r, s)}
+                onSave={() => toggleSave(r)}
               />
             ))}
           </div>
