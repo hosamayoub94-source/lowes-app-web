@@ -107,7 +107,7 @@ export default function ImportModal({ onClose, onDone, preset }) {
           <>
             <div className="text-xs text-gray-600 leading-6">
               الأعمدة المعروفة (عربي أو إنجليزي): handle · name · followers · engagement · country · governorate · city · creator_type · content_types · skincare_focus · source · source_url · notes…
-              العمود الوحيد الإجباري هو <b>handle</b> (أو رابط الحساب). المكرر ما بينضاف مرتين.
+              الإجباري: <b>handle</b> (الحساب أو رابطه) <b>أو name</b> (الاسم) — أي واحد منهما يكفي والباقي اختياري. المكرر ما بينضاف مرتين. احفظ الملف بصيغة <b>CSV UTF-8</b> حتى ما يتخرب العربي.
               <button onClick={downloadTemplate} className="text-blue-600 font-bold mr-2">⬇ تحميل القالب</button>
             </div>
             <input type="file" accept=".csv,.xlsx,.xls" onChange={pick} className="text-sm" disabled={busy} />

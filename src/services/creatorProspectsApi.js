@@ -11,7 +11,7 @@ export async function call(action, payload = {}) {
     try { body = await error.context.clone().json(); } catch { /* not json */ }
     const st = error.context?.status;
     if (st === 401) return { ok: false, error: 'جلستك بلا هوية حقيقية — سجّل خروج ثم ادخل بالـPIN.' };
-    if (st === 403) return { ok: false, error: 'هذا القسم للأدمن فقط.' };
+    if (st === 403) return { ok: false, error: body?.message || 'ما عندك صلاحية لهالإجراء — اطلبها من الأدمن (إدارة المستخدمين).' };
     if (body?.error === 'migration_required') return { ok: false, error: 'migration_required', message: 'الحقول الجديدة (النوع، المحتوى، الحفظ…) تحتاج تطبيق migration v2 أولاً — بانتظار موافقة.' };
     return body && body.ok === false ? body : { ok: false, error: error.message };
   }

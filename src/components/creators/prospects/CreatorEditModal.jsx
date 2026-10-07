@@ -45,8 +45,7 @@ export default function CreatorEditModal({ row, owners, schema, onClose, onSaved
   const govs = GOVERNORATES[f.country] || [];
 
   async function save(goNext = false) {
-    if (!String(f.handle || '').trim()) { setErr('الحساب إلزامي (@ أو رابط).'); return; }
-    if (isNew && !String(f.source || '').trim()) { setErr('مصدر الاكتشاف إلزامي — من وين لقينا الحساب؟'); return; }
+    if (!String(f.handle || '').trim() && !String(f.name || '').trim()) { setErr('اكتب الاسم أو الحساب على الأقل — الباقي اختياري.'); return; }
     setBusy(true); setErr('');
     const body = {};
     V1_KEYS.forEach((k) => { body[k] = f[k] === undefined ? null : f[k]; });
@@ -99,7 +98,7 @@ export default function CreatorEditModal({ row, owners, schema, onClose, onSaved
         {row.deleted_at && <div className="rounded-lg bg-red-50 text-red-700 text-xs p-2">هذا الحساب محذوف. <button className="underline font-bold" onClick={restore}>استرجاع</button></div>}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <Field label="الحساب (@ أو رابط) *"><input className={inputCls} value={f.handle || ''} onChange={(e) => set('handle', e.target.value)} dir="ltr" /></Field>
+          <Field label="الحساب (@ أو رابط)" hint="اختياري إذا كتبت الاسم"><input className={inputCls} value={f.handle || ''} onChange={(e) => set('handle', e.target.value)} dir="ltr" /></Field>
           <Field label="المنصة الأساسية"><select className={inputCls} value={f.platform} onChange={(e) => set('platform', e.target.value)}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></Field>
           <Field label="الاسم"><input className={inputCls} value={f.name || ''} onChange={(e) => set('name', e.target.value)} /></Field>
           <Field label="المتابعون" hint="فارغ = غير معروف"><input className={inputCls} value={f.followers ?? ''} onChange={(e) => set('followers', e.target.value)} dir="ltr" placeholder="12500 أو 12.5K" /></Field>
@@ -124,7 +123,7 @@ export default function CreatorEditModal({ row, owners, schema, onClose, onSaved
         <Field label="تخصص العناية"><Checks all={SKINCARE_FOCUS} labels={FOCUS_AR} value={f.skincare_focus} onChange={(v) => set('skincare_focus', v)} disabled={!v2} /></Field>
 
         <div className="grid grid-cols-2 gap-2">
-          <Field label="مصدر الاكتشاف *">
+          <Field label="مصدر الاكتشاف" hint="اختياري — الافتراضي: Manual">
             <input className={inputCls} list="src-list" value={f.source || ''} onChange={(e) => set('source', e.target.value)} />
             <datalist id="src-list">{SOURCES.map((s) => <option key={s} value={s} />)}</datalist>
           </Field>

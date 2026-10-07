@@ -1,6 +1,6 @@
 // بطاقة صانع محتوى — نفس شكل البطاقة السابقة، مع Score وشارة واضحة وزر Instagram أساسي.
 import {
-  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, statusOf, fmtNum, instagramUrl, profileUrl, placeOf, contactUrl,
+  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, statusOf, fmtNum, instagramUrl, profileUrl, placeOf, contactUrl, isPending, shownHandle,
 } from './constants';
 
 export function Avatar({ row, size = 'w-10 h-10 text-base' }) {
@@ -35,7 +35,7 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onEdit, o
           <Avatar row={row} />
           <div className="min-w-0 flex-1">
             <div className="font-bold text-sm text-gray-900 truncate">{row.name || row.handle}</div>
-            <div className="text-xs text-gray-500 truncate" dir="ltr">@{row.handle} · {row.platform}</div>
+            <div className="text-xs text-gray-500 truncate" dir="ltr">{shownHandle(row)}{isPending(row) ? "" : ` · ${row.platform}`}</div>
             {place && <div className="text-[11px] text-gray-500 truncate">📍 {place}</div>}
           </div>
         </button>

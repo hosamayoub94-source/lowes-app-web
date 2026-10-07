@@ -2,7 +2,7 @@
 import { Avatar, ScoreBadge } from './CreatorCard';
 import {
   CONTENT_TYPES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUSES, STATUS_AR, STATUS_CLS, VERIFICATION_AR, VERIFY_CLS, CONFIDENCE_AR, CATEGORY_AR, WEIGHTS,
-  statusOf, fmtNum, instagramUrl, profileUrl, placeOf, contactUrl, PLATFORM_AR,
+  statusOf, fmtNum, instagramUrl, profileUrl, placeOf, contactUrl, PLATFORM_AR, isPending, shownHandle,
 } from './constants';
 
 const NA = <span className="text-gray-400">— غير متوفر</span>;
@@ -45,7 +45,7 @@ export default function CreatorDetail({ row, onClose, onEdit, onStatus, onSave, 
           <Avatar row={row} size="w-14 h-14 text-xl" />
           <div className="flex-1 min-w-0">
             <h2 className="font-black text-lg text-gray-900 truncate">{row.name || row.handle}</h2>
-            <div className="text-sm text-gray-500" dir="ltr">@{row.handle} · {PLATFORM_AR[row.platform] || row.platform}</div>
+            <div className="text-sm text-gray-500" dir="ltr">{shownHandle(row)}{isPending(row) ? "" : ` · ${PLATFORM_AR[row.platform] || row.platform}`}</div>
             <div className="mt-1 flex flex-wrap gap-1 items-center">
               <ScoreBadge row={row} big />
               <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_CLS[st] || 'bg-gray-100'}`}>{STATUS_AR[st] || st}</span>

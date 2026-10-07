@@ -55,3 +55,7 @@ export function contactUrl(row) {
   return '';
 }
 
+
+// Name-only manual entries are stored under a placeholder handle until the real account is found.
+export const isPending = (r) => String(r?.handle || "").startsWith("pending_");
+export const shownHandle = (r) => (isPending(r) ? "بلا حساب بعد" : `@${r.handle}`);

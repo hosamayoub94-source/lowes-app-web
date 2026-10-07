@@ -13,7 +13,7 @@ const keyOf = (h) => String(h).trim().replace(/^@+/, '').toLowerCase();
 
 // ---------- tiny fake of the supabase-js query builder ----------
 function makeDb(schema, seed) {
-  const tables = { creator_prospects: seed.map((r) => ({ ...r })), creator_prospect_audit: [], profiles: [{ id: 'u-admin', role_type: 'admin', is_active: true, employee_name: 'Tester' }, { id: 'u-staff', role_type: 'employee', is_active: true }] };
+  const tables = { creator_prospects: seed.map((r) => ({ ...r })), creator_prospect_audit: [], profiles: [{ id: 'u-admin', role_type: 'admin', is_active: true, employee_name: 'Tester' }, { id: 'u-staff', role_type: 'employee', is_active: true }, { id: 'u-view', role_type: 'social_manager', is_active: true, employee_name: 'Viewer', extra_permissions: ['view_creator_intelligence'], denied_permissions: [] }, { id: 'u-mgr', role_type: 'social_manager', is_active: true, employee_name: 'Manager', extra_permissions: ['view_creator_intelligence', 'manage_creator_data'], denied_permissions: [] }, { id: 'u-den', role_type: 'social_manager', is_active: true, employee_name: 'Denied', extra_permissions: ['view_creator_intelligence', 'manage_creator_data'], denied_permissions: ['manage_creator_data'] }] };
   let seq = 1000;
   class Q {
     constructor(t) { this.t = t; this.f = []; this.op = 'select'; this.lim = Infinity; this.one = null; this.ret = false; }
@@ -65,7 +65,7 @@ function makeDb(schema, seed) {
     tables,
     client: {
       from: (t) => new Q(t),
-      auth: { getUser: async (tok) => (tok === 'admin-token' ? { data: { user: { id: 'u-admin' } }, error: null } : tok === 'staff-token' ? { data: { user: { id: 'u-staff' } }, error: null } : { data: null, error: { message: 'bad' } }) },
+      auth: { getUser: async (tok) => (tok === 'admin-token' ? { data: { user: { id: 'u-admin' } }, error: null } : tok === 'staff-token' ? { data: { user: { id: 'u-staff' } }, error: null } : tok === 'view-token' ? { data: { user: { id: 'u-view' } }, error: null } : tok === 'mgr-token' ? { data: { user: { id: 'u-mgr' } }, error: null } : tok === 'den-token' ? { data: { user: { id: 'u-den' } }, error: null } : { data: null, error: { message: 'bad' } }) },
     },
   };
 }
@@ -101,9 +101,37 @@ globalThis.__db = makeDb('v2', seedV2);
 ok((await post({ action: 'search' }, null)).status === 401, 'no token -> 401');
 ok((await post({ action: 'search' }, 'staff-token')).status === 403, 'non-admin -> 403');
 
+// ================= permissions (non-admin with granted permission) =================
+globalThis.__db = makeDb('v2', seedV2);
+let r;
+ok((await post({ action: 'search' }, 'view-token')).ok, 'viewer (view perm only) can search');
+ok((await post({ action: 'list' }, 'view-token')).ok, 'viewer can list');
+r = await post({ action: 'add', row: { handle: 'x1' } }, 'view-token');
+ok(r.status === 403 && r.error === 'no permission', 'viewer cannot add');
+ok((await post({ action: 'update', id: 'r1', patch: { saved: true } }, 'view-token')).status === 403, 'viewer cannot update');
+ok((await post({ action: 'import', rows: [{ handle: 'y1' }], dry_run: false }, 'view-token')).status === 403, 'viewer cannot import');
+r = await post({ action: 'add', row: { handle: 'mgr_added' } }, 'mgr-token');
+ok(r.ok && r.row.created_by === 'Manager' && r.row.source === 'Manual', 'manager (manage perm) can add without a source -> Manual');
+ok((await post({ action: 'add', row: { handle: 'den_added' } }, 'den-token')).status === 403, 'denied_permissions overrides extra_permissions');
+ok((await post({ action: 'search' }, 'staff-token')).status === 403, 'employee without permission still 403');
+
+// ================= name-only manual entries =================
+r = await post({ action: 'add', row: { name: 'TEST' } }, 'mgr-token');
+ok(r.ok && r.row.platform === 'other' && r.row.handle === 'pending_test' && r.row.status === 'discovered', 'name only -> placeholder pending_ handle');
+r = await post({ action: 'add', row: { name: 'TEST' } }, 'mgr-token');
+ok(r.status === 409 && r.error === 'duplicate', 'same name only twice -> duplicate');
+r = await post({ action: 'add', row: { name: 'ريم الأحمد' } }, 'mgr-token');
+ok(r.ok && r.row.handle === 'pending_ريم_الأحمد', 'Arabic name-only entry');
+r = await post({ action: 'add', row: { handle: 'test 1' } }, 'mgr-token');
+ok(r.status === 400 && /مسافات/.test(r.error), 'handle with a space -> clear message');
+r = await post({ action: 'add', row: {} }, 'mgr-token');
+ok(r.status === 400, 'empty row rejected');
+r = await post({ action: 'import', rows: [{ name: 'TEST', followers: 1000 }, { name: 'Other Name' }], dry_run: true }, 'mgr-token');
+ok(r.ok && r.summary.invalid === 0 && r.summary.duplicate_existing === 1 && r.summary.new === 1, `import of name-only rows (the user's template) ${JSON.stringify(r.summary)}`);
+
 // ================= v1 schema (today) =================
 globalThis.__db = makeDb('v1', seedV1);
-let r = await post({ action: 'search', q: 'skincare' });
+r = await post({ action: 'search', q: 'skincare' });
 ok(r.ok && r.schema === 'v1' && r.total === 1 && r.rows[0].handle === 'skin.by.sama', `v1 search works (${JSON.stringify(r).slice(0, 120)})`);
 ok(typeof r.rows[0].score === 'number' && Array.isArray(r.rows[0].reasons), 'v1 search returns score + reasons');
 r = await post({ action: 'list' });
@@ -114,10 +142,8 @@ r = await post({ action: 'update', id: 'r1', patch: { status: 'needs_review' } }
 ok(r.status === 409, 'v1: v2-only status refused');
 r = await post({ action: 'update', id: 'r1', patch: { status: 'approved', notes: 'ok' } });
 ok(r.ok && r.row.status === 'approved' && r.row.notes === 'ok', 'v1: old statuses still writable');
-r = await post({ action: 'add', row: { handle: '@newone' } });
-ok(r.status === 400 && r.error === 'source_required', 'add without source refused');
-r = await post({ action: 'add', row: { handle: 'https://instagram.com/NewOne/', source: 'Google Search' } });
-ok(r.ok && r.row.status === 'new' && r.row.handle === 'NewOne', 'v1 add with source -> status new');
+r = await post({ action: 'add', row: { handle: 'https://instagram.com/NewOne/' } });
+ok(r.ok && r.row.status === 'new' && r.row.handle === 'NewOne' && r.row.source === 'Manual', 'v1 add without source -> Manual, status new');
 r = await post({ action: 'add', row: { handle: '@newone', source: 'x' } });
 ok(r.status === 409 && r.error === 'duplicate', 'dedupe: URL vs @handle vs case');
 r = await post({ action: 'import', rows: [{ handle: 'a1', content_types: 'ugc', source: 's' }, { handle: '@A1' }, { handle: 'skin.by.sama' }], dry_run: true });

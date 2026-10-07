@@ -75,11 +75,21 @@ type Row = Record<string, unknown>;
 function normalizeRow(raw: Row, opts: { requireHandle?: boolean } = { requireHandle: true }): { row?: Row; error?: string } {
   const row: Row = {};
   if (opts.requireHandle !== false) {
-    const ph = parseHandle(raw.handle ?? raw.profile_url);
-    if (!ph) return { error: "الحساب (handle) ناقص أو غير صالح" };
-    const platformRaw = cleanText(raw.platform, 20)?.toLowerCase();
-    row.platform = platformRaw && PLATFORMS.includes(platformRaw) ? platformRaw : (ph.platform || "instagram");
-    row.handle = ph.handle;
+    const given = cleanText(raw.handle ?? raw.profile_url, 300);
+    const nm = cleanText(raw.name, 100);
+    if (!given && nm) {
+      // Manual entry with a name only: keep it (needs-review) under a placeholder handle until someone finds the real account.
+      const slug = nm.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+      if (!slug) return { error: "أدخل اسماً أو حساباً" };
+      row.platform = "other";
+      row.handle = `pending_${slug}`;
+    } else {
+      const ph = parseHandle(given);
+      if (!ph) return { error: given ? "الحساب غير صالح — بلا مسافات، أو الصق رابط الحساب" : "أدخل الحساب أو الاسم" };
+      const platformRaw = cleanText(raw.platform, 20)?.toLowerCase();
+      row.platform = platformRaw && PLATFORMS.includes(platformRaw) ? platformRaw : (ph.platform || "instagram");
+      row.handle = ph.handle;
+    }
   }
   for (const f of TEXT_FIELDS) { const t = cleanText(raw[f]); if (t !== null) row[f] = t; }
   for (const f of V2_TEXT_FIELDS) { const t = cleanText(raw[f], 300); if (t !== null) row[f] = t; }
@@ -143,12 +153,21 @@ serve(async (req) => {
     if (!token) return json({ ok: false, error: "authenticated user session required" }, 401);
     const { data: auth, error: authErr } = await admin.auth.getUser(token);
     if (authErr || !auth?.user?.id) return json({ ok: false, error: "authenticated user session required" }, 401);
-    const { data: profile } = await admin.from("profiles").select("role_type,is_active,employee_name").eq("id", auth.user.id).maybeSingle();
-    if (!profile || profile.is_active === false || profile.role_type !== "admin") return json({ ok: false, error: "admin only" }, 403);
+    const { data: profile } = await admin.from("profiles").select("role_type,is_active,employee_name,extra_permissions,denied_permissions").eq("id", auth.user.id).maybeSingle();
+    if (!profile || profile.is_active === false) return json({ ok: false, error: "no permission" }, 403);
+    // Admin = everything. Anyone else needs the permission granted from /admin/users (extra_permissions minus denied_permissions),
+    // always derived server-side from the session's profile row, never from the request.
+    const extra: string[] = Array.isArray(profile.extra_permissions) ? profile.extra_permissions : [];
+    const denied: string[] = Array.isArray(profile.denied_permissions) ? profile.denied_permissions : [];
+    const has = (p: string) => profile.role_type === "admin" || (extra.includes(p) && !denied.includes(p));
+    const canManage = has("manage_creator_data");
+    const canView = has("view_creator_intelligence") || canManage;
+    if (!canView) return json({ ok: false, error: "no permission" }, 403);
     const actor = String(profile.employee_name || auth.user.id).slice(0, 100);
 
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "");
+    if (!["search", "list", "audit"].includes(action) && !canManage) return json({ ok: false, error: "no permission", message: "ما عندك صلاحية إدارة البيانات" }, 403);
     const audit = (prospect_id: string | null, act: string, changes: unknown) =>
       admin.from("creator_prospect_audit").insert({ prospect_id, action: act, actor, changes });
 
@@ -187,7 +206,7 @@ serve(async (req) => {
     if (action === "add") {
       const n = normalizeRow(body?.row || {});
       if (!n.row) return json({ ok: false, error: n.error }, 400);
-      if (!cleanText(n.row.source)) return json({ ok: false, error: "source_required", message: "مصدر الاكتشاف إلزامي" }, 400);
+      if (!cleanText(n.row.source)) n.row.source = "Manual"; // manual entry never blocked by missing info; the source is still always recorded
       if (!v2 && (hasV2Field(n.row) || isV2Status(n.row.status))) return migrationRequired();
       if (v2 && !n.row.status) n.row.status = "discovered";
       const k = keyOf(n.row.platform, n.row.handle);
