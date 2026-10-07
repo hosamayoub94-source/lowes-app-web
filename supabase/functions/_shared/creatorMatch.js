@@ -276,7 +276,8 @@ export const BADGES = {
   excellent: { icon: '⭐', label: 'مناسب جداً', cls: 'bg-amber-100 text-amber-900 border-amber-300' },
   good: { icon: '🟢', label: 'مناسب', cls: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
   review: { icon: '🟡', label: 'يحتاج مراجعة', cls: 'bg-yellow-50 text-yellow-800 border-yellow-300' },
-  low: { icon: '🔴', label: 'غير أولوية', cls: 'bg-gray-50 text-gray-600 border-gray-300' },
+  // gray, not red: a low score usually means "little evidence recorded yet", not "bad". Red is reserved for rejected accounts.
+  low: { icon: '⚪', label: 'تقييم أولي منخفض', cls: 'bg-gray-50 text-gray-600 border-gray-300' },
   unfit: { icon: '🔴', label: 'غير مناسب', cls: 'bg-red-50 text-red-700 border-red-300' },
 };
 const daysSince = (d, now) => { const t = Date.parse(d); return Number.isFinite(t) ? Math.floor((now - t) / 864e5) : null; };
