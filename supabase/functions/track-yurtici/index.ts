@@ -5,15 +5,16 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { getAccount, type YkAccount } from '../_shared/yurticiAccounts.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;   // SB_SECRET_KEY أولاً، وإلا الـservice_role المُحقَن
 const ENDPOINT = 'https://webservices.yurticikargo.com/KOPSWebServices/ShippingOrderDispatcherServices';
 const NS = 'http://yurticikargo.com.tr/ShippingOrderDispatcherServices';
 
-// نستعلم بحساب التحصيل (يرى كل شحنات الحساب 1200681314). NORMAL احتياطي.
-const WS_USER = Deno.env.get('YURTICI_COD_USER') || Deno.env.get('YURTICI_NORMAL_USER');
-const WS_PASS = Deno.env.get('YURTICI_COD_PASS') || Deno.env.get('YURTICI_NORMAL_PASS');
+// كل شحنة API تُستعلَم بالحساب الذي أُنشئت به (orders.yurtici_account) —
+// null = العقد 1 (1200681314): حساب التحصيل يرى كل شحناته، NORMAL احتياطي.
+// العقد 2 (1279282180، منذ 6 تشرين الأول 2026): _shared/yurticiAccounts.ts.
 
 const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
 // حالات مُؤكَّدة يدوياً بلا رؤية يورتيتشي عن سببها (تسوية COD/إلغاء بالتطبيق) أو
@@ -65,19 +66,30 @@ function mapStatus(opStatus: string, text: string): string | null {
   return null;
 }
 
+const xmlEsc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// خادم يورتيتشي يُسقط اتصالات بعض خوادم Supabase أحياناً (يعلق ~130ث ثم
+// «tcp connect error» — سجلات 6–7 تشرين الأول 2026). مهلة 20ث + محاولتان؛ الاستعلام
+// قراءة فقط فإعادته آمنة.
 async function soap(inner: string): Promise<string> {
   const body = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ship="${NS}"><soapenv:Body>${inner}</soapenv:Body></soapenv:Envelope>`;
-  const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' }, body });
-  return await res.text();
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' }, body, signal: AbortSignal.timeout(20000) });
+      return await res.text();
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
 }
 
 // يستعلم عن دفعة مفاتيح من نوع keyType (0=cargoKey للشحنات المُنشأة بالـAPI ·
 // 1=invoiceKey = «İrsaliye Numarası» الذي يضعه ملف Excel = order_id لشحنات الرفع).
 // يرجّع map: <المفتاح المُستعلَم به> → {opStatus, text, trackingNo}.
-async function queryBatch(keys: string[], keyType = 0): Promise<Record<string, { opStatus: string; text: string; trackingNo: string }>> {
+async function queryBatch(acc: YkAccount, keys: string[], keyType = 0): Promise<Record<string, { opStatus: string; text: string; trackingNo: string }>> {
   const keysXml = keys.map(k => `<keys>${String(k).replace(/[<>&]/g, '')}</keys>`).join('');
   const r = await soap(
-    `<ship:queryShipment><wsUserName>${WS_USER}</wsUserName><wsPassword>${WS_PASS}</wsPassword><wsLanguage>TR</wsLanguage>${keysXml}<keyType>${keyType}</keyType><addHistoricalData>true</addHistoricalData><onlyTracking>false</onlyTracking></ship:queryShipment>`
+    `<ship:queryShipment><wsUserName>${xmlEsc(acc.user)}</wsUserName><wsPassword>${xmlEsc(acc.pass)}</wsPassword><wsLanguage>TR</wsLanguage>${keysXml}<keyType>${keyType}</keyType><addHistoricalData>true</addHistoricalData><onlyTracking>false</onlyTracking></ship:queryShipment>`
   );
   const out: Record<string, any> = {};
   // كل شحنة داخل <shippingDeliveryDetailVO>...
@@ -135,11 +147,20 @@ async function syncSheet(orderId: string) {
   } catch { /* best-effort */ }
 }
 
-// اسم المُرسِل الثابت الذي يستخدمه حسابنا بيورتيتشي لكل شحنات تركيا (مقنَّع
-// من الـAPI العام بنفس الصيغة الحرفية دوماً — تحقّق حيّ 25 أيلول 2026 على 6
-// شحنات مختلفة). لو ظهر هالاسم بحقل «Receiver» فهذا يعني الطرد رجع فعلياً
-// إلينا (نحن الراسل الأصلي) لا أنه وصل الزبون — انظر تعليق mapPublic تحت.
-const YURTICI_OUR_SENDER_MASKED = 'YO** ŞA**';
+// أسماء المُرسِل الثابتة لحساباتنا بيورتيتشي (مقنَّعة من الـAPI العام بنفس الصيغة
+// الحرفية دوماً — تحقّق حيّ 25 أيلول 2026 على 6 شحنات مختلفة). لو ظهر أحدها بحقل
+// «Receiver» فهذا يعني الطرد رجع فعلياً إلينا لا أنه وصل الزبون — انظر mapPublic.
+// ⚠️ لا تقارن Receiver بـSender من نفس الرد: المرتجع شحنة عكسية جديدة مُرسِلها
+// الزبون (مُتحقَّق 6 تشرين الأول 2026 على 501967671962).
+//   'YO** ŞA**' = العقد 1 (1200681314).
+//   'LO** PR**' = العقد 2 (1279282180، LOWES PROFESYONEL …) — مُستنتَج من نمط
+//   التقنيع (أول حرفين من كل كلمة)؛ يُؤكَّد من حقل Sender لأول شحنة حقيقية عليه.
+// نفس القائمة بـgoogle-apps-script/yurtici-public-tracker.gs (YK_OUR_SENDERS).
+const YURTICI_OUR_SENDERS_MASKED = ['YO** ŞA**', 'LO** PR**'];
+const isOurName = (name?: string) => {
+  const n = (name || '').trim();
+  return YURTICI_OUR_SENDERS_MASKED.some(p => n.startsWith(p));
+};
 
 // يحوّل ShipmentStatus (نص API يورتيتشي العام) → مفتاح حالة التطبيق.
 // receiver: حقل Receiver من نفس استجابة الـAPI — الإشارة الموثوقة الوحيدة
@@ -151,7 +172,7 @@ function mapPublic(shipmentStatus: string, isDelivered: unknown, receiver?: stri
   const isDeliveredFlag = isDelivered === true || isDelivered === 'true' || t.includes('teslim edildi');
   // الطرد رجع فعلياً إلينا (المُستلِم بهالحركة = نحن الراسل الأصلي) — لا نُحسبها
   // «تم التسليم» (بيقلبها مبيعة/تسليم زائف للبائعة). بلاغ حسام 25 أيلول 2026.
-  if (isDeliveredFlag && (receiver || '').trim().startsWith(YURTICI_OUR_SENDER_MASKED)) return 'returned';
+  if (isDeliveredFlag && isOurName(receiver)) return 'returned';
   // الإرجاع/الفشل/الإلغاء لها الأولوية على IsDelivered: «İADE EDİLDİ» (راجع) يرجّع
   // IsDelivered=true لكنه إرجاع لا تسليم — لا نخلطهما (كان يقلب المرتجعات «مُسلَّم»).
   // ⚠️ 2 تشرين الأول 2026: «فشل التسليم» يُفحَص قبل «إرجاع» — نفس ترتيب mapStatus (SOAP)
@@ -172,14 +193,14 @@ function mapPublic(shipmentStatus: string, isDelivered: unknown, receiver?: stri
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  if (!WS_USER || !WS_PASS) return json({ ok: false, error: 'secrets_missing' }, 200);
+  if (!getAccount(null)) return json({ ok: false, error: 'secrets_missing' }, 200);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
   // طلبات تركيا المُنشأة عبر API (yurtici_cargo_key) وغير منتهية → تتبّع SOAP.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_id, yurtici_cargo_key, tracking_number, status, handler_name, customer_name, phone_1, sheet_synced')
+    .select('id, order_id, yurtici_cargo_key, yurtici_account, tracking_number, status, handler_name, customer_name, phone_1, sheet_synced')
     .eq('market', 'turkey')
     .not('yurtici_cargo_key', 'is', null)
     .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
@@ -191,12 +212,23 @@ Deno.serve(async (req) => {
   const results: any[] = [];
   const soapOrders = orders ?? [];
 
-  for (let i = 0; i < soapOrders.length; i += BATCH) {
-    const batch = soapOrders.slice(i, i + BATCH);
+  // تجميع حسب الحساب: كل حساب يرى شحناته فقط (العقدان منفصلان بيورتيتشي).
+  const byAccount: Record<string, any[]> = {};
+  for (const o of soapOrders) (byAccount[o.yurtici_account || ''] ||= []).push(o);
+  const chunks: { acc: YkAccount | null; batch: any[] }[] = [];
+  for (const [accId, list] of Object.entries(byAccount)) {
+    const acc = getAccount(accId || null);
+    for (let i = 0; i < list.length; i += BATCH) chunks.push({ acc, batch: list.slice(i, i + BATCH) });
+  }
+
+  for (const { acc, batch } of chunks) {
+    if (!acc) { for (const o of batch) results.push({ order: o.order_id, note: 'account_secrets_missing', account: o.yurtici_account }); continue; }
     // keyType=0 (cargoKey = order_id لشحنات API). ملاحظة: شحنات الرفع بـExcel
     // لا يتعرّف عليها يورتيتشي بـorder_id (لا cargoKey ولا invoiceKey — مُختبَر
     // حيّاً 11 يونيو)، فمفتاحها الحقيقي يجب جلبه من Teslim Listesi.
-    const map = await queryBatch(batch.map(o => o.yurtici_cargo_key), 0);
+    let map: Awaited<ReturnType<typeof queryBatch>>;
+    try { map = await queryBatch(acc, batch.map(o => o.yurtici_cargo_key), 0); }
+    catch { for (const o of batch) results.push({ order: o.order_id, note: 'soap_unreachable' }); continue; }
     for (const o of batch) {
       const hit = map[o.yurtici_cargo_key];
       if (!hit) { results.push({ order: o.order_id, note: 'no_response' }); continue; }
