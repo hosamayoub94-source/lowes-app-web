@@ -3,6 +3,26 @@
 
 ---
 
+### 🗓️ جلسة 7 تشرين الأول 2026 — 🚚 عقد يورتيتشي الثاني (1279282180، فرع Yenikapı) — D-095
+**الطلب:** حسام أرسل إيميل يورتيتشي «API KODU TALEBİ» (6 تشرين الأول): عقد ثانٍ باسم الشركة LOWES PROFESYONEL فيه 4 حسابات API — GÖ/AÖ × NORMAL/TAHSİLATLI. **قراراته:** كل شحنة جديدة على العقد الجديد (القديم 1200681314 للتتبّع فقط) · «أجور الشحن على العميل» ← AÖ، وإلا GÖ؛ التحصيل ← TAHSİLATLI · الجدول: رقم التتبّع + الحالة فقط.
+
+**ما نُفِّذ (فرع `feat/yurtici-contract-2`، worktree `lowes-app-web-yk2`، من origin/main):**
+- `supabase/functions/_shared/yurticiAccounts.ts` — سجلّ حسابات العقدين. العقد 2 يُفعَّل تلقائياً متى وُجدت أسراره الأربعة (`YK2_{GO,AO}_{NORMAL,COD}_{USER,PASS}`)، وإلا يبقى الإنشاء على العقد 1 كما كان.
+- `create-yurtici-shipment` (v47 منشور): اختيار الحساب + حفظ `orders.yurtici_account` · **إصلاح:** قاعدة التحصيل وُحِّدت مع `yurticiRow` (طلب `payment_status=paid` لا يُطلب تحصيله) · `ttDocumentId` فريد لكل شحنة على العقد 2 (الدليل التقني: «Tahsilâtlı Teslimat Fatura No») · `test:true` + `forceAccount` لتجربة أي حساب (إنشاء ثم إلغاء) · مهلة 15ث × 3 محاولات + رسالة «خادم يورتيتشي لم يستجب».
+- `track-yurtici` (v68 منشور): كل شحنة API تُستعلَم بحسابها (null = العقد 1) · دفعة SOAP فاشلة تُتخطّى (`soap_unreachable`) بدل إسقاط التشغيل كله · كشف المرتجع يقبل `'YO** ŞA**'` (العقد 1) و`'LO** PR**'` (العقد 2 — **مُستنتَج**، أكّده من حقل `Sender` لأول شحنة حقيقية).
+- عمود `orders.yurtici_account` (migration `20261006_yurtici_account.sql`، مطبّق).
+- سكربت الجدول الحيّ (Dashboard 1ub2zm، `YurticiPublicTracker.gs`): `YK_OUR_SENDERS` + `yk_isOurName` — حُفظ ومُتحقَّق بعد إعادة التحميل. + نسخة الريبو مطابقة.
+
+**🔎 اكتشافان:**
+1. **المرتجع شحنة عكسية جديدة:** `Sender` فيها = الزبون و`Receiver` = نحن (مُتحقَّق على 501967671962). لذلك لا تُقارن Receiver بـSender من نفس الرد — قائمة أسمائنا المقنَّعة هي الإشارة.
+2. **🔴 خادم يورتيتشي SOAP (IP واحد 92.45.66.120) يُسقط اتصالات Supabase متقطّعاً** — تعليق ~130ث ثم `tcp connect error` بكل المناطق، منذ 6 تشرين الأول 20:29 على الأقل (قبل أي تعديل). من جهازنا يرد بـ0.2ث. لا يُحلّ من الكود كلياً؛ إن استمر ← اطلب من يورتيتشي whitelist أو مرّر الطلبات عبر وسيط.
+
+**مُتحقَّق حيّاً:** debug (أسرار العقد 1 موجودة، YK2 غائبة ← `contract2Ready:false`) · إنشاء+إلغاء تجريبي على العقد 1 نجح (`YK1_COD`, تحصيل 1300) · `track-yurtici` يدوي `ok:true` على 50 طلب · منطق التوجيه 11/11 (stub لـDeno.env).
+
+**⏳ متبقّي:** (1) حسام يلصق أسرار `YK2_*` الثمانية بلوحة Supabase → Edge Functions → Secrets (CLI غير مسجّل دخول هنا). (2) بعدها: `{debug:true}` ← `contract2Ready:true`، ثم `{orderId, test:true, forceAccount:"YK2_GO_NORMAL"|"YK2_GO_COD"|"YK2_AO_NORMAL"|"YK2_AO_COD"}` لكل حساب. (3) أول شحنة حقيقية: تأكيد رقم التتبّع بالجدول + اسم المُرسِل. (4) دمج الفرع لـmain بعد D-089 (لا تعديل واجهة). (5) ملف Excel اليدوي يُرفع الآن من حساب العقد الجديد ببوابة يورتيتشي.
+
+---
+
 ### 🗓️ جلسة 30 أيلول 2026 (نشر) — 🚀 نشر Creator Intelligence + 🔴 INCIDENT-2026-09-30-A: كسر `/syria-leads` بعد نقل الـalias (أثر إنتاجي قصير، مُعالَج)
 
 **النشر النهائي (Live):** commit `e362b7086b0e3f01f8ebc2c494299f074354e0ca` على `main` ⇒ النشرة `dpl_FQJWNHtqmzr2B3wYaw6QwhixQndo` (`lowes-app-ikw1qgjl2-lowes1.vercel.app`) والدومين الرئيسي `lowes-app-web.vercel.app` موجَّه لها. الـcommit السابق للميزة: `3079983`. الحالة: Production مستقر ✅ · Routing مُصلَح ومُتحقَّق ✅ · Workbench يعمل ✅ · قاعدة Creator غير مفعّلة ⏸️ · لا migration ولا تعديل بيانات إنتاج ✅ · Pilot لم يبدأ ⏸️.
