@@ -347,11 +347,20 @@ serve(async (req) => {
       if (dryRun) return json({ ok: true, dry_run: true, schema: v2 ? "v2" : "v1", summary, ...preview });
 
       let inserted = 0, merged = 0;
-      for (let i = 0; i < toInsert.length; i += 100) {
-        const chunk = toInsert.slice(i, i + 100).map((f) => ({ ...f.row, cohort, source: (f.row.source as string) || label, created_by: actor, updated_by: actor }));
-        const { data, error } = await admin.from("creator_prospects").upsert(chunk, { onConflict: "platform,handle_key", ignoreDuplicates: true }).select("id");
-        if (error) return json({ ok: false, error: "insert failed", summary, inserted }, 500);
-        inserted += data?.length ?? 0;
+      // PostgREST bulk insert requires every object in one request to have the SAME keys (PGRST102),
+      // and rows from a file differ (some have email/phone, some not). Group rows by their key set and insert each group.
+      const groups = new Map<string, Row[]>();
+      for (const f of toInsert) {
+        const r = { ...f.row, cohort, source: (f.row.source as string) || label, created_by: actor, updated_by: actor };
+        const sig = Object.keys(r).sort().join(",");
+        groups.set(sig, [...(groups.get(sig) || []), r]);
+      }
+      for (const rows of groups.values()) {
+        for (let i = 0; i < rows.length; i += 100) {
+          const { data, error } = await admin.from("creator_prospects").upsert(rows.slice(i, i + 100), { onConflict: "platform,handle_key", ignoreDuplicates: true }).select("id");
+          if (error) return json({ ok: false, error: "insert failed", detail: error.message, summary, inserted }, 500);
+          inserted += data?.length ?? 0;
+        }
       }
       if (merge) {
         for (const d of dupExisting) {

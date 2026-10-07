@@ -38,6 +38,9 @@ function makeDb(schema, seed) {
       if (this.op === 'select') out = rows.filter((r) => this.f.every((fn) => fn(r))).slice(0, this.lim);
       else if (this.op === 'insert' || this.op === 'upsert') {
         out = [];
+        // mirror PostgREST: a bulk payload must have identical keys in every object (PGRST102)
+        const sig = (o) => Object.keys(o).sort().join(',');
+        if (this.payload.length > 1 && this.payload.some((p) => sig(p) !== sig(this.payload[0]))) return { data: null, error: { code: 'PGRST102', message: 'All object keys must match' } };
         for (const p of this.payload) {
           if (this.badCol(p)) return colErr;
           if (this.t === 'creator_prospects') {
@@ -188,12 +191,17 @@ ok(globalThis.__db.tables.creator_prospect_audit.length > 0, 'audit written');
 const discDir = path.join(root, 'data/creators/syria');
 for (const f of (fs.existsSync(discDir) ? fs.readdirSync(discDir) : []).filter((n) => /^discovery_\d{4}-\d{2}-\d{2}(-v\d+)?\.csv$/.test(n))) {
   const csvPath = path.join(discDir, f);
+  globalThis.__db = makeDb('v2', seedV2);
   const XLSX = (await import('xlsx')).default;
   const wb = XLSX.read(fs.readFileSync(csvPath, 'utf8').replace(/^﻿/, ''), { type: 'string' });
   const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: false });
   const rows = sheet.map((r) => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== '')));
   r = await post({ action: 'import', rows, dry_run: true });
   ok(r.ok && r.summary.invalid === 0 && r.summary.new === rows.length, `${f} imports cleanly ${JSON.stringify(r.summary)} ${JSON.stringify(r.invalid)}`);
+  // real insert (not just preview) on a fresh DB — rows have different key sets, like the real file
+  globalThis.__db = makeDb('v2', seedV2);
+  r = await post({ action: 'import', rows, dry_run: false, merge: true });
+  ok(r.ok && r.inserted === rows.length, `${f} real insert ${JSON.stringify({ ok: r.ok, inserted: r.inserted, error: r.error, detail: r.detail })}`);
 }
 
 console.log(`creator-prospects fn: ${pass} passed, ${fail} failed`);
