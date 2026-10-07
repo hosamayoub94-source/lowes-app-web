@@ -213,8 +213,11 @@ export async function signOut() {
     }
   } catch { /* best-effort */ }
 
-  // Sign out from Supabase (ignore error if there's no Supabase session)
-  await supabase.auth.signOut().catch(() => {});
+  // Sign out from Supabase (ignore error if there's no Supabase session).
+  // scope:'local' is REQUIRED: supabase-js defaults to 'global', which revokes every refresh token of this user,
+  // so logging out on one device (e.g. an admin checking an employee's account) kicked that employee's own laptop/phone
+  // out too ("disconnects then reopens"). 'local' only ends THIS device's session.
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 }
 
 // -------------------------------------------------------------
