@@ -18,6 +18,8 @@ import { PERMISSIONS as P } from '../../../src/data/permissions';
 import { ROLES } from '../../../src/data/teams';
 import { normalizeRegion, normalizeCity, waLinkFor, websiteKey, nameKey } from '../../../supabase/functions/_shared/countries.js';
 import SyriaLeadsScreen from '../../../src/screens/SyriaLeadsScreen.jsx';
+import B2BLeadsEntry from '../../../src/routes/B2BLeadsEntry.jsx';
+import { Sidebar } from '../../../src/layouts/Sidebar.jsx';
 
 const qs = new URLSearchParams(location.search);
 const PERSONAS = {
@@ -124,15 +126,23 @@ function Bar() {
   );
 }
 
+// ?oldfav=1 → seed a favorite saved under the OLD id (syria-leads) to check it still shows on the single item
+if (qs.get('oldfav')) { try { localStorage.setItem('lowes:favorites:anon', JSON.stringify(['syria-leads'])); } catch { /* ignore */ } }
+
 createRoot(document.getElementById('root')).render(
-  <MemoryRouter initialEntries={[qs.get('route') || ROUTES.UAE_LEADS]}>
+  <MemoryRouter initialEntries={[qs.get('route') || ROUTES.B2B_LEADS]}>
     <Bar />
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: 16 }}>
-      <Routes>
-        <Route path={ROUTES.HOME} element={<p dir="rtl" data-testid="home">🏠 الرئيسية — تم التحويل لأن الصلاحية غير متوفرة</p>} />
-        <Route path={ROUTES.SYRIA_LEADS} element={<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}><SyriaLeadsScreen key="SY" country="SY" /></ProtectedRoute>} />
-        <Route path={ROUTES.UAE_LEADS} element={<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_UAE_LEADS}><SyriaLeadsScreen key="AE" country="AE" /></ProtectedRoute>} />
-      </Routes>
+    <div dir="rtl" style={{ display: 'flex', gap: 16 }}>
+      <Sidebar />
+      <div style={{ flex: 1, maxWidth: 760, margin: '0 auto', padding: 16 }}>
+        <Routes>
+          <Route path={ROUTES.HOME} element={<p dir="rtl" data-testid="home">🏠 الرئيسية — تم التحويل لأن الصلاحية غير متوفرة</p>} />
+          <Route path={ROUTES.B2B_LEADS} element={<B2BLeadsEntry />} />
+          <Route path={ROUTES.SYRIA_LEADS} element={<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}><SyriaLeadsScreen key="SY" country="SY" /></ProtectedRoute>} />
+          <Route path={ROUTES.UAE_LEADS} element={<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_UAE_LEADS}><SyriaLeadsScreen key="AE" country="AE" /></ProtectedRoute>} />
+          <Route path="*" element={<p dir="rtl">(صفحة أخرى بالتطبيق — خارج الـharness)</p>} />
+        </Routes>
+      </div>
     </div>
   </MemoryRouter>,
 );

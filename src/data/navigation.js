@@ -47,11 +47,11 @@ export const NAV_ITEMS = [
   { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'orders-uae',    label: 'طلبات الإمارات', icon: '🇦🇪', path: '/orders/uae', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
-  // roles: [A] فقط بشكل افتراضي — الوصول الفعلي لموظفين محدَّدين عبر منح
-  // صلاحية VIEW_SYRIA_LEADS يدوياً من /admin/users (roles/perm لازم يتطابقا
-  // مع AppRoutes.jsx، نفس نمط admin-whatsapp أعلاه).
-  { id: 'syria-leads',  label: 'ليدز سوريا B2B', icon: '📇', path: '/syria-leads', roles: [A],            group: 'sales', perm: P.VIEW_SYRIA_LEADS },
-  { id: 'uae-leads',    label: 'ليدز الإمارات B2B', icon: '🇦🇪', path: '/uae-leads', roles: [A],           group: 'sales', perm: P.VIEW_UAE_LEADS },
+  // ليدز B2B — بند واحد لكل الدول (D-119): roles: [A] افتراضياً، ويظهر لأي موظف
+  // ممنوح صلاحية أي دولة (VIEW_SYRIA_LEADS / VIEW_UAE_LEADS) من /admin/users.
+  // /b2b-leads يفتح آخر دولة مسموحة، والتبديل بين الدول من داخل الشاشة.
+  // مسار كل دولة محمي بصلاحيتها بـAppRoutes.jsx. `match` = يبقى البند نشطاً على صفحات الدول.
+  { id: 'b2b-leads',    label: 'ليدز B2B', icon: '📇', path: '/b2b-leads', roles: [A],                group: 'sales', perm: [P.VIEW_SYRIA_LEADS, P.VIEW_UAE_LEADS], match: ['/syria-leads', '/uae-leads'] },
   { id: 'creators',      label: 'صناع المحتوى', icon: '🎥', path: '/creators', roles: [A],            group: 'sales', perm: P.VIEW_CREATOR_INTELLIGENCE },
   { id: 'chat',         label: 'المحادثات',  icon: '💬', path: '/chat',        roles: ALL,                 group: 'core' },
   { id: 'training',     label: 'التدريب',    icon: '🧠', path: '/training',    roles: ALL,                 group: 'self' },
@@ -121,8 +121,21 @@ export const NAV_ITEMS = [
 // changing roles). permSet is an optional Set of permission keys.
 function _visible(item, role, permSet) {
   if (item.roles.includes(role)) return true;
-  if (item.perm && permSet && permSet.has(item.perm)) return true;
+  // perm can be one key or a list (any of them reveals the item — e.g. «ليدز B2B» for any country)
+  const perms = Array.isArray(item.perm) ? item.perm : item.perm ? [item.perm] : [];
+  if (permSet && perms.some((p) => permSet.has(p))) return true;
   return false;
+}
+
+// Old nav ids that were merged into one item — keeps users' saved favorites (☆) working.
+export const NAV_ID_ALIASES = { 'syria-leads': 'b2b-leads', 'uae-leads': 'b2b-leads' };
+export function canonicalNavIds(ids) {
+  return [...new Set((ids || []).map((id) => NAV_ID_ALIASES[id] || id))];
+}
+
+/** Is a nav item active for this pathname? (own path, or any of its `match` prefixes) */
+export function navItemMatches(item, pathname) {
+  return (item.match || []).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export function navItemsForRole(role, permSet = null) {
