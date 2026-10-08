@@ -1,0 +1,18 @@
+[
+ {"name":"Sephora Middle East","type":"beauty-retail-chain","urls":["https://www.sephora.me/ae-en","https://www.sephora.me/ae-en/"],"origin":"search: sephora.me store pages"},
+ {"name":"Kaya Skin Clinic","type":"skin-clinic-chain","urls":["https://www.kaya.ae/","https://kayaskinclinic.com/ae/","https://www.kayaclinic.com/"],"origin":"DHR registry result"},
+ {"name":"JamaliBox","type":"subscription-box","urls":["https://jamalibox.com/","https://www.jamalibox.com/"],"origin":"search: beauty box UAE"},
+ {"name":"Haul In One","type":"subscription-box","urls":["https://haulinone.ae/","https://www.haulinone.com/","https://haulinone.com/"],"origin":"hiDubai subscription boxes"},
+ {"name":"Medicina Pharmacy","type":"pharmacy-chain","urls":["https://www.medicina.ae/","https://medicina.ae/","https://www.medicinapharmacy.com/"],"origin":"search: sharjah pharmacy"},
+ {"name":"Thumbay Pharmacy","type":"pharmacy-chain","urls":["https://thumbaypharmacy.com/","https://www.thumbaypharmacy.com/","https://www.thumbayretail.com/"],"origin":"Gulf Medical University page"},
+ {"name":"Lush UAE","type":"beauty-retail-chain","urls":["https://www.lush.ae/","https://lush.ae/en"],"origin":"search: abu dhabi beauty"},
+ {"name":"Beautyworld Middle East (trade fair)","type":"trade-fair-route","urls":["https://beautyworld-middle-east.ae.messefrankfurt.com/dubai/en.html","https://beautyworld-middle-east.ae.messefrankfurt.com/"],"origin":"search: beautyworld"},
+ {"name":"Fakhree Al Hindi Group (retry)","type":"distributor","urls":["https://fakhreealhindi.com/"],"origin":"Signé Magazine"},
+ {"name":"Powder (retry)","type":"independent-online-store","urls":["https://www.powder.ae/en","https://powder.ae/en"],"origin":"Harper's"},
+ {"name":"BinSina (retry)","type":"pharmacy-chain","urls":["https://www.binsina.ae/en/","https://binsina.ae/en/home"],"origin":"search"},
+ {"name":"Boots UAE (retry)","type":"pharmacy-beauty-chain","urls":["https://www.boots.com/en-ae","https://www.bootsuae.com","https://boots.ae"],"origin":"requested"},
+ {"name":"Al Manara Pharmacy (retry)","type":"pharmacy-chain","urls":["https://almanarapharmacy.com/en","https://www.almanarapharmacy.ae/"],"origin":"search"},
+ {"name":"Namshi (retry)","type":"marketplace","urls":["https://www.namshi.com/uae-en/beauty/","https://www.namshi.com"],"origin":"search"},
+ {"name":"noon (retry)","type":"marketplace","urls":["https://www.noon.com/uae-en/beauty/","https://www.noon.com"],"origin":"search"},
+ {"name":"Skin Story (retry)","type":"independent-store","urls":["https://www.theskinstory.com/","https://theskinstory.ae/","https://skinstory.com/"],"origin":"Namshi brand page"}
+]

@@ -1,0 +1,408 @@
+{
+ "entities": [
+  {
+   "name": "800 Pharmacy",
+   "emirate": "Dubai",
+   "type": "صيدلية",
+   "website": "https://800pharmacy.ae",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [
+    "80074276229"
+   ],
+   "sources": [
+    "https://800pharmacy.ae",
+    "https://www.talabat.com/uae/pharmacy/696395/800-pharmacy-al-dhait/skincare/sun-care?aid=3926"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Bloomingdale's UAE",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — عام",
+   "website": "https://bloomingdales.ae",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://bloomingdales.ae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Comptoir 102",
+   "emirate": "Dubai",
+   "type": "متجر/مورد مستحضرات",
+   "website": "https://comptoir102.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://comptoir102.com",
+    "https://buro247.me/?p=21671"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "K-Beauty Arabia",
+   "emirate": "Dubai",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://kbeautyarabia.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [
+    "Wholesale Queries → https://kbeauty-wholesale.com/"
+   ],
+   "published_contact": [
+    "hello@kbeautyarabia.com"
+   ],
+   "sources": [
+    "https://kbeautyarabia.com",
+    "https://sortlist.co.uk/agency/k-beauty-arabia"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Lamise Beauty",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://www.lamisebeauty.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://www.lamisebeauty.com",
+    "https://thenationalnews.com/lifestyle/fashion-beauty/2023/11/05/korean-beauty-products-uae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "MissPalettable",
+   "emirate": "Dubai",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://misspalettable.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://misspalettable.com",
+    "https://yourstory.com/ys-gulf/dubai-bootstrapped-d2c-startup-miss-palettable-clean-conscious-beauty-brands"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Paris Gallery",
+   "emirate": "Nationwide",
+   "type": "سلسلة تجميل/صيدليات",
+   "website": "https://parisgallery.ae",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [
+    "info@parisgallery.ae"
+   ],
+   "sources": [
+    "https://parisgallery.ae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Union Coop",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — عام",
+   "website": "https://www.unioncoop.ae",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [
+    "Supplier Portal → https://supplierportal.unioncoop.ae/"
+   ],
+   "published_contact": [
+    "info@unioncoop.ae",
+    "8008889"
+   ],
+   "sources": [
+    "https://www.unioncoop.ae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Xpressions Style",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://xpressions.ae",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [
+    "Sell on Xpressions → https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program"
+   ],
+   "published_contact": [
+    "info@xpressionsstyle.com"
+   ],
+   "sources": [
+    "https://xpressions.ae",
+    "https://xpressions.ae/blogs/news/your-ultimate-guide-to-the-top-30-cosmetic-shops-in-dubai-2025-edition"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "JamaliBox",
+   "emirate": "Dubai",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://jamalibox.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://jamalibox.com",
+    "https://www.cbinsights.com/compare/birchbox-vs-jamalibox"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Fakhree Al Hindi Group",
+   "emirate": "Dubai",
+   "type": "موزّع",
+   "website": "https://fakhreealhindi.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://fakhreealhindi.com",
+    "https://signemagazine.com/femme/maruderm-turkeys-leading-clean-beauty-brand-launches-in-the-uae-with-watsons"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Najafi (Najafi International / Najafi Cosmetics)",
+   "emirate": "Dubai",
+   "type": "موزّع",
+   "website": "https://najafi.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://najafi.com",
+    "https://oncosmetics.com/company/najafi-international",
+    "https://exhibitor.beautyworldksa.com/exhibitor-search-en/exhibitor-search.detail.html/najafi-cosmetics-co-llc.html"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Thumbay Pharmacy",
+   "emirate": "Nationwide",
+   "type": "صيدلية",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://gmu.ac.ae/health-care/thumbay-pharmcay/"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Medicina Pharmacy",
+   "emirate": "Sharjah",
+   "type": "صيدلية",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://www.bayut.com/mybayut/online-pharmacies-sharjah/"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Kaya Skin Clinic",
+   "emirate": "Nationwide",
+   "type": "عيادة جلدية",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://dhr.gov.ae/en/waffer/participantsdetails/health/kaya-skin-care-clinic1"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Chicsta",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://www.harpersbazaararabia.com/beauty/skin-care/where-to-buy-korean-skincare-beauty-kbeauty-uae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Shofon",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://www.harpersbazaararabia.com/beauty/skin-care/where-to-buy-korean-skincare-beauty-kbeauty-uae",
+    "https://www.shofon.com/"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Nessa Beauty",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": "https://nessabeauty.com",
+   "website_check": "verified (own site: 200 + name + UAE)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://nessabeauty.com",
+    "https://thenationalnews.com/lifestyle/fashion-beauty/2023/11/05/korean-beauty-products-uae"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Powder",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://www.harpersbazaararabia.com/beauty/skin-care/where-to-buy-korean-skincare-beauty-kbeauty-uae",
+    "https://gulfbusiness.com/en/2020/saudi-arabia/uae-based-clean-beauty-retailer-powder-launches-in-saudi-arabia"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  },
+  {
+   "name": "Aspire Beauty Co",
+   "emirate": "Nationwide",
+   "type": "متجر أونلاين — تجميل",
+   "website": null,
+   "website_check": "not verified (blocked / failed / mismatch)",
+   "seller_or_supplier_route": [],
+   "published_contact": [],
+   "sources": [
+    "https://aeworld.com/?p=89987"
+   ],
+   "verified_at": "2026-10-08",
+   "lowes_presence": "غير متحقق",
+   "overlap_with_batch1": false
+  }
+ ],
+ "intel": [
+  {
+   "name": "Maruderm (Turkish skincare) via Fakhree Al Hindi → Watsons",
+   "kind": "precedent",
+   "fact": "UAE debut Sept 2025, exclusively through Fakhree Al Hindi Group; 17 Watsons stores (brand-promotional article).",
+   "url": "https://signemagazine.com/femme/maruderm-turkeys-leading-clean-beauty-brand-launches-in-the-uae-with-watsons"
+  },
+  {
+   "name": "Beautyworld Dubai 2026",
+   "kind": "route",
+   "fact": "6–8 Oct 2026, Dubai World Trade Centre; trade visitors 18+ only; online registration closed (day 3 of 3 today). 2026 exhibitor list is public on the fair site — mine it for distributors.",
+   "url": "https://beautyworld-middle-east.ae.messefrankfurt.com/dubai/en.html"
+  },
+  {
+   "name": "Chalhoub Greenhouse × Instagram Beauty Lab",
+   "kind": "route",
+   "fact": "Programme supporting early-stage beauty/skincare startups in the region (2023 second edition; current status unknown).",
+   "url": "https://www.chalhoubgroup.com/en/media/59/female-entrepreneurs-to-be-offered-full-support-to-grow-their-beauty-startups-in-the-region"
+  },
+  {
+   "name": "Al-Futtaim Procurement (Suppliers page)",
+   "kind": "supplier-entry",
+   "fact": "Official corporate \"Our Suppliers\" procurement page (group-wide, not beauty-specific).",
+   "url": "https://www.alfuttaim.com/en/suppliers/"
+  },
+  {
+   "name": "Majid Al Futtaim \"Partner with us\"",
+   "kind": "supplier-entry",
+   "fact": "Official \"Become a Partner — contact us\" page (group-wide, franchise-oriented examples).",
+   "url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us"
+  },
+  {
+   "name": "talabat \"Become a partner\"",
+   "kind": "supplier-entry",
+   "fact": "Partner portal link on talabat UAE homepage; terms not read (JS app).",
+   "url": "https://ae.partner.talabat.com/s/?language=en_US"
+  },
+  {
+   "name": "Union Coop Supplier Portal",
+   "kind": "supplier-entry",
+   "fact": "Supplier portal link on unioncoop.ae; login portal.",
+   "url": "https://supplierportal.unioncoop.ae/"
+  },
+  {
+   "name": "Xpressions \"Sell on Xpressions\"",
+   "kind": "supplier-entry",
+   "fact": "Partner-program page linked from the site (429, terms not read).",
+   "url": "https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program"
+  },
+  {
+   "name": "K-Beauty Arabia wholesale",
+   "kind": "supplier-entry",
+   "fact": "\"Wholesale Queries\" link on the site (429, terms not read).",
+   "url": "https://kbeauty-wholesale.com/"
+  },
+  {
+   "name": "Single-brand chains (not retailer targets)",
+   "kind": "excluded",
+   "fact": "The Body Shop UAE, L'Occitane UAE, Bath & Body Works UAE, Lush UAE, Eqqualberry UAE (official Korean-brand store): own-brand shops — not channels for a third-party brand.",
+   "url": null
+  },
+  {
+   "name": "Domains excluded after verification",
+   "kind": "excluded",
+   "fact": "nokbeauty.com now serves a gambling-spam page; ixora.ae is a parked domain; theskinstory.com is an unrelated non-UAE site; haul-in-one.com is a freight quote portal. None used.",
+   "url": null
+  },
+  {
+   "name": "Names with no source gathered yet (not researched)",
+   "kind": "gap",
+   "fact": "Ounass, Sivvi, Lulu Hypermarket, Spinneys, Alshaya Group, Landmark Group, Rituals, Boots UAE site, Al Manara site, BinSina site (blocked/failed fetch).",
+   "url": null
+  }
+ ]
+}
