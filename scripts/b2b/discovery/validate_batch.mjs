@@ -12,6 +12,12 @@ const batchFiles = process.argv.slice(2);
 const existing = [];       // pretend DB: batch1 already imported as AE rows + a Syria row
 const b1 = JSON.parse(fs.readFileSync(path.join(WT, 'data/b2b/uae/uae_batch1_2026-10-08.json'), 'utf8')).rows;
 b1.forEach((r, i) => existing.push({ id: `UAE-B1-${i}`, country: 'AE', province: r.province, name: r.name, website: r.website || null }));
+// earlier discovery batches count as "already there" too, unless they are the file being validated
+const discDir = path.join(WT, 'data/b2b/uae/discovery_2026-10-08');
+const validating = new Set(process.argv.slice(2).map((f) => path.resolve(f)));
+fs.readdirSync(discDir).filter((f) => /^uae_stores_batch\d+_.*\.json$/.test(f) && !validating.has(path.resolve(discDir, f))).forEach((f) => {
+  JSON.parse(fs.readFileSync(path.join(discDir, f), 'utf8')).rows.forEach((r, i) => existing.push({ id: `UAE-${f.slice(11, 17)}-${i}`, country: 'AE', province: r.province, name: r.name, website: r.website || null }));
+});
 // every website already used by the Syria seed (global unique index!)
 const syria = fs.readdirSync(path.join(WT, 'supabase/data')).filter((f) => f.endsWith('.sql')).map((f) => fs.readFileSync(path.join(WT, 'supabase/data', f), 'utf8')).join('\n');
 const syriaSites = [...new Set([...syria.matchAll(/'(https?:\/\/[^'\s]+)'/g)].map((m) => m[1]))];
