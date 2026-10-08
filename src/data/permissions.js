@@ -37,6 +37,7 @@ export const PERMISSIONS = {
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
   SEND_WHATSAPP:        'send_whatsapp',         // open/reply to WhatsApp chats with customers (official number)
   VIEW_SYRIA_LEADS:     'view_syria_leads',      // Syria B2B leads database (pharmacies/clinics/distributors) — view + update contact status
+  VIEW_UAE_LEADS:       'view_uae_leads',        // UAE B2B leads (D-119) — view + team fields; checked again server-side by the b2b-leads function
   VIEW_CREATOR_INTELLIGENCE:   'view_creator_intelligence',   // صناع المحتوى: عرض القاعدة والتقارير
   MANAGE_CREATOR_DATA:          'manage_creator_data',          // إضافة/تعديل/استيراد صناع المحتوى
   MANAGE_CREATOR_RESEARCH:      'manage_creator_research',      // مصادر البحث وجودة البيانات
@@ -69,6 +70,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
   [PERMISSIONS.SEND_WHATSAPP]:        'التواصل مع العملاء عبر واتساب الرسمي',
   [PERMISSIONS.VIEW_SYRIA_LEADS]:     'قاعدة بيانات ليدز سوريا B2B',
+  [PERMISSIONS.VIEW_UAE_LEADS]:       'قاعدة بيانات ليدز الإمارات B2B',
   [PERMISSIONS.VIEW_CREATOR_INTELLIGENCE]: 'رؤية قاعدة صناع المحتوى (مؤثرين/UGC/بلوجرز) ومصادر بياناتهم.',
   [PERMISSIONS.MANAGE_CREATOR_DATA]:        'إضافة وتعديل واستيراد بيانات صناع المحتوى.',
   [PERMISSIONS.MANAGE_CREATOR_RESEARCH]:    'إدارة مصادر البحث وتقييم جودة البيانات.',
@@ -105,6 +107,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.MANAGE_GUIDES]:       'إضافة وتعديل أدلة استخدام التطبيق (تظهر في الدليل ولوزي تعرفها).',
   [PERMISSIONS.SEND_WHATSAPP]:       'فتح محادثة والرد على العملاء عبر رقم واتساب الرسمي — الموظف بدون هالصلاحية ما يشوف الشاشة إطلاقاً، ومع الصلاحية يشوف بس محادثاته هو (الأدمن/المدير يشوفوا الكل).',
   [PERMISSIONS.VIEW_SYRIA_LEADS]:    'رؤية قاعدة بيانات مرشحي B2B بسوريا (صيدليات/عيادات/مراكز تجميل/موزعين) وتحديث حالة التواصل معهم. الموظف بدونها ما يشوف الشاشة إطلاقاً.',
+  [PERMISSIONS.VIEW_UAE_LEADS]:      'رؤية قاعدة مرشحي B2B بالإمارات (منصات، صيدليات، متاجر تجميل، موزعين) وتحديث حالة التواصل وتواجد Lowe\'s. منفصلة عن سوريا: صلاحية سوريا لا تُظهر بيانات الإمارات والعكس.',
 };
 
 // Logical groups — drive the sectioned UI in the permissions editor.
@@ -123,6 +126,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.SEND_WHATSAPP] },
   { key: 'syria_leads', icon: '📇', label: 'ليدز سوريا B2B',
     permissions: [PERMISSIONS.VIEW_SYRIA_LEADS] },
+  { key: 'uae_leads', icon: '🇦🇪', label: 'ليدز الإمارات B2B',
+    permissions: [PERMISSIONS.VIEW_UAE_LEADS] },
   { key: 'creators', icon: '🎥', label: 'صناع المحتوى',
     permissions: [PERMISSIONS.VIEW_CREATOR_INTELLIGENCE, PERMISSIONS.MANAGE_CREATOR_DATA, PERMISSIONS.MANAGE_CREATOR_RESEARCH, PERMISSIONS.MANAGE_CREATOR_CAMPAIGNS] },
   { key: 'system',     icon: '⚙️', label: 'النظام',
