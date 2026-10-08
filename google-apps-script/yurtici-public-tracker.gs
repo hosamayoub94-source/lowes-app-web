@@ -35,18 +35,25 @@ var YK_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 var YK_TOKEN = 'LOWES-TURKEY-2026';
 var YK_TABS = ['LOWES_TR', 'STRONG_TR'];
 
-// اسم المُرسِل الثابت الذي يستخدمه حسابنا بيورتيتشي لكل شحنات تركيا (مقنَّع من
-// الـAPI العام بنفس الصيغة الحرفية دوماً — تحقّق حيّ 25 أيلول 2026 على 141
-// شحنة حقيقية). لو ظهر هالاسم بحقل Receiver فالطرد رجع فعلياً إلينا، لا أنه
-// وصل الزبون — نفس منطق YURTICI_OUR_SENDER_MASKED بـtrack-yurtici/index.ts.
-var YK_OUR_SENDER_MASKED = 'YO** ŞA**';
+// أسماء المُرسِل الثابتة لحساباتنا بيورتيتشي (مقنَّعة من الـAPI العام بنفس الصيغة
+// الحرفية دوماً — تحقّق حيّ 25 أيلول 2026 على 141 شحنة حقيقية). لو ظهر أحدها
+// بحقل Receiver فالطرد رجع فعلياً إلينا، لا أنه وصل الزبون — نفس القائمة
+// YURTICI_OUR_SENDERS_MASKED بـtrack-yurtici/index.ts.
+//   'YO** ŞA**' = العقد 1 (1200681314) · 'LO** PR**' = العقد 2 (1279282180،
+//   LOWES PROFESYONEL، منذ 6 تشرين الأول 2026 — يُؤكَّد من أول شحنة حقيقية).
+var YK_OUR_SENDERS = ['YO** ŞA**', 'LO** PR**'];
+function yk_isOurName(name) {
+  var n = String(name || '').trim();
+  for (var i = 0; i < YK_OUR_SENDERS.length; i++) { if (n.indexOf(YK_OUR_SENDERS[i]) === 0) return true; }
+  return false;
+}
 
 function yk_mapStatus(st, delivered, receiver) {
   var t = String(st || '').toLocaleLowerCase('tr');
   var isDeliveredFlag = delivered === true || delivered === 'true' || t.indexOf('teslim edildi') >= 0;
   // الطرد رجع فعلياً إلينا (Receiver بهالحركة = حسابنا) — لا نحسبها تسليماً
   // للزبون. مُثبَت حيّاً 25 أيلول 2026 على 68 طلب حقيقي كانوا مسجَّلين غلط.
-  if (isDeliveredFlag && String(receiver || '').trim().indexOf(YK_OUR_SENDER_MASKED) === 0) return 'تم الاسترجاع 🔁';
+  if (isDeliveredFlag && yk_isOurName(receiver)) return 'تم الاسترجاع 🔁';
   // الإرجاع/الفشل/الإلغاء لهما الأولوية على «teslim edildi»: نص رجوع شحنة يذكر
   // غالباً «iade». كان الترتيب القديم يفحص teslim edildi أولاً فيقلب أي رجوع
   // فيه ذكر تسليم (مثلاً للفرع) خطأً «تم التسليم» — إصلاح 25 أيلول 2026 (نفس
