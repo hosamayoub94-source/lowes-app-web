@@ -2,6 +2,7 @@
 // DEV-ONLY harness (D-119): mounts «ليدز B2B» for Syria + UAE without login and without touching Supabase.
 // Syria rows: fake `supabase.from('syria_b2b_leads')` (the old direct path). UAE rows: fake `functions.invoke('b2b-leads')`.
 // Every row below is FAKE (وهمي). The real routes + ProtectedRoute + permissions are used, so personas show the real gating.
+// Import button: admin persona only (paste the batch JSON, preview, pick rows, confirm, save — all against fake in-memory rows).
 // Open via the Vite dev server: /scripts/b2b/harness/leads.html?persona=admin&route=/uae-leads
 //   persona = admin | granted | denied | none | syria      route = /uae-leads | /syria-leads
 // Never shipped: not part of the app bundle.
@@ -15,7 +16,7 @@ import { ProtectedRoute } from '../../../src/routes/ProtectedRoute';
 import { ROUTES } from '../../../src/routes/paths';
 import { PERMISSIONS as P } from '../../../src/data/permissions';
 import { ROLES } from '../../../src/data/teams';
-import { normalizeRegion, normalizeCity, waLinkFor } from '../../../supabase/functions/_shared/countries.js';
+import { normalizeRegion, normalizeCity, waLinkFor, websiteKey, nameKey } from '../../../supabase/functions/_shared/countries.js';
 import SyriaLeadsScreen from '../../../src/screens/SyriaLeadsScreen.jsx';
 
 const qs = new URLSearchParams(location.search);
@@ -80,6 +81,34 @@ const invoke = async (_name, { body }) => {
     const row = { ...base, id: `UAE-ONA-${Date.now()}`, country: 'AE', name: src.name.trim(), province, city: normalizeCity('AE', src.city), lead_type: src.lead_type, category: src.category, website: src.website || null, whatsapp: src.whatsapp || null, whatsapp_link: waLinkFor(src.whatsapp, '971') || null, lowes_presence: 'unverified', priority: 'C', score: 40, added_manually: true, added_by: me.name, discovered_at: stamp, source_urls: null };
     rows.unshift(row); log('AE add', row.id);
     return ok({ ok: true, row });
+  }
+  if (body.action === 'import') {
+    // admin only — same rule as the real function (the UI hides the button for everyone else anyway)
+    if (me.role !== 'admin') return { data: null, error: { message: 'no permission', context: { status: 403, clone: () => ({ json: async () => ({ ok: false, error: 'no permission', message: 'الاستيراد للأدمن فقط' }) }) } } };
+    const dryRun = body.dry_run !== false;
+    const stampId = Date.now().toString(36).toUpperCase();
+    const seenWeb = new Set(), seenName = new Set();
+    const fresh = [], invalid = [], dupExisting = [], dupInFile = [];
+    body.rows.forEach((src, i) => {
+      const line = i + 1;
+      const province = normalizeRegion('AE', src.province);
+      if (!src.name?.trim()) return invalid.push({ line, name: src.name, error: 'name required' });
+      if (!province) return invalid.push({ line, name: src.name, error: `unknown الإمارة: ${src.province ?? ''}` });
+      if (!src.source_urls) return invalid.push({ line, name: src.name, error: 'source_urls required (every research row needs a public source)' });
+      if (!src.last_verified_at) return invalid.push({ line, name: src.name, error: 'last_verified_at required (date)' });
+      const w = websiteKey(src.website), n = nameKey('AE', province, src.name);
+      const hit = rows.find((r) => (w && websiteKey(r.website) === w) || (r.country === 'AE' && nameKey('AE', r.province, r.name) === n));
+      if (hit) return dupExisting.push({ line, name: src.name, existing: { id: hit.id, name: hit.name, country: hit.country } });
+      if ((w && seenWeb.has(w)) || seenName.has(n)) return dupInFile.push({ line, name: src.name });
+      if (w) seenWeb.add(w);
+      seenName.add(n);
+      fresh.push({ ...base, id: `UAE-${src.lead_type === 'online' ? 'ONL' : 'PHY'}-${stampId}-${String(line).padStart(3, '0')}`, country: 'AE', province, ...src, lowes_presence: src.lowes_presence || 'unverified', verified: src.verified || 'discovered_unconfirmed', priority: src.priority || 'D', score: src.score || 0, discovery_source: `research:${stamp.slice(0, 10)}`, discovered_at: stamp });
+    });
+    const summary = { total: body.rows.length, new: fresh.length, duplicate_existing: dupExisting.length, duplicate_in_file: dupInFile.length, invalid: invalid.length };
+    const report = { summary, new: fresh.map((r) => ({ id: r.id, name: r.name, province: r.province })), duplicate_existing: dupExisting, duplicate_in_file: dupInFile, invalid };
+    if (dryRun || !fresh.length) return ok({ ok: true, dry_run: dryRun, inserted: 0, ...report });
+    rows.unshift(...fresh); log('AE import saved', fresh.map((r) => r.name));
+    return ok({ ok: true, dry_run: false, inserted: fresh.length, ...report });
   }
   return ok({ ok: false, error: 'unknown action' });
 };
