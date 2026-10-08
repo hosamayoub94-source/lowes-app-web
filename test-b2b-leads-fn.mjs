@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { transformSync } from 'esbuild';
+import { transformSync, build } from 'esbuild';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('FAIL:', m); } };
@@ -216,6 +216,43 @@ r = await post({ action: 'import', country: 'AE', dry_run: true, rows: [
   { name: 'twice', province: 'Dubai', lead_type: 'online', source_urls: 'https://b.example', last_verified_at: '2026-10-08' },
 ] });
 ok(r.summary.invalid === 4 && r.summary.new === 1 && r.summary.duplicate_in_file === 1, `import rules: source, A needs 2 sources, listed needs evidence, date required, in-file dedupe ${JSON.stringify(r.summary)}`);
+
+// ================= import UI flow, end to end (src/services/b2bImport.js ↔ the real function) =================
+// preview (dry run) → pick a subset → save ONLY that subset → the rest never reaches the DB.
+const impOut = path.join(root, '.tmp-b2b-import-flow.mjs');
+await build({ entryPoints: [path.join(root, 'src/services/b2bImport.js')], bundle: true, format: 'esm', platform: 'node', outfile: impOut, external: ['xlsx'], logLevel: 'silent' });
+let flow;
+try { flow = await import(pathToFileURL(impOut).href + `?t=${Date.now()}`); } finally { fs.unlinkSync(impOut); }
+globalThis.__db = makeDb('post', seedPost);
+const base = { lead_type: 'online', source_urls: 'https://a.example', last_verified_at: '2026-10-08' };
+const fileRows = [
+  { ...batch.rows[0] },                                                                   // 1 new (noon)
+  { ...batch.rows[1] },                                                                   // 2 new (Amazon.ae)
+  { ...base, name: 'Fake Bad Row (no source)', province: 'Dubai', source_urls: undefined }, // 3 invalid
+  { ...batch.rows[2] },                                                                   // 4 new (Trendyol)
+  { ...batch.rows[0] },                                                                   // 5 duplicate in file
+  { ...base, name: 'Fake Existing Site', province: 'Dubai', website: 'https://www.FAKE-DUBAI-BEAUTY.example/' }, // 6 duplicate of a row already in the DB
+  { ...batch.rows[3] },                                                                   // 7 new (Carrefour)
+].map((x) => Object.fromEntries(Object.entries(x).filter(([, v]) => v !== undefined)));
+const dry = await post({ action: 'import', country: 'AE', rows: fileRows });
+ok(dry.ok && dry.dry_run === true && globalThis.__db.writes.length === 0, 'flow: preview writes nothing');
+const pv = flow.buildPreview(fileRows, dry);
+ok(pv.newItems.map((i) => i.row.name).join('|') === [batch.rows[0].name, batch.rows[1].name, batch.rows[2].name, batch.rows[3].name].join('|'), `flow: 4 new rows map back to the right originals (${pv.newItems.map((i) => i.line)})`);
+ok(pv.invalid.length === 1 && pv.invalid[0].row.name === 'Fake Bad Row (no source)' && /source_urls/.test(pv.invalid[0].error), 'flow: invalid row shown with its reason');
+ok(pv.duplicateInFile.length === 1 && pv.duplicateInFile[0].line === 5, 'flow: duplicate inside the file detected');
+ok(pv.duplicateExisting.length === 1 && pv.duplicateExisting[0].row.name === 'Fake Existing Site' && pv.duplicateExisting[0].existing.id === 'UAE-ONL-T-001', 'flow: duplicate of an existing DB row detected (website normalisation)');
+ok(flow.rowsToSave(pv, []).length === 0, 'flow: default selection saves nothing');
+const picked = flow.rowsToSave(pv, [pv.newItems[0].line, pv.newItems[2].line]);      // noon + Trendyol only
+const saved = await post({ action: 'import', country: 'AE', rows: picked, dry_run: false });
+ok(saved.ok && saved.inserted === 2, `flow: only the 2 selected rows are inserted (${saved.inserted})`);
+const rowsNow = globalThis.__db.tables.syria_b2b_leads;
+ok(rowsNow.filter((x) => x.discovery_source?.startsWith('research:')).map((x) => x.name).sort().join('|') === [batch.rows[0].name, batch.rows[2].name].sort().join('|'), 'flow: unselected rows (Amazon.ae, Carrefour) never reached the DB');
+ok(rowsNow.filter((x) => x.discovery_source?.startsWith('research:')).every((x) => x.country === 'AE' && x.lowes_presence === 'unverified' && x.status === 'not_contacted' && x.last_verified_at && x.source_urls), 'flow: saved rows carry AE + unverified + not_contacted + date + source');
+const again = flow.buildPreview(fileRows, await post({ action: 'import', country: 'AE', rows: fileRows }));
+ok(again.newItems.length === 2 && again.duplicateExisting.some((d) => d.row.name === batch.rows[0].name), 're-preview: saved rows are now duplicates, the 2 unselected are still new');
+ok((await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'uae-token')).status === 403, 'flow: a user with view_uae_leads cannot import (admin only, server-side)');
+ok((await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'none-token')).status === 403, 'flow: no permission -> 403');
+ok(syriaSnapshot(globalThis.__db) === JSON.stringify(seedPost.filter((r) => r.country === 'SY')), 'flow: Syria rows byte-identical after the whole import flow');
 
 console.log(`b2b-leads fn: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

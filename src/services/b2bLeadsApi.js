@@ -24,6 +24,14 @@ export async function callB2b(action, payload = {}) {
 
 const unwrap = (res) => { if (!res?.ok) throw new Error(res?.error || 'تعذّر الاتصال'); return res; };
 
+/**
+ * استيراد دفعة بحث (أدمن فقط، الخادم يفحص). dryRun=true = معاينة بلا أي حفظ (الافتراضي).
+ * يرجّع الرد كاملاً { ok, dry_run, inserted, summary, new, duplicate_existing, duplicate_in_file, invalid } أو يرمي خطأً.
+ */
+export async function importLeads(code, rows, dryRun = true) {
+  return unwrap(await callB2b('import', { country: code, rows, dry_run: dryRun !== false }));
+}
+
 /** One interface for the screen, whatever the country. */
 export function leadsApiFor(code) {
   if (COUNTRIES[code]?.legacyDirect) {

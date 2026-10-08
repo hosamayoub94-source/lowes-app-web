@@ -25,6 +25,8 @@ import {
   computeInsights, isNewLead, isStale,
 } from '@services/syriaLeadsService';
 import { leadsApiFor } from '@services/b2bLeadsApi';
+import { canImportLeads } from '@services/b2bImport';
+import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
 import {
   COUNTRIES, NATIONWIDE, enabledCountries, regionLabelAr, cityLabelAr, waLinkFor,
 } from '../../supabase/functions/_shared/countries.js';
@@ -546,7 +548,9 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const api = useMemo(() => leadsApiFor(C.code), [C.code]);
   const ctx = useMemo(() => ({ country: C.code, api }), [C.code, api]);
   const provLabel = (p) => regionLabelAr(C.code, p);
-  const { name } = useAuth();
+  const { name, role } = useAuth();
+  const canImport = canImportLeads(role, C.code);   // أدمن + دولة غير سوريا — الخادم يفحص مرة ثانية
+  const [importOpen, setImportOpen] = useState(false);
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
@@ -625,12 +629,20 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
               : 'منصات وصيدليات ومتاجر تجميل وموزعون — كل جهة بمصدر عام وتاريخ تحقق. «غير متحقق» يعني لم نجد دليلاً بعد، لا أننا غير موجودين.'}
           </p>
         </div>
-        {view !== 'insights' && (
-          <button onClick={() => setAddOpen(true)}
-            className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm">
-            + إضافة
-          </button>
-        )}
+        <div className="shrink-0 flex flex-col items-stretch gap-1.5">
+          {view !== 'insights' && (
+            <button onClick={() => setAddOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm">
+              + إضافة
+            </button>
+          )}
+          {canImport && (
+            <button onClick={() => setImportOpen(true)} data-testid="import-open"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal transition">
+              ⬆️ استيراد (أدمن)
+            </button>
+          )}
+        </div>
       </div>
 
       <CountrySwitcher country={C.code} />
@@ -715,6 +727,9 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
       {addOpen && (
         <AddLeadModal myName={name} defaultType={view === 'online' ? 'online' : 'physical'}
           onClose={() => setAddOpen(false)} onSaved={load} />
+      )}
+      {importOpen && canImport && (
+        <ImportLeadsModal country={C.code} onClose={() => setImportOpen(false)} onSaved={load} />
       )}
     </div>
     </LeadsCtx.Provider>
