@@ -71,6 +71,7 @@ const ShiftPartnersScreen      = lazy(() => import(/* webpackChunkName: "shift-p
 const AdvanceRequestsScreen    = lazy(() => import(/* webpackChunkName: "advances"         */ '@screens/AdvanceRequestsScreen'));
 const PerformanceReviewScreen  = lazy(() => import(/* webpackChunkName: "reviews"          */ '@screens/PerformanceReviewScreen'));
 const SyriaLeadsScreen         = lazy(() => import(/* webpackChunkName: "syria-leads"      */ '@screens/SyriaLeadsScreen'));
+const B2BLeadsEntry            = lazy(() => import(/* webpackChunkName: "b2b-leads-entry"  */ '@routes/B2BLeadsEntry'));
 // Creator screens: managed list (add/edit/delete/import) via the admin-only creator-prospects edge function; legacy workbench write/sync stays frozen (Window 1).
 const CreatorProspectsScreen = lazy(() => import(/* webpackChunkName: "creators-prospects" */ '@screens/CreatorProspectsScreen'));
 const MysteryShopperScreen     = lazy(() => import(/* webpackChunkName: "mystery-shopper"  */ '@screens/admin/MysteryShopperScreen'));
@@ -416,6 +417,8 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          {/* «ليدز B2B» — بند واحد بالقائمة: يفتح آخر دولة مسموحة (كل مسار دولة محمي بصلاحيته تحت) */}
+          <Route path={ROUTES.B2B_LEADS} element={<B2BLeadsEntry />} />
           <Route
             path={ROUTES.UAE_LEADS}
             element={
