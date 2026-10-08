@@ -412,7 +412,15 @@ export function AppRoutes() {
             path={ROUTES.SYRIA_LEADS}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}>
-                <SyriaLeadsScreen />
+                <SyriaLeadsScreen key="SY" country="SY" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.UAE_LEADS}
+            element={
+              <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_UAE_LEADS}>
+                <SyriaLeadsScreen key="AE" country="AE" />
               </ProtectedRoute>
             }
           />

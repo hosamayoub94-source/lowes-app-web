@@ -1,0 +1,181 @@
+{
+  "_about": "D-119 — UAE B2B research batch 1 (8 Oct 2026). Import-ready rows for the b2b-leads edge function (action=import, country=AE, admin only). NOT IMPORTED. Rules: every value copied from the public source listed in source_urls; unknown = null; lowes_presence = 'unverified' everywhere (no public evidence either way); priority C/D only (single source, no direct contact verified). The company's UAE trade licence is ready (Hossam, 8 Oct 2026) and is NOT listed as a requirement; per-product registration (Montaji) and each platform's own acceptance terms are separate and listed per row as 'يحتاج تحقق'.",
+  "country": "AE",
+  "rows": [
+    {
+      "name": "noon", "province": "Nationwide", "lead_type": "online", "channel": "marketplace", "category": "منصة متعددة البائعين",
+      "website": "https://www.noon.com", "accepts_sellers": true, "sells_beauty": null,
+      "source_urls": "https://helpcenter.noon.partners/en/category/onboarding-and-registration/who-can-sell-on-noon | https://support.noon.partners/portal/en/kb/articles/documents-required-to-sell-on-noon",
+      "priority": "C", "score": 45, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "منصة تقبل بائعين بشركة مسجّلة بالإمارات/السعودية/مصر ورخصة نشاطها Sales/Trading/Manufacturing/Distribution (شرط الرخصة مستوفى). التسجيل بـVAT اختياري. يحتاج تحقق: قبول فئة التجميل، العمولة، الـfulfillment، تسجيل المنتجات (Montaji). صفحات البائع ردّت 403 للجلب المباشر — المعلومة من مقتطف البحث للصفحة الرسمية."
+    },
+    {
+      "name": "Amazon.ae", "province": "Nationwide", "lead_type": "online", "channel": "marketplace", "category": "منصة متعددة البائعين",
+      "website": "https://www.amazon.ae", "accepts_sellers": true, "sells_beauty": null,
+      "source_urls": "https://sell.amazon.ae/ | https://www.meydanfz.ae/how-to-sell-on-amazon-uae",
+      "priority": "C", "score": 45, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "صفحة البائع الرسمية: التسجيل بلا اشتراك شهري (عرض محدود) وبرنامج FBA New Selection. يحتاج تحقق: موافقة فئة الجمال (مصدر ثانوي يذكر فاتورة/تفويض توزيع)، العمولة (غير منشورة بالصفحة)، تسجيل المنتجات (Montaji)."
+    },
+    {
+      "name": "Trendyol (الخليج)", "province": "Nationwide", "lead_type": "online", "channel": "marketplace", "category": "منصة متعددة البائعين",
+      "website": "https://www.trendyol.com", "accepts_sellers": true, "sells_beauty": null,
+      "source_urls": "https://www.dailysabah.com/business/tech/turkish-e-commerce-giant-trendyol-due-to-launch-gulf-operations/amp | https://www.ideasoft.com.tr/trendyol-yurtdisi-satis/ | https://gulfbusiness.com/en/2025/tech/how-trendyol-is-redefining-ecommerce-in-the-gulf/",
+      "priority": "C", "score": 40, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "يعمل بالإمارات بنموذج marketplace؛ البائع التركي يفعّل التصدير المصغّر (mikro ihracat) من لوحة البائع — قناة إضافية عبر الكيان التركي القائم. مصادر ثانوية فقط. يحتاج تحقق: شروط Trendyol الرسمية لفئة التجميل بالخليج، وهل يُشترط تسجيل Montaji للمنتجات المصدّرة."
+    },
+    {
+      "name": "Carrefour UAE Marketplace (Majid Al Futtaim)", "province": "Nationwide", "lead_type": "online", "channel": "marketplace", "category": "منصة متعددة البائعين",
+      "website": "https://www.carrefouruae.com", "accepts_sellers": true, "sells_beauty": null,
+      "source_urls": "https://gulfnews.com/business/retail/carrefour-uae-portal-turns-into-online-marketplace-1.1587629884600",
+      "priority": "C", "score": 35, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "تحوّل الموقع لمنصة متعددة البائعين: بلا رسوم إدراج أو شهرية، وAramex للتوصيل — معلومة 2020 قد تكون تغيّرت. صفحة البائع الرسمية لم تفتح (مهلة). يحتاج تحقق: الشروط الحالية، العمولة، قبول التجميل."
+    },
+    {
+      "name": "Namshi", "province": "Nationwide", "lead_type": "online", "channel": "marketplace", "category": "متجر أونلاين — عام",
+      "website": "https://www.namshi.com", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://www.channelengine.com/en/marketplaces/namshi",
+      "priority": "C", "score": 30, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "منصة أزياء ولايف ستايل تابعة لـnoon. البيع عبر مُكامِلات مثل ChannelEngine — صفحة بائع مباشرة غير معروفة. يحتاج تحقق: هل تقبل براندات عناية جديدة."
+    },
+    {
+      "name": "FACES (Chalhoub Group)", "province": "Nationwide", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": "https://www.faces.ae", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.chalhoubgroup.com/en/media/227/faces-beauty-middle-east-partners-with-life-pharmacy-to-introduce-leading-derma-and-medical-skincare-brands-to-their-e-commerce",
+      "priority": "C", "score": 40, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "بائع تجزئة تجميل متعدد القنوات (متاجر + أونلاين)، شراكة marketplace مع Life Pharmacy لبراندات derma. يحتاج تحقق: آلية تقديم البراندات الجديدة (غير منشورة)."
+    },
+    {
+      "name": "Sephora Middle East", "province": "Nationwide", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": null, "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.unisco.com/channels/sephora-lvmh",
+      "priority": "D", "score": 20, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "مصدر ثانوي يذكر التقديم عبر RangeMe — غير مثبت. يحتاج تحقق: الموقع الرسمي بالإمارات وقناة تقديم البراندات."
+    },
+    {
+      "name": "Watsons Middle East (Al-Futtaim)", "province": "Nationwide", "lead_type": "physical", "channel": null, "category": "سلسلة تجميل/صيدليات",
+      "website": null, "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://watson.aswatson.com/asw-pulse/driving-growth-together-how-watsons-and-al-futtaim-are-expanding-across-the-middle-east/",
+      "priority": "D", "score": 25, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "34 متجراً بالإمارات والبحرين والسعودية وقطر، فيها مناطق K-beauty وDerma. Al-Futtaim تتولى الاستيراد والتوزيع. يحتاج تحقق: الموقع الرسمي وقناة المورّدين."
+    },
+    {
+      "name": "BasharaCare", "province": "Dubai", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": "https://www.basharacare.com", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.thenationalnews.com/business/brushing-up-on-skincare-1.341865",
+      "priority": "C", "score": 30, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "متجر عناية أونلاين بدبي. حسب مقال قديم: لا يستورد بنفسه، يعمل مع موردين محليين، ويشترط تسجيل المنتج محلياً. يحتاج تحقق: هل ما زال نشطاً وشروطه الحالية."
+    },
+    {
+      "name": "Life Pharmacy", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "صيدلية",
+      "website": "https://www.lifepharmacy.com", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://lifepharmacy.com/about",
+      "priority": "C", "score": 40, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "سلسلة صيدليات بمئات المنافذ (ادّعاء ذاتي) + متجر أونلاين يبيع مستحضرات تجميل. يحتاج تحقق: قناة المورّدين/البراندات (غير منشورة)."
+    },
+    {
+      "name": "Aster Pharmacy", "province": "Nationwide", "lead_type": "physical", "channel": null, "category": "صيدلية",
+      "website": null, "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://new.asterdmhealthcare.com/newsroom/aster-pharmacy-partners-with-dr-reddys-to-market-its-high-quality-medicines-in-uae-gcc",
+      "priority": "D", "score": 25, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "الذراع التجزئة لـAster DM Healthcare، 300+ منفذ بالخليج. يحتاج تحقق: الموقع الأونلاين الرسمي، قسم التجميل، وقناة المورّدين."
+    },
+    {
+      "name": "BinSina Pharmacy", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "صيدلية",
+      "website": "https://www.binsina.ae", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://www.binsina.ae/en/about-us-mobile",
+      "priority": "C", "score": 35, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "90+ فرعاً، تأسست 1965، تابعة لـAl Khayyat Investments، مع صيدلية أونلاين. يحتاج تحقق: قسم العناية وقناة المورّدين."
+    },
+    {
+      "name": "Supercare Pharmacy", "province": "Dubai", "lead_type": "physical", "channel": "website", "category": "صيدلية",
+      "website": "https://www.super-care.ae", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://alghuraircentre.com/en/shop/supercare-pharmacy",
+      "priority": "C", "score": 30, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "سلسلة صيدليات بتركيز عناية بالبشرة وصحة، فروع بدبي، موجودة على talabat. يحتاج تحقق: قناة المورّدين."
+    },
+    {
+      "name": "Al Manara Pharmacy", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "صيدلية",
+      "website": "https://www.almanarapharmacy.com", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://www.talabat.com/uae/pharmacy/800696/al-manara-pharmacy-barsha/optics/glasses?aid=2598",
+      "priority": "C", "score": 30, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "سلسلة صيدليات صحة وجمال، موجودة على talabat. الموقع وعدد الفروع من مصادر ثانوية. يحتاج تحقق: الموقع الرسمي وقناة المورّدين."
+    },
+    {
+      "name": "Boots UAE", "province": "Nationwide", "lead_type": "physical", "channel": null, "category": "صيدلية",
+      "website": null, "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.arabianbusiness.com/abnews/boots-enters-dubai-kuwait-62714",
+      "priority": "D", "score": 20, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "صيدليات صحة وجمال (مصدر إخباري قديم). يحتاج تحقق: الوضع الحالي بالإمارات، الموقع الرسمي، المشغّل المحلي."
+    },
+    {
+      "name": "KSecret", "province": "Dubai", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": "https://www.ksecret.com", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://thenationalnews.com/lifestyle/fashion-beauty/2023/11/05/korean-beauty-products-uae",
+      "priority": "C", "score": 30, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "متجر K-beauty متعدد البراندات (أكثر من 50 براند كوري حسب المصدر) — الأقرب لتموضع عناية آسيوي/أوروبي. الموقع ردّ 403 للجلب. يحتاج تحقق: هل يقبل براندات غير كورية."
+    },
+    {
+      "name": "Mystiglam", "province": "Nationwide", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": null, "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://careers.jboard.io/companies/mystiglam-5921792",
+      "priority": "D", "score": 15, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "متجر أونلاين K-beauty بالإمارات (مصدر ثانوي ضعيف). يحتاج تحقق: الموقع الرسمي والتواصل."
+    },
+    {
+      "name": "Mamoso K-beauty", "province": "Nationwide", "lead_type": "online", "channel": "website", "category": "متجر أونلاين — تجميل",
+      "website": "https://kbeauty.ae", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://oncosmetics.com/company/mamoso-k-beauty/",
+      "priority": "C", "score": 25, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "متجر تجزئة K-beauty يخدم الإمارات (دليل ثانوي). يحتاج تحقق: الموقع والتواصل وهل يقبل براندات غير كورية."
+    },
+    {
+      "name": "Apparel Group", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "موزّع",
+      "website": "https://www.apparelgroup.com", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.apparelgroup.com/en/2025/10/06/",
+      "priority": "C", "score": 40, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "أدخل براند عناية كوري (JKOSMEC) لهايبرماركتات الإمارات منها Carrefour (تشرين الأول 2025) — موزّع/مشغّل براندات محتمل. يحتاج تحقق: قناة شراكة البراندات."
+    },
+    {
+      "name": "Al-Futtaim (Watsons operator)", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "موزّع",
+      "website": "https://www.alfuttaim.com", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://watson.aswatson.com/asw-pulse/driving-growth-together-how-watsons-and-al-futtaim-are-expanding-across-the-middle-east/",
+      "priority": "C", "score": 30, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "يتولى الاستيراد والتخزين والتوزيع لـWatsons بالمنطقة. يحتاج تحقق: قناة المورّدين لقسم التجميل."
+    },
+    {
+      "name": "Chalhoub Group", "province": "Nationwide", "lead_type": "physical", "channel": "website", "category": "موزّع",
+      "website": "https://www.chalhoubgroup.com", "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://www.chalhoubgroup.com/en/media/337/faces-unveils-its-largest-gcc-flagship-at-jeddah-vibes-in-a-landmark-opening-ceremony",
+      "priority": "C", "score": 30, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "مشغّل FACES (وSephora بالمنطقة حسب مصادر ثانوية). يحتاج تحقق: قناة الشراكة مع براندات جديدة."
+    },
+    {
+      "name": "Beauty Korea Dubai", "province": "Dubai", "lead_type": "physical", "channel": null, "category": "موزّع",
+      "website": null, "accepts_sellers": null, "sells_beauty": true,
+      "source_urls": "https://oncosmetics.com/company/beauty-korea-dubai/",
+      "priority": "D", "score": 15, "verified": "discovered_unconfirmed", "last_verified_at": "2026-10-08",
+      "reason": "توزيع وتجزئة K-beauty قرب محطة BurJuman (دليل ثانوي). يحتاج تحقق: الموقع والتواصل."
+    },
+    {
+      "name": "talabat", "province": "Nationwide", "lead_type": "online", "channel": "app", "category": "منصة توصيل سريع",
+      "website": "https://www.talabat.com", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://corporate.talabat.com/news/corporate-website-news-item-2/",
+      "priority": "C", "score": 30, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "قناة غير مباشرة: الصيدليات (Supercare، Al Manara…) تبيع عبره. استحوذ بالكامل على InstaShop (آذار 2025). يحتاج تحقق: هل يمكن لبراند البيع مباشرة."
+    },
+    {
+      "name": "InstaShop", "province": "Nationwide", "lead_type": "online", "channel": "app", "category": "منصة توصيل سريع",
+      "website": null, "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://corporate.talabat.com/news/corporate-website-news-item-2/",
+      "priority": "D", "score": 20, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "تابعة لـtalabat بالكامل منذ آذار 2025، تعمل كبراند مستقل. يحتاج تحقق: فئات الصيدلية/الجمال وقناة الشركاء."
+    },
+    {
+      "name": "Careem Quik", "province": "Nationwide", "lead_type": "online", "channel": "app", "category": "منصة توصيل سريع",
+      "website": "https://www.careem.com", "accepts_sellers": null, "sells_beauty": null,
+      "source_urls": "https://blog.careem.com/posts/heres-everything-you-can-get-in-15-minutes-with-careem-quik",
+      "priority": "D", "score": 20, "verified": "verified_single_source", "last_verified_at": "2026-10-08",
+      "reason": "توصيل خلال 15 دقيقة بدبي وأبوظبي عبر متاجر مظلمة. يحتاج تحقق: هل فيها فئة عناية وكيف تُدرج البراندات."
+    }
+  ]
+}

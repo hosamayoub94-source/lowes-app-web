@@ -30,7 +30,7 @@ let routes = 0;
 })(ast.program, null);
 const dup = paths.filter((p, i) => paths.indexOf(p) !== i);
 if (dup.length) problems.push('duplicate route paths: ' + [...new Set(dup)].join(', '));
-const need = ['ROUTES.CREATORS}', 'ROUTES.CREATORS_WORKBENCH}', 'ROUTES.SYRIA_LEADS}'];
+const need = ['ROUTES.CREATORS}', 'ROUTES.CREATORS_WORKBENCH}', 'ROUTES.SYRIA_LEADS}', 'ROUTES.UAE_LEADS}'];
 need.forEach(n => { if (!paths.some(p => p.includes(n))) problems.push('missing route ' + n); });
 console.log(`routes checked: ${routes}; problems: ${problems.length}`);
 problems.forEach(p => console.log(' -', p));

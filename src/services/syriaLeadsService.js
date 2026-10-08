@@ -7,6 +7,7 @@
 // هذه الخدمة تقرأها وتكتب فقط حقول التواصل الفعلي (status/notes/assigned_to).
 // =============================================================
 import { supabase } from './supabase';
+import { COUNTRIES } from '../../supabase/functions/_shared/countries.js';
 
 export async function listLeads() {
   const { data, error } = await supabase
@@ -33,15 +34,9 @@ export async function updateLeadStatus(id, { status, notes, assigned_to }, updat
   if (error) throw error;
 }
 
-export const PROVINCES = [
-  'Damascus', 'Rif Damascus', 'Aleppo', 'Homs', 'Hama', 'Latakia', 'Tartous',
-  'Idlib', 'Daraa', 'Sweida', 'Quneitra', 'Deir Ezzor', 'Raqqa', 'Hasakah',
-];
-export const PROVINCE_LABELS_AR = {
-  Damascus: 'دمشق', 'Rif Damascus': 'ريف دمشق', Aleppo: 'حلب', Homs: 'حمص', Hama: 'حماة',
-  Latakia: 'اللاذقية', Tartous: 'طرطوس', Idlib: 'إدلب', Daraa: 'درعا', Sweida: 'السويداء',
-  Quneitra: 'القنيطرة', 'Deir Ezzor': 'دير الزور', Raqqa: 'الرقة', Hasakah: 'الحسكة',
-};
+// المحافظات من الإعداد المركزي للدول (D-119) — نفس القيم والتسميات حرفياً.
+export const PROVINCES = COUNTRIES.SY.regions;
+export const PROVINCE_LABELS_AR = COUNTRIES.SY.regionAr;
 
 export const CATEGORIES = ['صيدلية', 'عيادة جلدية', 'مركز تجميل', 'متجر/مورد مستحضرات', 'موزّع'];
 
@@ -60,6 +55,8 @@ export const PRESENCE_LABELS = {
   rejected:       'رفض',
   not_applicable: 'غير مناسب',
 };
+// دول غير سوريا (D-119): «غير متحقق» = لم نجد دليلاً عاماً بعد — ليس «غير موجودين».
+export const PRESENCE_LABELS_WITH_UNVERIFIED = { unverified: 'غير متحقق', ...PRESENCE_LABELS };
 
 /** تحديث تواجد Lowe's على متجر أونلاين — حقول الفريق فقط، لا يلمس البحث. */
 export async function updateLeadPresence(id, { lowes_presence, lowes_listing_url }, updatedByName) {
@@ -99,7 +96,7 @@ export function hasAnyContact(l) {
  * تغطية المحافظات، قابلية التواصل، مسار التحويل، التواجد بالمتاجر الأونلاين،
  * وأولويات "ابدأ بهدول".
  */
-export function computeInsights(leads) {
+export function computeInsights(leads, regions = PROVINCES) {
   const now = Date.now();
   const byProvince = {};
   const funnel = { not_contacted: 0, contacted: 0, interested: 0, not_interested: 0, customer: 0 };
@@ -121,8 +118,8 @@ export function computeInsights(leads) {
     if (isStale(l, now)) stale++;
     if (isNewLead(l, now)) fresh7++;
   }
-  for (const l of online) presence[l.lowes_presence || 'not_listed']++;
-  const missingProvinces = PROVINCES.filter(p => p !== 'Nationwide' && !byProvince[p]);
+  for (const l of online) { const k = l.lowes_presence || 'not_listed'; presence[k] = (presence[k] || 0) + 1; }
+  const missingProvinces = regions.filter(p => p !== 'Nationwide' && !byProvince[p]);
   // "ابدأ بهدول": أعلى Score لم يُتواصل معهم ولديهم تواصل مباشر
   const startWith = leads
     .filter(l => (l.status || 'not_contacted') === 'not_contacted' && hasDirectContact(l))

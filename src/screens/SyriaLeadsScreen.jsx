@@ -9,14 +9,30 @@
 // اختلاق — D-093) + تحديث أسبوعي. هذه الشاشة تكتب حقول الفريق فقط:
 // status/notes/assigned_to + lowes_presence/lowes_listing_url.
 // Table: syria_b2b_leads · Permission: VIEW_SYRIA_LEADS
+//
+// D-119 — نفس الشاشة لكل دولة (prop `country`): SY على المسار المباشر القديم بلا تغيير،
+// AE (/uae-leads، صلاحية VIEW_UAE_LEADS) عبر Edge Function `b2b-leads` بفحص صلاحية من الخادم.
+// المناطق والتسميات من الإعداد المركزي supabase/functions/_shared/countries.js.
 // =============================================================
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
+import { usePermissions } from '@hooks/usePermissions';
+import { ROUTES } from '@routes/paths';
 import {
-  listLeads, updateLeadStatus, updateLeadPresence, createLead, STATUS_LABELS, tierGroup, waLink,
-  PROVINCES, PROVINCE_LABELS_AR, CATEGORIES, ONLINE_CATEGORIES, CHANNEL_LABELS, PRESENCE_LABELS,
+  STATUS_LABELS, tierGroup,
+  CATEGORIES, ONLINE_CATEGORIES, CHANNEL_LABELS, PRESENCE_LABELS, PRESENCE_LABELS_WITH_UNVERIFIED,
   computeInsights, isNewLead, isStale,
 } from '@services/syriaLeadsService';
+import { leadsApiFor } from '@services/b2bLeadsApi';
+import {
+  COUNTRIES, NATIONWIDE, enabledCountries, regionLabelAr, cityLabelAr, waLinkFor,
+} from '../../supabase/functions/_shared/countries.js';
+
+const COUNTRY_ROUTE = { SY: ROUTES.SYRIA_LEADS, AE: ROUTES.UAE_LEADS };
+const LeadsCtx = createContext({ country: 'SY', api: null });
+const useLeadsCtx = () => useContext(LeadsCtx);
+const presenceLabelsOf = (country) => (COUNTRIES[country]?.legacyDirect ? PRESENCE_LABELS : PRESENCE_LABELS_WITH_UNVERIFIED);
 
 const STATUS_COLOR = {
   not_contacted:  'text-muted bg-surface-alt border-border',
@@ -33,6 +49,7 @@ const PRESENCE_COLOR = {
   listed:         'text-green-700 bg-green-50 border-green-300',
   rejected:       'text-red-500 bg-red-50 border-red-200',
   not_applicable: 'text-muted bg-surface-alt border-border',
+  unverified:     'text-slate-500 bg-surface-alt border-dashed border-border',
 };
 
 const TIER_LABEL = {
@@ -41,7 +58,6 @@ const TIER_LABEL = {
   raw:   { label: '⚪ اكتشاف فقط',  color: 'text-muted bg-surface-alt border-border' },
 };
 
-const provLabel = (p) => PROVINCE_LABELS_AR[p] || p;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('ar', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
 function StatusBadge({ status }) {
@@ -53,10 +69,11 @@ function StatusBadge({ status }) {
 }
 
 function PresenceBadge({ presence }) {
+  const { country } = useLeadsCtx();
   const k = presence || 'not_listed';
   return (
-    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${PRESENCE_COLOR[k]}`}>
-      {"Lowe's: "}{PRESENCE_LABELS[k]}
+    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${PRESENCE_COLOR[k] || PRESENCE_COLOR.not_listed}`}>
+      {"Lowe's: "}{presenceLabelsOf(country)[k] || k}
     </span>
   );
 }
@@ -64,7 +81,8 @@ function PresenceBadge({ presence }) {
 const btnCls = 'text-[11px] font-bold px-2.5 py-1 rounded-lg bg-surface-alt border border-border text-text';
 
 function ContactActions({ lead }) {
-  const wa = lead.whatsapp_link || waLink(lead.whatsapp);
+  const { country } = useLeadsCtx();
+  const wa = lead.whatsapp_link || waLinkFor(lead.whatsapp, COUNTRIES[country].phoneCc);
   const tg = lead.telegram;
   const any = wa || lead.phone_tel || lead.instagram_link || lead.facebook || lead.website || lead.email || tg;
   return (
@@ -103,6 +121,7 @@ function Sources({ lead }) {
 }
 
 function StatusEditor({ lead, myName, onSaved }) {
+  const { api } = useLeadsCtx();
   const [status, setStatus] = useState(lead.status || 'not_contacted');
   const [notes, setNotes]   = useState(lead.notes || '');
   const [saving, setSaving] = useState(false);
@@ -112,7 +131,7 @@ function StatusEditor({ lead, myName, onSaved }) {
   const save = async () => {
     setSaving(true); setErr(null);
     try {
-      await updateLeadStatus(lead.id, { status, notes, assigned_to: lead.assigned_to }, myName);
+      await api.updateStatus(lead.id, { status, notes, assigned_to: lead.assigned_to }, myName);
       setFlash(true);
       onSaved?.();
       setTimeout(() => setFlash(false), 1500);
@@ -146,6 +165,8 @@ function StatusEditor({ lead, myName, onSaved }) {
 }
 
 function PresenceEditor({ lead, myName, onSaved }) {
+  const { api, country } = useLeadsCtx();
+  const labels = presenceLabelsOf(country);
   const [presence, setPresence] = useState(lead.lowes_presence || 'not_listed');
   const [url, setUrl] = useState(lead.lowes_listing_url || '');
   const [saving, setSaving] = useState(false);
@@ -155,7 +176,7 @@ function PresenceEditor({ lead, myName, onSaved }) {
   const save = async () => {
     setSaving(true); setErr(null);
     try {
-      await updateLeadPresence(lead.id, { lowes_presence: presence, lowes_listing_url: url }, myName);
+      await api.updatePresence(lead.id, { lowes_presence: presence, lowes_listing_url: url }, myName);
       setFlash(true); onSaved?.();
       setTimeout(() => setFlash(false), 1500);
     } catch (e) {
@@ -168,7 +189,7 @@ function PresenceEditor({ lead, myName, onSaved }) {
       <span className="text-[10px] font-bold text-teal">{"تواجد Lowe's:"}</span>
       <select value={presence} onChange={e => setPresence(e.target.value)}
         className="text-xs font-bold bg-surface border border-border rounded-lg px-2 py-1.5 text-text">
-        {Object.entries(PRESENCE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        {Object.entries(labels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="رابط منتجاتنا عندهم (إن وُجد)"
         className="flex-1 min-w-[140px] text-xs bg-surface border border-border rounded-lg px-2 py-1.5 text-text" dir="ltr" />
@@ -190,6 +211,7 @@ function PresenceEditor({ lead, myName, onSaved }) {
 }
 
 function LeadCard({ lead, myName, onSaved }) {
+  const { country } = useLeadsCtx();
   const online = lead.lead_type === 'online';
   const tier = tierGroup(lead.priority);
   return (
@@ -208,7 +230,7 @@ function LeadCard({ lead, myName, onSaved }) {
         </div>
       </div>
       <p className="text-xs text-muted">
-        {[provLabel(lead.province), lead.city, lead.category, online && CHANNEL_LABELS[lead.channel], lead.district, lead.contact_person]
+        {[regionLabelAr(country, lead.province), cityLabelAr(country, lead.city), lead.category, online && CHANNEL_LABELS[lead.channel], lead.district, lead.contact_person]
           .filter(Boolean).join(' · ')}
       </p>
       {online && (
@@ -239,10 +261,16 @@ function Field({ label, children }) {
 const inputCls = "w-full bg-surface-alt border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-teal transition";
 
 function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
+  const { api, country } = useLeadsCtx();
+  const C = COUNTRIES[country];
+  const defaultRegion = (type) => (type === 'online' ? NATIONWIDE : C.regions[country === 'AE' ? 1 : 0]);
+  const physicalCats = [...CATEGORIES, ...C.extraCategories];
+  const onlineCats = [...ONLINE_CATEGORIES, ...C.extraCategories];
+  const knownCities = Object.values(C.cities).flat();
   const [form, setForm] = useState({
     lead_type: defaultType, name: '',
     category: defaultType === 'online' ? ONLINE_CATEGORIES[1] : CATEGORIES[0],
-    province: defaultType === 'online' ? 'Nationwide' : 'Damascus', city: '', district: '', address: '',
+    province: defaultRegion(defaultType), city: '', district: '', address: '',
     contact_person: '', phone: '', whatsapp: '', instagram: '', facebook: '', website: '', email: '', telegram: '',
     reason: '', initialStatus: 'not_contacted',
   });
@@ -256,7 +284,7 @@ function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
     if (!form.name.trim()) { setError('الاسم مطلوب'); return; }
     setSaving(true);
     try {
-      await createLead(form, myName);
+      await api.create(form, myName);
       onSaved?.();
       onClose();
     } catch (e) {
@@ -281,7 +309,7 @@ function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
           <div className="grid grid-cols-2 gap-2">
             {[['physical', '🏪 محل/عيادة'], ['online', '🛒 متجر أونلاين']].map(([k, l]) => (
               <button key={k} type="button"
-                onClick={() => setForm(f => ({ ...f, lead_type: k, category: k === 'online' ? ONLINE_CATEGORIES[1] : CATEGORIES[0], province: k === 'online' ? 'Nationwide' : 'Damascus' }))}
+                onClick={() => setForm(f => ({ ...f, lead_type: k, category: k === 'online' ? ONLINE_CATEGORIES[1] : CATEGORIES[0], province: defaultRegion(k) }))}
                 className={`py-2 rounded-xl text-xs font-bold border ${form.lead_type === k ? 'bg-teal/10 border-teal text-teal' : 'border-border text-muted'}`}>{l}</button>
             ))}
           </div>
@@ -293,12 +321,13 @@ function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="الفئة">
               <select className={inputCls} value={form.category} onChange={set('category')}>
-                {(online ? ONLINE_CATEGORIES : CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
+                {(online ? onlineCats : physicalCats).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="المحافظة *">
+            <Field label={`${C.regionLabel} *`}>
               <select className={inputCls} value={form.province} onChange={set('province')}>
-                {PROVINCES.map(p => <option key={p} value={p}>{provLabel(p)}</option>)}
+                {online && <option value={NATIONWIDE}>{C.nationwideLabel}</option>}
+                {C.regions.map(p => <option key={p} value={p}>{regionLabelAr(country, p)}</option>)}
               </select>
             </Field>
           </div>
@@ -310,7 +339,14 @@ function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
           {!online && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="المدينة/المنطقة"><input className={inputCls} value={form.city} onChange={set('city')} /></Field>
+                <Field label="المدينة/المنطقة">
+                  <input className={inputCls} value={form.city} onChange={set('city')} list={knownCities.length ? `cities-${country}` : undefined} />
+                  {knownCities.length > 0 && (
+                    <datalist id={`cities-${country}`}>
+                      {knownCities.map(c => <option key={c} value={c}>{cityLabelAr(country, c)}</option>)}
+                    </datalist>
+                  )}
+                </Field>
                 <Field label="الحي/التفصيل"><input className={inputCls} value={form.district} onChange={set('district')} /></Field>
               </div>
               <Field label="العنوان"><input className={inputCls} value={form.address} onChange={set('address')} /></Field>
@@ -318,8 +354,8 @@ function AddLeadModal({ onClose, onSaved, myName, defaultType }) {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="رقم الهاتف"><input className={inputCls} value={form.phone} onChange={set('phone')} placeholder="09xxxxxxxx" /></Field>
-            <Field label="واتساب"><input className={inputCls} value={form.whatsapp} onChange={set('whatsapp')} placeholder="09xxxxxxxx" /></Field>
+            <Field label="رقم الهاتف"><input className={inputCls} value={form.phone} onChange={set('phone')} placeholder={C.phoneHint} /></Field>
+            <Field label="واتساب"><input className={inputCls} value={form.whatsapp} onChange={set('whatsapp')} placeholder={C.phoneHint} /></Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="إنستغرام"><input className={inputCls} value={form.instagram} onChange={set('instagram')} placeholder="@handle" /></Field>
@@ -373,11 +409,16 @@ function Stat({ label, val, sub }) {
 }
 
 function InsightsView({ leads, onJump }) {
-  const ins = useMemo(() => computeInsights(leads), [leads]);
+  const { country } = useLeadsCtx();
+  const C = COUNTRIES[country];
+  const presenceLabels = presenceLabelsOf(country);
+  const provLabel = (p) => regionLabelAr(country, p);
+  const ins = useMemo(() => computeInsights(leads, C.regions), [leads, C.regions]);
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
   const provRows = Object.entries(ins.byProvince).sort((a, b) => b[1].total - a[1].total);
   const funnelOrder = ['not_contacted', 'contacted', 'interested', 'customer', 'not_interested'];
-  const presenceOrder = ['listed', 'in_talks', 'contacted', 'not_listed', 'rejected', 'not_applicable'];
+  const presenceOrder = ['listed', 'in_talks', 'contacted', 'not_listed', 'rejected', 'not_applicable']
+    .concat(C.legacyDirect ? [] : ['unverified']);
 
   return (
     <div className="space-y-4">
@@ -399,7 +440,7 @@ function InsightsView({ leads, onJump }) {
         <div className="flex flex-wrap gap-1.5">
           {presenceOrder.map(k => (
             <span key={k} className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${PRESENCE_COLOR[k]}`}>
-              {PRESENCE_LABELS[k]}: {ins.online.presence[k] || 0}
+              {presenceLabels[k]}: {ins.online.presence[k] || 0}
             </span>
           ))}
         </div>
@@ -449,11 +490,11 @@ function InsightsView({ leads, onJump }) {
       </section>
 
       <section className="bg-surface border border-border rounded-2xl p-4 space-y-2 overflow-x-auto">
-        <h3 className="text-sm font-extrabold text-text">🗺️ التغطية حسب المحافظة</h3>
+        <h3 className="text-sm font-extrabold text-text">🗺️ التغطية حسب {C.regionLabel}</h3>
         <table className="w-full text-xs">
           <thead>
             <tr className="text-muted text-[10px]">
-              <th className="text-right py-1">المحافظة</th><th>الكل</th><th>تواصل مباشر</th><th>تواصلنا</th><th>عملاء</th><th>أونلاين</th>
+              <th className="text-right py-1">{C.regionLabel}</th><th>الكل</th><th>تواصل مباشر</th><th>تواصلنا</th><th>عملاء</th><th>أونلاين</th>
             </tr>
           </thead>
           <tbody>
@@ -467,7 +508,7 @@ function InsightsView({ leads, onJump }) {
         </table>
         {ins.missingProvinces.length > 0 && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-            ⚠️ محافظات بلا أي ليد بعد: {ins.missingProvinces.map(provLabel).join('، ')} — أولوية للبحث القادم.
+            ⚠️ {C.regionPlural} بلا أي ليد بعد: {ins.missingProvinces.map(provLabel).join('، ')} — أولوية للبحث القادم.
           </p>
         )}
       </section>
@@ -484,7 +525,27 @@ function InsightsView({ leads, onJump }) {
   );
 }
 
-export default function SyriaLeadsScreen() {
+function CountrySwitcher({ country }) {
+  const { can } = usePermissions();
+  const navigate = useNavigate();
+  const visible = enabledCountries().filter(c => c.leadsPermission && COUNTRY_ROUTE[c.code] && can(c.leadsPermission));
+  if (visible.length < 2) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {visible.map(c => (
+        <Chip key={c.code} active={c.code === country} onClick={() => c.code !== country && navigate(COUNTRY_ROUTE[c.code])}>
+          {c.flag} {c.ar}
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
+export default function SyriaLeadsScreen({ country = 'SY' }) {
+  const C = COUNTRIES[country] || COUNTRIES.SY;
+  const api = useMemo(() => leadsApiFor(C.code), [C.code]);
+  const ctx = useMemo(() => ({ country: C.code, api }), [C.code, api]);
+  const provLabel = (p) => regionLabelAr(C.code, p);
   const { name } = useAuth();
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -501,10 +562,10 @@ export default function SyriaLeadsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr(null);
-    try { setLeads(await listLeads()); }
-    catch (e) { setLoadErr(e?.message || 'تعذّر التحميل'); }
+    try { setLeads(await api.list()); }
+    catch (e) { setLeads([]); setLoadErr(e?.message || 'تعذّر التحميل'); }
     finally { setLoading(false); }
-  }, []);
+  }, [api]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -550,13 +611,18 @@ export default function SyriaLeadsScreen() {
     setQ(lead.name);
   };
 
+  const presenceLabels = presenceLabelsOf(C.code);
+
   return (
+    <LeadsCtx.Provider value={ctx}>
     <div className="space-y-5 pb-6" dir="rtl">
       <div className="flex items-start justify-between gap-3 pt-1">
         <div>
-          <h1 className="text-2xl font-extrabold text-text">ليدز سوريا B2B</h1>
+          <h1 className="text-2xl font-extrabold text-text">ليدز {C.ar} B2B</h1>
           <p className="text-xs text-muted mt-0.5">
-            محلات ومتاجر أونلاين حقيقية بمصادر موثّقة — لا بيانات مُختلَقة. تتحدّث أسبوعياً بالجديد.
+            {C.legacyDirect
+              ? 'محلات ومتاجر أونلاين حقيقية بمصادر موثّقة — لا بيانات مُختلَقة. تتحدّث أسبوعياً بالجديد.'
+              : 'منصات وصيدليات ومتاجر تجميل وموزعون — كل جهة بمصدر عام وتاريخ تحقق. «غير متحقق» يعني لم نجد دليلاً بعد، لا أننا غير موجودين.'}
           </p>
         </div>
         {view !== 'insights' && (
@@ -566,6 +632,8 @@ export default function SyriaLeadsScreen() {
           </button>
         )}
       </div>
+
+      <CountrySwitcher country={C.code} />
 
       <div className="grid grid-cols-3 gap-1.5 bg-surface-alt border border-border rounded-2xl p-1">
         {[['physical', '🏪 محلات'], ['online', '🛒 متاجر أونلاين'], ['insights', '📊 تحليلات']].map(([k, l]) => (
@@ -596,7 +664,7 @@ export default function SyriaLeadsScreen() {
             className="w-full bg-surface border border-border rounded-2xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-teal" />
 
           <div className="flex flex-wrap gap-1.5">
-            <Chip active={province === 'all'} onClick={() => setProvince('all')}>كل المحافظات</Chip>
+            <Chip active={province === 'all'} onClick={() => setProvince('all')}>{C.allRegionsLabel}</Chip>
             {provinces.map(p => <Chip key={p} active={province === p} onClick={() => setProvince(p)}>{provLabel(p)}</Chip>)}
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -607,7 +675,7 @@ export default function SyriaLeadsScreen() {
           {view === 'online' ? (
             <div className="flex flex-wrap gap-1.5">
               <Chip active={presence === 'all'} onClick={() => setPresence('all')}>كل حالات التواجد</Chip>
-              {Object.entries(PRESENCE_LABELS).map(([k, l]) => (
+              {Object.entries(presenceLabels).map(([k, l]) => (
                 <Chip key={k} active={presence === k} onClick={() => setPresence(k)}>{l}</Chip>
               ))}
             </div>
@@ -649,5 +717,6 @@ export default function SyriaLeadsScreen() {
           onClose={() => setAddOpen(false)} onSaved={load} />
       )}
     </div>
+    </LeadsCtx.Provider>
   );
 }
