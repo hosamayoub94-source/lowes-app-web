@@ -20,13 +20,14 @@ const entry = `
   export * as nav from './src/data/navigation.js';
   export * as svc from './src/services/syriaLeadsService.js';
   export * as countries from './supabase/functions/_shared/countries.js';
+  export * as b2bNav from './src/data/b2bLeadsNav.js';
 `;
 const stubSupabase = { name: 'stub-supabase', setup(b) { b.onResolve({ filter: /(^|\/)supabase$/ }, (a) => (a.importer.includes('services') ? { path: 'stub', namespace: 'stub' } : undefined)); b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const supabase = {};' })); } };
 const out = path.join(root, '.tmp-b2b-client.mjs');
 await build({ stdin: { contents: entry, resolveDir: root, loader: 'js' }, bundle: true, format: 'esm', platform: 'node', outfile: out, plugins: [stubSupabase], logLevel: 'silent' });
 let m;
 try { m = await import(pathToFileURL(out).href + `?t=${Date.now()}`); } finally { fs.unlinkSync(out); }
-const { perms, nav, svc, countries } = m;
+const { perms, nav, svc, countries, b2bNav } = m;
 const P = perms.PERMISSIONS;
 
 // ── 4 access cases (+ Syria-only) on the client layer ──
@@ -45,13 +46,32 @@ for (const [k, session] of Object.entries(personas)) {
   // ProtectedRoute rule (src/routes/ProtectedRoute.jsx): roles [admin] OR perm
   const routeUae = session.role === 'admin' || set.has(P.VIEW_UAE_LEADS);
   const routeSy = session.role === 'admin' || set.has(P.VIEW_SYRIA_LEADS);
-  // CountrySwitcher rule (SyriaLeadsScreen.jsx)
-  const visible = countries.enabledCountries().filter((c) => c.leadsPermission && perms.sessionCan(session, c.leadsPermission)).map((c) => c.code);
+  // CountryTabs rule (SyriaLeadsScreen.jsx) = allowedLeadCountries
+  const can = (p) => perms.sessionCan(session, p);
+  const visible = b2bNav.allowedLeadCountries(can);
   ok(JSON.stringify(visible) === JSON.stringify(expectCountries[k]), `${k}: countries ${visible}`);
-  ok(menu.includes('uae-leads') === expectCountries[k].includes('AE') && routeUae === expectCountries[k].includes('AE'), `${k}: UAE menu/route`);
-  ok(menu.includes('syria-leads') === expectCountries[k].includes('SY') && routeSy === expectCountries[k].includes('SY'), `${k}: Syria menu/route unchanged`);
-  rows.push({ persona: k, uaeMenu: menu.includes('uae-leads'), uaeRoute: routeUae, syriaRoute: routeSy, countries: visible.join(',') || '—' });
+  // ONE menu item for every country; visible iff at least one country is allowed
+  ok(menu.includes('b2b-leads') === expectCountries[k].length > 0, `${k}: single «ليدز B2B» menu item`);
+  ok(!menu.includes('syria-leads') && !menu.includes('uae-leads'), `${k}: no per-country menu items any more`);
+  ok(routeUae === expectCountries[k].includes('AE') && routeSy === expectCountries[k].includes('SY'), `${k}: each country route still guarded by its own permission`);
+  // /b2b-leads entry: first allowed country (no history), the remembered one if still allowed, home if none
+  const entry = b2bNav.leadsEntryRoute(can, null);
+  const expectEntry = expectCountries[k].length ? (expectCountries[k][0] === 'SY' ? '/syria-leads' : '/uae-leads') : '/';
+  ok(entry === expectEntry, `${k}: entry route ${entry}`);
+  ok(b2bNav.leadsEntryRoute(can, 'AE') === (expectCountries[k].includes('AE') ? '/uae-leads' : expectEntry), `${k}: remembered AE honoured only if allowed`);
+  ok(b2bNav.leadsEntryRoute(can, 'TR') === expectEntry, `${k}: a disabled/unknown remembered country is ignored`);
+  rows.push({ persona: k, menu: menu.includes('b2b-leads') ? 'ليدز B2B' : '—', tabs: visible.join(' | ') || '—', entry, uaeRoute: routeUae, syriaRoute: routeSy });
 }
+// favorites saved under the old ids still work, without duplicates
+ok(JSON.stringify(nav.canonicalNavIds(['syria-leads', 'tasks', 'uae-leads'])) === JSON.stringify(['b2b-leads', 'tasks']), 'old favorites (syria-leads/uae-leads) map to b2b-leads, deduped');
+ok(JSON.stringify(nav.canonicalNavIds(['tasks'])) === JSON.stringify(['tasks']) && nav.canonicalNavIds(null).length === 0, 'other favorites untouched');
+// the single item stays highlighted on both country pages, and only there
+const b2bItem = nav.NAV_ITEMS.find((i) => i.id === 'b2b-leads');
+ok(nav.navItemMatches(b2bItem, '/syria-leads') && nav.navItemMatches(b2bItem, '/uae-leads') && !nav.navItemMatches(b2bItem, '/orders/uae') && !nav.navItemMatches(b2bItem, '/syria-leads-x'), 'active highlight on /syria-leads and /uae-leads only');
+ok(!nav.navItemMatches(nav.NAV_ITEMS.find((i) => i.id === 'tasks'), '/syria-leads'), 'other items unaffected by match');
+// array perm must not leak: an item with a single perm still behaves as before
+const wa = nav.NAV_ITEMS.find((i) => i.id === 'admin-whatsapp');
+ok(nav.navItemsForRole('employee', new Set([P.SEND_WHATSAPP])).some((i) => i.id === wa.id) && !nav.navItemsForRole('media_buyer', new Set()).some((i) => i.id === wa.id), 'single-perm items unchanged');
 console.table(rows);
 ok(countries.COUNTRIES.AE.leadsPermission === P.VIEW_UAE_LEADS && countries.COUNTRIES.SY.leadsPermission === P.VIEW_SYRIA_LEADS, 'config permissions = app permission keys');
 ok(perms.PERMISSION_GROUPS.some((g) => g.permissions.includes(P.VIEW_UAE_LEADS)) && perms.PERMISSION_LABELS[P.VIEW_UAE_LEADS] && perms.PERMISSION_DESCRIPTIONS[P.VIEW_UAE_LEADS], 'UAE permission appears in the admin editor (group + label + description)');

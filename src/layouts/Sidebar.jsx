@@ -2,13 +2,13 @@
 // Sidebar — premium desktop navigation (dark-mode aware).
 // Uses Tailwind + CSS-var classes exclusively — no hardcoded hex.
 // =============================================================
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@utils/classNames';
 import { useUiStore } from '@stores/uiStore';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
 import { useFavorites } from '@hooks/useFavorites';
-import { groupedNavForRole } from '@data/navigation';
+import { groupedNavForRole, navItemMatches } from '@data/navigation';
 import { Avatar } from '@components/ui/Avatar';
 import NavIcon from '@components/ui/NavIcon';
 import { ROLE_LABELS } from '@data/teams';
@@ -20,6 +20,7 @@ export function Sidebar() {
   const { permissions } = usePermissions();
   const { isFavorite, toggleFavorite } = useFavorites();
   const groups = groupedNavForRole(role, permissions);
+  const { pathname } = useLocation();
   const roleLabel = ROLE_LABELS[role] || role || '';
 
   return (
@@ -79,6 +80,7 @@ export function Sidebar() {
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const fav = isFavorite(item.id);
+                  const extraActive = navItemMatches(item, pathname);   // e.g. «ليدز B2B» on /syria-leads or /uae-leads
                   return (
                     <div key={item.id} className="group/nav relative">
                       <NavLink
@@ -87,12 +89,12 @@ export function Sidebar() {
                         className={({ isActive }) =>
                           cn(
                             'flex items-center gap-3 h-10 ps-3 pe-9 rounded-xl text-sm font-semibold transition-all duration-150',
-                            isActive
+                            isActive || extraActive
                               ? 'text-white shadow-soft'
                               : 'text-muted hover:text-text hover:bg-navy/5 dark:hover:bg-white/5',
                           )
                         }
-                        style={({ isActive }) => isActive
+                        style={({ isActive }) => isActive || extraActive
                           ? { background: 'linear-gradient(135deg, rgb(var(--color-navy)) 0%, rgb(var(--color-teal)) 100%)' }
                           : {}}
                       >

@@ -6,6 +6,7 @@
 // =============================================================
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { canonicalNavIds } from '@data/navigation';
 
 const PREFIX = 'lowes:favorites:';
 const listeners = new Set();
@@ -16,7 +17,7 @@ function read(userId) {
   try {
     const raw = localStorage.getItem(keyFor(userId));
     const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
+    return Array.isArray(arr) ? canonicalNavIds(arr) : [];   // old merged ids (ليدز سوريا/الإمارات) → «ليدز B2B»
   } catch { return []; }
 }
 

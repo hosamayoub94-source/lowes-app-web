@@ -69,6 +69,7 @@ export const ROUTES = {
   REVIEWS:   '/reviews',
 
   // Syria B2B Leads
+  B2B_LEADS: '/b2b-leads',        // single menu item → last allowed country
   SYRIA_LEADS: '/syria-leads',
   UAE_LEADS: '/uae-leads',
   CREATORS: '/creators',

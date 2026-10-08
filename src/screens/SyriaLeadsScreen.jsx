@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useMemo, createContext, useContext } 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { usePermissions } from '@hooks/usePermissions';
-import { ROUTES } from '@routes/paths';
+import { COUNTRY_ROUTE, allowedLeadCountries, saveLastCountry } from '@data/b2bLeadsNav';
 import {
   STATUS_LABELS, tierGroup,
   CATEGORIES, ONLINE_CATEGORIES, CHANNEL_LABELS, PRESENCE_LABELS, PRESENCE_LABELS_WITH_UNVERIFIED,
@@ -28,10 +28,9 @@ import { leadsApiFor } from '@services/b2bLeadsApi';
 import { canImportLeads } from '@services/b2bImport';
 import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
 import {
-  COUNTRIES, NATIONWIDE, enabledCountries, regionLabelAr, cityLabelAr, waLinkFor,
+  COUNTRIES, NATIONWIDE, regionLabelAr, cityLabelAr, waLinkFor,
 } from '../../supabase/functions/_shared/countries.js';
 
-const COUNTRY_ROUTE = { SY: ROUTES.SYRIA_LEADS, AE: ROUTES.UAE_LEADS };
 const LeadsCtx = createContext({ country: 'SY', api: null });
 const useLeadsCtx = () => useContext(LeadsCtx);
 const presenceLabelsOf = (country) => (COUNTRIES[country]?.legacyDirect ? PRESENCE_LABELS : PRESENCE_LABELS_WITH_UNVERIFIED);
@@ -527,17 +526,22 @@ function InsightsView({ leads, onJump }) {
   );
 }
 
-function CountrySwitcher({ country }) {
+// تبويب الدولة — الطريقة الوحيدة للتبديل (بند «ليدز B2B» واحد بالقائمة). يظهر فقط الدول المسموحة للمستخدم.
+// بلا أعلام emoji: على ويندوز تظهر كحروف (SY/AE).
+function CountryTabs({ country }) {
   const { can } = usePermissions();
   const navigate = useNavigate();
-  const visible = enabledCountries().filter(c => c.leadsPermission && COUNTRY_ROUTE[c.code] && can(c.leadsPermission));
-  if (visible.length < 2) return null;
+  const allowed = allowedLeadCountries(can);
+  if (allowed.length < 2) {
+    return <span className="inline-flex text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-alt border border-border text-muted">{COUNTRIES[country].ar}</span>;
+  }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {visible.map(c => (
-        <Chip key={c.code} active={c.code === country} onClick={() => c.code !== country && navigate(COUNTRY_ROUTE[c.code])}>
-          {c.flag} {c.ar}
-        </Chip>
+    <div role="tablist" aria-label="الدولة" className="inline-flex gap-1 bg-surface-alt border border-border rounded-2xl p-1" data-testid="country-tabs">
+      {allowed.map((code) => (
+        <button key={code} role="tab" aria-selected={code === country} onClick={() => code !== country && navigate(COUNTRY_ROUTE[code])}
+          className={`px-4 py-1.5 rounded-xl text-sm font-extrabold transition ${code === country ? 'bg-surface text-teal shadow-sm' : 'text-muted hover:text-text'}`}>
+          {COUNTRIES[code].ar}
+        </button>
       ))}
     </div>
   );
@@ -563,6 +567,8 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [presence, setPresence] = useState('all');
   const [onlyNew, setOnlyNew] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+
+  useEffect(() => { saveLastCountry(C.code); }, [C.code]);   // «ليدز B2B» بالقائمة يرجع لآخر دولة
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr(null);
@@ -621,9 +627,10 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     <LeadsCtx.Provider value={ctx}>
     <div className="space-y-5 pb-6" dir="rtl">
       <div className="flex items-start justify-between gap-3 pt-1">
-        <div>
-          <h1 className="text-2xl font-extrabold text-text">ليدز {C.ar} B2B</h1>
-          <p className="text-xs text-muted mt-0.5">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-extrabold text-text">ليدز B2B</h1>
+          <CountryTabs country={C.code} />
+          <p className="text-xs text-muted">
             {C.legacyDirect
               ? 'محلات ومتاجر أونلاين حقيقية بمصادر موثّقة — لا بيانات مُختلَقة. تتحدّث أسبوعياً بالجديد.'
               : 'منصات وصيدليات ومتاجر تجميل وموزعون — كل جهة بمصدر عام وتاريخ تحقق. «غير متحقق» يعني لم نجد دليلاً بعد، لا أننا غير موجودين.'}
@@ -644,8 +651,6 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
           )}
         </div>
       </div>
-
-      <CountrySwitcher country={C.code} />
 
       <div className="grid grid-cols-3 gap-1.5 bg-surface-alt border border-border rounded-2xl p-1">
         {[['physical', '🏪 محلات'], ['online', '🛒 متاجر أونلاين'], ['insights', '📊 تحليلات']].map(([k, l]) => (
