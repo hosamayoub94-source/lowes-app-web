@@ -27,17 +27,17 @@
 
 | # | الجهة | الفئة | السبب | الرابط | تواصل منشور |
 |---|---|---|---|---|---|
-| 1 | Amazon UAE | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://sell.amazon.ae/ | ;غ;ي;ر; ;م;ع;ر;و;ف; |
-| 2 | Begad | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://www.begad.ae/ar/sell | ;s;e;l;l;e;r;s;@;b;e;g;a;d;.;a;e; ;|; ;+;9;7;1; ;4; ;8;3;5; ;6;3;5;8; ;|; ;c;o;n;t;a;c;t;@;b;e;g;a;d;.;a;e; ;|; ;s;u;p;p;o;r;t;@;b;e;g;a;d;.;a;e; |
-| 3 | K Beauty Souq | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://kbeautysouq.com/sell-with-us/ | ;s;u;p;p;o;r;t;@;k;b;e;a;u;t;y;s;o;u;q;.;c;o;m; |
-| 4 | Tradeling | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://www.tradeling.com/ae-en/page/become-a-seller | ;s;u;p;p;o;r;t;@;t;r;a;d;e;l;i;n;g;.;c;o;m; |
-| 5 | Lets Tango | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://sellers.letstango.com/newmarketplace | ;s;e;l;l;e;r;@;l;e;t;s;t;a;n;g;o;.;c;o;m; ;|; ;+;9;7;1; ;4; ;4;0;3;4;8;8;8; ;|; ;s;u;p;p;o;r;t;@;l;e;t;s;t;a;n;g;o;.;c;o;m; |
-| 6 | Xpressions Style | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program | ;b;u;s;i;n;e;s;s;.;d;e;v;e;l;o;p;m;e;n;t;@;x;p;r;e;s;s;i;o;n;s;s;t;y;l;e;.;c;o;m; ;|; ;t;e;a;m;@;x;p;r;e;s;s;i;o;n;s;s;t;y;l;e;.;c;o;m; ;|; ;i;n;f;o;@;x;p;r;e;s;s;i;o;n;s;s;t;y;l;e;.;c;o;m; |
-| 7 | Pharmalink (Medicina operator) | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://pharmalink.ae/partner/ | ;غ;ي;ر; ;م;ع;ر;و;ف; |
-| 8 | LSM Trading | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://lsmtrading.com/wholesale/ | ;s;a;l;e;s;@;l;s;m;t;r;a;d;i;n;g;.;c;o;m; ;|; ;+;9;7;1; ;4; ;3;3;9; ;2;1;5;7; |
-| 9 | LOOKFANTASTIC UAE | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://www.lookfantastic.ae/c/info/partnerships-suppliers/ | ;p;a;r;t;n;e;r;s;h;i;p;s;@;t;h;e;h;u;t;g;r;o;u;p;.;c;o;m; |
-| 10 | Talabat UAE | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://ae.partner.talabat.com/s/?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner | ;غ;ي;ر; ;م;ع;ر;و;ف; |
-| 11 | Majid Al Futtaim | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://www.majidalfuttaim.com/en/what-we-do/partner-with-us | ;غ;ي;ر; ;م;ع;ر;و;ف; |
+| 1 | Amazon UAE | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://sell.amazon.ae/ | غير معروف |
+| 2 | Begad | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://www.begad.ae/ar/sell | sellers@begad.ae ; +971 4 835 6358 ; contact@begad.ae ; support@begad.ae |
+| 3 | K Beauty Souq | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://kbeautysouq.com/sell-with-us/ | support@kbeautysouq.com |
+| 4 | Tradeling | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://www.tradeling.com/ae-en/page/become-a-seller | support@tradeling.com |
+| 5 | Lets Tango | A | تسجيل بائع مباشر موثّق من صفحة رسمية | https://sellers.letstango.com/newmarketplace | seller@letstango.com ; +971 4 4034888 ; support@letstango.com |
+| 6 | Xpressions Style | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program | business.development@xpressionsstyle.com ; team@xpressionsstyle.com ; info@xpressionsstyle.com |
+| 7 | Pharmalink (Medicina operator) | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://pharmalink.ae/partner/ | غير معروف |
+| 8 | LSM Trading | B | قناة جملة/توزيع/B2B بمسار رسمي موثّق | https://lsmtrading.com/wholesale/ | sales@lsmtrading.com ; +971 4 339 2157 |
+| 9 | LOOKFANTASTIC UAE | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://www.lookfantastic.ae/c/info/partnerships-suppliers/ | partnerships@thehutgroup.com |
+| 10 | Talabat UAE | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://ae.partner.talabat.com/s/?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner | غير معروف |
+| 11 | Majid Al Futtaim | C | مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد | https://www.majidalfuttaim.com/en/what-we-do/partner-with-us | غير معروف |
 
 **حقائق رسمية مثبتة:**
 - Amazon.ae (sell.amazon.ae/pricing): عمولة الجمال 8% للمنتج ≤ 50 درهم و15% للأعلى، حد أدنى 1 درهم؛ حساب Professional بلا اشتراك شهري «لفترة محدودة»؛ الأسعار بدون VAT.

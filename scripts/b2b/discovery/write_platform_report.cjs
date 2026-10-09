@@ -36,7 +36,7 @@ L.push(`| شروط تسجيل منتج من مصدر رسمي | ${s.with_product
 L.push('## أين نبدأ — قائمة البدء (A ثم B ثم C الموثّقة)', '');
 const start = j.start_list.map((n) => rows.find((r) => r.name === n)).filter(Boolean);
 L.push('| # | الجهة | الفئة | السبب | الرابط | تواصل منشور |', '|---|---|---|---|---|---|');
-start.forEach((r, i) => L.push(`| ${i + 1} | ${r.name} | ${r.tier} | ${String(r.tier_reason).replace(/\|/g, '/')} | ${r.seller_registration_url || r.supplier_or_partnership_url || r.official_website} | ${String(r.public_business_contact).replace(/|/g, ';')} |`));
+start.forEach((r, i) => L.push(`| ${i + 1} | ${r.name} | ${r.tier} | ${String(r.tier_reason).replace(/\|/g, '/')} | ${r.seller_registration_url || r.supplier_or_partnership_url || r.official_website} | ${String(r.public_business_contact).replace(/\|/g, ';')} |`));
 L.push('', '**حقائق رسمية مثبتة:**');
 L.push('- Amazon.ae (sell.amazon.ae/pricing): عمولة الجمال 8% للمنتج ≤ 50 درهم و15% للأعلى، حد أدنى 1 درهم؛ حساب Professional بلا اشتراك شهري «لفترة محدودة»؛ الأسعار بدون VAT.');
 L.push('- Begad (begad.ae/ar/sell): رخصة تجارية + إثبات بنك + هوية؛ تسجيل مجاني؛ العمولة «نسبة ثابتة لكل فئة» بلا أرقام.');
