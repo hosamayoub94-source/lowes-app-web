@@ -1,0 +1,266 @@
+{
+ "aliases": {
+  "Mumzworld Seller Registration": "Mumzworld"
+ },
+ "exclude": {
+  "Mumzworld": {
+   "kind": "duplicate",
+   "reason": "مكرر: نفس الجهة، وأُبقيت نسخة «Mumzworld Seller Registration» لأن صفحتها هي التي تحمّلت وتحققت",
+   "duplicate_of": "Mumzworld Seller Registration"
+  },
+  "Lookfantastic Global": {
+   "kind": "duplicate",
+   "reason": "نفس الشركة (THG) ونفس صفحة الموردين — بطلب ملف حسام لا تُسجَّل كجهتين منفصلتين",
+   "duplicate_of": "LOOKFANTASTIC UAE"
+  },
+  "Noon Minutes / noon.com": {
+   "kind": "duplicate",
+   "reason": "مكرر: نفس رابط noon.com الإماراتي",
+   "duplicate_of": "noon UAE"
+  },
+  "Tradeling (B2B)": {
+   "kind": "duplicate",
+   "reason": "مكرر لنفس tradeling.com",
+   "duplicate_of": "Tradeling"
+  },
+  "Dubai DET iSupplier": {
+   "kind": "not_a_sales_channel",
+   "reason": "بوابة مشتريات حكومية للمناقصات — لا تبيع منتجات تجميل للمستهلكين"
+  },
+  "DEWA Supplier Enrolment": {
+   "kind": "not_a_sales_channel",
+   "reason": "تسجيل مورد لمشتريات هيئة كهرباء ومياه دبي — ليست قناة بيع تجزئة"
+  },
+  "Cosmetics Trading directory: oncosmetics UAE": {
+   "kind": "lead_source",
+   "reason": "دليل شركات تجاري (مصدر لاكتشاف موزعين) وليس قناة بيع؛ تفاصيل التواصل فيه خلف اشتراك"
+  },
+  "Dubai Chamber Member Directory": {
+   "kind": "lead_source",
+   "reason": "دليل أعضاء غرفة تجارة دبي (مصدر بحث عن موزعين) وليس قناة بيع"
+  },
+  "Dubai SME / Dubai Chamber supplier portals": {
+   "kind": "not_a_sales_channel",
+   "reason": "بوابة حكومية لدعم المنشآت الصغيرة — ليست قناة بيع (والموقع يحجب الفحص الآلي)"
+  },
+  "Beautyworld Middle East (exhibitor lists)": {
+   "kind": "lead_source",
+   "reason": "معرض تجاري (مصدر موزعين)؛ رابط الصفحة الذي جرّبته أعاد 404 فلم يُعتمد"
+  },
+  "WeMENA": {
+   "kind": "wrong_entity",
+   "reason": "النطاق الذي جرّبته يعرض موقعاً غير مرتبط (مطعم روسي) — الرابط لم يثبت، لا يُعتمد"
+  },
+  "Go To Beauty": {
+   "kind": "wrong_entity",
+   "reason": "النطاق gotobeauty.com يعرض عيادة جراحة تجميلية بأمريكا — ليس المتجر المقصود؛ الرابط الصحيح غير معروف"
+  },
+  "Dermalogica / skin clinics distributors": {
+   "kind": "not_a_sales_channel",
+   "reason": "موقع علامة واحدة (Dermalogica) لا متجر متعدد العلامات؛ صفحته للانضمام كعيادة/صالون"
+  },
+  "The Body Shop UAE": {
+   "kind": "not_a_sales_channel",
+   "reason": "متجر علامة واحدة (The Body Shop) لا يدرج علامات أخرى"
+  }
+ },
+ "byName": {
+  "Amazon UAE": {
+   "method": "direct_seller_registration",
+   "method_source": "sell.amazon.ae",
+   "seller_registration_url": "https://sell.amazon.ae/",
+   "emirate": "الإمارات (توصيل وطني)",
+   "categories": "الصفحة الرسمية: «Got a Dubai Trade Licence? You're eligible to sell on Amazon.ae» — الفئات المقبولة وموافقة فئة الجمال: غير منصوصة بالصفحة",
+   "license": "الصفحة الرسمية تذكر رخصة تجارية من دبي كشرط أهلية؛ باقي المستندات (هوية، بنك) غير منصوصة بالصفحة التي قُرئت",
+   "license_source": "https://sell.amazon.ae/",
+   "fees": "عمولة الإحالة لفئة الجمال: 8% للمنتج بسعر 50 درهم أو أقل، و15% للأعلى من 50 (حد أدنى 1 درهم). حساب Professional بلا اشتراك شهري «لفترة محدودة». تخزين FBA 2 درهم/قدم مكعب/شهر. الأسعار بدون VAT",
+   "fees_source": "https://sell.amazon.ae/pricing",
+   "shipping": "FBA متاح (رسوم التجهيز منشورة بالصفحة الرسمية بالدرهم حسب الوزن)",
+   "shipping_source": "https://sell.amazon.ae/pricing",
+   "priority": "A",
+   "notes": "مصدر الرسوم: صفحة Amazon الرسمية قُرئت 9 تشرين الأول 2026. لا يعني قبول المنتجات تلقائياً؛ موافقة الفئة وتسجيل المنتج تحتاج تحقق منفصل.",
+   "evidence_level": "official_page_fetched"
+  },
+  "noon UAE": {
+   "method": "direct_seller_registration",
+   "method_source": "ملف حسام + مقتطفات بحث عن صفحات noon الرسمية",
+   "seller_registration_url": "https://sell.noon.com/uae-en/getting-started",
+   "evidence_level": "official_page_blocked_secondary_sources",
+   "emirate": "الإمارات (توصيل وطني)",
+   "categories": "غير معروف (الصفحة الرسمية تحجب الفحص الآلي)",
+   "license": "غير معروف رسمياً — مدونات وسيطة تذكر رخصة تجارية سارية وهوية الموقّع وبيانات بنك؛ لم يُتحقق من الصفحة الرسمية",
+   "priority": "A",
+   "notes": "الموقع يحجب الفحص الآلي (403) ولم يُتجاوز. أرقام عمولات noon المنشورة بمدونات (نطاق عريض) غير معتمدة. يلزم فتح صفحة التسجيل يدوياً للتأكيد."
+  },
+  "Tradeling": {
+   "method": "direct_seller_registration",
+   "method_source": "tradeling.com/ae-en/page/become-a-seller",
+   "seller_registration_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+   "supplier_url": "https://distribution.tradeling.com/",
+   "emirate": "الإمارات (B2B)",
+   "categories": "أمثلة الفئات بالصفحة الرسمية: هواتف، لابتوب، مياه، مشروبات، وجبات خفيفة، مستلزمات أطفال، طعام حيوانات — فئة التجميل/العناية غير مذكورة",
+   "license": "غير منصوص بالصفحة (سؤال «How to get verified as a Seller» بلا إجابة)",
+   "license_source": "https://www.tradeling.com/ae-en/page/become-a-seller",
+   "fees": "الصفحة فيها عنوان «Commission structure» بلا أرقام. الدفع للبائع مرتين شهرياً",
+   "fees_source": "https://www.tradeling.com/ae-en/page/become-a-seller",
+   "shipping": "Tradeling Logistics: استيراد/تصدير/جمارك/شحن/تخزين/توصيل أخير، وخدمة Exporter of Record",
+   "shipping_source": "https://www.tradeling.com/ae-en/page/become-a-seller",
+   "priority": "B",
+   "notes": "تسجيل بائع مباشر رسمي موجود، لكن قبول فئة العناية بالبشرة غير مؤكد.",
+   "evidence_level": "official_page_fetched"
+  },
+  "Begad": {
+   "method": "direct_seller_registration",
+   "method_source": "begad.ae/ar/sell",
+   "seller_registration_url": "https://www.begad.ae/ar/sell",
+   "emirate": "الإمارات",
+   "categories": "«سبع فئات» (الصفحة تذكر الإلكترونيات والأزياء والمنزل والجمال وغيرها دون تسميتها كاملة)",
+   "license": "الصفحة الرسمية: رخصة تجارية + إثبات حساب بنكي + هوية حكومية (PDF/JPG/PNG حتى 20MB لكل ملف)",
+   "license_source": "https://www.begad.ae/ar/sell",
+   "fees": "«تسجيل مجاني»، وعمولة «نسبة ثابتة لكل فئة» — النسب غير معلنة. البائعون المؤسسون يحصلون على أدنى شريحة",
+   "fees_source": "https://www.begad.ae/ar/sell",
+   "shipping": "غير معروف (الصفحة لا تذكر الشحن للبائع)",
+   "contact": "sellers@begad.ae | +971 4 835 6358",
+   "priority": "A",
+   "notes": "منصة صغيرة/جديدة — حجم الزيارات غير معروف.",
+   "evidence_level": "official_page_fetched"
+  },
+  "Mumzworld Seller Registration": {
+   "method": "supplier_or_brand_application",
+   "method_source": "landing.seller.mumzworld.com/sell",
+   "supplier_url": "https://landing.seller.mumzworld.com/sell",
+   "emirate": "الإمارات (والخليج)",
+   "categories": "حقل «Categories» إلزامي بالنموذج لكن الفئات المقبولة غير مذكورة. المنصة متخصصة بالأم والطفل",
+   "license": "النموذج يطلب رفع مستندات (النوع غير محدد بالصفحة)",
+   "license_source": "https://landing.seller.mumzworld.com/sell",
+   "fees": "غير معلن بالصفحة",
+   "shipping": "غير معروف",
+   "priority": "C",
+   "notes": "نموذج تقديم علامة تجارية ومراجعة ~7 أيام. ملاءمة LOWE'S ضعيفة ما لم يوجد خط عناية بالأم/الطفل.",
+   "evidence_level": "official_page_fetched"
+  },
+  "Carrefour UAE": {
+   "method": "supplier_or_brand_application",
+   "method_source": "ملف حسام + MAF صفحة partner-with-us",
+   "supplier_url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us",
+   "evidence_level": "parent_group_page_fetched",
+   "priority": "B",
+   "notes": "كارفور تشغّلها ماجد الفطيم؛ الصفحة المرتبطة تخص المجموعة وليست نموذج توريد لكارفور بعينها. لا تسجيل بائع ذاتي مؤكد."
+  },
+  "LOOKFANTASTIC UAE": {
+   "method": "supplier_or_brand_application",
+   "method_source": "lookfantastic.ae/c/info/partnerships-suppliers",
+   "supplier_url": "https://www.lookfantastic.ae/c/info/partnerships-suppliers/",
+   "contact": "partnerships@thehutgroup.com",
+   "emirate": "الإمارات (نسخة Arabia)",
+   "categories": "جمال: عناية بشرة/شعر/عطور/مكياج (بحسب الموقع)",
+   "license": "غير منصوص",
+   "fees": "غير معلن",
+   "priority": "B",
+   "notes": "الصفحة الرسمية تدعو الموردين للتواصل بالبريد. لا نموذج ولا شروط منشورة. شُمل نسخة .com ضمن هذه الجهة.",
+   "evidence_level": "official_page_fetched"
+  },
+  "Xpressions Style": {
+   "method": "wholesale_distribution",
+   "method_source": "xpressions.ae partner program page",
+   "supplier_url": "https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program",
+   "contact": "business.development@xpressionsstyle.com | team@xpressionsstyle.com",
+   "emirate": "الإمارات",
+   "categories": "عطور وتجميل (برنامج شراكة: تجزئة/جملة/توزيع)",
+   "license": "غير منصوص",
+   "fees": "غير معلن",
+   "priority": "B",
+   "notes": "برنامج «Business Network» رسمي: طلب أولي يوضح بيانات النشاط ونوع الشراكة.",
+   "evidence_level": "official_page_fetched"
+  },
+  "Talabat UAE": {
+   "method": "supplier_or_brand_application",
+   "method_source": "ae.partner.talabat.com",
+   "supplier_url": "https://ae.partner.talabat.com/s/?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner",
+   "evidence_level": "official_page_fetched",
+   "emirate": "الإمارات (حسب منطقة التوصيل)",
+   "categories": "المطاعم والبقالة والمتاجر؛ التجميل/العناية: غير مؤكد",
+   "fees": "الصفحة تشرح أن هناك «رسوم عمولة» بلا أرقام",
+   "fees_source": "https://ae.partner.talabat.com/s/?language=en_US",
+   "priority": "C",
+   "notes": "بوابة شركاء رسمية، الغالب أنها لمتاجر تعمل بالتوصيل (صيدليات/تجزئة) لا لعلامات مصنّعة. اتفاق مورد عبر الصيدليات أنسب."
+  },
+  "Nice One": {
+   "method": "supplier_or_brand_application",
+   "method_source": "partners.niceonesa.com/register",
+   "supplier_url": "https://partners.niceonesa.com/register",
+   "evidence_level": "official_page_fetched",
+   "emirate": "غير مؤكد (منصة سعودية)",
+   "priority": "C",
+   "notes": "بوابة شراكات رسمية، لكن تغطية السوق الإماراتي غير مؤكدة."
+  },
+  "TikTok for Business": {
+   "method": "social_commerce",
+   "evidence_level": "official_page_fetched",
+   "priority": "C",
+   "notes": "صفحة البائع التي فُحصت (seller.tiktok.com) هي نسخة TikTok Shop الأمريكية؛ إتاحة المتجر للإمارات غير مؤكدة. التسويق/الإعلانات متاح بشكل منفصل."
+  },
+  "Instagram Shop / Instagram Business": {
+   "method": "social_commerce",
+   "evidence_level": "file_claim_only",
+   "priority": "B",
+   "notes": "الموقع أعاد 400 عند الفحص الآلي. إتاحة Shops/Checkout لحساب إماراتي غير مؤكدة. Instagram مثبَّت بقرار حسام (@lowes.profesyonal_) — لا تغيير عليه."
+  },
+  "WhatsApp Business": {
+   "method": "social_commerce",
+   "evidence_level": "file_claim_only",
+   "priority": "B",
+   "notes": "قناة كتالوج وتواصل مباشر، ليست سوقاً. الموقع أعاد 400 للفحص الآلي."
+  },
+  "Shopify Store": {
+   "method": "own_store_platform",
+   "evidence_level": "official_page_fetched",
+   "priority": "B",
+   "notes": "إنشاء متجر خاص بالعلامة — ليس Marketplace. الصفحة لا تتحقق من أهلية الدفع/الشحن بالإمارات."
+  },
+  "Salla": {
+   "method": "own_store_platform",
+   "evidence_level": "file_claim_only",
+   "priority": "D",
+   "notes": "منصة سعودية؛ الموقع يحجب الفحص الآلي. أهلية شركة إماراتية غير مؤكدة."
+  },
+  "Zid": {
+   "method": "own_store_platform",
+   "evidence_level": "file_claim_only",
+   "priority": "D",
+   "notes": "منصة سعودية؛ أهلية شركة إماراتية غير مؤكدة. رابط الملف كان فيه مسافة وأُصلح."
+  },
+  "Watsons UAE": {
+   "method": "independent_multibrand_store",
+   "priority": "B",
+   "notes": "موقع يعمل. لا تسجيل بائع؛ توريد عبر المشتريات. صفحة الموردين: لم تظهر."
+  },
+  "Faces UAE": {
+   "method": "independent_multibrand_store",
+   "priority": "B",
+   "notes": "موقع يعمل (Chalhoub). صفحة الموردين لم تظهر."
+  },
+  "Pharmalink (Medicina operator)": {
+   "method": "wholesale_distribution",
+   "method_source": "pharmalink.ae/partner",
+   "supplier_url": "https://pharmalink.ae/partner/",
+   "evidence_level": "official_page_fetched",
+   "categories": "أدوية ومنتجات صحية/عناية (حسب بحث)؛ التجميل غير مؤكد",
+   "priority": "B",
+   "notes": "موزع أدوية ومشغّل صيدليات Medicina بحسب مصدر ثانوي؛ الصفحة الرسمية فيها مسار «Partner with us» ولوجستيات توزيع."
+  },
+  "Majid Al Futtaim": {
+   "method": "supplier_or_brand_application",
+   "method_source": "majidalfuttaim.com partner-with-us",
+   "supplier_url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us",
+   "evidence_level": "official_page_fetched",
+   "priority": "C",
+   "notes": "صفحة «Partner with us» عامة للمجموعة (عقارات/تجزئة)، مو نموذج توريد تجميل بعينه."
+  },
+  "Glam Beaute": {
+   "method": "independent_multibrand_store",
+   "priority": "C",
+   "notes": "المتجر الأونلاين يعمل. صفحة B2B الموجودة عنده لطلبات الشراء بالجملة منه، لا لتوريد علامات له."
+  }
+ }
+}

@@ -1,0 +1,25 @@
+{
+ "generated_at": "2026-10-09",
+ "input_records": 125,
+ "kept": 110,
+ "excluded_total": 15,
+ "excluded_duplicates": 5,
+ "excluded_not_channel_or_other": 10,
+ "verified": 8,
+ "needs_review": 78,
+ "unreachable": 24,
+ "direct_seller_registration_confirmed": 3,
+ "supplier_agreement_required": 100,
+ "protected_not_verified": 23,
+ "with_official_fee_source": 4,
+ "with_license_req_source": 3,
+ "with_product_reg_source": 0,
+ "by_method": {
+  "direct_seller_registration": 4,
+  "supplier_or_brand_application": 5,
+  "independent_multibrand_store": 93,
+  "wholesale_distribution": 2,
+  "social_commerce": 3,
+  "own_store_platform": 3
+ }
+}
