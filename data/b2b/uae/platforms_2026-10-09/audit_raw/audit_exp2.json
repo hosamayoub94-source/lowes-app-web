@@ -283,7 +283,7 @@
     "seller_signal_text": "wholesale",
     "fee_snippets": [],
     "emails": [
-     "you@company.com",
+     "[named-mailbox-redacted]",
      "info@1004gourmet.com"
     ]
    },
@@ -297,7 +297,7 @@
     "seller_signal_text": "wholesale",
     "fee_snippets": [],
     "emails": [
-     "you@company.com",
+     "[named-mailbox-redacted]",
      "info@1004gourmet.com"
     ]
    }
@@ -555,7 +555,7 @@
     "seller_signal_text": null,
     "fee_snippets": [],
     "emails": [
-     "privacy@onCosmetics.com"
+     "[named-mailbox-redacted]"
     ]
    }
   ]
