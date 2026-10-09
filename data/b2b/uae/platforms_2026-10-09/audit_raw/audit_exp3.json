@@ -1,0 +1,1090 @@
+[
+ {
+  "n": 300,
+  "name": "K Beauty Souq",
+  "url": "https://kbeautysouq.com/",
+  "channel_type": "K-beauty online",
+  "origin": "DDG: korean skincare online store UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://kbeautysouq.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "KBeautySouq | Authentic Korean Skincare & Makeup in Dubai & UAE",
+   "desc": "Shop authentic Korean skincare and makeup in the UAE: cleansers, serums, sunscreens and sheet masks with fast delivery, Cash on Delivery in Dubai and Tamara pay-in-4.",
+   "uae_signal": true,
+   "seller_signal_text": "Sell With",
+   "candidate_links": [
+    {
+     "url": "https://kbeautysouq.com/products/?explore=mostselling",
+     "text": "View More"
+    },
+    {
+     "url": "https://kbeautysouq.com/sell-with-us/",
+     "text": "Sell With Us"
+    },
+    {
+     "url": "https://kbeautysouq.com/affiliate-program/",
+     "text": "Become an Affiliate"
+    },
+    {
+     "url": "https://kbeautysouq.com/affiliate/login/",
+     "text": "Affiliate Login"
+    }
+   ],
+   "emails": [
+    "support@kbeautysouq.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://kbeautysouq.com/products/?explore=mostselling",
+    "link_text": "View More",
+    "http_status": 200,
+    "final_url": "https://kbeautysouq.com/products/?explore=mostselling",
+    "title": "Shop All Korean Skincare & Makeup in UAE - Mostselling Picks | KBeautySouq",
+    "blocked": false,
+    "seller_signal_text": "Sell With",
+    "fee_snippets": [],
+    "emails": [
+     "support@kbeautysouq.com"
+    ]
+   },
+   {
+    "url": "https://kbeautysouq.com/sell-with-us/",
+    "link_text": "Sell With Us",
+    "http_status": 200,
+    "final_url": "https://kbeautysouq.com/sell-with-us/",
+    "title": "Apply to Sell on KBeautySouq | KBeautySouq",
+    "blocked": false,
+    "seller_signal_text": "Sell on",
+    "fee_snippets": [],
+    "emails": [
+     "support@kbeautysouq.com"
+    ]
+   },
+   {
+    "url": "https://kbeautysouq.com/affiliate-program/",
+    "link_text": "Become an Affiliate",
+    "http_status": 200,
+    "final_url": "https://kbeautysouq.com/affiliate-program/",
+    "title": "Join the KBeautySouq Affiliate Program | KBeautySouq",
+    "blocked": false,
+    "seller_signal_text": "Sell With",
+    "fee_snippets": [
+     "akeup in UAE Join the KBeautySouq Affiliate Program Promote KBeautySouq with your unique 5% customer coupon and earn 1% commission on attributed orders"
+    ],
+    "emails": [
+     "support@kbeautysouq.com"
+    ]
+   },
+   {
+    "url": "https://kbeautysouq.com/affiliate/login/",
+    "link_text": "Affiliate Login",
+    "http_status": 200,
+    "final_url": "https://kbeautysouq.com/affiliate/login/",
+    "title": "Affiliate Login | KBeautySouq",
+    "blocked": false,
+    "seller_signal_text": "Sell With",
+    "fee_snippets": [],
+    "emails": [
+     "support@kbeautysouq.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 301,
+  "name": "Skin Korea",
+  "url": "https://skinkorea.ae/",
+  "channel_type": "K-beauty online",
+  "origin": "DDG: korean skincare online store UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://skinkorea.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Skinkorea: Your Source for Korean Beauty in UAE",
+   "desc": "Discover premium Korean beauty at Skinkorea. Shop curated cosmetics, skincare, and beauty essentials in the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "help@skinkorea.ae",
+    "u003e@skinkorea.ae"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 302,
+  "name": "Korean Skincare Arabia",
+  "url": "https://koreanskincarearabia.com/",
+  "channel_type": "K-beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://koreanskincarearabia.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare Arabia | Authentic K-Beauty Direct from Seoul to UAE",
+   "desc": "The authorized retailer for authentic Korean skincare shipping from Seoul to UAE and GCC. Shop COSRX, Anua, and Beauty of Joseon with 3-7 day express delivery.",
+   "uae_signal": true,
+   "seller_signal_text": "Brand Partnerships",
+   "candidate_links": [
+    {
+     "url": "https://finance.yahoo.com/news/korea-cosmetics-k-beauty-market-112600962.html",
+     "text": "Korean Cosmetics Industry Association, Distribution Chain Study, 2024"
+    },
+    {
+     "url": "https://www.ijpsjournal.com/article/Advancing+Pharmaceutical+Supply+Chain+Rules++Regulations+Strategies+for+Overcoming+Challenges",
+     "text": "International Journal of Pharmaceutical Sciences, Temperature Effects on Cosmeti"
+    }
+   ],
+   "emails": [
+    "support@koreanskincarearabia.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 303,
+  "name": "Seoul Routine",
+  "url": "https://seoulroutine.com/",
+  "channel_type": "K-beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://seoulroutine.com/en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Seoul Routine | Authentic Korean Skincare in the UAE & Gulf",
+   "desc": "Personally tested, sourced directly from Seoul. Trusted K-beauty for every skin type, with free shipping on orders over AED 150.00.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://seoulroutine.com/en/product/dr-althea-345-relief-cream",
+     "text": " Bestseller 345 Relief Cream "
+    }
+   ],
+   "emails": [
+    "support@seoulroutine.com",
+    "you@email.com",
+    "your@email.com",
+    "cancellations@seoulroutine.com"
+   ],
+   "tels": [
+    "+971 55 146 2122"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://seoulroutine.com/en/product/dr-althea-345-relief-cream",
+    "link_text": " Bestseller 345 Relief Cream ",
+    "http_status": 200,
+    "final_url": "https://seoulroutine.com/en/product/dr-althea-345-relief-cream",
+    "title": "Dr. Althea 345 Relief Cream",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@seoulroutine.com",
+     "you@email.com",
+     "your@email.com",
+     "cancellations@seoulroutine.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 304,
+  "name": "Argana Beauty",
+  "url": "https://arganabeauty.ae/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://arganabeauty.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare in UAE – COSRX, ANUA, SKIN1004 | Argana Beauty &ndash; arganabeauty.ae",
+   "desc": "Shop Korean skincare in the UAE from top K-beauty brands: COSRX, Medicube, SKIN1004, ANUA, Beauty of Joseon, Dr. Althea & Celimax. Fast UAE delivery, cash on delivery, 100% authentic products.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://arganabeauty.ae/collections/karsell",
+     "text": " KARSEELL "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://arganabeauty.ae/collections/karsell",
+    "link_text": " KARSEELL ",
+    "http_status": 200,
+    "final_url": "https://arganabeauty.ae/collections/karsell",
+    "title": "Karsell UAE | Professional Collagen Haircare for Damaged Hair &ndash; arganabeauty.ae",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 305,
+  "name": "Beautfy",
+  "url": "https://beautfy.ae/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://beautfy.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beautfy.ae | Dubai's Exclusive Korean Skincare & Makeup Store",
+   "desc": "Discover Dubai’s premier online store for authentic Korean skincare and makeup. Beautfy.ae offers exclusive, hard-to-find beauty products, including top Korean brands. Shop now for fast delivery and the best deals in the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Lip%20gloss",
+     "text": " Lip gloss "
+    },
+    {
+     "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Patrick%20Ta",
+     "text": " Patrick Ta "
+    },
+    {
+     "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Eyeshadow",
+     "text": " Eyeshadow "
+    }
+   ],
+   "emails": [
+    "beautfyinfo@gmail.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Lip%20gloss",
+    "link_text": " Lip gloss ",
+    "http_status": 200,
+    "final_url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title%2Ctag%2Cvendor%2Cproduct_type%2Cvariants.title%2Cvariants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Lip+gloss",
+    "title": "Search: 20 results found for \"Lip gloss\" &ndash; Beautfy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "beautfyinfo@gmail.com"
+    ]
+   },
+   {
+    "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Patrick%20Ta",
+    "link_text": " Patrick Ta ",
+    "http_status": 200,
+    "final_url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title%2Ctag%2Cvendor%2Cproduct_type%2Cvariants.title%2Cvariants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Patrick+Ta",
+    "title": "Search: 2 results found for \"Patrick Ta\" &ndash; Beautfy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "beautfyinfo@gmail.com"
+    ]
+   },
+   {
+    "url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Eyeshadow",
+    "link_text": " Eyeshadow ",
+    "http_status": 200,
+    "final_url": "https://beautfy.ae/search?type=product&options%5Bfields%5D=title,tag,vendor,product_type,variants.title,variants.sku&options%5Bunavailable_products%5D=&options%5Bprefix%5D=last&q=Eyeshadow",
+    "title": "Search: 5 results found for \"Eyeshadow\" &ndash; Beautfy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "beautfyinfo@gmail.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 306,
+  "name": "8 Bliss Beauty",
+  "url": "https://8blissbeauty.com/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://8blissbeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare & Makeup in UAE | 8 Bliss Beauty",
+   "desc": "Korean Skincare & Makeup in UAE | 8 Bliss Beauty Premium K-beauty brands with fast delivery across Dubai, Abu Dhabi & Sharjah. 100% genuine products.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "sales@8blissbeauty.com"
+   ],
+   "tels": [
+    "+971 52 849 2543"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 307,
+  "name": "Al Sultana",
+  "url": "https://alsultana.me/",
+  "channel_type": "Beauty/natural online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://alsultana.me/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Al Sultana Beauty | shop Korean & Thai Beauty Online UAE",
+   "desc": "Alsultana shop for Authentic Korean and Thai skincare, cosmetics, and beauty essentials in the UAE, Discover Trendy K-beauty Online",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "Contact@alsultana.me"
+   ],
+   "tels": [
+    "+971 507171393"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 308,
+  "name": "Bella Vest",
+  "url": "https://bellavest.ae/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://bellavest.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare UAE | K-Beauty Online | Bellavest",
+   "desc": "Shop authentic Korean skincare, cosmetics & luxury perfumes in the UAE. Genuine K-Beauty brands, Dubai stock, 1–2 day delivery & cash on delivery.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@bellavest.ae"
+   ],
+   "tels": [
+    "+971 544445167"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 309,
+  "name": "Relia Beauty",
+  "url": "https://reliabeauty.com/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://reliabeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare UAE | Authentic K-Beauty | RELIA BEAUTY",
+   "desc": "Shop authentic Korean skincare in UAE. COSRX, Anua, Beauty of Joseon, AXIS-Y & more. 100% genuine K-beauty with fast delivery across Dubai & UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "sales@reliabeauty.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 310,
+  "name": "K Belle Bliss",
+  "url": "https://kbellebliss.ae/",
+  "channel_type": "K-beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://kbellebliss.ae/en-ae",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare UAE & Dubai | K-Belle Bliss",
+   "desc": "Buy authentic Korean skincare and K-beauty in the UAE. Fast delivery to Dubai, Abu Dhabi, Sharjah and Ajman. Shop serums, sunscreens and top brands.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@kbellebliss.ae"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 311,
+  "name": "Sliczny",
+  "url": "https://www.sliczny.com/",
+  "channel_type": "Beauty online",
+  "origin": "DDG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.sliczny.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sliczny Cosmetics UAE | Korean Skincare & Beauty Dubai",
+   "desc": "Shop skincare, Korean beauty, haircare, makeup, collagen and beauty products in Dubai and across the UAE. Cash on Delivery and WhatsApp support available.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Cerave%22",
+     "text": " Cerave ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22The+Ordinary%22",
+     "text": " The Ordinary ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Dr.Althea%22",
+     "text": " Dr.Althea ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Medicube%22",
+     "text": " Medicube ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Celimax%22",
+     "text": " Celimax ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Cetaphil%22",
+     "text": " Cetaphil ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Anua%22",
+     "text": " Anua ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22COSRX%22",
+     "text": " COSRX ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Acnes%22",
+     "text": " Acnes ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Arencia%22",
+     "text": " Arencia ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Aunt%20Jackies%22",
+     "text": " Aunt Jackies ↗ "
+    },
+    {
+     "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Aveeno%22",
+     "text": " Aveeno ↗ "
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 54 189 6400"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Cerave%22",
+    "link_text": " Cerave ↗ ",
+    "http_status": 200,
+    "final_url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Cerave%22",
+    "title": "Search: 122 results found for \"vendor:\"Cerave\"\" &ndash; Sliczny Cosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22The+Ordinary%22",
+    "link_text": " The Ordinary ↗ ",
+    "http_status": 200,
+    "final_url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22The+Ordinary%22",
+    "title": "Search: 58 results found for \"vendor:\"The Ordinary\"\" &ndash; Sliczny Cosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Dr.Althea%22",
+    "link_text": " Dr.Althea ↗ ",
+    "http_status": 200,
+    "final_url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Dr.Althea%22",
+    "title": "Search: 6 results found for \"vendor:\"Dr.Althea\"\" &ndash; Sliczny Cosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Medicube%22",
+    "link_text": " Medicube ↗ ",
+    "http_status": 200,
+    "final_url": "https://www.sliczny.com/search?type=product&q=vendor%3A%22Medicube%22",
+    "title": "Search: 33 results found for \"vendor:\"Medicube\"\" &ndash; Sliczny Cosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 312,
+  "name": "SellShip",
+  "url": "https://sellship.co/",
+  "channel_type": "Open marketplace (UAE)",
+  "origin": "WebSearch: marketplaces for small sellers",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 313,
+  "name": "Lets Tango",
+  "url": "https://letstango.com/",
+  "channel_type": "Marketplace",
+  "origin": "WebSearch: UAE marketplace 10% commission claim (third party)",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.letstango.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Welcome to LetsTango.com - Online Shopping in the UAE",
+   "desc": "Your favourite, independently-owned online store in the Middle East. Providing you secure shopping and fast delivery while supporting small local businesses.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://sellers.letstango.com/newmarketplace",
+     "text": "SELL"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://sellers.letstango.com/newmarketplace",
+    "link_text": "SELL",
+    "http_status": 200,
+    "final_url": "https://sellers.letstango.com/newmarketplace/index",
+    "title": "Letstango — Seller Support",
+    "blocked": false,
+    "seller_signal_text": "Start Selling",
+    "fee_snippets": [],
+    "emails": [
+     "seller@letstango.com",
+     "support@letstango.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 314,
+  "name": "Nativ",
+  "url": "https://nativ.ae/",
+  "channel_type": "Curated homegrown-brand marketplace",
+  "origin": "WebSearch: Gulf News/EIN Presswire 2025",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 315,
+  "name": "DubaiStore",
+  "url": "https://dubaistore.com/",
+  "channel_type": "SME marketplace (DED/emaratech)",
+  "origin": "WebSearch: Gulf Today 2020",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ENOTFOUND",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 316,
+  "name": "Dubai Traders (DET programme)",
+  "url": "https://investindubai.gov.ae/en/why-dubai/d33-agenda/dubai-traders",
+  "channel_type": "Government programme hosted on Amazon/noon",
+  "origin": "WebSearch: Dubai Traders",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://investindubai.gov.ae/en/why-dubai/d33-agenda/dubai-traders",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 317,
+  "name": "NOK Beauty",
+  "url": "https://nokbeauty.ae/",
+  "channel_type": "K-beauty select shop (Abu Dhabi, Yas Mall)",
+  "origin": "WebSearch: Gulf News",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://ereta.ge/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "TEMPO123: Link Hoki Situs Slot Gacor Gampang Menang Hari Ini Akun Jackpot 888 Slots Mudah Maxwin",
+   "desc": "Tempo123 kini hadir sebagai link hoki situs slot gacor terbaru gampang menang hari ini yang menawarkan permainan super bigwin dengan akun jackpot 888 slots mudah maxwin setiap harinya.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://ereta.ge/",
+     "text": " Partner & Affiliate "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://ereta.ge/",
+    "link_text": " Partner & Affiliate ",
+    "http_status": 200,
+    "final_url": "https://ereta.ge/",
+    "title": "TEMPO123: Link Hoki Situs Slot Gacor Gampang Menang Hari Ini Akun Jackpot 888 Slots Mudah Maxwin",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "Bayar Bulanan Pay for your phone and an inclusive bundle of calls, texts and data in one easy-to-manage monthly fee"
+    ],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 318,
+  "name": "Mystiglam",
+  "url": "https://mystiglam.com/",
+  "channel_type": "K-beauty online",
+  "origin": "WebSearch: K-beauty lists",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://mystiglam.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Buy Korean Beauty Products Online In The UAE &ndash; MystiGlam",
+   "desc": "Shop The Best Korean Beauty Products Online In UAE. Discover Top Brands For Glowing Skin With Fast Delivery And Great Prices. Buy Now For A Radiant Glow!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 319,
+  "name": "SJR Cosmetics",
+  "url": "https://sjrcosmetics.com/",
+  "channel_type": "K/J-beauty online (Dubai)",
+  "origin": "WebSearch: J-beauty",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://sjrcosmetics.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Checking your browser before accessing. Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 320,
+  "name": "Figta Beauty Perfumes & Cosmetics Trading",
+  "url": "https://figta.ae/",
+  "channel_type": "K-beauty distributor (Dubai, Al Qusais)",
+  "origin": "WebSearch: Beautyworld Saudi exhibitor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 321,
+  "name": "Apotheca Beauty",
+  "url": "https://apothecabeauty.com/",
+  "channel_type": "Premium skincare distributor (Dubai/Kuwait)",
+  "origin": "WebSearch: Dermascope",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://apothecabeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Apotheca Beauty",
+   "desc": "We all strive for beauty, on the inside and out and at Apotheca we love to find and bring you the best products possible to boost your body’s beauty as well as enhance your natural features. Gain new levels of confidence with our hand-picke",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://apothecabeauty.com/collections/vendors?q=Summer%20Fridays",
+     "text": " Summer Fridays "
+    },
+    {
+     "url": "https://apothecabeauty.com/collections/vendors?q=Augustinus%20Bader",
+     "text": " Augustinus Bader "
+    },
+    {
+     "url": "https://apothecabeauty.com/collections/vendors?q=Tatcha",
+     "text": " Tatcha "
+    },
+    {
+     "url": "https://apothecabeauty.com/collections/vendors?q=Color%20Wow",
+     "text": " Color Wow "
+    },
+    {
+     "url": "https://apothecabeauty.com/pages/distribution-opportunities",
+     "text": "Distribution Opportunities"
+    }
+   ],
+   "emails": [
+    "mllegeorgesand@gmail.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://apothecabeauty.com/collections/vendors?q=Summer%20Fridays",
+    "link_text": " Summer Fridays ",
+    "http_status": 200,
+    "final_url": "https://apothecabeauty.com/collections/vendors?q=Summer+Fridays",
+    "title": "Summer Fridays &ndash; Apotheca Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "mllegeorgesand@gmail.com"
+    ]
+   },
+   {
+    "url": "https://apothecabeauty.com/collections/vendors?q=Augustinus%20Bader",
+    "link_text": " Augustinus Bader ",
+    "http_status": 200,
+    "final_url": "https://apothecabeauty.com/collections/vendors?q=Augustinus+Bader",
+    "title": "Augustinus Bader &ndash; Apotheca Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "mllegeorgesand@gmail.com"
+    ]
+   },
+   {
+    "url": "https://apothecabeauty.com/collections/vendors?q=Tatcha",
+    "link_text": " Tatcha ",
+    "http_status": 200,
+    "final_url": "https://apothecabeauty.com/collections/vendors?q=Tatcha",
+    "title": "Tatcha &ndash; Apotheca Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "mllegeorgesand@gmail.com"
+    ]
+   },
+   {
+    "url": "https://apothecabeauty.com/collections/vendors?q=Color%20Wow",
+    "link_text": " Color Wow ",
+    "http_status": 200,
+    "final_url": "https://apothecabeauty.com/collections/vendors?q=Color+Wow",
+    "title": "Color Wow &ndash; Apotheca Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "mllegeorgesand@gmail.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 322,
+  "name": "LSM Trading",
+  "url": "https://lsmtrading.com/",
+  "channel_type": "Professional beauty distributor GCC",
+  "origin": "WebSearch: Beautyworld exhibitor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://lsmtrading.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "LSM TRADING LLC &#8211; Grocery & Beauty Suppliers in UAE",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": "Become a partner",
+   "candidate_links": [
+    {
+     "url": "https://lsmtrading.com/wholesale/",
+     "text": "Become a partner"
+    },
+    {
+     "url": "http://n/A",
+     "text": " Wholesale Expand "
+    }
+   ],
+   "emails": [
+    "sales@lsmtrading.com"
+   ],
+   "tels": [
+    "+971 4 339 2157"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://lsmtrading.com/wholesale/",
+    "link_text": "Become a partner",
+    "http_status": 200,
+    "final_url": "https://lsmtrading.com/wholesale/",
+    "title": "Become a partner &#8211; LSM TRADING LLC",
+    "blocked": false,
+    "seller_signal_text": "Become a partner",
+    "fee_snippets": [],
+    "emails": [
+     "sales@lsmtrading.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 323,
+  "name": "Cosmetica Beauty and Personal Care Trading",
+  "url": "https://cosmetica1.odoo.com/",
+  "channel_type": "Salon/spa/beauty distributor (Dubai)",
+  "origin": "WebSearch: salon distributor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://cosmetica1.odoo.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Home | Cosmetica",
+   "desc": "This is the homepage of the website",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@cosmeticatrading.com",
+    "info@cometicatrading.com"
+   ],
+   "tels": [
+    "+971 55 869 5210",
+    "+971 4 239 4666"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 324,
+  "name": "Hair Factory Cosmetics (Abu Dhabi)",
+  "url": "https://hairfactory.ae/",
+  "channel_type": "Hair retailer/online (Abu Dhabi)",
+  "origin": "WebSearch: hair distributor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 325,
+  "name": "Beauty Pro Distributor",
+  "url": "https://beautyprodistributor.com/",
+  "channel_type": "Distributor",
+  "origin": "WebSearch: salon distributor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 402,
+   "final_url": "https://beautyprodistributor.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Store unavailable",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 326,
+  "name": "Dana Al Emarat Pharmacy",
+  "url": "https://danatalemarat.ae/service/pharmacy",
+  "channel_type": "Hospital pharmacy (Abu Dhabi)",
+  "origin": "WebSearch: Abu Dhabi pharmacies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://danatalemarat.ae/women/services/general-services/pharmacy/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Danat Al Emarat 24/7 Pharmacy in Abu Dhabi, UAE",
+   "desc": "Our 24-hour pharmacy offers prescription services & also a variety of products from footwear, skincare, dental care, personal care, baby care & more.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://danatalemarat.ae/about/partnerships/",
+     "text": "Partnerships"
+    }
+   ],
+   "emails": [
+    "appointments@danatalemarat.ae"
+   ],
+   "tels": [
+    "800 96626"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://danatalemarat.ae/about/partnerships/",
+    "link_text": "Partnerships",
+    "http_status": 200,
+    "final_url": "https://danatalemarat.ae/about/partnerships/",
+    "title": "Partnerships - M42 & SickKids Collaboration | Danat Al Emarat",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "appointments@danatalemarat.ae"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 327,
+  "name": "Sephora Middle East (sephora.me)",
+  "url": "https://www.sephora.me/ae-en",
+  "channel_type": "Beauty retail",
+  "origin": "WebSearch: Sephora delivery FAQ",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.sephora.me/ae-en",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

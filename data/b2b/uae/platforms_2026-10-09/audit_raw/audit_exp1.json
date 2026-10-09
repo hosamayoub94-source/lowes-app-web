@@ -1,0 +1,1943 @@
+[
+ {
+  "n": 100,
+  "name": "WeMENA",
+  "url": "https://www.wemena.com/",
+  "channel_type": "B2B wholesale marketplace",
+  "origin": "web search: Tradeling competitors",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://russianvodkaroomny.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Russian Vodka Room NY | Kuliner Rusia, Lounge & Pengalaman Bersantap",
+   "desc": "Nikmati pengalaman bersantap bergaya Rusia di Russian Vodka Room NY dengan sajian khas, suasana lounge elegan, hiburan malam, dan atmosfer yang berkesan.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 101,
+  "name": "Powder.ae",
+  "url": "https://powder.ae/",
+  "channel_type": "Beauty marketplace (UAE)",
+  "origin": "Gulf News: Powder.ae beauty entrepreneurs",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://powderbeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Powder Beauty: Sustainable Natural Beauty and Skincare",
+   "desc": "Powder Beauty is home to the world’s best conscious beauty products, brought right to your doorstep. Mindfully curated with intention and zero compromise.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 102,
+  "name": "Go To Beauty",
+  "url": "https://www.gotobeauty.com/",
+  "channel_type": "Multi-brand beauty online",
+  "origin": "Emirates Woman article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://gotobeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Expert Plastic Surgeon in Loudoun County, VA | Aesthetica",
+   "desc": "Dr. Chang and his expert team serve Northern Virginia patients with surgical and nonsurgical cosmetic procedures for the breast, body, face, and skin.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://gotobeauty.com/preferred-partners/",
+     "text": "Our Partners "
+    }
+   ],
+   "emails": [
+    "inquiries@gotobeauty.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://gotobeauty.com/preferred-partners/",
+    "link_text": "Our Partners ",
+    "http_status": 200,
+    "final_url": "https://gotobeauty.com/preferred-partners/",
+    "title": "Preferred Partners - Recommendations From Aesthetica | Aesthetica Cosmetic Surgery and Laser Center",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 103,
+  "name": "Sivvi",
+  "url": "https://www.sivvi.com/",
+  "channel_type": "Fashion+beauty online",
+  "origin": "K-beauty store lists",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 104,
+  "name": "Styli",
+  "url": "https://www.stylishop.com/ae/en/",
+  "channel_type": "Fashion+beauty online",
+  "origin": "K-beauty store lists",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.stylishop.com/ae/en/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 105,
+  "name": "6thStreet",
+  "url": "https://www.6thstreet.com/ae/",
+  "channel_type": "Fashion+beauty online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.6thstreet.com/ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "ERROR: The request could not be satisfied",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 106,
+  "name": "Dubizzle",
+  "url": "https://dubai.dubizzle.com/",
+  "channel_type": "Classifieds / social commerce",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://dubai.dubizzle.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 107,
+  "name": "OpenSooq UAE",
+  "url": "https://ae.opensooq.com/",
+  "channel_type": "Classifieds / social commerce",
+  "origin": "web search: Arabic stores query",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://ae.opensooq.com/ar",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "إعلانات الإمارات: سيارات، عقارات، وظائف وخدمات | السوق المفتوح",
+   "desc": "سيارات جديدة ومستعملة، شقق وعقارات، وظائف، خدمات، إلكترونيات وغيرها تجدها على السوق المفتوح في  الإمارات. بيع واشتري أو أضف إعلانك مجاناً.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%D8%A9",
+     "text": "متاجر إلكترونية"
+    },
+    {
+     "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%B3%D8%AA%D9%84%D8%B2%D9%85%D8%A7%D8%AA-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%A8%D9%8A%D8%B9-%D8%A8%D8%A7%D9%84%D8%AA%D8%AC%D8%B2%D8%A6%D8%A9",
+     "text": "مستلزمات المتاجر والبيع بالتجزئة"
+    },
+    {
+     "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D8%A3%D8%AB%D8%A7%D8%AB-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%B7%D8%A7%D9%88%D9%84%D8%A7%D8%AA",
+     "text": "أثاث المتاجر والطاولات"
+    },
+    {
+     "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%B3%D8%AA%D9%84%D8%B2%D9%85%D8%A7%D8%AA-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%A8%D9%8A%D8%B9-%D8%A8%D8%A7%D9%84%D8%AA%D8%AC%D8%B2%D8%A6%D8%A9-%D8%A7%D9%84%D8%A3%D8%AE%D8%B1%D9%89",
+     "text": "مستلزمات المتاجر والبيع بالتجزئة الأخرى"
+    },
+    {
+     "url": "https://ae.opensooq.com/ar/%D9%85%D8%AA%D8%A7%D8%AC%D8%B1",
+     "text": " متاجر "
+    },
+    {
+     "url": "https://ae.opensooq.com/ar/sell-any-thing",
+     "text": "بيع أي شيء"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://ae.opensooq.com/ar/sell-any-thing",
+    "link_text": "بيع أي شيء",
+    "http_status": 200,
+    "final_url": "https://ae.opensooq.com/ar/sell-any-thing",
+    "title": "هل أنت مستعد للبيع في الإمارات؟ بيع كل ما تُريد على السوق المفتوح",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%D8%A9",
+    "link_text": "متاجر إلكترونية",
+    "http_status": 200,
+    "final_url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%D8%A9",
+    "title": "متاجر إلكترونية ومشاريع للبيع في الإمارات | السوق المفتوح",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%B3%D8%AA%D9%84%D8%B2%D9%85%D8%A7%D8%AA-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%A8%D9%8A%D8%B9-%D8%A8%D8%A7%D9%84%D8%AA%D8%AC%D8%B2%D8%A6%D8%A9",
+    "link_text": "مستلزمات المتاجر والبيع بالتجزئة",
+    "http_status": 200,
+    "final_url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D9%85%D8%B3%D8%AA%D9%84%D8%B2%D9%85%D8%A7%D8%AA-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%A8%D9%8A%D8%B9-%D8%A8%D8%A7%D9%84%D8%AA%D8%AC%D8%B2%D8%A6%D8%A9",
+    "title": "مستلزمات المتاجر والبيع بالتجزئة للبيع في الإمارات | السوق المفتوح",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D8%A3%D8%AB%D8%A7%D8%AB-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%B7%D8%A7%D9%88%D9%84%D8%A7%D8%AA",
+    "link_text": "أثاث المتاجر والطاولات",
+    "http_status": 200,
+    "final_url": "https://ae.opensooq.com/ar/%D8%B4%D8%B1%D9%83%D8%A7%D8%AA-%D8%B5%D9%86%D8%A7%D8%B9%D9%8A%D8%A9/%D8%A3%D8%AB%D8%A7%D8%AB-%D8%A7%D9%84%D9%85%D8%AA%D8%A7%D8%AC%D8%B1-%D9%88%D8%A7%D9%84%D8%B7%D8%A7%D9%88%D9%84%D8%A7%D8%AA",
+    "title": "أثاث المتاجر وطاولات العرض في الإمارات | السوق المفتوح",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 108,
+  "name": "InstaShop",
+  "url": "https://instashop.com/en-ae",
+  "channel_type": "Grocery/pharmacy q-commerce",
+  "origin": "talabat acquisition",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://instashop.com/en-ae",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 109,
+  "name": "Kibsons",
+  "url": "https://www.kibsons.com/",
+  "channel_type": "Online grocery",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.kibsons.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 110,
+  "name": "Spinneys UAE",
+  "url": "https://www.spinneys.com/en-ae",
+  "channel_type": "Supermarket online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.spinneys.com/en-ae",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "403 Forbidden",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 111,
+  "name": "Union Coop",
+  "url": "https://www.unioncoop.ae/",
+  "channel_type": "Cooperative retail",
+  "origin": "batch2",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.unioncoop.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Online Grocery Shopping & Delivery in Dubai, Abu Dhabi - Union Coop UAE",
+   "desc": "Visit Union Coop UAE for shopping Grocery, Electronics, Beauty & Pet Care products online. Find offers in Dubai & Abu Dhabi on fashion, food, and other items. Shop Now!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.unioncoop.ae/b2bcompany/login/",
+     "text": "Corporate Customer"
+    },
+    {
+     "url": "https://supplierportal.unioncoop.ae/",
+     "text": "Supplier Portal"
+    }
+   ],
+   "emails": [
+    "info@unioncoop.ae",
+    "webstore@unioncoop.ae"
+   ],
+   "tels": [
+    "8008889"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://supplierportal.unioncoop.ae/",
+    "link_text": "Supplier Portal",
+    "http_status": 403,
+    "final_url": "https://supplierportal.unioncoop.ae/",
+    "title": "Attention Required! | Cloudflare",
+    "blocked": true,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.unioncoop.ae/b2bcompany/login/",
+    "link_text": "Corporate Customer",
+    "http_status": 200,
+    "final_url": "https://www.unioncoop.ae/b2bcompany/login/",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@unioncoop.ae",
+     "webstore@unioncoop.ae"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 112,
+  "name": "Choithrams",
+  "url": "https://www.choithrams.com/",
+  "channel_type": "Supermarket online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.choithrams.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Choithrams - Online Grocery Shopping & Delivery in UAE",
+   "desc": "Shop groceries, fresh produce and daily essentials online with fast delivery across the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 113,
+  "name": "Waitrose UAE",
+  "url": "https://www.waitrose.ae/",
+  "channel_type": "Supermarket online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.waitrose.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "403 Forbidden",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 114,
+  "name": "Abu Dhabi Coop",
+  "url": "https://www.adcoop.ae/",
+  "channel_type": "Cooperative retail Abu Dhabi",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 115,
+  "name": "Sharjah Coop",
+  "url": "https://www.sharjahcoop.ae/",
+  "channel_type": "Cooperative retail Sharjah",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.sharjahcoop.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sharjah Co-operative Society | Homepage",
+   "desc": "Buy Groceries, Fresh Food, Frozen Food, Pet Food, Fruits & Vegetables and Household Items. Discover Over 200,000+ Products Online. High Quality & Best Prices Are Guaranteed. Shop 200,000+ Products. Avail The Best Prices. Home Delivery In 2 ",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 116,
+  "name": "Spacenk",
+  "url": "https://www.spacenk.com/ae/en_AE/",
+  "channel_type": "International beauty ships UAE",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://www.spacenk.com/uk/404",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sites-spacenkgb-Site",
+   "desc": "Space NK",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.spacenk.com/uk/brands/b/bread-beauty-supply",
+     "text": " Bread Beauty Supply "
+    },
+    {
+     "url": "https://www.spacenk.com/uk/affiliate-landing-page.html",
+     "text": "Affiliates Programme"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.spacenk.com/uk/brands/b/bread-beauty-supply",
+    "link_text": " Bread Beauty Supply ",
+    "http_status": 200,
+    "final_url": "https://www.spacenk.com/uk/brands/b/bread-beauty-supply",
+    "title": "Bread Beauty Supply Haircare | Curly and Afro Hair | Space NK",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.spacenk.com/uk/affiliate-landing-page.html",
+    "link_text": "Affiliates Programme",
+    "http_status": 200,
+    "final_url": "https://www.spacenk.com/uk/affiliate-landing-page.html",
+    "title": "Beauty Affiliate Programme | Space NK",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 117,
+  "name": "Feelunique",
+  "url": "https://www.feelunique.com/",
+  "channel_type": "International beauty ships UAE",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.feelunique.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 118,
+  "name": "Harvey Nichols Dubai",
+  "url": "https://www.harveynichols.com/",
+  "channel_type": "Luxury retail",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 119,
+  "name": "Tryano",
+  "url": "https://www.tryano.com/",
+  "channel_type": "Luxury retail online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.tryano.com/en-ae",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Tryano | A World of Fashion, Beauty, Gifting & Lifestyle",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 120,
+  "name": "Wojooh",
+  "url": "https://www.wojooh.com/",
+  "channel_type": "Beauty chain (Al Tayer)",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.faces.ae/en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Shop for Perfume, Makeup, Skin Care & Cosmetics | FACES UAE",
+   "desc": "Discover the largest selection of Beauty products in UAE 🇦🇪 Express Delivery ✓ Authentic Products ✓ Free Returns ✓ Buy Now, Pay Later ✓",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.faces.ae/en/best-selling-skincare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-makeup",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-haircare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-bodycare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-crush-absolu-eau-de-parfum-006618016380.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-crush-absolu-eau-de-parfum-pm006618016379.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-intense-spray-eau-de-parfum-PM_Chanel_coco_EDP.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/partnerwithfaces.html",
+     "text": "Partner with Faces"
+    }
+   ],
+   "emails": [
+    "support@faces.com"
+   ],
+   "tels": [
+    "800 965",
+    "+971563299902",
+    "971563299902"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.faces.ae/en/best-selling-skincare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-skincare",
+    "title": "Bestsellers Skincare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-makeup",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-makeup",
+    "title": "Bestsellers Makeup | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-haircare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-haircare",
+    "title": "Bestsellers Haircare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-bodycare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-bodycare",
+    "title": "Bestsellers Bodycare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 121,
+  "name": "Thumbay Pharmacy",
+  "url": "https://www.thumbaypharmacy.com/",
+  "channel_type": "Pharmacy online",
+  "origin": "talabat sample",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "CERT_HAS_EXPIRED",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 122,
+  "name": "Al Ain Pharmacy",
+  "url": "https://www.alainpharmacy.com/",
+  "channel_type": "Pharmacy chain",
+  "origin": "talabat sample",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 123,
+  "name": "Medon Pharmacy",
+  "url": "https://medon.ae/",
+  "channel_type": "Pharmacy chain",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://medon.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Medon Pharmacy: Trusted Healthcare Provider in UAE | Better Health, Better World | Medon Pharmacy",
+   "desc": "Better Health, Better World: Discover Medon Pharmacy, your trusted healthcare provider with over 60 locations across the UAE. Since our start in 2012, we've grown to 65+ pharmacies, showcasing our commitment to care, trust, and service exce",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@medon.ae"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 124,
+  "name": "Nahdi Online UAE",
+  "url": "https://www.nahdionline.com/en-ae",
+  "channel_type": "Pharmacy online",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.nahdionline.com/en-ae",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Nahdi Pharmacy | Home Page",
+   "desc": "Nahdi Online Pharmacy is your one-stop shop for pharmaceutical needs. Shop daily vitamins, painkillers, skin care, baby walkers, diapers, car seats, and more.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 125,
+  "name": "Lana Pharmacy",
+  "url": "https://www.lanapharmacy.com/",
+  "channel_type": "Pharmacy chain",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ERR_TLS_CERT_ALTNAME_INVALID",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 126,
+  "name": "Docib",
+  "url": "https://www.docib.com/",
+  "channel_type": "Pharmacy online",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ERR_SSL_TLSV1_UNRECOGNIZED_NAME",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 127,
+  "name": "Faith Pharmacy",
+  "url": "https://faithpharmacy.com/",
+  "channel_type": "Pharmacy chain",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://faithpharmacy.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 128,
+  "name": "Zaitoon Pharmacy",
+  "url": "https://zaitoonpharmacy.com/",
+  "channel_type": "Pharmacy (Ajman)",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://zaitoonpharmacy.com/home/maintenance_mode",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Product cart | Zaitoon Pharmacy",
+   "desc": "Product cart | Shop Zaitoon Pharmacy for authentic medicines, skincare, & baby care. Fast delivery in Ajman & UAE. Best prices on vitamins & beauty. اطلب الأدوية ومنتجات العناية بالبشرة من صيدلية الزيتون. توصيل سريع في عجمان والإمارات.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 129,
+  "name": "Glam Beaute",
+  "url": "https://glambeaute.com/",
+  "channel_type": "Beauty online",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://glambeaute.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Buy Beauty, Skincare, Makeup & Fragrances Online in UAE",
+   "desc": "Shop beauty, skincare, makeup, fragrances, bath & body, haircare and personal care products online in the UAE. Discover top international brands with fast UAE delivery and exclusive offers.",
+   "uae_signal": true,
+   "seller_signal_text": "Bulk",
+   "candidate_links": [
+    {
+     "url": "https://glambeaute.com/?s=best+sellers&post_type=product",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://glambeaute.com/affiliate-program/",
+     "text": "Affiliate Program"
+    },
+    {
+     "url": "https://glambeaute.com/bulk-orders-b2b-enquiries/",
+     "text": "Bulk Orders"
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 4 429 5900"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://glambeaute.com/?s=best+sellers&post_type=product",
+    "link_text": "Best Sellers",
+    "http_status": 200,
+    "final_url": "https://glambeaute.com/?s=best+sellers&post_type=product",
+    "title": "You searched for best sellers - GlamBeaute",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://glambeaute.com/affiliate-program/",
+    "link_text": "Affiliate Program",
+    "http_status": 200,
+    "final_url": "https://glambeaute.com/affiliate-program/",
+    "title": "Affiliate Program - GlamBeaute",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [
+     "Earn rewards Earn commission every time someone shops using your referral code! HOW TO JOIN It’s easy to sign up – just give us a call at (+971) 529167992 or email us a",
+     "After approval, simply share your unique referral code and start earning commission on every successful order! Contact us Contact us How to succeed as a GlamBeaute affiliate Share with your circle Tell friends & family abou"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://glambeaute.com/bulk-orders-b2b-enquiries/",
+    "link_text": "Bulk Orders",
+    "http_status": 200,
+    "final_url": "https://glambeaute.com/bulk-orders-b2b-enquiries/",
+    "title": "Bulk Orders & B2B Enquiries - GlamBeaute",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 130,
+  "name": "K-Secret",
+  "url": "https://www.ksecret.com/",
+  "channel_type": "K-beauty retailer/distributor",
+  "origin": "batch1",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.ksecret.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 131,
+  "name": "Shofon",
+  "url": "https://shofon.ae/",
+  "channel_type": "K-beauty online",
+  "origin": "Harper Bazaar list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 132,
+  "name": "Chicsta",
+  "url": "https://chicsta.com/",
+  "channel_type": "K-beauty online",
+  "origin": "Harper Bazaar list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://chicsta.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 133,
+  "name": "Lamise Beauty",
+  "url": "https://www.lamisebeauty.com/",
+  "channel_type": "K-beauty boutique",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.lamisebeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Top Korean Beauty products & Skincare at Lamise Beauty UAE &ndash; lamisebeauty",
+   "desc": "Find the best Korean beauty products in Dubai & UAE. Find 100+ authentic K-beauty skincare, cosmetics & makeup brands at Lamise Beauty. Shop online or visit us in store!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "online@lamisebeauty.com"
+   ],
+   "tels": [
+    "+971 56 409 7814"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 134,
+  "name": "Nessa Beauty",
+  "url": "https://nessabeauty.com/",
+  "channel_type": "K-beauty online",
+  "origin": "Harper Bazaar list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://nessabeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Nessa Beauty",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 135,
+  "name": "Beauty Korea Dubai",
+  "url": "https://beautykoreadubai.com/",
+  "channel_type": "K-beauty distributor/retail",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://beautykoreadubai.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty Korea Dubai | Korean Skin Care & Makeup Products in UAE",
+   "desc": "Beauty Korea offers authentic Korean Cosmetics and Skincare Products at the best prices. Shop and Explore the latest Korean Beauty Trends & Top brands.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 136,
+  "name": "Mamoso K-Beauty",
+  "url": "https://kbeauty.ae/",
+  "channel_type": "K-beauty retail",
+  "origin": "batch1",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://kbeauty.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare UAE | K-Beauty Dubai – Kbeauty.ae",
+   "desc": "Discover authentic Korean skincare in the UAE. Shop premium K-beauty toners, serums, masks & more — curated for your skin. Free shipping available.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@kbeauty.ae"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 137,
+  "name": "Najafi",
+  "url": "https://najafi.com/",
+  "channel_type": "Distributor/wholesale",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://najafi.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "The Najafi Companies",
+   "desc": "The Najafi Companies is an international private investment firm founded by Jahm Najafi in 2002 that makes highly selective, long-term investments using internally generated capital, with significant holdings across consumer, retail, ecomme",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 138,
+  "name": "Blissology Beauty Supply",
+  "url": "https://blissology.ae/",
+  "channel_type": "Distributor/supplier",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 139,
+  "name": "Puel Cosmetics",
+  "url": "https://puelcosmetics.com/",
+  "channel_type": "Wholesale hair",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.puelcosmetics.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Puel Cosmetics",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@puelcosmetics.com"
+   ],
+   "tels": [
+    "+971 4 295 9309"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 140,
+  "name": "Bulandi Distributors",
+  "url": "https://bulandidistributors.com/",
+  "channel_type": "Distributor FZCO",
+  "origin": "Beautyworld exhibitor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.bulandidistributors.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Bulandi",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.facebook.com/BulandiDistributors/",
+     "text": " "
+    },
+    {
+     "url": "https://www.instagram.com/bulandidistributors/",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "buniyadstar@buland2trading.com"
+   ],
+   "tels": [
+    "+971 4 2352949"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 141,
+  "name": "Lacot General Trading",
+  "url": "https://lacot.ae/",
+  "channel_type": "FMCG cosmetics distributor",
+  "origin": "Beautyworld exhibitor",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 142,
+  "name": "PerfumeUAE",
+  "url": "https://perfumeuae.com/",
+  "channel_type": "Perfume/cosmetic wholesale",
+  "origin": "oncosmetics",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://perfumeuae.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 143,
+  "name": "Alshaya Group",
+  "url": "https://www.alshaya.com/",
+  "channel_type": "Retail group / franchise",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.alshaya.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 144,
+  "name": "Landmark Group",
+  "url": "https://www.landmarkgroup.com/",
+  "channel_type": "Retail group",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.landmarkgroup.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 145,
+  "name": "Al Tayer Group",
+  "url": "https://www.altayer.com/",
+  "channel_type": "Retail group",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.altayer.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Al Tayer Group of Companies, UAE | Automotive, Retail, Real Estate & Ventures",
+   "desc": "Established in 1979, Al Tayer Group has evolved into a diversified portfolio of businesses across Automotive, Retail, Real Estate and Ventures through which it has introduced several highly respected brands into the Middle East.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.altayer.com/our-businesses/ventures",
+     "text": " Al Tayer Group has investments & partnerships in diverse sectors Ventures "
+    },
+    {
+     "url": "https://www.altayer.com/news-and-events/al-tayer-insignia-partners-beacon-hope-retail-wide-charity-initiative-during",
+     "text": " Apr-26-2018 AL TAYER INSIGNIA PARTNERS WITH \"BEACON OF HOPE\" FOR A RETAIL-WIDE "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.altayer.com/our-businesses/ventures",
+    "link_text": " Al Tayer Group has investments & partnerships in diverse sectors Ventures ",
+    "http_status": 200,
+    "final_url": "https://www.altayer.com/our-businesses/ventures",
+    "title": "Al Tayer Ventures & Partnerships | Holding Company in Dubai, UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.altayer.com/news-and-events/al-tayer-insignia-partners-beacon-hope-retail-wide-charity-initiative-during",
+    "link_text": " Apr-26-2018 AL TAYER INSIGNIA PARTNERS WITH \"BEACON OF HOPE\" FOR A RETAIL-WIDE ",
+    "http_status": 200,
+    "final_url": "https://www.altayer.com/news-and-events/al-tayer-insignia-partners-beacon-hope-retail-wide-charity-initiative-during",
+    "title": "AL TAYER INSIGNIA PARTNERS WITH \"BEACON OF HOPE\" FOR A RETAIL-WIDE CHARITY INITIATIVE DURING RAMADAN | Al Tayer",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 146,
+  "name": "Majid Al Futtaim",
+  "url": "https://www.majidalfuttaim.com/",
+  "channel_type": "Retail group",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.majidalfuttaim.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Majid Al Futtaim Malls, Hotels & Lifestyle Brands | Majid Al Futtaim",
+   "desc": "Majid Al Futtaim is a leading integrated lifestyle provider with brands across industries such as shopping malls, Hotels, Cinema, Hypermarket & much more.",
+   "uae_signal": true,
+   "seller_signal_text": "Partner with us",
+   "candidate_links": [
+    {
+     "url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us",
+     "text": " Partner with us "
+    }
+   ],
+   "emails": [
+    "media@maf.ae"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us",
+    "link_text": " Partner with us ",
+    "http_status": 200,
+    "final_url": "https://www.majidalfuttaim.com/en/what-we-do/partner-with-us",
+    "title": "Majid Al Futtaim Partners & Brands| Majid Al Futtaim",
+    "blocked": false,
+    "seller_signal_text": "Partner with us",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 147,
+  "name": "Rivoli Group",
+  "url": "https://www.rivoli.ae/",
+  "channel_type": "Retail/distribution",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 148,
+  "name": "Jashanmal",
+  "url": "https://www.jashanmal.ae/",
+  "channel_type": "Retail/distribution",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ERR_SSL_TLSV1_UNRECOGNIZED_NAME",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 149,
+  "name": "Beautyworld Middle East (exhibitor lists)",
+  "url": "https://beautyworldmiddleeast.hk.messefrankfurt.com/dubai/en.html",
+  "channel_type": "Trade fair (distributor leads)",
+  "origin": "web search: distributor directory",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://beautyworldmiddleeast.hk.messefrankfurt.com/dubai/en.html",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "404 Not Found",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 150,
+  "name": "Dubai Chamber Member Directory",
+  "url": "https://www.dubaichamber.com/",
+  "channel_type": "Business directory",
+  "origin": "web search suggestion",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.dubaichambercommerce.com/en/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Dubai Chamber of Commerce - Dubai Business Hub - Dubai Chamber of Commerce - Dubai Chambers",
+   "desc": "Creating a favourable business environment to help companies achieve success and consolidate Dubai’s position as a leading global hub for business, trade, and investment.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.dubaichambers.com/new-membership",
+     "text": " Become a Member "
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "800 242"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 151,
+  "name": "Snapchat Business",
+  "url": "https://forbusiness.snapchat.com/",
+  "channel_type": "Social commerce/ads",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://forbusiness.snapchat.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Snapchat Ads: Reach Gen Z and Millennials | Snapchat for Business",
+   "desc": "Use Snapchat Ads to reach a powerful audience, increase sales & expand your business. Start today with flexible budgets and formats in Snapchat Ads Manager.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://forbusiness.snapchat.com/resources/partners",
+     "text": " Partner Hub Apply to become a Snapchat partner or choose a partner to work with"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://forbusiness.snapchat.com/resources/partners",
+    "link_text": " Partner Hub Apply to become a Snapchat partner or choose a partner to work with",
+    "http_status": 200,
+    "final_url": "https://forbusiness.snapchat.com/resources/partners",
+    "title": "Find a Snapchat Business Partner | Snapchat Ads",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 152,
+  "name": "Facebook Marketplace / Meta Business",
+  "url": "https://business.facebook.com/",
+  "channel_type": "Social commerce",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 400,
+   "final_url": "https://business.facebook.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Error",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 153,
+  "name": "Ubuy UAE",
+  "url": "https://www.ubuy.ae/",
+  "channel_type": "Cross-border marketplace",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.ubuy.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 154,
+  "name": "Alibaba.com UAE",
+  "url": "https://uae.alibaba.com/",
+  "channel_type": "Global B2B marketplace",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 155,
+  "name": "Noon Minutes / noon.com",
+  "url": "https://www.noon.com/uae-en/",
+  "channel_type": "Marketplace",
+  "origin": "51-list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 156,
+  "name": "The Body Shop UAE",
+  "url": "https://www.thebodyshop.ae/",
+  "channel_type": "Brand retailer",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://thebodyshop.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "The Body Shop - Skincare, Haircare & Bodycare Products Online in UAE &ndash; The Body Shop UAE",
+   "desc": "Shop 100% vegetarian beauty and skincare products from The Body Shop UAE. Discover ethical and sustainable cosmetics, haircare, body butters, and more.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154435954&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154501490&filter.p.m.custom.product_type=Facial+Masks",
+     "text": " Shop now"
+    },
+    {
+     "url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=Hair+Treatments&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F127631730",
+     "text": " Shop Now"
+    },
+    {
+     "url": "https://thebodyshop.ae/pages/affiliate-program",
+     "text": " Affiliate Program "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154435954&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154501490&filter.p.m.custom.product_type=Facial+Masks",
+    "link_text": " Shop now",
+    "http_status": 200,
+    "final_url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154534258&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154435954&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F154501490&filter.p.m.custom.product_type=Facial+Masks",
+    "title": "Tea Tree Oil for Skin & Hair in UAE - The Body Shop® &ndash; The Body Shop UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=Hair+Treatments&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F127631730",
+    "link_text": " Shop Now",
+    "http_status": 200,
+    "final_url": "https://thebodyshop.ae/collections/tea-tree?sort_by=best-selling&filter.p.m.custom.product_type=Hair+Treatments&filter.p.m.custom.product_type=gid%3A%2F%2Fshopify%2FFilterSettingGroup%2F127631730",
+    "title": "Tea Tree Oil for Skin & Hair in UAE - The Body Shop® &ndash; The Body Shop UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://thebodyshop.ae/pages/affiliate-program",
+    "link_text": " Affiliate Program ",
+    "http_status": 200,
+    "final_url": "https://thebodyshop.ae/pages/affiliate-program",
+    "title": "Affiliate Program &ndash; The Body Shop UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "Join now Reasons to join You can now earn commission on sales from thebodyshop",
+     "Advantages Up to 8% commission on Sales 30 day cookie window Exclusive affiliate offers Bespoke mobile optimised affiliate landing pages Dedicated affiliate team Quick an"
+    ],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 157,
+  "name": "YesStyle",
+  "url": "https://www.yesstyle.com/en/home.html",
+  "channel_type": "International K-beauty ships UAE",
+  "origin": "batch3",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.yesstyle.com/en/home.html",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty, Skin Care, and Health and Wellness | YesStyle",
+   "desc": "YesStyle is your go-to destination for all things K-Beauty and Asian beauty. From makeup and skin care to sun protection and hair care, we've got your entire routine covered. Top-rated beauty products are now just a few clicks away, with gl",
+   "uae_signal": false,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.yesstyle.com/en/beauty-beauty/list.html/bcc.15478_bpt.46?sb=136",
+     "text": "Bestsellers"
+    },
+    {
+     "url": "https://www.yesstyle.com/en/health-health-beauty-supplements/list.html/bcc.15164_bpt.46?sb=136",
+     "text": "Bestsellers"
+    },
+    {
+     "url": "https://www.yesstyle.com/en/lifestyle-home-lifestyle/list.html/bcc.15726_bpt.46?sb=136",
+     "text": "Bestsellers"
+    },
+    {
+     "url": "https://www.yesstyle.com/en/affiliate-program.html",
+     "text": "Affiliate Program"
+    },
+    {
+     "url": "https://www.asianbeautywholesale.com/home.html",
+     "text": "Wholesale"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.yesstyle.com/en/beauty-beauty/list.html/bcc.15478_bpt.46?sb=136",
+    "link_text": "Bestsellers",
+    "http_status": 200,
+    "final_url": "https://www.yesstyle.com/en/beauty-beauty/list.html/bcc.15478_bpt.46?sb=136",
+    "title": "Shop Cosmetic Products Online | Your Skin Care & Makeup Online | YesStyle",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.yesstyle.com/en/health-health-beauty-supplements/list.html/bcc.15164_bpt.46?sb=136",
+    "link_text": "Bestsellers",
+    "http_status": 200,
+    "final_url": "https://www.yesstyle.com/en/health-health-beauty-supplements/list.html/bcc.15164_bpt.46?sb=136",
+    "title": "Shop Health & Beauty Supplements Online | YesStyle",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.yesstyle.com/en/lifestyle-home-lifestyle/list.html/bcc.15726_bpt.46?sb=136",
+    "link_text": "Bestsellers",
+    "http_status": 200,
+    "final_url": "https://www.yesstyle.com/en/lifestyle-home-lifestyle/list.html/bcc.15726_bpt.46?sb=136",
+    "title": "Shop Home & Lifestyle Products Online | YesStyle",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.yesstyle.com/en/affiliate-program.html",
+    "link_text": "Affiliate Program",
+    "http_status": 200,
+    "final_url": "https://www.yesstyle.com/en/affiliate-program.html",
+    "title": "Affiliate Program - Earn commissions now! | YesStyle",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "()\" ng-cloak> &times; Welcome to YesStyle! Sign In Register Now Beauty Health Lifestyle Sale Blog YesStyle 20 help Earn Commission & Get Free Gifts! Order Tracking Customer Service Preferences Germany / EUR / English Beauty Home & Lifestyle Health & Beauty Sup",
+     "YesStyle welcomes all publishers to join our General Affiliate Program! The YesStyle Affiliate Program offers up to 10% commission to all publishers"
+    ],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 158,
+  "name": "StyleKorean",
+  "url": "https://www.stylekorean.com/",
+  "channel_type": "International K-beauty",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.stylekorean.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "STYLEKOREAN.COM | Shop Korea's Best Skincare & Beauty Products",
+   "desc": "Shop the best Korean skincare, sunscreen, and beauty products at STYLEKOREAN.COM. Worldwide shipping for authentic K-Beauty. Find your glow today!",
+   "uae_signal": false,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://stylekoreankbeautywholesale.com/?utm_source=stylekorean&utm_medium=referral&utm_campaign=stylekorean_gl_bt_pc",
+     "text": "Wholesale"
+    },
+    {
+     "url": "https://www.stylekorean.com/affiliate",
+     "text": "Affiliate Program"
+    },
+    {
+     "url": "https://www.stylekorean.com/cs/do-not-sell",
+     "text": "Do Not Sell or Share My Personal Information"
+    },
+    {
+     "url": "https://www.stylekorean.com/promotion/180",
+     "text": " Best Sellers "
+    },
+    {
+     "url": "https://www.stylekorean.com/product/skinny-lab-timedeal-inner-retinol-c-booster-duo-60-sticks-2-months-supply/1733722645",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "skambassadors@gmail.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.stylekorean.com/cs/do-not-sell",
+    "link_text": "Do Not Sell or Share My Personal Information",
+    "http_status": 200,
+    "final_url": "https://www.stylekorean.com/cs/do-not-sell",
+    "title": "STYLEKOREAN.COM | Shop Korea's Best Skincare & Beauty Products",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "stylekorean_cs@stylekorean.com",
+     "skambassadors@gmail.com"
+    ]
+   },
+   {
+    "url": "https://www.stylekorean.com/promotion/180",
+    "link_text": " Best Sellers ",
+    "http_status": 200,
+    "final_url": "https://www.stylekorean.com/promotion/180",
+    "title": "STYLEKOREAN.COM | Shop Korea's Best Skincare & Beauty Products",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.stylekorean.com/affiliate",
+    "link_text": "Affiliate Program",
+    "http_status": 200,
+    "final_url": "https://www.stylekorean.com/affiliate",
+    "title": "STYLEKOREAN.COM | Shop Korea's Best Skincare & Beauty Products",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "🔴 LIVE Box Inner Beauty Life Best New Exclusive Clearance Our Story Events STYLEKOREAN AFFILIATE PROGRAM Get up to 12% commission on ALL products Eligible Social Media Channels Instagram YouTube TikTok GET STARTED Affiliate Tier Comparison Affiliate Tier Twin",
+     "Star Luminous Star Total Referrals Earnings - $300 $3000 Tier Timeline Unlimited Within 12 Months Within 12 Months Max Commission Rate See details below 10"
+    ],
+    "emails": [
+     "skambassadors@gmail.com"
+    ]
+   },
+   {
+    "url": "https://www.stylekorean.com/product/skinny-lab-timedeal-inner-retinol-c-booster-duo-60-sticks-2-months-supply/1733722645",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://www.stylekorean.com/product/skinny-lab-timedeal-inner-retinol-c-booster-duo-60-sticks-2-months-supply/1733722645",
+    "title": "Inner Retinol C Booster Duo (60 sticks / 2 months supply) | Korean Supplements | StyleKorean.com",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "skambassadors@gmail.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 159,
+  "name": "Dermalogica / skin clinics distributors",
+  "url": "https://www.dermalogica.ae/",
+  "channel_type": "Brand site (skip if not multi-brand)",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://dermalogica.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Dermalogica® Skin Care | Official Site &ndash; dermalogicaUAE",
+   "desc": "Free shipping on all orders from the Dermalogica® official site. Shop now to receive exclusive promotions and more. Your best skin starts here.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://dermalogica.ae/pages/be-part-of-dermalogica",
+     "text": " become part of dermalogica "
+    }
+   ],
+   "emails": [
+    "example@email.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://dermalogica.ae/pages/be-part-of-dermalogica",
+    "link_text": " become part of dermalogica ",
+    "http_status": 200,
+    "final_url": "https://dermalogica.ae/pages/be-part-of-dermalogica",
+    "title": "be part of dermalogica &ndash; dermalogicaUAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ }
+]

@@ -1,0 +1,362 @@
+[
+ {
+  "n": 340,
+  "name": "Dermazone Store",
+  "url": "https://dermazonestore.com/",
+  "channel_type": "Derma skincare online (GCC)",
+  "origin": "WebSearch: IPS News 2025",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.dermazonestore.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "ديرمازون - منتجات العناية بالشعر، البشرة، والصحة | تسوق الآن &ndash; Dermazone Store",
+   "desc": "يحتوي ديرمازون على مجموعة واسعة من منتجات العناية الأصلية تتعلق في العناية بالشعر، البشرة، الجسم والصحة العامة. تسوق واستمتع بخدمة شحن سريعة ودعم عملاء مثالي.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://affiliate.dermazonestore.com/",
+     "text": ""
+    }
+   ],
+   "emails": [
+    "customercare@dermazonestore.com"
+   ],
+   "tels": [
+    "971525945274"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://affiliate.dermazonestore.com/",
+    "link_text": "",
+    "http_status": 200,
+    "final_url": "https://affiliate.dermazonestore.com/",
+    "title": "Affiliate Portal",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 341,
+  "name": "Ourlex",
+  "url": "https://ourlex.com/",
+  "channel_type": "Premium skincare distribution platform (UAE)",
+  "origin": "WebSearch: WAM May 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://ourlex.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "ConnectYourDomain Error | Wix.com",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 342,
+  "name": "YallaHub",
+  "url": "https://yallahub.com/",
+  "channel_type": "Quick-commerce marketplace aggregator (UAE)",
+  "origin": "WebSearch: Arabian Business",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 521,
+   "final_url": "https://yallahub.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "yallahub.com | 521: Web server is down",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 343,
+  "name": "Supersub",
+  "url": "https://supersub.com/",
+  "channel_type": "Livestream shopping platform (seller onboarding)",
+  "origin": "WebSearch: job posting",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 344,
+  "name": "Nysaa (Nykaa x Apparel)",
+  "url": "https://www.nysaa.com/",
+  "channel_type": "Beauty omnichannel",
+  "origin": "WebSearch: Gulf News",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.nysaa.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 345,
+  "name": "Beauty Nation (Chalhoub)",
+  "url": "https://www.beautynation.ae/",
+  "channel_type": "Multi-brand beauty online",
+  "origin": "WebSearch: Gulf Business",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://www.beautynation.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "ConnectYourDomain Error | Wix.com",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 346,
+  "name": "WESAM Beauty",
+  "url": "https://wesambeauty.com/",
+  "channel_type": "Beauty distributor",
+  "origin": "WebSearch: SHEIN beauty event",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ENOTFOUND",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 347,
+  "name": "Multiplex International",
+  "url": "https://multiplexintl.com/",
+  "channel_type": "Beauty distributor",
+  "origin": "WebSearch: SHEIN beauty event",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://multiplexinternational.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Multiplex International LLC | FMCG & Cosmetics Distributor in UAE",
+   "desc": "Home Company About us Careers Brands Retail Stores Online Store News &#038; Events Contact us Multiplex International Let...",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@multiplex.ae"
+   ],
+   "tels": [
+    "+971 4 429 5900"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 348,
+  "name": "SahaJamal Pharmacy",
+  "url": "https://www.sahajamal.com/",
+  "channel_type": "Pharmacy chain online",
+  "origin": "WebSearch: pharmacy online delivery",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://sahajamal.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Saha Jamal Pharmacy | Pharmacy UAE | Shop Today",
+   "desc": "Your Online Pharmacy in UAE – Skincare, haircare, vitamins & more. Enjoy free delivery, 100% secured payments & easy shopping. Order today!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 561880123",
+    "+971 502207173"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 349,
+  "name": "Gulf Pharmacy",
+  "url": "https://gulfpharmacy.com/",
+  "channel_type": "Online pharmacy",
+  "origin": "WebSearch: app store listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://gulfpharmacy.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Gulf Pharmacy Dubai | Get Up To 70% Off + Free Delivery On Pharmacy & Wellness Products Across Dubai",
+   "desc": "Shop At Gulf Pharmacy And Enjoy Up To 70% Off On Pharmacy, Wellness Products, Beauty Care, Mother & Baby Essentials, Nutrition & Supplements, Sports Nutrition, And Home Healthcare Items. Get Free Delivery Across Dubai And 100% Genuine Produ",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 45014162"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 350,
+  "name": "Al Anaqa & Al Jamal Cosmetics (Sharjah)",
+  "url": "https://alanaqa.ae/",
+  "channel_type": "Cosmetics wholesale/retail (Sharjah)",
+  "origin": "WebSearch: Magicpin listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ECONNREFUSED",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 351,
+  "name": "Eva Cosmetics Trading (Abu Dhabi)",
+  "url": "https://evacosmetics.ae/",
+  "channel_type": "Cosmetics trading (Abu Dhabi)",
+  "origin": "WebSearch: Magicpin listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 352,
+  "name": "Cosmovision GT",
+  "url": "https://cosmovision.ae/",
+  "channel_type": "Beauty and medical wholesaler",
+  "origin": "WebSearch: freshdi listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 353,
+  "name": "Ulta Beauty UAE",
+  "url": "https://www.ulta.ae/",
+  "channel_type": "Beauty retail (Alshaya)",
+  "origin": "WebSearch: Barchart/retailboss",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.ulta.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 354,
+  "name": "Tints of Nature",
+  "url": "https://tintsofnature.com/",
+  "channel_type": "Brand site (reference only)",
+  "origin": "WebSearch: Cosmetics Business",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://tintsofnature.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Natural Hair Dye & Hair Care for Healthy Hair | Tints of Nature USA",
+   "desc": "The home of Natural Hair Dye and Hair Care for Healthy, Happy Hair. Shop online for our complete range of vegan and cruelty-free hair colour and hair care products.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

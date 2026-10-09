@@ -1,0 +1,2309 @@
+[
+ {
+  "n": 1,
+  "name": "Amazon UAE",
+  "channel_type": "Marketplace — self-service seller",
+  "url": "https://sell.amazon.ae/",
+  "can_sell_claim": "نعم، عبر حساب بائع",
+  "entry_claim": "مباشر بعد قبول الحساب والفئة",
+  "priority_claim": "مرتفع",
+  "notes_claim": "ابدئي بالتسجيل وإعداد كتالوج المنتجات؛ قد تطلب فئة التجميل مستندات إضافية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://sell.amazon.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Amazon Seller Central UAE | Launch Ecommerce Business",
+   "desc": "Start your online business in UAE: Register now to become Amazon Seller & reach out to your customers directly with best eCommerce solutions.",
+   "uae_signal": true,
+   "seller_signal_text": "start selling",
+   "candidate_links": [
+    {
+     "url": "https://sellercentral.amazon.ae/help/hub/reference/external/GXMJ38VA95GUN5XU",
+     "text": "Learn how"
+    },
+    {
+     "url": "https://sellercentral.amazon.ae/gp/homepage.html?language=en_AE",
+     "text": "Log in"
+    },
+    {
+     "url": "https://sell.amazon.ae/",
+     "text": " "
+    },
+    {
+     "url": "https://sell.amazon.ae/sell",
+     "text": "Sell Online"
+    },
+    {
+     "url": "https://sell.amazon.ae/sell#adding-your-products",
+     "text": "What to sell on Amazon"
+    },
+    {
+     "url": "https://sell.amazon.ae/sell/business",
+     "text": "Commercial License in UAE"
+    },
+    {
+     "url": "https://sell.amazon.ae/beginners-guide",
+     "text": "Beginner's guide"
+    },
+    {
+     "url": "https://sell.amazon.ae/content/listing-guide",
+     "text": "Product listing guide"
+    },
+    {
+     "url": "https://sell.amazon.ae/pricing",
+     "text": "Selling costs"
+    },
+    {
+     "url": "https://sell.amazon.ae/fulfill",
+     "text": "Shipping and fulfillment"
+    },
+    {
+     "url": "https://sell.amazon.ae/grow",
+     "text": "Grow Your Business"
+    },
+    {
+     "url": "https://sell.amazon.ae/fulfillment-by-amazon",
+     "text": "Fulfillment by Amazon (FBA)"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://sellercentral.amazon.ae/help/hub/reference/external/GXMJ38VA95GUN5XU",
+    "link_text": "Learn how",
+    "http_status": 200,
+    "final_url": "https://sellercentral.amazon.ae/help/hub/reference/external/GXMJ38VA95GUN5XU",
+    "title": "Amazon",
+    "blocked": false,
+    "seller_signal_text": "start selling",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://sellercentral.amazon.ae/gp/homepage.html?language=en_AE",
+    "link_text": "Log in",
+    "http_status": 200,
+    "final_url": "https://sellercentral.amazon.ae/ap/signin?openid.pape.preferred_auth_policies=Policy15&openid.pape.max_auth_age=300&openid.return_to=https%3A%2F%2Fsellercentral.amazon.ae%2Fgp%2Fhomepage.html%3Flanguage%3Den_AE&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=amzn_sc_ae_v2&openid.mode=checkid_setup&intercept=false&language=en_AE&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&pageId=sc_amazon_v3_unified&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&ssoResponse=eyJ6aXAiOiJERUYiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiQTI1NktXIn0._nOEi-cPPYhf8TsKmkeEQ5icRSpUAKUlP6pGyuot6U9oV-03rg9xxA.jMGBjLPe6fEsLJsR.RtmvURyL3ATwMhvEoVtLg3QOcCwJo6I4spZJ2dgSVXJhF5BEEhWUN6G4awEI0h0LUR79oupDVyUi8oIj2Eay3MxNK1zim6JTAK3MeZKDETV8M55Q9lWBoZQB3lP-MsnB_2P_Z1y1_bOKT0WZsWHi9uKbIUY8vi421S8sunO0kl1cx48hhjqEZyI86qHLgIe4ktWVcYPWYA.1SnNh0CqV_Y4zVdlr935IQ",
+    "title": "Amazon Sign In",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://sell.amazon.ae/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://sell.amazon.ae/",
+    "title": "Amazon Seller Central UAE | Launch Ecommerce Business",
+    "blocked": false,
+    "seller_signal_text": "start selling",
+    "fee_snippets": [
+     "n: Start Selling Online Today! Sign up For a limited time only, Professional accounts are now available with no monthly subscription fee Seller Incentives Get started with AED 175,000 in incentives New Seller Incentives Get up to 5% back on your first AED 3,50",
+     "-to-Prime Benefit is calculated using the referral fees applicable for the product category to bring down the effective referral fee rate to 5% for eligible product categories"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://sell.amazon.ae/sell",
+    "link_text": "Sell Online",
+    "http_status": 200,
+    "final_url": "https://sell.amazon.ae/sell",
+    "title": "How and What to Sell on Amazon in UAE | Amazon Seller UAE",
+    "blocked": false,
+    "seller_signal_text": "Sell on",
+    "fee_snippets": [
+     "Register now For a limited time only, Professional accounts are now available with no monthly subscription fee Feedback Selling on Amazon Beginner's Guide Fees & Pricing Fulfillment by Amazon Selling services Amazon Selling Partner 360 Resources FAQ"
+    ],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 2,
+  "name": "noon UAE",
+  "channel_type": "Marketplace — self-service seller",
+  "url": "https://sell.noon.com/uae-en/getting-started",
+  "can_sell_claim": "نعم، عبر حساب بائع",
+  "entry_claim": "مباشر بعد قبول الحساب والفئة",
+  "priority_claim": "مرتفع",
+  "notes_claim": "تسجيل بائع، رفع الرخصة والهوية وبيانات البنك؛ بعض الفئات تحتاج موافقة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 3,
+  "name": "Tradeling",
+  "channel_type": "سوق B2B / جملة",
+  "url": "https://www.tradeling.com/",
+  "can_sell_claim": "يحتاج تأكيد قبول العلامة والفئة",
+  "entry_claim": "تسجيل/تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "مناسب لفحص قناة بيع للشركات والمشترين التجاريين.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.tradeling.com/ae-en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Online Shopping & Wholesale Marketplace in MENA | Tradeling",
+   "desc": "Explore online shopping at wholesale prices from MENA's largest wholesale marketplace. ✔️ Same Day Delivery ✔️ Easy Returns ✔️ 7M+ products.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.tradeling.com/ae-en",
+     "text": "B2B Mart"
+    },
+    {
+     "url": "https://distribution.tradeling.com/",
+     "text": "Distribution"
+    },
+    {
+     "url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+     "text": "Become a Seller"
+    },
+    {
+     "url": "http://distribution.tradeling.com/",
+     "text": " "
+    },
+    {
+     "url": "https://www.tradeling.com/page/become-a-seller",
+     "text": "Start Selling"
+    },
+    {
+     "url": "https://blog.tradeling.com/en/myb2b",
+     "text": "Blog"
+    }
+   ],
+   "emails": [
+    "support@tradeling.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "link_text": "Become a Seller",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "title": "become-a-seller-new | Wholesale Prices | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "Learn more &gt; Payment terms Commission structure We offer the widest range of payment terms"
+    ],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://www.tradeling.com/page/become-a-seller",
+    "link_text": "Start Selling",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "title": "become-a-seller-new | Wholesale Prices | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "Learn more &gt; Payment terms Commission structure We offer the widest range of payment terms"
+    ],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://www.tradeling.com/ae-en",
+    "link_text": "B2B Mart",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en",
+    "title": "Online Shopping & Wholesale Marketplace in MENA | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://distribution.tradeling.com/",
+    "link_text": "Distribution",
+    "http_status": 200,
+    "final_url": "https://distribution.tradeling.com/",
+    "title": "B2B Distribution Network in MENA | Tradeling Group",
+    "blocked": false,
+    "seller_signal_text": "Partner With Us",
+    "fee_snippets": [],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 4,
+  "name": "Begad",
+  "channel_type": "Marketplace / بوابة بائعين",
+  "url": "https://www.begad.ae/ar/sell",
+  "can_sell_claim": "توجد صفحة تسجيل بائعين",
+  "entry_claim": "تسجيل بائع ثم مراجعة الشروط",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحققي من الرسوم والعمولات وتغطية فئة العناية بالبشرة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.begad.ae/ar/sell",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sell on Begad — Reach the whole UAE | Begad العربية",
+   "desc": "Become a Begad seller. List your products across seven categories, reach thousands of UAE shoppers, and keep more of every sale with commission below the major platforms. | Begad العربية",
+   "uae_signal": true,
+   "seller_signal_text": "Sell on",
+   "candidate_links": [
+    {
+     "url": "https://www.begad.ae/ar/checkout",
+     "text": "Shop - Cart Multi Vendor Shop - Compare"
+    },
+    {
+     "url": "https://www.begad.ae/ar/vendor-left-sidebar-marketplace",
+     "text": "Seller Grid"
+    },
+    {
+     "url": "https://www.begad.ae/ar/sell",
+     "text": "Seller Account"
+    },
+    {
+     "url": "https://www.begad.ae/ar/vendor-dashboard",
+     "text": "Seller Dashboard"
+    },
+    {
+     "url": "https://www.begad.ae/ar/sell?mode=applied",
+     "text": "Continue your application"
+    },
+    {
+     "url": "https://www.begad.ae/ar/sell?mode=new#register",
+     "text": "Register now"
+    },
+    {
+     "url": "https://www.begad.ae/ar/sell?mode=new",
+     "text": " Sell with us "
+    },
+    {
+     "url": "https://www.begad.ae/ar/sellers",
+     "text": " المتاجر على بيجاد "
+    }
+   ],
+   "emails": [
+    "contact@begad.ae",
+    "support@begad.ae",
+    "sellers@begad.ae",
+    "You@yourcompany.ae",
+    "you@yourcompany.ae"
+   ],
+   "tels": [
+    "+971 4 835 6358"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.begad.ae/ar/checkout",
+    "link_text": "Shop - Cart Multi Vendor Shop - Compare",
+    "http_status": 200,
+    "final_url": "https://www.begad.ae/ar/checkout",
+    "title": "Checkout | Begad العربية",
+    "blocked": false,
+    "seller_signal_text": "Vendor Registration",
+    "fee_snippets": [],
+    "emails": [
+     "contact@begad.ae",
+     "support@begad.ae",
+     "sellers@begad.ae"
+    ]
+   },
+   {
+    "url": "https://www.begad.ae/ar/vendor-left-sidebar-marketplace",
+    "link_text": "Seller Grid",
+    "http_status": 200,
+    "final_url": "https://www.begad.ae/en/sellers",
+    "title": "Stores on Begad | Begad UAE",
+    "blocked": false,
+    "seller_signal_text": "Vendor Registration",
+    "fee_snippets": [],
+    "emails": [
+     "contact@begad.ae",
+     "support@begad.ae",
+     "sellers@begad.ae"
+    ]
+   },
+   {
+    "url": "https://www.begad.ae/ar/sell",
+    "link_text": "Seller Account",
+    "http_status": 200,
+    "final_url": "https://www.begad.ae/ar/sell",
+    "title": "Sell on Begad — Reach the whole UAE | Begad العربية",
+    "blocked": false,
+    "seller_signal_text": "Sell on",
+    "fee_snippets": [
+     "Lowest commission rate in the UAE Free registration Approved in minutes Launch batch open Become a Begad seller Start with your email",
+     "Keep more of every sale Our commission sits below the major platforms — a simple flat rate per category, with no surprises when your payout lands"
+    ],
+    "emails": [
+     "contact@begad.ae",
+     "support@begad.ae",
+     "sellers@begad.ae",
+     "You@yourcompany.ae",
+     "you@yourcompany.ae"
+    ]
+   },
+   {
+    "url": "https://www.begad.ae/ar/vendor-dashboard",
+    "link_text": "Seller Dashboard",
+    "http_status": 200,
+    "final_url": "https://seller.begad.ae/",
+    "title": "Seller Login | Begad",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 5,
+  "name": "Mumzworld",
+  "channel_type": "Marketplace متخصص بالأم والطفل",
+  "url": "https://www.mumzworld.com/en/sell",
+  "can_sell_claim": "نعم، تقديم علامة/مورد",
+  "entry_claim": "تقديم ومراجعة من الفريق",
+  "priority_claim": "مرتفع",
+  "notes_claim": "قد يناسب منتجات العناية بالأم/الطفل فقط إذا كانت الفئة مناسبة؛ لا تفترضي قبول جميع منتجات التجميل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.mumzworld.com/en/sell",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 6,
+  "name": "Carrefour UAE",
+  "channel_type": "تجارة إلكترونية / شراكة توريد",
+  "url": "https://www.carrefouruae.com/",
+  "can_sell_claim": "غير واضح كفتح بائع ذاتي عام",
+  "entry_claim": "التواصل مع المشتريات/الشراكات",
+  "priority_claim": "متوسط",
+  "notes_claim": "اعتبريه قناة توريد لا منصة بائع مفتوحة حتى يؤكدوا خلاف ذلك.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.carrefouruae.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 7,
+  "name": "Lulu Hypermarket UAE",
+  "channel_type": "تجارة إلكترونية / توريد تجزئة",
+  "url": "https://www.luluhypermarket.com/en-ae/",
+  "can_sell_claim": "غير واضح كفتح بائع ذاتي عام",
+  "entry_claim": "التواصل مع المشتريات",
+  "priority_claim": "متوسط",
+  "notes_claim": "يحتاج موافقة تجارية وإدراج من فريق المشتريات.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.luluhypermarket.com/en-ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 8,
+  "name": "Sharaf DG",
+  "channel_type": "Marketplace/تجزئة عامة",
+  "url": "https://uae.sharafdg.com/",
+  "can_sell_claim": "غير مؤكد لمنتجات العناية",
+  "entry_claim": "تحقق من الفئة وبرنامج البائعين",
+  "priority_claim": "منخفض",
+  "notes_claim": "ملاءمته لمستحضرات LOWE’S محدودة وغير مؤكدة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://uae.sharafdg.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 9,
+  "name": "Namshi",
+  "channel_type": "تجزئة أونلاين للأزياء والجمال",
+  "url": "https://www.namshi.com/uae-en/",
+  "can_sell_claim": "غير مؤكد كفتح بائع مباشر",
+  "entry_claim": "تواصل تجاري/مورد",
+  "priority_claim": "متوسط",
+  "notes_claim": "تأكد من قبول منتجات التجميل ومن نموذج الشراكة الحالي.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 10,
+  "name": "Ounass",
+  "channel_type": "تجزئة فاخرة أونلاين",
+  "url": "https://www.ounass.ae/",
+  "can_sell_claim": "عادةً عبر انتقاء الموردين/العلامات",
+  "entry_claim": "تواصل مع فريق العلامات/المشتريات",
+  "priority_claim": "متوسط",
+  "notes_claim": "مناسب فقط إذا كانت العلامة والتسعير والتموضع متوافقين.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.ounass.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 11,
+  "name": "Bloomingdale's UAE",
+  "channel_type": "تجزئة فاخرة أونلاين",
+  "url": "https://www.bloomingdales.ae/",
+  "can_sell_claim": "عادةً عبر المشتريات",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "لا توجد هنا إثباتات لقبول بائعين مستقلين.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://bloomingdales.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Bloomingdale's UAE | Shop Luxury Fashion, Beauty & More",
+   "desc": "Shop Your Favorite Designers Collections Online by Bloomingdale's in Dubai, Abu Dhabi & UAE. ✓ Free Shipping ✓ Free Returns ✓ Cash On Delivery.",
+   "uae_signal": true,
+   "seller_signal_text": "BULk",
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 12,
+  "name": "Galeries Lafayette Dubai",
+  "channel_type": "متجر فاخر أونلاين",
+  "url": "https://www.galerieslafayette.ae/",
+  "can_sell_claim": "عبر المشتريات على الأرجح",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحققي من الموقع ونموذج إدراج العلامات قبل تجهيز الطلب.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.galerieslafayette.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 13,
+  "name": "Mumzworld Seller Registration",
+  "channel_type": "بوابة تسجيل مورد",
+  "url": "https://landing.seller.mumzworld.com/sell",
+  "can_sell_claim": "نعم، طلب انضمام علامة",
+  "entry_claim": "نموذج تقديم ومراجعة",
+  "priority_claim": "مرتفع",
+  "notes_claim": "رابط تقديم مباشر؛ مناسب فقط للفئات التي تخدم جمهورهم.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://landing.seller.mumzworld.com/sell",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sell With Mumzworld - Mumzworld Seller Center",
+   "desc": "Mumzworld seller's backoffice management platform.",
+   "uae_signal": false,
+   "seller_signal_text": "Sell With",
+   "candidate_links": [
+    {
+     "url": "https://landing.seller.mumzworld.com/login",
+     "text": " Login to Seller Center "
+    },
+    {
+     "url": "https://landing.seller.mumzworld.com/sell?lang=ar",
+     "text": " العربية "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://landing.seller.mumzworld.com/login",
+    "link_text": " Login to Seller Center ",
+    "http_status": 404,
+    "final_url": "https://landing.seller.mumzworld.com/login",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://landing.seller.mumzworld.com/sell?lang=ar",
+    "link_text": " العربية ",
+    "http_status": 200,
+    "final_url": "https://landing.seller.mumzworld.com/sell?lang=ar",
+    "title": "Sell With Mumzworld - Mumzworld Seller Center",
+    "blocked": false,
+    "seller_signal_text": "Sell With",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 14,
+  "name": "Watsons UAE",
+  "channel_type": "متجر تجميل متعدد العلامات",
+  "url": "https://www.watsons.ae/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "مشتريات/توريد علامة",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "تحتاج موافقة المشتريات وإثباتات المنتجات.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.watsons.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Watsons UAE | Shop All Beauty & Personal Care Products Online",
+   "desc": "Shop the latest Makeup, Skincare, K-Beauty & More at Watsons UAE. ✓ Affordable Prices, ✓ Express Delivery within 4 Hours in Dubai ✓ Free Delivery on Orders Over 100 AED.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.watsons.ae/$%7BitemLink%7D",
+     "text": " getConversionData(event, item)}\" > ${item.vendor && components.Highlight({ hit:"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.watsons.ae/$%7BitemLink%7D",
+    "link_text": " getConversionData(event, item)}\" > ${item.vendor && components.Highlight({ hit:",
+    "http_status": 404,
+    "final_url": "https://www.watsons.ae/$%7BitemLink%7D",
+    "title": "404 Not Found",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 15,
+  "name": "Faces UAE",
+  "channel_type": "متجر تجميل متعدد العلامات",
+  "url": "https://www.faces.ae/en",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "مشتريات/توريد علامة",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "قد يناسب منتجات العناية والجمال؛ القبول غير مؤكد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.faces.ae/en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Shop for Perfume, Makeup, Skin Care & Cosmetics | FACES UAE",
+   "desc": "Discover the largest selection of Beauty products in UAE 🇦🇪 Express Delivery ✓ Authentic Products ✓ Free Returns ✓ Buy Now, Pay Later ✓",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.faces.ae/en/best-selling-skincare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-makeup",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-haircare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/best-selling-bodycare",
+     "text": " Bestsellers "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-crush-absolu-eau-de-parfum-006618016380.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-crush-absolu-eau-de-parfum-pm006618016379.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/p/chanel-coco-mademoiselle-intense-spray-eau-de-parfum-PM_Chanel_coco_EDP.html",
+     "text": " "
+    },
+    {
+     "url": "https://www.faces.ae/en/partnerwithfaces.html",
+     "text": "Partner with Faces"
+    }
+   ],
+   "emails": [
+    "support@faces.com"
+   ],
+   "tels": [
+    "800 965",
+    "+971563299902",
+    "971563299902"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.faces.ae/en/best-selling-skincare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-skincare",
+    "title": "Bestsellers Skincare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-makeup",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-makeup",
+    "title": "Bestsellers Makeup | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-haircare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-haircare",
+    "title": "Bestsellers Haircare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   },
+   {
+    "url": "https://www.faces.ae/en/best-selling-bodycare",
+    "link_text": " Bestsellers ",
+    "http_status": 200,
+    "final_url": "https://www.faces.ae/en/best-selling-bodycare",
+    "title": "Bestsellers Bodycare | Faces UAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@faces.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 16,
+  "name": "Sephora UAE",
+  "channel_type": "متجر تجميل متعدد العلامات",
+  "url": "https://www.sephora.ae/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "مشتريات/تطوير علامات",
+  "priority_claim": "متوسط",
+  "notes_claim": "معايير انتقاء العلامات قد تكون عالية؛ لا يعتبر تسجيل بائع مباشر.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.sephora.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 17,
+  "name": "Areej",
+  "channel_type": "متجر تجميل",
+  "url": "https://www.areej.ae/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري/مشتريات",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحققي من الفئات الحالية وإمكانية إدراج علامة جديدة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.areej.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Areej",
+   "desc": "Areej is the region's first homegrown beauty concept store by Al Tayer Insignia. Our mission is simple: to allow our customers to treat themselves to the best in beauty, from the most-coveted makeup to skincare and fragrances.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 4 340 5223",
+    "+971 55 5337018",
+    "+971 55 337018"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 18,
+  "name": "BeautyZone UAE",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://www.beautyzone.ae/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "متجر متعدد العلامات؛ القبول وشروط الموردين غير معلنة هنا.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.beautyzone.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "BeautyZone",
+   "desc": "Find Your Beauty on Beauty Zone",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 19,
+  "name": "Emiraa",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://www.emiraa.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "مناسب لفحص فرص العناية والتجميل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.emiraa.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Emiraa Dubai | Online Beauty, Skincare & Makeup Store UAE",
+   "desc": "Shop branded beauty, skincare, makeup, fragrance & health products online in Dubai UAE. Free delivery on orders over AED 200. 100% authentic at Emiraa.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "support@emiraa.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 20,
+  "name": "Rover Island",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://www.roverisland.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "متجر متخصص؛ يلزم سؤالهم عن onboarding للعلامات.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.roverisland.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Rover Island: Official Store for Skincare, K-Beauty & Cosmetics in UAE",
+   "desc": "Shop Korean skincare, makeup, hair care and beauty products online in the UAE at Rover Island. COSRX, Beauty of Joseon, Anua & more. Free shipping over 150 AED. Explore K-beauty serums, sunscreens and cleansers, plus cosmetics and body care",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.roverisland.com/products/foodology-coleology-cutting-powder-10-sticks-10-day-supply",
+     "text": " "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.roverisland.com/products/foodology-coleology-cutting-powder-10-sticks-10-day-supply",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://www.roverisland.com/products/foodology-coleology-cutting-powder-10-sticks-10-day-supply",
+    "title": "FOODOLOGY Coleology Cutting Powder Dietary Fiber, 10 Sticks &ndash; Rover Island",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "support@roverisland.com",
+     "roverislandbeauty@gmail.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 21,
+  "name": "Glowy",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://www.glowy.ae/",
+  "can_sell_claim": "يوجد مسار شراكات/استفسار بحسب البحث السابق",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "مرتفع",
+  "notes_claim": "تأكدي من المتطلبات الحالية من صفحة التواصل الرسمية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.glowy.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Codazon Home Page",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "support@glowy.ae"
+   ],
+   "tels": [
+    "+971503480401"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 22,
+  "name": "Shop @ Crown",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://shop.crowncorporategroup.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "قد يكون مسار توريد، يلزم تأكيد مباشر.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://shop.crowncorporategroup.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty & Skincare, Delivered Across the UAE — shop @ crown",
+   "desc": "Skincare, makeup, haircare and body care delivered across the UAE. Cash on delivery, and every item genuine or your money back.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "support@crowncorporategroup.com",
+    "you@email.com"
+   ],
+   "tels": [
+    "+971 52 789 2568"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 23,
+  "name": "LOOKFANTASTIC UAE",
+  "channel_type": "متجر تجميل أونلاين",
+  "url": "https://www.lookfantastic.ae/",
+  "can_sell_claim": "مسار الموردين ذُكر في البحث السابق؛ يحتاج تحقق",
+  "entry_claim": "تقديم مورد/شراكة",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحققي من صلاحية قناة الشراكة وشروط السوق الإماراتي.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.lookfantastic.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "LOOKFANTASTIC UAE - Beauty, Cosmetics, Fragrance & Haircare",
+   "desc": "The UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.lookfantastic.ae/c/info/affiliates/",
+     "text": "Affiliates"
+    },
+    {
+     "url": "https://www.lookfantastic.ae/c/info/partnerships-suppliers/",
+     "text": "Partnerships/Suppliers"
+    },
+    {
+     "url": "https://www.lookfantastic.ae/c/team-fantastic/",
+     "text": "Become an Ambassador"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.lookfantastic.ae/c/info/partnerships-suppliers/",
+    "link_text": "Partnerships/Suppliers",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.ae/c/info/partnerships-suppliers/",
+    "title": "Partnerships/Suppliers | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "partnerships@thehutgroup.com"
+    ]
+   },
+   {
+    "url": "https://www.lookfantastic.ae/c/team-fantastic/",
+    "link_text": "Become an Ambassador",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.ae/c/team-fantastic/",
+    "title": "Team fantastic | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "inspiring and educating by producing content partnered with LOOKFANTASTIC on your social media channels whilst earning commission for every sale you make",
+     "You’ll earn commission from every sale made on LOOKFANTASTIC that comes directly from your followers"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://www.lookfantastic.ae/c/info/affiliates/",
+    "link_text": "Affiliates",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.ae/c/info/affiliates/",
+    "title": "Lookfantastic Affiliate Program | Join Lookfantastic Arabia | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": "partner with us",
+    "fee_snippets": [
+     "s that send traffic to Lookfantastic through tracked links, each sale that is made from that link, the affiliate gets a commission",
+     "rsion rates and a huge product range this means that if you send customers to Lookfantastic you are more likely to earn commission"
+    ],
+    "emails": [
+     "wael.dawrich@thehutgroup.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 24,
+  "name": "K-Beauty Arabia",
+  "channel_type": "متجر/موزع تجميل كوري",
+  "url": "https://kbeautyarabia.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري/جملة",
+  "priority_claim": "متوسط",
+  "notes_claim": "فحص ملاءمة التوزيع والبيع بالجملة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://kbeautyarabia.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "K-Beauty Arabia- Your Destination for Authentic Korean Beauty Products",
+   "desc": "Shop the finest collection of K-beauty cosmetic products at KBeautyArabia.com. Discover authentic Korean beauty products and enhance your skincare routine with premium beauty essentials.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://kbeauty-wholesale.com/",
+     "text": "Wholesale Queries"
+    }
+   ],
+   "emails": [
+    "hello@kbeautyarabia.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 25,
+  "name": "BinSina Pharmacy",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.binsina.ae/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "قسم المشتريات/الموردين",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "مناسب لفحص قناة صيدلانية؛ قبول العلامة غير مؤكد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 405,
+   "final_url": "https://www.binsina.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "405 Not allowed!",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 26,
+  "name": "myAster",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.myaster.com/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "قسم المشتريات/الموردين",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "مناسب لفئات العناية؛ يلزم موافقة المورد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.myaster.com/en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "myAster UAE: Online Pharmacy - Appointment - Consult Doctors",
+   "desc": "myAster is a trusted healthcare platform in the UAE. Shop pharmacy products online, book Aster Clinic appointments and consult doctors from anywhere in the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 27,
+  "name": "Life Pharmacy",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.lifepharmacy.com/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "قسم المشتريات/الموردين",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "شبكة صيدليات؛ تحتاج اتفاق توريد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.lifepharmacy.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Life Pharmacy UAE - Online Pharmacy Delivery in 30 minutes",
+   "desc": "Life Pharmacy is a trusted UAE online pharmacy. Order prescription/OTC medicines online. Explore a wide range of vitamins, medicines, beauty brands, baby care products, and sports supplements. Delivery in 30 minutes, Order Now!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "care@lifepharmacy.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 28,
+  "name": "Chemist Warehouse UAE",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.chemistwarehouse.ae/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "تأكيد شروط الموردين والتسجيل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.chemistwarehouse.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Chemist Warehouse UAE Online Pharmacy | Health, Beauty & Wellness Deal",
+   "desc": "Chemist Warehouse - Your trusted online pharmacy for Vitamins, Skincare, and Fragrance. Shop real brands with a lowest price guarantee and fast delivery across UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 29,
+  "name": "Boots UAE",
+  "channel_type": "صيدلية ومتجر تجميل",
+  "url": "https://ae.boots.com/en/",
+  "can_sell_claim": "لا يوجد تأكيد على بائع ذاتي مفتوح",
+  "entry_claim": "مشتريات/توريد",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "تحتاج موافقة تجارية وإدراج المنتج.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://ae.boots.com/en/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Shop beauty and healthcare products online | Boots UAE",
+   "desc": "Shop on Boots for a variety of healthcare, beauty &#x26; wellness products from the world's leading brands. Find an extended range of fragrances, cosmetics, medicines, and many other available.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 30,
+  "name": "Supercare Pharmacy",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.super-care.ae/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "مشتريات/توريد",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحقق من نشاط المتجر وقناة الموردين الحالية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.super-care.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Homepage - Supercare Pharmacy",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 31,
+  "name": "800Pharma",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://800pharma.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "مناسب لفحص إدراج منتجات العناية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://800pharma.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "800 Pharma - Online Pharmacy Delivery in 30 minutes",
+   "desc": "800Pharma  UAE Most Trusted Online Pharmacy. Buy medicines, vitamins, baby care, beauty, and health products online. 30-minute delivery across UAE - Order Now!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 32,
+  "name": "Mediсina Pharmacy",
+  "channel_type": "صيدلية أونلاين",
+  "url": "https://www.medicinaonline.ae/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحقق من الموقع والنشاط الحالي قبل الاعتماد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://medicinaonline.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Medicina Online Pharmacy UAE | 24/7 Fast Delivery &ndash; Medicina Online Pharmacy | UAE",
+   "desc": "Shop online pharmacy in UAE for medicines, vitamins, supplements, skincare, beauty, baby care, personal care, medical devices, and health products. Safe delivery across Dubai, Abu Dhabi, Sharjah & all UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "medicinaonline@medicina.ae",
+    "800Medicina@medicina.ae"
+   ],
+   "tels": [
+    "800 63342462"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 33,
+  "name": "Talabat UAE",
+  "channel_type": "تطبيق توصيل/متاجر محلية",
+  "url": "https://www.talabat.com/uae",
+  "can_sell_claim": "شراكة متجر/بائع حسب النشاط والمنطقة",
+  "entry_claim": "تسجيل شريك أو التواصل التجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "قد يفيد إذا كان هناك نموذج متاح لفئة المنتجات؛ لا يضمن إدراج منتجات التجميل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.talabat.com/uae",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Food delivery from your nearest restaurants in UAE | Talabat",
+   "desc": "Your favorite food delivered in UAE with Talabat. A wide food variety from the top restaurants near you: burger,s pizza and more! Hungry? Ready, set, Talabat!",
+   "uae_signal": true,
+   "seller_signal_text": "Become a partner",
+   "candidate_links": [
+    {
+     "url": "https://ae.partner.talabat.com/s/?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner",
+     "text": " Become a partner "
+    },
+    {
+     "url": "https://www.talabat.com/uae/restaurants",
+     "text": " Order food Find deals, free delivery, and more from our restaurant partners. "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://ae.partner.talabat.com/s/?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner",
+    "link_text": " Become a partner ",
+    "http_status": 200,
+    "final_url": "https://ae.partner.talabat.com/en?language=en_US&utm_source=homepage&utm_medium=referral&utm_campaign=top_banner",
+    "title": "Talabat",
+    "blocked": false,
+    "seller_signal_text": "Partner with us",
+    "fee_snippets": [
+     "Why do you charge commission fee? expand_more The commission fee collected ensures our delivery partners are fairly paid and enables us to provide platform services for online ordering and delivery se"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://www.talabat.com/uae/restaurants",
+    "link_text": " Order food Find deals, free delivery, and more from our restaurant partners. ",
+    "http_status": 200,
+    "final_url": "https://www.talabat.com/uae/restaurants",
+    "title": "All restaurants and groceries in UAE | Talabat",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 34,
+  "name": "Deliveroo UAE",
+  "channel_type": "تطبيق توصيل ومتاجر",
+  "url": "https://deliveroo.ae/",
+  "can_sell_claim": "غير مؤكد لفئة مستحضرات التجميل",
+  "entry_claim": "تواصل شراكات",
+  "priority_claim": "منخفض",
+  "notes_claim": "قناة ثانوية؛ تحقق من دعم فئة الجمال.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://deliveroo.ae/en/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Deliveroo - Takeaway Food Delivery from Local Restaurants & Shops",
+   "desc": "We deliver your takeouts or essential groceries from the best-rated local partners straight to your door. Download our app or order online. Food. We Get It.",
+   "uae_signal": true,
+   "seller_signal_text": "Partner with us",
+   "candidate_links": [],
+   "emails": [
+    "DeliverooSG@kroll.com",
+    "hello@deliveroo.fr"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 35,
+  "name": "Cult Beauty",
+  "channel_type": "متجر تجميل دولي",
+  "url": "https://www.cultbeauty.com/",
+  "can_sell_claim": "غير مؤكد لقبول علامة جديدة/بيع من الإمارات",
+  "entry_claim": "تواصل علامة/مورد",
+  "priority_claim": "متوسط",
+  "notes_claim": "تحقق من التوزيع والشحن للسوق؛ ليس بالضرورة منصة بائع ذاتي.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.cultbeauty.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "CULT BEAUTY | The Home of Beauty Discovery",
+   "desc": "The home of beauty discovery — bringing you the now, new and next from the world’s most-loved brands. Explore our curation of skincare, makeup, fragrance, haircare and more.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.cultbeauty.com/c/brands/laneige/lip-care/",
+     "text": " In two new festive hues, refresh your lipwear wardrobe with the bestselling Lip"
+    },
+    {
+     "url": "https://www.cultbeauty.com/c/brands/hourglass/gifts/",
+     "text": " Artfully crafted, the set-to-sell-out Ambient Lighting Palettes return for 2026"
+    },
+    {
+     "url": "https://www.cultbeauty.com/c/info/affiliates/",
+     "text": "Affiliates"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.cultbeauty.com/c/brands/laneige/lip-care/",
+    "link_text": " In two new festive hues, refresh your lipwear wardrobe with the bestselling Lip",
+    "http_status": 200,
+    "final_url": "https://www.cultbeauty.com/c/brands/laneige/lip-care/",
+    "title": "LANEIGE Lip Care | Cult Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.cultbeauty.com/c/brands/hourglass/gifts/",
+    "link_text": " Artfully crafted, the set-to-sell-out Ambient Lighting Palettes return for 2026",
+    "http_status": 200,
+    "final_url": "https://www.cultbeauty.com/c/brands/hourglass/gifts/",
+    "title": "Hourglass Gifts | Cult Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.cultbeauty.com/c/info/affiliates/",
+    "link_text": "Affiliates",
+    "http_status": 200,
+    "final_url": "https://www.cultbeauty.com/c/info/affiliates/",
+    "title": "affiliates | Cult Beauty",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "THE BENEFITS OF JOINING • Competitive commission structure, up to 15% with the opportunity to earn increased rates and bonuses, with the following exceptions: 1% on orders used with a prom"
+    ],
+    "emails": [
+     "influencer@cultbeauty.co.uk",
+     "affiliates@cultbeauty.co.uk"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 36,
+  "name": "Lookfantastic Global",
+  "channel_type": "متجر تجميل دولي",
+  "url": "https://www.lookfantastic.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل علامة/مورد",
+  "priority_claim": "متوسط",
+  "notes_claim": "تمييزه عن النسخة الإماراتية؛ لا تسجليهما كجهتين منفصلتين دون سبب.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.lookfantastic.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "LOOKFANTASTIC - Beauty, Fragrances, Skincare & Haircare",
+   "desc": "The home of iconic beauty! Discover premium &#38; luxury skincare, haircare, makeup &#38; fragrance brands. Join Beauty+ &#38; earn rewards. Free delivery available.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://secure.gocertify.me/at/lookfantastic?nav",
+     "text": " Partnership Discounts "
+    },
+    {
+     "url": "https://www.lookfantastic.com/c/brands/the-merchant-of-venice/",
+     "text": "The Merchant of Venice"
+    },
+    {
+     "url": "https://www.lookfantastic.com/c/info/affiliates/",
+     "text": "Affiliates"
+    },
+    {
+     "url": "https://www.lookfantastic.com/c/info/partnerships-suppliers/",
+     "text": "Partnerships/Suppliers"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.lookfantastic.com/c/info/partnerships-suppliers/",
+    "link_text": "Partnerships/Suppliers",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.com/c/info/partnerships-suppliers/",
+    "title": "Partnerships/Suppliers | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "is a payment agent of Transact Payments Limited, a company authorised and regulated by the Gibraltar Financial Services Commission as an electronic money institution"
+    ],
+    "emails": [
+     "beauty.partnerships@thehutgroup.com"
+    ]
+   },
+   {
+    "url": "https://www.lookfantastic.com/c/brands/the-merchant-of-venice/",
+    "link_text": "The Merchant of Venice",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.com/c/brands/the-merchant-of-venice/",
+    "title": "The Merchant of Venice | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "is a payment agent of Transact Payments Limited, a company authorised and regulated by the Gibraltar Financial Services Commission as an electronic money institution"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://www.lookfantastic.com/c/info/affiliates/",
+    "link_text": "Affiliates",
+    "http_status": 200,
+    "final_url": "https://www.lookfantastic.com/c/info/affiliates/",
+    "title": "LOOKFANTASTIC Affiliate Programme | LOOKFANTASTIC",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "com/merchant-profile/2082 SIGN UP Add the tracked links to your content and start earning commission",
+     "is a payment agent of Transact Payments Limited, a company authorised and regulated by the Gibraltar Financial Services Commission as an electronic money institution"
+    ],
+    "emails": [
+     "lfaffiliatesteam@thehutgroup.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 37,
+  "name": "iHerb UAE",
+  "channel_type": "متجر دولي",
+  "url": "https://ae.iherb.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري/علامة",
+  "priority_claim": "منخفض",
+  "notes_claim": "القبول يعتمد على فئة المنتج ونموذج التوريد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://ae.iherb.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 38,
+  "name": "Nice One",
+  "channel_type": "متجر تجميل إقليمي",
+  "url": "https://niceonesa.com/",
+  "can_sell_claim": "غير مؤكد للسوق الإماراتي",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "تأكدي من التغطية الحالية بالإمارات.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://niceonesa.com/ar",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "تسوق جميع منتجات الجمال أونلاين | نايس ون السعودية",
+   "desc": "تسوق للحصول على أفضل منتجات الجمال والعناية بالبشرة، بما في ذلك المكياج ومنظفات البشرة والإكسسوارات والمزيد من نايس ون السعودية. استمتع بخدمة التوصيل السريع في جميع أنحاء السعودية.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://affiliates.niceonesa.com/ar",
+     "text": "برنامج التسويق بالعمولة"
+    },
+    {
+     "url": "https://partners.niceonesa.com/register",
+     "text": "انضم إلينا كمورد"
+    }
+   ],
+   "emails": [
+    "cs@niceonesa.com",
+    "partnerships@niceonesa.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://partners.niceonesa.com/register",
+    "link_text": "انضم إلينا كمورد",
+    "http_status": 200,
+    "final_url": "https://partners.niceonesa.com/register",
+    "title": "Niceone | Partners Portal",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://affiliates.niceonesa.com/ar",
+    "link_text": "برنامج التسويق بالعمولة",
+    "http_status": 200,
+    "final_url": "https://affiliates.niceonesa.com/ar/register",
+    "title": "تسجيل الشراكة | نايس ون",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 39,
+  "name": "Boutiqaat",
+  "channel_type": "منصة تجميل إقليمية",
+  "url": "https://www.boutiqaat.com/",
+  "can_sell_claim": "غير مؤكد",
+  "entry_claim": "تواصل تجاري/علامة",
+  "priority_claim": "متوسط",
+  "notes_claim": "نموذجها قد يختلف عن سوق البائعين المفتوح.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.boutiqaat.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 40,
+  "name": "Golden Scent",
+  "channel_type": "متجر تجميل وعطور إقليمي",
+  "url": "https://www.goldenscent.com/",
+  "can_sell_claim": "غير مؤكد لمنتجات العناية/التسجيل",
+  "entry_claim": "تواصل تجاري",
+  "priority_claim": "منخفض",
+  "notes_claim": "تحققي من فئات العناية والتغطية الإماراتية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.goldenscent.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "عطور ومستحضرات تجميل أصلية بأسعار مميزة من قولدن سنت",
+   "desc": "اكتشف أفضل العطور ومستحضرات التجميل الأصلية من قولدن سنت مع عروض حصرية وتوصيل سريع وجودة مضمونة 100%",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://careers.goldenscent.com/jobs",
+     "text": "انضم إلينا"
+    }
+   ],
+   "emails": [
+    "care@goldenscent.com"
+   ],
+   "tels": [
+    "800 304"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://careers.goldenscent.com/jobs",
+    "link_text": "انضم إلينا",
+    "http_status": 200,
+    "final_url": "https://careers.goldenscent.com/jobs",
+    "title": "Freshteam",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 41,
+  "name": "Nazih",
+  "channel_type": "موزع/متجر احترافي للجمال",
+  "url": "https://nazih.com/",
+  "can_sell_claim": "ليس منصة بائع ذاتي عامة",
+  "entry_claim": "توزيع/جملة/شراكة",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "افحصي إمكانية التوزيع والتوريد؛ تحقق من الجهة المحلية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://nazih.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Nazih Cosmetics",
+   "desc": "Discover the wide range of  Beauty products.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "youremail@mail.com",
+    "info@nazih.com",
+    "customercare@nazih.com"
+   ],
+   "tels": [
+    "800-62944",
+    "+971 6 573 9392",
+    "+971 6 573 6315"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 42,
+  "name": "Madi International",
+  "channel_type": "موزع متعدد العلامات",
+  "url": "https://madiint.com/",
+  "can_sell_claim": "ليس منصة بائع ذاتي عامة",
+  "entry_claim": "تواصل موزع/توريد",
+  "priority_claim": "مرتفع كقناة محتملة",
+  "notes_claim": "قد يناسب قناة B2B؛ القبول غير مؤكد.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 43,
+  "name": "Xpressions Style",
+  "channel_type": "متجر/بوابة بيع",
+  "url": "https://www.xpressionsstyle.com/",
+  "can_sell_claim": "ذُكر سابقاً وجود مسار بيع؛ يلزم تحقق مباشر",
+  "entry_claim": "تسجيل بائع/تواصل تجاري",
+  "priority_claim": "متوسط",
+  "notes_claim": "تأكدي من صلاحية صفحة البيع الحالية.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://xpressions.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Xpressions UAE | Original Perfumes, Makeup & Watches",
+   "desc": "Shop 100% original perfumes, makeup, skincare, watches, and beauty products online in the UAE. Trusted since 1998 with fast delivery across the Emirates.",
+   "uae_signal": true,
+   "seller_signal_text": "Sell on",
+   "candidate_links": [
+    {
+     "url": "https://xpressions.ae/collections/vendors?q=Parfums%20de%20Marly",
+     "text": "Parfums de Marly"
+    },
+    {
+     "url": "https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program",
+     "text": "Sell on Xpressions"
+    }
+   ],
+   "emails": [
+    "team@xpressionsstyle.com",
+    "info@xpressionsstyle.com"
+   ],
+   "tels": [
+    "8009080"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://xpressions.ae/collections/vendors?q=Parfums%20de%20Marly",
+    "link_text": "Parfums de Marly",
+    "http_status": 200,
+    "final_url": "https://xpressions.ae/collections/vendors?q=Parfums+de+Marly",
+    "title": "Parfums de Marly",
+    "blocked": false,
+    "seller_signal_text": "Sell on",
+    "fee_snippets": [],
+    "emails": [
+     "team@xpressionsstyle.com",
+     "info@xpressionsstyle.com"
+    ]
+   },
+   {
+    "url": "https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program",
+    "link_text": "Sell on Xpressions",
+    "http_status": 200,
+    "final_url": "https://xpressions.ae/pages/welcome-to-the-xpressions-style-partner-program",
+    "title": "Xpressions Style Business Network | Join Us",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "team@xpressionsstyle.com",
+     "info@xpressionsstyle.com",
+     "business.development@xpressionsstyle.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 44,
+  "name": "Instagram Shop / Instagram Business",
+  "channel_type": "تجارة اجتماعية",
+  "url": "https://business.instagram.com/",
+  "can_sell_claim": "نعم لعرض المنتجات/التواصل، مع اختلاف إتاحة ميزات المتجر حسب البلد والحساب",
+  "entry_claim": "حساب أعمال ومحتوى/إعلانات/رسائل",
+  "priority_claim": "مرتفع كقناة تسويق",
+  "notes_claim": "لا تفترضي أن Checkout أو Shops متاحة لكل حساب إماراتي؛ البيع قد يتم عبر الموقع أو الرسائل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 400,
+   "final_url": "https://business.instagram.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Error",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 45,
+  "name": "TikTok for Business",
+  "channel_type": "تجارة اجتماعية/إعلانات",
+  "url": "https://www.tiktok.com/business/",
+  "can_sell_claim": "إعلانات وترويج؛ متجر TikTok يعتمد على توفر البرنامج للسوق والحساب",
+  "entry_claim": "حساب أعمال والتحقق من إتاحة التجارة",
+  "priority_claim": "متوسط",
+  "notes_claim": "لا أؤكد وجود TikTok Shop UAE مفتوح؛ تحقق من إتاحة البرنامج محلياً.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://ads.tiktok.com/business/fr?tt4b_lang_redirect=1",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "TikTok for Business | Marketing & Advertising on TikTok",
+   "desc": "Advertise on TikTok. Make ads that entertain and campaigns that connect. Where large and small businesses, agencies & creators can achieve big results.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://seller.tiktok.com/",
+     "text": " TikTok Shop "
+    },
+    {
+     "url": "https://ads.tiktok.com/business/fr/marketing-partners",
+     "text": " Partenaires marketing "
+    },
+    {
+     "url": "https://ads.tiktok.com/affiliate",
+     "text": " TikTok Affiliate "
+    },
+    {
+     "url": "https://www.tiktok.com/legal/page/global/partner-privacy-policy/en",
+     "text": "Confidentialité"
+    }
+   ],
+   "emails": [
+    "feedback@tiktok.com",
+    "pr@tiktok.com",
+    "u003Epr@tiktok.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://seller.tiktok.com/",
+    "link_text": " TikTok Shop ",
+    "http_status": 200,
+    "final_url": "https://seller.tiktok.com/",
+    "title": "TikTok Shop US | Sell Through Content, Creators, and LIVE",
+    "blocked": false,
+    "seller_signal_text": "sell on",
+    "fee_snippets": [
+     "Reduce your referral fee up to 4% Start selling through LIVE auction and unlock referral fee discounts",
+     "Is there a fee to join TikTok Shop? There is no setup fee to join"
+    ],
+    "emails": [
+     "tiktokcreator-ec-us@tiktok.com"
+    ]
+   },
+   {
+    "url": "https://ads.tiktok.com/business/fr/marketing-partners",
+    "link_text": " Partenaires marketing ",
+    "http_status": 200,
+    "final_url": "https://ads.tiktok.com/business/fr/marketing-partners",
+    "title": "Marketing Partners & TikTok Experts | TikTok for Business",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "pr@tiktok.com",
+     "u003Epr@tiktok.com"
+    ]
+   },
+   {
+    "url": "https://ads.tiktok.com/affiliate",
+    "link_text": " TikTok Affiliate ",
+    "http_status": 200,
+    "final_url": "https://ads.tiktok.com/affiliate?language=fr",
+    "title": "Programme d'affiliation TikTok Ads Manager | Touchez jusqu'à 30 % de commission",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "Programme d'affiliation TikTok Ads Manager | Touchez jusqu'à 30 % de commission Jusqu'à 30 % de commission : Transformez votre réseau et votre trafic en revenus grâce à TikTok Recommandez TikTok for Business à votre audience, à vos clients ou à v",
+     "20 % de commission Membre Argent Or 30 % de commission Platine Inscrivez-vous dès maintenant Mise à jour des revenus +$8,240 Trouvez la voie qui vous permettra de commencer à gagner de l'argent"
+    ],
+    "emails": []
+   },
+   {
+    "url": "https://www.tiktok.com/legal/page/global/partner-privacy-policy/en",
+    "link_text": "Confidentialité",
+    "http_status": 200,
+    "final_url": "https://www.tiktok.com/legal/page/global/partner-privacy-policy/en",
+    "title": "TikTok Partner Privacy Policy | TikTok",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [
+     "You also have the right to lodge a complaint with the Irish Data Protection Commission (TikTok Ireland’s lead supervisory authority) or with your local supervisory authority",
+     "These are decisions from the European Commission under Article 45 GDPR (or equivalent decisions under other laws) where they recognise that a country offers an adequate level of data prote"
+    ],
+    "emails": [
+     "enquiries@oaic.gov.au",
+     "info@ndpc.gov.ng",
+     "privacykr@tiktok.com",
+     "privacytiktok@bkl.co.kr",
+     "tiktok@esin.av.tr"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 46,
+  "name": "WhatsApp Business",
+  "channel_type": "كتالوج وتواصل مباشر",
+  "url": "https://business.whatsapp.com/",
+  "can_sell_claim": "نعم كقناة بيع مباشر/كتالوج، وليس سوقاً عاماً",
+  "entry_claim": "إعداد كتالوج وخدمة عملاء",
+  "priority_claim": "مرتفع كقناة مباشرة",
+  "notes_claim": "مفيد لتحويل العملاء من الإعلانات والمحتوى إلى الطلب.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 400,
+   "final_url": "https://business.whatsapp.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Error",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 47,
+  "name": "Shopify Store",
+  "channel_type": "متجر إلكتروني تملكه العلامة",
+  "url": "https://www.shopify.com/",
+  "can_sell_claim": "نعم، إنشاء متجر LOWE’S خاص",
+  "entry_claim": "إنشاء المتجر وربط الدفع والشحن",
+  "priority_claim": "مرتفع",
+  "notes_claim": "ليس Marketplace؛ يمنحك تحكماً أكبر لكن يحتاج اكتساب زيارات.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.shopify.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Shopify: The All-in-One Commerce Platform for Businesses - Shopify",
+   "desc": "Try Shopify free. Build or grow your business fast with AI. Get more than ecommerce software with tools to manage every part of your business.",
+   "uae_signal": true,
+   "seller_signal_text": "Sell on",
+   "candidate_links": [
+    {
+     "url": "https://www.shopify.com/start",
+     "text": " Get started fast You could be selling by tomorrow. "
+    },
+    {
+     "url": "https://www.shopify.com/sell",
+     "text": " Switch to Shopify Get more customers. Make more sales. "
+    },
+    {
+     "url": "https://www.shopify.com/solutions/b2b/enterprise",
+     "text": " B2B "
+    },
+    {
+     "url": "https://www.shopify.com/partners",
+     "text": "Partners"
+    },
+    {
+     "url": "https://www.shopify.com/affiliates",
+     "text": "Affiliates"
+    },
+    {
+     "url": "https://www.shopify.com/partners/directory",
+     "text": "Hire a Partner"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.shopify.com/start",
+    "link_text": " Get started fast You could be selling by tomorrow. ",
+    "http_status": 200,
+    "final_url": "https://www.shopify.com/start",
+    "title": "Start your online store today. Start selling tomorrow. - Shopify",
+    "blocked": false,
+    "seller_signal_text": "Start selling",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.shopify.com/sell",
+    "link_text": " Switch to Shopify Get more customers. Make more sales. ",
+    "http_status": 200,
+    "final_url": "https://www.shopify.com/sell",
+    "title": "Sell more and spend less when you migrate to Shopify. - Shopify",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "plus@shopify.com",
+     "u003eplus@shopify.com"
+    ]
+   },
+   {
+    "url": "https://www.shopify.com/solutions/b2b/enterprise",
+    "link_text": " B2B ",
+    "http_status": 200,
+    "final_url": "https://www.shopify.com/solutions/b2b/enterprise",
+    "title": "B2B Commerce Platform for Enterprise - Shopify",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "plus@shopify.com",
+     "u003eplus@shopify.com"
+    ]
+   },
+   {
+    "url": "https://www.shopify.com/partners",
+    "link_text": "Partners",
+    "http_status": 200,
+    "final_url": "https://www.shopify.com/partners",
+    "title": "Build. Earn. Grow. – Become a Shopify Partner Today - Shopify",
+    "blocked": false,
+    "seller_signal_text": "Become a partner",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 48,
+  "name": "Salla",
+  "channel_type": "منصة إنشاء متجر",
+  "url": "https://salla.com/",
+  "can_sell_claim": "تحقق من دعم تسجيل شركة إماراتية ووسائل الدفع المحلية",
+  "entry_claim": "إنشاء متجر/تحقق أهلية الدولة",
+  "priority_claim": "منخفض",
+  "notes_claim": "لا تعتمد كخيار إماراتي قبل تأكيد أهلية الحساب من المنصة.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://salla.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 49,
+  "name": "Zid",
+  "channel_type": "منصة إنشاء متجر",
+  "url": "https://Zid.sa/",
+  "can_sell_claim": "تحقق من أهلية شركة إماراتية",
+  "entry_claim": "إنشاء متجر/تحقق أهلية الدولة",
+  "priority_claim": "منخفض",
+  "notes_claim": "المنصة إقليمية؛ تأكدي من دعم الكيان الإماراتي قبل الاختيار.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://zid.sa/ar/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "زد | أنشئ متجرك الإلكتروني بسهولة وابدأ البيع في 24 ساعة",
+   "desc": "زد هي منصتك المتكاملة لإنشاء متجر إلكتروني في دقائق، مع حلول شاملة للدفع، الشحن المحلي والدولي، وإدارة المخزون والتسويق الفعّال",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://zid.sa/ar/sectors/honey/",
+     "text": " العسل لمناحل العسل ومتاجره المختصة "
+    },
+    {
+     "url": "https://zid.sa/ar/why-zid/why-move-to-zid/",
+     "text": " لماذا أنتقل إلى زد؟ انضم إلى نخبة التجار في السوق "
+    },
+    {
+     "url": "https://zid.sa/ar/partners/",
+     "text": " الشركاء والمطورين قدّم خدماتك لآلاف التجار "
+    },
+    {
+     "url": "https://help.zid.sa/",
+     "text": " مركز المساعدة دليل استخدام منصة التاجر "
+    },
+    {
+     "url": "https://zid.sa/ar/resources/merchants-enablement/",
+     "text": " تمكين التجار فريق جاهز لتمكين نموك "
+    },
+    {
+     "url": "https://zid.sa/ar/resources/merchants-community/",
+     "text": " مجتمع التجار كن مع تجار يفهموك ويشبهون طموحك "
+    },
+    {
+     "url": "https://c.zid.sa/ar-sa",
+     "text": "شكاوي عملاء متاجر زد"
+    },
+    {
+     "url": "https://play.google.com/store/apps/details?id=sa.zid.merchants&hl=en_GB",
+     "text": " "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://zid.sa/ar/sectors/honey/",
+    "link_text": " العسل لمناحل العسل ومتاجره المختصة ",
+    "http_status": 200,
+    "final_url": "https://zid.sa/ar/sectors/honey/",
+    "title": "زد — منصة التجارة الإلكترونية لعلامات العسل",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://zid.sa/ar/why-zid/why-move-to-zid/",
+    "link_text": " لماذا أنتقل إلى زد؟ انضم إلى نخبة التجار في السوق ",
+    "http_status": 200,
+    "final_url": "https://zid.sa/ar/why-zid/why-move-to-zid/",
+    "title": "تجربة منصة زد حلول التجارة الإلكترونية المبتكرة | زد",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://zid.sa/ar/partners/",
+    "link_text": " الشركاء والمطورين قدّم خدماتك لآلاف التجار ",
+    "http_status": 200,
+    "final_url": "https://zid.sa/ar/partners/",
+    "title": "انضم لشركاء النجاح مع زد وكن جزءًا من منظومة النمو | زد",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://help.zid.sa/",
+    "link_text": " مركز المساعدة دليل استخدام منصة التاجر ",
+    "http_status": 200,
+    "final_url": "https://help.zid.sa/",
+    "title": "زد - مركز المساعدة - الرئيسية",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 50,
+  "name": "Dubai DET iSupplier",
+  "channel_type": "بوابة مورد حكومية",
+  "url": "https://www.dubaidet.gov.ae/en/our-services/for-consumers-and-students/register-as-a-supplier",
+  "can_sell_claim": "تسجيل مورد للمناقصات الحكومية، لا بيع تجزئة للمستهلكين",
+  "entry_claim": "تسجيل مورد",
+  "priority_claim": "منخفض لبيع منتجات المستهلك",
+  "notes_claim": "أدرجت للتمييز فقط؛ ليست قناة Marketplace لمستحضرات التجميل.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.dubaidet.gov.ae/en/our-services/for-consumers-and-students/register-as-a-supplier",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 51,
+  "name": "DEWA Supplier Enrolment",
+  "channel_type": "بوابة مورد حكومية",
+  "url": "https://dewa.gov.ae/en/supplier/main-services/registration-supplier-services",
+  "can_sell_claim": "تسجيل مورد لخدمات/مشتريات DEWA، لا Marketplace",
+  "entry_claim": "تسجيل مورد",
+  "priority_claim": "منخفض لبيع منتجات المستهلك",
+  "notes_claim": "ليست أولوية لبيع منتجات التجميل للمستهلكين.",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://dewa.gov.ae/en/supplier/main-services/registration-supplier-services",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

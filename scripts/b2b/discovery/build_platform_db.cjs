@@ -56,6 +56,16 @@ function verification(r) {
   if (a.http_status >= 200 && a.http_status < 400) return a.uae_signal ? ['verified_active_uae', 'الموقع يعمل ويظهر فيه ما يدل على الإمارات'] : ['active_uae_unconfirmed', 'الموقع يعمل لكن لم يظهر ما يدل على الإمارات بالصفحة الرئيسية'];
   return ['unreachable', `HTTP ${a.http_status}`];
 }
+
+// Only generic business-role mailboxes are auto-kept (never named staff, never media/press); curated annotation contacts are kept as written.
+const ROLE_MAIL = /^(info|sales|support|contact|sellers?|partnerships?|partners?|business\.?development|bd|team|suppliers?|vendors?|procurement|buying|wholesale|b2b|hello|enquiries|inquiries|trade|merchant|care|customercare)@/i;
+function bizContacts(an, r, a) {
+  const auto = [...((r.followed || []).flatMap((l) => l.emails || [])), ...((a.emails || []))].filter((e) => ROLE_MAIL.test(e) && !/^(media|press|careers|hr|jobs)@/i.test(e));
+  const parts = [...(an.contact ? String(an.contact).split(/\s*\|\s*/) : []), ...auto];
+  const seen = new Set(), out = [];
+  for (const p of parts) { const k = p.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(p); } }
+  return out.slice(0, 4).join(' | ') || UNK;
+}
 const rows = kept.map((r) => {
   const a = r.audit || {}, ev = evidence(r), an = ann.byName?.[r.name] || {};
   const [vstat, vnote] = verification(r);
@@ -76,42 +86,67 @@ const rows = kept.map((r) => {
     product_registration_requirements: an.product_reg || UNK, product_reg_source: an.product_reg_source || '',
     fees_commissions: fees ? fees.text : UNK, fees_source: fees ? fees.source : '',
     shipping_fulfilment: an.shipping || UNK, shipping_source: an.shipping_source || '',
-    public_business_contact: [...new Set([...(an.contact ? [an.contact] : []), ...((r.followed || []).flatMap((l) => l.emails || [])), ...((a.emails || []))])].slice(0, 4).join(' | ') || UNK,
+    public_business_contact: bizContacts(an, r, a),
     site_title: a.title || '', http_status: a.http_status ?? '', uae_signal_on_site: a.uae_signal ?? '', verification_status: vstat, verification_note: vnote,
-    evidence_level: evLevel, record_status: status, direct_registration_confirmed: confirmedDirect,
+    evidence_level: evLevel, beauty_signal: /(skin|beauty|cosmetic|pharmac|derma|hair|makeup|make-up|k-?beauty|perfume|fragrance|عناية|تجميل|صيدلية|بشرة)/i.test(`${a.title || ''} ${a.desc || ''} ${r.name}`), unsuitable_reason: an.unsuitable || '', tier_override: an.tier || '', _batch: r._file ? r._file.replace(/^audit_?|\.json$/g, '') : '', record_status: status, direct_registration_confirmed: confirmedDirect,
     priority: an.priority || (confirmedDirect ? 'A' : status === 'verified' ? 'B' : status === 'needs_review' ? 'C' : 'D'),
     notes: an.notes || '', claim_from_source_file: r.notes_claim ? `ملاحظة ملف حسام: ${r.notes_claim}` : '',
     sources: [...new Set([a.final_url || r.url, ...(r.followed || []).filter((l) => l.http_status >= 200 && l.http_status < 400).map((l) => l.url), ...(an.sources || [])])].filter(Boolean).join(' | '),
-    origin: r.origin || (r.n && r.n < 100 ? 'ملف حسام (51)' : ''), verified_at: TODAY,
+    _guessed: !!(r.n && r.n >= 100), origin: r.origin || (r.n && r.n < 100 ? 'ملف حسام (51)' : ''), verified_at: TODAY,
   };
 });
 
+// ── tiers ──
+const ACTIVE = (r) => r.http_status >= 200 && r.http_status < 400 && r.verification_status !== 'protected_not_verified';
+function tierOf(r) {
+  if (r.tier_override) return [r.tier_override, 'تصنيف بعد مراجعة يدوية للصفحات: ' + (r.notes || '')];
+  if (r.unsuitable_reason) return ['E', r.unsuitable_reason];
+  if (r.direct_registration_confirmed) return ['A', 'تسجيل بائع مباشر موثّق من صفحة رسمية'];
+  if (r.sale_method === 'wholesale_distribution' && r.record_status === 'verified') return ['B', 'قناة جملة/توزيع/B2B بمسار رسمي موثّق'];
+  if (['wholesale_distribution'].includes(r.sale_method) && ACTIVE(r)) return ['B', 'جملة/توزيع — الموقع يعمل، المسار الرسمي يحتاج تأكيداً'];
+  if (['supplier_or_brand_application', 'independent_multibrand_store'].includes(r.sale_method) && ACTIVE(r) && (r.beauty_signal || r.record_status === 'verified')) return ['C', r.sale_method === 'supplier_or_brand_application' ? 'مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد' : 'متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)'];
+  if (r.sale_method === 'social_commerce' || r.sale_method === 'own_store_platform') return ['D', 'قناة مملوكة/اجتماعية — إتاحتها للإمارات تحتاج تأكيداً'];
+  return ['D', ACTIVE(r) ? 'الموقع يعمل لكن لا دليل على بيع تجميل/عناية — يحتاج تحققاً' : r.verification_status === 'protected_not_verified' ? 'الموقع يحجب الفحص الآلي — يحتاج مراجعة يدوية (لا يعني أنه غير نشط)' : 'لم يستجب الموقع آلياً — لا يعني أنه غير موجود، يحتاج مراجعة يدوية'];
+}
+rows.forEach((r) => { if (r.verification_status === 'unreachable' && r._guessed) { r.url_guess_not_verified = r.official_website; r.official_website = ''; r.url_in_source_file = ''; } const [t, why] = tierOf(r); r.tier = t; r.tier_reason = why; r.manual_review_needed = r.tier === 'D' || r.evidence_level === 'official_page_blocked_secondary_sources'; });
+const TIER_AR = { A: 'A — تسجيل بائع مباشر', B: 'B — B2B / جملة / توزيع', C: 'C — يتطلب اتفاق مورد', D: 'D — يحتاج تحققاً إضافياً', E: 'E — غير مناسب / مستبعد' };
+const prioScore = (r) => ({ A: 0, B: 1, C: 2, D: 3, E: 4 }[r.tier]) * 10 + ({ A: 0, B: 1, C: 2, D: 3 }[r.priority] ?? 3);
+const startList = rows.filter((r) => ['A', 'B', 'C'].includes(r.tier) && r.record_status === 'verified' || r.tier === 'A').sort((a, b) => prioScore(a) - prioScore(b));
+const manual = rows.filter((r) => r.manual_review_needed).map((r) => ({ name: r.name, tier: r.tier, url_to_open_manually: r.seller_registration_url || r.supplier_or_partnership_url || r.url_in_source_file || r.official_website, why_manual: r.tier_reason, http_status: r.http_status, verification_status: r.verification_status, claim_from_source_file: r.claim_from_source_file, notes: r.notes }));
+
 // ── outputs ──
 const by = (f) => rows.filter(f);
+const tierRows = (t) => by((r) => r.tier === t);
 const sheets = {
   'كل الجهات': rows,
-  'تسجيل بائع مباشر': by((r) => r.direct_registration_confirmed),
-  'اتفاق مورد أو علامة': by((r) => ['supplier_or_brand_application', 'wholesale_distribution', 'independent_multibrand_store'].includes(r.sale_method) && !r.direct_registration_confirmed),
-  'غير مؤكد - مراجعة': by((r) => r.record_status !== 'verified'),
-  'المستبعد والمكرر': excluded,
+  'A تسجيل مباشر': tierRows('A'), 'B جملة وB2B': tierRows('B'), 'C اتفاق مورد': tierRows('C'), 'D تحقق إضافي': tierRows('D'),
+  'E مستبعد': [...tierRows('E'), ...excluded.map((e) => ({ name: e.name, url: e.url, kind: e.kind, reason: e.reason, duplicate_of: e.duplicate_of }))],
+  'قائمة البدء': startList.map((r, i) => ({ rank: i + 1, name: r.name, tier: r.tier, why: r.tier_reason, url: r.seller_registration_url || r.supplier_or_partnership_url || r.official_website, contact: r.public_business_contact, fees: r.fees_commissions, notes: r.notes })),
+  'مراجعة يدوية': manual,
 };
 const wb = XLSX.utils.book_new();
 for (const [n, data] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.length ? data : [{ note: 'لا شيء' }]), n.slice(0, 31));
+const cnt = (f) => rows.filter(f).length;
 const stats = {
   generated_at: TODAY, input_records: records.length, kept: rows.length, excluded_total: excluded.length,
   excluded_duplicates: excluded.filter((e) => e.kind === 'duplicate').length, excluded_not_channel_or_other: excluded.filter((e) => e.kind !== 'duplicate').length,
-  verified: by((r) => r.record_status === 'verified').length, needs_review: by((r) => r.record_status === 'needs_review').length, unreachable: by((r) => r.record_status === 'unreachable').length,
-  direct_seller_registration_confirmed: by((r) => r.direct_registration_confirmed).length,
-  supplier_agreement_required: by((r) => r.sale_method !== 'direct_seller_registration' && r.sale_method !== 'social_commerce' && r.sale_method !== 'own_store_platform' && r.sale_method !== 'not_a_sales_channel').length,
-  protected_not_verified: by((r) => r.verification_status === 'protected_not_verified').length,
-  with_official_fee_source: by((r) => r.fees_source).length, with_license_req_source: by((r) => r.license_source).length, with_product_reg_source: by((r) => r.product_reg_source).length,
+  tiers: { A: cnt((r) => r.tier === 'A'), B: cnt((r) => r.tier === 'B'), C: cnt((r) => r.tier === 'C'), D: cnt((r) => r.tier === 'D'), E_in_rows: cnt((r) => r.tier === 'E'), E_excluded_list: excluded.length },
+  verified: cnt((r) => r.record_status === 'verified'), needs_review: cnt((r) => r.record_status === 'needs_review'), unreachable: cnt((r) => r.record_status === 'unreachable'),
+  direct_seller_registration_confirmed: cnt((r) => r.direct_registration_confirmed),
+  supplier_agreement_required: cnt((r) => r.tier === 'C'),
+  protected_not_verified: cnt((r) => r.verification_status === 'protected_not_verified'),
+  manual_review: manual.length,
+  with_official_fee_source: cnt((r) => r.fees_source), with_license_req_source: cnt((r) => r.license_source), with_product_reg_source: cnt((r) => r.product_reg_source),
   by_method: Object.fromEntries(Object.entries(rows.reduce((m, r) => ((m[r.sale_method] = (m[r.sale_method] || 0) + 1), m), {}))),
+  by_origin_batch: Object.fromEntries(Object.entries(rows.reduce((m, r) => ((m[r._batch || '?'] = (m[r._batch || '?'] || 0) + 1), m), {}))),
 };
 XLSX.writeFile(wb, path.join(outDir, 'LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx'));
-fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_2026-10-09.json'), JSON.stringify({ _about: 'UAE sales platforms/channels (D-119 research). NOT imported. Unknown = «غير معروف». Fees/requirements only where an official page or cited source exists.', stats, rows, excluded }, null, 1));
-const csv = (data, cols) => '﻿' + [cols.join(','), ...data.map((r) => cols.map((c) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_2026-10-09.json'), JSON.stringify({ _about: 'UAE sales platforms/channels (D-119 research). NOT imported. Unknown = «غير معروف». Fees/requirements only where an official page or cited source exists.', tiers_legend: TIER_AR, stats, rows, excluded, start_list: startList.map((r) => r.name), manual_review: manual }, null, 1));
+const csv = (data, cols) => '\uFEFF' + [cols.join(','), ...data.map((r) => cols.map((c) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
 const cols = Object.keys(rows[0] || {});
 fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_2026-10-09.csv'), csv(rows, cols));
 fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_excluded_2026-10-09.csv'), csv(excluded, ['name', 'url', 'kind', 'reason', 'duplicate_of']));
+fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_manual_review_2026-10-09.csv'), csv(manual, ['name', 'tier', 'url_to_open_manually', 'why_manual', 'http_status', 'verification_status', 'claim_from_source_file', 'notes']));
+fs.writeFileSync(path.join(outDir, 'uae_sales_platforms_start_list_2026-10-09.csv'), csv(sheets['قائمة البدء'], ['rank', 'name', 'tier', 'why', 'url', 'contact', 'fees', 'notes']));
 fs.writeFileSync(path.join(outDir, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats, null, 1));

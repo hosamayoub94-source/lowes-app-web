@@ -1,0 +1,563 @@
+[
+ {
+  "n": 200,
+  "name": "Cosmopolitan Beauty Trading",
+  "url": "https://cosmopolitantrading.odoo.com/",
+  "channel_type": "Salon-supply distributor + online store (Dubai)",
+  "origin": "web search: salon supply",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://cosmopolitantrading.odoo.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "cosmopolitantrading",
+   "desc": "Beauty Trading Dubai",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "admin@cosmopolitantrading.com"
+   ],
+   "tels": [
+    "+971 50 228 8871",
+    "+971 4 335 6210"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 201,
+  "name": "Planet of Beauty Cosmetics Trading",
+  "url": "https://sites.google.com/view/planetofbeauty",
+  "channel_type": "Salon-supply distributor (Abu Dhabi)",
+  "origin": "web search: salon supply",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://sites.google.com/view/planetofbeauty",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "PLANET OF BEAUTY COSMETICS TRADING",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-professional-hair-color-supplier-in-abu-dhabi",
+     "text": "The Best Professional Hair Color Supplier in Abu Dhabi"
+    },
+    {
+     "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-salon-furniture-supplier-in-abu-dhabi",
+     "text": "The Best Salon Furniture Supplier in Abu Dhabi"
+    },
+    {
+     "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/salon-equipment-supplier-abu-dhabi",
+     "text": "Salon Equipment Supplier Abu Dhabi"
+    },
+    {
+     "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/best-professional-nail-products-supplier-in-uae",
+     "text": "Best Professional Nail Products Supplier in UAE"
+    },
+    {
+     "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/planet-of-beauty-cosmetics-trading-official-authorized-seller",
+     "text": "Planet of Beauty Cosmetics Trading: Official & Authorized Seller"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-professional-hair-color-supplier-in-abu-dhabi",
+    "link_text": "The Best Professional Hair Color Supplier in Abu Dhabi",
+    "http_status": 200,
+    "final_url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-professional-hair-color-supplier-in-abu-dhabi",
+    "title": "PLANET OF BEAUTY COSMETICS TRADING - The Best Professional Hair Color Supplier in Abu Dhabi",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-salon-furniture-supplier-in-abu-dhabi",
+    "link_text": "The Best Salon Furniture Supplier in Abu Dhabi",
+    "http_status": 200,
+    "final_url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/the-best-salon-furniture-supplier-in-abu-dhabi",
+    "title": "PLANET OF BEAUTY COSMETICS TRADING - The Best Salon Furniture Supplier in Abu Dhabi",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/salon-equipment-supplier-abu-dhabi",
+    "link_text": "Salon Equipment Supplier Abu Dhabi",
+    "http_status": 200,
+    "final_url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/salon-equipment-supplier-abu-dhabi",
+    "title": "PLANET OF BEAUTY COSMETICS TRADING - Salon Equipment Supplier Abu Dhabi",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/best-professional-nail-products-supplier-in-uae",
+    "link_text": "Best Professional Nail Products Supplier in UAE",
+    "http_status": 200,
+    "final_url": "https://sites.google.com/view/planetofbeauty/blogs-and-news/best-professional-nail-products-supplier-in-uae",
+    "title": "PLANET OF BEAUTY COSMETICS TRADING - Best Professional Nail Products Supplier in UAE",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 202,
+  "name": "Lavie Beauty & Cosmetics",
+  "url": "https://laviecosmetics.odoo.com/",
+  "channel_type": "Salon-supply online/warehouse (Ajman)",
+  "origin": "web search: salon supply",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://laviecosmetics.odoo.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Home | Lavie Cosmetics Trading",
+   "desc": "This is the homepage of the website",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 203,
+  "name": "Starlink Drug Store",
+  "url": "https://www.cphi-online.com/company/starlink-drug-store-llc/",
+  "channel_type": "Pharma/derma distributor (directory listing)",
+  "origin": "web search: dermocosmetic distributors",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.cphi-online.com/company/starlink-drug-store-llc/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 204,
+  "name": "Pharmalink (Medicina operator)",
+  "url": "https://www.pharmalink.ae/",
+  "channel_type": "Pharma distributor + pharmacy chain",
+  "origin": "web search: dermocosmetic distributors",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://pharmalink.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "PHARMALINK - “Quality Redefined, Life Reimagined”",
+   "desc": "Technology meets design Flagship new age offices to stimulate the mind combined with the latest intelligence advances to optimize all fundamental operations Responsibility and commitment Our diverse portfolio has been handpicked to fulfill ",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://pharmalink.ae/partner/",
+     "text": "Partners"
+    },
+    {
+     "url": "https://pharmalink.ae/logistics-supply-and-distribution/",
+     "text": "Learn More"
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 4 371 3777",
+    "+971 4 346 5480",
+    "+971 2 304 2000"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://pharmalink.ae/partner/",
+    "link_text": "Partners",
+    "http_status": 200,
+    "final_url": "https://pharmalink.ae/partner/",
+    "title": "Our Partners - “Quality Redefined, Life Reimagined”",
+    "blocked": false,
+    "seller_signal_text": "Partner with us",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://pharmalink.ae/logistics-supply-and-distribution/",
+    "link_text": "Learn More",
+    "http_status": 200,
+    "final_url": "https://pharmalink.ae/logistics-supply-and-distribution/",
+    "title": "Logistics, supply and distribution - “Quality Redefined, Life Reimagined”",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 205,
+  "name": "Skin Garden",
+  "url": "https://skingarden.ae/",
+  "channel_type": "K-beauty online (3 brands)",
+  "origin": "HiDubai K-beauty list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 206,
+  "name": "1004 Gourmet",
+  "url": "https://1004gourmet.com/",
+  "channel_type": "K-food/K-beauty retail",
+  "origin": "HiDubai K-beauty list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://1004gourmet.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "1004 Gourmet UAE | Asian & Korean Groceries Online in Dubai",
+   "desc": "Shop premium Asian and Korean groceries online at 1004 Gourmet UAE. Find authentic snacks, ramen, sauces, beverages, frozen foods, and pantry essentials with fast delivery across Dubai and the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://1004gourmet.com/pages/wholesale-hotels",
+     "text": "Hotels & Restaurants"
+    },
+    {
+     "url": "https://1004gourmet.com/pages/wholesale-bulk",
+     "text": "Bulk & Distribution"
+    }
+   ],
+   "emails": [
+    "info@1004gourmet.com"
+   ],
+   "tels": [
+    "+971 54 584 7741",
+    "+971 4 882 9882"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://1004gourmet.com/pages/wholesale-hotels",
+    "link_text": "Hotels & Restaurants",
+    "http_status": 200,
+    "final_url": "https://1004gourmet.com/pages/wholesale-hotels",
+    "title": "wholesale hotels &ndash; 1004 Gourmet",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "you@company.com",
+     "info@1004gourmet.com"
+    ]
+   },
+   {
+    "url": "https://1004gourmet.com/pages/wholesale-bulk",
+    "link_text": "Bulk & Distribution",
+    "http_status": 200,
+    "final_url": "https://1004gourmet.com/pages/wholesale-bulk",
+    "title": "wholesale bulk &ndash; 1004 Gourmet",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "you@company.com",
+     "info@1004gourmet.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 207,
+  "name": "K-Beauty on Dubai",
+  "url": "https://kbeautyondubai.com/",
+  "channel_type": "K-beauty retail",
+  "origin": "Gulf News opening article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 208,
+  "name": "Dragon Mart online",
+  "url": "https://www.dragonmart.ae/",
+  "channel_type": "General marketplace-retail",
+  "origin": "Shuraa marketplaces list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.dragonmart.ae/en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Dragon Mart | The Largest Chinese Market in Dubai",
+   "desc": "Dragon Mart, also known as Dragon Mall, is the largest Chinese market in Dubai and UAE. Visit us to explore more than 5,000 shops and kiosks under one roof!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 209,
+  "name": "Brands For Less",
+  "url": "https://www.brandsforless.com/en-ae",
+  "channel_type": "Off-price retail online",
+  "origin": "directory knowledge",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.brandsforless.com/en-ae",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access denied | www.brandsforless.com used Cloudflare to restrict access | www.brandsforless.com | Cloudflare",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 210,
+  "name": "Tradeling (B2B)",
+  "url": "https://www.tradeling.com/",
+  "channel_type": "B2B wholesale marketplace",
+  "origin": "51-list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.tradeling.com/ae-en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Online Shopping & Wholesale Marketplace in MENA | Tradeling",
+   "desc": "Explore online shopping at wholesale prices from MENA's largest wholesale marketplace. ✔️ Same Day Delivery ✔️ Easy Returns ✔️ 7M+ products.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.tradeling.com/ae-en",
+     "text": "B2B Mart"
+    },
+    {
+     "url": "https://distribution.tradeling.com/",
+     "text": "Distribution"
+    },
+    {
+     "url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+     "text": "Become a Seller"
+    },
+    {
+     "url": "http://distribution.tradeling.com/",
+     "text": " "
+    },
+    {
+     "url": "https://www.tradeling.com/page/become-a-seller",
+     "text": "Start Selling"
+    },
+    {
+     "url": "https://blog.tradeling.com/en/myb2b",
+     "text": "Blog"
+    }
+   ],
+   "emails": [
+    "support@tradeling.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "link_text": "Become a Seller",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "title": "become-a-seller-new | Wholesale Prices | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "Learn more &gt; Payment terms Commission structure We offer the widest range of payment terms"
+    ],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://www.tradeling.com/page/become-a-seller",
+    "link_text": "Start Selling",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+    "title": "become-a-seller-new | Wholesale Prices | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [
+     "Learn more &gt; Payment terms Commission structure We offer the widest range of payment terms"
+    ],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://www.tradeling.com/ae-en",
+    "link_text": "B2B Mart",
+    "http_status": 200,
+    "final_url": "https://www.tradeling.com/ae-en",
+    "title": "Online Shopping & Wholesale Marketplace in MENA | Tradeling",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   },
+   {
+    "url": "https://distribution.tradeling.com/",
+    "link_text": "Distribution",
+    "http_status": 200,
+    "final_url": "https://distribution.tradeling.com/",
+    "title": "B2B Distribution Network in MENA | Tradeling Group",
+    "blocked": false,
+    "seller_signal_text": "Partner With Us",
+    "fee_snippets": [],
+    "emails": [
+     "support@tradeling.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 211,
+  "name": "Dubai SME / Dubai Chamber supplier portals",
+  "url": "https://sme.ae/",
+  "channel_type": "Government SME portal",
+  "origin": "Shuraa links",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://sme.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Access Denied",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 212,
+  "name": "Beauty Apotheca",
+  "url": "https://www.beautyapotheca.com/",
+  "channel_type": "Boutique beauty retailer",
+  "origin": "Emirates Woman article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 213,
+  "name": "Cosmetics Trading directory: oncosmetics UAE",
+  "url": "https://oncosmetics.com/",
+  "channel_type": "Third-party company directory",
+  "origin": "web search: distributors directory",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://oncosmetics.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Cosmetics Importers, Distributors, Wholesalers, Suppliers - Leads - OnCosmetics",
+   "desc": "OnCosmetics helps beauty brands find suppliers, manufacturers, and distributors worldwide. Search verified cosmetics companies, products, and industry data.",
+   "uae_signal": false,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://oncosmetics.com/do-not-sell-my-info/",
+     "text": "Do Not Sell my Info"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://oncosmetics.com/do-not-sell-my-info/",
+    "link_text": "Do Not Sell my Info",
+    "http_status": 200,
+    "final_url": "https://oncosmetics.com/do-not-sell-my-info/",
+    "title": "Do Not Sell my Info - OnCosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "privacy@onCosmetics.com"
+    ]
+   }
+  ]
+ }
+]

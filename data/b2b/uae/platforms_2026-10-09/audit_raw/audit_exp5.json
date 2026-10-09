@@ -1,0 +1,332 @@
+[
+ {
+  "n": 360,
+  "name": "Gomi Mall",
+  "url": "https://gomimall.com/",
+  "channel_type": "K-beauty B2C+B2B distributor (UAE)",
+  "origin": "WebSearch: Venture Square – Beautyworld ME 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 361,
+  "name": "Secret Skin",
+  "url": "https://www.secretskin.com/",
+  "channel_type": "Clean beauty e-tailer (Dubai)",
+  "origin": "WebSearch: Beauty Independent",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ERR_TLS_CERT_ALTNAME_INVALID",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 362,
+  "name": "Glambox",
+  "url": "https://www.glambox.ae/",
+  "channel_type": "Beauty subscription/e-tailer (UAE)",
+  "origin": "WebSearch: Gulf Business",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 363,
+  "name": "Skin Solutions UAE (Ideal Beauty Solutions)",
+  "url": "https://skinsolutions.ae/",
+  "channel_type": "K-beauty select store",
+  "origin": "WebSearch: Product Hunt listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 364,
+  "name": "Skin Solutions UAE (alt domain)",
+  "url": "https://www.skinsolutions.com/",
+  "channel_type": "K-beauty select store",
+  "origin": "WebSearch: Product Hunt listing",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.raleighdermatology.com/cosmetic-services/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Cosmetic Services - Raleigh Dermatology",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 365,
+  "name": "Beautetrade",
+  "url": "https://www.beautetrade.com/",
+  "channel_type": "Global B2B beauty marketplace (suppliers/buyers)",
+  "origin": "WebSearch: B2B beauty platforms",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.beautetrade.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Global Cosmetic B2B Marketplace | Beauty and Personal Care Platform | Beautetrade",
+   "desc": "BeauteTrade.com is the leading B2B marketplace for Cosmetic, Beauty and Personal Care products.  You can find global suppliers, exporters, importers, traders and distributors here.",
+   "uae_signal": true,
+   "seller_signal_text": "Bulk",
+   "candidate_links": [
+    {
+     "url": "https://www.beautetrade.com/suppliers/",
+     "text": "Find Suppliers "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/cosmo-dermatech-215532/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/shenzhen-zhichang-technology-coltd-210368/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/c-square-205710/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/healthybeauty-181040/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/hj-corporations-180755/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/factosquare-co-217425/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/selective-parfums-lda-222400/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/shenzhen-nuohan-trading-co-ltd-218677/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/crissenza-srl-218688/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/shangrao-jiuheng-trading-coltd-218333/",
+     "text": " "
+    },
+    {
+     "url": "https://www.beautetrade.com/suppliers/aes-cosmetics-gmbh-218182/",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "info@beautetrade.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.beautetrade.com/suppliers/",
+    "link_text": "Find Suppliers ",
+    "http_status": 200,
+    "final_url": "https://www.beautetrade.com/suppliers/",
+    "title": "Global Cosmetic & Beauty Products Manufacturers, Suppliers, Exporters | BeauteTrade",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@beautetrade.com"
+    ]
+   },
+   {
+    "url": "https://www.beautetrade.com/suppliers/cosmo-dermatech-215532/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://www.beautetrade.com/suppliers/cosmo-dermatech-215532/",
+    "title": "Cosmo DermaTech | BeauteTrade",
+    "blocked": false,
+    "seller_signal_text": "Sell on",
+    "fee_snippets": [],
+    "emails": [
+     "info@beautetrade.com"
+    ]
+   },
+   {
+    "url": "https://www.beautetrade.com/suppliers/shenzhen-zhichang-technology-coltd-210368/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://www.beautetrade.com/suppliers/shenzhen-zhichang-technology-coltd-210368/",
+    "title": "shenzhen zhichang technology co.,ltd | BeauteTrade",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@beautetrade.com"
+    ]
+   },
+   {
+    "url": "https://www.beautetrade.com/suppliers/c-square-205710/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://www.beautetrade.com/suppliers/c-square-205710/",
+    "title": "C-Square | BeauteTrade",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@beautetrade.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 366,
+  "name": "Fragrancia",
+  "url": "https://fragrancia.ae/",
+  "channel_type": "Fragrance retailer online (Sharjah)",
+  "origin": "WebSearch: Sharjah online stores",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.fragrancia.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Shop Authentic Perfumes at Best Prices | Fragrancia UAE | Buy Now!",
+   "desc": "Discover the best prices on authentic perfumes at Fragrancia. Shop now for huge collections and exclusive offers on Fragrancia perfumes!",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "AE@fragrancia.ae"
+   ],
+   "tels": [
+    "+97165261690"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 367,
+  "name": "Lattafa Perfumes UAE",
+  "url": "https://ae-lattafaperfumes.com/",
+  "channel_type": "Fragrance brand store (Sharjah)",
+  "origin": "WebSearch: Sharjah online stores",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://ae-lattafaperfumes.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Lattafa Perfumes UAE Official Store | Shop Fragrances",
+   "desc": "The official Lattafa Perfumes UAE store. 100% authentic Khamrah, Yara, Asad and more, factory sealed with fast delivery across all Emirates.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "sales@ae-lattafaperfumes.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 368,
+  "name": "Mirai Skin",
+  "url": "https://www.mirai-skin.com/",
+  "channel_type": "US-based K-beauty (reference only)",
+  "origin": "WebSearch: Arabic K-beauty query",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.mirai-skin.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Mirai-Skin | Korean Skincare – Mirai Skin",
+   "desc": "Discover the best in Korean skincare at Mirai-Skin, expert K-Beauty care for glowing, healthy skin you’ll love every day.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.mirai-skin.com/pages/affiliate-program",
+     "text": " Affiliate Program "
+    }
+   ],
+   "emails": [
+    "your@email.com",
+    "support@mirai-skin.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.mirai-skin.com/pages/affiliate-program",
+    "link_text": " Affiliate Program ",
+    "http_status": 200,
+    "final_url": "https://www.mirai-skin.com/pages/affiliate-program",
+    "title": "Influencer Collaborations – Mirai Skin",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@mirai-skin.com"
+    ]
+   }
+  ]
+ }
+]

@@ -1,0 +1,213 @@
+[
+ {
+  "n": 390,
+  "name": "Gomyz",
+  "url": "https://gomyz.com/uae-en/",
+  "channel_type": "Beauty/skincare online store",
+  "origin": "WebSearch: Time Out/Bloomha list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://gomyz.com/uae-en/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "UAE’s Beauty Hub: Skincare, Haircare , Makeup & more",
+   "desc": "Celebrate beauty with our diverse collection of 500+ renowned cosmetic brands, curated just for you. Explore the latest trends and timeless classics, all conveniently available on our UAE-based cosmetics e-commerce platform. Elevate your sk",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "Info.uae@gomyz.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 391,
+  "name": "Glamazle",
+  "url": "https://www.glamazle.com/",
+  "channel_type": "Beauty/skincare online store",
+  "origin": "WebSearch: skincare sites list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.glamazle.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Online Beauty and Fashion Shopping in Dubai UAE | Glamazle.com",
+   "desc": "Online Shopping in Dubai UAE for Skincare, Makeup, Fashion and Perfumes with Best Prices and great online deals. ✓ Free Shipping ✓ Shop Now Pay Later ✓ Cash on delivery",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 392,
+  "name": "Bloomha",
+  "url": "https://bloomha.com/",
+  "channel_type": "K-beauty online store",
+  "origin": "WebSearch: skincare sites list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://bloomha.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 393,
+  "name": "Beauty Tribe",
+  "url": "https://beautytribe.com/",
+  "channel_type": "Multi-brand beauty online",
+  "origin": "WebSearch: skincare sites list",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://beautytribe.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty Tribe UAE | Free 2-Hour Delivery | 100% Authentic Products",
+   "desc": "Shop Beauty Tribe with Free 2-Hour Delivery, 100% authentic products across Haircare, Skincare, Perfumes & more. Featuring leading brands like Kerastase, K18, Olaplex & milk_shake and the best beauty products online in the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348344608&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+     "text": " Kerastase "
+    },
+    {
+     "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56355619104&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+     "text": " milk_shake "
+    },
+    {
+     "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348377376&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+     "text": " Olaplex "
+    },
+    {
+     "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56349229344&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+     "text": " Aveda "
+    },
+    {
+     "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F79582953760&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+     "text": " Humantra "
+    },
+    {
+     "url": "https://beautytribe.com/collections/all-products",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://beautytribe.com/collections/hair",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://beautytribe.com/collections/skincare",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://beautytribe.com/collections/home",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://beautytribe.com/collections/tools-accessories",
+     "text": "Best Sellers"
+    },
+    {
+     "url": "https://beautytribe.com/collections/perfumes-fragrance?filter.v.price.gte=&filter.v.price.lte=&filter.v.availability=1&sort_by=best-selling",
+     "text": "Fragrances"
+    },
+    {
+     "url": "https://beautytribe.com/collections/perfumes-fragrance",
+     "text": "Best Sellers"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348344608&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "link_text": " Kerastase ",
+    "http_status": 200,
+    "final_url": "https://beautytribe.com/collections/best-beauty-buys?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348344608&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "title": "Best Beauty Buys | Beauty Tribe - Free 2hr Delivery in Dubai",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56355619104&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "link_text": " milk_shake ",
+    "http_status": 200,
+    "final_url": "https://beautytribe.com/collections/best-beauty-buys?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56355619104&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "title": "Best Beauty Buys | Beauty Tribe - Free 2hr Delivery in Dubai",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348377376&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "link_text": " Olaplex ",
+    "http_status": 200,
+    "final_url": "https://beautytribe.com/collections/best-beauty-buys?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56348377376&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "title": "Best Beauty Buys | Beauty Tribe - Free 2hr Delivery in Dubai",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://beautytribe.com/collections/sale?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56349229344&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "link_text": " Aveda ",
+    "http_status": 200,
+    "final_url": "https://beautytribe.com/collections/best-beauty-buys?filter.p.m.custom.brand=gid%3A%2F%2Fshopify%2FMetaobject%2F56349229344&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+    "title": "Best Beauty Buys | Beauty Tribe - Free 2hr Delivery in Dubai",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 394,
+  "name": "Beauty Solutions",
+  "url": "https://beautysolutions.ae/",
+  "channel_type": "Beauty e-commerce",
+  "origin": "Few.ae guide",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://beautysolutions.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty & More &#8211; Located in the heart of Dubai, Beauty & More is your go-to destination for luxurious perfumes, high-end cosmetics, and",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "Admin@beautysolutions.ae",
+    "john@doe.com"
+   ],
+   "tels": [
+    "+971 5895 2401"
+   ]
+  },
+  "followed": []
+ }
+]

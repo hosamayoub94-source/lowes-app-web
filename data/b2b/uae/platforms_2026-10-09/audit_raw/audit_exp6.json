@@ -1,0 +1,156 @@
+[
+ {
+  "n": 380,
+  "name": "Beauty Nation",
+  "url": "https://beautynation.me/",
+  "channel_type": "Multi-brand beauty online (Chalhoub)",
+  "origin": "Article outbound link (HiDubai/Grazia lists)",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 401,
+   "final_url": "https://www.beautynation.me/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "401 - Authorization Required.",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 381,
+  "name": "Health Nation",
+  "url": "https://healthnationmena.com/",
+  "channel_type": "Health/beauty online",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://healthnationmena.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "ConnectYourDomain Error | Wix.com",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 382,
+  "name": "Privae",
+  "url": "https://privae.ae/",
+  "channel_type": "Beauty/skin online",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 383,
+  "name": "Matia Natural",
+  "url": "https://matianatural.com/",
+  "channel_type": "Natural skincare online",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.matianatural.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Organic and Natural Skincare Products UAE | Matia Natural",
+   "desc": "Explore our Organic and Natural Skincare Products UAE. Formulated with cruelty-free, eco-friendly ingredients, our range nourishes, brightens, and rejuvenates your skin for a radiant glow.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 384,
+  "name": "Nevi By Nature",
+  "url": "https://nevibynature.com/",
+  "channel_type": "Natural beauty online",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://nevibynature.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 385,
+  "name": "Brandkyu",
+  "url": "https://brandkyu.com/",
+  "channel_type": "Brand/retail platform",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://brandkyu.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "kyu",
+   "desc": "Handcrafted luxury handbags by kyū, each born from a real astronomical event. Every piece marks a moment in the sky. Discover the collection.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 386,
+  "name": "Omni The Label",
+  "url": "https://omnithelabel.com/",
+  "channel_type": "Label/online store",
+  "origin": "Article outbound link",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://omnithelabel.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Omni The Label",
+   "desc": "As seen at Paris Fashion Week – Omni The Label blends Arabic artistry and European design. Explore embroidered fashion for women & men.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]
