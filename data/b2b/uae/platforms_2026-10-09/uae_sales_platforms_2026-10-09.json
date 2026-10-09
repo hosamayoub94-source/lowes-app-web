@@ -9,48 +9,56 @@
  },
  "stats": {
   "generated_at": "2026-10-09",
-  "input_records": 215,
-  "kept": 179,
-  "excluded_total": 36,
-  "excluded_duplicates": 15,
-  "excluded_not_channel_or_other": 21,
+  "input_records": 238,
+  "kept": 198,
+  "excluded_total": 40,
+  "excluded_duplicates": 16,
+  "excluded_not_channel_or_other": 24,
   "tiers": {
-   "A": 5,
-   "B": 11,
-   "C": 76,
-   "D": 74,
-   "E_in_rows": 13,
-   "E_excluded_list": 36
+   "A": 6,
+   "B": 22,
+   "C": 78,
+   "D": 78,
+   "E_in_rows": 14,
+   "E_excluded_list": 40
   },
   "verified": 11,
-  "needs_review": 124,
-  "unreachable": 44,
-  "direct_seller_registration_confirmed": 5,
-  "supplier_agreement_required": 76,
-  "protected_not_verified": 32,
-  "manual_review": 74,
-  "verified_actually": 88,
-  "suitable_as_supplier_B_C": 87,
-  "undetermined_D": 74,
+  "needs_review": 142,
+  "unreachable": 45,
+  "direct_seller_registration_confirmed": 6,
+  "supplier_agreement_required": 78,
+  "protected_not_verified": 36,
+  "manual_review": 78,
+  "verified_actually": 102,
+  "suitable_as_supplier_B_C": 100,
+  "undetermined_D": 78,
   "by_classification": {
-   "تسجيل مباشر": 4,
+   "تسجيل مباشر": 5,
    "تسجيل مباشر محتمل — غير موثّق رسمياً": 2,
    "تقديم مورد": 6,
-   "اتفاق توريد محتمل": 69,
-   "غير مناسبة": 13,
-   "غير مؤكدة": 72,
+   "اتفاق توريد محتمل": 71,
+   "غير مناسبة": 14,
+   "غير مؤكدة": 75,
    "تقديم مورد (ملاءمة ضعيفة)": 1,
-   "اتفاق توزيع محتمل": 11,
-   "تسجيل مباشر (أولوية منخفضة)": 1
+   "اتفاق توزيع محتمل": 22,
+   "تسجيل مباشر (أولوية منخفضة)": 1,
+   "غير مؤكدة (سوق B2B محتمل)": 1
   },
-  "reviewed_manually": 102,
-  "with_official_fee_source": 4,
-  "with_license_req_source": 5,
-  "with_product_reg_source": 0,
+  "reviewed_manually": 121,
+  "levels": {
+   "discovered": 198,
+   "active_in_uae": 102,
+   "sells_beauty": 87,
+   "official_seller_or_supplier_path": 17,
+   "lowes_eligibility_confirmed": 0
+  },
+  "with_official_fee_source": 6,
+  "with_license_req_source": 8,
+  "with_product_reg_source": 1,
   "by_method": {
-   "direct_seller_registration": 6,
+   "direct_seller_registration": 7,
    "supplier_or_brand_application": 7,
-   "independent_multibrand_store": 155,
+   "independent_multibrand_store": 173,
    "wholesale_distribution": 5,
    "social_commerce": 3,
    "own_store_platform": 3
@@ -66,7 +74,8 @@
    "exp7": 5,
    "exp8": 4,
    "exp9": 6,
-   "exp10": 6
+   "exp10": 6,
+   "exp11": 19
   }
  },
  "rows": [
@@ -122,7 +131,12 @@
    "tier_reason": "تسجيل بائع مباشر موثّق من صفحة رسمية",
    "classification": "تسجيل مباشر",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "noon UAE",
@@ -135,15 +149,15 @@
    "sale_method": "direct_seller_registration",
    "sale_method_ar": "تسجيل مباشر كبائع Marketplace",
    "sale_method_confirmed": true,
-   "seller_registration_url": "https://sell.noon.com/uae-en/getting-started",
+   "seller_registration_url": "https://sell.noon.com/uae-en",
    "supplier_or_partnership_url": "",
-   "accepted_categories": "غير معروف (الصفحة الرسمية تحجب الفحص الآلي)",
-   "license_requirements": "غير معروف رسمياً — مدونات وسيطة تذكر رخصة تجارية سارية وهوية الموقّع وبيانات بنك؛ لم يُتحقق من الصفحة الرسمية",
-   "license_source": "",
-   "product_registration_requirements": "غير معروف",
-   "product_reg_source": "",
-   "fees_commissions": "غير معروف",
-   "fees_source": "",
+   "accepted_categories": "عناية بالشعر والعناية الشخصية، مكياج، عطور؛ العلامات المحمية تتطلب تفويض علامة + فاتورة موزع معتمد",
+   "license_requirements": "Local Seller: رخصة سارية 15 يوماً+ تغطي التجارة/البيع/التصنيع أو رخصة تجارة إلكترونية؛ هوية إماراتية/جواز لصاحب الرخصة؛ VAT اختياري؛ بيانات بنك (متعارض) — نص رسمي عبر فهرس البحث",
+   "license_source": "https://support.noon.partners/portal/en/kb/articles/documents-required-to-sell-on-noon",
+   "product_registration_requirements": "تفويض علامة/Whitelisting للعلامات المحمية؛ تسجيل المنتج التنظيمي غير منصوص للإمارات",
+   "product_reg_source": "https://helpcenter.noon.partners/en/category/product-listing/product-listing-policy",
+   "fees_commissions": "FBP الإمارات: عناية بالشعر والعناية الشخصية ومكياج 8% حتى 50 درهم و15% فوق 50؛ عطور 14%؛ حد أدنى 1 درهم — نص رسمي عبر فهرس البحث، يُؤكَّد بحساب البائع",
+   "fees_source": "https://support.noon.partners/portal/en/kb/articles/fulfilled-by-partner-fbp-fees-in-uae",
    "shipping_fulfilment": "غير معروف",
    "shipping_source": "",
    "public_business_contact": "غير معروف",
@@ -152,7 +166,7 @@
    "uae_signal_on_site": false,
    "verification_status": "unreachable",
    "verification_note": "الموقع لم يستجب عند الفحص (قد يكون متوقفاً أو يحجب الطلبات الآلية)",
-   "evidence_level": "official_page_blocked_secondary_sources",
+   "evidence_level": "official_page_via_search_index",
    "beauty_signal": false,
    "unsuitable_reason": "",
    "tier_override": "D",
@@ -176,7 +190,12 @@
    "tier_reason": "أكبر سوق إقليمي، لكن الموقع حجب الفحص الآلي (403/SSL) ولم أتجاوزه؛ مسار sell.noon.com/uae-en/getting-started مأخوذ من ملفك وتؤكده مصادر ثانوية فقط. يلزم فتحه يدوياً.",
    "classification": "تسجيل مباشر محتمل — غير موثّق رسمياً",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Tradeling",
@@ -230,7 +249,12 @@
    "tier_reason": "تسجيل بائع مباشر موثّق من صفحة رسمية",
    "classification": "تسجيل مباشر",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Begad",
@@ -284,7 +308,12 @@
    "tier_reason": "تسجيل بائع مباشر موثّق من صفحة رسمية",
    "classification": "تسجيل مباشر",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Carrefour UAE",
@@ -338,7 +367,12 @@
    "tier_reason": "الموقع يعمل ولا يملك صفحة موردين ظاهرة؛ المجموعة (Majid Al Futtaim) لديها صفحة «Partner with us» عامة. ذُكر رابط marketplace.carrefouruae.com/seller/register بأدلة طرف ثالث وصفحته تحمّل لكن محتواها لم يُتحقق منه.",
    "classification": "تقديم مورد",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lulu Hypermarket UAE",
@@ -392,7 +426,12 @@
    "tier_reason": "سلسلة كبرى تبيع العناية الشخصية؛ الموقع يحجب الفحص (403). صفحة Sourcing للمجموعة (luluretail.com/global-operations/sourcing) تظهر بنتائج البحث وتحجب الفحص أيضاً — لا مسار موردين مؤكد.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Sharaf DG",
@@ -446,7 +485,12 @@
    "tier_reason": "متجر إلكترونيات؛ لا دليل على فئة تجميل. بوابة DG Business (business.sharafdg.com) موجهة للمشترين التجاريين وتحجب الفحص.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Namshi",
@@ -500,7 +544,12 @@
    "tier_reason": "متجر أزياء وجمال (تابع لـnoon) وصفحة العناية بالبشرة ظاهرة بنتائج البحث (namshi.com/uae-ar/women-beauty-skincare). الموقع لم يستجب آلياً؛ مسار الموردين غير منشور (يُدمج مع البائعين عبر مُكامِلات حسب مصدر ثانوي).",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Ounass",
@@ -554,7 +603,12 @@
    "tier_reason": "منصة فاخرة (Al Tayer) تحجب الفحص (403)؛ التموضع الفاخر قد لا يناسب LOWE'S. لا مسار موردين منشور.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Bloomingdale's UAE",
@@ -608,7 +662,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Galeries Lafayette Dubai",
@@ -662,7 +721,12 @@
    "tier_reason": "متجر فاخر يحجب الفحص (403)؛ لا دليل على فئة العناية بالبشرة أو مسار موردين.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Mumzworld",
@@ -715,7 +779,12 @@
    "tier_reason": "نموذج تقديم علامات رسمي (مراجعة ~7 أيام)، لكن تخصص المنصة أم/طفل؛ الفئات المقبولة غير مذكورة.",
    "classification": "تقديم مورد (ملاءمة ضعيفة)",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Watsons UAE",
@@ -769,7 +838,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Faces UAE",
@@ -783,7 +857,7 @@
    "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
    "sale_method_confirmed": false,
    "seller_registration_url": "",
-   "supplier_or_partnership_url": "",
+   "supplier_or_partnership_url": "https://www.faces.ae/en/partnerwithfaces.html",
    "accepted_categories": "غير معروف",
    "license_requirements": "غير معروف",
    "license_source": "",
@@ -793,7 +867,7 @@
    "fees_source": "",
    "shipping_fulfilment": "غير معروف",
    "shipping_source": "",
-   "public_business_contact": "support@faces.com",
+   "public_business_contact": "support@faces.com | 800 965 664",
    "site_title": "Shop for Perfume, Makeup, Skin Care & Cosmetics | FACES UAE",
    "http_status": 200,
    "uae_signal_on_site": true,
@@ -813,7 +887,7 @@
    "record_status": "needs_review",
    "direct_registration_confirmed": false,
    "priority": "B",
-   "notes": "موقع يعمل (Chalhoub). صفحة الموردين لم تظهر.",
+   "notes": "رابط «Partner with Faces» رسمي بالتذييل («Join us as a partner and showcase your products in our curated assortment»)؛ محتوى الصفحة لم يُقرأ آلياً — يُفتح يدوياً.",
    "claim_from_source_file": "ملاحظة ملف حسام: قد يناسب منتجات العناية والجمال؛ القبول غير مؤكد.",
    "sources": "https://www.faces.ae/en | https://www.faces.ae/en/best-selling-skincare | https://www.faces.ae/en/best-selling-makeup | https://www.faces.ae/en/best-selling-haircare | https://www.faces.ae/en/best-selling-bodycare",
    "_guessed": false,
@@ -823,7 +897,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Sephora UAE",
@@ -877,7 +956,12 @@
    "tier_reason": "متجر تجميل متعدد العلامات؛ الموقع يحجب الفحص (403). صفحة About لا تذكر كيف تتقدم علامة جديدة. لا مسار موردين منشور.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Areej",
@@ -931,7 +1015,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "BeautyZone UAE",
@@ -985,7 +1074,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Emiraa",
@@ -1039,7 +1133,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Rover Island",
@@ -1093,7 +1192,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Glowy",
@@ -1147,7 +1251,12 @@
    "tier_reason": "عنوان الصفحة الرئيسية «Codazon Home Page» أي قالب تجريبي — لا دليل على متجر فعّال حالياً.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Shop @ Crown",
@@ -1201,7 +1310,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "LOOKFANTASTIC UAE",
@@ -1254,7 +1368,12 @@
    "tier_reason": "مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد",
    "classification": "تقديم مورد",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "K-Beauty Arabia",
@@ -1308,7 +1427,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "BinSina Pharmacy",
@@ -1362,7 +1486,12 @@
    "tier_reason": "سلسلة صيدليات كبيرة (90+ فرعاً بحسب موقعها، مصدر ثانوي) تظهر على talabat بأقسام عناية؛ الموقع يرفض الطلبات الآلية (405). لا صفحة موردين.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "myAster",
@@ -1416,7 +1545,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Life Pharmacy",
@@ -1440,7 +1574,7 @@
    "fees_source": "",
    "shipping_fulfilment": "غير معروف",
    "shipping_source": "",
-   "public_business_contact": "care@lifepharmacy.com",
+   "public_business_contact": "043441122 | care@lifepharmacy.com (خدمة عملاء) | care@lifepharmacy.com",
    "site_title": "Life Pharmacy UAE - Online Pharmacy Delivery in 30 minutes",
    "http_status": 200,
    "uae_signal_on_site": true,
@@ -1460,7 +1594,7 @@
    "record_status": "needs_review",
    "direct_registration_confirmed": false,
    "priority": "B",
-   "notes": "",
+   "notes": "لا صفحة موردين منشورة — تحتاج تواصلاً تجارياً.",
    "claim_from_source_file": "ملاحظة ملف حسام: شبكة صيدليات؛ تحتاج اتفاق توريد.",
    "sources": "https://www.lifepharmacy.com/",
    "_guessed": false,
@@ -1470,7 +1604,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Chemist Warehouse UAE",
@@ -1524,7 +1663,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Boots UAE",
@@ -1578,7 +1722,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Supercare Pharmacy",
@@ -1632,7 +1781,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "800Pharma",
@@ -1686,7 +1840,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Mediсina Pharmacy",
@@ -1740,7 +1899,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Talabat UAE",
@@ -1794,7 +1958,12 @@
    "tier_reason": "مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد",
    "classification": "تقديم مورد",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Deliveroo UAE",
@@ -1848,7 +2017,12 @@
    "tier_reason": "تطبيق توصيل؛ لا دليل على قبول مستحضرات تجميل من علامات جديدة، وأولويته منخفضة بملفك.",
    "classification": "غير مناسبة",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Cult Beauty",
@@ -1902,7 +2076,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "iHerb UAE",
@@ -1956,7 +2135,12 @@
    "tier_reason": "متجر دولي متخصص بالمكملات يحجب الفحص (403)؛ القبول عبر مسار علامات عالمي لا إماراتي.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nice One",
@@ -2010,7 +2194,12 @@
    "tier_reason": "مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد",
    "classification": "تقديم مورد",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Boutiqaat",
@@ -2064,7 +2253,12 @@
    "tier_reason": "منصة تجميل إقليمية (كويتية) تحجب الفحص؛ عملها بالإمارات غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Golden Scent",
@@ -2118,7 +2312,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nazih",
@@ -2172,7 +2371,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Madi International",
@@ -2226,7 +2430,12 @@
    "tier_reason": "موزع مستحضرات صالونات إقليمي (تأسس 1991؛ UAE وSaudi وQatar…) بفئات: شعر، بشرة، أظافر، مكياج (صفحة وظائف Gulftalent). علاقة Wella منذ 2010 وعلامات K18 وKevin Murphy (مقالات ثانوية). الموقع madiint.com لم يستجب — الموقع الرسمي غير معروف.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Xpressions Style",
@@ -2279,7 +2488,12 @@
    "tier_reason": "قناة جملة/توزيع/B2B بمسار رسمي موثّق",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Instagram Shop / Instagram Business",
@@ -2333,7 +2547,12 @@
    "tier_reason": "قناة بيع مباشرة ممكنة، لكن الموقع أعاد 400/مهلة، وإتاحة Shops/Checkout لحساب إماراتي غير مؤكدة. الحساب مثبَّت بقرار حسام.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "TikTok for Business",
@@ -2387,7 +2606,12 @@
    "tier_reason": "صفحة البائع المفحوصة (seller.tiktok.com) هي نسخة TikTok Shop الأمريكية؛ إتاحة المتجر للإمارات غير مؤكدة.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "WhatsApp Business",
@@ -2441,7 +2665,12 @@
    "tier_reason": "قناة كتالوج وتواصل مباشر لا سوق؛ الموقع أعاد 400/مهلة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Shopify Store",
@@ -2495,7 +2724,12 @@
    "tier_reason": "منصة لإنشاء متجر خاص بالعلامة (ليست سوقاً)؛ أهلية الدفع والشحن للإمارات غير مؤكدة بالصفحة.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Salla",
@@ -2549,7 +2783,12 @@
    "tier_reason": "منصة سعودية تحجب الفحص؛ أهلية شركة إماراتية غير مؤكدة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Zid",
@@ -2603,7 +2842,12 @@
    "tier_reason": "منصة سعودية؛ أهلية شركة إماراتية غير مؤكدة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Powder.ae",
@@ -2657,7 +2901,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Sivvi",
@@ -2712,7 +2961,12 @@
    "tier_reason": "منصة أزياء/جمال لم تستجب آلياً؛ لا مسار موردين معروف.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Styli",
@@ -2766,7 +3020,12 @@
    "tier_reason": "منصة أزياء (Landmark) تحجب الفحص؛ فئة العناية غير مؤكدة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "6thStreet",
@@ -2820,7 +3079,12 @@
    "tier_reason": "منصة أزياء تحجب الفحص؛ فئة العناية غير مؤكدة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Dubizzle",
@@ -2874,7 +3138,12 @@
    "tier_reason": "منصة إعلانات مبوبة تحجب الفحص؛ البيع فردي لا لعلامة موردة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "OpenSooq UAE",
@@ -2928,7 +3197,12 @@
    "tier_reason": "منصة إعلانات مبوبة (صفحة sell-any-thing لبيع الأفراد) — لا تناسب علامة تجارية تبحث عن توزيع منظم.",
    "classification": "غير مناسبة",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "InstaShop",
@@ -2982,7 +3256,12 @@
    "tier_reason": "تطبيق توصيل بقالة وصيدلية (ضمن talabat) يحجب الفحص؛ التجميل تابع لمتاجر شريكة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Kibsons",
@@ -3036,7 +3315,12 @@
    "tier_reason": "متجر خضار وبقالة طازجة؛ لا علاقة بفئة التجميل.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Spinneys UAE",
@@ -3090,7 +3374,12 @@
    "tier_reason": "المسار الوحيد المنشور للموردين برنامج Local Business Incubator لمنتجات غذائية محلية بحصرية 6 أشهر — لا يناسب LOWE'S.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Union Coop",
@@ -3144,7 +3433,12 @@
    "tier_reason": "مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد",
    "classification": "تقديم مورد",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Choithrams",
@@ -3198,7 +3492,12 @@
    "tier_reason": "سوبرماركت فعّال؛ صفحة التوزيع تذكر شراكات مع «مئات علامات FMCG» دون مسار تقديم. لا بريد موردين منشور بالصفحات المقروءة.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Waitrose UAE",
@@ -3252,7 +3551,12 @@
    "tier_reason": "سوبرماركت يحجب الفحص (403).",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Abu Dhabi Coop",
@@ -3307,7 +3611,12 @@
    "tier_reason": "جمعية تعاونية لم يستجب موقعها آلياً.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Sharjah Coop",
@@ -3361,7 +3670,12 @@
    "tier_reason": "جمعية تعاونية فعّالة (بقالة ومنزل) بلا دليل على فئة تجميل أو مسار موردين.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Spacenk",
@@ -3416,7 +3730,12 @@
    "tier_reason": "متجر بريطاني (نسخة UK)، ليس جهة إماراتية.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Feelunique",
@@ -3470,7 +3789,12 @@
    "tier_reason": "متجر بريطاني دولي يحجب الفحص؛ ليس قناة إماراتية.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Harvey Nichols Dubai",
@@ -3525,7 +3849,12 @@
    "tier_reason": "متجر فاخر لم يستجب موقعه؛ لا دليل على مسار موردين.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Tryano",
@@ -3579,7 +3908,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Thumbay Pharmacy",
@@ -3634,7 +3968,12 @@
    "tier_reason": "سلسلة صيدليات بفروع في 6 إمارات (صفحة Gulf Medical University وThumbay Healthcare) وتظهر على talabat بأقسام عناية. النطاق الذي جرّبته (thumbaypharmacy.com) معلّق «Account Suspended» — الموقع الرسمي غير معروف.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Al Ain Pharmacy",
@@ -3689,7 +4028,12 @@
    "tier_reason": "سلسلة صيدليات تظهر على talabat بأقسام عناية بالبشرة وعدة فروع بالعين؛ لا موقع رسمي متحقق منه.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Medon Pharmacy",
@@ -3743,7 +4087,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nahdi Online UAE",
@@ -3797,7 +4146,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lana Pharmacy",
@@ -3852,7 +4206,12 @@
    "tier_reason": "سلسلة صيدليات (10 فروع بعينة talabat عبر 6 إمارات)؛ لا موقع رسمي متحقق (شهادة SSL خاطئة على النطاق المجرّب).",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Docib",
@@ -3907,7 +4266,12 @@
    "tier_reason": "سلسلة صيدليات (DOCIB Group) بفروع بعدة إمارات على talabat؛ مصدر ثانوي يذكر شراكتها مع علامة عناية محلية. الموقع المجرّب فارغ العنوان.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Faith Pharmacy",
@@ -3961,7 +4325,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Zaitoon Pharmacy",
@@ -4015,7 +4384,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Glam Beaute",
@@ -4069,7 +4443,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "K-Secret",
@@ -4123,7 +4502,12 @@
    "tier_reason": "أكبر متجر K-beauty متعدد العلامات بحسب مقالات (The National / HiDubai) ويظهر كموزع في دليل أعمال؛ الموقع يحجب الفحص. لا مسار موردين منشور.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Shofon",
@@ -4178,7 +4562,12 @@
    "tier_reason": "مذكور بدليل Harper's Bazaar كمتجر K-beauty؛ الموقع لم يستجب آلياً.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Chicsta",
@@ -4232,7 +4621,12 @@
    "tier_reason": "مذكور كمتجر K-beauty بدليل منشور؛ صفحته الرئيسية تحمّل بلا عنوان أو وصف — نشاطه الحالي غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lamise Beauty",
@@ -4286,7 +4680,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nessa Beauty",
@@ -4340,7 +4739,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Korea Dubai",
@@ -4394,7 +4798,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Mamoso K-Beauty",
@@ -4448,7 +4857,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Blissology Beauty Supply",
@@ -4503,7 +4917,12 @@
    "tier_reason": "موزع/مورّد مذكور بدليل أعمال (Investment Park، دبي)؛ الموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Puel Cosmetics",
@@ -4557,7 +4976,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Bulandi Distributors",
@@ -4611,7 +5035,12 @@
    "tier_reason": "موزع في جبل علي (FZCO) يذكر العناية بالبشرة بين مجموعاته في ملف عارض Beautyworld 2022؛ موقعه يعمل لكن صفحته الرئيسية بلا تفاصيل. لا مسار موردين.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lacot General Trading",
@@ -4666,7 +5095,12 @@
    "tier_reason": "موزع FMCG مستحضرات/مستلزمات شخصية بملف عارض 2022 (بدأ 1992)؛ الموقع لم يستجب — نشاطه الحالي غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "PerfumeUAE",
@@ -4720,7 +5154,12 @@
    "tier_reason": "متجر عطور بالدرجة الأولى؛ خارج نطاق العناية بالبشرة والشعر.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Alshaya Group",
@@ -4774,7 +5213,12 @@
    "tier_reason": "مجموعة امتياز (Ulta Beauty UAE وغيرها) تحجب الفحص؛ التوريد يمر عبر العلامات التابعة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Landmark Group",
@@ -4828,7 +5272,12 @@
    "tier_reason": "مجموعة تجزئة تحجب الفحص؛ لا مسار موردين منشور.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Al Tayer Group",
@@ -4882,7 +5331,12 @@
    "tier_reason": "مجموعة (Ounass، Wojooh، Areej…) موقعها عام بلا مسار موردين.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Majid Al Futtaim",
@@ -4936,7 +5390,12 @@
    "tier_reason": "مسار مورد/علامة رسمي أو شراكة — القبول غير مؤكد",
    "classification": "تقديم مورد",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Rivoli Group",
@@ -4991,7 +5450,12 @@
    "tier_reason": "مجموعة تجزئة/توزيع لم يستجب موقعها.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Jashanmal",
@@ -5046,7 +5510,12 @@
    "tier_reason": "شركة تجزئة/توزيع قديمة (ذُكرت كشريك Coty Distribution Emirates مع Chalhoub، مصدر ثانوي 2014)؛ صفحة «About Us» فقط ظهرت — لا مسار موردين.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Snapchat Business",
@@ -5100,7 +5569,12 @@
    "tier_reason": "منصة إعلانات؛ لا دليل على متجر تجزئة عبر Snapchat للإمارات.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Facebook Marketplace / Meta Business",
@@ -5155,7 +5629,12 @@
    "tier_reason": "قناة إعلانات/إعلانات مبوبة؛ الموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Ubuy UAE",
@@ -5209,7 +5688,12 @@
    "tier_reason": "سوق عابر للحدود يحجب الفحص؛ ليس قناة بيع مباشرة للموردين.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Alibaba.com UAE",
@@ -5264,7 +5748,12 @@
    "tier_reason": "سوق B2B عالمي لم يستجب موقعه؛ ليس قناة إماراتية.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "YesStyle",
@@ -5318,7 +5807,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "StyleKorean",
@@ -5372,7 +5866,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Cosmopolitan Beauty Trading",
@@ -5426,7 +5925,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Planet of Beauty Cosmetics Trading",
@@ -5480,7 +5984,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lavie Beauty & Cosmetics",
@@ -5534,7 +6043,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Starlink Drug Store",
@@ -5588,7 +6102,12 @@
    "tier_reason": "موزع أدوية/ديرما حسب دليل CPHI؛ الصفحة تحجب الفحص ولا موقع رسمي معروف.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Pharmalink (Medicina operator)",
@@ -5602,7 +6121,7 @@
    "sale_method_ar": "بيع بالجملة / توزيع",
    "sale_method_confirmed": true,
    "seller_registration_url": "",
-   "supplier_or_partnership_url": "https://pharmalink.ae/partner/",
+   "supplier_or_partnership_url": "https://pharmalink.ae/contact/",
    "accepted_categories": "أدوية ومنتجات صحية/عناية (حسب بحث)؛ التجميل غير مؤكد",
    "license_requirements": "غير معروف",
    "license_source": "",
@@ -5612,7 +6131,7 @@
    "fees_source": "",
    "shipping_fulfilment": "غير معروف",
    "shipping_source": "",
-   "public_business_contact": "غير معروف",
+   "public_business_contact": "+971 4 371 3777 | +971 2 304 2000 | نموذج Alliance & Partnership بصفحة التواصل",
    "site_title": "PHARMALINK - “Quality Redefined, Life Reimagined”",
    "http_status": 200,
    "uae_signal_on_site": true,
@@ -5642,7 +6161,12 @@
    "tier_reason": "قناة جملة/توزيع/B2B بمسار رسمي موثّق",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Skin Garden",
@@ -5697,7 +6221,12 @@
    "tier_reason": "يُذكر بدليل HiDubai متجراً لـ3 علامات كورية؛ النطاق المجرّب لم يستجب، والنتيجة الوحيدة المطابقة للاسم شركة يابانية (skingarden.jp). كيان إماراتي غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "1004 Gourmet",
@@ -5751,7 +6280,12 @@
    "tier_reason": "سلسلة أغذية كورية تستضيف ركن Lamise Beauty؛ صفحات الجملة فيها لبيع الفنادق لا لتوريد العلامات.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "K-Beauty on Dubai",
@@ -5806,7 +6340,12 @@
    "tier_reason": "افتتاح متجر مذكور في Gulf News؛ الموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Dragon Mart online",
@@ -5860,7 +6399,12 @@
    "tier_reason": "سوق جملة/تجزئة عبر الإنترنت بحسب مصدر ثانوي (فئات منها الجمال والصحة، يوصل داخل الإمارات)؛ الموقع يعمل لكن لا صفحة تسجيل بائع ظاهرة.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Brands For Less",
@@ -5914,7 +6458,12 @@
    "tier_reason": "متجر تخفيضات يحجب الفحص؛ نموذجه شراء بالجملة من فائض المخزون وليس علامات جديدة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Apotheca",
@@ -5969,7 +6518,12 @@
    "tier_reason": "بوتيك مرتبط بمنصة Go To Beauty (Emirates Woman)؛ الموقع المجرّب لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "K Beauty Souq",
@@ -6022,7 +6576,12 @@
    "tier_reason": "تسجيل بائع مباشر موثّق من صفحة رسمية",
    "classification": "تسجيل مباشر",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Skin Korea",
@@ -6076,7 +6635,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Korean Skincare Arabia",
@@ -6130,7 +6694,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Seoul Routine",
@@ -6184,7 +6753,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Argana Beauty",
@@ -6238,7 +6812,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beautfy",
@@ -6292,7 +6871,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "8 Bliss Beauty",
@@ -6346,7 +6930,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Al Sultana",
@@ -6400,7 +6989,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Bella Vest",
@@ -6454,7 +7048,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Relia Beauty",
@@ -6508,7 +7107,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "K Belle Bliss",
@@ -6562,7 +7166,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Sliczny",
@@ -6616,7 +7225,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "SellShip",
@@ -6671,7 +7285,12 @@
    "tier_reason": "سوق صغير للبائعين بحسب إعلان بيع شركة (Flippa) دون صفحة تسجيل رسمية؛ الموقع لم يستجب وقد تكون ملكيته تتغير.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lets Tango",
@@ -6724,7 +7343,12 @@
    "tier_reason": "تسجيل بائع مباشر موثّق من صفحة رسمية",
    "classification": "تسجيل مباشر (أولوية منخفضة)",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nativ",
@@ -6779,7 +7403,12 @@
    "tier_reason": "منصة علامات محلية «Made in UAE» (بيان صحفي 2025) — LOWE'S علامة تركية قد لا تناسب شرط «محلي»؛ الموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Dubai Traders (DET programme)",
@@ -6833,7 +7462,12 @@
    "tier_reason": "برنامج حكومي (DET) تستضيفه Amazon وnoon لأصحاب رخص دبي — ليس قناة بيع مستقلة، لكنه ذو صلة بأهلية الرخصة عند التسجيل بهما.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Mystiglam",
@@ -6887,7 +7521,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "SJR Cosmetics",
@@ -6941,7 +7580,12 @@
    "tier_reason": "متجر K/J-beauty بدبي بحسب صفحة ثانوية؛ الموقع يحجب الفحص.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Figta Beauty Perfumes & Cosmetics Trading",
@@ -6996,7 +7640,12 @@
    "tier_reason": "موزع معتمد لعلامات K-beauty (Cosrx وSome By Mi وBeauty of Joseon…) بحسب ملف عارض Beautyworld (Messe Frankfurt) — القسم الثاني Al Mozna، القصيص 1 دبي، هاتف مدرج +971 4 832 2575. موقعه الرسمي غير معروف. كيان تجاري ملائم لتوزيع العناية لكن تخصصه كوري.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Apotheca Beauty",
@@ -7050,7 +7699,12 @@
    "tier_reason": "تصنيف بعد مراجعة يدوية للصفحات: النطاق الذي فُحص متجر Shopify بلا مؤشر إماراتي؛ مصدر ثانوي يذكر موزعاً بهذا الاسم (دبي/الكويت) — قد يكون كياناً آخر. غير متحقق.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "LSM Trading",
@@ -7104,7 +7758,12 @@
    "tier_reason": "قناة جملة/توزيع/B2B بمسار رسمي موثّق",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Cosmetica Beauty and Personal Care Trading",
@@ -7158,7 +7817,12 @@
    "tier_reason": "تصف نفسها موزعاً لمستلزمات صالونات (دبي، الشارقة، أبوظبي) لكن صفحتها الرئيسية قالب فارغ.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Hair Factory Cosmetics (Abu Dhabi)",
@@ -7213,7 +7877,12 @@
    "tier_reason": "متجر شعر بأبوظبي بحسب دليل أعمال؛ الموقع المجرّب لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Pro Distributor",
@@ -7268,7 +7937,12 @@
    "tier_reason": "متجر Shopify يعرض «Store unavailable» (402) — غير مفعّل حالياً.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Dana Al Emarat Pharmacy",
@@ -7322,7 +7996,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Dermazone Store",
@@ -7376,7 +8055,12 @@
    "tier_reason": "متجر عناية بالشعر والبشرة بالعربية، يبدو سعودياً؛ تغطيته للإمارات غير مؤكدة (يظهر بنطاق فرعي إماراتي بحسب مصدر ثانوي).",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "YallaHub",
@@ -7431,7 +8115,12 @@
    "tier_reason": "منصة aggregator تجارة سريعة (شراكة مع علامة عناية، Arabian Business)؛ الموقع أعاد 521 (الخادم متوقف).",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Supersub",
@@ -7486,7 +8175,12 @@
    "tier_reason": "منصة بث تسوق؛ إعلان وظيفة يذكر استقطاب بائعين ضمن الجمال (موزعون ومتاجر ومبدعون). الموقع المجرّب لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nysaa (Nykaa x Apparel)",
@@ -7540,7 +8234,12 @@
    "tier_reason": "منصة تجميل متعددة العلامات (150+ علامة، شراكة Nykaa وApparel Group) تحجب الفحص؛ لا مسار موردين منشور.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Multiplex International",
@@ -7594,7 +8293,12 @@
    "tier_reason": "جملة/توزيع — الموقع يعمل، المسار الرسمي يحتاج تأكيداً",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "SahaJamal Pharmacy",
@@ -7648,7 +8352,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Gulf Pharmacy",
@@ -7702,7 +8411,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Al Anaqa & Al Jamal Cosmetics (Sharjah)",
@@ -7757,7 +8471,12 @@
    "tier_reason": "مورد جملة/تجزئة مستحضرات بالشارقة بحسب دليل (Magicpin)؛ موقع غير معروف.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Eva Cosmetics Trading (Abu Dhabi)",
@@ -7812,7 +8531,12 @@
    "tier_reason": "متجر مستحضرات بأبوظبي بأسعار جملة/تجزئة بحسب دليل؛ موقع غير معروف.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Cosmovision GT",
@@ -7867,7 +8591,12 @@
    "tier_reason": "موزع جمال/طبي مدرج بدليل مورّدين؛ ملف الدليل غير موثّق والموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Ulta Beauty UAE",
@@ -7921,7 +8650,12 @@
    "tier_reason": "افتتحت Ulta أول فروعها بالإمارات في Mall of the Emirates (يناير 2026) بشراكة Alshaya؛ الموقع يحجب الفحص. مسار الموردين عبر Alshaya غير منشور.",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Gomi Mall",
@@ -7976,7 +8710,12 @@
    "tier_reason": "GOMI MALL General Trading LLC (دبي وعجمان): موزع K-beauty يجمع الجملة B2B وB2C ويتعامل مع سلاسل صيدليات وتجار (VentureSquare، شارك في Beautyworld ME 2026 6-8 تشرين الأول). الموقع الرسمي غير معروف؛ المصدر مقالات فقط.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Secret Skin",
@@ -8031,7 +8770,12 @@
    "tier_reason": "متجر عناية «نظيفة» بدبي (Beauty Independent)؛ الموقع المجرّب بشهادة SSL خاطئة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Glambox",
@@ -8086,7 +8830,12 @@
    "tier_reason": "متجر/اشتراك صناديق تجميل (Gulf Business 2012-2014)؛ الموقع لم يستجب — نشاطه الحالي غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Skin Solutions UAE (Ideal Beauty Solutions)",
@@ -8141,7 +8890,12 @@
    "tier_reason": "متجر K-beauty تحت Ideal Beauty Solutions LLC بحسب Product Hunt؛ النطاق المجرّب لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beautetrade",
@@ -8195,7 +8949,12 @@
    "tier_reason": "جملة/توزيع — الموقع يعمل، المسار الرسمي يحتاج تأكيداً",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Fragrancia",
@@ -8249,7 +9008,12 @@
    "tier_reason": "متجر عطور فقط — خارج نطاق العناية بالبشرة والشعر",
    "classification": "غير مناسبة",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Lattafa Perfumes UAE",
@@ -8303,7 +9067,12 @@
    "tier_reason": "متجر علامة عطور واحدة — خارج النطاق",
    "classification": "غير مناسبة",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Nation",
@@ -8358,7 +9127,12 @@
    "tier_reason": "منصة Chalhoub متعددة العلامات (مصدر 2022)؛ الموقع يطلب مصادقة (401) فلم يُفحص ولم يُتجاوز.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Privae",
@@ -8413,7 +9187,12 @@
    "tier_reason": "ورد كرابط بمقال؛ الموقع لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Matia Natural",
@@ -8467,7 +9246,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Nevi By Nature",
@@ -8521,7 +9305,12 @@
    "tier_reason": "الصفحة الرئيسية تحمّل بلا عنوان — لا دليل على نشاط.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Brandkyu",
@@ -8575,7 +9364,12 @@
    "tier_reason": "موقع نشط بلا دليل على نشاط تجميل.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Omni The Label",
@@ -8629,7 +9423,12 @@
    "tier_reason": "موقع نشط بلا دليل على نشاط تجميل.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Gomyz",
@@ -8683,7 +9482,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Glamazle",
@@ -8737,7 +9541,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Bloomha",
@@ -8791,7 +9600,12 @@
    "tier_reason": "متجر K-beauty صغير (قائمة مبيعات 2026 ذاتية)؛ الموقع يحجب الفحص.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Tribe",
@@ -8845,7 +9659,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Beauty Solutions",
@@ -8899,7 +9718,12 @@
    "tier_reason": "عنوان الصفحة «Beauty & More» يوحي بصالون خدمات لا متجر منتجات.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Emirates Coop — Supplier Login",
@@ -8953,7 +9777,12 @@
    "tier_reason": "الموقع يحجب الفحص الآلي — يحتاج مراجعة يدوية (لا يعني أنه غير نشط)",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Millia Cosmetics (Sharjah)",
@@ -9007,7 +9836,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Stylish Cosmetics (Sharjah)",
@@ -9061,7 +9895,12 @@
    "tier_reason": "متجر/صيدلية فعّال — يحتاج اتفاق مورد (غير مؤكد)",
    "classification": "اتفاق توريد محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "The Beauty Oasis (Ajman)",
@@ -9116,7 +9955,12 @@
    "tier_reason": "لم يستجب الموقع آلياً — لا يعني أنه غير موجود، يحتاج مراجعة يدوية",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Trendyol (Gulf marketplace)",
@@ -9129,15 +9973,15 @@
    "sale_method": "independent_multibrand_store",
    "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
    "sale_method_confirmed": false,
-   "seller_registration_url": "",
+   "seller_registration_url": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US",
    "supplier_or_partnership_url": "",
-   "accepted_categories": "غير معروف",
-   "license_requirements": "غير معروف",
-   "license_source": "",
+   "accepted_categories": "متعارض: صفحة التسجيل تذكر beauty، وسياسة البائع غير المحلي تضع مستحضرات التجميل والعناية الشخصية ضمن المنتجات المنظمة",
+   "license_requirements": "بائع محلي (نشاط/مخزون بالبر الرئيسي): رخصة تجارية سارية + رقم VAT إماراتي مقيم — نص رسمي عبر فهرس البحث",
+   "license_source": "https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en",
    "product_registration_requirements": "غير معروف",
    "product_reg_source": "",
-   "fees_commissions": "غير معروف",
-   "fees_source": "",
+   "fees_commissions": "العمولة القياسية غير منشورة؛ خصم 30% على العمولة لشهرين لمن يرفع منتجات خلال 7 أيام (صفحة التسجيل عبر فهرس البحث)",
+   "fees_source": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US",
    "shipping_fulfilment": "غير معروف",
    "shipping_source": "",
    "public_business_contact": "غير معروف",
@@ -9146,7 +9990,7 @@
    "uae_signal_on_site": false,
    "verification_status": "protected_not_verified",
    "verification_note": "الموقع يحجب الفحص الآلي (403/429/تحقق أمني) — لم يُتجاوز. الحالة غير مؤكدة",
-   "evidence_level": "file_claim_only",
+   "evidence_level": "official_page_via_search_index",
    "beauty_signal": false,
    "unsuitable_reason": "",
    "tier_override": "D",
@@ -9170,7 +10014,12 @@
    "tier_reason": "سوق تركي المنشأ يعمل بالخليج (Gulf Business 2025) — مناسب جداً لعلامة تركية، لكن موقعه وبوابة البائع (partner.trendyol.com) يحجبان الفحص الآلي (403/Cloudflare). مصدر ثانوي (Fynd) يقول إن التسجيل يتم بحساب مستخدم ثم اختيار منطقة «Gulf» ومراجعة 3-7 أيام — غير موثّق رسمياً، وشروط الإمارات ومستندات فئة التجميل غير معروفة.",
    "classification": "تسجيل مباشر محتمل — غير موثّق رسمياً",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "DeliverIt Marketplace",
@@ -9224,7 +10073,12 @@
    "tier_reason": "عنوان موقعه «Best Pick and Delivery Service in Dubai» أي خدمة التقاط وتوصيل؛ وصفه كسوق بائعين ورد في مدونتهم الخاصة فقط. لا صفحة تسجيل بائع ظاهرة.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Groupon UAE",
@@ -9278,7 +10132,12 @@
    "tier_reason": "سوق عروض يحجب الفحص (Cloudflare)؛ نموذج الخصومات قد لا يناسب علامة.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Crafty UAE",
@@ -9332,7 +10191,12 @@
    "tier_reason": "سوق مصنوعات يدوية وهدايا محلية (صفحة onboarding موجودة لكن للحرفيين) — لا يناسب علامة عناية صناعية.",
    "classification": "غير مناسبة",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "FirstCry UAE",
@@ -9387,7 +10251,12 @@
    "tier_reason": "منصة أطفال وأمومة؛ لا تناسب خط العناية العام.",
    "classification": "غير مناسبة",
    "verified_actually": false,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Basharacare",
@@ -9441,7 +10310,12 @@
    "tier_reason": "متجر عناية ببشرة بدبي ذُكر بمقال قديم (2011-2013)؛ الصفحة الرئيسية تحمّل بلا عنوان — نشاطه الحالي غير مؤكد (موجود أيضاً بدفعة ليدز 1).",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Mestore (Al Jamal Enterprises) — Wholesale",
@@ -9495,7 +10369,12 @@
    "tier_reason": "صفحة جملة رسمية: «Beauty Essentials — number 1 wholesaler in the Middle East» لمستحضرات العناية بالبشرة والجسم، ولها فروع (دبي والشارقة-المويلح). الصفحة لمن يشتري منهم؛ قبول موردين جدد غير منصوص.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Glamour Faces Perfumes & Cosmetics Trading",
@@ -9549,7 +10428,12 @@
    "tier_reason": "موزع جملة بدبي يعلن «cosmetics, skincare, haircare and perfumes from 100+ authentic brands» لأنشطة تجارية. موجه للمشترين؛ قبول موردين جدد غير منصوص.",
    "classification": "اتفاق توزيع محتمل",
    "verified_actually": true,
-   "manual_review_needed": false
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "CarasaLab",
@@ -9603,7 +10487,12 @@
    "tier_reason": "يعرض جملة مستحضرات «للإمارات ودبي» لكن مواد الصفحات عن موردين من ألمانيا وآسيا وأوقيانوسيا — يبدو مورّداً دولياً لا كياناً إماراتياً؛ الكيان القانوني بالإمارات غير مؤكد.",
    "classification": "غير مؤكدة",
    "verified_actually": true,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "Cobone",
@@ -9657,7 +10546,12 @@
    "tier_reason": "سوق عروض يحجب الفحص؛ مصدر ثانوي يذكر تسجيلاً مجانياً وعمولة إحالة 15% (غير معتمد).",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "OurShoppee",
@@ -9712,7 +10606,12 @@
    "tier_reason": "منصة تذكرها قوائم ثانوية؛ موقعها لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   },
   {
    "name": "M7L",
@@ -9767,7 +10666,1133 @@
    "tier_reason": "منصة بائعين باشتراك شهري بحسب ترويجها؛ موقعها لم يستجب.",
    "classification": "غير مؤكدة",
    "verified_actually": false,
-   "manual_review_needed": true
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "CHS Community Pharmacy (online)",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Online pharmacy (Dubai/AD/Sharjah)",
+   "official_website": "",
+   "url_in_source_file": "",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "",
+   "http_status": 401,
+   "uae_signal_on_site": false,
+   "verification_status": "unreachable",
+   "verification_note": "HTTP 401",
+   "evidence_level": "file_claim_only",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "D",
+   "review_reason": "متجر الصيدلية الأونلاين يطلب مصادقة (401) فلم يُفحص؛ السلسلة نفسها موجودة بدفعة talabat 3.",
+   "review_source": "https://chspharmacy.ae/",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "unreachable",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://chspharmacy.ae/",
+   "_guessed": true,
+   "origin": "WebSearch: online pharmacy UAE 2026",
+   "verified_at": "2026-10-09",
+   "url_guess_not_verified": "https://chspharmacy.ae/",
+   "tier": "D",
+   "tier_reason": "متجر الصيدلية الأونلاين يطلب مصادقة (401) فلم يُفحص؛ السلسلة نفسها موجودة بدفعة talabat 3.",
+   "classification": "غير مؤكدة",
+   "verified_actually": false,
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Ahaliamed Online Pharmacy",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Online pharmacy (Abu Dhabi, delivery to Northern Emirates)",
+   "official_website": "https://www.ahaliamed.com/",
+   "url_in_source_file": "https://www.ahaliamed.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Ahaliamed Online Pharmacy UAE - 30 Min Free Home Delivery",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "C",
+   "review_reason": "صيدلية أونلاين بأبوظبي (توصيل 30 دقيقة بحسب موقعها) — لا صفحة موردين.",
+   "review_source": "https://www.ahaliamed.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.ahaliamed.com/",
+   "_guessed": true,
+   "origin": "WebSearch: online pharmacy UAE 2026",
+   "verified_at": "2026-10-09",
+   "tier": "C",
+   "tier_reason": "صيدلية أونلاين بأبوظبي (توصيل 30 دقيقة بحسب موقعها) — لا صفحة موردين.",
+   "classification": "اتفاق توريد محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Soukare",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Online pharmacy/health store",
+   "official_website": "https://www.soukare.com/",
+   "url_in_source_file": "https://www.soukare.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Just a moment...",
+   "http_status": 403,
+   "uae_signal_on_site": false,
+   "verification_status": "protected_not_verified",
+   "verification_note": "الموقع يحجب الفحص الآلي (403/429/تحقق أمني) — لم يُتجاوز. الحالة غير مؤكدة",
+   "evidence_level": "file_claim_only",
+   "beauty_signal": false,
+   "unsuitable_reason": "",
+   "tier_override": "D",
+   "review_reason": "متجر صحة/صيدلية يحجب الفحص (Cloudflare).",
+   "review_source": "https://www.soukare.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.soukare.com/",
+   "_guessed": true,
+   "origin": "WebSearch: grabonuae list (name only, domain to verify)",
+   "verified_at": "2026-10-09",
+   "tier": "D",
+   "tier_reason": "متجر صحة/صيدلية يحجب الفحص (Cloudflare).",
+   "classification": "غير مؤكدة",
+   "verified_actually": false,
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Valeo (Feelvaleo)",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Skincare/wellness platform (UAE)",
+   "official_website": "https://feelvaleo.com/en-ae/skin-care",
+   "url_in_source_file": "https://feelvaleo.com/en-ae/skin-care",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Human Verification",
+   "http_status": 405,
+   "uae_signal_on_site": true,
+   "verification_status": "protected_not_verified",
+   "verification_note": "الموقع يحجب الفحص الآلي (403/429/تحقق أمني) — لم يُتجاوز. الحالة غير مؤكدة",
+   "evidence_level": "file_claim_only",
+   "beauty_signal": false,
+   "unsuitable_reason": "",
+   "tier_override": "D",
+   "review_reason": "منصة عناية/عافية تطلب تحققاً بشرياً (405) — لم يُتجاوز.",
+   "review_source": "https://feelvaleo.com/en-ae/skin-care",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://feelvaleo.com/en-ae/skin-care",
+   "_guessed": true,
+   "origin": "WebSearch: independent boutiques",
+   "verified_at": "2026-10-09",
+   "tier": "D",
+   "tier_reason": "منصة عناية/عافية تطلب تحققاً بشرياً (405) — لم يُتجاوز.",
+   "classification": "غير مؤكدة",
+   "verified_actually": false,
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Care to Beauty UAE",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Online pharmacy-beauty (EU/K skincare) shipping UAE",
+   "official_website": "https://www.caretobeauty.com/ae/",
+   "url_in_source_file": "https://www.caretobeauty.com/ae/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Just a moment...",
+   "http_status": 403,
+   "uae_signal_on_site": true,
+   "verification_status": "protected_not_verified",
+   "verification_note": "الموقع يحجب الفحص الآلي (403/429/تحقق أمني) — لم يُتجاوز. الحالة غير مؤكدة",
+   "evidence_level": "file_claim_only",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "E",
+   "review_reason": "متجر دولي يحجب الفحص ويشحن إلى الإمارات؛ لا دليل على كيان إماراتي.",
+   "review_source": "https://www.caretobeauty.com/ae/",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.caretobeauty.com/ae/",
+   "_guessed": true,
+   "origin": "WebSearch: independent boutiques",
+   "verified_at": "2026-10-09",
+   "tier": "E",
+   "tier_reason": "متجر دولي يحجب الفحص ويشحن إلى الإمارات؛ لا دليل على كيان إماراتي.",
+   "classification": "غير مناسبة",
+   "verified_actually": false,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "The Skincare Edit",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Curated skincare store (Dubai)",
+   "official_website": "https://www.theskincareedit.ae/",
+   "url_in_source_file": "https://www.theskincareedit.ae/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "customercare@theskincareedit.ae",
+   "site_title": "Expert-Curated Skincare & Wellness in Dubai | Skincare Edit",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "C",
+   "review_reason": "متجر عناية منتقاة بدبي (يديره أخصائي عناية) — لا صفحة موردين.",
+   "review_source": "https://www.theskincareedit.ae/",
+   "review_date": "2026-10-09",
+   "classification_override": "",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.theskincareedit.ae/ | https://www.theskincareedit.ae/products/detox-debloat | https://www.theskincareedit.ae/products/cleansing-oil-rose-geranium-an-apricot | https://www.theskincareedit.ae/collections/vendors?q=Hair%20by%20Sam%20McKnight | https://www.theskincareedit.ae/products/votary-ultimate-light-cream-ceramides-and-peptides-50ml",
+   "_guessed": true,
+   "origin": "WebSearch: independent boutiques",
+   "verified_at": "2026-10-09",
+   "tier": "C",
+   "tier_reason": "متجر عناية منتقاة بدبي (يديره أخصائي عناية) — لا صفحة موردين.",
+   "classification": "اتفاق توريد محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "IBS Beauty",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesale cosmetics/haircare/skincare + B2B (Dubai)",
+   "official_website": "https://www.ibsbeauty.ae/",
+   "url_in_source_file": "https://www.ibsbeauty.ae/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Beauty and Salon Products Supplier in Dubai | International Beauty Supplies | Cosmetics & Beauty Salon Supplies UAE",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "موزع/تاجر جملة لمستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات بدبي مع دعم B2B (موقعه) — موجّه للمشترين؛ قبول موردين غير منصوص.",
+   "review_source": "https://www.ibsbeauty.ae/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.ibsbeauty.ae/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "موزع/تاجر جملة لمستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات بدبي مع دعم B2B (موقعه) — موجّه للمشترين؛ قبول موردين غير منصوص.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "B-connected",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesale hair/skin + salon supplies (Dubai)",
+   "official_website": "https://www.b-connected.com/",
+   "url_in_source_file": "https://www.b-connected.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "info@b-connected.com",
+   "site_title": "Beauty and Salon Products Supplier in Dubai | Wholesale Beauty Products UAE",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "تاجر جملة عناية بالشعر والبشرة ومستلزمات صالونات بدبي — موجّه للمشترين.",
+   "review_source": "https://www.b-connected.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.b-connected.com/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "تاجر جملة عناية بالشعر والبشرة ومستلزمات صالونات بدبي — موجّه للمشترين.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "TB East",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Professional beauty store (salons/clinics)",
+   "official_website": "https://tb-east.com/",
+   "url_in_source_file": "https://tb-east.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "+971 55 402 1707 (صفحة الشراكة)",
+   "site_title": "Professional Beauty & Skincare Store in Dubai, UAE | TB East",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "متجر/موزع مهني (Timeless Beauty East) لعلامات يمثلها (Tokio Inkarami وغيرها) يخدم الصالونات والعيادات؛ صفحة «partnership» للاهتمام بالعلامات التي يمثلها — قبول علامات جديدة غير منصوص.",
+   "review_source": "https://tb-east.com/partnership",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://tb-east.com/ | https://tb-east.com/partners-salons | https://tb-east.com/partnership",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "متجر/موزع مهني (Timeless Beauty East) لعلامات يمثلها (Tokio Inkarami وغيرها) يخدم الصالونات والعيادات؛ صفحة «partnership» للاهتمام بالعلامات التي يمثلها — قبول علامات جديدة غير منصوص.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Dayjour",
+   "country": "AE",
+   "emirate": "الإمارات (عنوان بالشارقة بحسب مصدر ثانوي)",
+   "city": "",
+   "channel_type": "Hair care + salon furniture (Sharjah address)",
+   "official_website": "https://www.dayjour.net/",
+   "url_in_source_file": "https://www.dayjour.net/",
+   "sale_method": "direct_seller_registration",
+   "sale_method_ar": "تسجيل مباشر كبائع Marketplace",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "https://dayjour.net/sub-sellers/registration",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "رخصة تجارية + VAT + IBAN (حقول نموذج التسجيل الرسمي)",
+   "license_source": "https://dayjour.net/sub-sellers/registration",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معلن",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Dayjour- Online Beauty Products and Salon Furniture in UAE",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "official_page_fetched",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "A",
+   "review_reason": "صفحة «Seller Registration» رسمية تطلب: رخصة تجارية، رقم VAT، رقم تواصل، عنوان، اسم العلامة، اسم الحساب البنكي وشهادة IBAN؛ الحساب يُفعَّل بعد المراجعة. الفئات والعمولة غير منصوصة. المتجر يبيع منتجات تجميل وعناية بالشعر وأثاث صالونات.",
+   "review_source": "https://dayjour.net/sub-sellers/registration",
+   "review_date": "2026-10-09",
+   "classification_override": "تسجيل مباشر",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": true,
+   "priority": "B",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.dayjour.net/ | https://www.dayjour.net/sub-sellers/registration",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "A",
+   "tier_reason": "صفحة «Seller Registration» رسمية تطلب: رخصة تجارية، رقم VAT، رقم تواصل، عنوان، اسم العلامة، اسم الحساب البنكي وشهادة IBAN؛ الحساب يُفعَّل بعد المراجعة. الفئات والعمولة غير منصوصة. المتجر يبيع منتجات تجميل وعناية بالشعر وأثاث صالونات.",
+   "classification": "تسجيل مباشر",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": true,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "MLC Dubai Cosmetic Wholesale",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Beauty wholesale for retailers/salons/distributors",
+   "official_website": "https://mlcdubai.com/",
+   "url_in_source_file": "https://mlcdubai.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "MLC Dubai Cosmetic UAE Wholesale – Premium Skincare & Beauty Products",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "جملة عناية بالبشرة والشعر للتجار والصالونات والموزعين بالإمارات — موجّه للمشترين.",
+   "review_source": "https://mlcdubai.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://mlcdubai.com/ | https://mlcdubai.com/shop/ | https://mlcdubai.com/affordable-cosmetics-wholesale-uae/#comment-2 | https://mlcdubai.com/product/bonita-himalayan-pink-salt-exfoliating-soap-bar-80g-bulk-order-wholesale/ | https://mlcdubai.com/category/beauty-essentials/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies + B2B",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "جملة عناية بالبشرة والشعر للتجار والصالونات والموزعين بالإمارات — موجّه للمشترين.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "AlbastakiOnline",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesaler (Deira) beauty & grooming",
+   "official_website": "https://albastakionline.com/",
+   "url_in_source_file": "https://albastakionline.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "info@albastakionline.com",
+   "site_title": "AlbastakiOnline: Leading Wholesale Supplier in UAE",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "تاجر جملة بديرة (أدوات وعناية شخصية) — ملاءمة متوسطة.",
+   "review_source": "https://albastakionline.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://albastakionline.com/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "تاجر جملة بديرة (أدوات وعناية شخصية) — ملاءمة متوسطة.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Al Basel Cosmetics",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesale & retail cosmetics (Sharjah)",
+   "official_website": "https://albaselco.com/",
+   "url_in_source_file": "https://albaselco.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Al Basel Cosmetics – Professional Beauty, Hair & Salon",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "جملة وتجزئة مستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات (موقعه: توصيل للإمارات والخليج).",
+   "review_source": "https://albaselco.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://albaselco.com/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "جملة وتجزئة مستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات (موقعه: توصيل للإمارات والخليج).",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Doyen Wellness",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Salon/spa products supplier (UAE, Sharjah page)",
+   "official_website": "https://doyenwellness.com/salon-products/",
+   "url_in_source_file": "https://doyenwellness.com/salon-products/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Salon Products in UAE & GCC | Doyen Wellness",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": false,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "مورّد منتجات صالونات وسبا بالإمارات والخليج.",
+   "review_source": "https://doyenwellness.com/salon-products/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://doyenwellness.com/salon-products/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "مورّد منتجات صالونات وسبا بالإمارات والخليج.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "SpaWorld UAE",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Spa products supplier",
+   "official_website": "https://spaworlduae.com/",
+   "url_in_source_file": "https://spaworlduae.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Spa, Salon & Hotel Products in UAE | Trusted Supplier",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": false,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "مورّد منتجات سبا وصالونات وفنادق — ملاءمة ضعيفة لعلامة عناية استهلاكية.",
+   "review_source": "https://spaworlduae.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://spaworlduae.com/",
+   "_guessed": true,
+   "origin": "WebSearch: salon supplies",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "مورّد منتجات سبا وصالونات وفنادق — ملاءمة ضعيفة لعلامة عناية استهلاكية.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Abraa",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "B2B wholesale marketplace (Dubai)",
+   "official_website": "https://www.abraa.com/",
+   "url_in_source_file": "https://www.abraa.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Just a moment...",
+   "http_status": 403,
+   "uae_signal_on_site": false,
+   "verification_status": "protected_not_verified",
+   "verification_note": "الموقع يحجب الفحص الآلي (403/429/تحقق أمني) — لم يُتجاوز. الحالة غير مؤكدة",
+   "evidence_level": "file_claim_only",
+   "beauty_signal": false,
+   "unsuitable_reason": "",
+   "tier_override": "D",
+   "review_reason": "سوق B2B للجملة بدبي يحجب الفحص (Cloudflare) — مسار البائعين غير متحقق.",
+   "review_source": "https://www.abraa.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "غير مؤكدة (سوق B2B محتمل)",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "C",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.abraa.com/",
+   "_guessed": true,
+   "origin": "WebSearch: UAE B2B wholesale",
+   "verified_at": "2026-10-09",
+   "tier": "D",
+   "tier_reason": "سوق B2B للجملة بدبي يحجب الفحص (Cloudflare) — مسار البائعين غير متحقق.",
+   "classification": "غير مؤكدة (سوق B2B محتمل)",
+   "verified_actually": false,
+   "manual_review_needed": true,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": false,
+   "lvl3_sells_beauty": false,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "Dubai Wholesale Store",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "K-beauty wholesaler (MOQ 20 pcs)",
+   "official_website": "https://www.dubaiwholesalestore.com/",
+   "url_in_source_file": "https://www.dubaiwholesalestore.com/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Dubai Wholesale Store | Korean Skin & Cosmetic Product Supplier",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "تاجر جملة B2B لمستحضرات كورية (حد أدنى 20 قطعة بحسب مصدر ثانوي) — تخصص كوري.",
+   "review_source": "https://www.dubaiwholesalestore.com/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://www.dubaiwholesalestore.com/ | https://www.dubaiwholesalestore.com/collections/someby-mi",
+   "_guessed": true,
+   "origin": "WebSearch: UAE B2B wholesale",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "تاجر جملة B2B لمستحضرات كورية (حد أدنى 20 قطعة بحسب مصدر ثانوي) — تخصص كوري.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "I Serena Trading",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesale beauty/skin/hair (MOQ 1000 AED)",
+   "official_website": "https://i-serena.com/wholesale/",
+   "url_in_source_file": "https://i-serena.com/wholesale/",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "غير معروف",
+   "site_title": "Wholesale Beauty, Skin, and Hair Care Products - I Serena",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "جملة عناية بالبشرة والشعر (علامات كورية) — موجّه للمشترين.",
+   "review_source": "https://i-serena.com/wholesale/",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://i-serena.com/wholesale/ | https://i-serena.com/wholesale-anua/ | https://i-serena.com/wholesale-axis-y/ | https://i-serena.com/wholesale-beauty-of-joseon/",
+   "_guessed": true,
+   "origin": "WebSearch: UAE B2B wholesale",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "جملة عناية بالبشرة والشعر (علامات كورية) — موجّه للمشترين.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
+  },
+  {
+   "name": "HMSN Boutique Trading",
+   "country": "AE",
+   "emirate": "الإمارات (على مستوى الدولة)",
+   "city": "",
+   "channel_type": "Wholesale cosmetic trading (UAE)",
+   "official_website": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+   "url_in_source_file": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+   "sale_method": "independent_multibrand_store",
+   "sale_method_ar": "متجر مستقل متعدد العلامات (اتفاق مورد غير مؤكد)",
+   "sale_method_confirmed": false,
+   "seller_registration_url": "",
+   "supplier_or_partnership_url": "",
+   "accepted_categories": "غير معروف",
+   "license_requirements": "غير معروف",
+   "license_source": "",
+   "product_registration_requirements": "غير معروف",
+   "product_reg_source": "",
+   "fees_commissions": "غير معروف",
+   "fees_source": "",
+   "shipping_fulfilment": "غير معروف",
+   "shipping_source": "",
+   "public_business_contact": "info@hmsnboutiquetrading.com",
+   "site_title": "Wholesale Cosmetic Trading Company in UAE | HMSN Trading",
+   "http_status": 200,
+   "uae_signal_on_site": true,
+   "verification_status": "verified_active_uae",
+   "verification_note": "الموقع يعمل ويظهر فيه ما يدل على الإمارات",
+   "evidence_level": "site_active_no_program_page_confirmed",
+   "beauty_signal": true,
+   "unsuitable_reason": "",
+   "tier_override": "B",
+   "review_reason": "شركة تجارة جملة مستحضرات بالإمارات بحسب موقعها.",
+   "review_source": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+   "review_date": "2026-10-09",
+   "classification_override": "اتفاق توزيع محتمل",
+   "start_rank": 0,
+   "start_reason": "",
+   "_batch": "exp11",
+   "record_status": "needs_review",
+   "direct_registration_confirmed": false,
+   "priority": "D",
+   "notes": "",
+   "claim_from_source_file": "",
+   "sources": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading | https://hmsnboutiquetrading.com/service-detail/wholesale-of-men-ready-made-clothes-trading | https://hmsnboutiquetrading.com/service-detail/wholesale-of-children-ready-made-clothes-trading | https://hmsnboutiquetrading.com/service-detail/wholesale-of-textiles-and-clothes-trading",
+   "_guessed": true,
+   "origin": "WebSearch: UAE B2B wholesale",
+   "verified_at": "2026-10-09",
+   "tier": "B",
+   "tier_reason": "شركة تجارة جملة مستحضرات بالإمارات بحسب موقعها.",
+   "classification": "اتفاق توزيع محتمل",
+   "verified_actually": true,
+   "manual_review_needed": false,
+   "lvl1_discovered": true,
+   "lvl2_active_in_uae": true,
+   "lvl3_sells_beauty": true,
+   "lvl4_official_path": false,
+   "lvl5_lowes_eligibility_confirmed": false
   }
  ],
  "excluded": [
@@ -10022,6 +12047,34 @@
    "reason": "نفس مجموعة Nazih (متجر nazih.ae الأونلاين يحجب الفحص 403)",
    "kind": "duplicate",
    "duplicate_of": "Nazih"
+  },
+  {
+   "name": "Looks Like Love",
+   "url": "https://www.lookslikelove.ae/",
+   "reason": "النطاق lookslikelove.ae يعرض محتوى مقامرة (نطاق مُختطَف) — الرابط الرسمي الحالي غير معروف",
+   "kind": "wrong_entity",
+   "duplicate_of": ""
+  },
+  {
+   "name": "Cosmetica Beauty Trading",
+   "url": "https://cosmeticatrading.com/about",
+   "reason": "نفس جهة Cosmetica (cosmeticatrading.com/about أعاد 404)",
+   "kind": "duplicate",
+   "duplicate_of": "Cosmetica Beauty and Personal Care Trading"
+  },
+  {
+   "name": "QH Distribution",
+   "url": "https://qhdistribution.com/",
+   "reason": "QH Distribution Inc. شركة أمريكية (تأسست 1984) — ليست موزعاً إماراتياً",
+   "kind": "wrong_market",
+   "duplicate_of": ""
+  },
+  {
+   "name": "Pharmacy Directory UAE",
+   "url": "https://www.pharmacydirectory.ae/best-online-pharmacies-in-the-uae-safe-licensed-delivering-to-your-door/",
+   "reason": "دليل صيدليات (مصدر بحث) وليس قناة بيع",
+   "kind": "lead_source",
+   "duplicate_of": ""
   }
  ],
  "start_list": [
@@ -10054,7 +12107,7 @@
    "review_reason": "أكبر سوق إقليمي، لكن الموقع حجب الفحص الآلي (403/SSL) ولم أتجاوزه؛ مسار sell.noon.com/uae-en/getting-started مأخوذ من ملفك وتؤكده مصادر ثانوية فقط. يلزم فتحه يدوياً.",
    "review_source": "https://sell.noon.com/uae-en/getting-started",
    "review_date": "2026-10-09",
-   "url_to_open_manually": "https://sell.noon.com/uae-en/getting-started",
+   "url_to_open_manually": "https://sell.noon.com/uae-en",
    "why_manual": "أكبر سوق إقليمي، لكن الموقع حجب الفحص الآلي (403/SSL) ولم أتجاوزه؛ مسار sell.noon.com/uae-en/getting-started مأخوذ من ملفك وتؤكده مصادر ثانوية فقط. يلزم فتحه يدوياً.",
    "http_status": 0,
    "verification_status": "unreachable",
@@ -10978,7 +13031,7 @@
    "review_reason": "سوق تركي المنشأ يعمل بالخليج (Gulf Business 2025) — مناسب جداً لعلامة تركية، لكن موقعه وبوابة البائع (partner.trendyol.com) يحجبان الفحص الآلي (403/Cloudflare). مصدر ثانوي (Fynd) يقول إن التسجيل يتم بحساب مستخدم ثم اختيار منطقة «Gulf» ومراجعة 3-7 أيام — غير موثّق رسمياً، وشروط الإمارات ومستندات فئة التجميل غير معروفة.",
    "review_source": "https://gulfbusiness.com/en/2025/tech/how-trendyol-is-redefining-ecommerce-in-the-gulf/",
    "review_date": "2026-10-09",
-   "url_to_open_manually": "https://www.trendyol.com/",
+   "url_to_open_manually": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US",
    "why_manual": "سوق تركي المنشأ يعمل بالخليج (Gulf Business 2025) — مناسب جداً لعلامة تركية، لكن موقعه وبوابة البائع (partner.trendyol.com) يحجبان الفحص الآلي (403/Cloudflare). مصدر ثانوي (Fynd) يقول إن التسجيل يتم بحساب مستخدم ثم اختيار منطقة «Gulf» ومراجعة 3-7 أيام — غير موثّق رسمياً، وشروط الإمارات ومستندات فئة التجميل غير معروفة.",
    "http_status": 403,
    "verification_status": "protected_not_verified",
@@ -11080,6 +13133,62 @@
    "why_manual": "منصة بائعين باشتراك شهري بحسب ترويجها؛ موقعها لم يستجب.",
    "http_status": 0,
    "verification_status": "unreachable",
+   "claim_from_source_file": "",
+   "notes": ""
+  },
+  {
+   "name": "CHS Community Pharmacy (online)",
+   "tier": "D",
+   "classification": "غير مؤكدة",
+   "review_reason": "متجر الصيدلية الأونلاين يطلب مصادقة (401) فلم يُفحص؛ السلسلة نفسها موجودة بدفعة talabat 3.",
+   "review_source": "https://chspharmacy.ae/",
+   "review_date": "2026-10-09",
+   "url_to_open_manually": "",
+   "why_manual": "متجر الصيدلية الأونلاين يطلب مصادقة (401) فلم يُفحص؛ السلسلة نفسها موجودة بدفعة talabat 3.",
+   "http_status": 401,
+   "verification_status": "unreachable",
+   "claim_from_source_file": "",
+   "notes": ""
+  },
+  {
+   "name": "Soukare",
+   "tier": "D",
+   "classification": "غير مؤكدة",
+   "review_reason": "متجر صحة/صيدلية يحجب الفحص (Cloudflare).",
+   "review_source": "https://www.soukare.com/",
+   "review_date": "2026-10-09",
+   "url_to_open_manually": "https://www.soukare.com/",
+   "why_manual": "متجر صحة/صيدلية يحجب الفحص (Cloudflare).",
+   "http_status": 403,
+   "verification_status": "protected_not_verified",
+   "claim_from_source_file": "",
+   "notes": ""
+  },
+  {
+   "name": "Valeo (Feelvaleo)",
+   "tier": "D",
+   "classification": "غير مؤكدة",
+   "review_reason": "منصة عناية/عافية تطلب تحققاً بشرياً (405) — لم يُتجاوز.",
+   "review_source": "https://feelvaleo.com/en-ae/skin-care",
+   "review_date": "2026-10-09",
+   "url_to_open_manually": "https://feelvaleo.com/en-ae/skin-care",
+   "why_manual": "منصة عناية/عافية تطلب تحققاً بشرياً (405) — لم يُتجاوز.",
+   "http_status": 405,
+   "verification_status": "protected_not_verified",
+   "claim_from_source_file": "",
+   "notes": ""
+  },
+  {
+   "name": "Abraa",
+   "tier": "D",
+   "classification": "غير مؤكدة (سوق B2B محتمل)",
+   "review_reason": "سوق B2B للجملة بدبي يحجب الفحص (Cloudflare) — مسار البائعين غير متحقق.",
+   "review_source": "https://www.abraa.com/",
+   "review_date": "2026-10-09",
+   "url_to_open_manually": "https://www.abraa.com/",
+   "why_manual": "سوق B2B للجملة بدبي يحجب الفحص (Cloudflare) — مسار البائعين غير متحقق.",
+   "http_status": 403,
+   "verification_status": "protected_not_verified",
    "claim_from_source_file": "",
    "notes": ""
   }

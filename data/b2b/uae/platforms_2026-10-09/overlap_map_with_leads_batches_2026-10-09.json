@@ -585,6 +585,21 @@
    "lead_province": "Dubai",
    "lead_priority": "C",
    "relation": "نفس الجهة: سجل ليدز (عميل/موزع محتمل) + نقطة بيع محتملة"
+  },
+  {
+   "platform_name": "CHS Community Pharmacy (online)",
+   "platform_tier": "D",
+   "platform_role": "صيدلية (متجر تجزئة)",
+   "platform_website": "",
+   "match_basis": "نفس الاسم",
+   "lead_batch": "batch3",
+   "lead_row": 15,
+   "lead_name": "CHS Community Pharmacy",
+   "lead_type": "physical",
+   "lead_category": "صيدلية",
+   "lead_province": "Nationwide",
+   "lead_priority": "D",
+   "relation": "نفس الجهة: سجل ليدز (عميل/موزع محتمل) + نقطة بيع محتملة"
   }
  ]
 }

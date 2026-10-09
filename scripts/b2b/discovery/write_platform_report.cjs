@@ -1,72 +1,90 @@
-// Writes the Markdown report for the sales-platform research from the data (all numbers are computed, none typed by hand).
+// Writes the Markdown report for the sales-platform research (all numbers computed from the data files, none typed by hand).
 // usage: node write_platform_report.cjs <platformsDir> [baseCommit]
 const fs = require('fs');
 const { execSync } = require('child_process');
 const dir = process.argv[2];
-const BASE = process.argv[3] || '68c97b5';
-const j = JSON.parse(fs.readFileSync(dir + '/uae_sales_platforms_2026-10-09.json', 'utf8'));
+const BASE = process.argv[3] || '4b20b1d';
+const rd = (f) => JSON.parse(fs.readFileSync(`${dir}/${f}`, 'utf8'));
+const j = rd('uae_sales_platforms_2026-10-09.json');
 const s = j.stats, rows = j.rows;
-const ov = JSON.parse(fs.readFileSync(dir + '/overlap_map_with_leads_batches_2026-10-09.json', 'utf8')).matches;
-let baseNames = new Set();
+const ov = rd('overlap_map_with_leads_batches_2026-10-09.json').matches;
+const dossier = rd('direct_registration_dossier_2026-10-09.json');
+const chans = rd('supplier_contact_channels_2026-10-09.json');
+const nameOnly = rd('discovered_name_only_2026-10-09.json');
+let base = { rows: [], stats: {} };
 try {
   const rel = 'data/b2b/uae/platforms_2026-10-09/uae_sales_platforms_2026-10-09.json';
-  const old = JSON.parse(execSync(`git show ${BASE}:${rel}`, { cwd: dir + '/../../../..', maxBuffer: 1 << 28 }).toString('utf8'));
-  baseNames = new Set(old.rows.map((r) => r.name.toLowerCase()));
+  base = JSON.parse(execSync(`git show ${BASE}:${rel}`, { cwd: dir, maxBuffer: 1 << 28 }).toString('utf8'));
 } catch (e) { console.log('base commit not readable:', String(e.message).slice(0, 80)); }
-const isNew = (r) => !baseNames.has(r.name.toLowerCase());
-const newRows = rows.filter(isNew);
-const dups = j.excluded.filter((e) => e.kind === 'duplicate').length;
+const baseNames = new Set(base.rows.map((r) => r.name.toLowerCase()));
+const newRows = rows.filter((r) => !baseNames.has(r.name.toLowerCase()));
+const bs = base.stats || {};
 const esc = (x) => String(x ?? '').replace(/\|/g, ';').replace(/\n/g, ' ');
 const L = [];
-L.push('# تقرير بحث منصات البيع بالإمارات — المرحلة 3 (9 تشرين الأول 2026)', '');
-L.push("> مصادر عامة فقط. لا Import، لا قاعدة بيانات، لا Merge، لا Deploy. المجهول = «غير معروف». لا عمولات ولا شروط إلا من صفحة رسمية قُرئت مع رابطها. **البحث غير مكتمل** — الأعداد أدناه لا تدل على اكتماله (انظر «ما تبقى»).", '');
-L.push('## الأعداد الفعلية', '', '| البند | العدد |', '|---|---|');
-L.push(`| جهات فُحصت إجمالاً (51 من ملف حسام + ${s.input_records - 51} مكتشفة) | ${s.input_records} |`);
-L.push(`| بعد التنظيف (مكررات ${dups} + مستبعدة ${s.excluded_total - dups}) | **${s.kept}** |`);
-L.push(`| جديدة بعد إزالة التكرار عن commit \`${BASE}\` (165 جهة) | **${newRows.length}** |`);
-L.push(`| **متحقق منها فعلياً** (الموقع يستجيب ويظهر فيه ما يدل على الإمارات أو صفحة رسمية قُرئت) | **${s.verified_actually}** |`);
-L.push(`| **تسجيل بائع مباشر مؤكد من صفحة رسمية** (فئة A) | **${s.tiers.A}** — منها Lets Tango بأولوية منخفضة |`);
-L.push(`| **مناسبة لتقديم LOWE'S كمورد** (B توزيع/جملة + C اتفاق مورد) | **${s.suitable_as_supplier_B_C}** (B=${s.tiers.B}، C=${s.tiers.C}) — «مناسبة» تعني قناة محتملة، لا قبولاً مؤكداً |`);
-L.push(`| **لم يتحدد وضعها** (فئة D) | **${s.undetermined_D}** |`);
-L.push(`| غير مناسبة (E داخل السجلات) + مستبعدة بسجل منفصل | ${s.tiers.E_in_rows} + ${s.tiers.E_excluded_list} |`);
-L.push(`| تحجب الفحص الآلي ولم تُتجاوز | ${s.protected_not_verified} |`);
-L.push(`| لم تستجب عند الفحص (لا يعني أنها غير موجودة) | ${s.unreachable} |`);
-L.push(`| روابط تحتاج مراجعة يدوية | ${s.manual_review} |`);
-L.push(`| رسوم رسمية معلنة / شروط ترخيص رسمية / شروط تسجيل منتج رسمية | ${s.with_official_fee_source} / ${s.with_license_req_source} / ${s.with_product_reg_source} |`);
-L.push(`| جهات خضعت لمراجعة يدوية مسبّبة (سبب ومصدر وتاريخ لكل منها) | ${s.reviewed_manually} |`, '');
-L.push('### التصنيف النهائي', '', '| التصنيف | العدد |', '|---|---|');
-Object.entries(s.by_classification).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => L.push(`| ${k} | ${v} |`));
-L.push('', '## أفضل 20 جهة للبدء بالتسجيل أو التواصل', '');
-L.push('| # | الجهة | التصنيف | سبب الترتيب | الرابط | تواصل منشور | رسوم رسمية |', '|---|---|---|---|---|---|---|');
-j.start_list.map((n) => rows.find((r) => r.name === n)).filter(Boolean).forEach((r, i) => L.push(`| ${i + 1} | ${esc(r.name)} | ${esc(r.classification)} | ${esc(r.start_reason || r.tier_reason)} | ${esc(r.seller_registration_url || r.supplier_or_partnership_url || r.official_website)} | ${esc(r.public_business_contact)} | ${esc(r.fees_source ? r.fees_commissions : 'غير معروف')} |`));
-L.push('', '## فحص منصات التسجيل المباشر (فئة A) — لا يوجد «جاهز للبيع» قبل هذه الشروط', '');
-L.push('| المنصة | نموذج تسجيل بائع | قبول فئة التجميل | أهلية شركة LOWE\'S الإماراتية | شروط الإدراج | مستندات/موافقات/رسوم معلنة |', '|---|---|---|---|---|---|');
-L.push('| Amazon.ae | نعم (sellercentral.amazon.ae) | «Beauty» بلا قيود لكن **topicals تتطلب موافقة**؛ Beauty Topicals وCosmetics & Skin/Hair Care مقيّدة (صفحات القيود لم تُقرأ) | الصفحة: «Dubai Trade Licence» أو سجل تجاري؛ **المنطقة الحرة غير منصوصة** — يُتحقق | GTIN/موافقات المنتج: غير منصوصة | هوية، كشف بنكي/خدمات، سجل تجاري أو توكيل، حساب بنكي. عمولة الجمال 8% (≤ 50 درهم) و15% (> 50)، حد أدنى 1 درهم، بدون VAT |');
-L.push('| Begad | نعم | «Beauty» فئة شائعة؛ العناية بالبشرة غير منصوصة | رخصة تجارية (نوعها غير منصوص) | غير منصوصة | رخصة + إثبات بنك + هوية؛ تسجيل مجاني؛ العمولة «ثابتة لكل فئة» بلا أرقام |');
-L.push('| K Beauty Souq | نموذج تاجر للمراجعة | سوق K-beauty (28 علامة كورية)؛ علامات غير كورية غير منصوصة | الرخصة اختيارية بالنموذج | غير منصوصة | العمولة والشروط غير معلنة |');
-L.push('| Tradeling | نعم (B2B) | **لا تظهر فئة تجميل** بين فئاتهم | غير منصوص | غير منصوصة | عنوان «Commission structure» بلا أرقام؛ دفع مرتين شهرياً |');
-L.push('| Lets Tango | زر Start Selling | **فئات إلكترونيات؛ التجميل غير منصوص** → أولوية منخفضة | غير منصوص | غير منصوصة | غير معلنة |');
-L.push('', '## التداخل مع دفعات ليدز المتاجر 1-3 (مطابقة فقط، بلا حذف)', '');
+L.push('# منصات وقنوات بيع LOWE\'S بالإمارات — تقرير التنفيذ المُسرَّع (9 تشرين الأول 2026)', '');
+L.push("> مصادر عامة فقط. لا Import، لا قاعدة بيانات، لا Merge، لا Deploy، ولا رسائل أُرسلت نيابة عن الشركة. المجهول = «غير معروف». **لا منصة موصوفة جاهزة للبيع**، و**أهلية LOWE'S لم تُؤكَّد لدى أي جهة**. البحث مستمر وغير مكتمل.", '');
+
+L.push('## 1. السابق مقابل الجديد', '', `| البند | عند \`${BASE}\` | الآن |`, '|---|---|---|');
+const row = (label, a, b) => L.push(`| ${label} | ${a ?? '—'} | **${b}** |`);
+row('جهات فُحصت', bs.input_records, s.input_records);
+row('بعد التنظيف', bs.kept, s.kept);
+row('متحقق منها فعلياً', bs.verified_actually, s.verified_actually);
+row('تسجيل بائع مباشر موثّق من صفحة رسمية (A)', bs.tiers?.A, s.tiers.A);
+row('جملة/توزيع/B2B (B)', bs.tiers?.B, s.tiers.B);
+row('اتفاق مورد (C)', bs.tiers?.C, s.tiers.C);
+row('لم يتحدد وضعها (D)', bs.tiers?.D, s.tiers.D);
+row('رسوم من مصدر رسمي', bs.with_official_fee_source, s.with_official_fee_source);
+L.push('', `**جهات جديدة بعد إزالة التكرار في هذه الدفعة:** ${newRows.length} بموقع رسمي (فُحصت آلياً) + ${nameOnly.entities.length} بالاسم فقط بلا موقع (مستوى «اكتُشفت ولم تُتحقق») = **${newRows.length + nameOnly.entities.length}**.`);
+L.push(`الجديدة بموقع: ${newRows.map((r) => `${r.name} (${r.tier})`).join('، ')}.`, '');
+
+L.push('## 2. مستويات التحقق (منفصلة، لا تُدمج)', '', '| المستوى | العدد |', '|---|---|');
+L.push(`| اكتُشفت (كل السجلات) | ${s.levels.discovered} (+ ${nameOnly.entities.length} بالاسم فقط) |`);
+L.push(`| ثبت نشاطها بالإمارات | ${s.levels.active_in_uae} |`);
+L.push(`| ثبت بيعها لمنتجات الجمال | ${s.levels.sells_beauty} |`);
+L.push(`| لديها مسار رسمي لاستقبال البائعين أو الموردين | ${s.levels.official_seller_or_supplier_path} |`);
+L.push(`| تأكدت أهليتها لقبول منتجات LOWE'S | ${s.levels.lowes_eligibility_confirmed} |`, '');
+
+L.push('## 3. أفضل فرص التسجيل المباشر — الأسئلة الستة من مصادر رسمية', '');
+L.push('| المنصة | شركة إماراتية؟ | العناية بالبشرة والشعر؟ | المستندات | موافقات الفئة | الرسوم المعلنة | الخطوة التالية | مستوى الدليل |', '|---|---|---|---|---|---|---|---|');
+for (const p of dossier.platforms) L.push(`| ${esc(p.platform)} | ${esc(p.q1_uae_company_can_register.answer)} | ${esc(p.q2_skin_hair_care_allowed.answer)} | ${esc(p.q3_documents.answer)} | ${esc(p.q4_category_approvals.answer)} | ${esc(p.q5_fees.answer)} | ${esc(p.q6_next_step)} | ${esc([...new Set([p.q1_uae_company_can_register.evidence, p.q5_fees.evidence])].join(' / '))} |`);
+const dj = rows.find((r) => r.name === 'Dayjour');
+if (dj) L.push('', `**جديد بهذه الدفعة:** Dayjour — نموذج «Seller Registration» رسمي يطلب رخصة تجارية وVAT واسم العلامة وIBAN؛ الفئات والعمولة غير منصوصة (${dj.seller_registration_url}).`);
+L.push('', '**شروط غير محسومة (تحتاج حساب بائع أو متصفح):**');
+for (const p of dossier.platforms) L.push(`- ${p.platform}: ${p.human_review_needed.join('؛ ')}`);
+L.push('');
+
+L.push('## 4. أفضل الجهات للتواصل كمورد', '', '| الجهة | الحالة | المسار الرسمي | قناة التواصل العامة | مستوى الدليل |', '|---|---|---|---|---|');
+const ST = { published_path: 'مسار موردين رسمي منشور', published_path_unread: 'رابط رسمي — محتواه لم يُقرأ', published_path_buyers: 'نموذج منشور للمشترين', needs_commercial_outreach: 'تحتاج إلى تواصل تجاري' };
+for (const c of chans.channels) L.push(`| ${esc(c.name)} | ${ST[c.status] || c.status} | ${esc(c.path || '—')} | ${esc(c.contact)} | ${esc(c.evidence)} |`);
+L.push('');
+
+L.push('## 5. أفضل 20 جهة للبدء (مرتبة حسب الأثر التجاري)', '', '| # | الجهة | التصنيف | السبب | الرابط |', '|---|---|---|---|---|');
+j.start_list.map((n) => rows.find((r) => r.name === n)).filter(Boolean).forEach((r, i) => L.push(`| ${i + 1} | ${esc(r.name)} | ${esc(r.classification)} | ${esc(r.start_reason || r.tier_reason)} | ${esc(r.seller_registration_url || r.supplier_or_partnership_url || r.official_website)} |`));
+L.push('');
+
+L.push('## 6. خطوات قابلة للتنفيذ فوراً (حسب الأثر التجاري)', '');
+[
+  'إنشاء حساب بائع على Amazon.ae، ثم طلب موافقة فئة «Beauty Topicals» وقراءة صفحة قيود «Cosmetics & Skin/Hair Care» من داخل Seller Central — يحدد إن كانت الرخصة الحالية مقبولة.',
+  'فتح sell.noon.com/uae-en بالمتصفح والتأكد من قبول رخصة LOWE\'S وجدول رسوم FBP الحالي (8%/15% لفئة العناية بحسب النص المفهرس)، وأن إنشاء علامة LOWE\'S الخاصة متاح.',
+  'فتح نموذج Trendyol الإماراتي وسؤال دعم البائعين عن قبول البائع المحلي بفئة العناية بالبشرة والشعر (تعارض بين صفحة التسجيل وسياسة البائع غير المحلي).',
+  'مراسلة LOOKFANTASTIC (partnerships@thehutgroup.com) وXpressions (business.development@xpressionsstyle.com) بملف علامة موحد — مساران رسميان منشوران.',
+  'تعبئة نموذج Alliance & Partnership لدى Pharmalink (قناة صيدليات Medicina) ونماذج موردي Union Coop.',
+  'التسجيل على Begad وDayjour (نموذجا بائع رسميان، تسجيل Begad مجاني) بعد طلب نسبة العمولة كتابياً.',
+  'سؤال K Beauty Souq عن قبول علامة غير كورية قبل التقديم؛ وتأجيل Tradeling حتى يتأكد قبول فئة العناية.',
+  'تجهيز ملف علامة واحد (رخصة، VAT، شهادات المنتجات، باركود، صور، أسعار جملة) — مطلوب بكل المسارات أعلاه.',
+].forEach((x, i) => L.push(`${i + 1}. ${x}`));
+L.push('', "> هذه خطوات يقوم بها حسام أو فريقه — لم يُرسَل أي طلب أو رسالة من هنا.", '');
+
+L.push('## 7. التداخل مع دفعات ليدز 1-3', '');
 const byRole = ov.reduce((m, o) => ((m[o.platform_role] = (m[o.platform_role] || 0) + 1), m), {});
-L.push(`${ov.length} مطابقة (بالموقع أو الاسم) — الملف: \`overlap_map_with_leads_batches_2026-10-09.csv\`. توزيع الدور: ${Object.entries(byRole).map(([k, v]) => `${k}: ${v}`).join(' · ')}.`);
-L.push('القاعدة: سجل الليدز = جهة قد تشتري/تبيع (عميل أو موزع محتمل)؛ سجل المنصات = **قناة/مسار** بيع أو توريد. جهة واحدة قد تظهر بالقاعدتين بلا تعارض ولا تُدمج السجلات.', '');
-L.push('## المنهجية', '');
-L.push('1. فحص آلي لكل رابط (حالة HTTP، العنوان، إشارات الإمارات، روابط البائع/المورد)، وإعادة فحص الجهات التي لم تستجب بروابط بديلة ومهلة أطول.');
-L.push('2. مراجعة نصوص الصفحات الرسمية يدوياً (WebFetch) قبل اعتماد أي مسار بيع أو رسم أو شرط، وكل قرار تصنيف يحمل **سببه ومصدره وتاريخه** في الملفات.');
-L.push('3. التوسّع: بحث ويب عام بالعربية والإنجليزية، مقالات وأدلة منشورة وروابطها الخارجية، ملفات عارضي Beautyworld، وصفحات رسمية. DuckDuckGo أعاد تحدّياً أمنياً بعد استعلامين فتوقفتُ دون تجاوز.');
-L.push('4. إزالة التكرار بالاسم والنطاق عبر كل الدفعات. روابط مخمَّنة لم تستجب لا تُنشر كروابط رسمية (تُحفظ في `url_guess_not_verified`).', '');
-L.push('## القيود', '');
-L.push('- مواقع كثيرة تحجب الفحص الآلي (Cloudflare/403/401) أو تنتهي مهلتها ولم أتجاوزها؛ صُنفت «غير مؤكدة» لا «غير نشطة».');
-L.push('- عمولات المدونات (noon 4–27%، Lets Tango 10%، Cobone 15%) **غير معتمدة**.');
-L.push('- لا مصدر رسمي لشروط تسجيل المنتجات (Montaji/وزارة الصحة) لأي منصة.');
-L.push("- تسجيل الشركة (جاهز 100%) ≠ تسجيل المنتجات ≠ شروط كل منصة؛ لا شيء هنا يضمن قبول LOWE'S، ولم أتحقق من أهلية رخصة المنطقة الحرة لدى أي منصة.");
-L.push('- قائمة عارضي Beautyworld Dubai 2026 الرسمية صفحة JavaScript لا تُقرأ آلياً؛ أُخذت أسماء من ملفات عارضين فرعية ومقالات فقط.', '');
-L.push('## ما تبقى (البحث غير مكتمل)', '');
-L.push('- فتح روابط `uae_sales_platforms_manual_review_2026-10-09.csv` يدوياً (الجهات المحجوبة وغير المستجيبة)، وأهمها noon وTrendyol وSephora وLulu.');
-L.push('- اكتشاف مزيد من المتاجر المستقلة في عجمان ورأس الخيمة والفجيرة وأم القيوين والعين (النتائج المنشورة قليلة وأغلبها عبر talabat بلا موقع خاص).');
-L.push('- مسارات موردين لسلاسل الصيدليات والمتاجر الكبرى بالتواصل المباشر مع المشتريات.');
-L.push('- قراءة نماذج Union Coop (PDF) واتفاقية سوقها، وصفحات قيود Amazon للعناية الموضعية.', '');
-L.push('## الملفات', '');
-['LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx (9 أوراق: الكل، A/B/C/D/E، قائمة البدء، مراجعة يدوية)', 'uae_sales_platforms_2026-10-09.json و.csv', 'uae_sales_platforms_excluded_2026-10-09.csv', 'uae_sales_platforms_manual_review_2026-10-09.csv', 'uae_sales_platforms_start_list_2026-10-09.csv', 'overlap_map_with_leads_batches_2026-10-09.csv و.json', 'audit_raw/ (نتائج الفحص الخام لكل الدفعات)'].forEach((x) => L.push(`- \`${x}\``));
-fs.writeFileSync(dir + '/UAE_Sales_Platforms_Report_2026-10-09.md', L.join('\n'));
-console.log('report written; new vs base:', newRows.length, '| top20', j.start_list.length);
+L.push(`${ov.length} مطابقة بالموقع/الاسم (${Object.entries(byRole).map(([k, v]) => `${k}: ${v}`).join(' · ')}) — مطابقة فقط، بلا حذف أو دمج.`, '');
+
+L.push('## 8. قواعد الفحص المطبقة', '');
+['المواقع التي أعادت مهلة/خطأ شهادة/403/تحدياً أمنياً لم يُعَد فحصها آلياً؛ سُجلت للمراجعة البشرية.', 'لا تجاوز لأي حماية ولا تسجيل دخول.', 'الشروط والرسوم من مصادر رسمية فقط؛ المصادر الثانوية للاكتشاف. صفحات noon وTrendyol الرسمية تحجب القراءة، فاستُخدم نصّها كما يظهر بفهرس البحث ووُسم «يُؤكَّد بحساب البائع».', 'عدم التحقق ليس رفضاً؛ لم يُحذف أي سجل سابق بسبب عدم الاستجابة.', 'لا أرقام أو روابط مختلقة؛ الجهات بلا موقع رسمي محفوظة بالاسم فقط.'].forEach((x) => L.push(`- ${x}`));
+L.push('');
+L.push('## 9. القيود والباقي', '');
+['قراءة صفحات قيود Amazon ومستندات موافقة الفئة (تتطلب حساب بائع).', 'تأكيد نصوص noon وTrendyol الرسمية بالمتصفح (محجوبة آلياً).', 'محتوى صفحة «Partner with Faces» ونماذج Union Coop (PDF).', `${s.manual_review} رابطاً بملف المراجعة اليدوية، و${nameOnly.entities.length} جهة بالاسم فقط تحتاج إيجاد مواقعها الرسمية.`, 'مزيد من الاكتشاف في الإمارات الشمالية والعين.'].forEach((x) => L.push(`- ${x}`));
+L.push('', '## 10. الملفات', '');
+['LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx', 'uae_sales_platforms_2026-10-09.json / .csv', 'direct_registration_dossier_2026-10-09.json (الأسئلة الستة × 6 منصات)', 'supplier_contact_channels_2026-10-09.json (قنوات الموردين)', 'discovered_name_only_2026-10-09.json (اكتُشفت ولم تُتحقق)', 'uae_sales_platforms_start_list_2026-10-09.csv', 'uae_sales_platforms_manual_review_2026-10-09.csv', 'uae_sales_platforms_excluded_2026-10-09.csv', 'overlap_map_with_leads_batches_2026-10-09.csv / .json', 'audit_raw/'].forEach((x) => L.push(`- \`${x}\``));
+fs.writeFileSync(`${dir}/UAE_Sales_Platforms_Report_2026-10-09.md`, L.join('\n'));
+console.log('report written; new rows', newRows.length, '+ name-only', nameOnly.entities.length);

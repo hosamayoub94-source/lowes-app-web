@@ -1,0 +1,73 @@
+{
+ "_about": "Track A — direct seller registration: 6 platforms × 6 questions. Each answer cites its source and evidence level. 'official_page_read' = the official page was fetched and read on 2026-10-09. 'official_page_via_search_index' = official help-centre text as indexed by the search tool (the page itself blocks automated reading, 403) — must be confirmed in the browser / seller account. 'not_stated' = not published on the pages read. Nothing here confirms LOWE'S eligibility; that needs the seller account or the platform's support.",
+ "checked_at": "2026-10-09",
+ "lowes_eligibility_confirmed_on_any_platform": false,
+ "platforms": [
+  {
+   "platform": "Amazon.ae",
+   "registration_url": "https://sell.amazon.ae/ → https://sellercentral.amazon.ae/gp/on-board/workflow/Registration/login.html",
+   "q1_uae_company_can_register": { "answer": "نعم لشركة إماراتية بسجل تجاري؛ الصفحة تقول «Got a Dubai Trade Licence? You're eligible». قبول رخصة المنطقة الحرة غير منصوص.", "evidence": "official_page_read", "source": "https://sell.amazon.ae/ ; https://sell.amazon.ae/sell" },
+   "q2_skin_hair_care_allowed": { "answer": "«Beauty» ضمن الفئات بلا قيود مع ملاحظة «topicals require approval»؛ «Beauty Topicals» و«Health & Personal Care» مقيّدة؛ «Cosmetics & Skin/Hair Care» لها صفحة قيود منفصلة.", "evidence": "official_page_read", "source": "https://sell.amazon.ae/sell" },
+   "q3_documents": { "answer": "بريد عمل أو حساب أمازون، رقم هاتف، هوية وطنية (مثل الهوية الإماراتية)، كشف حساب بنكي/بطاقة/فاتورة خدمات حديثة، السجل التجاري (أو توكيل للممثل)، وحساب بنكي لاستلام المبيعات.", "evidence": "official_page_read", "source": "https://sell.amazon.ae/sell" },
+   "q4_category_approvals": { "answer": "نعم — العناية الموضعية تتطلب موافقة فئة. المستندات المطلوبة للموافقة: غير منصوصة بالصفحات المقروءة (صفحات القيود داخل Seller Central).", "evidence": "official_page_read + not_stated", "source": "https://sell.amazon.ae/sell" },
+   "q5_fees": { "answer": "عمولة إحالة الجمال/الصحة: 8% للمنتج ≤ 50 درهم، 15% لما فوق 50، حد أدنى 1 درهم؛ حساب Professional بلا اشتراك شهري «لفترة محدودة»؛ تخزين FBA 2 درهم/قدم مكعب/شهر؛ رسوم تجهيز FBA منشورة حسب الوزن؛ الأسعار بدون VAT.", "evidence": "official_page_read", "source": "https://sell.amazon.ae/pricing" },
+   "q6_next_step": "إنشاء حساب بائع من صفحة التسجيل، ثم طلب موافقة فئة العناية الموضعية من داخل Seller Central وقراءة صفحة قيود «Cosmetics & Skin/Hair Care» — يتطلب حساباً (مراجعة بشرية).",
+   "human_review_needed": ["قبول رخصة المنطقة الحرة لشركة LOWE'S", "مستندات موافقة Beauty Topicals", "متطلبات GTIN/الباركود وتسجيل المنتج"]
+  },
+  {
+   "platform": "noon",
+   "registration_url": "https://sell.noon.com/uae-en",
+   "q1_uae_company_can_register": { "answer": "نعم كـ«Local Seller» (شركة مسجلة بالإمارات). الرخصة سارية 15 يوماً على الأقل وتغطي التجارة/البيع/التصنيع، وتُقبل رخصة تجارة إلكترونية؛ رخص الخدمات فقط لا تُقبل. قبول رخص المناطق الحرة تحديداً غير منصوص بالنص المفهرس.", "evidence": "official_page_via_search_index", "source": "https://support.noon.partners/portal/en/kb/articles/documents-required-to-sell-on-noon" },
+   "q2_skin_hair_care_allowed": { "answer": "نعم كفئات: «hair and personal care» و«colour cosmetics» و«fragrance» ضمن جدول رسوم الإمارات؛ بعض العلامات «gated» وتتطلب Whitelisting.", "evidence": "official_page_via_search_index", "source": "https://support.noon.partners/portal/en/kb/articles/fulfilled-by-partner-fbp-fees-in-uae ; https://helpcenter.noon.partners/en/category/product-listing/product-listing-policy" },
+   "q3_documents": { "answer": "رخصة تجارية، هوية إماراتية (وجهاً وظهراً) أو جواز للشخص المذكور بالرخصة (أو توكيل)، شهادة VAT اختيارية (خيار Non-VAT Registered)، وبيانات بنك (شيك ملغى/خطاب بنك/كشف) — صفحات noon تتعارض حول إلزامية بيانات البنك.", "evidence": "official_page_via_search_index", "source": "https://support.noon.partners/portal/en/kb/articles/documents-required-to-sell-on-noon" },
+   "q4_category_approvals": { "answer": "يجب أن يكون البائع مخوّلاً ببيع العلامة؛ للعلامات المحمية في الإمارات (عطور، عناية بالشعر والعناية الشخصية، مكياج): رخصة تجارية + شهادة VAT + خطاب تفويض من العلامة + فاتورة من موزع معتمد. لعلامة LOWE'S الخاصة: إنشاء العلامة يخضع لموافقة noon («reserves the right to accept or reject»).", "evidence": "official_page_via_search_index", "source": "https://helpcenter.noon.partners/en/category/product-listing/product-listing-policy" },
+   "q5_fees": { "answer": "FBP الإمارات: «hair and personal care» و«colour cosmetics» 8% حتى 50 درهم و15% فوق 50؛ العطور 14%؛ حد أدنى 1 درهم؛ بدون VAT. تاريخ السريان غير ظاهر بالنص المفهرس، ورسوم FBN بصفحة منفصلة لم تُقرأ.", "evidence": "official_page_via_search_index", "source": "https://support.noon.partners/portal/en/kb/articles/fulfilled-by-partner-fbp-fees-in-uae" },
+   "q6_next_step": "فتح sell.noon.com/uae-en بالمتصفح، والتحقق يدوياً من: قبول رخصة المنطقة الحرة، جدول الرسوم الحالي، وشرط إنشاء علامة LOWE'S. ثم التسجيل.",
+   "human_review_needed": ["صفحات noon الرسمية تحجب القراءة الآلية (403) — كل ما سبق من فهرس البحث ويجب تأكيده", "تاريخ سريان جدول الرسوم", "قبول رخصة المنطقة الحرة"]
+  },
+  {
+   "platform": "Trendyol",
+   "registration_url": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US",
+   "q1_uae_company_can_register": { "answer": "نعم كـ«Local Seller» لمن لديه نشاط/مخزون في البر الرئيسي للإمارات: رخصة تجارية سارية + رقم VAT إماراتي (مقيم). البائع غير المحلي له مسار مختلف (شحن من خارج البر الرئيسي أو منطقة حرة/مستودع جمركي كواردات شخصية).", "evidence": "official_page_via_search_index", "source": "https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en" },
+   "q2_skin_hair_care_allowed": { "answer": "متعارض: صفحة التسجيل تذكر «beauty» ضمن الفئات، وسياسة البائع غير المحلي تضع «cosmetics and personal care items» ضمن المنتجات المنظمة/المقيّدة. للبائع المحلي: غير منصوص.", "evidence": "official_page_via_search_index", "source": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US ; https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en" },
+   "q3_documents": { "answer": "للبائع المحلي: رخصة تجارية + VAT إماراتي (مقيم). قائمة المستندات الكاملة للبائع المحلي: غير منصوصة بالنص المفهرس. (قائمة أوسع في FAQ المطورين قديمة وغير خاصة بالإمارات — غير معتمدة.)", "evidence": "official_page_via_search_index", "source": "https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en" },
+   "q4_category_approvals": { "answer": "مستحضرات التجميل مذكورة كمنتجات تحتاج تدقيقاً أعلى أو رخصة مهنية (للبائع غير المحلي). للبائع المحلي: غير منصوص.", "evidence": "official_page_via_search_index", "source": "https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en" },
+   "q5_fees": { "answer": "نسبة العمولة القياسية للتجميل غير منشورة. صفحة التسجيل تذكر خصم 30% على العمولة لمن يرفع منتجات خلال 7 أيام (لمدة شهرين) وخصومات حتى 60% عبر Product Deals.", "evidence": "official_page_via_search_index", "source": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US" },
+   "q6_next_step": "فتح نموذج التسجيل الإماراتي بالمتصفح وسؤال دعم البائعين: هل يُقبل بائع محلي بفئة العناية بالبشرة والشعر، وما العمولة.",
+   "human_review_needed": ["بوابة البائع وأكاديمية Trendyol تحجبان القراءة الآلية — النص من فهرس البحث", "تعارض قبول فئة التجميل", "العمولة القياسية"]
+  },
+  {
+   "platform": "Begad",
+   "registration_url": "https://www.begad.ae/ar/sell",
+   "q1_uae_company_can_register": { "answer": "نعم برخصة تجارية؛ نوع الرخصة (منطقة حرة/بر رئيسي) غير منصوص.", "evidence": "official_page_read", "source": "https://www.begad.ae/ar/sell" },
+   "q2_skin_hair_care_allowed": { "answer": "«Beauty» فئة شائعة على المنصة؛ العناية بالبشرة والشعر تحديداً غير منصوصة.", "evidence": "official_page_read", "source": "https://www.begad.ae/ar/sell" },
+   "q3_documents": { "answer": "رخصة تجارية، إثبات حساب بنكي، هوية حكومية (PDF/JPG/PNG حتى 20MB لكل ملف)، وبريد عمل للتحقق.", "evidence": "official_page_read", "source": "https://www.begad.ae/ar/sell" },
+   "q4_category_approvals": { "answer": "غير منصوص.", "evidence": "not_stated", "source": "https://www.begad.ae/ar/sell" },
+   "q5_fees": { "answer": "تسجيل مجاني؛ عمولة «نسبة ثابتة لكل فئة» بلا أرقام منشورة.", "evidence": "official_page_read", "source": "https://www.begad.ae/ar/sell" },
+   "q6_next_step": "التسجيل ببريد العمل، ثم مراسلة sellers@begad.ae لطلب نسبة عمولة فئة الجمال وشروط الإدراج قبل رفع المنتجات.",
+   "human_review_needed": ["نسب العمولة", "حجم المنصة وزياراتها (غير معروف)"]
+  },
+  {
+   "platform": "K Beauty Souq",
+   "registration_url": "https://kbeautysouq.com/sell-with-us/",
+   "q1_uae_company_can_register": { "answer": "نموذج «UAE marketplace merchant» للمراجعة؛ الرخصة التجارية ورقم VAT حقول اختيارية بالنموذج.", "evidence": "official_page_read", "source": "https://kbeautysouq.com/sell-with-us/" },
+   "q2_skin_hair_care_allowed": { "answer": "المتجر مخصص للجمال الكوري («100% authentic Korean beauty»، 28 علامة كورية)؛ قبول علامة غير كورية (تركية) غير منصوص — ملاءمة ضعيفة محتملة.", "evidence": "official_page_read", "source": "https://kbeautysouq.com/" },
+   "q3_documents": { "answer": "الإلزامي: اسم النشاط، شخص التواصل، البريد، الجوال. اختياري: الرخصة، VAT، العنوان، رسالة.", "evidence": "official_page_read", "source": "https://kbeautysouq.com/sell-with-us/" },
+   "q4_category_approvals": { "answer": "غير منصوص.", "evidence": "not_stated", "source": "https://kbeautysouq.com/general-policy/" },
+   "q5_fees": { "answer": "غير معلنة.", "evidence": "not_stated", "source": "https://kbeautysouq.com/sell-with-us/" },
+   "q6_next_step": "قبل التقديم: سؤال support@kbeautysouq.com إن كانوا يقبلون علامة غير كورية؛ إن نعم، تعبئة النموذج.",
+   "human_review_needed": ["قبول علامة غير كورية", "العمولة وشروط التاجر"]
+  },
+  {
+   "platform": "Tradeling",
+   "registration_url": "https://www.tradeling.com/ae-en/page/become-a-seller",
+   "q1_uae_company_can_register": { "answer": "صفحة «Become a Seller» رسمية؛ شروط التوثيق غير مجاب عنها بالصفحة.", "evidence": "official_page_read", "source": "https://www.tradeling.com/ae-en/page/become-a-seller" },
+   "q2_skin_hair_care_allowed": { "answer": "الفئات الظاهرة بالصفحة الرسمية: هواتف، لابتوب، مياه، مشروبات، وجبات خفيفة، مستلزمات أطفال، طعام حيوانات — التجميل/العناية غير ظاهر. لا يُعتبر مناسباً قبل تأكيد الفئة.", "evidence": "official_page_read", "source": "https://www.tradeling.com/ae-en/page/become-a-seller" },
+   "q3_documents": { "answer": "غير منصوصة.", "evidence": "not_stated", "source": "https://www.tradeling.com/ae-en/page/become-a-seller" },
+   "q4_category_approvals": { "answer": "غير منصوص.", "evidence": "not_stated", "source": "https://www.tradeling.com/ae-en/page/become-a-seller" },
+   "q5_fees": { "answer": "عنوان «Commission structure» بلا أرقام؛ الدفع للبائع مرتين شهرياً.", "evidence": "official_page_read", "source": "https://www.tradeling.com/ae-en/page/become-a-seller" },
+   "q6_next_step": "سؤال دعم Tradeling عن قبول فئة العناية الشخصية B2B قبل أي تسجيل.",
+   "human_review_needed": ["قبول فئة التجميل", "المستندات والعمولة"]
+  }
+ ]
+}

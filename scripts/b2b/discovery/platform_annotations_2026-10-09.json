@@ -149,6 +149,23 @@
    "kind": "duplicate",
    "reason": "نفس مجموعة Nazih (متجر nazih.ae الأونلاين يحجب الفحص 403)",
    "duplicate_of": "Nazih"
+  },
+  "Looks Like Love": {
+   "kind": "wrong_entity",
+   "reason": "النطاق lookslikelove.ae يعرض محتوى مقامرة (نطاق مُختطَف) — الرابط الرسمي الحالي غير معروف"
+  },
+  "Cosmetica Beauty Trading": {
+   "kind": "duplicate",
+   "reason": "نفس جهة Cosmetica (cosmeticatrading.com/about أعاد 404)",
+   "duplicate_of": "Cosmetica Beauty and Personal Care Trading"
+  },
+  "QH Distribution": {
+   "kind": "wrong_market",
+   "reason": "QH Distribution Inc. شركة أمريكية (تأسست 1984) — ليست موزعاً إماراتياً"
+  },
+  "Pharmacy Directory UAE": {
+   "kind": "lead_source",
+   "reason": "دليل صيدليات (مصدر بحث) وليس قناة بيع"
   }
  },
  "byName": {
@@ -173,11 +190,11 @@
   "noon UAE": {
    "method": "direct_seller_registration",
    "method_source": "ملف حسام + مقتطفات بحث عن صفحات noon الرسمية",
-   "seller_registration_url": "https://sell.noon.com/uae-en/getting-started",
-   "evidence_level": "official_page_blocked_secondary_sources",
+   "seller_registration_url": "https://sell.noon.com/uae-en",
+   "evidence_level": "official_page_via_search_index",
    "emirate": "الإمارات (توصيل وطني)",
-   "categories": "غير معروف (الصفحة الرسمية تحجب الفحص الآلي)",
-   "license": "غير معروف رسمياً — مدونات وسيطة تذكر رخصة تجارية سارية وهوية الموقّع وبيانات بنك؛ لم يُتحقق من الصفحة الرسمية",
+   "categories": "عناية بالشعر والعناية الشخصية، مكياج، عطور؛ العلامات المحمية تتطلب تفويض علامة + فاتورة موزع معتمد",
+   "license": "Local Seller: رخصة سارية 15 يوماً+ تغطي التجارة/البيع/التصنيع أو رخصة تجارة إلكترونية؛ هوية إماراتية/جواز لصاحب الرخصة؛ VAT اختياري؛ بيانات بنك (متعارض) — نص رسمي عبر فهرس البحث",
    "priority": "A",
    "notes": "الموقع يحجب الفحص الآلي (403) ولم يُتجاوز. أرقام عمولات noon المنشورة بمدونات (نطاق عريض) غير معتمدة. يلزم فتح صفحة التسجيل يدوياً للتأكيد.",
    "tier": "D",
@@ -185,7 +202,12 @@
    "review_source": "https://sell.noon.com/uae-en/getting-started",
    "classification": "تسجيل مباشر محتمل — غير موثّق رسمياً",
    "start_rank": 2,
-   "start_reason": "أكبر سوق إماراتي مفتوح للبائعين حسب ملفك ومصادر ثانوية، لكن لم أستطع قراءة صفحته الرسمية (حجب آلي). افتح sell.noon.com يدوياً وتأكد من الفئة والعمولة والمستندات."
+   "start_reason": "أكبر سوق إماراتي مفتوح للبائعين حسب ملفك ومصادر ثانوية، لكن لم أستطع قراءة صفحته الرسمية (حجب آلي). افتح sell.noon.com يدوياً وتأكد من الفئة والعمولة والمستندات.",
+   "license_source": "https://support.noon.partners/portal/en/kb/articles/documents-required-to-sell-on-noon",
+   "fees": "FBP الإمارات: عناية بالشعر والعناية الشخصية ومكياج 8% حتى 50 درهم و15% فوق 50؛ عطور 14%؛ حد أدنى 1 درهم — نص رسمي عبر فهرس البحث، يُؤكَّد بحساب البائع",
+   "fees_source": "https://support.noon.partners/portal/en/kb/articles/fulfilled-by-partner-fbp-fees-in-uae",
+   "product_reg": "تفويض علامة/Whitelisting للعلامات المحمية؛ تسجيل المنتج التنظيمي غير منصوص للإمارات",
+   "product_reg_source": "https://helpcenter.noon.partners/en/category/product-listing/product-listing-policy"
   },
   "Tradeling": {
    "method": "direct_seller_registration",
@@ -368,20 +390,23 @@
   "Faces UAE": {
    "method": "independent_multibrand_store",
    "priority": "B",
-   "notes": "موقع يعمل (Chalhoub). صفحة الموردين لم تظهر.",
+   "notes": "رابط «Partner with Faces» رسمي بالتذييل («Join us as a partner and showcase your products in our curated assortment»)؛ محتوى الصفحة لم يُقرأ آلياً — يُفتح يدوياً.",
    "start_rank": 12,
-   "start_reason": "متجر تجميل متعدد العلامات (Chalhoub) بقسم ديرما. لا مسار موردين منشور؛ القبول انتقائي."
+   "start_reason": "متجر تجميل متعدد العلامات (Chalhoub) بقسم ديرما. لا مسار موردين منشور؛ القبول انتقائي.",
+   "supplier_url": "https://www.faces.ae/en/partnerwithfaces.html",
+   "contact": "support@faces.com | 800 965 664"
   },
   "Pharmalink (Medicina operator)": {
    "method": "wholesale_distribution",
    "method_source": "pharmalink.ae/partner",
-   "supplier_url": "https://pharmalink.ae/partner/",
+   "supplier_url": "https://pharmalink.ae/contact/",
    "evidence_level": "official_page_fetched",
    "categories": "أدوية ومنتجات صحية/عناية (حسب بحث)؛ التجميل غير مؤكد",
    "priority": "B",
    "notes": "موزع أدوية ومشغّل صيدليات Medicina بحسب مصدر ثانوي؛ الصفحة الرسمية فيها مسار «Partner with us» ولوجستيات توزيع.",
    "start_rank": 9,
-   "start_reason": "موزع أدوية ومنتجات صحية بصفحة «Partner with us» رسمية ويشغّل سلسلة Medicina بحسب مصدر ثانوي — بوابة محتملة لقناة الصيدليات. فئة التجميل غير مؤكدة."
+   "start_reason": "موزع أدوية ومنتجات صحية بصفحة «Partner with us» رسمية ويشغّل سلسلة Medicina بحسب مصدر ثانوي — بوابة محتملة لقناة الصيدليات. فئة التجميل غير مؤكدة.",
+   "contact": "+971 4 371 3777 | +971 2 304 2000 | نموذج Alliance & Partnership بصفحة التواصل"
   },
   "Majid Al Futtaim": {
    "method": "supplier_or_brand_application",
@@ -1000,7 +1025,9 @@
   "Life Pharmacy": {
    "priority": "B",
    "start_rank": 11,
-   "start_reason": "أكبر شبكة صيدليات (400+ فرع) وشراكة ديرما مع Faces. لا صفحة موردين منشورة؛ التواصل عبر فريق المشتريات."
+   "start_reason": "أكبر شبكة صيدليات (400+ فرع) وشراكة ديرما مع Faces. لا صفحة موردين منشورة؛ التواصل عبر فريق المشتريات.",
+   "contact": "043441122 | care@lifepharmacy.com (خدمة عملاء)",
+   "notes": "لا صفحة موردين منشورة — تحتاج تواصلاً تجارياً."
   },
   "myAster": {
    "priority": "B",
@@ -1053,7 +1080,14 @@
    "priority": "A",
    "sale_method_hint": "direct",
    "start_rank": 3,
-   "start_reason": "علامة LOWE'S تركية، والمنصة تركية المنشأ وتعمل بالخليج (مصدر ثانوي) — احتمال ملاءمة عالٍ. لم أستطع قراءة صفحة التسجيل الرسمية (حجب آلي): افتح partner.trendyol.com يدوياً وتحقق من منطقة الإمارات والمستندات وفئة التجميل."
+   "start_reason": "علامة LOWE'S تركية، والمنصة تركية المنشأ وتعمل بالخليج (مصدر ثانوي) — احتمال ملاءمة عالٍ. لم أستطع قراءة صفحة التسجيل الرسمية (حجب آلي): افتح partner.trendyol.com يدوياً وتحقق من منطقة الإمارات والمستندات وفئة التجميل.",
+   "evidence_level": "official_page_via_search_index",
+   "seller_registration_url": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US",
+   "license": "بائع محلي (نشاط/مخزون بالبر الرئيسي): رخصة تجارية سارية + رقم VAT إماراتي مقيم — نص رسمي عبر فهرس البحث",
+   "license_source": "https://academy.trendyol.com/seller-information-center/ae/content/trendyols-policy-for-non-local-sellers-uae?lang=en",
+   "categories": "متعارض: صفحة التسجيل تذكر beauty، وسياسة البائع غير المحلي تضع مستحضرات التجميل والعناية الشخصية ضمن المنتجات المنظمة",
+   "fees": "العمولة القياسية غير منشورة؛ خصم 30% على العمولة لشهرين لمن يرفع منتجات خلال 7 أيام (صفحة التسجيل عبر فهرس البحث)",
+   "fees_source": "https://partner.trendyol.com/ae/onboarding/registration?lang=en-US"
   },
   "DeliverIt Marketplace": {
    "tier": "D",
@@ -1120,6 +1154,142 @@
    "tier": "D",
    "review_reason": "منصة بائعين باشتراك شهري بحسب ترويجها؛ موقعها لم يستجب.",
    "review_source": "https://www.adsmehub.ae/en/explore/post-details/m7l-interview",
+   "priority": "D"
+  },
+  "Dayjour": {
+   "tier": "A",
+   "review_reason": "صفحة «Seller Registration» رسمية تطلب: رخصة تجارية، رقم VAT، رقم تواصل، عنوان، اسم العلامة، اسم الحساب البنكي وشهادة IBAN؛ الحساب يُفعَّل بعد المراجعة. الفئات والعمولة غير منصوصة. المتجر يبيع منتجات تجميل وعناية بالشعر وأثاث صالونات.",
+   "review_source": "https://dayjour.net/sub-sellers/registration",
+   "method": "direct_seller_registration",
+   "seller_registration_url": "https://dayjour.net/sub-sellers/registration",
+   "evidence_level": "official_page_fetched",
+   "classification": "تسجيل مباشر",
+   "emirate": "الإمارات (عنوان بالشارقة بحسب مصدر ثانوي)",
+   "license": "رخصة تجارية + VAT + IBAN (حقول نموذج التسجيل الرسمي)",
+   "license_source": "https://dayjour.net/sub-sellers/registration",
+   "fees": "غير معلن",
+   "priority": "B",
+   "start_rank": 0
+  },
+  "TB East": {
+   "tier": "B",
+   "review_reason": "متجر/موزع مهني (Timeless Beauty East) لعلامات يمثلها (Tokio Inkarami وغيرها) يخدم الصالونات والعيادات؛ صفحة «partnership» للاهتمام بالعلامات التي يمثلها — قبول علامات جديدة غير منصوص.",
+   "review_source": "https://tb-east.com/partnership",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "C",
+   "contact": "+971 55 402 1707 (صفحة الشراكة)"
+  },
+  "CHS Community Pharmacy (online)": {
+   "tier": "D",
+   "review_reason": "متجر الصيدلية الأونلاين يطلب مصادقة (401) فلم يُفحص؛ السلسلة نفسها موجودة بدفعة talabat 3.",
+   "review_source": "https://chspharmacy.ae/",
+   "priority": "D"
+  },
+  "Ahaliamed Online Pharmacy": {
+   "tier": "C",
+   "review_reason": "صيدلية أونلاين بأبوظبي (توصيل 30 دقيقة بحسب موقعها) — لا صفحة موردين.",
+   "review_source": "https://www.ahaliamed.com/",
+   "priority": "C"
+  },
+  "Soukare": {
+   "tier": "D",
+   "review_reason": "متجر صحة/صيدلية يحجب الفحص (Cloudflare).",
+   "review_source": "https://www.soukare.com/",
+   "priority": "D"
+  },
+  "Valeo (Feelvaleo)": {
+   "tier": "D",
+   "review_reason": "منصة عناية/عافية تطلب تحققاً بشرياً (405) — لم يُتجاوز.",
+   "review_source": "https://feelvaleo.com/en-ae/skin-care",
+   "priority": "D"
+  },
+  "Care to Beauty UAE": {
+   "tier": "E",
+   "review_reason": "متجر دولي يحجب الفحص ويشحن إلى الإمارات؛ لا دليل على كيان إماراتي.",
+   "review_source": "https://www.caretobeauty.com/ae/",
+   "priority": "D"
+  },
+  "The Skincare Edit": {
+   "tier": "C",
+   "review_reason": "متجر عناية منتقاة بدبي (يديره أخصائي عناية) — لا صفحة موردين.",
+   "review_source": "https://www.theskincareedit.ae/",
+   "priority": "C"
+  },
+  "IBS Beauty": {
+   "tier": "B",
+   "review_reason": "موزع/تاجر جملة لمستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات بدبي مع دعم B2B (موقعه) — موجّه للمشترين؛ قبول موردين غير منصوص.",
+   "review_source": "https://www.ibsbeauty.ae/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "C"
+  },
+  "B-connected": {
+   "tier": "B",
+   "review_reason": "تاجر جملة عناية بالشعر والبشرة ومستلزمات صالونات بدبي — موجّه للمشترين.",
+   "review_source": "https://www.b-connected.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "C"
+  },
+  "MLC Dubai Cosmetic Wholesale": {
+   "tier": "B",
+   "review_reason": "جملة عناية بالبشرة والشعر للتجار والصالونات والموزعين بالإمارات — موجّه للمشترين.",
+   "review_source": "https://mlcdubai.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "C"
+  },
+  "AlbastakiOnline": {
+   "tier": "B",
+   "review_reason": "تاجر جملة بديرة (أدوات وعناية شخصية) — ملاءمة متوسطة.",
+   "review_source": "https://albastakionline.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "Al Basel Cosmetics": {
+   "tier": "B",
+   "review_reason": "جملة وتجزئة مستحضرات وعناية بالشعر والبشرة ومستلزمات صالونات (موقعه: توصيل للإمارات والخليج).",
+   "review_source": "https://albaselco.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "C"
+  },
+  "Doyen Wellness": {
+   "tier": "B",
+   "review_reason": "مورّد منتجات صالونات وسبا بالإمارات والخليج.",
+   "review_source": "https://doyenwellness.com/salon-products/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "SpaWorld UAE": {
+   "tier": "B",
+   "review_reason": "مورّد منتجات سبا وصالونات وفنادق — ملاءمة ضعيفة لعلامة عناية استهلاكية.",
+   "review_source": "https://spaworlduae.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "Abraa": {
+   "tier": "D",
+   "review_reason": "سوق B2B للجملة بدبي يحجب الفحص (Cloudflare) — مسار البائعين غير متحقق.",
+   "review_source": "https://www.abraa.com/",
+   "priority": "C",
+   "classification": "غير مؤكدة (سوق B2B محتمل)"
+  },
+  "Dubai Wholesale Store": {
+   "tier": "B",
+   "review_reason": "تاجر جملة B2B لمستحضرات كورية (حد أدنى 20 قطعة بحسب مصدر ثانوي) — تخصص كوري.",
+   "review_source": "https://www.dubaiwholesalestore.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "I Serena Trading": {
+   "tier": "B",
+   "review_reason": "جملة عناية بالبشرة والشعر (علامات كورية) — موجّه للمشترين.",
+   "review_source": "https://i-serena.com/wholesale/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "HMSN Boutique Trading": {
+   "tier": "B",
+   "review_reason": "شركة تجارة جملة مستحضرات بالإمارات بحسب موقعها.",
+   "review_source": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+   "classification": "اتفاق توزيع محتمل",
    "priority": "D"
   }
  }

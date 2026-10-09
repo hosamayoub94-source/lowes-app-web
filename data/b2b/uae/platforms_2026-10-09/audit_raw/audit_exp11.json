@@ -1,0 +1,1103 @@
+[
+ {
+  "n": 440,
+  "name": "CHS Community Pharmacy (online)",
+  "url": "https://chspharmacy.ae/",
+  "channel_type": "Online pharmacy (Dubai/AD/Sharjah)",
+  "origin": "WebSearch: online pharmacy UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 401,
+   "final_url": "https://chspharmacy.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 441,
+  "name": "Ahaliamed Online Pharmacy",
+  "url": "https://www.ahaliamed.com/",
+  "channel_type": "Online pharmacy (Abu Dhabi, delivery to Northern Emirates)",
+  "origin": "WebSearch: online pharmacy UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.ahaliamed.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Ahaliamed Online Pharmacy UAE - 30 Min Free Home Delivery",
+   "desc": "Ahaliamed Online Pharmacy, a trusted store in Abu Dhabi, UAE, offers fast 30-minute free home delivery across Sharjah, Ajman, RAK, and Fujairah.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 442,
+  "name": "Soukare",
+  "url": "https://www.soukare.com/",
+  "channel_type": "Online pharmacy/health store",
+  "origin": "WebSearch: grabonuae list (name only, domain to verify)",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.soukare.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 443,
+  "name": "Valeo (Feelvaleo)",
+  "url": "https://feelvaleo.com/en-ae/skin-care",
+  "channel_type": "Skincare/wellness platform (UAE)",
+  "origin": "WebSearch: independent boutiques",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 405,
+   "final_url": "https://feelvaleo.com/en-ae/skin-care",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Human Verification",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 444,
+  "name": "Care to Beauty UAE",
+  "url": "https://www.caretobeauty.com/ae/",
+  "channel_type": "Online pharmacy-beauty (EU/K skincare) shipping UAE",
+  "origin": "WebSearch: independent boutiques",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.caretobeauty.com/ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 445,
+  "name": "The Skincare Edit",
+  "url": "https://www.theskincareedit.ae/",
+  "channel_type": "Curated skincare store (Dubai)",
+  "origin": "WebSearch: independent boutiques",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.theskincareedit.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Expert-Curated Skincare & Wellness in Dubai | Skincare Edit",
+   "desc": "Results-led skincare, supplements and wellness, curated by facialist Claire Miller. Same-day delivery in Dubai & UAE, express shipping across GCC.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.theskincareedit.ae/products/detox-debloat",
+     "text": " #1 Selling Supplement "
+    },
+    {
+     "url": "https://www.theskincareedit.ae/products/cleansing-oil-rose-geranium-an-apricot",
+     "text": " Best Selling Cleanser "
+    },
+    {
+     "url": "https://www.theskincareedit.ae/collections/vendors?q=Hair%20by%20Sam%20McKnight",
+     "text": "Hair by Sam McKnight"
+    },
+    {
+     "url": "https://www.theskincareedit.ae/products/votary-ultimate-light-cream-ceramides-and-peptides-50ml",
+     "text": " New Best Seller "
+    },
+    {
+     "url": "https://www.theskincareedit.ae/pages/trade-contact-us-form",
+     "text": "Professional Wholesale Enquiries"
+    },
+    {
+     "url": "https://www.theskincareedit.ae/pages/partnerships-suppliers",
+     "text": "Partnerships/Suppliers"
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 50 277 5449"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.theskincareedit.ae/products/detox-debloat",
+    "link_text": " #1 Selling Supplement ",
+    "http_status": 200,
+    "final_url": "https://www.theskincareedit.ae/products/detox-debloat",
+    "title": "JSHealth Detox + Debloat Dubai | Bloating Supplement",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": [
+     "customercare@theskincareedit.ae"
+    ]
+   },
+   {
+    "url": "https://www.theskincareedit.ae/products/cleansing-oil-rose-geranium-an-apricot",
+    "link_text": " Best Selling Cleanser ",
+    "http_status": 200,
+    "final_url": "https://www.theskincareedit.ae/products/cleansing-oil-rose-geranium-an-apricot",
+    "title": "Votary Cleansing Oil 100ml | for Make-up & SPF Removal",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "customercare@theskincareedit.ae"
+    ]
+   },
+   {
+    "url": "https://www.theskincareedit.ae/collections/vendors?q=Hair%20by%20Sam%20McKnight",
+    "link_text": "Hair by Sam McKnight",
+    "http_status": 200,
+    "final_url": "https://www.theskincareedit.ae/collections/vendors?q=Hair+by+Sam+McKnight",
+    "title": "Hair by Sam McKnight",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://www.theskincareedit.ae/products/votary-ultimate-light-cream-ceramides-and-peptides-50ml",
+    "link_text": " New Best Seller ",
+    "http_status": 200,
+    "final_url": "https://www.theskincareedit.ae/products/votary-ultimate-light-cream-ceramides-and-peptides-50ml",
+    "title": "Votary Ultimate Light Cream 50ml | for Barrier Support",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "customercare@theskincareedit.ae"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 446,
+  "name": "Looks Like Love",
+  "url": "https://www.lookslikelove.ae/",
+  "channel_type": "Online beauty store (UAE)",
+  "origin": "WebSearch: independent boutiques",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://birdieboundgolf.net/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "LIVE123 | Daftar Slot Populer & RTP Real-Time Tinggi",
+   "desc": "Live123 menghadirkan daftar pilihan slot populer dengan RTP real-time tinggi yang disusun secara informatif, membantu Anda membandingkan karakter permainan dan menentukan pilihan sesuai preferensi.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://birdieboundgolf.net/ccpa",
+     "text": " CA: Do Not Sell My Personal Information "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://birdieboundgolf.net/ccpa",
+    "link_text": " CA: Do Not Sell My Personal Information ",
+    "http_status": 404,
+    "final_url": "https://birdieboundgolf.net/ccpa",
+    "title": "404: NOT_FOUND",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 447,
+  "name": "IBS Beauty",
+  "url": "https://www.ibsbeauty.ae/",
+  "channel_type": "Wholesale cosmetics/haircare/skincare + B2B (Dubai)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.ibsbeauty.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty and Salon Products Supplier in Dubai | International Beauty Supplies | Cosmetics & Beauty Salon Supplies UAE",
+   "desc": "Discover the best beauty and salon product suppliers in Dubai at International Beauty Supplies. Explore over 600 global brands in skincare, haircare, body care, makeup, and more. Whether you’re a beauty enthusiast or professional, IBS beaut",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 448,
+  "name": "B-connected",
+  "url": "https://www.b-connected.com/",
+  "channel_type": "Wholesale hair/skin + salon supplies (Dubai)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.b-connected.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty and Salon Products Supplier in Dubai | Wholesale Beauty Products UAE",
+   "desc": "Discover the best beauty and salon product suppliers in Dubai at B-connected. We offer a wide range of high-quality salon equipment and cosmetic products for hair, skin, and nails. Equip your beauty salon or nail salon with professional sal",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [],
+   "emails": [
+    "info@b-connected.com"
+   ],
+   "tels": [
+    "+971 4 321 8877"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 449,
+  "name": "TB East",
+  "url": "https://tb-east.com/",
+  "channel_type": "Professional beauty store (salons/clinics)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://tb-east.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Professional Beauty & Skincare Store in Dubai, UAE | TB East",
+   "desc": "TB East is a professional beauty and skincare online store in Dubai, UAE. Shop cosmetics, hair care, supplements and beauty devices from trusted international brands with fast local delivery",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://tb-east.com/partners-salons",
+     "text": "Salons"
+    },
+    {
+     "url": "https://tb-east.com/partnership",
+     "text": "Partnership"
+    }
+   ],
+   "emails": [
+    "Timelesseast@talanted.team"
+   ],
+   "tels": [
+    "+971554021707"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://tb-east.com/partners-salons",
+    "link_text": "Salons",
+    "http_status": 200,
+    "final_url": "https://tb-east.com/partners-salons",
+    "title": "Partners salons – buy in the Timeless Beauty online store. Prices, photos, delivery in the OAE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://tb-east.com/partnership",
+    "link_text": "Partnership",
+    "http_status": 200,
+    "final_url": "https://tb-east.com/partnership",
+    "title": "Partnership - Become a partner of Timeless Beauty East",
+    "blocked": false,
+    "seller_signal_text": "Become a partner",
+    "fee_snippets": [],
+    "emails": [
+     "Timelesseast@talanted.team"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 450,
+  "name": "Dayjour",
+  "url": "https://www.dayjour.net/",
+  "channel_type": "Hair care + salon furniture (Sharjah address)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.dayjour.net/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Dayjour- Online Beauty Products and Salon Furniture in UAE",
+   "desc": "Dayjour.net -A complete beauty & cosmetics brand product online for Skincare,body care,and hair care. Get professional spa salon furniture equipment in UAE.",
+   "uae_signal": true,
+   "seller_signal_text": "Sell With",
+   "candidate_links": [
+    {
+     "url": "https://www.dayjour.net/sub-sellers/registration",
+     "text": "Sell With Dayjour"
+    }
+   ],
+   "emails": [
+    "digitalmarket@dayjour.net"
+   ],
+   "tels": [
+    "+971 52 692 4018"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.dayjour.net/sub-sellers/registration",
+    "link_text": "Sell With Dayjour",
+    "http_status": 200,
+    "final_url": "https://www.dayjour.net/sub-sellers/registration",
+    "title": "Seller Registration",
+    "blocked": false,
+    "seller_signal_text": "Seller Registration",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 451,
+  "name": "Cosmetica Beauty Trading",
+  "url": "https://cosmeticatrading.com/about",
+  "channel_type": "Salon/spa distributor (Dubai, since 2009)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 404,
+   "final_url": "https://cosmeticatrading.com/about",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Not Found",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 452,
+  "name": "MLC Dubai Cosmetic Wholesale",
+  "url": "https://mlcdubai.com/",
+  "channel_type": "Beauty wholesale for retailers/salons/distributors",
+  "origin": "WebSearch: salon supplies + B2B",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://mlcdubai.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "MLC Dubai Cosmetic UAE Wholesale – Premium Skincare & Beauty Products",
+   "desc": "MLC Dubai Cosmetic UAE Wholesale offers premium skincare, haircare, and beauty products in bulk for retailers, salons, and distributors across the UAE. With a wide variety of trusted cosmetic brands, MLC Dubai ensures top-quality products a",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://mlcdubai.com/shop/",
+     "text": " Top Selling "
+    },
+    {
+     "url": "https://mlcdubai.com/product/bonita-himalayan-pink-salt-exfoliating-soap-bar-80g-bulk-order-wholesale/",
+     "text": " "
+    },
+    {
+     "url": "https://mlcdubai.com/category/beauty-essentials/",
+     "text": "Beauty Essentials – Wholesale UAE Cosmetic Products"
+    },
+    {
+     "url": "https://mlcdubai.com/category/bulk-cosmetic-products-uae/",
+     "text": "Bulk Cosmetic Products UAE – Wholesale Makeup & Skincare"
+    },
+    {
+     "url": "https://mlcdubai.com/category/cosmetic-brands-uae/",
+     "text": "Cosmetic Brands UAE – Wholesale Makeup & Skincare"
+    },
+    {
+     "url": "https://mlcdubai.com/category/blogs/",
+     "text": "Philippines Cosmetic – Wholesale Makeup & Skincare"
+    },
+    {
+     "url": "https://mlcdubai.com/category/skincare-products-uae/",
+     "text": "Skincare Products UAE – Wholesale Beauty & Face Care"
+    },
+    {
+     "url": "https://mlcdubai.com/affordable-cosmetics-wholesale-uae/#comment-2",
+     "text": "Affordable Cosmetics Wholesale UAE – Top B2B Supplier in Dubai | MLC General Tra"
+    },
+    {
+     "url": "https://mlcdubai.com/product/habibi-skin-premium-rejuvenating-beauty-set/",
+     "text": " Habibi Skin Premium Rejuvenating Beauty Set 4-in-1 – Wholesale & Bulk Orders "
+    },
+    {
+     "url": "https://mlcdubai.com/product/bremod-performance-premium-series-oxidant-cream-6/",
+     "text": "Bremod Performance Premium Series Oxidant Cream 6% – 100ml Wholesale Bulk Order"
+    },
+    {
+     "url": "https://mlcdubai.com/product/merrysun-permanent-hair-color-dark-brown-wholesale-bulk-order/",
+     "text": " "
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 50 322 5839"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://mlcdubai.com/shop/",
+    "link_text": " Top Selling ",
+    "http_status": 200,
+    "final_url": "https://mlcdubai.com/shop/",
+    "title": "Online Beauty Shop UAE | Buy Cosmetics & Skin Care – MLC Dubai",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://mlcdubai.com/affordable-cosmetics-wholesale-uae/#comment-2",
+    "link_text": "Affordable Cosmetics Wholesale UAE – Top B2B Supplier in Dubai | MLC General Tra",
+    "http_status": 200,
+    "final_url": "https://mlcdubai.com/affordable-cosmetics-wholesale-uae/",
+    "title": "Affordable Cosmetics Wholesale UAE – Top B2B Supplier in Dubai | MLC General Trading LLC",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://mlcdubai.com/product/bonita-himalayan-pink-salt-exfoliating-soap-bar-80g-bulk-order-wholesale/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://mlcdubai.com/product/bonita-himalayan-pink-salt-exfoliating-soap-bar-80g-bulk-order-wholesale/",
+    "title": "Best-Selling Bulk Bonita Himalayan Pink Salt Exfoliating Soap Bar – 80g Bulk Order Wholesale | Dubai UAE Mineral Skincare",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://mlcdubai.com/category/beauty-essentials/",
+    "link_text": "Beauty Essentials – Wholesale UAE Cosmetic Products",
+    "http_status": 200,
+    "final_url": "https://mlcdubai.com/category/beauty-essentials/",
+    "title": "Beauty Essentials – Wholesale UAE Cosmetic Products - mlcdubai.com",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 453,
+  "name": "AlbastakiOnline",
+  "url": "https://albastakionline.com/",
+  "channel_type": "Wholesaler (Deira) beauty & grooming",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://albastakionline.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "AlbastakiOnline: Leading Wholesale Supplier in UAE",
+   "desc": "Albastakionline is a leading wholesale supplier in UAE offers wide range of tailoring materials and tools, Garment accessories, Beauty product, Gift wrapping, Handcraft Products offering world-wide shipping and volume discounts. Order now!",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [],
+   "emails": [
+    "info@albastakionline.com"
+   ],
+   "tels": [
+    "+971 561771010"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 454,
+  "name": "Al Basel Cosmetics",
+  "url": "https://albaselco.com/",
+  "channel_type": "Wholesale & retail cosmetics (Sharjah)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://albaselco.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Al Basel Cosmetics – Professional Beauty, Hair & Salon",
+   "desc": "Shop high-quality cosmetics, haircare, skincare, nails & salon equipment at Al Basel Cosmetics. Authentic brands, wholesale & retail, delivery across UAE & GCC.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 52 692 4021"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 455,
+  "name": "Doyen Wellness",
+  "url": "https://doyenwellness.com/salon-products/",
+  "channel_type": "Salon/spa products supplier (UAE, Sharjah page)",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://doyenwellness.com/salon-products/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Salon Products in UAE & GCC | Doyen Wellness",
+   "desc": "Shop premium salon products in UAE & GCC at Doyen Wellness. Discover top-quality pedicure bowls, disposables, equipment, and body scrubs.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971-523987292"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 456,
+  "name": "SpaWorld UAE",
+  "url": "https://spaworlduae.com/",
+  "channel_type": "Spa products supplier",
+  "origin": "WebSearch: salon supplies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://spaworlduae.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Spa, Salon & Hotel Products in UAE | Trusted Supplier",
+   "desc": "Trusted supplier of spa, salon, and hotel essentials in UAE. Offering massage beds, oils, furniture, accessories, and disposables. Premium quality and worldwide delivery.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.facebook.com/spaproductsupplier",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "enquiry@spaworlduae.com"
+   ],
+   "tels": [
+    "+971 26317971"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 457,
+  "name": "Abraa",
+  "url": "https://www.abraa.com/",
+  "channel_type": "B2B wholesale marketplace (Dubai)",
+  "origin": "WebSearch: UAE B2B wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.abraa.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 458,
+  "name": "Dubai Wholesale Store",
+  "url": "https://www.dubaiwholesalestore.com/",
+  "channel_type": "K-beauty wholesaler (MOQ 20 pcs)",
+  "origin": "WebSearch: UAE B2B wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.dubaiwholesalestore.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Dubai Wholesale Store | Korean Skin & Cosmetic Product Supplier",
+   "desc": "Dubai Whole Sale Store is a leading B2B Cosmetic Wholesaler & Distributor in Dubai, Sharjah, Abu Dhabi & UAE to source Authentic Korean Skin Beauty Brands.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.dubaiwholesalestore.com/collections/someby-mi",
+     "text": " SOMEBY MI "
+    },
+    {
+     "url": "https://www.instagram.com/dubai.wholesalestore/",
+     "text": " "
+    },
+    {
+     "url": "https://www.linkedin.com/company/dubai-wholesale-store/",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "dubaiwholesale88@gmail.com"
+   ],
+   "tels": [
+    "+971569256505"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.dubaiwholesalestore.com/collections/someby-mi",
+    "link_text": " SOMEBY MI ",
+    "http_status": 200,
+    "final_url": "https://www.dubaiwholesalestore.com/collections/someby-mi",
+    "title": "SomeBy Mi Wholesale Distributor | Dubai Wholesale Store",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "dubaiwholesale88@gmail.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 459,
+  "name": "I Serena Trading",
+  "url": "https://i-serena.com/wholesale/",
+  "channel_type": "Wholesale beauty/skin/hair (MOQ 1000 AED)",
+  "origin": "WebSearch: UAE B2B wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://i-serena.com/wholesale/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Wholesale Beauty, Skin, and Hair Care Products - I Serena",
+   "desc": "Beauty care and skin care products online. Our products are highly effective, utilizing cutting-edge clinical technologies. We are specialized in wholesaler high-quality, Cosmetic Products, Skin Care, Hair Care.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://i-serena.com/wholesale/",
+     "text": "WHOLESALE"
+    },
+    {
+     "url": "https://i-serena.com/wholesale-anua/",
+     "text": " Anua "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-axis-y/",
+     "text": " Axis-y "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-beauty-of-joseon/",
+     "text": " Beauty of Joseon "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-cosrx/",
+     "text": " Cosrx "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-cerave/",
+     "text": " CeraVe "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-farm-stay/",
+     "text": " Farm Stay "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-goodal/",
+     "text": " Goodal "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-haruharu-wonder/",
+     "text": " Haruharu Wonder "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-im-from/",
+     "text": " I&#8217;m from "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-isntree/",
+     "text": " ISNTREE "
+    },
+    {
+     "url": "https://i-serena.com/wholesale-la-roche-posay/",
+     "text": " La Roche-Posay "
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971-522726388",
+    "971-553502852"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://i-serena.com/wholesale/",
+    "link_text": "WHOLESALE",
+    "http_status": 200,
+    "final_url": "https://i-serena.com/wholesale/",
+    "title": "Wholesale Beauty, Skin, and Hair Care Products - I Serena",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://i-serena.com/wholesale-anua/",
+    "link_text": " Anua ",
+    "http_status": 200,
+    "final_url": "https://i-serena.com/wholesale-anua/",
+    "title": "Buy Anua Store Products Online at Best Prices in UAE",
+    "blocked": false,
+    "seller_signal_text": "WHOLESALE",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://i-serena.com/wholesale-axis-y/",
+    "link_text": " Axis-y ",
+    "http_status": 200,
+    "final_url": "https://i-serena.com/wholesale-axis-y/",
+    "title": "Wholesale AXIS-Y -",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://i-serena.com/wholesale-beauty-of-joseon/",
+    "link_text": " Beauty of Joseon ",
+    "http_status": 200,
+    "final_url": "https://i-serena.com/wholesale-beauty-of-joseon/",
+    "title": "wholesale beauty of joseon -",
+    "blocked": false,
+    "seller_signal_text": "wholesale",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 460,
+  "name": "HMSN Boutique Trading",
+  "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+  "channel_type": "Wholesale cosmetic trading (UAE)",
+  "origin": "WebSearch: UAE B2B wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Wholesale Cosmetic Trading Company in UAE | HMSN Trading",
+   "desc": "We",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+     "text": " Cosmetic Trading Company "
+    },
+    {
+     "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-men-ready-made-clothes-trading",
+     "text": " Wholesale of Men Ready-made Clothes Trading "
+    },
+    {
+     "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-children-ready-made-clothes-trading",
+     "text": " Wholesale of Children Ready-made Clothes Trading "
+    },
+    {
+     "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-textiles-and-clothes-trading",
+     "text": " Wholesale of Textiles and Clothes Trading "
+    },
+    {
+     "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-tailoring-outfit-trading",
+     "text": " Wholesale of Tailoring Outfit Trading "
+    },
+    {
+     "url": "https://hmsnboutiquetrading.com/product-list/t-shirts",
+     "text": "Wholesale T Shirts"
+    }
+   ],
+   "emails": [
+    "info@hmsnboutiquetrading.com",
+    "Info@hmsnboutiquetrading.com"
+   ],
+   "tels": [
+    "+971 52 386 7780"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+    "link_text": " Cosmetic Trading Company ",
+    "http_status": 200,
+    "final_url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
+    "title": "Wholesale Cosmetic Trading Company in UAE | HMSN Trading",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@hmsnboutiquetrading.com",
+     "Info@hmsnboutiquetrading.com"
+    ]
+   },
+   {
+    "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-men-ready-made-clothes-trading",
+    "link_text": " Wholesale of Men Ready-made Clothes Trading ",
+    "http_status": 200,
+    "final_url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-men-ready-made-clothes-trading",
+    "title": "Men Readymade Clothes UAE | HMSN Boutique",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@hmsnboutiquetrading.com",
+     "Info@hmsnboutiquetrading.com"
+    ]
+   },
+   {
+    "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-children-ready-made-clothes-trading",
+    "link_text": " Wholesale of Children Ready-made Clothes Trading ",
+    "http_status": 200,
+    "final_url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-children-ready-made-clothes-trading",
+    "title": "Wholesale Children Readymade Clothes | HMSN",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@hmsnboutiquetrading.com",
+     "Info@hmsnboutiquetrading.com"
+    ]
+   },
+   {
+    "url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-textiles-and-clothes-trading",
+    "link_text": " Wholesale of Textiles and Clothes Trading ",
+    "http_status": 200,
+    "final_url": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-textiles-and-clothes-trading",
+    "title": "Wholesale of Textiles and Clothes Trading in UAE",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "info@hmsnboutiquetrading.com",
+     "Info@hmsnboutiquetrading.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 461,
+  "name": "QH Distribution",
+  "url": "https://qhdistribution.com/",
+  "channel_type": "Cosmetics/household wholesale distributor (CeraVe, PanOxyl)",
+  "origin": "WebSearch: FMCG distributors",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://qhdistribution.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "QH Distribution",
+   "desc": "Established in 1984, QH Distribution Inc. is company that focuses in domestic and international distribution",
+   "uae_signal": false,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://qhdistribution.com/",
+     "text": " "
+    },
+    {
+     "url": "https://qhdistribution.com/wholesale/",
+     "text": "Wholesale"
+    },
+    {
+     "url": "https://qhdistribution.com/brands/",
+     "text": "Brands"
+    },
+    {
+     "url": "https://qhdistribution.com/retailer/",
+     "text": "Retailer"
+    },
+    {
+     "url": "https://qhdistribution.com/our-story/",
+     "text": "Our Story"
+    },
+    {
+     "url": "https://qhdistribution.com/our-people/",
+     "text": "Our People"
+    },
+    {
+     "url": "https://qhdistribution.com/news/",
+     "text": "News"
+    },
+    {
+     "url": "https://qhdistribution.com/why-choose-us/",
+     "text": "Why Choose Us"
+    },
+    {
+     "url": "https://qhdistribution.com/careers/",
+     "text": "Careers"
+    },
+    {
+     "url": "https://qhdistribution.com/blog/",
+     "text": "Blog"
+    },
+    {
+     "url": "https://qhdistribution.com/faqs/",
+     "text": "FAQs"
+    },
+    {
+     "url": "https://qhdistribution.com/contact/",
+     "text": "Contact"
+    }
+   ],
+   "emails": [
+    "inquiry@qhdistribution.com",
+    "sales@qhdistribution.com",
+    "sales@qhdistribution.comHope",
+    "INFO@QHDISTRIBUTION.COM"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://qhdistribution.com/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://qhdistribution.com/",
+    "title": "QH Distribution",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "inquiry@qhdistribution.com",
+     "sales@qhdistribution.com",
+     "sales@qhdistribution.comHope",
+     "INFO@QHDISTRIBUTION.COM"
+    ]
+   },
+   {
+    "url": "https://qhdistribution.com/wholesale/",
+    "link_text": "Wholesale",
+    "http_status": 200,
+    "final_url": "https://qhdistribution.com/wholesale/",
+    "title": "Wholesale program",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "INFO@QHDISTRIBUTION.COM"
+    ]
+   },
+   {
+    "url": "https://qhdistribution.com/brands/",
+    "link_text": "Brands",
+    "http_status": 200,
+    "final_url": "https://qhdistribution.com/brands/",
+    "title": "Brands | QH Distribution",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "wholesale@qhdistribution.com",
+     "INFO@QHDISTRIBUTION.COM"
+    ]
+   },
+   {
+    "url": "https://qhdistribution.com/retailer/",
+    "link_text": "Retailer",
+    "http_status": 200,
+    "final_url": "https://qhdistribution.com/retailer/",
+    "title": "Retailer | QH Distribution",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "INFO@QHDISTRIBUTION.COM"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 462,
+  "name": "Pharmacy Directory UAE",
+  "url": "https://www.pharmacydirectory.ae/best-online-pharmacies-in-the-uae-safe-licensed-delivering-to-your-door/",
+  "channel_type": "Directory (lead source)",
+  "origin": "WebSearch: online pharmacy UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.pharmacydirectory.ae/best-online-pharmacies-in-the-uae-safe-licensed-delivering-to-your-door/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Best Online Pharmacies in the UAE: Safe, Licensed & Delivering to Your Door - pharmacydirectory.ae",
+   "desc": "Find Trusted Pharmacies Near You in UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "admin@pharmacydirectory.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ }
+]
