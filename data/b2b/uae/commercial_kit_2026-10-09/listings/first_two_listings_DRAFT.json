@@ -1,0 +1,54 @@
+{
+ "_about": "Draft listing files for the first two products (internal; not uploaded anywhere). Evidence classes: 'document' = read in a company file (path given); 'management' = confirmed by management (no document in files); 'not_in_files' = not found in the available files (NOT 'company does not have it'); 'external' = needs confirmation by a platform/authority. No price, registration number or claim was invented. Prepared 2026-10-09.",
+ "products": [
+  {
+   "product": "Vitamin C Serum",
+   "identifiers": {
+    "catalog_code": { "value": "LSK-SER-01", "evidence": "document", "source": "LOWES Brand Kit/LOWES Catalog - PRINT.html" },
+    "internal_sku": { "value": "LW-SR-101", "evidence": "document", "source": "LOWES Brand Kit/system/src/db/database.js" },
+    "ean13_on_packaging_artwork": { "value": "8684272100419", "evidence": "document", "source": "04 - السوشال ميديا والمحتوى/صور المنتجات ومعلومات عنها/منتجات البشرة/سيروم فيتامين سي LOWE_S/Lowes - Vitamin C Serum - Box.pdf", "check": "EAN-13 check digit valid (computed 2026-10-09)", "open_question": "GS1 prefix 8684272 owner not verified (Turkey GS1); confirm the code is printed on the current production box and who licensed it (external: GS1 Türkiye/brand)" }
+   },
+   "title_en_from_box": { "value": "LOWE'S Profesyonel Vitamin C Serum — Brightens and Evens Skin Tone — 30 ml / 1.00 fl.oz", "evidence": "document", "source": "Vitamin C Serum - Box.pdf (front panel)" },
+   "title_tr_from_box": { "value": "C Vitamini Serum — Cilt Tonunu Aydınlatır ve Eşitler", "evidence": "document", "source": "Box.pdf" },
+   "size": { "value": "30 ml (1.00 fl.oz)", "evidence": "document", "source": "Box.pdf + catalog" },
+   "front_actives_on_box": { "value": "Ascorbic Acid 20% · Ferulic Acid 2% · Vitamin B5", "evidence": "document", "source": "Box.pdf front", "discrepancy": "The product-details file (‘_C VİTAMİNİ SERUM تفصيل المنتج.pdf’) appears to attach the 2% to B5 — use the box text; confirm with the manufacturer" },
+   "inci_from_box": { "value": "Aqua, Ascorbic Acid, Panthenol, Ferulic Acid, Glycerin, Glutathione, Phenoxyethanol, Ethylhexylglycerin.", "evidence": "document", "source": "Box.pdf (INGREDIENTS / İÇİNDEKİLER)" },
+   "how_to_use_from_box": { "value": "After cleaning and drying skin, apply a few drops to your face and neck and massage gently. Recommended to use every morning and night. When used in the morning, use sun protection cream after applying the serum.", "evidence": "document", "source": "Box.pdf" },
+   "warnings_from_box": { "value": "For external use only. Avoid contact with eyes. If contact occurs, rinse thoroughly with water. Store in a cool and dark place. Keep out of the reach of children.", "evidence": "document", "source": "Box.pdf" },
+   "purpose_claims_from_box": { "value": "Helps to moisturize, brighten and even out the skin tone; visibly brightens the skin; effective in reducing the appearance of wrinkles that form over time.", "evidence": "document", "source": "Box.pdf (PURPOSE OF USAGE)", "note": "Use these packaging claims only; catalog adds ‘enhances the effectiveness of sunscreen’ — not on box, do not use without substantiation" },
+   "batch_and_expiry_on_artwork": { "value": "Batch LWC 004 · Exp. 30.06.2028", "evidence": "document", "source": "Box.pdf", "note": "artwork values — confirm against the actual stock to be shipped" },
+   "label_company_on_box": { "value": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş., Muratpaşa Cad. Eğitim Mah. No:1 Nurtaş İş Merkezi Kat:9/29 Hasanpaşa, Kadıköy/İstanbul · MADE IN TÜRKİYE", "evidence": "document", "source": "Box.pdf", "open_question": "This company name differs from both company entities recorded in ABOS (Turkish LTD and UAE FZ-LLC) — management to confirm its role (responsible person / brand owner) because platforms and regulators match label data to documents" },
+   "images": { "value": ["LOWES Brand Kit/assets/products_web/ser01.png", "04 - السوشال ميديا والمحتوى/…/03 - المنتجات والكتالوج/صور المنتجات - منظمة/01 - منتجات البشرة/06 - سيروم فيتامين سي/LOWES_سيروم-فيتامين-سي_Photo.png", "…/LOWES_سيروم-فيتامين-سي_Tube.png"], "evidence": "document", "note": "check each platform's main-image rules (white background, size) before upload" },
+   "uae_product_registration": { "value": "الإدارة تؤكد اكتمال التسجيل، لكن إثبات التسجيل لم يُعثر عليه في الملفات المتاحة", "evidence": "management" },
+   "test_reports_in_files": { "value": "No stability/challenge/microbiological report for this SKU in the local product folder (reports exist locally for 10 other products); the certificates index says all 26 are in a Google Drive folder", "evidence": "not_in_files", "source": "local product folders + 00_فهرس الشهادات.pdf" },
+   "uae_price_aed": { "value": "غير موجود في الملفات — لا سعر معتمد للإمارات (أسعار سوريا لا تُستخدم)", "evidence": "not_in_files" },
+   "category_fit": { "Amazon.ae": "Beauty → skin care serum; 'topicals require approval' (external)", "noon": "colour cosmetics / hair & personal care fee band 8% ≤ 50 AED, 15% > 50 AED (official text via search index; external)", "Begad": "Beauty (exact rules not stated)", "Dayjour": "not stated" },
+   "before_publishing": ["UAE price (AED) approved", "registration proof copy linked to this SKU", "confirm EAN on current box + GS1 licensee", "confirm label company (L B İç ve Dış Ticaret Kozmetik A.Ş.) role", "Amazon: category approval for topicals", "brand authorization letter if the platform asks (noon gated brands / Amazon brand approval)"]
+  },
+  {
+   "product": "Rosemary Hair Oil",
+   "identifiers": {
+    "catalog_code": { "value": "LHR-OIL-01", "evidence": "document", "source": "LOWES Catalog - PRINT.html" },
+    "internal_sku": { "value": "LW-HR-803", "evidence": "document", "source": "database.js" },
+    "ean13_on_packaging_artwork": { "value": "8684272100471", "evidence": "document", "source": "04 - السوشال ميديا والمحتوى/صور المنتجات ومعلومات عنها/منتجات الشعر/سيروم الشعر LOWE_S/Lowes - Rosemary Hair Oil - Box (1).pdf", "check": "EAN-13 check digit valid (computed 2026-10-09)", "open_question": "same as Vitamin C: confirm printed on current box and GS1 licensee" }
+   },
+   "title_en_from_box": { "value": "LOWE'S Profesyonel Rosemary Hair Oil — Nourishes Skin and Scalp — 50 ml / 1.7 fl.oz", "evidence": "document", "source": "Rosemary Hair Oil - Box (1).pdf" },
+   "title_tr_from_box": { "value": "Biberiye Yağı", "evidence": "document", "source": "Box (1).pdf" },
+   "size": { "value": "50 ml (1.7 fl.oz)", "evidence": "document", "source": "Box + catalog" },
+   "inci_from_box": { "value": "Glycine Soja Oil, Rosmarinus Officinalis Leaf Oil, Simmondsia Chinensis Seed Oil, Mentha Piperita Oil, Eucalyptus Globulus Leaf Oil, Menthol, Cocos Nucifera Oil, Equisetum Arvense Extract, Aloe Barbadensis Extract, Lavandula Angustifolia Oil, Triticum Vulgare Germ Oil, Carthamus Tinctorius Seed Oil, Oenothera Biennis Oil, Vitis Vinifera Seed Oil, Benzyl Nicotinate, Prunus Amygdalus Dulcis Oil, Oryza Sativa Bran Oil, Tocopheryl Acetate, Arctium Lappa Root Extract, Glycerin, Apium Graveolens Seed Extract, Ascorbic Acid, Ocimum Basilicum Oil, Pogostemon Cablin Oil, Salvia Officinalis Oil, Silica, Urtica Dioica Extract, Melaleuca Alternifolia Leaf Oil, Ricinus Communis Seed Oil, Malus Domestica Fruit Extract.", "evidence": "document", "source": "Box (1).pdf", "discrepancy": "‘Rosemary Hair Oil تفاصيل المنتج.pdf’ lists a different INCI (e.g. Helianthus Annuus, Boswellia Serrata, Nigella Sativa, Corylus Avellana) — the two must be reconciled with the manufacturer before listing" },
+   "front_claim_on_box": { "value": "Blended with Biotin and Natural Oils", "evidence": "document", "source": "Box (1).pdf", "warning": "Biotin does NOT appear in the box INCI — do not use the ‘Biotin’ claim until the formula is confirmed" },
+   "how_to_use_from_box": { "value": "Apply a few drops to the scalp and gently massage before combing it through to the hair ends. After leaving it on your hair for 1 hour, rinse your hair gently. Use the brush for eyelashes and eyebrows. Recommended every other day. Apply to skin with circular motions while massaging.", "evidence": "document", "source": "Box (1).pdf" },
+   "warnings_from_box": { "value": "For external use only. Keep out of reach of children. Keep away from heat and store at room temperature. Avoid contact with eyes.", "evidence": "document", "source": "Box (1).pdf" },
+   "purpose_claims_from_box": { "value": "Helps nourish your hair, making it look vibrant and shiny; nourishes and moisturizes dry skin; helps strengthen eyebrows and eyelashes, giving them a natural shine.", "evidence": "document", "source": "Box (1).pdf (PURPOSE OF USAGE)", "note": "The older catalogue text (‘promotes hair growth, reduces hair loss, increases density, improves blood circulation’) is NOT on the box and is not substantiated for THIS product — do not use" },
+   "skinlab_study_applicability": { "value": "NOT applicable: the SKINLAB study tested ‘The CEEL Pure Rosemary Water’ (rosemary leaf water) — a different product from the hair oil", "evidence": "document", "source": "AplAppRep.pdf" },
+   "batch_and_expiry_on_artwork": { "value": "Batch LBH 004 · Exp. 30.09.2028", "evidence": "document", "source": "Box (1).pdf" },
+   "label_company_on_box": { "value": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş., Kadıköy/İstanbul · MADE IN TÜRKİYE", "evidence": "document", "source": "Box (1).pdf", "open_question": "same as Vitamin C" },
+   "images": { "value": ["LOWES Brand Kit/assets/products_web/oil01.png", "…/منتجات الشعر/سيروم الشعر LOWE_S/Lowes - Rosemary Hair Oil - Print Güncel.png", "…/03 - منتجات الشعر/02 - سيروم الشعر روزماري/LOWES_سيروم-شعر-روزماري_Photo.png"], "evidence": "document" },
+   "uae_product_registration": { "value": "الإدارة تؤكد اكتمال التسجيل، لكن إثبات التسجيل لم يُعثر عليه في الملفات المتاحة", "evidence": "management" },
+   "test_reports_in_files": { "value": "No stability/challenge/microbiological report for this SKU in the local folder; Drive folder per certificates index", "evidence": "not_in_files" },
+   "uae_price_aed": { "value": "غير موجود في الملفات — لا سعر معتمد للإمارات", "evidence": "not_in_files" },
+   "category_fit": { "Amazon.ae": "Beauty → hair care oil; restrictions page for Cosmetics & Skin/Hair Care not read (external)", "noon": "hair and personal care: 8% ≤ 50 AED, 15% > 50 AED (official via search index; external)", "Begad": "Beauty (rules not stated)", "Dayjour": "store sells hair care (seller rules not stated)" },
+   "before_publishing": ["reconcile INCI (box vs details file) with CEELLO", "drop/verify ‘Biotin’ front claim", "UAE price (AED)", "registration proof copy for this SKU", "confirm EAN on current box + GS1 licensee", "confirm label company role", "brand authorization if requested"]
+  }
+ ]
+}

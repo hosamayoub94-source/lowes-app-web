@@ -32,7 +32,10 @@
 
 - **إجراءات التسجيل (6 منصات):** `registration_playbooks_2026-10-09.md` — لكل منصة: الرابط، مفتوح/بموافقة، أهلية الشركة مقابل الرخصة الفعلية، المستندات، شروط الفئة، الرسوم الرسمية، ما يحتاج تأكيداً، والخطوة اليدوية التالية.
 - **الملف التجاري (مسودة):** `../commercial_kit_2026-10-09/` — نبذة الشركة والكيان الإماراتي من الرخصة الفعلية، 26 منتجاً بأحجامها وصورها، قائمة النواقص (`Missing_Items_To_Provide.md`)، ومسودة رسالة إنجليزية غير مُرسلة.
-- **أكبر عائق مشترك:** حساب بنكي إماراتي + وضع VAT + هوية المفوَّض + باركودات EAN + تسجيل المنتجات — كلها غير موجودة بالملفات.
+- **مراجعة المستندات (9/10):** `../commercial_kit_2026-10-09/Document_Review_2026-10-09.md` — تسجيل المنتجات: الإدارة تؤكد اكتمال التسجيل، لكن إثبات التسجيل لم يُعثر عليه في الملفات المتاحة؛ EAN مطبوع على تصاميم علب Vitamin C (8684272100419) وRosemary Hair Oil (8684272100471)؛ SKINLAB يخص «The CEEL Pure Rosemary Water» (يقابل Pure Rosemary Water فقط وبشرط إقرار CEELLO)؛ العلامة: طلب تسجيل 2024/085278 باسم شخص طبيعي — مسودة تفويض غير موقّعة.
+- **أول منتجين:** `../commercial_kit_2026-10-09/listings/First_Two_Listings_DRAFT.md` — Vitamin C جاهز للإعداد (ينتظر السعر وإثبات التسجيل)؛ Rosemary Hair Oil ينتظر حسم INCI وادعاء Biotin.
+- **قوائم التسجيل (فتح الحساب ≠ قبول المنتجات):** `onboarding_checklists_4_platforms_2026-10-09.md`.
+- **ما ينتظر الإدارة فعلاً:** خطاب IBAN، هوية المفوَّض، نسخ/أرقام تسجيل المنتجات، وضع VAT، صفة جهة الملصق، التفويض، الأسعار، شروط التوريد، جهة التواصل، تجديد الرخصة.
 
 ## 3. أفضل فرص التسجيل المباشر — الأسئلة الستة من مصادر رسمية
 
@@ -139,6 +142,10 @@
 ## 10. الملفات
 
 - `registration_playbooks_2026-10-09.md`
+- `onboarding_checklists_4_platforms_2026-10-09.md`
+- `../commercial_kit_2026-10-09/Document_Review_2026-10-09.md`
+- `../commercial_kit_2026-10-09/listings/ (أول منتجين)`
+- `../commercial_kit_2026-10-09/Brand_Authorization_Letter_DRAFT.md (غير موقّعة)`
 - `../commercial_kit_2026-10-09/ (Commercial Profile + Product Sheet + Missing Items + Outreach Email — DRAFT)`
 - `LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx`
 - `uae_sales_platforms_2026-10-09.json / .csv`

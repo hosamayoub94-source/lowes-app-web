@@ -28,3 +28,4 @@
 - `commercial_kit_2026-10-09/` — **مسودة v2**: ملف تقديم تجاري بالمعلومات المؤكدة فقط، جدول جاهزية (`readiness_table_2026-10-09.csv/.json` + Excel) يفرّق بين «غير موجود بالملفات» و«غير متوفر لدى الشركة»، 26 منتجاً، قرارات الإدارة المطلوبة (`Missing_Items_To_Provide.md`)، ومسودة رسالة إنجليزية **غير مُرسلة**. تسجيل المنتجات: أكدته الإدارة، والإثبات غير موجود بالملفات.
 - `platforms_2026-10-09/onboarding_checklists_4_platforms_2026-10-09.md` — قوائم تنفيذ Amazon.ae وnoon وBegad وDayjour مع متطلبات GTIN لكل منصة.
 - التقرير: `platforms_2026-10-09/UAE_Sales_Platforms_Report_2026-10-09.md`.
+- `commercial_kit_2026-10-09/Document_Review_2026-10-09.md` — مراجعة المستندات (تسجيل المنتجات، SKINLAB، العلامة، جهة الملصق، الباركودات، تقارير الاختبار، التعارضات). `listings/` — ملفا إدراج Vitamin C Serum وRosemary Hair Oil (مسودة). `Brand_Authorization_Letter_DRAFT.md` — مسودة تفويض **غير موقّعة وغير مُرسلة**.

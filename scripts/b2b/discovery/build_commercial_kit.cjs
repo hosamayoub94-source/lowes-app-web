@@ -26,6 +26,8 @@ const norm = (s) => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, 
 const MANUAL = { 'LSK-TNR-01': 'LW-FC-203', 'LSK-TNR-02': 'LW-TN-601' };
 const pick = (it) => (MANUAL[it.catalog_code] && skus.find((s) => s.sku === MANUAL[it.catalog_code])) || skus.find((s) => norm(s.name_en) === norm(it.name_en)) || skus.find((s) => norm(it.name_en).includes(norm(s.name_en)) || norm(s.name_en).includes(norm(it.name_en)))
   || skus.find((s) => s.name_ar.replace(/\s+/g, '') === it.name_ar.replace(/[ّ\s]+/g, ''));
+// EAN-13 printed on packaging artwork found in company files (check digit validated); not created here
+const EAN_FROM_ARTWORK = { 'LW-SR-101': '8684272100419 (Vitamin C Serum - Box.pdf)', 'LW-HR-803': '8684272100471 (Rosemary Hair Oil - Box (1).pdf)', 'LW-FC-203': '8684149133717 (Pore Tightening Toner تفاصيل المنتج.pdf)' };
 const rows = items.map((it) => {
   const s = pick(it);
   const img = s ? s.image.replace(/^products\//, '') : '';
@@ -33,7 +35,7 @@ const rows = items.map((it) => {
     catalog_code: it.catalog_code, internal_sku: s ? s.sku : 'غير مطابق', product_name_en: it.name_en, product_name_ar: it.name_ar, line: `${it.line_en} · ${it.line_ar}`,
     category: s ? s.category : '', pack_size: `${it.size_ml} ml (${it.size_floz})${it.strength ? ' · ' + it.strength : ''}`,
     image_file: img && fs.existsSync(path.join(kit, 'assets/products_web', img)) ? `LOWES Brand Kit/assets/products_web/${img}` : 'غير موجود بالملفات',
-    ean_gtin_barcode: 'غير موجود في ملفات المشروع (حقل barcode بقاعدة Brand Kit = رمز داخلي LW-…؛ قد يكون EAN مطبوعاً على العبوة — يُتحقق)',
+    ean_gtin_barcode: (s && EAN_FROM_ARTWORK[s.sku]) ? `${EAN_FROM_ARTWORK[s.sku]} — من تصميم العبوة؛ ترخيص GS1 والطباعة الحالية يُتحقق منهما` : 'غير موجود في ملفات المشروع (التصميم غير قابل للقراءة آلياً أو غير موجود) — يُتحقق من العبوة',
     origin_and_compliance_on_catalog: 'Made in Türkiye · EU 1223/2009 (مذكوران بالكتالوج)',
     uae_product_registration: 'أكدت الإدارة أن التسجيل مكتمل؛ إثبات التسجيل لم يُعثر عليه في ملفات المشروع',
     wholesale_price_uae: 'غير معتمد للإمارات — لا يُدرج', retail_price_uae: 'غير معتمد للإمارات — لا يُدرج',
