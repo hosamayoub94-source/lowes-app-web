@@ -1,0 +1,212 @@
+[
+ {
+  "n": 420,
+  "name": "Trendyol (Gulf marketplace)",
+  "url": "https://www.trendyol.com/",
+  "channel_type": "Marketplace (Turkish-origin, Gulf)",
+  "origin": "Seller guides: unicommerce / Meydan FZ lists",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.trendyol.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 421,
+  "name": "Trendyol Seller Portal",
+  "url": "https://partner.trendyol.com/",
+  "channel_type": "Marketplace seller portal",
+  "origin": "Seller guides",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://partner.trendyol.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 422,
+  "name": "DeliverIt Marketplace",
+  "url": "https://deliverit.ae/",
+  "channel_type": "UAE marketplace (seller registration)",
+  "origin": "Seller guides: noon alternatives",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://deliverit.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Best Pick and Delivery Service in Dubai | DeliverIt",
+   "desc": "DeliverIt offers the best pick and delivery service in Dubai. We&#039;ll pick up a package for you or from you and deliver it at your desired location.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://deliverit.ae/delivery-partner-for-local-businesses/",
+     "text": " Delivery for Businesses "
+    },
+    {
+     "url": "https://deliverit.ae/contact-us/",
+     "text": " Become a DeliverIt Guy "
+    }
+   ],
+   "emails": [],
+   "tels": [
+    "+971 50 682 4339"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://deliverit.ae/contact-us/",
+    "link_text": " Become a DeliverIt Guy ",
+    "http_status": 200,
+    "final_url": "https://deliverit.ae/contact-us/",
+    "title": "Contact Us | DeliverIt",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@deliverit.ae"
+    ]
+   },
+   {
+    "url": "https://deliverit.ae/delivery-partner-for-local-businesses/",
+    "link_text": " Delivery for Businesses ",
+    "http_status": 200,
+    "final_url": "https://deliverit.ae/delivery-partner-for-local-businesses/",
+    "title": "Delivery Partner for Local Businesses | Join DeliverIt",
+    "blocked": false,
+    "seller_signal_text": "Bulk",
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 423,
+  "name": "Groupon UAE",
+  "url": "https://www.groupon.ae/",
+  "channel_type": "Deals marketplace",
+  "origin": "Seller guides: noon alternatives",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.groupon.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 424,
+  "name": "Crafty UAE",
+  "url": "https://www.crafty.ae/",
+  "channel_type": "Handmade/craft marketplace",
+  "origin": "Seller guides: unicommerce",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://crafty.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Crafty UAE | Shop Handmade Gifts & Local Products Online",
+   "desc": "Crafty is the UAE’s trusted handmade marketplace for unique gifts, artisan goods, and personalized craft products made and sold by local makers.",
+   "uae_signal": true,
+   "seller_signal_text": "Become a Seller",
+   "candidate_links": [
+    {
+     "url": "https://crafty.ae/onboarding",
+     "text": " Become a Seller "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://crafty.ae/onboarding",
+    "link_text": " Become a Seller ",
+    "http_status": 200,
+    "final_url": "https://crafty.ae/onboarding",
+    "title": "Become a Seller - Onboarding | Crafty UAE",
+    "blocked": false,
+    "seller_signal_text": "Become a Seller",
+    "fee_snippets": [
+     "Only 7% commission We earn only when you make a sale",
+     "d the world 4 Step 4 Product Delivery Deliver products and receive payment confirmation 5 Step 5 Payment Get paid after commission deduction Get Started Business Insights Key metrics that drive our online business success 20+ Categories to Sell Wide range of p"
+    ],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 425,
+  "name": "FirstCry UAE",
+  "url": "https://uae.firstcry.com/",
+  "channel_type": "Kids marketplace",
+  "origin": "Seller guides: unicommerce",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 426,
+  "name": "Basharacare",
+  "url": "https://www.basharacare.com/",
+  "channel_type": "Online skincare retailer (Dubai)",
+  "origin": "Search results",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.basharacare.com/ae_en",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

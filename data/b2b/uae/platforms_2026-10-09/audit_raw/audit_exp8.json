@@ -1,0 +1,427 @@
+[
+ {
+  "n": 400,
+  "name": "Union Coop — Supplier Registration (corporate)",
+  "url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+  "channel_type": "Retail supplier registration page",
+  "origin": "WebSearch: retailers supplier registration",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Suppliers Registrations - Union Coop",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": "Supplier Registration",
+   "candidate_links": [
+    {
+     "url": "https://corporate.unioncoop.ae/ar/business-opportunities/suppliers-registrations/",
+     "text": " العربية "
+    },
+    {
+     "url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+     "text": " "
+    },
+    {
+     "url": "https://corporate.unioncoop.ae/wp-content/uploads/2023/10/Admin-Supplier-Registration-Form.pdf",
+     "text": " "
+    },
+    {
+     "url": "https://corporate.unioncoop.ae/wp-content/uploads/2019/01/Supplier_Registration_Request_form_Ar_En_%D9%86%D9%85%D9%88%D8%B0%D8%AC-%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D9%85%D9%88%D8%B1%D8%AF-%D8%AC%D8%AF%D9%8A%D8%AF.pdf",
+     "text": " "
+    },
+    {
+     "url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations",
+     "text": " Suppliers Registrations "
+    },
+    {
+     "url": "whatsapp://send?text=Suppliers%20Registrations%20%E2%80%93%20https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+     "text": " "
+    },
+    {
+     "url": "https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fcorporate.unioncoop.ae%2Fen%2Fbusiness-opportunities%2Fsuppliers-registrations%2F",
+     "text": " "
+    },
+    {
+     "url": "https://x.com/intent/post?text=Hey%2C+check+out+this+cool+site+I+found%3A+www.yourname.com+%23Topic+via%40my_twitter_name+https%3A%2F%2Fcorporate.unioncoop.ae%2Fen%2Fbusiness-opportunities%2Fsuppliers-registrations%2F",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "info@ucs.ae",
+    "info@unioncoop.ae"
+   ],
+   "tels": [
+    "+971 4 3201816"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://corporate.unioncoop.ae/ar/business-opportunities/suppliers-registrations/",
+    "link_text": " العربية ",
+    "http_status": 200,
+    "final_url": "https://corporate.unioncoop.ae/ar/business-opportunities/suppliers-registrations/",
+    "title": "تسجيل الموردين - Union Coop",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@ucs.ae",
+     "info@unioncoop.ae"
+    ]
+   },
+   {
+    "url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://corporate.unioncoop.ae/en/business-opportunities/suppliers-registrations/",
+    "title": "Suppliers Registrations - Union Coop",
+    "blocked": false,
+    "seller_signal_text": "Supplier Registration",
+    "fee_snippets": [],
+    "emails": [
+     "info@ucs.ae",
+     "info@unioncoop.ae"
+    ]
+   },
+   {
+    "url": "https://corporate.unioncoop.ae/wp-content/uploads/2023/10/Admin-Supplier-Registration-Form.pdf",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://corporate.unioncoop.ae/wp-content/uploads/2023/10/Admin-Supplier-Registration-Form.pdf",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://corporate.unioncoop.ae/wp-content/uploads/2019/01/Supplier_Registration_Request_form_Ar_En_%D9%86%D9%85%D9%88%D8%B0%D8%AC-%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D9%85%D9%88%D8%B1%D8%AF-%D8%AC%D8%AF%D9%8A%D8%AF.pdf",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://corporate.unioncoop.ae/wp-content/uploads/2019/01/Supplier_Registration_Request_form_Ar_En_%D9%86%D9%85%D9%88%D8%B0%D8%AC-%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D9%85%D9%88%D8%B1%D8%AF-%D8%AC%D8%AF%D9%8A%D8%AF.pdf",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 401,
+  "name": "Union Coop Marketplace (vendor sign-up)",
+  "url": "https://www.unioncoop.ae/media/terms_conditions/default/Marketplace_Agreement-V.3-2021.pdf",
+  "channel_type": "Marketplace agreement (vendors)",
+  "origin": "WebSearch: retailers supplier registration",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.unioncoop.ae/media/terms_conditions/default/Marketplace_Agreement-V.3-2021.pdf",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 402,
+  "name": "Carrefour UAE Marketplace (seller register)",
+  "url": "https://marketplace.carrefouruae.com/seller/register",
+  "channel_type": "Marketplace seller registration (claimed by third party)",
+  "origin": "WebSearch: Carrefour supplier registration guides",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://marketplace.carrefouruae.com/seller/register",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 403,
+  "name": "Sharaf DG Business (DG Business)",
+  "url": "https://business.sharafdg.com/",
+  "channel_type": "B2B portal",
+  "origin": "WebSearch: Sharaf DG",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://business.sharafdg.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 404,
+  "name": "Lulu Retail — Sourcing",
+  "url": "https://www.luluretail.com/global-operations/sourcing/",
+  "channel_type": "Retail group sourcing page",
+  "origin": "WebSearch: Lulu supplier",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.luluretail.com/global-operations/sourcing/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 405,
+  "name": "Choithrams GCC contact",
+  "url": "https://choithramsgcc.com/en/contactus",
+  "channel_type": "Retail group contact",
+  "origin": "WebSearch: Choithrams",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://choithramsgcc.com/en/contactus",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Contact Us - Choithrams",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://choithramsgcc.com/en/contents/view/distribution",
+     "text": "Distribution"
+    }
+   ],
+   "emails": [
+    "info@choithrams.com",
+    "support@choithrams.com",
+    "info@nbkmegamart.com",
+    "info@babasons.com",
+    "tcsoman@alreefllc.com"
+   ],
+   "tels": [
+    "+971 4297 9991",
+    "+971 4294 7250"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://choithramsgcc.com/en/contents/view/distribution",
+    "link_text": "Distribution",
+    "http_status": 200,
+    "final_url": "https://choithramsgcc.com/en/contents/view/distribution",
+    "title": "Distribution - Choithrams",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 406,
+  "name": "Emirates Coop — Supplier Login",
+  "url": "https://www.emcoop.ae/supplier-login/",
+  "channel_type": "Cooperative supplier portal",
+  "origin": "WebSearch: Union Coop supplier",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.emcoop.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 407,
+  "name": "Spinneys Local Business Incubator",
+  "url": "https://www.spinneys.com/en-ae/lifestyle/register-your-business-for-the-2025-edition-of-the-spinneys-local-business-incubator-programme/",
+  "channel_type": "Supplier incubator (UAE-made F&B)",
+  "origin": "WebSearch: Spinneys incubator",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.spinneys.com/en-ae/lifestyle/register-your-business-for-the-2025-edition-of-the-spinneys-local-business-incubator-programme/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "403 Forbidden",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 408,
+  "name": "Millia Cosmetics (Sharjah)",
+  "url": "https://milliacosmetics.com/",
+  "channel_type": "Cosmetics wholesale/retail (Sharjah)",
+  "origin": "WebSearch: Sharjah wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://milliacosmetics.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Millia Cosmetics",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": "bulk",
+   "candidate_links": [],
+   "emails": [
+    "reception@milliacosmetics.com"
+   ],
+   "tels": [
+    "+971 6 532 1773",
+    "+971553240972",
+    "+971508568019"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 409,
+  "name": "Stylish Cosmetics (Sharjah)",
+  "url": "https://stylishcosmetic.com/",
+  "channel_type": "Cosmetics wholesale/retail (Sharjah)",
+  "origin": "WebSearch: Sharjah wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://stylishcosmetic.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Stylish Cosmetics",
+   "desc": "Stylish Cosmetics - متجر مستحضرات التجميل الاحترافي في الإمارات. منتجات عناية بالشعر والبشرة والمكياج من أشهر العلامات التجارية العالمية. تسوق الآن بأفضل الأسعار.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://stylishcosmetic.com/pages/wholeseller-form",
+     "text": "Wholeseller Form"
+    }
+   ],
+   "emails": [
+    "support@stylishae.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://stylishcosmetic.com/pages/wholeseller-form",
+    "link_text": "Wholeseller Form",
+    "http_status": 200,
+    "final_url": "https://stylishcosmetic.com/pages/wholeseller-form",
+    "title": "Wholeseller Form &ndash; Stylish Cosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "support@stylishae.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 410,
+  "name": "The Beauty Oasis (Ajman)",
+  "url": "https://thebeautyoasis.me/",
+  "channel_type": "Skin/hair products online (Ajman)",
+  "origin": "WebSearch: Ajman online beauty",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ENOTFOUND",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 411,
+  "name": "Hala Al Jamal Cosmetics",
+  "url": "https://oncosmetics.com/company/hala-al-jamal-cosmetics-company/",
+  "channel_type": "Directory listing only",
+  "origin": "WebSearch: Sharjah wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://oncosmetics.com/company/hala-al-jamal-cosmetics-company/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Hala Al Jamal Cosmetics Company Company Profile – Distributor, Supplier, and Retailer in Sharjah",
+   "desc": "Halacarts is a company operating in the e-commerce sector, specializing in providing online shopping solutions. It offers a platform designed to connect - Find contact details, brands and decision makers for Hala Al Jamal Cosmetics Company ",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://oncosmetics.com/do-not-sell-my-info/",
+     "text": "Do Not Sell my Info"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://oncosmetics.com/do-not-sell-my-info/",
+    "link_text": "Do Not Sell my Info",
+    "http_status": 200,
+    "final_url": "https://oncosmetics.com/do-not-sell-my-info/",
+    "title": "Do Not Sell my Info - OnCosmetics",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "privacy@onCosmetics.com"
+    ]
+   }
+  ]
+ }
+]

@@ -1,0 +1,281 @@
+[
+ {
+  "n": 430,
+  "name": "Mestore (Al Jamal Enterprises) — Wholesale",
+  "url": "https://www.mestore.ae/pages/wholesale",
+  "channel_type": "Wholesale + retail cosmetics (Dubai/Sharjah)",
+  "origin": "WebSearch: Sharjah/Ajman wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.mestore.ae/pages/wholesale",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Wholesale Cosmetics and beauty essentials in UAE &ndash; MeStore",
+   "desc": "Beauty Essentials - Skin and body care number 1# wholesaler in the Middle East market - We procure our products directly from the world's leading cosmetic brands to provide you with top-quality makeup items at significantly reduced prices. ",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [],
+   "emails": [
+    "hijas@aljamalenterprises.com"
+   ],
+   "tels": [
+    "+971 58 872 7889"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 431,
+  "name": "Nazih.ae (online store)",
+  "url": "https://nazih.ae/",
+  "channel_type": "Online beauty store (Nazih Trading, Sharjah)",
+  "origin": "WebSearch: Sharjah/Ajman wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://nazih.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "403 Restricted Content",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 432,
+  "name": "Glamour Faces Perfumes & Cosmetics Trading",
+  "url": "https://www.theglamourfaces.com/",
+  "channel_type": "Cosmetics wholesale supplier (Dubai)",
+  "origin": "WebSearch: Sharjah/Ajman wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.theglamourfaces.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Cosmetics Wholesale Supplier in Dubai, UAE | Glamour Face",
+   "desc": "Wholesale cosmetics, skincare, haircare and perfumes from 100+ authentic brands. Based in Deira, delivering across the UAE. Request a trade price list today!",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://www.theglamourfaces.com/blogs/cerave-vs-la-roche-posay-retailers-uae/",
+     "text": " CeraVe vs La Roche-Posay: Which Sells Better for UAE Retailers? "
+    }
+   ],
+   "emails": [
+    "aafridi0566@gmail.com",
+    "md@theglamourface.com"
+   ],
+   "tels": [
+    "+971 50 318 7855"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://www.theglamourfaces.com/blogs/cerave-vs-la-roche-posay-retailers-uae/",
+    "link_text": " CeraVe vs La Roche-Posay: Which Sells Better for UAE Retailers? ",
+    "http_status": 200,
+    "final_url": "https://www.theglamourfaces.com/blogs/cerave-vs-la-roche-posay-retailers-uae/",
+    "title": "CeraVe vs La Roche Posay Which Sells Better for UAE Retailers",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "aafridi0566@gmail.com",
+     "md@theglamourface.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 433,
+  "name": "CarasaLab",
+  "url": "https://carasalab.com/en/uae-dubai-cosmetics-wholesale/",
+  "channel_type": "Cosmetics wholesale distribution (UAE)",
+  "origin": "WebSearch: Sharjah/Ajman wholesale",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://carasalab.com/en/uae-dubai-cosmetics-wholesale/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "▷ Cosmetics Wholesale Dubai & UAE | CarasaLab",
+   "desc": "Discover the leading Wholesale Cosmetics for UAE and Dubai.✅ We excel in shipping and distribution. Explore a range of products at the best price.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://carasalab.com/en/cosmetic-suppliers/",
+     "text": " Distribution "
+    },
+    {
+     "url": "https://carasalab.com/en/korean-cosmetics-wholesale/",
+     "text": " Korean Cosmetics Wholesale "
+    },
+    {
+     "url": "https://carasalab.com/en/uae-dubai-cosmetics-wholesale/",
+     "text": " EN "
+    },
+    {
+     "url": "https://carasalab.com/en/asia-oceania-suppliers/",
+     "text": " Asia & Oceania "
+    },
+    {
+     "url": "https://carasalab.com/en/cosmetic-wholesale-australia/",
+     "text": "Cosmetics Wholesale Australia"
+    },
+    {
+     "url": "https://carasalab.com/en/wholesale-cosmetics-france/",
+     "text": "Wholesale Cosmetics France"
+    },
+    {
+     "url": "https://carasalab.com/en/cosmetics-supplier-germany/",
+     "text": "Cosmetics Supplier Germany"
+    },
+    {
+     "url": "https://carasalab.com/en/hair-dye-supplier/",
+     "text": " Dyes "
+    },
+    {
+     "url": "https://carasalab.com/en/wholesale-cosmetics-europe/",
+     "text": " Wholesale Cosmetics Europe "
+    },
+    {
+     "url": "https://carasalab.com/en/body-oil-wholesale/",
+     "text": " Body oil wholesale &#038; manufacturer "
+    }
+   ],
+   "emails": [
+    "carasa@carasalab.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://carasalab.com/en/cosmetic-suppliers/",
+    "link_text": " Distribution ",
+    "http_status": 200,
+    "final_url": "https://carasalab.com/en/cosmetic-suppliers/",
+    "title": "▷ Wholesale Cosmetics Suppliers | CarasaLab",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "carasa@carasalab.com"
+    ]
+   },
+   {
+    "url": "https://carasalab.com/en/asia-oceania-suppliers/",
+    "link_text": " Asia & Oceania ",
+    "http_status": 200,
+    "final_url": "https://carasalab.com/en/asia-oceania-suppliers/",
+    "title": "▷ Middle East, Asia & Oceania Cosmetics Wholesale | CarasaLab",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "carasa@carasalab.com"
+    ]
+   },
+   {
+    "url": "https://carasalab.com/en/cosmetics-supplier-germany/",
+    "link_text": "Cosmetics Supplier Germany",
+    "http_status": 200,
+    "final_url": "https://carasalab.com/en/cosmetics-supplier-germany/",
+    "title": "▷ Cosmetics Supplier Germany | CarasaLab",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "carasa@carasalab.com"
+    ]
+   },
+   {
+    "url": "https://carasalab.com/en/hair-dye-supplier/",
+    "link_text": " Dyes ",
+    "http_status": 200,
+    "final_url": "https://carasalab.com/en/hair-dye-supplier/",
+    "title": "▷ Hair Dye Suppliers | CarasaLab",
+    "blocked": false,
+    "seller_signal_text": "Wholesale",
+    "fee_snippets": [],
+    "emails": [
+     "carasa@carasalab.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 434,
+  "name": "Cobone",
+  "url": "https://www.cobone.com/",
+  "channel_type": "Deals marketplace (sellers)",
+  "origin": "WebSearch: Sivvi/UAE marketplaces",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.cobone.com/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Attention Required! | Cloudflare",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 435,
+  "name": "OurShoppee",
+  "url": "https://www.ourshoppee.com/",
+  "channel_type": "Marketplace (health and beauty among categories)",
+  "origin": "WebSearch: UAE marketplaces",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 436,
+  "name": "M7L",
+  "url": "https://m7l.ae/",
+  "channel_type": "Seller platform (subscription model)",
+  "origin": "WebSearch: UAE marketplaces",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]
