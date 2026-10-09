@@ -1,0 +1,428 @@
+[
+ {
+  "n": 490,
+  "name": "EBEAUTYTRADE",
+  "url": "https://www.ebeautytrade.com/",
+  "channel_type": "B2B multi-vendor platform — professional & wholesale beauty (ME)",
+  "origin": "WebSearch: UAE beauty B2B platform",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 491,
+  "name": "Dubai Beauty Wholesale",
+  "url": "https://dubaibeautywholesale.com/",
+  "channel_type": "Beauty wholesale (Dubai)",
+  "origin": "WebSearch: UAE beauty B2B platform",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://dubaibeautywholesale.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "Source wholesale K-beauty, Japanese and international cosmetics on DBW Wholesale — bulk pricing, verified brands, and worldwide shipping from Dubai for approved B2B buyers.",
+   "uae_signal": true,
+   "seller_signal_text": "Bulk",
+   "candidate_links": [
+    {
+     "url": "https://www.facebook.com/dubaibeautywholesale/",
+     "text": " "
+    },
+    {
+     "url": "https://www.instagram.com/dubaibeautywholesale/",
+     "text": " "
+    }
+   ],
+   "emails": [
+    "sales@dubaibeautywholesale.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 492,
+  "name": "THAT Concept Store",
+  "url": "https://www.thatconceptstore.com/en-ae/c/women/women-beauty/women-beauty-hair-care",
+  "channel_type": "Concept store — beauty/hair care (Dubai)",
+  "origin": "WebSearch: UAE haircare online",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "This operation was aborted",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 493,
+  "name": "Glambox (glambox.me)",
+  "url": "https://glambox.me/",
+  "channel_type": "Beauty e-tailer/subscription (UAE)",
+  "origin": "WebSearch: Time Out/Explorer guides",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "UND_ERR_CONNECT_TIMEOUT",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 494,
+  "name": "Jaleel Cash and Carry",
+  "url": "https://www.jaleelcashandcarry.com/",
+  "channel_type": "Cash & carry for retailers (Dubai)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.jaleelcashandcarry.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "FMCG Goods Wholesaler | Wholesale Food Suppliers UAE",
+   "desc": "Find Jaleel Cash and Carry, leading FMCG goods wholesaler in Dubai, offering a wide range of FMCG goods at wholesale prices. Visit our website for more info.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [
+    {
+     "url": "https://jaleelcashandcarry.com/index.php/register-distributor",
+     "text": "Register as Distributors"
+    },
+    {
+     "url": "https://jaleelcashandcarry.com/index.php/be-partner",
+     "text": "Be a Partners"
+    }
+   ],
+   "emails": [
+    "customercare.jcc@jaleel.ae"
+   ],
+   "tels": [
+    "+971 4 3339191",
+    "+971 4 528 4444"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://jaleelcashandcarry.com/index.php/register-distributor",
+    "link_text": "Register as Distributors",
+    "http_status": 404,
+    "final_url": "https://jaleelcashandcarry.com/index.php/register-distributor",
+    "title": "404 Page Not Found",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://jaleelcashandcarry.com/index.php/be-partner",
+    "link_text": "Be a Partners",
+    "http_status": 404,
+    "final_url": "https://jaleelcashandcarry.com/index.php/be-partner",
+    "title": "404 Page Not Found",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 495,
+  "name": "Al Maya Distribution",
+  "url": "https://www.almayadistribution.ae/",
+  "channel_type": "FMCG distributor (UAE)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://almayadistribution.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Food Distribution Companies in UAE | Al Maya Trading Company",
+   "desc": "Al Maya Distribution is the leading food distribution companies in the UAE. We supply FMCG and beverage products to leading retailers and supermarket channels.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://almayadistribution.ae/distribution.php",
+     "text": "distribution"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#usa",
+     "text": "USA"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#newcountry",
+     "text": "new country"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#spain",
+     "text": "SPAIN"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#ireland",
+     "text": "IRELAND"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#denmark",
+     "text": "DENMARK"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#poland",
+     "text": "POLAND"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#italy",
+     "text": "ITALY"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#unitedkingdom",
+     "text": "UNITED KINGDOM"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#germany",
+     "text": "Germany"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#austria",
+     "text": "Austria"
+    },
+    {
+     "url": "https://almayadistribution.ae/distribution.php#uae",
+     "text": "UAE"
+    }
+   ],
+   "emails": [
+    "jonathan.smith@john.com"
+   ],
+   "tels": [
+    "+971 4 823 0000"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://almayadistribution.ae/distribution.php",
+    "link_text": "distribution",
+    "http_status": 200,
+    "final_url": "https://almayadistribution.ae/distribution.php",
+    "title": "Leading Food Distributor in the UAE - Almaya Distribution",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://almayadistribution.ae/distribution.php#usa",
+    "link_text": "USA",
+    "http_status": 200,
+    "final_url": "https://almayadistribution.ae/distribution.php",
+    "title": "Leading Food Distributor in the UAE - Almaya Distribution",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://almayadistribution.ae/distribution.php#newcountry",
+    "link_text": "new country",
+    "http_status": 200,
+    "final_url": "https://almayadistribution.ae/distribution.php",
+    "title": "Leading Food Distributor in the UAE - Almaya Distribution",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://almayadistribution.ae/distribution.php#spain",
+    "link_text": "SPAIN",
+    "http_status": 200,
+    "final_url": "https://almayadistribution.ae/distribution.php",
+    "title": "Leading Food Distributor in the UAE - Almaya Distribution",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 496,
+  "name": "SAFCO International",
+  "url": "https://www.safcointl.com/",
+  "channel_type": "FMCG distributor (UAE)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 307,
+   "final_url": "https://www.safcointl.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "You are being redirected...",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 497,
+  "name": "Fakhruddin Trading",
+  "url": "https://www.fakhruddintrading.com/",
+  "channel_type": "Distributor — beauty/personal care/household (Dubai)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://fakhruddintrading.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Fakhruddin General Trading - Fakhruddin General Trading",
+   "desc": "1 / 1 1 / 1   Our Mission At Fakhruddin General Trading we aim to source the very best product lines at the lowest price and hold the region’s largest portfolio of diverse products under one roof. We always offer our customers’ competitive ",
+   "uae_signal": true,
+   "seller_signal_text": "wholesale",
+   "candidate_links": [
+    {
+     "url": "https://fakhruddintrading.com/become-our-distributor/",
+     "text": "Become Our Distributor"
+    },
+    {
+     "url": "https://fakhruddintrading.com/become-our-distributor",
+     "text": ""
+    }
+   ],
+   "emails": [
+    "info@fakhruddintrading.com"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://fakhruddintrading.com/become-our-distributor/",
+    "link_text": "Become Our Distributor",
+    "http_status": 200,
+    "final_url": "https://fakhruddintrading.com/become-our-distributor/",
+    "title": "Become Our Distributor - Fakhruddin General Trading",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@fakhruddintrading.com"
+    ]
+   },
+   {
+    "url": "https://fakhruddintrading.com/become-our-distributor",
+    "link_text": "",
+    "http_status": 200,
+    "final_url": "https://fakhruddintrading.com/become-our-distributor/",
+    "title": "Become Our Distributor - Fakhruddin General Trading",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@fakhruddintrading.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 498,
+  "name": "Hamna General Trading",
+  "url": "https://hgt.ae/",
+  "channel_type": "Wholesale general trading (UAE)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.hgt.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Hamna General Trading | Best Wholesale Distributor in UAE",
+   "desc": "Partner with Haman General Trading, leading wholesale distributor in UAE to meet wholesale product needs.",
+   "uae_signal": true,
+   "seller_signal_text": "Wholesale",
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 499,
+  "name": "Modern General Trading (MGT)",
+  "url": "https://www.mgtuae.com/",
+  "channel_type": "Distributor (UAE)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "ECONNRESET",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 500,
+  "name": "Deira Wholesale",
+  "url": "https://deirawholesale.com/",
+  "channel_type": "Online wholesaler — beauty & general (Dubai)",
+  "origin": "b2bridge.io wholesale distributors article",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.filmpertutti.info/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Filmpertutti – Guarda Film e Serie TV in Streaming Gratis e in Alta Qualità",
+   "desc": "Filmpertutti è il miglior sito per guardare film e serie TV in streaming gratis, sempre aggiornati e disponibili in alta qualità.",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

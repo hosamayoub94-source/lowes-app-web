@@ -34,7 +34,10 @@ row('جملة/توزيع/B2B (B)', bs.tiers?.B, s.tiers.B);
 row('اتفاق مورد (C)', bs.tiers?.C, s.tiers.C);
 row('لم يتحدد وضعها (D)', bs.tiers?.D, s.tiers.D);
 row('رسوم من مصدر رسمي', bs.with_official_fee_source, s.with_official_fee_source);
-L.push('', `**جهات جديدة بعد إزالة التكرار في هذه الدفعة:** ${newRows.length} بموقع رسمي (فُحصت آلياً) + ${nameOnly.entities.length} بالاسم فقط بلا موقع (مستوى «اكتُشفت ولم تُتحقق») = **${newRows.length + nameOnly.entities.length}**.`);
+const promoted = new Set((nameOnly._promoted_to_audited || []).map((x) => x.toLowerCase()));
+const trulyNew = newRows.filter((r) => !promoted.has(r.name.toLowerCase()));
+const newNameOnly = nameOnly.entities.filter((e) => e.added);
+L.push('', `**جهات جديدة فعلياً بعد إزالة التكرار في هذه الدفعة:** ${trulyNew.length} بموقع رسمي فُحص آلياً + ${newNameOnly.length} بالاسم فقط (اكتُشفت ولم تُتحقق) = **${trulyNew.length + newNameOnly.length}**. (إضافةً: ${newRows.length - trulyNew.length} جهات كانت بالاسم فقط بالدفعة السابقة وفُحصت مواقعها الآن — لا تُحتسب جديدة.)`);
 L.push(`الجديدة بموقع: ${newRows.map((r) => `${r.name} (${r.tier})`).join('، ')}.`, '');
 
 L.push('## 2. مستويات التحقق (منفصلة، لا تُدمج)', '', '| المستوى | العدد |', '|---|---|');
@@ -44,6 +47,7 @@ L.push(`| ثبت بيعها لمنتجات الجمال | ${s.levels.sells_beaut
 L.push(`| لديها مسار رسمي لاستقبال البائعين أو الموردين | ${s.levels.official_seller_or_supplier_path} |`);
 L.push(`| تأكدت أهليتها لقبول منتجات LOWE'S | ${s.levels.lowes_eligibility_confirmed} |`, '');
 
+L.push('## 2ب. ملفات إجراءات التسجيل والملف التجاري', '', '- **إجراءات التسجيل (6 منصات):** `registration_playbooks_2026-10-09.md` — لكل منصة: الرابط، مفتوح/بموافقة، أهلية الشركة مقابل الرخصة الفعلية، المستندات، شروط الفئة، الرسوم الرسمية، ما يحتاج تأكيداً، والخطوة اليدوية التالية.', '- **الملف التجاري (مسودة):** `../commercial_kit_2026-10-09/` — نبذة الشركة والكيان الإماراتي من الرخصة الفعلية، 26 منتجاً بأحجامها وصورها، قائمة النواقص (`Missing_Items_To_Provide.md`)، ومسودة رسالة إنجليزية غير مُرسلة.', '- **أكبر عائق مشترك:** حساب بنكي إماراتي + وضع VAT + هوية المفوَّض + باركودات EAN + تسجيل المنتجات — كلها غير موجودة بالملفات.', '');
 L.push('## 3. أفضل فرص التسجيل المباشر — الأسئلة الستة من مصادر رسمية', '');
 L.push('| المنصة | شركة إماراتية؟ | العناية بالبشرة والشعر؟ | المستندات | موافقات الفئة | الرسوم المعلنة | الخطوة التالية | مستوى الدليل |', '|---|---|---|---|---|---|---|---|');
 for (const p of dossier.platforms) L.push(`| ${esc(p.platform)} | ${esc(p.q1_uae_company_can_register.answer)} | ${esc(p.q2_skin_hair_care_allowed.answer)} | ${esc(p.q3_documents.answer)} | ${esc(p.q4_category_approvals.answer)} | ${esc(p.q5_fees.answer)} | ${esc(p.q6_next_step)} | ${esc([...new Set([p.q1_uae_company_can_register.evidence, p.q5_fees.evidence])].join(' / '))} |`);
@@ -85,6 +89,6 @@ L.push('');
 L.push('## 9. القيود والباقي', '');
 ['قراءة صفحات قيود Amazon ومستندات موافقة الفئة (تتطلب حساب بائع).', 'تأكيد نصوص noon وTrendyol الرسمية بالمتصفح (محجوبة آلياً).', 'محتوى صفحة «Partner with Faces» ونماذج Union Coop (PDF).', `${s.manual_review} رابطاً بملف المراجعة اليدوية، و${nameOnly.entities.length} جهة بالاسم فقط تحتاج إيجاد مواقعها الرسمية.`, 'مزيد من الاكتشاف في الإمارات الشمالية والعين.'].forEach((x) => L.push(`- ${x}`));
 L.push('', '## 10. الملفات', '');
-['LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx', 'uae_sales_platforms_2026-10-09.json / .csv', 'direct_registration_dossier_2026-10-09.json (الأسئلة الستة × 6 منصات)', 'supplier_contact_channels_2026-10-09.json (قنوات الموردين)', 'discovered_name_only_2026-10-09.json (اكتُشفت ولم تُتحقق)', 'uae_sales_platforms_start_list_2026-10-09.csv', 'uae_sales_platforms_manual_review_2026-10-09.csv', 'uae_sales_platforms_excluded_2026-10-09.csv', 'overlap_map_with_leads_batches_2026-10-09.csv / .json', 'audit_raw/'].forEach((x) => L.push(`- \`${x}\``));
+['registration_playbooks_2026-10-09.md', '../commercial_kit_2026-10-09/ (Commercial Profile + Product Sheet + Missing Items + Outreach Email — DRAFT)', 'LOWES_UAE_Sales_Platforms_Verified_2026-10-09.xlsx', 'uae_sales_platforms_2026-10-09.json / .csv', 'direct_registration_dossier_2026-10-09.json (الأسئلة الستة × 6 منصات)', 'supplier_contact_channels_2026-10-09.json (قنوات الموردين)', 'discovered_name_only_2026-10-09.json (اكتُشفت ولم تُتحقق)', 'uae_sales_platforms_start_list_2026-10-09.csv', 'uae_sales_platforms_manual_review_2026-10-09.csv', 'uae_sales_platforms_excluded_2026-10-09.csv', 'overlap_map_with_leads_batches_2026-10-09.csv / .json', 'audit_raw/'].forEach((x) => L.push(`- \`${x}\``));
 fs.writeFileSync(`${dir}/UAE_Sales_Platforms_Report_2026-10-09.md`, L.join('\n'));
 console.log('report written; new rows', newRows.length, '+ name-only', nameOnly.entities.length);

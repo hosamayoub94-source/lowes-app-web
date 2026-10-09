@@ -166,6 +166,15 @@
   "Pharmacy Directory UAE": {
    "kind": "lead_source",
    "reason": "دليل صيدليات (مصدر بحث) وليس قناة بيع"
+  },
+  "Glambox (glambox.me)": {
+   "kind": "duplicate",
+   "reason": "نفس Glambox (النطاق .me لم يستجب أيضاً)",
+   "duplicate_of": "Glambox"
+  },
+  "Deira Wholesale": {
+   "kind": "wrong_entity",
+   "reason": "deirawholesale.com يعرض موقع بث أفلام (نطاق مُختطَف) — الموقع الرسمي غير معروف"
   }
  },
  "byName": {
@@ -1290,6 +1299,183 @@
    "review_reason": "شركة تجارة جملة مستحضرات بالإمارات بحسب موقعها.",
    "review_source": "https://hmsnboutiquetrading.com/service-detail/wholesale-of-cosmetics-and-trading",
    "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "Beauty On Wheels": {
+   "tier": "C",
+   "review_reason": "متجر جمال أونلاين (عناية بشرة وجسم وشعر ومكياج) بتوصيل دبي وأبوظبي والعين والشارقة بحسب نتيجة البحث؛ الموقع يعمل. لا صفحة موردين.",
+   "review_source": "https://beautyonwheels.ae/",
+   "priority": "C"
+  },
+  "BMG Pharmacy": {
+   "tier": "C",
+   "review_reason": "صيدلية أونلاين (Bait Al Maqdes، الخان — الشارقة) تبيع العناية بالبشرة والشعر؛ لا صفحة موردين.",
+   "review_source": "https://bmgpharmacy.com/",
+   "priority": "C",
+   "emirate": "الشارقة"
+  },
+  "Oriana Pharmacy": {
+   "tier": "C",
+   "review_reason": "صيدلية أونلاين بالشارقة تبيع علامات ديرما (ISDIN، Eucerin…) وتوصل للإمارات الشمالية؛ لا صفحة موردين.",
+   "review_source": "https://orianaonline.com/",
+   "priority": "C",
+   "emirate": "الشارقة"
+  },
+  "Vivandi Distribution": {
+   "tier": "B",
+   "review_reason": "موزع «لعلامات دولية متميزة بالإمارات والخليج» مع خدمة «Brand Management» وشركاء بيع (Amazon، noon). زر «Become A Partner» يشير لنطاق خارجي (قالب) — لا مسار رسمي صالح؛ التواصل العام منشور.",
+   "review_source": "https://vivandidistribution.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "B",
+   "contact": "info@vivandidistribution.com | +971 4 335 3839"
+  },
+  "Mirae Beauty Hub": {
+   "tier": "C",
+   "review_reason": "متجر K-beauty وعناية شعر يابانية بالإمارات — تخصص آسيوي؛ لا صفحة موردين.",
+   "review_source": "https://miraebeautyhub.com/",
+   "priority": "D"
+  },
+  "K-Beauty Bliss UAE": {
+   "tier": "C",
+   "review_reason": "متجر K-beauty أونلاين بالإمارات؛ تخصص كوري؛ لا صفحة موردين.",
+   "review_source": "https://kbeautybliss.com/",
+   "priority": "D"
+  },
+  "K-City": {
+   "tier": "C",
+   "review_reason": "متجر K-beauty بدبي وموزع رسمي لعلامة USOLAB بحسب موقعه — تخصص كوري.",
+   "review_source": "https://k-city.com/",
+   "priority": "D"
+  },
+  "LETOILE UAE": {
+   "tier": "C",
+   "review_reason": "متجر جمال أونلاين بالإمارات (توصيل باليوم التالي بحسب موقعه)؛ لا صفحة موردين.",
+   "review_source": "https://letoile.ae/",
+   "priority": "C"
+  },
+  "MAKEUP.ae": {
+   "tier": "C",
+   "review_reason": "متجر مستحضرات وعطور أونلاين بالإمارات؛ لا صفحة موردين.",
+   "review_source": "https://makeup.ae/en/",
+   "priority": "C"
+  },
+  "Beauty Solutions ME": {
+   "tier": "D",
+   "review_reason": "الموقع يحمّل بعنوان «Beauty Solutions» بلا وصف؛ نتيجة البحث تصفه متجر مكياج وعناية — نشاطه غير مؤكد.",
+   "review_source": "https://www.beautysolutions-me.com/",
+   "priority": "D"
+  },
+  "Turkish Souq": {
+   "tier": "D",
+   "review_reason": "متجر منتجات تركية بقسم تجميل، لكن لا مؤشر إماراتي بالصفحة ونتيجة البحث تذكر شراكة مع بريد قطر — السوق المستهدف غير مؤكد.",
+   "review_source": "https://turkishsouq.com/collections/cosmetics-selfcare",
+   "priority": "D"
+  },
+  "Centrepoint (Landmark) — Beauty": {
+   "tier": "D",
+   "review_reason": "متجر Landmark بقسم K-beauty والعناية؛ الموقع يحجب الفحص؛ مسار الموردين عبر المجموعة غير منشور.",
+   "review_source": "https://www.centrepointstores.com/ae/en/c/beautyandpersonalcare-kbeauty",
+   "priority": "D"
+  },
+  "Nesto Group": {
+   "tier": "D",
+   "review_reason": "سلسلة هايبرماركت مقرها الشارقة؛ الموقع لم يستجب؛ لا مسار موردين منشور.",
+   "review_source": "https://en.wikipedia.org/wiki/Nesto_Group",
+   "priority": "D"
+  },
+  "EBEAUTYTRADE": {
+   "tier": "D",
+   "review_reason": "منصة B2B متعددة البائعين للتجميل المهني والجملة بالشرق الأوسط بحسب صفحتها المفهرسة (قديمة ~3 سنوات)؛ الموقع لم يستجب — نشاطها الحالي ومسار البائعين غير مؤكدين. مهمة للمراجعة اليدوية.",
+   "review_source": "https://www.ebeautytrade.com/",
+   "priority": "B",
+   "classification": "غير مؤكدة (منصة B2B محتملة)"
+  },
+  "Dubai Beauty Wholesale": {
+   "tier": "B",
+   "review_reason": "جملة مستحضرات كورية ويابانية ودولية — موجّه للمشترين.",
+   "review_source": "https://dubaibeautywholesale.com/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "THAT Concept Store": {
+   "tier": "D",
+   "review_reason": "متجر مفاهيمي بقسم عناية بالشعر (Dubai) بحسب نتيجة البحث؛ الموقع لم يستجب.",
+   "review_source": "https://www.thatconceptstore.com/en-ae/c/women/women-beauty/women-beauty-hair-care",
+   "priority": "D"
+  },
+  "Jaleel Cash and Carry": {
+   "tier": "E",
+   "review_reason": "تاجر جملة FMCG بتركيز غذائي («Wholesale Food Suppliers»)؛ روابط «register distributor/be partner» أعادت 404.",
+   "review_source": "https://www.jaleelcashandcarry.com/",
+   "priority": "D"
+  },
+  "Al Maya Distribution": {
+   "tier": "E",
+   "review_reason": "موزع أغذية («Food Distribution Companies in UAE») — خارج فئة العناية.",
+   "review_source": "https://www.almayadistribution.ae/",
+   "priority": "D"
+  },
+  "SAFCO International": {
+   "tier": "D",
+   "review_reason": "موزع FMCG (مقال ثانوي)؛ الموقع أعاد توجيهاً (307) دون محتوى.",
+   "review_source": "https://www.safcointl.com/",
+   "priority": "D"
+  },
+  "Fakhruddin Trading": {
+   "tier": "B",
+   "review_reason": "موزع عام (عناية شخصية ومنزلية بحسب مقال ثانوي)؛ صفحة «Become our distributor» موجهة لمن يريد توزيع منتجاتهم لا للموردين.",
+   "review_source": "https://www.fakhruddintrading.com/become-our-distributor/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "Hamna General Trading": {
+   "tier": "B",
+   "review_reason": "موزع جملة عام بالإمارات بحسب موقعه؛ فئة العناية غير مؤكدة.",
+   "review_source": "https://hgt.ae/",
+   "classification": "اتفاق توزيع محتمل",
+   "priority": "D"
+  },
+  "Modern General Trading (MGT)": {
+   "tier": "D",
+   "review_reason": "موزع (مقال ثانوي)؛ الموقع لم يستجب.",
+   "review_source": "https://www.mgtuae.com/",
+   "priority": "D"
+  },
+  "Bupa Pharmacy Abu Dhabi": {
+   "tier": "C",
+   "review_reason": "صيدلية أونلاين بأبوظبي بأقسام جمال وعناية بالبشرة (علامات ديرما)؛ لا صفحة موردين.",
+   "review_source": "https://bupapharmacy.ae/",
+   "priority": "C",
+   "emirate": "أبوظبي"
+  },
+  "Med7 Online": {
+   "tier": "C",
+   "review_reason": "متجر صيدليات Med7 الأونلاين (Bioderma، Cetaphil، ISDIN…) بتوصيل دبي والشارقة وأبوظبي؛ السلسلة موجودة بدفعة talabat 3. لا صفحة موردين.",
+   "review_source": "https://www.med7online.com/",
+   "priority": "C"
+  },
+  "Gorgeous Shop": {
+   "tier": "D",
+   "review_reason": "متجر متعدد العلامات للعناية الطبيعية بحسب نتيجة البحث؛ الموقع يحجب الفحص (403).",
+   "review_source": "https://www.gorgeousshop.ae/",
+   "priority": "C"
+  },
+  "i-health.ae": {
+   "tier": "C",
+   "review_reason": "متجر صحة يبيع مكملات وعناية بالبشرة والشعر (دبي وأبوظبي)؛ لا صفحة موردين.",
+   "review_source": "https://www.i-health.ae/",
+   "priority": "D"
+  },
+  "Shift Eco": {
+   "tier": "E",
+   "review_reason": "الموقع يقدّم حلول استدامة للشركات (عنوانه «Sustainable Solutions & Products for UAE Businesses») — ليس متجر تجميل متعدد العلامات.",
+   "review_source": "https://shifteco.ae/",
+   "priority": "D"
+  },
+  "BNB Store (bodynbodystore)": {
+   "tier": "E",
+   "review_reason": "متجر علامة واحدة (منتجات BNB الخاصة) — لا يُدرج علامات أخرى.",
+   "review_source": "https://bodynbodystore.com/",
    "priority": "D"
   }
  }

@@ -600,6 +600,36 @@
    "lead_province": "Nationwide",
    "lead_priority": "D",
    "relation": "نفس الجهة: سجل ليدز (عميل/موزع محتمل) + نقطة بيع محتملة"
+  },
+  {
+   "platform_name": "Modern General Trading (MGT)",
+   "platform_tier": "D",
+   "platform_role": "متجر تجزئة متعدد العلامات",
+   "platform_website": "",
+   "match_basis": "نفس الاسم",
+   "lead_batch": "batch3",
+   "lead_row": 9,
+   "lead_name": "Modern Pharmacy",
+   "lead_type": "physical",
+   "lead_category": "صيدلية",
+   "lead_province": "Nationwide",
+   "lead_priority": "C",
+   "relation": "نفس الجهة: سجل ليدز (عميل/موزع محتمل) + نقطة بيع محتملة"
+  },
+  {
+   "platform_name": "Med7 Online",
+   "platform_tier": "C",
+   "platform_role": "صيدلية (متجر تجزئة)",
+   "platform_website": "https://www.med7online.com/",
+   "match_basis": "نفس الاسم",
+   "lead_batch": "batch3",
+   "lead_row": 5,
+   "lead_name": "Med7 Pharmacy",
+   "lead_type": "physical",
+   "lead_category": "صيدلية",
+   "lead_province": "Nationwide",
+   "lead_priority": "C",
+   "relation": "نفس الجهة: سجل ليدز (عميل/موزع محتمل) + نقطة بيع محتملة"
   }
  ]
 }

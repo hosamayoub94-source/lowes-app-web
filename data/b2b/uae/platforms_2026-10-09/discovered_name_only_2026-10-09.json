@@ -2,19 +2,90 @@
  "_about": "Entities discovered on 2026-10-09 in public sources that did NOT give an official website. Level = 'discovered_unverified' only: not checked for UAE activity, beauty sales or a supplier path. No URL was guessed for them. They are not counted as verified anywhere.",
  "level": "discovered_unverified",
  "entities": [
-  { "name": "Fakhruddin Trading", "type": "Distributor — beauty, personal care, baby, household (Dubai)", "source": "https://b2bridge.io/blog/wholesale-distributors-in-uae/" },
-  { "name": "Deira Wholesale", "type": "Online wholesaler — beauty & general merchandise (Dubai)", "source": "https://b2bridge.io/blog/wholesale-distributors-in-uae/" },
-  { "name": "Al Maya Distribution", "type": "FMCG distributor (50+ brands)", "source": "https://b2bridge.io/blog/wholesale-distributors-in-uae/" },
-  { "name": "Jaleel Cash and Carry", "type": "Cash & carry for retailers (Dubai)", "source": "https://b2bridge.io/blog/wholesale-distributors-in-uae/" },
-  { "name": "FMCGmarkets (app)", "type": "B2B app: FMCG distributors → wholesalers/supermarkets", "source": "https://play.google.com/store/apps/details?id=com.maxbrandsfmcg&hl=en" },
-  { "name": "Wholesale All Over UAE / Buyinuae (app)", "type": "B2B wholesale app (Sharjah)", "source": "https://apps.apple.com/us/app/id6443879928" },
-  { "name": "Gem Plaza LLC", "type": "Cosmetics & toiletries distributor (Dubai)", "source": "https://www.yellowpages-uae.com/uae/sharjah/cosmetics-and-toiletries" },
-  { "name": "Universal Enterprises (O) Ltd", "type": "Cosmetics & toiletries brands (Sharjah)", "source": "https://www.yellowpages-uae.com/uae/sharjah/cosmetics-and-toiletries" },
-  { "name": "Hassan Mukhtar & Brothers LLC", "type": "Exclusive agent/distributor of toiletries (Dubai)", "source": "https://a-leads.co/company/910904_0403262f" },
-  { "name": "Haneen Cosmetics and Trading Establishment", "type": "Beauty-care distributor (Sharjah)", "source": "WebSearch 9/10/2026 (Sharjah wholesale query)" },
-  { "name": "Step Beauty Equipment & Products Trading", "type": "Salon equipment & products (Sharjah)", "source": "https://www.yellowpages-uae.com/uae/beauty-salons-equipment" },
-  { "name": "Awarid Cosmetics & Beauty Equipments", "type": "Salon supplies (Sharjah)", "source": "https://www.atninfo.com/uae/sharjah/beauty-salons-equipment-supplies-122" },
-  { "name": "Al Jufri Overseas Trading Establishment", "type": "Cosmetics / salon equipment (Ajman)", "source": "https://www.yellowpages-uae.com/uae/ajman/cosmetics" },
-  { "name": "Eva Pro Cosmetics (Al Ain)", "type": "Cosmetics store (Al Ain)", "source": "https://magicpin.com/uae/Al-Ain/Al-Bateen-Al-Ain/Beauty/Eva-Pro-Cosmetics/store/2302b0c" }
+  {
+   "name": "Deira Wholesale",
+   "type": "Online wholesaler — beauty & general merchandise (Dubai)",
+   "source": "https://b2bridge.io/blog/wholesale-distributors-in-uae/",
+   "note": "النطاق deirawholesale.com يعرض محتوى غير مرتبط — الموقع الرسمي غير معروف"
+  },
+  {
+   "name": "FMCGmarkets (app)",
+   "type": "B2B app: FMCG distributors → wholesalers/supermarkets",
+   "source": "https://play.google.com/store/apps/details?id=com.maxbrandsfmcg&hl=en"
+  },
+  {
+   "name": "Wholesale All Over UAE / Buyinuae (app)",
+   "type": "B2B wholesale app (Sharjah)",
+   "source": "https://apps.apple.com/us/app/id6443879928"
+  },
+  {
+   "name": "Gem Plaza LLC",
+   "type": "Cosmetics & toiletries distributor (Dubai)",
+   "source": "https://www.yellowpages-uae.com/uae/sharjah/cosmetics-and-toiletries"
+  },
+  {
+   "name": "Universal Enterprises (O) Ltd",
+   "type": "Cosmetics & toiletries brands (Sharjah)",
+   "source": "https://www.yellowpages-uae.com/uae/sharjah/cosmetics-and-toiletries"
+  },
+  {
+   "name": "Hassan Mukhtar & Brothers LLC",
+   "type": "Exclusive agent/distributor of toiletries (Dubai)",
+   "source": "https://a-leads.co/company/910904_0403262f"
+  },
+  {
+   "name": "Haneen Cosmetics and Trading Establishment",
+   "type": "Beauty-care distributor (Sharjah)",
+   "source": "WebSearch 9/10/2026 (Sharjah wholesale query)"
+  },
+  {
+   "name": "Step Beauty Equipment & Products Trading",
+   "type": "Salon equipment & products (Sharjah)",
+   "source": "https://www.yellowpages-uae.com/uae/beauty-salons-equipment"
+  },
+  {
+   "name": "Awarid Cosmetics & Beauty Equipments",
+   "type": "Salon supplies (Sharjah)",
+   "source": "https://www.atninfo.com/uae/sharjah/beauty-salons-equipment-supplies-122"
+  },
+  {
+   "name": "Al Jufri Overseas Trading Establishment",
+   "type": "Cosmetics / salon equipment (Ajman)",
+   "source": "https://www.yellowpages-uae.com/uae/ajman/cosmetics"
+  },
+  {
+   "name": "Eva Pro Cosmetics (Al Ain)",
+   "type": "Cosmetics store (Al Ain)",
+   "source": "https://magicpin.com/uae/Al-Ain/Al-Bateen-Al-Ain/Beauty/Eva-Pro-Cosmetics/store/2302b0c"
+  },
+  {
+   "name": "Ruby Cosmetics & Cleaning Industry LLC",
+   "type": "Cosmetics manufacturer/trader (Sharjah)",
+   "source": "WebSearch 9/10/2026 (UAE cosmetics distributors query)",
+   "added": "2026-10-09 phase 4"
+  },
+  {
+   "name": "Lebanon Beauty Equipment Trading",
+   "type": "Salon equipment/supplies (Ajman)",
+   "source": "https://www.yellowpages-uae.com/uae/beauty-salons-equipment",
+   "added": "2026-10-09 phase 4"
+  },
+  {
+   "name": "The Grooming Lab",
+   "type": "Men's grooming distributor (Dubai) — 50+ barbershops",
+   "source": "https://gulfbusiness.com/the-sme-story-zein-arbeed-founder-of-the-grooming-lab/",
+   "added": "2026-10-09 phase 4"
+  },
+  {
+   "name": "Monster Middle East",
+   "type": "Exclusive GCC distributor (MANSCAPED) — Dubai",
+   "source": "https://gulfnews.com/business/corporate-news/manscaped-partners-with-monster-middle-east-to-launch-retail-in-the-gcc-1.500389616",
+   "added": "2026-10-09 phase 4"
+  }
+ ],
+ "_promoted_to_audited": [
+  "Fakhruddin Trading",
+  "Al Maya Distribution",
+  "Jaleel Cash and Carry"
  ]
 }

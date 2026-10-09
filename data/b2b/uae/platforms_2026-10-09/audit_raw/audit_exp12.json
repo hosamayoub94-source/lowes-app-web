@@ -1,0 +1,682 @@
+[
+ {
+  "n": 470,
+  "name": "Beauty On Wheels",
+  "url": "https://beautyonwheels.ae/",
+  "channel_type": "Online beauty store (delivery Dubai/AD/Al Ain/Sharjah)",
+  "origin": "WebSearch: Abu Dhabi beauty stores",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://beautyonwheels.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://beautyonwheels.ae/collections/new-arrivals/products/feel-great-pack-with-balance-natural-orange-and-unimate-lemon-ginger-30-day-supply",
+     "text": " "
+    },
+    {
+     "url": "https://beautyonwheels.ae/collections/featured-products/products/feel-great-pack-with-balance-natural-orange-and-natural-lemon-30-day-supply",
+     "text": " "
+    },
+    {
+     "url": "https://beautyonwheels.ae/collections/featured-products/products/unicity-balance-natural-orange-30-packets-helps-support-a-healthy-digestive-system-and-keeps-your-body-well-maintained-30-day-supply",
+     "text": " "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://beautyonwheels.ae/collections/new-arrivals/products/feel-great-pack-with-balance-natural-orange-and-unimate-lemon-ginger-30-day-supply",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://beautyonwheels.ae/collections/new-arrivals/products/feel-great-pack-with-balance-natural-orange-and-unimate-lemon-ginger-30-day-supply",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://beautyonwheels.ae/collections/featured-products/products/feel-great-pack-with-balance-natural-orange-and-natural-lemon-30-day-supply",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://beautyonwheels.ae/collections/featured-products/products/feel-great-pack-with-balance-natural-orange-and-natural-lemon-30-day-supply",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://beautyonwheels.ae/collections/featured-products/products/unicity-balance-natural-orange-30-packets-helps-support-a-healthy-digestive-system-and-keeps-your-body-well-maintained-30-day-supply",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://beautyonwheels.ae/collections/featured-products/products/unicity-balance-natural-orange-30-packets-helps-support-a-healthy-digestive-system-and-keeps-your-body-well-maintained-30-day-supply",
+    "title": "",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 471,
+  "name": "BMG Pharmacy",
+  "url": "https://bmgpharmacy.com/",
+  "channel_type": "Online pharmacy (Al Khan, Sharjah)",
+  "origin": "WebSearch: Northern Emirates pharmacies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://bmgpharmacy.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "BMG Pharmacy (Bait Al Maqdes) | Online Pharmacy UAE",
+   "desc": "Order medicines, vitamins, skin care and baby products online from BMG Pharmacy, with delivery in Dubai, Sharjah and Ajman.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@bmgpharmacy.com"
+   ],
+   "tels": [
+    "8002647"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 472,
+  "name": "Oriana Pharmacy",
+  "url": "https://orianaonline.com/",
+  "channel_type": "Online pharmacy (Sharjah, Northern Emirates)",
+  "origin": "WebSearch: Northern Emirates pharmacies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://orianaonline.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Oriana Pharmacy - Best online pharmacy in the UAE",
+   "desc": "Oriana Pharmacy is in the Sharjah, UAE . Shop healthcare products, medications & beauty brands. Convenient online shopping.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=Oriana%20Pharmacy",
+     "text": "Oriana Pharmacy"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=NATURAL%20CONFIDENCE",
+     "text": "NATURAL CONFIDENCE"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=EUCERIN",
+     "text": "EUCERIN"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=ISDIN",
+     "text": "ISDIN"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=NOVEXPERT",
+     "text": "NOVEXPERT"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=VICHY",
+     "text": "VICHY"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=M.A.D",
+     "text": "M.A.D"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=ERIC%20FAVRE",
+     "text": "ERIC FAVRE"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=GLOW%20REDIANCE",
+     "text": "GLOW REDIANCE"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=SKINCEUTICALS",
+     "text": "SKINCEUTICALS"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=MAYBELLINE",
+     "text": "MAYBELLINE"
+    },
+    {
+     "url": "https://orianaonline.com/collections/vendors?q=BIOCYTE",
+     "text": "BIOCYTE"
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://orianaonline.com/collections/vendors?q=Oriana%20Pharmacy",
+    "link_text": "Oriana Pharmacy",
+    "http_status": 200,
+    "final_url": "https://orianaonline.com/collections/vendors?q=Oriana+Pharmacy",
+    "title": "Oriana Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://orianaonline.com/collections/vendors?q=NATURAL%20CONFIDENCE",
+    "link_text": "NATURAL CONFIDENCE",
+    "http_status": 200,
+    "final_url": "https://orianaonline.com/collections/vendors?q=NATURAL+CONFIDENCE",
+    "title": "NATURAL CONFIDENCE &ndash; Oriana Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://orianaonline.com/collections/vendors?q=EUCERIN",
+    "link_text": "EUCERIN",
+    "http_status": 200,
+    "final_url": "https://orianaonline.com/collections/vendors?q=EUCERIN",
+    "title": "EUCERIN &ndash; Oriana Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   },
+   {
+    "url": "https://orianaonline.com/collections/vendors?q=ISDIN",
+    "link_text": "ISDIN",
+    "http_status": 200,
+    "final_url": "https://orianaonline.com/collections/vendors?q=ISDIN",
+    "title": "ISDIN &ndash; Oriana Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": []
+   }
+  ]
+ },
+ {
+  "n": 473,
+  "name": "Vivandi Distribution",
+  "url": "https://vivandidistribution.com/",
+  "channel_type": "Beauty/haircare distributor (Dubai, GCC)",
+  "origin": "WebSearch: UAE cosmetics distributors",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://vivandidistribution.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Vivandi Distribution - Beauty, Skincare, Healthcare Supplies",
+   "desc": "Discover Vivandi Distribution, your trusted صيدلية لايف for premium beauty, skincare, wellness, and healthcare products in the UAE.",
+   "uae_signal": true,
+   "seller_signal_text": "Become A Partner",
+   "candidate_links": [
+    {
+     "url": "https://vivandidistribution.com/",
+     "text": " "
+    },
+    {
+     "url": "https://vivandidistribution.com/about-vivandi-distribution/",
+     "text": "About Us"
+    },
+    {
+     "url": "https://vivandidistribution.com/our-values/",
+     "text": "Our Values"
+    },
+    {
+     "url": "https://vivandidistribution.com/vivandi-distribution-our-mission/",
+     "text": "Our Mission"
+    },
+    {
+     "url": "https://vivandidistribution.com/message-from-the-director/",
+     "text": "Message from the Director"
+    },
+    {
+     "url": "https://vivandidistribution.com/message-from-the-chairman-and-group-ceo/",
+     "text": "Message from the Chairman and Group CEO"
+    },
+    {
+     "url": "https://vivandidistribution.com/nutraceuticals/",
+     "text": "Nutraceuticals"
+    },
+    {
+     "url": "https://vivandidistribution.com/beauty-and-haircare/",
+     "text": "Beauty and Haircare"
+    },
+    {
+     "url": "https://vivandidistribution.com/personal-care-devices/",
+     "text": "Personal Care Devices"
+    },
+    {
+     "url": "https://vivandidistribution.com/sport-supplements/",
+     "text": "Sport Supplements"
+    },
+    {
+     "url": "https://vivandidistribution.com/distribution-coverage/",
+     "text": "Distribution Coverage"
+    },
+    {
+     "url": "https://vivandidistribution.com/distribution-infrastructure/",
+     "text": "Distribution Infrastructure"
+    }
+   ],
+   "emails": [
+    "info@VivandiDistribution.com",
+    "info@vivandidistribution.com",
+    "ksa@vivandidistribution.com"
+   ],
+   "tels": [
+    "+97150 648 7886",
+    "+971 4 335 3839"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://vivandidistribution.com/",
+    "link_text": " ",
+    "http_status": 200,
+    "final_url": "https://vivandidistribution.com/",
+    "title": "Vivandi Distribution - Beauty, Skincare, Healthcare Supplies",
+    "blocked": false,
+    "seller_signal_text": "Become A Partner",
+    "fee_snippets": [],
+    "emails": [
+     "info@VivandiDistribution.com",
+     "info@vivandidistribution.com",
+     "ksa@vivandidistribution.com"
+    ]
+   },
+   {
+    "url": "https://vivandidistribution.com/about-vivandi-distribution/",
+    "link_text": "About Us",
+    "http_status": 200,
+    "final_url": "https://vivandidistribution.com/about-vivandi-distribution/",
+    "title": "About Us - Vivandi Distribution Leading pharmacies Distributor",
+    "blocked": false,
+    "seller_signal_text": "Become A Partner",
+    "fee_snippets": [],
+    "emails": [
+     "info@VivandiDistribution.com",
+     "info@vivandidistribution.com",
+     "ksa@vivandidistribution.com"
+    ]
+   },
+   {
+    "url": "https://vivandidistribution.com/our-values/",
+    "link_text": "Our Values",
+    "http_status": 200,
+    "final_url": "https://vivandidistribution.com/our-values/",
+    "title": "Our Values - Vivandi Distribution",
+    "blocked": false,
+    "seller_signal_text": "Become A Partner",
+    "fee_snippets": [],
+    "emails": [
+     "info@VivandiDistribution.com",
+     "info@vivandidistribution.com",
+     "ksa@vivandidistribution.com"
+    ]
+   },
+   {
+    "url": "https://vivandidistribution.com/vivandi-distribution-our-mission/",
+    "link_text": "Our Mission",
+    "http_status": 200,
+    "final_url": "https://vivandidistribution.com/vivandi-distribution-our-mission/",
+    "title": "Our Mission - Vivandi Distribution",
+    "blocked": false,
+    "seller_signal_text": "Become A Partner",
+    "fee_snippets": [],
+    "emails": [
+     "info@VivandiDistribution.com",
+     "info@vivandidistribution.com",
+     "ksa@vivandidistribution.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 474,
+  "name": "Mirae Beauty Hub",
+  "url": "https://miraebeautyhub.com/",
+  "channel_type": "K-beauty + Japanese haircare online (UAE)",
+  "origin": "WebSearch: K-beauty UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://miraebeautyhub.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Korean Skincare Online UAE | Original K-Beauty UAE | Mirae Beauty Hub",
+   "desc": "Shop authentic Korean skincare & Japanese hair care in UAE at Mirae Beauty Hub. Acne, glow & anti-aging solutions. Fast Dubai, UAE delivery. 100% original products.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Dr.%20Althea&q=Dr.%20Althea",
+     "text": "Dr. Althea"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Tir%20Tir&q=Tir%20Tir",
+     "text": "Tir Tir"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Eqqualberry&q=Eqqualberry",
+     "text": "Eqqualberry"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Celimax&q=Celimax",
+     "text": "Celimax"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Medicube&q=Medicube",
+     "text": "Medicube"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Anua&q=Anua",
+     "text": "Anua"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Shiseido&q=Shiseido",
+     "text": "Shiseido"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=BB%20Lab&q=BB%20Lab",
+     "text": "BB Lab"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Mirae%20Beauty%20Hub&q=Mirae%20Beauty%20Hub",
+     "text": "Mirae Beauty Hub"
+    },
+    {
+     "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Skin1004&q=Skin1004",
+     "text": "Skin1004"
+    }
+   ],
+   "emails": [
+    "info@miraebeautyhub.com",
+    "ashish@miraebeautyhub.com",
+    "care@miraebeautyhub.com"
+   ],
+   "tels": [
+    "+971509371601"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Dr.%20Althea&q=Dr.%20Althea",
+    "link_text": "Dr. Althea",
+    "http_status": 200,
+    "final_url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Dr.+Althea&q=Dr.+Althea",
+    "title": "Dr. Althea &ndash; Mirae Beauty Hub",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "care@miraebeautyhub.com"
+    ]
+   },
+   {
+    "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Tir%20Tir&q=Tir%20Tir",
+    "link_text": "Tir Tir",
+    "http_status": 200,
+    "final_url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Tir+Tir&q=Tir+Tir",
+    "title": "Tir Tir &ndash; Mirae Beauty Hub",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "care@miraebeautyhub.com"
+    ]
+   },
+   {
+    "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Eqqualberry&q=Eqqualberry",
+    "link_text": "Eqqualberry",
+    "http_status": 200,
+    "final_url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Eqqualberry&q=Eqqualberry",
+    "title": "Eqqualberry &ndash; Mirae Beauty Hub",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "care@miraebeautyhub.com"
+    ]
+   },
+   {
+    "url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Celimax&q=Celimax",
+    "link_text": "Celimax",
+    "http_status": 200,
+    "final_url": "https://miraebeautyhub.com/collections/vendors?filter.p.vendor=Celimax&q=Celimax",
+    "title": "Celimax &ndash; Mirae Beauty Hub",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "care@miraebeautyhub.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 475,
+  "name": "K-Beauty Bliss UAE",
+  "url": "https://kbeautybliss.com/",
+  "channel_type": "K-beauty online (UAE)",
+  "origin": "WebSearch: K-beauty UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://kbeautybliss.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "K-Beauty Bliss · Authentic Korean skincare in the UAE",
+   "desc": "Shop Korean skincare in the UAE — serums, creams, moisturisers and beauty devices from Korean beauty brands.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 58 505 2611"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 476,
+  "name": "K-City",
+  "url": "https://k-city.com/",
+  "channel_type": "K-beauty store + official distributor (Dubai)",
+  "origin": "WebSearch: K-beauty UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://k-city.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "K-Beauty & Korean Skincare Dubai | Official USOLAB | K-City",
+   "desc": "Shop original Korean skincare and K-beauty in Dubai. Official UAE distributor of USOLAB, plus Beauty of Joseon, AVAJAR and HARAMOON. UAE-wide delivery.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "info@k-city.com"
+   ],
+   "tels": [
+    "+971 58 559 9750"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 477,
+  "name": "LETOILE UAE",
+  "url": "https://letoile.ae/",
+  "channel_type": "Online beauty store (UAE)",
+  "origin": "WebSearch: beauty online UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://letoile.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "LETOILE - Online Beauty Store in UAE",
+   "desc": "LETOILE online store - everything for your beauty and more! Free next day delivery throughout UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://letoile.ae/collections/perfume",
+     "text": "Bestsellers"
+    }
+   ],
+   "emails": [
+    "rinat@maestra.io"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://letoile.ae/collections/perfume",
+    "link_text": "Bestsellers",
+    "http_status": 200,
+    "final_url": "https://letoile.ae/collections/perfume",
+    "title": "Perfumes Shop Online in UAE – LETOILE | Perfumes Price in UAE – LETOILE",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "rinat@maestra.io"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 478,
+  "name": "MAKEUP.ae",
+  "url": "https://makeup.ae/en/",
+  "channel_type": "Online cosmetics/perfume store (UAE)",
+  "origin": "WebSearch: beauty online UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://makeup.ae/en/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Cosmetics, Perfumes, Beauty Products & Accessories online at MAKEUP",
+   "desc": "Buy perfumes, cosmetics and beauty products from top brands at MAKEUP. Order online and enjoy express shipping in UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 479,
+  "name": "Beauty Solutions ME",
+  "url": "https://www.beautysolutions-me.com/",
+  "channel_type": "Online makeup & skincare store (UAE)",
+  "origin": "WebSearch: beauty online UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.beautysolutions-me.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Beauty Solutions",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "orders@beautysolutions-me.com"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 480,
+  "name": "Turkish Souq",
+  "url": "https://turkishsouq.com/collections/cosmetics-selfcare",
+  "channel_type": "Turkish products online (market unclear)",
+  "origin": "WebSearch: Turkish beauty UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://turkishsouq.com/collections/cosmetics-selfcare",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Cosmetics & Self Care • A whole new look | Turkish Souq",
+   "desc": "Pamper yourself with a wide rage of best selling Skin care and self-care products at our Cosmetics store on Turkish Souq. Glamorize, Beautify and Flourish!",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [
+    "ecom-swiper@11.css",
+    "ecom-swiper@11.0.5.js"
+   ],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 481,
+  "name": "Centrepoint (Landmark) — Beauty",
+  "url": "https://www.centrepointstores.com/ae/en/c/beautyandpersonalcare-kbeauty",
+  "channel_type": "Department store online — beauty/K-beauty",
+  "origin": "WebSearch: K-beauty UAE 2026",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.centrepointstores.com/ae/en/c/beautyandpersonalcare-kbeauty",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "Just a moment...",
+   "desc": "",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 482,
+  "name": "Nesto Group",
+  "url": "https://www.nestogroup.com/",
+  "channel_type": "Hypermarket chain (HQ Sharjah)",
+  "origin": "WebSearch: hypermarket supplier",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 0,
+   "final_url": "",
+   "fetch_error": "fetch failed",
+   "blocked": false,
+   "title": "",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ }
+]

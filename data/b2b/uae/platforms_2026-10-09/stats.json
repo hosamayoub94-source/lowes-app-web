@@ -1,45 +1,46 @@
 {
  "generated_at": "2026-10-09",
- "input_records": 238,
- "kept": 198,
- "excluded_total": 40,
- "excluded_duplicates": 16,
- "excluded_not_channel_or_other": 24,
+ "input_records": 268,
+ "kept": 226,
+ "excluded_total": 42,
+ "excluded_duplicates": 17,
+ "excluded_not_channel_or_other": 25,
  "tiers": {
   "A": 6,
-  "B": 22,
-  "C": 78,
-  "D": 78,
-  "E_in_rows": 14,
-  "E_excluded_list": 40
+  "B": 26,
+  "C": 89,
+  "D": 87,
+  "E_in_rows": 18,
+  "E_excluded_list": 42
  },
  "verified": 11,
- "needs_review": 142,
- "unreachable": 45,
+ "needs_review": 166,
+ "unreachable": 49,
  "direct_seller_registration_confirmed": 6,
- "supplier_agreement_required": 78,
- "protected_not_verified": 36,
- "manual_review": 78,
- "verified_actually": 102,
- "suitable_as_supplier_B_C": 100,
- "undetermined_D": 78,
+ "supplier_agreement_required": 89,
+ "protected_not_verified": 38,
+ "manual_review": 87,
+ "verified_actually": 122,
+ "suitable_as_supplier_B_C": 115,
+ "undetermined_D": 87,
  "by_classification": {
   "تسجيل مباشر": 5,
   "تسجيل مباشر محتمل — غير موثّق رسمياً": 2,
   "تقديم مورد": 6,
-  "اتفاق توريد محتمل": 71,
-  "غير مناسبة": 14,
-  "غير مؤكدة": 75,
+  "اتفاق توريد محتمل": 82,
+  "غير مناسبة": 18,
+  "غير مؤكدة": 83,
   "تقديم مورد (ملاءمة ضعيفة)": 1,
-  "اتفاق توزيع محتمل": 22,
+  "اتفاق توزيع محتمل": 26,
   "تسجيل مباشر (أولوية منخفضة)": 1,
-  "غير مؤكدة (سوق B2B محتمل)": 1
+  "غير مؤكدة (سوق B2B محتمل)": 1,
+  "غير مؤكدة (منصة B2B محتملة)": 1
  },
- "reviewed_manually": 121,
+ "reviewed_manually": 149,
  "levels": {
-  "discovered": 198,
-  "active_in_uae": 102,
-  "sells_beauty": 87,
+  "discovered": 226,
+  "active_in_uae": 122,
+  "sells_beauty": 103,
   "official_seller_or_supplier_path": 17,
   "lowes_eligibility_confirmed": 0
  },
@@ -49,7 +50,7 @@
  "by_method": {
   "direct_seller_registration": 7,
   "supplier_or_brand_application": 7,
-  "independent_multibrand_store": 173,
+  "independent_multibrand_store": 201,
   "wholesale_distribution": 5,
   "social_commerce": 3,
   "own_store_platform": 3
@@ -66,6 +67,9 @@
   "exp8": 4,
   "exp9": 6,
   "exp10": 6,
-  "exp11": 19
+  "exp11": 19,
+  "exp12": 13,
+  "exp13": 9,
+  "exp14": 6
  }
 }

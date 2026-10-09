@@ -1,0 +1,285 @@
+[
+ {
+  "n": 510,
+  "name": "Bupa Pharmacy Abu Dhabi",
+  "url": "https://bupapharmacy.ae/",
+  "channel_type": "Online pharmacy (Abu Dhabi) with beauty/skincare",
+  "origin": "WebSearch: Abu Dhabi online pharmacies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://bupapharmacy.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Bupa Pharmacy Abu Dhabi | Beauty, Vitamins & Health Essentials Online",
+   "desc": "Shop beauty, skincare, vitamins, supplements, sports nutrition, baby care and home health essentials online at Bupa Pharmacy Abu Dhabi. Free delivery over AED 100.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://bupapharmacy.ae/collections/vendors?q=Bupa%20Pharmacy",
+     "text": "Bupa Pharmacy"
+    },
+    {
+     "url": "https://bupapharmacy.ae/collections/vendors?q=DermaVe",
+     "text": "DermaVe"
+    }
+   ],
+   "emails": [
+    "info@bupapharmacy.ae"
+   ],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://bupapharmacy.ae/collections/vendors?q=Bupa%20Pharmacy",
+    "link_text": "Bupa Pharmacy",
+    "http_status": 200,
+    "final_url": "https://bupapharmacy.ae/collections/vendors?q=Bupa+Pharmacy",
+    "title": "Bupa Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@bupapharmacy.ae"
+    ]
+   },
+   {
+    "url": "https://bupapharmacy.ae/collections/vendors?q=DermaVe",
+    "link_text": "DermaVe",
+    "http_status": 200,
+    "final_url": "https://bupapharmacy.ae/collections/vendors?q=DermaVe",
+    "title": "DermaVe &ndash; Bupa Pharmacy",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@bupapharmacy.ae"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 511,
+  "name": "Med7 Online",
+  "url": "https://www.med7online.com/",
+  "channel_type": "Online pharmacy (Dubai/Sharjah/AD) — derma cosmetics",
+  "origin": "WebSearch: Abu Dhabi online pharmacies",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.med7online.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Med7 Online - Online Pharmacy Delivery in Dubai, UAE | Order Now",
+   "desc": "Med7Onlline , An online pharmacy in dubai, UAE offers Amazing Deals on genuine products from all your favourite Brands and categories including protein powder, beauty, skin care & baby products online in Dubai, Abu Dhabi and all emirate in ",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=ASM",
+     "text": " ASM "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=Bioderma",
+     "text": " BIODERMA "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=Cetaphil",
+     "text": " CETAPHIL "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=ISDIN",
+     "text": " ISDIN "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=AMS",
+     "text": " AMS "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=MEDEE",
+     "text": " MEDEE "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=Optimum%20Nutrition",
+     "text": " OPTIMUM NUTRI.. "
+    },
+    {
+     "url": "https://www.med7online.com/collections/vendors?q=Sunshine%20Nutrition",
+     "text": " SUNSHINE NUTR.. "
+    }
+   ],
+   "emails": [],
+   "tels": []
+  },
+  "followed": [
+   {
+    "url": "https://www.med7online.com/collections/vendors?q=ASM",
+    "link_text": " ASM ",
+    "http_status": 200,
+    "final_url": "https://www.med7online.com/collections/vendors?q=ASM",
+    "title": "ASM &ndash; Med7 Online",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@med7online.com"
+    ]
+   },
+   {
+    "url": "https://www.med7online.com/collections/vendors?q=Bioderma",
+    "link_text": " BIODERMA ",
+    "http_status": 200,
+    "final_url": "https://www.med7online.com/collections/vendors?q=Bioderma",
+    "title": "Bioderma &ndash; Med7 Online",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@med7online.com"
+    ]
+   },
+   {
+    "url": "https://www.med7online.com/collections/vendors?q=Cetaphil",
+    "link_text": " CETAPHIL ",
+    "http_status": 200,
+    "final_url": "https://www.med7online.com/collections/vendors?q=Cetaphil",
+    "title": "Cetaphil &ndash; Med7 Online",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@med7online.com"
+    ]
+   },
+   {
+    "url": "https://www.med7online.com/collections/vendors?q=ISDIN",
+    "link_text": " ISDIN ",
+    "http_status": 200,
+    "final_url": "https://www.med7online.com/collections/vendors?q=ISDIN",
+    "title": "ISDIN &ndash; Med7 Online",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@med7online.com"
+    ]
+   }
+  ]
+ },
+ {
+  "n": 512,
+  "name": "Gorgeous Shop",
+  "url": "https://www.gorgeousshop.ae/",
+  "channel_type": "Multi-brand organic/natural beauty store (UAE)",
+  "origin": "WebSearch: natural skincare UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 403,
+   "final_url": "https://www.gorgeousshop.ae/",
+   "fetch_error": null,
+   "blocked": true,
+   "title": "403 Forbidden",
+   "desc": "",
+   "uae_signal": false,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 513,
+  "name": "i-health.ae",
+  "url": "https://www.i-health.ae/",
+  "channel_type": "Health store with organic skincare (Dubai/AD)",
+  "origin": "WebSearch: natural skincare UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://www.i-health.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "iHealth | Supplements,Organic Health & Beauty, Mom & Baby Products UAE &ndash; iHealth UAE",
+   "desc": "Find your Favorite Vitamins, Supplements, Skincare, Hair Care, Personal Care, Mom & Baby items at iHealth UAE. The Ultimate Natural Health & Beauty Destination In The Middle East.online in UAE",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": [
+    "+971 56 995 0707"
+   ]
+  },
+  "followed": []
+ },
+ {
+  "n": 514,
+  "name": "Shift Eco",
+  "url": "https://shifteco.ae/",
+  "channel_type": "Sustainable/organic skincare store (Dubai)",
+  "origin": "WebSearch: natural skincare UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://shifteco.ae/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Sustainable Solutions & Products for UAE Businesses",
+   "desc": "We Empower Companies to Build a Culture of Sustainability. Join us in transforming workplaces for a better tomorrow.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [],
+   "emails": [],
+   "tels": []
+  },
+  "followed": []
+ },
+ {
+  "n": 515,
+  "name": "BNB Store (bodynbodystore)",
+  "url": "https://bodynbodystore.com/",
+  "channel_type": "Skincare store (Deira, Dubai)",
+  "origin": "WebSearch: natural skincare UAE",
+  "audited_at": "2026-10-09",
+  "audit": {
+   "http_status": 200,
+   "final_url": "https://bodynbodystore.com/",
+   "fetch_error": null,
+   "blocked": false,
+   "title": "Organic Skin Care 100% Natural Products Brand Online UAE &ndash; BNB Store",
+   "desc": "Buy BNB’s natural and organic skincare products across UAE, KSA, Qatar, and Oman. Shop online for trusted skin care brands in Dubai and the UAE to achieve glowing, healthy skin.",
+   "uae_signal": true,
+   "seller_signal_text": null,
+   "candidate_links": [
+    {
+     "url": "https://bodynbodystore.com/collections/best-selling",
+     "text": "View All "
+    }
+   ],
+   "emails": [
+    "info@bodynbodystore.com",
+    "support@bodynbodystore.com"
+   ],
+   "tels": [
+    "+971522329908",
+    "+971 52 232 9908"
+   ]
+  },
+  "followed": [
+   {
+    "url": "https://bodynbodystore.com/collections/best-selling",
+    "link_text": "View All ",
+    "http_status": 200,
+    "final_url": "https://bodynbodystore.com/collections/best-selling",
+    "title": "Best Selling | BNB Store",
+    "blocked": false,
+    "seller_signal_text": null,
+    "fee_snippets": [],
+    "emails": [
+     "info@bodynbodystore.com"
+    ]
+   }
+  ]
+ }
+]
