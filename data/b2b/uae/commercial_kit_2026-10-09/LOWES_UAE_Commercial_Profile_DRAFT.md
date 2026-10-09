@@ -1,49 +1,59 @@
-# LOWE'S Profesyonel — UAE Commercial Profile (DRAFT · internal · not sent)
+# LOWE'S Profesyonel — UAE Commercial Profile (DRAFT v2 · internal · not sent)
 
-> **Status:** draft prepared 9 Oct 2026 from company files only. Nothing here was sent to anyone.
-> Every fact carries its source. Anything not found in the files is marked **[TO PROVIDE]** and listed in `Missing_Items_To_Provide.md`.
-> Prices are intentionally not included: no price list approved for the UAE was found (the existing price ladders are for Syria).
+> **Status:** draft updated 9 Oct 2026. Only confirmed information is included. Each fact has its source.
+> Items not found in the project files are marked **[TO CONFIRM]**. That marker does **not** mean the company lacks them; see `Missing_Items_To_Provide.md` and `readiness_table_2026-10-09.csv`.
+> Prices are not included because no UAE-approved price list was found. The existing price ladders are approved for Syria only and are not used here.
 
 ---
 
 ## 1. About the brand
 
-**LOWE'S Profesyonel** is a professional skincare and haircare brand made in Türkiye. *(Source: ABOS `02_Company_Brain.md`, catalog "Made in Türkiye")*
+**LOWE'S Profesyonel** is a professional skincare and haircare brand made in Türkiye. *(ABOS 02; catalog)*
 
-- **Range:** 26 products in 3 lines: Skincare (20), Hair & Men (4) and Body (2). *(Source: `LOWES Catalog - PRINT.html`; official website states "26 products", per ABOS `06_Product_System.md`)*
-- **Systems:** Rice Milk System (hydration and brightening), Anti-Aging Ladder (hydration → retinol → retinal + vitamin C) and Rosemary Hair System. *(Source: ABOS 06)*
-- **Hero product:** Retinal Shot Cream, 15 ml, 25,000 IU. *(Source: catalog)*
-- **Hair line evidence:** the brand website publishes a SKINLAB (Poland) evaluation of the rosemary line. It reports +15.53% hair density over 8 weeks with 30 volunteers, reviewed by a dermatologist. *(Source: ABOS 06 → `lowesprofesyonel.com/science.html`)* **[TO PROVIDE: the original SKINLAB report before using this claim with buyers]**
-- **Manufacturer:** CEELLO KOZMETİK, Afyonkarahisar, Türkiye. *(Source: ABOS 02)* **[TO PROVIDE: manufacturer authorization letter, GMP/ISO certificates]**
-- **Labels:** each catalog page lists "EU 1223/2009" and "Made in Türkiye". *(Source: catalog)* **[TO PROVIDE: the compliance documents (PIF/CPSR) behind this mention]**
-- **Cruelty-free:** recorded internally as confirmed by CEELLO. *(Source: ABOS 02)* **[TO PROVIDE: written certificate before external use]**
-- **Track record:** 230,000+ customers historically through Trendyol and Turkish platforms. *(Source: ABOS 02, internal sales data)*
-- **Online presence:** website lowesprofesyonel.com; Instagram @lowes.profesyonal_ (this handle is fixed per company rule).
+- **Range:** 26 products in three lines: Skincare (20), Hair & Men (4) and Body (2). *(catalog; brand website states "26 products")*
+- **Systems:** Rice Milk System, Anti-Aging Ladder and Rosemary Hair System. *(ABOS 06)*
+- **Hero product:** Retinal Shot Cream, 15 ml, 25,000 IU. *(catalog)*
+- **Manufacturer:** CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş., Afyonkarahisar, Türkiye. CEELLO is the contract manufacturer, and LOWE'S formulas are stated to be 100% identical to CEEL/CEELLO formulas. *(Manufacturing-partnership statement, investor data room)*
+- **Hair efficacy test (document on file):** SKINLAB P.S.A. (Kraków), report dated 20.03.2026.
+  - Tested product: "The CEEL Pure Rosemary Water", the manufacturer's identical formula.
+  - Panel: 30 female volunteers, 8 weeks.
+  - Result: **+15.53% hair density** (ASW 300 measurement), no side effects reported.
+  - Approved by Dr. Barbara Wnuk, dermatologist.
+  - *(investor data room `03_…/تقرير الفحص والشهادة (AplAppRep).pdf`)*
+  - When using this claim, attach the report **and** the formula-identity statement, because the report names the CEEL product.
+- **Product test files:** an internal certificates index states that each of the 26 products has stability, challenge (preservation) and microbiological test reports (80+ documents), stored in a company Google Drive folder. Turkish ÜTS registration images are also listed. *(`00_فهرس الشهادات.pdf`)* **[TO CONFIRM: share the folder with the buyer only on request]**
+- **Labels:** each catalog page lists "EU 1223/2009" and "Made in Türkiye". *(catalog)*
+- **Cruelty-free:** recorded internally as confirmed by CEELLO. *(ABOS 02)* **[TO CONFIRM: written statement before external use]**
+- **Track record:** 230,000+ customers historically through Trendyol and Turkish platforms. *(ABOS 02, internal data)*
+- **Online presence:** lowesprofesyonel.com · Instagram @lowes.profesyonal_
 
 ## 2. UAE legal entity
 
-*(Source: `اوراق شرمة الامارات/Commercial License.pdf`, read 9 Oct 2026)*
+*(Commercial License.pdf, read 9 Oct 2026)*
 
 | Field | Value |
 |---|---|
-| Company name | Lowes Professional L.L.C-FZ |
+| Company | Lowes Professional L.L.C-FZ |
 | Legal form | Limited Liability Company (Free Zone) |
-| Licensing authority | Meydan Free Zone, Dubai |
-| Licence number | 2542259.01 (Formation No. 2542259) |
-| Address | Meydan Grandstand, 6th floor, Meydan Road, Nad Al Sheba, Dubai, UAE |
-| Licensed activities | 4649.09 Wholesale of perfumery, cosmetics, beauty products and soaps · 4772.94 Beauty & Personal Care Requisites Trading · 4790.00 E-Commerce |
-| Issue / expiry | 16/12/2025 / **15/12/2026** (renew before expiry — some marketplaces require ≥15 days' validity) |
+| Authority | Meydan Free Zone, Dubai |
+| Licence no. | 2542259.01 (Formation No. 2542259) |
+| Address | Meydan Grandstand, 6th floor, Meydan Road, Nad Al Sheba, Dubai |
+| Activities | 4649.09 Wholesale of perfumery, cosmetics, beauty products and soaps · 4772.94 Beauty & Personal Care Requisites Trading · 4790.00 E-Commerce |
+| Valid | 16/12/2025 – **15/12/2026** (renewal to start before 15/11/2026) |
 
-**Other documents on file:** Certificate of Formation, Articles of Association and Share Register.
+**On file:** Certificate of Formation, Articles of Association and Share Register.
 
-**[TO PROVIDE]:**
-- VAT TRN or a non-registration statement
-- A UAE corporate bank account and IBAN letter (ABOS records it as missing)
-- Passport and ID copies of the authorized signatory
+**[TO CONFIRM]:** VAT status, corporate bank account/IBAN, and signatory ID. These were not found in the project files, which does not mean the company lacks them.
 
-## 3. Product list (26 SKUs)
+## 3. Regulatory status in the UAE
 
-The full sheet is in `LOWES_UAE_Product_Sheet_DRAFT.csv` / `.json`. It gives the catalog code, internal SKU, EN/AR names, pack size and image file for each product.
+**Product registration:** management has confirmed that UAE product registration is complete. The registration certificates or numbers were not found in the project files. **[TO CONFIRM: copy of certificates or numbers per SKU]**
+
+**Trademark:** the Turkish application for "lowe's profesyonel" (no. 2024/085278, classes 03 and 35) is on file. It lists a natural person as the applicant. **[TO CONFIRM: final registration status, and an authorization letter from the trademark owner to Lowes Professional L.L.C-FZ]**
+
+## 4. Products (26 SKUs)
+
+The full sheet is in `LOWES_UAE_Product_Sheet_DRAFT.csv` / `.json` and in `LOWES_UAE_Readiness_and_Products_2026-10-09.xlsx`. It gives the catalog code, internal SKU, EN/AR names, pack size and image file for each product.
 
 | Line | Products (pack size) |
 |---|---|
@@ -54,22 +64,20 @@ The full sheet is in `LOWES_UAE_Product_Sheet_DRAFT.csv` / `.json`. It gives the
 | Hair & men | Rosemary Shampoo 250 ml · Pure Rosemary Water 100 ml · Rosemary Hair Oil 50 ml · Beard Serum 30 ml |
 | Body | Body Firming Gel 250 ml · Foot Care Cream 100 ml |
 
-- **Images:** product PNGs exist for all 26 SKUs in `LOWES Brand Kit/assets/products_web/`. These are local files and are not published here.
-- **Barcodes:** **[TO PROVIDE]** EAN/GTIN codes. The Brand Kit "barcode" field holds internal codes (LW-…), not GS1 barcodes. Marketplaces such as Amazon require GTIN.
-- **UAE product registration:** **[TO PROVIDE]** Montaji (Dubai Municipality) / ECAS status per SKU. None was found in the files.
+- **Images:** 26 product PNGs (`LOWES Brand Kit/assets/products_web/`).
+- **Barcodes:** GTIN/EAN codes were not found in the project files. The internal codes LW-… and LSK-… are not GTINs. **[TO CONFIRM: check the packaging for printed EAN codes]**
 
-## 4. Commercial terms
+## 5. Commercial terms
 
-All of the following are **[TO PROVIDE]**. No approved source was found for any of them, so they are left blank on purpose:
+**[TO CONFIRM — management decision]:**
 
-- Wholesale and retail prices for the UAE (AED)
+- UAE wholesale and retail prices (AED)
 - MOQ
 - Lead time
 - Stock held in the UAE
-- Supply capacity
 - Shipping and Incoterms
 - Payment terms
 
-## 5. Contact
+## 6. Contact
 
-**[TO PROVIDE]** the commercial contact name, role, email and phone that will be used for UAE buyers.
+**[TO CONFIRM]** the commercial contact: name, role, business email and phone.

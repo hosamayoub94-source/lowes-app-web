@@ -33,14 +33,14 @@ const rows = items.map((it) => {
     catalog_code: it.catalog_code, internal_sku: s ? s.sku : 'غير مطابق', product_name_en: it.name_en, product_name_ar: it.name_ar, line: `${it.line_en} · ${it.line_ar}`,
     category: s ? s.category : '', pack_size: `${it.size_ml} ml (${it.size_floz})${it.strength ? ' · ' + it.strength : ''}`,
     image_file: img && fs.existsSync(path.join(kit, 'assets/products_web', img)) ? `LOWES Brand Kit/assets/products_web/${img}` : 'غير موجود بالملفات',
-    ean_gtin_barcode: 'غير موجود بالملفات (الحقل barcode في قاعدة Brand Kit يحمل رمزاً داخلياً LW-… وليس EAN/GTIN)',
+    ean_gtin_barcode: 'غير موجود في ملفات المشروع (حقل barcode بقاعدة Brand Kit = رمز داخلي LW-…؛ قد يكون EAN مطبوعاً على العبوة — يُتحقق)',
     origin_and_compliance_on_catalog: 'Made in Türkiye · EU 1223/2009 (مذكوران بالكتالوج)',
-    uae_product_registration: 'غير موجود بالملفات (Montaji/ECAS غير مثبت)',
+    uae_product_registration: 'أكدت الإدارة أن التسجيل مكتمل؛ إثبات التسجيل لم يُعثر عليه في ملفات المشروع',
     wholesale_price_uae: 'غير معتمد للإمارات — لا يُدرج', retail_price_uae: 'غير معتمد للإمارات — لا يُدرج',
   };
 });
 const cols = Object.keys(rows[0] || {});
 fs.writeFileSync(path.join(outDir, 'LOWES_UAE_Product_Sheet_DRAFT.csv'), '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => `"${String(r[c]).replace(/"/g, '""')}"`).join(','))].join('\n'));
-fs.writeFileSync(path.join(outDir, 'LOWES_UAE_Product_Sheet_DRAFT.json'), JSON.stringify({ _about: 'Draft product sheet for UAE buyers. Built only from the company Brand Kit (catalog + product DB). Prices and costs intentionally excluded (not approved for UAE). EAN/GTIN not found.', products: rows }, null, 1));
+fs.writeFileSync(path.join(outDir, 'LOWES_UAE_Product_Sheet_DRAFT.json'), JSON.stringify({ _about: 'Draft product sheet for UAE buyers (updated 2026-10-09: registration status per management confirmation). Built only from the company Brand Kit (catalog + product DB). Prices and costs intentionally excluded (not approved for UAE). EAN/GTIN not found.', products: rows }, null, 1));
 console.log('catalog items', items.length, '| matched SKUs', rows.filter((r) => r.internal_sku.startsWith('LW-')).length, '| images found', rows.filter((r) => r.image_file.startsWith('LOWES')).length);
 rows.filter((r) => !r.internal_sku.startsWith('LW-')).forEach((r) => console.log('unmatched:', r.catalog_code, r.product_name_en));
