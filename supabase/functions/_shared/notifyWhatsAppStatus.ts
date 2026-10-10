@@ -66,6 +66,8 @@ export interface OrderForWhatsApp {
 
 // best-effort دائماً — لا ترمي استثناءً أبداً كي لا توقف دالة التتبّع الأصلية.
 export async function notifyWhatsAppStatus(order: OrderForWhatsApp, newStatus: string, market: "syria" | "turkey") {
+  // 10 تشرين الأول 2026 (طلب حسام): تركيا فقط — إشعارات سوريا كانت تفشل كلها.
+  if (market !== "turkey") return;
   try {
     const contentSid = TEMPLATE_SID[newStatus];
     if (!contentSid) return;

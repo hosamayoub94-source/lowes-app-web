@@ -800,6 +800,9 @@ export async function notifyOrderStatusWhatsApp(order, newStatus) {
   // الإمارات: فريقها يراسل العملاء يدوياً (عمود «واتساب» بالجدول) — لا رسائل
   // قوالب تلقائية من الرقم الرسمي لحين قرار صريح (27 أيلول 2026).
   if (order?.market === 'uae') return;
+  // 10 تشرين الأول 2026 (طلب حسام): الرسائل التلقائية لمبيعات تركيا فقط — سوريا
+  // كانت كلها تفشل وتحرق رسوماً، ورقم بلا سوق (كوبا/محلي) لا يُرسَل له.
+  if (order?.market !== 'turkey') return;
   try {
     const contentSid = TEMPLATE_SID[newStatus];
     if (!contentSid) return;
@@ -857,6 +860,7 @@ const ORDER_RECEIVED_READY = true; // ✅ موافقة Meta مؤكَّدة 6 أ�
 export async function sendOrderReceivedMessage(order) {
   if (order?.source === 'star_network') return;   // المصدر راسل العميل أصلاً
   if (order?.market === 'uae') return;            // الإمارات: مراسلة يدوية (راجع أعلاه)
+  if (order?.market !== 'turkey') return;         // تركيا فقط (طلب حسام 10 تشرين الأول 2026)
   if (!ORDER_RECEIVED_READY) return;
   try {
     const phone = normalizeLocalPhone(order?.phone_1, order?.market);
