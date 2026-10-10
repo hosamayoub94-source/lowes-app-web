@@ -198,5 +198,15 @@
   "step": "Check pack precautions + final pH with CEELLO",
   "owner": "CEELLO",
   "blocking": "قد يمنع"
+ },
+ {
+  "id": "C-21",
+  "product": "LW-CR-302 Skin Brightening Cream",
+  "item": "Name mismatch: box prints SKIN WHITENING CREAM (CILT BEYAZLATICI KREM); catalog says Skin Lightening Cream; kit says Skin Brightening Cream",
+  "sources": "Skin Whitening Cream Box PDF; catalog EN; kit sheet",
+  "status": "مفتوح",
+  "step": "Match box name to the registered name before listing; do not rename on our own",
+  "owner": "الإدارة",
+  "blocking": "يمنع نشر 302"
  }
 ]
