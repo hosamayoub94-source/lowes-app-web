@@ -464,6 +464,7 @@ export const VIEWS = [
   { key: 'unverified', ar: 'يحتاج تحقق', filters: { verification_status: 'unverified' }, count: 'unverified' },
   { key: 'ready', ar: 'جاهز للتواصل', filters: { ready: true }, count: 'ready' },
   { key: 'verified', ar: 'معتمد', filters: { status: 'verified' }, count: 'verified' },
+  { key: 'contacted', ar: 'تم التواصل', filters: { statuses: ['contacted', 'interested', 'collaborating'] }, count: 'contacted' },
   { key: 'rejected', ar: 'مستبعد', filters: { statuses: ['rejected', 'not_interested', 'inactive'] }, count: 'rejected' },
   { key: 'saved', ar: 'محفوظ', filters: { saved: true }, count: 'saved' },
   { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },

@@ -53,6 +53,13 @@ ok(run('garbled') === '3', 'garbled view');
 ok(run('saved') === '6', 'saved view');
 ok(run('incomplete') === '2,3,6', 'incomplete view');
 ok(run('all') === '1,2,3,4,5,6', 'all view');
+const CON = { ...base, id: 'c1', handle: 'talked.to', name: 'Talked', governorate: 'damascus', followers: 1000, status: 'contacted' };
+const COL = { ...base, id: 'c2', handle: 'collab.now', name: 'Collab', governorate: 'damascus', followers: 1000, status: 'collaborating' };
+const withContacted = [...live, CON, COL];
+ok(searchCreators(withContacted, { filters: viewOf('contacted').filters, now: NOW.getTime() }).rows.map((r) => r.id).sort().join() === 'c1,c2', 'contacted view = contacted + interested + collaborating');
+ok(summarizeCreators(withContacted).contacted === 2, 'summary counts contacted');
+ok(new Set(VIEWS.map((v) => v.key)).size === VIEWS.length, 'view keys are unique');
+ok(['review', 'ugc', 'skincare', 'incomplete', 'unverified', 'saved', 'contacted'].every((k) => VIEWS.some((v) => v.key === k)), 'all operational views required by the brief exist');
 ok(viewOf('nope').key === 'all', 'unknown view -> all');
 ok(VIEWS.every((v) => v.key === 'all' || S[v.count] !== undefined), 'every view count key exists in the summary');
 // view combines with search (AND)
@@ -137,11 +144,11 @@ ok(paid.missing.includes('contact') && !paid.labels.includes('paid_inquiry'), 'p
 ok(verdictFor({ ...UGC, action: 'paid', email: 'a@b.co', contact_src: 'https://linktr.ee/a' }, { ...R1, platform: 'tiktok' }).labels.includes('paid_inquiry'), 'paid with sourced email');
 
 // ---- export ----
-const csvUser = toExportCsv([R1, R3, { ...R4, email: 'x@y.co', phone: '+963900' }], { admin: false });
-const csvAdmin = toExportCsv([{ ...R4, email: 'x@y.co', phone: '+963900' }], { admin: true });
+const csvUser = toExportCsv([R1, R3, { ...R4, email: 'x@y.co', phone: '+963900' }], { withContacts: false });
+const csvAdmin = toExportCsv([{ ...R4, email: 'x@y.co', phone: '+963900' }], { withContacts: true });
 ok(csvUser.startsWith('\uFEFF'), 'BOM for Arabic Excel');
-ok(!csvUser.includes('x@y.co') && !csvUser.includes('+963900') && !csvUser.includes('البريد'), 'non-admin export has no contact columns/values');
-ok(csvAdmin.includes('x@y.co') && csvAdmin.includes('البريد'), 'admin export has contact columns');
+ok(!csvUser.includes('x@y.co') && !csvUser.includes('+963900') && !csvUser.includes('البريد'), 'export without contacts permission has no contact columns/values');
+ok(csvAdmin.includes('x@y.co') && csvAdmin.includes('البريد'), 'export with contacts permission has contact columns');
 ok(!csvUser.includes('??????'), 'garbled name not exported as a name');
 ok(csvUser.includes('ليست تقييم جودة'), 'score column labelled as priority, not quality');
 ok(toExportCsv([{ ...R1, name: '=HYPERLINK("x")' }]).includes(`"'=HYPERLINK(""x"")"`), 'formula injection neutralised');

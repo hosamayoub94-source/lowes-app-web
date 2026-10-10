@@ -96,6 +96,18 @@ export default function CreatorProspectsScreen() {
   const shownRows = res.rows.slice(0, visible);
   const byId = useMemo(() => new Map(res.rows.map((r) => [r.id, r])), [res]);
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
+  // «حسب المدينة»: only places that really exist in the data (governorate slug or free-text city), with counts
+  const placeOptions = useMemo(() => {
+    const m = new Map();
+    for (const r of rows) {
+      const g = r.governorate ? govOf(r.country || 'SY', r.governorate) : null;
+      const key = g ? `g:${g.slug}` : r.city ? `c:${r.city}` : '';
+      if (!key) continue;
+      const cur = m.get(key) || { value: key, label: g ? g.ar : r.city, n: 0 };
+      cur.n++; m.set(key, cur);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, 'ar'));
+  }, [rows]);
   const owners = useMemo(() => [...new Set(rows.map((r) => r.owner).filter(Boolean))], [rows]);
   const chips = activeFilterChips(filters);
   const dirty = !!q || view !== 'all' || chips.length > 0;
@@ -133,8 +145,8 @@ export default function CreatorProspectsScreen() {
   function exportRows(list, label) {
     if (!list.length) return;
     const stamp = new Date().toISOString().slice(0, 10);
-    download(`creators-${label}-${stamp}.csv`, toExportCsv(list, { admin: isAdmin }));
-    setMsg(`تم تصدير ${list.length} حساب${isAdmin ? '' : ' (بدون بيانات التواصل — للأدمن فقط)'}`);
+    download(`creators-${label}-${stamp}.csv`, toExportCsv(list, { withContacts: canManage }));
+    setMsg(`تم تصدير ${list.length} حساب${canManage ? '' : ' (بدون بيانات التواصل — لمن يدير البيانات فقط)'}`);
   }
 
   // review queue = a snapshot of the current result order, so accounts that leave the view after a decision don't shift the queue.
@@ -215,7 +227,7 @@ export default function CreatorProspectsScreen() {
             view={view} setView={setView} summary={summary}
             filters={filters} patchFilters={patchFilters} sort={sort} setSort={setSort}
             total={data ? res.total : null} shown={Math.min(visible, res.total)} onReset={reset} dirty={dirty} v2={v2}
-            savedViews={saved} onSaveView={saveView} onApplySaved={applySaved} onDeleteSaved={deleteSaved}
+            placeOptions={placeOptions} savedViews={saved} onSaveView={saveView} onApplySaved={applySaved} onDeleteSaved={deleteSaved}
           />
 
           <div className="flex flex-wrap gap-2 items-center text-xs">

@@ -230,7 +230,15 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
         {row.deleted_at && (
           <div className="rounded-lg bg-red-50 text-red-700 text-sm p-2">هذا الحساب محذوف (حذف ناعم).{canManage && <button className="underline font-bold mr-2" onClick={restore} disabled={busy}>استرجاع</button>}</div>
         )}
-        {canManage && !v2 && !row.deleted_at && <div className="rounded-lg bg-amber-50 text-amber-800 text-xs p-2">المراجعة تحتاج حقول v2 على قاعدة البيانات — غير متاحة على هذا المخطط.</div>}
+        {canManage && !v2 && !row.deleted_at && (
+          <div className="rounded-lg bg-amber-50 text-amber-800 text-xs p-2 flex flex-wrap items-center gap-2">
+            <span className="flex-1">وضع انتقالي (v1): أسئلة المراجعة تحتاج حقول v2 بقاعدة البيانات. تقدر تغيّر الحالة فقط:</span>
+            <select value={st} disabled={busy} aria-label="الحالة (وضع v1)" className="border rounded-lg px-2 py-1 bg-white"
+              onChange={async (e) => { setBusy(true); setErr(''); const out = await updateProspect(row.id, { status: e.target.value }, schema); setBusy(false); if (out.ok) onSaved(out.row, {}); else setErr(out.message || out.error); }}>
+              {['needs_review', 'verified', 'rejected', 'contacted'].map((s) => <option key={s} value={s}>{STATUS_AR[s]}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* 2) the 8 questions */}
         {writable && (

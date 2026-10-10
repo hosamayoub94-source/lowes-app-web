@@ -74,6 +74,11 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, v
         {miss.length > 0 && step.key !== 'find_account' && step.key !== 'fix_name' && <span className="font-normal text-gray-500"> · ناقص: {miss.map((m) => MISSING_AR[m]).join('، ')}</span>}
       </div>
 
+      <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3" data-testid="card-provenance">
+        <span>المصدر: {row.source ? <b className="font-semibold text-gray-700">{row.source}</b> : <span className="text-orange-700">غير مسجّل</span>}</span>
+        <span>آخر تحقق: {row.last_verified_at ? <b className="font-semibold text-gray-700">{new Date(row.last_verified_at).toLocaleDateString('ar', { year: 'numeric', month: 'short', day: 'numeric' })}</b> : <span className="text-gray-400">لم يُتحقَّق بعد</span>}</span>
+      </div>
+
       <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-gray-100">
         {ig ? (
           <a href={ig} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold">Instagram ↗</a>

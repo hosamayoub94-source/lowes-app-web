@@ -28,7 +28,7 @@ export function activeFilterChips(filters) {
 
 export default function CreatorFilters({
   qInput, setQInput, understood, view, setView, summary, filters, patchFilters, sort, setSort, total, shown, onReset, dirty,
-  savedViews, onSaveView, onApplySaved, onDeleteSaved, v2,
+  savedViews, onSaveView, onApplySaved, onDeleteSaved, v2, placeOptions = [],
 }) {
   const [open, setOpen] = useState(false);
   const country = filters.country || 'SY';
@@ -83,6 +83,16 @@ export default function CreatorFilters({
             <button onClick={() => patchFilters(c.clear)} aria-label={`إزالة فلتر ${c.label}`} className="text-gray-500">✕</button>
           </span>
         ))}
+        {placeOptions.length > 0 && (
+          <select
+            value={filters.governorate ? `g:${filters.governorate}` : filters.city ? `c:${filters.city}` : ''}
+            onChange={(e) => { const [k, ...rest] = e.target.value.split(':'); const v = rest.join(':'); patchFilters(k === 'g' ? { governorate: v, city: '' } : k === 'c' ? { city: v, governorate: '' } : { governorate: '', city: '' }); }}
+            className="border rounded-lg px-2 py-1.5 text-xs bg-white" aria-label="حسب المدينة"
+          >
+            <option value="">📍 حسب المدينة</option>
+            {placeOptions.map((o) => <option key={o.value} value={o.value}>{o.label} ({o.n})</option>)}
+          </select>
+        )}
         {dirty && <button onClick={onReset} className="text-xs font-bold text-red-600">إعادة ضبط</button>}
         {dirty && <button onClick={onSaveView} className="text-xs text-blue-700">حفظ كعرض</button>}
         <label className="flex items-center gap-1 text-xs mr-auto">

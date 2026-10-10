@@ -195,7 +195,7 @@ export function nextStep(row = {}) {
 }
 
 // ---------------- export ----------------
-// Whitelisted columns only. Contact columns (email/phone/preferred contact) are added for admins only.
+// Whitelisted columns only. Contact columns (email/phone/preferred contact) are added only for admin / manage_creator_data.
 export const EXPORT_COLUMNS = [
   ['name', 'الاسم'], ['handle', 'الحساب'], ['platform', 'المنصة'], ['profile', 'رابط الحساب'], ['country', 'الدولة'], ['governorate', 'المحافظة'], ['city', 'المدينة'],
   ['followers', 'المتابعون'], ['engagement_pct', 'التفاعل %'], ['status', 'الحالة'], ['verification', 'التحقق'], ['collab', 'نوع التعاون'], ['creator_type', 'نوع المبدع'],
@@ -230,9 +230,9 @@ function exportValue(r, key) {
     default: return r[key] ?? '';
   }
 }
-/** CSV (UTF-8 BOM, Excel-safe). `admin` decides whether contact columns exist at all. */
-export function toExportCsv(rows, { admin = false } = {}) {
-  const cols = admin ? [...EXPORT_COLUMNS, ...CONTACT_COLUMNS] : EXPORT_COLUMNS;
+/** CSV (UTF-8 BOM, Excel-safe). `withContacts` (admin or manage_creator_data — same rule as the server) decides whether contact columns exist at all. */
+export function toExportCsv(rows, { withContacts = false } = {}) {
+  const cols = withContacts ? [...EXPORT_COLUMNS, ...CONTACT_COLUMNS] : EXPORT_COLUMNS;
   const lines = [cols.map(([, h]) => cell(h)).join(',')];
   for (const r of rows || []) lines.push(cols.map(([k]) => cell(exportValue(r, k))).join(','));
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
