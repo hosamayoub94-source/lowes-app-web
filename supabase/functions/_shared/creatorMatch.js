@@ -60,9 +60,9 @@ export const countryOf = (code) => COUNTRIES.find((c) => c.code === code) || nul
 export function normalizeText(v) {
   return String(v ?? '')
     .toLowerCase()
-    .replace(/[ً-ٰٟـ]/g, '') // tashkeel + tatweel
-    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
-    .replace(/[،؛؟@#_\-./\\|,;:!?()[\]{}"'«»+*%]+/g, ' ')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '') // tashkeel + tatweel
+    .replace(/[\u0623\u0625\u0622\u0671]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[\u060C\u061B\u061F@#_\-./\\|,;:!?()[\]{}"'\u00AB\u00BB+*%]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -93,7 +93,7 @@ export const normalizeHandle = (raw) => { const p = parseHandle(raw); return p ?
 const AR_LAT = { 'ب': 'b', 'ت': 't', 'ث': 't', 'ج': 'j', 'ح': 'h', 'خ': 'k', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 's', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'غ': 'g', 'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h' };
 export function skeleton(word) {
   let w = normalizeText(word);
-  if (/[؀-ۿ]/.test(w)) w = [...w].map((c) => AR_LAT[c] ?? '').join('');
+  if (/[\u0600-\u06FF]/.test(w)) w = [...w].map((c) => AR_LAT[c] ?? '').join('');
   else w = w.replace(/th/g, 't').replace(/sh/g, 's').replace(/kh/g, 'k').replace(/gh/g, 'g').replace(/dh/g, 'd').replace(/ch/g, 's').replace(/q/g, 'k').replace(/c/g, 'k').replace(/g/g, 'j').replace(/[^a-z]/g, '').replace(/[aeiouyw]/g, '');
   w = w.replace(/g/g, 'j').replace(/(.)\1+/g, '$1').replace(/h$/, '');
   return w;
@@ -146,7 +146,7 @@ const AR_PREFIXES = ['وبال', 'وال', 'بال', 'لل', 'ال', 'وب', 'ب
 function lookupToken(tok) {
   if (STOP.has(tok)) return { stop: true };
   if (TERM_TO_CONCEPT.has(tok)) return { concept: TERM_TO_CONCEPT.get(tok) };
-  if (/[؀-ۿ]/.test(tok)) {
+  if (/[\u0600-\u06FF]/.test(tok)) {
     for (const p of AR_PREFIXES) {
       if (tok.startsWith(p) && tok.length - p.length >= 2) {
         const rest = tok.slice(p.length);
