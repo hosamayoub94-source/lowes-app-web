@@ -112,7 +112,10 @@ ok(noVid.missing.some((m) => missingAr(m).includes('رابط فيديو')), 'Ara
 // expert
 ok(verdictFor({ ...fresh, active: 'yes', fit: 'partial', creator_type: 'expert', action: 'gift' }, R1).labels.includes('expert'), 'expert label');
 // status already in outreach is never pushed back
-ok(reviewToPatch(UGC, { ...R1, status: 'contacted' }, NOW).patch.status === 'contacted', 'outreach status kept');
+ok(!('status' in reviewToPatch(UGC, { ...R1, status: 'contacted' }, NOW).patch), 'outreach status kept (not sent)');
+// unchanged fields are not sent (readable audit trail)
+const same = reviewToPatch(answersFromRow(stored), stored, NOW).patch;
+ok(Object.keys(same).join() === 'last_verified_at', `re-saving an unchanged review sends only the check date (${Object.keys(same)})`);
 // videos capped, evidence <= 500 chars
 const long = Array.from({ length: 6 }, (_, i) => `https://www.instagram.com/reel/${'x'.repeat(150)}${i}/`);
 const pl = reviewToPatch({ ...UGC, videos: long }, R1, NOW).patch;
@@ -144,6 +147,7 @@ ok(csvUser.includes('ليست تقييم جودة'), 'score column labelled as p
 ok(toExportCsv([{ ...R1, name: '=HYPERLINK("x")' }]).includes(`"'=HYPERLINK(""x"")"`), 'formula injection neutralised');
 ok(toExportCsv([]).split('\r\n').filter(Boolean).length === 1, 'empty export = header only');
 ok(!toExportCsv([R1]).includes('r:'), 'reserved tags never exported');
+ok(toExportCsv([R1]).split('\r\n')[1].split(',')[1] === 'reem.skin', 'handle exported plain (no @ / no quote prefix)');
 
 // ---- import decoding ----
 const utf8 = new TextEncoder().encode('\uFEFFhandle,name\n@a,ريم\n');

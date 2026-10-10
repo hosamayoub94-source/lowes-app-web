@@ -148,6 +148,14 @@ export function reviewToPatch(a, row = {}, now = new Date()) {
   if (a.phone) patch.phone = a.phone;
   if (a.preferred_contact) patch.preferred_contact = a.preferred_contact;
   if ((a.notes || '') !== (row.notes || '')) patch.notes = a.notes || null;
+  // send only what really changes (keeps the audit trail readable); the check date is always a new observation
+  const same = (x, y) => JSON.stringify(Array.isArray(x) ? [...x].sort() : x ?? null) === JSON.stringify(Array.isArray(y) ? [...y].sort() : y ?? null);
+  const dateOnly = (d) => (d ? String(d).slice(0, 10) : null);
+  for (const k of Object.keys(patch)) {
+    if (k === 'last_verified_at') continue;
+    const cur = k === 'last_active_at' ? dateOnly(row[k]) : k === 'content_types' || k === 'skincare_focus' || k === 'tags' ? arr(row[k]) : row[k];
+    if (same(patch[k], cur)) delete patch[k];
+  }
   return { patch, verdict: v };
 }
 
@@ -204,7 +212,7 @@ function cell(v) {
 }
 function exportValue(r, key) {
   switch (key) {
-    case 'handle': return isPendingRow(r) ? '' : `@${r.handle}`;
+    case 'handle': return isPendingRow(r) ? '' : String(r.handle || '').replace(/^@+/, ''); // no leading "@": spreadsheets treat it as a formula prefix
     case 'profile': return igProfile(r) || (isUrl(r.profile_url) ? r.profile_url : '');
     case 'country': return countryOf(r.country)?.ar || r.country || '';
     case 'governorate': return govOf(r.country || 'SY', r.governorate)?.ar || '';

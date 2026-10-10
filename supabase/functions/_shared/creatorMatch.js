@@ -14,7 +14,8 @@ export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'other']
 export const CONTENT_AR = { ugc: 'UGC', unboxing: 'Unboxing', review: 'مراجعة منتجات', reels: 'Reels', stories: 'Stories', photography: 'تصوير منتجات' };
 export const FOCUS_AR = { face_care: 'عناية بالوجه', body_care: 'عناية بالجسم', sunscreen: 'واقي شمس', serums: 'سيروم', creams: 'كريمات', hair_care: 'عناية بالشعر', beauty: 'Beauty' };
 export const TYPE_AR = { ugc: 'UGC Creator', skincare: 'Skincare Creator', beauty: 'Beauty Creator', unboxing: 'Unboxing Creator', reviewer: 'Product Reviewer', expert: 'خبير بشرة / صيدلاني', general: 'مؤثر عام' };
-export const STATUS_AR = { discovered: 'مُكتشَف', needs_review: 'يحتاج مراجعة', verified: 'متحقَّق', rejected: 'مرفوض', contacted: 'تم التواصل', interested: 'مهتم', collaborating: 'متعاون', not_interested: 'غير مهتم', inactive: 'غير نشط' };
+// status "verified" = a human approved the account («معتمد»); not the same thing as data verification (VERIFICATION_AR).
+export const STATUS_AR = { discovered: 'مُكتشَف', needs_review: 'يحتاج مراجعة', verified: 'معتمد', rejected: 'مرفوض', contacted: 'تم التواصل', interested: 'مهتم', collaborating: 'متعاون', not_interested: 'غير مهتم', inactive: 'غير نشط' };
 export const VERIFICATION_AR = { verified: 'متحقَّق', partial: 'متحقَّق جزئياً', unverified: 'غير متحقَّق' };
 export const CONFIDENCE_AR = { high: 'ثقة عالية', medium: 'ثقة متوسطة', low: 'ثقة منخفضة' };
 export const CATEGORY_AR = { skincare: 'عناية بالبشرة', beauty: 'جمال', makeup: 'مكياج', hair: 'شعر', fashion: 'أزياء', motherhood: 'أمومة', wellness: 'صحة', food: 'طعام', art: 'فن', fitness: 'لياقة', entertainment: 'ترفيه', music: 'موسيقى' };
@@ -471,7 +472,8 @@ export const VIEWS = [
 ];
 export const viewOf = (key) => VIEWS.find((v) => v.key === key) || VIEWS[0];
 
-export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page = 1, pageSize = 30, now = Date.now() } = {}) {
+// `all: true` (browser only — the edge function never passes it) returns every match unpaged; the screen pages locally.
+export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page = 1, pageSize = 30, now = Date.now(), all = false } = {}) {
   const parsed = parseQuery(q);
   const base = [];
   for (const r of rows || []) {
@@ -498,7 +500,7 @@ export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page
     active: (a, b) => desc(ts(a.last_active_at), ts(b.last_active_at)),
   }[sort] || ((a, b) => b.score - a.score);
   out.sort((a, b) => cmp(a, b) || String(a.handle).localeCompare(String(b.handle)));
-  const size = Math.max(1, Math.min(60, Number(pageSize) || 30));
+  const size = all ? Math.max(1, out.length) : Math.max(1, Math.min(60, Number(pageSize) || 30));
   const p = Math.max(1, Number(page) || 1);
   return { rows: out.slice((p - 1) * size, p * size), total: out.length, page: p, pageSize: size, counts, parsed: { concepts: parsed.concepts.map((c) => c.key), words: parsed.words, handles: parsed.handles } };
 }

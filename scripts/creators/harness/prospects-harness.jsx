@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import '../../../src/styles/theme.css';
 import '../../../src/styles/globals.css';
 import { supabase } from '../../../src/services/supabase';
+import { useAuthStore } from '../../../src/stores/authStore';
 import { searchCreators, normalizeHandle } from '../../../supabase/functions/_shared/creatorMatch.js';
 import CreatorProspectsScreen from '../../../src/screens/CreatorProspectsScreen.jsx';
 
@@ -20,12 +21,20 @@ let rows = [
   fake({ id: '4', handle: 'demo.halab.glow', name: 'حلا تجربة', governorate: 'aleppo', location_confidence: 'medium', creator_type: 'beauty', content_types: ['unboxing', 'stories'], skincare_focus: ['face_care'], followers: 15000, source: 'Manual', status: 'discovered' }),
   fake({ id: '5', handle: 'demo_old_row', name: 'Old Row', category: 'beauty', followers: null, engagement_pct: null, source: 'legacy', location_confidence: 'low', notes: 'سجل قديم ناقص المعلومات' }),
   fake({ id: '6', handle: 'demo.dr.derm', name: 'Dr. Demo', governorate: 'latakia', location_confidence: 'low', creator_type: 'expert', followers: 60000, engagement_pct: 25.2, source: 'Google Search' }),
-  ...Array.from({ length: 40 }, (_, i) => fake({ id: `x${i}`, handle: `demo_creator_${i}`, name: `Creator ${i}`, governorate: ['homs', 'tartus', 'hama', 'damascus'][i % 4], location_confidence: 'low', category: ['beauty', 'makeup', 'fashion', 'skincare'][i % 4], followers: 1000 * (i + 1), source: 'Influencer Directory' })),
+  fake({ id: '7', handle: 'demo_mangled', name: '??????', followers: 2100, source: 'import', location: 'Homs' }),
+  fake({ id: '8', handle: 'pending_demo_nour', name: 'نور بلا حساب', platform: 'other', followers: null, source: 'Manual' }),
+  fake({ id: '9', handle: 'demo.ready.ugc', name: 'جاهزة UGC', governorate: 'hama', location_confidence: 'high', creator_type: 'ugc', content_types: ['ugc', 'review'], followers: 5400, engagement_pct: 3.4, source: 'Instagram', status: 'verified', verification_status: 'partial', last_verified_at: '2026-10-09T09:00:00Z', tags: ['r:active=yes', 'r:fit=yes', 'r:action=ugc', 'collab:ugc_ready'], evidence: 'Medium video:https://www.instagram.com/reel/demo/' }),
+  fake({ id: '10', handle: 'demo.rejected', name: 'مستبعد تجربة', governorate: 'homs', followers: 900, source: 'Modash', status: 'rejected', tags: ['reject:private', 'collab:not_relevant'] }),
+  ...Array.from({ length: 40 },(_, i) => fake({ id: `x${i}`, handle: `demo_creator_${i}`, name: `Creator ${i}`, governorate: ['homs', 'tartus', 'hama', 'damascus'][i % 4], location_confidence: 'low', category: ['beauty', 'makeup', 'fashion', 'skincare'][i % 4], followers: 1000 * (i + 1), source: 'Influencer Directory' })),
 ];
 const V2_KEYS = ['country', 'governorate', 'city', 'location_confidence', 'creator_type', 'content_types', 'skincare_focus', 'tags', 'saved', 'verification_status', 'last_active_at', 'last_verified_at', 'email', 'preferred_contact', 'source_url'];
 if (schema === 'v1') rows = rows.map((r) => { const o = { ...r, status: 'new', location: r.governorate || null }; V2_KEYS.forEach((k) => delete o[k]); return o; });
 
 const ok = (data) => ({ data, error: null });
+const audit = [];
+// fake local session (never a real login): ?role=viewer = view permission only, default = admin
+const asViewer = new URLSearchParams(location.search).get('role') === 'viewer';
+useAuthStore.setState({ isAuthenticated: true, ready: true, session: asViewer ? { role: 'employee', name: 'مشاهد تجربة', extra_permissions: ['view_creator_intelligence'] } : { role: 'admin', name: 'أدمن تجربة' } });
 let seq = 100;
 // supabase.functions is a getter that builds a new client each time -> shadow it with an own property.
 const invoke = async (_name, { body }) => {
@@ -38,6 +47,8 @@ const invoke = async (_name, { body }) => {
     const p = { ...body.patch };
     if (typeof p.skincare_focus === 'string') p.skincare_focus = p.skincare_focus.split(',').map((s) => s.trim());
     if (p.followers === '') p.followers = null;
+    const changes = {}; Object.keys(p).forEach((k) => { changes[k] = { from: r[k] ?? null, to: p[k] }; });
+    audit.unshift({ id: r.id, action: 'update', actor: 'تجربة', created_at: new Date().toISOString(), changes });
     Object.assign(r, p, { updated_at: new Date().toISOString() });
     return ok({ ok: true, row: { ...r } });
   }
@@ -50,7 +61,7 @@ const invoke = async (_name, { body }) => {
   }
   if (action === 'bulk_update') { rows.filter((r) => body.ids.includes(r.id)).forEach((r) => Object.assign(r, body.patch)); return ok({ ok: true, updated: body.ids.length }); }
   if (action === 'delete' || action === 'restore') { const r = rows.find((x) => x.id === body.id); r.deleted_at = action === 'delete' ? new Date().toISOString() : null; return ok({ ok: true, row: { ...r } }); }
-  if (action === 'audit') return ok({ ok: true, entries: [] });
+  if (action === 'audit') return ok({ ok: true, entries: audit.filter((e) => e.id === body.id) });
   if (action === 'import') {
     const keys = new Set(rows.map((r) => r.handle_key));
     const fresh = body.rows.filter((r) => !keys.has(normalizeHandle(r.handle)));

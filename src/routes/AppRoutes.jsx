@@ -428,7 +428,8 @@ export function AppRoutes() {
             path={ROUTES.CREATORS_WORKBENCH}
             element={
               <ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_CREATOR_INTELLIGENCE}>
-                <CreatorProspectsScreen />
+                {/* the old Workbench URL now opens the unified review queue of the same screen */}
+                <Navigate to={`${ROUTES.CREATORS}?view=review`} replace />
               </ProtectedRoute>
             }
           />

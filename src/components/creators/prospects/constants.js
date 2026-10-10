@@ -1,11 +1,19 @@
 // ثوابت واجهة «صناع المحتوى» v2 — المصدر الوحيد للمفردات هو _shared/creatorMatch.js (نفس الملف بالدالة)، وهون فقط ما يخص العرض.
-import { govOf as _govOf, countryOf as _countryOf } from '../../../../supabase/functions/_shared/creatorMatch.js';
+import { govOf as _govOf, countryOf as _countryOf, isGarbled as _isGarbled } from '../../../../supabase/functions/_shared/creatorMatch.js';
 
 export {
   CONTENT_TYPES, SKINCARE_FOCUS, CREATOR_TYPES, STATUSES, VERIFICATION, LOCATION_CONFIDENCE, PLATFORMS,
   CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, VERIFICATION_AR, CONFIDENCE_AR, CATEGORY_AR,
   COUNTRIES, GOVERNORATES, govOf, countryOf, statusOf, BADGES, SORTS, WEIGHTS, fmtNum, normalizeHandle, parseHandle, scoreCreator,
+  VIEWS, viewOf, COLLABS, COLLAB_AR, collabOf, freeTags, isGarbled, missingEssentials, summarizeCreators, searchCreators,
 } from '../../../../supabase/functions/_shared/creatorMatch.js';
+
+export const MISSING_AR = { account: 'الحساب', name: 'اسم مقروء', followers: 'المتابعون', place: 'المكان', source: 'المصدر' };
+export const COLLAB_CLS = {
+  ugc_ready: 'bg-violet-100 text-violet-800', pr_ready: 'bg-pink-100 text-pink-800', paid_inquiry: 'bg-blue-100 text-blue-800',
+  expert: 'bg-teal-100 text-teal-800', needs_review: 'bg-amber-50 text-amber-800', not_relevant: 'bg-red-50 text-red-700',
+};
+export const TONE_CLS = { amber: 'text-amber-800 bg-amber-50', green: 'text-emerald-800 bg-emerald-50', blue: 'text-blue-800 bg-blue-50', gray: 'text-gray-500 bg-gray-50' };
 
 export const STATUS_CLS = {
   discovered: 'bg-sky-50 text-sky-800', needs_review: 'bg-amber-100 text-amber-800', verified: 'bg-emerald-100 text-emerald-800',
@@ -59,6 +67,8 @@ export function contactUrl(row) {
 // Name-only manual entries are stored under a placeholder handle until the real account is found.
 export const isPending = (r) => String(r?.handle || "").startsWith("pending_");
 export const shownHandle = (r) => (isPending(r) ? "بلا حساب بعد" : `@${r.handle}`);
+// A mangled name ("??????") is never shown as if it were a name: fall back to the account.
+export const displayName = (r) => (_isGarbled({ name: r?.name }) || !r?.name ? (isPending(r) ? 'بلا اسم' : `@${r?.handle || '?'}`) : r.name);
 
 // Nothing recorded yet (no type, no content, no skincare focus, no decision) => "not checked yet", not "bad".
 // A low score on such a row means "unknown", so the card shows a neutral badge instead of red.
