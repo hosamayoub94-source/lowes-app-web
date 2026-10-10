@@ -31,6 +31,14 @@ function json(obj: unknown, status = 200) {
   });
 }
 
+// +963 / 00963 / 963… أو الصيغة المحلية السورية 09xxxxxxxx (10 خانات). نفس المنطق بـwhatsappService.js.
+function isSyrianNumber(raw: string): boolean {
+  const s = raw.replace(/^whatsapp:/, "").replace(/[^\d+]/g, "");
+  const intl = s.replace(/^\+/, "").replace(/^00/, "");
+  if (s.startsWith("+") || s.startsWith("00") || intl.length > 10) return intl.startsWith("963");
+  return /^09\d{8}$/.test(s);
+}
+
 const UPSTREAM_URL = "https://kesoqnwyydycuyifqfhl.supabase.co/functions/v1/whatsapp-send";
 
 serve(async (req) => {
@@ -52,6 +60,15 @@ serve(async (req) => {
     if (!internalKey) return json({ ok: false, error: "internal key not configured" }, 503);
 
     const bodyText = await req.text();
+
+    // 10 تشرين الأول 2026 (قرار حسام): واتساب الرسمي محظور على أرقام سوريا (+963)
+    // ولا نريد إرسالاً لها إطلاقاً — حظر مركزي يشمل الإرسال اليدوي والتحويل والحملات.
+    try {
+      const sentPhone = String(JSON.parse(bodyText)?.phone ?? "");
+      if (isSyrianNumber(sentPhone)) {
+        return json({ ok: false, error: "الإرسال لأرقام سوريا (+963) متوقف — واتساب الرسمي محظور عليها." }, 403);
+      }
+    } catch { /* جسم غير JSON — يمرّ للوسيط كما كان */ }
 
     const upstream = await fetch(UPSTREAM_URL, {
       method: "POST",

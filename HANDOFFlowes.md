@@ -86,6 +86,16 @@
 
 ---
 
+### 🗓️ جلسة 10 تشرين الأول 2026 — 📉 رسائل واتساب التلقائية لتركيا فقط (طلب حسام)
+
+**السبب:** Twilio أظهر 1035 رسالة/$5.07 بالشهر؛ سجل آخر 4 ساعات: 14 رسالة لسوريا (+963) كلها Failed، 1 لكوبا (+53) Failed، 4 لرقم تركي محلي بلا +90 Failed، والتركي الصحيح يُسلَّم.
+**التعديل:** شرط `market !== 'turkey'` ⇒ لا إرسال، بـ`notifyOrderStatusWhatsApp` و`sendOrderReceivedMessage` (`src/services/whatsappService.js`) وبـ`notifyWhatsAppStatus` (`supabase/functions/_shared/notifyWhatsAppStatus.ts`). الإرسال اليدوي من شاشة الأدمن لم يُمسّ.
+**النشر:** commit `24aed55` على main ⇒ نشرة `lowes-app-hp86r6e09-lowes1` + alias للدومين الرئيسي؛ دوال track-babel/karam/ptt/yurtici نُشرت على fghdumrgimoeqsafdhhh. lint وbuild نظيفان.
+**قرار حسام (تأكيد):** أرقام سوريا محظورة على واتساب أصلاً ولا نريد إرسالاً لها إطلاقاً. أرقام 1–10 تشرين الأول: 1,670 سجل، منها 467 صادر لسوريا فشلت كلها، و30 لرقم محلي بلا +90 فشلت/لم تُسلَّم، و3 لكوبا (عدّ آلي من سجل Twilio).
+**لم يُتحقق:** سبب فشل رسائل سوريا (كود الخطأ)، ولا أن Twilio يحاسب على الفاشلة؛ ولا اختُبر إرسال حي بعد النشر.
+
+---
+
 ### 🗓️ جلسة 30 أيلول 2026 (نشر) — 🚀 نشر Creator Intelligence + 🔴 INCIDENT-2026-09-30-A: كسر `/syria-leads` بعد نقل الـalias (أثر إنتاجي قصير، مُعالَج)
 
 **النشر النهائي (Live):** commit `e362b7086b0e3f01f8ebc2c494299f074354e0ca` على `main` ⇒ النشرة `dpl_FQJWNHtqmzr2B3wYaw6QwhixQndo` (`lowes-app-ikw1qgjl2-lowes1.vercel.app`) والدومين الرئيسي `lowes-app-web.vercel.app` موجَّه لها. الـcommit السابق للميزة: `3079983`. الحالة: Production مستقر ✅ · Routing مُصلَح ومُتحقَّق ✅ · Workbench يعمل ✅ · قاعدة Creator غير مفعّلة ⏸️ · لا migration ولا تعديل بيانات إنتاج ✅ · Pilot لم يبدأ ⏸️.

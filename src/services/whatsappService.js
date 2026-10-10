@@ -164,7 +164,19 @@ async function invokeErrorMessage(error, fallback) {
   return error?.message || fallback;
 }
 
+// 10 تشرين الأول 2026 (قرار حسام): ممنوع الإرسال لأرقام سوريا (+963) — الحظر الحقيقي
+// سيرفري بـwhatsapp-send-proxy، وهاد فحص مبكر يعطي رسالة واضحة بلا رحلة شبكة.
+export function isSyrianWaNumber(raw) {
+  const s = String(raw || '').replace(/^whatsapp:/, '').replace(/[^\d+]/g, '');
+  const intl = s.replace(/^\+/, '').replace(/^00/, '');
+  if (s.startsWith('+') || s.startsWith('00') || intl.length > 10) return intl.startsWith('963');
+  return /^09\d{8}$/.test(s);
+}
+
 async function callWhatsAppSendProxy(payload) {
+  if (isSyrianWaNumber(payload?.phone)) {
+    throw new Error('الإرسال لأرقام سوريا (+963) متوقف — واتساب الرسمي محظور عليها.');
+  }
   const { data, error } = await supabase.functions.invoke('whatsapp-send-proxy', { body: payload });
   if (error) throw new Error(await invokeErrorMessage(error, 'تعذّر إرسال الرسالة'));
   if (!data?.ok) throw new Error(data?.error || 'تعذّر إرسال الرسالة');
