@@ -19,15 +19,20 @@ const register = [
   R('C-12', 'ALL', 'EAN readable on 3 packs only; GS1 licensee unknown', 'Registration match table; pack artwork', 'مفتوح', 'Read EAN from current packs; confirm GS1 licence', 'الإدارة', 'يمنع الإدراج بمنصات تشترط GTIN'),
   R('C-13', 'ALL', 'Test reports local for 9 SKUs; others indexed to Drive', '00_فهرس الشهادات.pdf; product folders', 'جزئي', 'Management shares Drive folder on request', 'الإدارة', 'لا يمنع'),
   R('C-14', 'LW-SP-401, LW-MN-901, LW-BD-703', 'No pack/print artwork in folder', 'Registration match table', 'مفقود', 'Provide pack files', 'الإدارة', 'يمنع إعداد هذه الثلاثة'),
-  R('C-15', 'ALL', 'UAE regulatory path unclear (Montaji/Dubai Municipality vs ESMA PRS) and possible documents: Free Sale Certificate, GMP/ISO 22716, SDS, Arabic label/sticker, distributor authorization', 'Secondary sources only (platforms_expansion note)', 'يحتاج تحققاً رسمياً', 'Confirm authority officially (no filing); ask management which path was used for product registration; ask CEELLO for GMP/FSC/SDS', 'الإدارة / CEELLO', 'لا يمنع الإعداد؛ يؤثر على النشر'),
+  R('C-15', 'ALL', 'UAE regulatory path: Dubai = Montaji (Dubai Municipality guideline V2.1, official). Federal MOIAT/ECAS and Abu Dhabi/other emirates NOT established officially', 'dmpmedia.dm.gov.ae DM-HSD-GU116-CPCP2 V2.1; moiat.gov.ae service page; trade.gov (secondary)', 'مُحسم لدبي — غير محسوم لغيرها', 'Ask management which route/company registered the products; ask DM/MOIAT in writing before shipping outside Dubai (not sent)', 'الإدارة', 'لا يمنع دبي؛ يمنع إمارات أخرى'),
   R('C-16', 'LW-SR-107 Anti-Acne Serum', 'Pack headings swapped: text under PURPOSE OF USAGE is the usage instructions and text under HOW TO USE is the purpose', 'Anti Acne Serum Box/Print PDF text', 'مفتوح — خطأ تصميم', 'Fix artwork before any print/listing copy; do not publish the text as printed', 'الإدارة / CEELLO', 'يمنع نسخ نص العلبة بالإدراج'),
   R('C-17', 'Amazon.ae', 'Amazon pricing page shows FBA fees effective 1 Aug 2025 (page footer 2025) — may be outdated', 'sell.amazon.ae/pricing fetched 2026-10-10 (cached 8 Oct)', 'يحتاج تحققاً', 'Confirm current fees inside Seller Central / FBA calculator', 'حسام (بعد فتح الحساب)', 'لا يمنع'),
+  R('C-18', 'LW-SR-107 Anti-Acne Serum', 'Acne products are listed OUT of cosmetics scope (DM guideline 5.2); pack says helps prevent acne formation', 'DM guideline V2.1 §5.2; Anti Acne Serum Box PDF', 'مفتوح — خطر نطاق', 'Management: was it registered under this name? Consider renaming/claim change with DM before listing', 'الإدارة', 'يمنع النشر'),
+  R('C-19', 'LW-HR-801/802/803 Rosemary hair line', 'Hair growth/loss claims and microcirculation substances (Benzyl Nicotinate in Hair Oil INCI) are out of cosmetics scope (5.2)', 'DM guideline V2.1 §5.2; catalog EN; Hair Oil box INCI', 'مفتوح', 'Drop growth/loss claims; CEELLO confirms Benzyl Nicotinate purpose; confirm registration status per SKU', 'الإدارة / CEELLO', 'يمنع نشر الشعر'),
+  R('C-20', 'LW-FC-203 Pore Toner', 'Contains Glycolic Acid: AHA rules (pH ≥3.5 retail; mandatory label precautions) §9.6', 'DM guideline V2.1 §9.6; catalog actives', 'يحتاج تحققاً', 'Check pack precautions + final pH with CEELLO', 'CEELLO', 'قد يمنع'),
 ];
 const rows = kit.map((p, i) => {
   const r = reg.find((x) => x.sku === p.internal_sku) || {};
   const noPack = /لا ملف عبوة/.test(r.match_status || '');
   let status = 'جاهز للإعداد، غير جاهز للنشر'; const holds = ['سعر الإمارات', 'إثبات التسجيل', 'دور جهة الملصق'];
   if (p.internal_sku === 'LW-HR-803') { status = 'معلّق — تعارض INCI/Biotin (C-01..C-04)'; holds.push('إقرار CEELLO'); }
+  else if (p.internal_sku === 'LW-SR-107') { status = 'معلّق — خطر نطاق التجميل: حب الشباب (C-18)'; holds.push('قرار الاسم/الادعاء'); }
+  else if (/HR-80[12]/.test(p.internal_sku)) { status = 'معلّق — ادعاءات الشعر خارج نطاق التجميل (C-19)'; holds.push('سحب ادعاءات النمو/التساقط'); }
   else if (noPack) { status = 'غير جاهز للإعداد — ملف العبوة غير موجود'; holds.push('ملف العبوة'); }
   if (!r.ean13_on_pack_artwork) holds.push('EAN من العبوة');
   if (/HR-80[12]|HR-801/.test(p.internal_sku)) holds.push('ادعاءات نمو الشعر ممنوعة قبل إقرار CEELLO');

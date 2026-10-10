@@ -1,0 +1,236 @@
+[
+ {
+  "sku": "LW-FC-201",
+  "product": "Oily & Sensitive Skin Cleanser Gel",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "INCI · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-FC-202",
+  "product": "Normal & Dry Skin Cleanser Gel",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-FC-203",
+  "product": "Pore Tightening & Purifying Toner",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6)"
+ },
+ {
+  "sku": "LW-FC-204",
+  "product": "Facial Peeling Gel",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-101",
+  "product": "Vitamin C Serum",
+  "pack_text_layer": true,
+  "label_company": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş.",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-102",
+  "product": "Retinol Serum 1%",
+  "pack_text_layer": true,
+  "label_company": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. (İstanbul, Kadıköy)",
+  "needs_visual_read": "Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-103",
+  "product": "Dark Spot Corrector Serum",
+  "pack_text_layer": true,
+  "label_company": "THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş. (İstanbul, Ataşehir)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "تفتيح: اختبار Hydroquinone (يجب غيابه) ضمن تحاليل التسجيل (الملحق 1)"
+ },
+ {
+  "sku": "LW-SR-104",
+  "product": "Intensive Hydration Serum",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-105",
+  "product": "Collagen Serum",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-106",
+  "product": "Under Eye Serum",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-SR-107",
+  "product": "Anti-Acne Serum",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "acne: القسم 5.2 من دليل بلدية دبي يضع «منتجات حب الشباب» خارج نطاق مستحضرات التجميل (ادعاء مرضي) || تفتيح: اختبار Hydroquinone (يجب غيابه) ضمن تحاليل التسجيل (الملحق 1)"
+ },
+ {
+  "sku": "LW-CR-301",
+  "product": "Intense Repair Moisturizer Cream",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-CR-304",
+  "product": "Retinal Shot Cream",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-CR-302",
+  "product": "Skin Brightening Cream",
+  "pack_text_layer": true,
+  "label_company": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. (İstanbul, Kadıköy)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "تفتيح: اختبار Hydroquinone (يجب غيابه) ضمن تحاليل التسجيل (الملحق 1)"
+ },
+ {
+  "sku": "LW-SP-401",
+  "product": "Tone Up Pink Sunscreen SPF50+",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "واقي شمس: يدخل نطاق التجميل؛ ادعاء SPF يحتاج تقرير اختبار (غير موجود بالملفات)"
+ },
+ {
+  "sku": "LW-SP-402",
+  "product": "Anti-Blemish Sunscreen SPF50+",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "واقي شمس: يدخل نطاق التجميل؛ ادعاء SPF يحتاج تقرير اختبار (غير موجود بالملفات)"
+ },
+ {
+  "sku": "LW-MK-501",
+  "product": "Collagen Hydro Bomb Mask",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6) || تفتيح: اختبار Hydroquinone (يجب غيابه) ضمن تحاليل التسجيل (الملحق 1)"
+ },
+ {
+  "sku": "LW-TN-601",
+  "product": "Rice Milk Toner",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6)"
+ },
+ {
+  "sku": "LW-SR-108",
+  "product": "Rice Milk Serum",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6)"
+ },
+ {
+  "sku": "LW-CR-303",
+  "product": "Rice Milk Spot Cream",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-HR-801",
+  "product": "Rosemary Shampoo",
+  "pack_text_layer": true,
+  "label_company": "THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş. (İstanbul, Ataşehir)",
+  "needs_visual_read": "INCI · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "شعر: ادعاءات النمو/التساقط/الدوران خارج نطاق التجميل (5.2) — محجوبة"
+ },
+ {
+  "sku": "LW-HR-802",
+  "product": "Pure Rosemary Water",
+  "pack_text_layer": true,
+  "label_company": "THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş. (İstanbul, Ataşehir)",
+  "needs_visual_read": "INCI · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "شعر: ادعاءات النمو/التساقط/الدوران خارج نطاق التجميل (5.2) — محجوبة"
+ },
+ {
+  "sku": "LW-HR-803",
+  "product": "Rosemary Hair Oil",
+  "pack_text_layer": true,
+  "label_company": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş.",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "شعر: ادعاءات النمو/التساقط/الدوران خارج نطاق التجميل (5.2) — محجوبة || Benzyl Nicotinate: مادة تحسّن الدورة الدموية → خارج النطاق (5.2: «مواد تحسّن microcirculation») — يتطلب إقرار المصنّع/البلدية"
+ },
+ {
+  "sku": "LW-MN-901",
+  "product": "Beard Serum",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-BD-701",
+  "product": "Body Firming Gel",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ },
+ {
+  "sku": "LW-BD-703",
+  "product": "Foot Care Cream",
+  "pack_text_layer": false,
+  "label_company": "",
+  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
+  "regulatory_flags": ""
+ }
+]

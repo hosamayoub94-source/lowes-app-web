@@ -142,12 +142,12 @@
  {
   "id": "C-15",
   "product": "ALL",
-  "item": "UAE regulatory path unclear (Montaji/Dubai Municipality vs ESMA PRS) and possible documents: Free Sale Certificate, GMP/ISO 22716, SDS, Arabic label/sticker, distributor authorization",
-  "sources": "Secondary sources only (platforms_expansion note)",
-  "status": "يحتاج تحققاً رسمياً",
-  "step": "Confirm authority officially (no filing); ask management which path was used for product registration; ask CEELLO for GMP/FSC/SDS",
-  "owner": "الإدارة / CEELLO",
-  "blocking": "لا يمنع الإعداد؛ يؤثر على النشر"
+  "item": "UAE regulatory path: Dubai = Montaji (Dubai Municipality guideline V2.1, official). Federal MOIAT/ECAS and Abu Dhabi/other emirates NOT established officially",
+  "sources": "dmpmedia.dm.gov.ae DM-HSD-GU116-CPCP2 V2.1; moiat.gov.ae service page; trade.gov (secondary)",
+  "status": "مُحسم لدبي — غير محسوم لغيرها",
+  "step": "Ask management which route/company registered the products; ask DM/MOIAT in writing before shipping outside Dubai (not sent)",
+  "owner": "الإدارة",
+  "blocking": "لا يمنع دبي؛ يمنع إمارات أخرى"
  },
  {
   "id": "C-16",
@@ -168,5 +168,35 @@
   "step": "Confirm current fees inside Seller Central / FBA calculator",
   "owner": "حسام (بعد فتح الحساب)",
   "blocking": "لا يمنع"
+ },
+ {
+  "id": "C-18",
+  "product": "LW-SR-107 Anti-Acne Serum",
+  "item": "Acne products are listed OUT of cosmetics scope (DM guideline 5.2); pack says helps prevent acne formation",
+  "sources": "DM guideline V2.1 §5.2; Anti Acne Serum Box PDF",
+  "status": "مفتوح — خطر نطاق",
+  "step": "Management: was it registered under this name? Consider renaming/claim change with DM before listing",
+  "owner": "الإدارة",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-19",
+  "product": "LW-HR-801/802/803 Rosemary hair line",
+  "item": "Hair growth/loss claims and microcirculation substances (Benzyl Nicotinate in Hair Oil INCI) are out of cosmetics scope (5.2)",
+  "sources": "DM guideline V2.1 §5.2; catalog EN; Hair Oil box INCI",
+  "status": "مفتوح",
+  "step": "Drop growth/loss claims; CEELLO confirms Benzyl Nicotinate purpose; confirm registration status per SKU",
+  "owner": "الإدارة / CEELLO",
+  "blocking": "يمنع نشر الشعر"
+ },
+ {
+  "id": "C-20",
+  "product": "LW-FC-203 Pore Toner",
+  "item": "Contains Glycolic Acid: AHA rules (pH ≥3.5 retail; mandatory label precautions) §9.6",
+  "sources": "DM guideline V2.1 §9.6; catalog actives",
+  "status": "يحتاج تحققاً",
+  "step": "Check pack precautions + final pH with CEELLO",
+  "owner": "CEELLO",
+  "blocking": "قد يمنع"
  }
 ]
