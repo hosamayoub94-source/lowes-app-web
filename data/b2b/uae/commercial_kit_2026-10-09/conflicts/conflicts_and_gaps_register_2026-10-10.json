@@ -72,10 +72,10 @@
  {
   "id": "C-08",
   "product": "ALL",
-  "item": "Label company L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. not among ABOS entities",
-  "sources": "Pack artwork; ABOS 02",
+  "item": "Label company differs by pack: \"THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş.\" appears on ~33 pack files; \"L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş.\" on 4 (incl. Vitamin C and Hair Oil). Neither is an ABOS entity",
+  "sources": "Pack artwork text (pdftotext); ABOS 02",
   "status": "مفتوح",
-  "step": "Management explains role in writing",
+  "step": "Management explains each company's role and which is the responsible party in UAE",
   "owner": "الإدارة",
   "blocking": "يمنع النشر"
  },
@@ -138,5 +138,15 @@
   "step": "Provide pack files",
   "owner": "الإدارة",
   "blocking": "يمنع إعداد هذه الثلاثة"
+ },
+ {
+  "id": "C-15",
+  "product": "ALL",
+  "item": "UAE regulatory path unclear (Montaji/Dubai Municipality vs ESMA PRS) and possible documents: Free Sale Certificate, GMP/ISO 22716, SDS, Arabic label/sticker, distributor authorization",
+  "sources": "Secondary sources only (platforms_expansion note)",
+  "status": "يحتاج تحققاً رسمياً",
+  "step": "Confirm authority officially (no filing); ask management which path was used for product registration; ask CEELLO for GMP/FSC/SDS",
+  "owner": "الإدارة / CEELLO",
+  "blocking": "لا يمنع الإعداد؛ يؤثر على النشر"
  }
 ]
