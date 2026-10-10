@@ -92,7 +92,7 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
   const st = statusOf(row.status);
   const collab = collabOf(row);
   const ig = instagramUrl(row) || profileUrl(row);
-  const contact = contactUrl(row);
+  const contact = canManage ? contactUrl(row) : '';
   const miss = missingEssentials(row);
   const writable = canManage && v2 && !row.deleted_at;
   const govs = GOVERNORATES[row.country || 'SY'] || [];
@@ -198,8 +198,12 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
             <Row label="آخر نشاط">{dateAr(row.last_active_at) || NA}</Row>
             <Row label="المصدر">{row.source || NA}{safeUrl(row.source_url) && <a href={row.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 text-xs mr-2">رابط المصدر ↗</a>}</Row>
             <Row label="آخر تحقق">{dateAr(row.last_verified_at) || <span className="text-gray-400">لم يُتحقَّق يدوياً بعد</span>}</Row>
-            <Row label="البريد (عام)">{row.email ? <a className="text-blue-700" href={`mailto:${row.email}`} dir="ltr">{row.email}</a> : NA}</Row>
-            <Row label="الهاتف (عام)">{row.phone ? <span dir="ltr">{row.phone}</span> : NA}</Row>
+            {canManage ? (
+              <>
+                <Row label="البريد (عام)">{row.email ? <a className="text-blue-700" href={`mailto:${row.email}`} dir="ltr">{row.email}</a> : NA}</Row>
+                <Row label="الهاتف (عام)">{row.phone ? <span dir="ltr">{row.phone}</span> : NA}</Row>
+              </>
+            ) : <Row label="التواصل"><span className="text-gray-400">لمن يدير البيانات فقط</span></Row>}
             <Row label="المسؤول">{row.owner || NA}</Row>
             <Row label="أضيف">{dateAr(row.created_at) || NA}{row.created_by ? ` · ${row.created_by}` : ''}</Row>
           </div>
