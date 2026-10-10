@@ -52,11 +52,11 @@
  {
   "id": "C-06",
   "product": "LW-SR-101 Vitamin C Serum",
-  "item": "Front \"Ferulic Acid 2% · Vitamin B5\" vs details file attaches 2% to B5",
-  "sources": "Box PDF; details PDF",
-  "status": "مفتوح — منخفض",
-  "step": "Use box text; confirm with CEELLO",
-  "owner": "CEELLO",
+  "item": "Ferulic 2% / B5 wording",
+  "sources": "Box.docx front: Ascorbic Acid 20% · Ferulic Acid 2% · Vitamin B5; details DOCX (Arabic): 20% ascorbic, 2% ferulic, vitamin B5 — consistent",
+  "status": "مُحسم بالدليل",
+  "step": "None — earlier reading of the details file was a garbled-text artefact",
+  "owner": "—",
   "blocking": "لا يمنع"
  },
  {
@@ -208,5 +208,45 @@
   "step": "Match box name to the registered name before listing; do not rename on our own",
   "owner": "الإدارة",
   "blocking": "يمنع نشر 302"
+ },
+ {
+  "id": "C-22",
+  "product": "LW-SR-103 Dark Spot Corrector Serum",
+  "item": "Two INCI versions: Box/Arabic details (batch LWS 001–002) vs manufacturer-style ingredient table \"Dark Spot Corrector Serum 30ML.pdf\" (CAS + % bands). Box-only: Sodium Ascorbyl Phosphate, PEG-40 Castor Oil, Dehydroacetic Acid, Benzyl Alcohol, Benzyl Salicylate, Hexyl Cinnamal, Terpineol. Table-only: Glycerin, 3-O-Ethyl Ascorbic Acid, Phenoxyethanol, EDTA, Ethylhexylglycerin, Benzophenone-4. 12 in common",
+  "sources": "Box PDF/DOCX text; Arabic details PDF; 30ML table PDF",
+  "status": "مفتوح — حقيقي",
+  "step": "CEELLO written final INCI + which batch each version belongs to; BSN test reports carry no batch/production date",
+  "owner": "CEELLO",
+  "blocking": "يمنع نسخ INCI"
+ },
+ {
+  "id": "C-23",
+  "product": "LW-SR-105 Collagen Serum",
+  "item": "Two INCI versions: Box/Arabic details vs 30ML table. Box-only: Benzyl Alcohol, Saccharide Isomerate, Dehydroacetic Acid, Benzyl Salicylate, Hexyl Cinnamal, Terpineol. Table-only: Phenoxyethanol, EDTA, Ethylhexylglycerin, Benzophenone-4",
+  "sources": "Box PDF; Arabic details PDF; COLLAGEN SERUM 30 ML.pdf",
+  "status": "مفتوح — حقيقي",
+  "step": "CEELLO written final INCI + batch mapping",
+  "owner": "CEELLO",
+  "blocking": "يمنع نسخ INCI"
+ },
+ {
+  "id": "C-24",
+  "product": "LW-SR-103 Dark Spot",
+  "item": "No evidence in files for Hydroquinone absence (DM Annex 1 requires Absent for skin-whitening products). INCI lists do not list it, but an INCI list is not a test. BSN reports cover stability/challenge/microbiology only. Alpha-Arbutin is present; Turkish purpose text appears to say helps PREVENT formation of dark spots while English says reduces appearance",
+  "sources": "DM guideline Annex 1; BSN reports; Box PDF",
+  "status": "مفتوح",
+  "step": "Obtain accredited-lab report (Hydroquinone not detected) for the registered formula/batch + CEELLO signed ingredient report; align TR/EN claim",
+  "owner": "CEELLO / الإدارة",
+  "blocking": "يمنع نشر Dark Spot"
+ },
+ {
+  "id": "C-25",
+  "product": "LW-SR-101 Vitamin C",
+  "item": "Box storage text differs: English \"cool and dark place\" vs Arabic \"room temperature, away from direct sunlight\". Box.pdf/Print.pdf have no text layer; text verified from Box.docx only (printed file not machine-verifiable)",
+  "sources": "Box.docx",
+  "status": "منخفض",
+  "step": "Human visual check of printed Box.pdf; align storage wording",
+  "owner": "الإدارة",
+  "blocking": "لا يمنع"
  }
 ]

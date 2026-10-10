@@ -1,0 +1,63 @@
+{
+ "_note": "Internal draft. Not uploaded. null = unknown, to be provided; nothing invented.",
+ "platform": "noon",
+ "title_en": "LOWE'S Profesyonel Vitamin C Serum 30 ml – Ascorbic Acid 20%, Ferulic Acid 2%, Vitamin B5",
+ "title_ar": "LOWE'S Profesyonel سيروم فيتامين سي 30 مل – يفتّح ويوحّد لون البشرة",
+ "category_hint": "Beauty › Skin Care › Face Serums (تُختار من كتالوج noon الفعلي)",
+ "brand": "LOWE'S profesyonel",
+ "size": "30 ml (1.00 fl.oz)",
+ "country_of_origin": "Türkiye",
+ "ean13": "8684272100419",
+ "ean_status": "مطبوع بتصميم العلبة (Box.docx) ورقم التحقق صحيح؛ ترخيص GS1 غير مؤكد",
+ "ingredients_inci": "Aqua, Ascorbic Acid, Panthenol, Ferulic Acid, Glycerin, Glutathione, Phenoxyethanol, Ethylhexylglycerin.",
+ "directions": "After cleaning and drying skin, apply a few drops to your face and neck and massage gently. Recommended to use every morning and night. When used in the morning, use sun protection cream after applying the serum.",
+ "warnings": "For external use only. Avoid contact with eyes. If contact occurs, rinse thoroughly with water. Store in a cool and dark place. Keep out of the reach of children.",
+ "claims_from_box": "Helps to moisturize, brighten and even out the skin tone; visibly brightens the skin; effective in reducing the appearance of wrinkles that form over time.",
+ "front_actives": "Ascorbic Acid 20% · Ferulic Acid 2% · Vitamin B5",
+ "batch_on_artwork": "LWC 004",
+ "expiry_on_artwork": "30.06.2028",
+ "label_company_on_box": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş.",
+ "price_aed": null,
+ "registration_number": null,
+ "registration_proof": null,
+ "weight_kg": null,
+ "dimensions_cm": null,
+ "images": [
+  {
+   "kind": "Photo",
+   "width": 4000,
+   "height": 4000,
+   "path": "03 - المنتجات والكتالوج/صور المنتجات - منظمة/01 - منتجات البشرة/06 - سيروم فيتامين سي/LOWES_سيروم-فيتامين-سي_Photo.png"
+  },
+  {
+   "kind": "Tube",
+   "width": 3000,
+   "height": 4000,
+   "path": "03 - المنتجات والكتالوج/صور المنتجات - منظمة/01 - منتجات البشرة/06 - سيروم فيتامين سي/LOWES_سيروم-فيتامين-سي_Tube.png"
+  },
+  {
+   "kind": "other",
+   "width": 4000,
+   "height": 4000,
+   "path": "03 - المنتجات والكتالوج/صور المنتجات ومعلومات عنها/منتجات البشرة/سيروم فيتامين سي LOWE_S/IMG_8215.PNG"
+  },
+  {
+   "kind": "TUBE",
+   "width": 3000,
+   "height": 4000,
+   "path": "03 - المنتجات والكتالوج/صور المنتجات ومعلومات عنها/منتجات البشرة/سيروم فيتامين سي LOWE_S/LOWES - C VITAMINI SERUM - TUBE.png"
+  },
+  {
+   "kind": "other",
+   "width": 4000,
+   "height": 4000,
+   "path": "منتجات البشرة/سيروم فيتامين سي LOWE_S/IMG_8215.PNG"
+  },
+  {
+   "kind": "TUBE",
+   "width": 3000,
+   "height": 4000,
+   "path": "منتجات البشرة/سيروم فيتامين سي LOWE_S/LOWES - C VITAMINI SERUM - TUBE.png"
+  }
+ ]
+}

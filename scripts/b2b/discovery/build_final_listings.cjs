@@ -8,6 +8,8 @@ const imgs = fs.readFileSync(path.join(dir, 'listings/original_image_inventory_2
 const bestImg = (sku) => { let b = null; for (const l of imgs) { const m = l.match(/^"([^"]*)","([^"]*)","(\d+)","(\d+)","(\d+)","(.*)"$/); if (m && m[1] === sku && m[6].indexOf('تصميم قديم') < 0 && (!b || +m[5] > +b.px)) b = { kind: m[2], w: m[3], h: m[4], px: m[5], path: m[6] }; } return b; };
 const HOLD = { 'LW-SR-107': ['C-18', 'اسم وادعاء حب الشباب خارج نطاق التجميل (دليل بلدية دبي 5.2) + عنوانا الغرض/الاستخدام مقلوبان (C-16)', 'قرار الإدارة بالاسم/الادعاء بعد معرفة ما سُجّل فعلاً، وتصحيح التصميم'],
   'LW-HR-801': ['C-19', 'ادعاءات نمو/تساقط الشعر خارج نطاق التجميل (5.2)', 'سحب الادعاءات بقرار الإدارة + إثبات التسجيل'], 'LW-HR-802': ['C-19/C-05', 'ادعاءات نمو الشعر + اختبار SKINLAB لا يُنسب بلا إقرار CEELLO', 'سحب الادعاءات + إقرار CEELLO'],
+  'LW-SR-103': ['C-22/C-24', 'تعارض INCI (علبة مقابل جدول المصنّع) + لا دليل على غياب Hydroquinone', 'إقرار INCI من CEELLO + تقرير مختبر معتمد (Hydroquinone غير مكتشف)'],
+  'LW-SR-105': ['C-23', 'تعارض INCI (علبة مقابل جدول المصنّع)', 'إقرار INCI من CEELLO'],
   'LW-HR-803': ['C-01..C-04, C-19', 'تعارض INCI (30 مقابل 26)، Biotin غير موجود بأي قائمة، Benzyl Nicotinate (مادة دورة دموية)', 'إقرار CEELLO المكتوب بـINCI النهائي والمكوّنات'] };
 const NOPACK = ['LW-SP-401', 'LW-MN-901', 'LW-BD-703'];
 const sentences = (s) => (s || '').split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter((x) => x.length > 8);
@@ -17,8 +19,8 @@ for (const p of kit) {
   const sku = p.internal_sku; if (sku === 'LW-SR-101') continue;
   const k = pack.find((x) => x.sku === sku) || {}; const g = gaps.find((x) => x.sku === sku) || {}; const im = bestImg(sku);
   let status, reason = '', unblock = '';
-  if (HOLD[sku]) { status = 'ON_HOLD_REGULATORY'; [, reason, unblock] = HOLD[sku]; }
-  else if (NOPACK.includes(sku)) { status = 'NO_PACK_FILE'; reason = 'لا ملف عبوة/تصميم بالمجلد'; unblock = 'تسليم ملف العبوة'; }
+  if (HOLD[sku]) { status = /C-2[234]/.test(HOLD[sku][0]) ? 'ON_HOLD_INCI_CONFLICT' : 'ON_HOLD_REGULATORY'; [, reason, unblock] = HOLD[sku]; }
+  else if (!k.pack_pdf && !k.files_found) { status = 'NO_PACK_FILE'; reason = 'لا ملف عبوة/تصميم بالمجلد'; unblock = 'تسليم ملف العبوة'; }
   else if (k.text_layer && k.inci && k.warnings_en && k.how_to_use_en && k.purpose_en) { status = 'CONTENT_READY'; }
   else { status = 'NEEDS_VISUAL_READ'; reason = 'نص العبوة محوّل لمنحنيات أو ناقص: ' + (g.needs_visual_read || ''); unblock = 'قراءة بصرية للعبوة/ملف نصي من CEELLO'; }
   const flags = (g.regulatory_flags || '').split(' || ').filter(Boolean);

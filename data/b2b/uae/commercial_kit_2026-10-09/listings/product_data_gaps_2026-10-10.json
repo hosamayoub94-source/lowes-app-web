@@ -20,20 +20,20 @@
  {
   "sku": "LW-FC-203",
   "product": "Pore Tightening & Purifying Toner",
-  "pack_text_layer": false,
-  "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "pack_text_layer": true,
+  "label_company": "THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş. (İstanbul, Ataşehir)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
   "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
   "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6)"
  },
  {
   "sku": "LW-FC-204",
   "product": "Facial Peeling Gel",
-  "pack_text_layer": false,
-  "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
-  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
-  "regulatory_flags": ""
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
+  "regulatory_flags": "AHA: pH ≥ 3.5 للتجزئة وتحذيرات ملصق إلزامية (9.6)"
  },
  {
   "sku": "LW-SR-101",
@@ -83,9 +83,9 @@
  {
   "sku": "LW-SR-106",
   "product": "Under Eye Serum",
-  "pack_text_layer": false,
-  "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "pack_text_layer": true,
+  "label_company": "THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş. (İstanbul, Ataşehir)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
   "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
   "regulatory_flags": ""
  },
@@ -137,9 +137,9 @@
  {
   "sku": "LW-SP-402",
   "product": "Anti-Blemish Sunscreen SPF50+",
-  "pack_text_layer": false,
+  "pack_text_layer": true,
   "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "needs_visual_read": "INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
   "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate · مراجعة الادعاءات/المكوّنات المُعلَّمة",
   "regulatory_flags": "واقي شمس: يدخل نطاق التجميل؛ ادعاء SPF يحتاج تقرير اختبار (غير موجود بالملفات)"
  },
@@ -218,18 +218,18 @@
  {
   "sku": "LW-BD-701",
   "product": "Body Firming Gel",
-  "pack_text_layer": false,
-  "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "pack_text_layer": true,
+  "label_company": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. (İstanbul, Kadıköy)",
+  "needs_visual_read": "EAN (باركود غير مقروء آلياً)",
   "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
   "regulatory_flags": ""
  },
  {
   "sku": "LW-BD-703",
   "product": "Foot Care Cream",
-  "pack_text_layer": false,
-  "label_company": "",
-  "needs_visual_read": "كل بيانات العبوة (النص محوّل لمنحنيات) · INCI · Batch/Exp · EAN (باركود غير مقروء آلياً)",
+  "pack_text_layer": true,
+  "label_company": "CEELLO KOZMETİK VE KİMYA SANAYİ TİCARET A.Ş. (Afyonkarahisar)",
+  "needs_visual_read": "INCI · EAN (باركود غير مقروء آلياً)",
   "needs_manufacturer": "إقرار/تأكيد INCI النهائي مطابقاً للعبوة · ورقة المكوّنات الموقعة (CAS + أوزان) من R&D لملف التسجيل · تقارير الاختبار (الملحق 1) وFree Sale Certificate",
   "regulatory_flags": ""
  }
