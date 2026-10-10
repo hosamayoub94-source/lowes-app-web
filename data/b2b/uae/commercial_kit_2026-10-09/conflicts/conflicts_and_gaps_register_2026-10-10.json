@@ -1,0 +1,142 @@
+[
+ {
+  "id": "C-01",
+  "product": "LW-HR-803 Rosemary Hair Oil",
+  "item": "INCI differs: box 30 items (LBH 004) vs details file 26 items (LRO 001); 17 common, 22 differ",
+  "sources": "Box PDF; details PDF; conflicts/hair_oil_inci_comparison_2026-10-10.csv",
+  "status": "مفتوح — حقيقي",
+  "step": "Written final INCI + batch version from CEELLO",
+  "owner": "CEELLO (draft letter, not sent)",
+  "blocking": "يمنع الإعداد والنشر"
+ },
+ {
+  "id": "C-02",
+  "product": "LW-HR-803 Rosemary Hair Oil",
+  "item": "Biotin claimed on pack front, absent from both INCI lists",
+  "sources": "Box PDF front; both INCI lists",
+  "status": "مفتوح",
+  "step": "CEELLO confirms Biotin presence or box wording correction",
+  "owner": "CEELLO",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-03",
+  "product": "LW-HR-803 Rosemary Hair Oil",
+  "item": "Hair-growth / loss / density / circulation claims in catalog; no test on the oil",
+  "sources": "Catalog EN; SKINLAB report (water only)",
+  "status": "غير مدعوم",
+  "step": "Do not use; CEELLO states supported claims",
+  "owner": "CEELLO",
+  "blocking": "يمنع الادعاءات"
+ },
+ {
+  "id": "C-04",
+  "product": "LW-HR-803 Rosemary Hair Oil",
+  "item": "Benzyl Nicotinate and Ascorbic Acid in box INCI — intended presence / UAE acceptability",
+  "sources": "Box PDF",
+  "status": "يحتاج تأكيداً",
+  "step": "CEELLO regulatory confirmation",
+  "owner": "CEELLO",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-05",
+  "product": "LW-HR-802 Pure Rosemary Water",
+  "item": "SKINLAB +15.53% belongs to \"The CEEL Pure Rosemary Water\"; formula identity stated only by the company",
+  "sources": "AplAppRep/SKINLAB report; partnership statement",
+  "status": "مفتوح",
+  "step": "CEELLO written identity declaration",
+  "owner": "CEELLO (draft not sent)",
+  "blocking": "يمنع الادعاء العلمي فقط"
+ },
+ {
+  "id": "C-06",
+  "product": "LW-SR-101 Vitamin C Serum",
+  "item": "Front \"Ferulic Acid 2% · Vitamin B5\" vs details file attaches 2% to B5",
+  "sources": "Box PDF; details PDF",
+  "status": "مفتوح — منخفض",
+  "step": "Use box text; confirm with CEELLO",
+  "owner": "CEELLO",
+  "blocking": "لا يمنع"
+ },
+ {
+  "id": "C-07",
+  "product": "LW-SR-101 Vitamin C Serum",
+  "item": "Catalog \"enhances sunscreen effectiveness\" not on box",
+  "sources": "Catalog EN; box PDF",
+  "status": "مُعالج",
+  "step": "Excluded from listing; use box claims",
+  "owner": "Claude",
+  "blocking": "لا يمنع"
+ },
+ {
+  "id": "C-08",
+  "product": "ALL",
+  "item": "Label company L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. not among ABOS entities",
+  "sources": "Pack artwork; ABOS 02",
+  "status": "مفتوح",
+  "step": "Management explains role in writing",
+  "owner": "الإدارة",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-09",
+  "product": "ALL",
+  "item": "UAE registration proof not found in files (management confirms registration)",
+  "sources": "Management; document review",
+  "status": "التسجيل مؤكد من الإدارة؛ الإثبات لم يُعثر عليه ضمن الملفات المتاحة",
+  "step": "Management supplies copy/number per SKU",
+  "owner": "الإدارة",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-10",
+  "product": "ALL",
+  "item": "No approved UAE price (Syria prices not used)",
+  "sources": "Kit; ABOS",
+  "status": "مفقود",
+  "step": "Management approves AED wholesale/retail",
+  "owner": "الإدارة",
+  "blocking": "يمنع النشر"
+ },
+ {
+  "id": "C-11",
+  "product": "ALL",
+  "item": "Trademark: application 2024/085278 by a natural person; ownership/authority undocumented",
+  "sources": "AplAppRep.pdf; correspondence/Trademark_Authority_Review.md",
+  "status": "مفتوح",
+  "step": "Authority documents list (7 items)",
+  "owner": "الإدارة / مالك العلامة",
+  "blocking": "يمنع تفويض العلامة"
+ },
+ {
+  "id": "C-12",
+  "product": "ALL",
+  "item": "EAN readable on 3 packs only; GS1 licensee unknown",
+  "sources": "Registration match table; pack artwork",
+  "status": "مفتوح",
+  "step": "Read EAN from current packs; confirm GS1 licence",
+  "owner": "الإدارة",
+  "blocking": "يمنع الإدراج بمنصات تشترط GTIN"
+ },
+ {
+  "id": "C-13",
+  "product": "ALL",
+  "item": "Test reports local for 9 SKUs; others indexed to Drive",
+  "sources": "00_فهرس الشهادات.pdf; product folders",
+  "status": "جزئي",
+  "step": "Management shares Drive folder on request",
+  "owner": "الإدارة",
+  "blocking": "لا يمنع"
+ },
+ {
+  "id": "C-14",
+  "product": "LW-SP-401, LW-MN-901, LW-BD-703",
+  "item": "No pack/print artwork in folder",
+  "sources": "Registration match table",
+  "status": "مفقود",
+  "step": "Provide pack files",
+  "owner": "الإدارة",
+  "blocking": "يمنع إعداد هذه الثلاثة"
+ }
+]
