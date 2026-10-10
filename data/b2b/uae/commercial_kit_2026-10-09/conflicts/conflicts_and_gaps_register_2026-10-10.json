@@ -72,10 +72,10 @@
  {
   "id": "C-08",
   "product": "ALL",
-  "item": "Label company differs by pack: \"THE CEEL KOZMETİK İÇ VE DIŞ TİCARET A.Ş.\" appears on ~33 pack files; \"L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş.\" on 4 (incl. Vitamin C and Hair Oil). Neither is an ABOS entity",
-  "sources": "Pack artwork text (pdftotext); ABOS 02",
+  "item": "Label company differs by pack: CEELLO KOZMETİK (Afyonkarahisar) on 8 SKUs, THE CEEL KOZMETİK İÇ VE DIŞ TİCARET (Ataşehir) on 3, L B İÇ VE DIŞ TİCARET KOZMETİK (Kadıköy) on 2 (incl. Vitamin C, Hair Oil, Skin Brightening Cream) among 13 packs with a text layer. None of the latter two is an ABOS entity",
+  "sources": "Pack PDFs text (listings/pack_data_2026-10-10.json); ABOS 02",
   "status": "مفتوح",
-  "step": "Management explains each company's role and which is the responsible party in UAE",
+  "step": "Management explains each company role and which is the responsible party in UAE",
   "owner": "الإدارة",
   "blocking": "يمنع النشر"
  },
@@ -148,5 +148,25 @@
   "step": "Confirm authority officially (no filing); ask management which path was used for product registration; ask CEELLO for GMP/FSC/SDS",
   "owner": "الإدارة / CEELLO",
   "blocking": "لا يمنع الإعداد؛ يؤثر على النشر"
+ },
+ {
+  "id": "C-16",
+  "product": "LW-SR-107 Anti-Acne Serum",
+  "item": "Pack headings swapped: text under PURPOSE OF USAGE is the usage instructions and text under HOW TO USE is the purpose",
+  "sources": "Anti Acne Serum Box/Print PDF text",
+  "status": "مفتوح — خطأ تصميم",
+  "step": "Fix artwork before any print/listing copy; do not publish the text as printed",
+  "owner": "الإدارة / CEELLO",
+  "blocking": "يمنع نسخ نص العلبة بالإدراج"
+ },
+ {
+  "id": "C-17",
+  "product": "Amazon.ae",
+  "item": "Amazon pricing page shows FBA fees effective 1 Aug 2025 (page footer 2025) — may be outdated",
+  "sources": "sell.amazon.ae/pricing fetched 2026-10-10 (cached 8 Oct)",
+  "status": "يحتاج تحققاً",
+  "step": "Confirm current fees inside Seller Central / FBA calculator",
+  "owner": "حسام (بعد فتح الحساب)",
+  "blocking": "لا يمنع"
  }
 ]
