@@ -1,0 +1,31 @@
+{
+ "_note": "Internal draft. Not uploaded. null = unknown. HOLD until blockers cleared.",
+ "sku": "LW-CR-302",
+ "brand": "LOWE'S profesyonel",
+ "title_en": null,
+ "size": "50 ml (1.7 fl.oz)",
+ "country_of_origin": "Türkiye",
+ "ingredients_inci": "Aqua, Glyceryl Stearate,Cetyl Alcohol, Petrolatum, Paraffinum Liquidum, Stearic Acid, Zinc Oxide, Carbomer, Niacinamide, Kojic Acid, Titanium Dioxide, Collagen, Triethanolamine, Alpha-Arbutin, Tranexamic Acid, Fragrance, Glutathione, Phenoxyethanol, Ethylhexylglycerin.",
+ "directions": "Apply to cleansed and dry skin. Take a small amount of cream and apply it to the desired area, massaging it in. Wait until absorbed into the skin. It is recommended to use it twice a day, in the morning and evening.",
+ "purpose_from_pack": "It helps to reduce the appearance of dark spots and discolorations on the skin, contributing to a brighter complexion. With regular use, it evens out the skin tone and improves its appearance.",
+ "warnings": "For external use only. Avoid contact with eyes. In case of contact, rinse thoroughly with plenty of water. Keep out of reach of children, store at room temperature, keep the lid closed, and store in its original packaging.",
+ "batch_on_artwork": "LBS 002",
+ "expiry_on_artwork": "30.06.2028",
+ "label_company_on_pack": "L B İÇ VE DIŞ TİCARET KOZMETİK A.Ş. (İstanbul, Kadıköy)",
+ "ean13": null,
+ "price_aed": null,
+ "registration_proof": null,
+ "weight_kg": null,
+ "dimensions_cm": null,
+ "regulatory_flags": [
+  "تفتيح: اختبار Hydroquinone (يجب غيابه) ضمن تحاليل التسجيل (الملحق 1)"
+ ],
+ "blockers": [
+  "سعر",
+  "إثبات تسجيل مطابق للاسم",
+  "دور جهة الملصق",
+  "EAN/GS1 (غير مقروء من العبوة)",
+  "مراجعة الأعلام التنظيمية"
+ ],
+ "name_conflict": "العبوة: SKIN WHITENING CREAM؛ الكتالوج: Skin Brightening Cream (C-21)"
+}
