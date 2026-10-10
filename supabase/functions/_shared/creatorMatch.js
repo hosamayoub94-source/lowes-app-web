@@ -205,7 +205,7 @@ function haystack(r) {
     r.creator_type, TYPE_AR[r.creator_type], r.category, CATEGORY_AR[(r.category || '').toLowerCase()],
     ...arr(r.content_types), ...arr(r.content_types).map((c) => CONTENT_AR[c]),
     ...arr(r.skincare_focus), ...arr(r.skincare_focus).map((f) => FOCUS_AR[f]),
-    ...arr(r.tags), r.bio, r.notes, r.fit,
+    ...freeTags(r), r.bio, r.notes, r.fit,
   ];
   return ` ${normalizeText(parts.filter(Boolean).join(' '))} `;
 }
@@ -379,7 +379,44 @@ const asc = (x, y) => (x == null && y == null ? 0 : x == null ? 1 : y == null ? 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 const ts = (d) => { const t = Date.parse(d); return Number.isFinite(t) ? t : null; };
 
+// ---------------- work-queue helpers (D-094 follow-up: no migration — review answers live in reserved tags) ----------------
+// Reserved tag prefixes: "r:<key>=<value>" = one answer of the 8-question review, "collab:<verdict>" = derived collaboration type,
+// "reject:<reason>" = quick-reject reason. Everything else in `tags` is a free team tag.
+export const RESERVED_TAG_RE = /^(r|collab|reject):/;
+export const COLLABS = ['ugc_ready', 'pr_ready', 'paid_inquiry', 'expert', 'needs_review', 'not_relevant'];
+export const COLLAB_AR = { ugc_ready: 'UGC', pr_ready: 'PR / هدية', paid_inquiry: 'مدفوع', expert: 'خبير', needs_review: 'يحتاج مراجعة', not_relevant: 'غير مناسب' };
+export const freeTags = (r) => arr(r.tags).filter((t) => !RESERVED_TAG_RE.test(String(t)));
+export function reviewTags(r) {
+  const out = {};
+  for (const t of arr(r.tags)) { const m = /^r:([a-z_]+)=(.+)$/.exec(String(t)); if (m) out[m[1]] = m[2]; }
+  return out;
+}
+export function collabOf(r) {
+  const t = arr(r.tags).find((x) => String(x).startsWith('collab:'));
+  const v = t ? String(t).slice(7) : '';
+  return COLLABS.includes(v) ? v : null;
+}
+// "??????" or U+FFFD in a name/handle = text that was mangled on its way in (wrong file encoding). Never shown as if it were a name.
+export const isGarbled = (r) => /\?{3,}|\uFFFD/.test(`${r.name || ''} ${r.handle || ''}`);
+// Essentials a person needs before acting: account, readable name, followers, a place, a source.
+export function missingEssentials(r) {
+  const out = [];
+  if (String(r.handle || '').startsWith('pending_')) out.push('account');
+  if (isGarbled(r)) out.push('name');
+  if (r.followers == null || r.followers === '') out.push('followers');
+  if (!r.governorate && !r.city && !r.location) out.push('place');
+  if (!r.source) out.push('source');
+  return out;
+}
+const isReady = (r) => statusOf(r.status) === 'verified' && collabOf(r) !== 'not_relevant';
+
 function passFilters(r, f) {
+  if (f.no_source && r.source) return false;
+  if (f.incomplete && !missingEssentials(r).length) return false;
+  if (f.garbled && !isGarbled(r)) return false;
+  if (f.collab && collabOf(r) !== f.collab) return false;
+  if (f.ready && !isReady(r)) return false;
+  if (f.statuses && arr(f.statuses).length && !arr(f.statuses).includes(statusOf(r.status))) return false;
   if (f.country && r.country !== f.country) return false;
   if (f.governorate && r.governorate !== f.governorate) return false;
   if (f.city && normalizeText(r.city) !== normalizeText(f.city)) return false;
@@ -392,6 +429,47 @@ function passFilters(r, f) {
   if (f.badge && scoreCreator(r).badge !== f.badge) return false;
   return true;
 }
+
+// Header numbers: always over ALL live rows (never the filtered page), so the team sees the real state of the list.
+export function summarizeCreators(rows) {
+  const s = { total: 0, to_review: 0, verified: 0, rejected: 0, ready: 0, contacted: 0, ugc: 0, skincare: 0, saved: 0, unverified: 0, incomplete: 0, no_source: 0, garbled: 0, collab: {} };
+  for (const r of rows || []) {
+    if (r.deleted_at) continue;
+    s.total++;
+    const st = statusOf(r.status);
+    if (st === 'needs_review' || st === 'discovered') s.to_review++;
+    else if (st === 'verified') s.verified++;
+    else if (['rejected', 'not_interested', 'inactive'].includes(st)) s.rejected++;
+    else if (['contacted', 'interested', 'collaborating'].includes(st)) s.contacted++;
+    if (isReady(r)) s.ready++;
+    if (isUgc(r)) s.ugc++;
+    if (isSkincare(r)) s.skincare++;
+    if (r.saved) s.saved++;
+    if ((r.verification_status || 'unverified') === 'unverified') s.unverified++;
+    if (missingEssentials(r).length) s.incomplete++;
+    if (!r.source) s.no_source++;
+    if (isGarbled(r)) s.garbled++;
+    const c = collabOf(r); if (c) s.collab[c] = (s.collab[c] || 0) + 1;
+  }
+  return s;
+}
+
+// Ready-made views = named filter presets (combined with search + extra filters by the screen).
+export const VIEWS = [
+  { key: 'all', ar: 'الكل', filters: {} },
+  { key: 'review', ar: 'ابدأ المراجعة', filters: { statuses: ['needs_review', 'discovered'] }, count: 'to_review' },
+  { key: 'ugc', ar: 'UGC', filters: { ugcOnly: true }, count: 'ugc' },
+  { key: 'skincare', ar: 'Skincare', filters: { skincareOnly: true }, count: 'skincare' },
+  { key: 'unverified', ar: 'يحتاج تحقق', filters: { verification_status: 'unverified' }, count: 'unverified' },
+  { key: 'ready', ar: 'جاهز للتواصل', filters: { ready: true }, count: 'ready' },
+  { key: 'verified', ar: 'معتمد', filters: { status: 'verified' }, count: 'verified' },
+  { key: 'rejected', ar: 'مستبعد', filters: { statuses: ['rejected', 'not_interested', 'inactive'] }, count: 'rejected' },
+  { key: 'saved', ar: 'محفوظ', filters: { saved: true }, count: 'saved' },
+  { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
+  { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
+  { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },
+];
+export const viewOf = (key) => VIEWS.find((v) => v.key === key) || VIEWS[0];
 
 export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page = 1, pageSize = 30, now = Date.now() } = {}) {
   const parsed = parseQuery(q);
