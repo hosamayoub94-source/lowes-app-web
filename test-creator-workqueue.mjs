@@ -5,7 +5,7 @@ import {
   summarizeCreators, searchCreators, VIEWS, viewOf, isGarbled, missingEssentials, collabOf, reviewTags, freeTags,
 } from './supabase/functions/_shared/creatorMatch.js';
 import {
-  answersFromRow, verdictFor, reviewToPatch, quickRejectPatch, nextStep, toExportCsv, decodeCsvBytes, igProfile, missingAr,
+  outreachDraft, contactPatch, isTemplateSample, answersFromRow, verdictFor, reviewToPatch, quickRejectPatch, nextStep, toExportCsv, decodeCsvBytes, igProfile, missingAr,
 } from './src/services/creatorWorkqueue.js';
 
 let pass = 0, fail = 0;
@@ -78,7 +78,7 @@ ok(nextStep(R5).key === 'none', 'rejected -> none');
 ok(nextStep(R7).key === 'deleted', 'deleted');
 ok(nextStep({ ...R4, tags: ['collab:paid_inquiry'] }).key === 'paid', 'paid inquiry');
 ok(nextStep({ ...R4, platform: 'tiktok' }).key === 'find_contact', 'verified, no public route -> find contact');
-ok(nextStep({ ...R4, status: 'contacted' }).key === 'follow_up', 'contacted -> follow up');
+ok(nextStep({ ...R4, status: 'contacted' }).key === 'wait_reply', 'contacted with unknown age -> waiting for reply');
 ok(nextStep({ ...R1, tags: ['r:fit=yes'] }).key === 'complete_review', 'half review -> complete');
 
 // ---- the 8 questions without a migration ----
@@ -164,6 +164,21 @@ ok(d1.encoding === 'utf-8' && d1.text.includes('ريم') && !d1.text.startsWith(
 const cp = new Uint8Array([0x68, 0x2c, 0x6e, 0x0a, 0x61, 0x2c, 0xd1, 0xed, 0xe3, 0x0a]);
 const d2 = decodeCsvBytes(cp);
 ok(d2.encoding === 'windows-1256' && d2.text.includes('ريم'), `windows-1256 fallback (${d2.encoding}: ${JSON.stringify(d2.text)})`);
+
+// ---- outreach (copy-only) ----
+const APPROVED = { ...R4, name: 'Ready | UGC', tags: ['collab:ugc_ready'] };
+const dr = outreachDraft(APPROVED);
+ok(dr && dr.kind === 'ugc' && dr.text.includes('Ready') && !dr.text.includes('|'), 'ugc draft uses first name, kind from collab');
+ok(outreachDraft({ ...APPROVED, tags: ['collab:pr_ready'] }).kind === 'gift' && outreachDraft({ ...APPROVED, tags: ['collab:paid_inquiry'] }).kind === 'paid', 'pr -> gift, paid -> paid');
+ok(outreachDraft(R1) === null && outreachDraft({ ...APPROVED, status: 'needs_review' }) === null, 'no draft before approval or without a collaboration type');
+ok(outreachDraft({ ...APPROVED, tags: ['collab:not_relevant'] }) === null, 'no draft for not relevant');
+ok(!outreachDraft({ ...APPROVED, name: '??????' }).text.includes('??'), 'garbled name never put in a message');
+ok(contactPatch(APPROVED, '').reason === 'owner_required' && contactPatch({ ...APPROVED, owner: 'Amany' }, '').patch.owner === 'Amany', 'owner required, existing owner kept');
+ok(contactPatch(APPROVED, 'Amany').patch.status === 'contacted', 'contact patch sets contacted + actor as owner');
+ok(contactPatch(R1, 'Amany').reason === 'not_approved', 'cannot mark contacted before approval');
+ok(isTemplateSample({ handle: '@Example_Handle' }) && !isTemplateSample({ handle: 'example_handle2' }), 'template sample row detected');
+ok(nextStep({ ...APPROVED, status: 'contacted', updated_at: new Date().toISOString() }).key === 'wait_reply', 'fresh contact -> waiting');
+ok(nextStep({ ...APPROVED, status: 'contacted', updated_at: new Date(Date.now() - 5 * 864e5).toISOString() }).key === 'follow_up', '5 days later -> follow up');
 
 console.log(`creator-workqueue: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
