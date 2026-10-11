@@ -118,6 +118,27 @@ ok(r.ok && r.row.created_by === 'Manager' && r.row.source === 'Manual', 'manager
 ok((await post({ action: 'add', row: { handle: 'den_added' } }, 'den-token')).status === 403, 'denied_permissions overrides extra_permissions');
 ok((await post({ action: 'search' }, 'staff-token')).status === 403, 'employee without permission still 403');
 
+// ================= contact details: managers only (view-only users never receive them) =================
+globalThis.__db = makeDb('v2', seedV2.map((x) => (x.id === 'r1' ? { ...x, email: 'sama@example.com', phone: '+963900000000', preferred_contact: 'email' } : x)));
+globalThis.__db.tables.creator_prospect_audit.push({ prospect_id: 'r1', action: 'update', actor: 'Tester', created_at: '2026-10-10T00:00:00Z', changes: { email: { from: null, to: 'sama@example.com' }, status: { from: 'needs_review', to: 'verified' } } });
+const hasContact = (rows) => rows.some((x) => 'email' in x || 'phone' in x || 'preferred_contact' in x);
+r = await post({ action: 'list' }, 'view-token');
+ok(r.ok && r.rows.length === 2 && !hasContact(r.rows), 'viewer list: no email/phone/preferred_contact');
+r = await post({ action: 'search' }, 'view-token');
+ok(r.ok && !hasContact(r.rows) && !JSON.stringify(r).includes('sama@example.com'), 'viewer search: no contact anywhere in the response');
+r = await post({ action: 'audit', id: 'r1' }, 'view-token');
+ok(r.ok && r.entries.length === 1 && !('email' in r.entries[0].changes) && r.entries[0].changes.status, 'viewer audit: contact diff removed, other fields kept');
+r = await post({ action: 'list' }, 'mgr-token');
+ok(r.ok && r.rows.find((x) => x.id === 'r1').email === 'sama@example.com', 'manager list keeps contact details');
+r = await post({ action: 'audit', id: 'r1' }, 'admin-token');
+ok(r.ok && r.entries[0].changes.email, 'admin audit keeps contact diff');
+
+// ================= import merge: one audit entry per merged row =================
+globalThis.__db = makeDb('v2', seedV2);
+r = await post({ action: 'import', rows: [{ handle: 'skin.by.sama', city: 'دمشق', bio: 'روتين بشرة' }], dry_run: false, merge: true, label: 'test.csv' }, 'mgr-token');
+const mergeAudit = globalThis.__db.tables.creator_prospect_audit.filter((x) => x.prospect_id === 'r1');
+ok(r.ok && r.merged === 1 && mergeAudit.length === 1 && mergeAudit[0].changes.city?.to === 'دمشق' && mergeAudit[0].changes._source?.to === 'import: test.csv', `merged row audited (${JSON.stringify(mergeAudit)})`);
+
 // ================= name-only manual entries =================
 r = await post({ action: 'add', row: { name: 'TEST' } }, 'mgr-token');
 ok(r.ok && r.row.platform === 'other' && r.row.handle === 'pending_test' && r.row.status === 'discovered', 'name only -> placeholder pending_ handle');

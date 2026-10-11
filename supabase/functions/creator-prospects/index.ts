@@ -32,6 +32,8 @@ const SPECIAL = ["followers", "engagement_pct", "priority", "status", "verified"
 const BULK_EDITABLE = ["status", "owner", "category", "priority", "verified", "saved", "creator_type", "verification_status"];
 const MAX_IMPORT = 2000;
 
+// Public contact details are only returned to people who can manage the data (view-only users never receive them).
+const CONTACT_FIELDS = ["email", "phone", "preferred_contact"];
 const COLS_V1 = "id,platform,handle,handle_key,name,location,followers,engagement_pct,category,priority,fit,evidence,verification_level,source,profile_url,status,owner,notes,verified,cohort,legacy_id,created_at,created_by,updated_at,updated_by,deleted_at,deleted_by";
 const COLS_V2 = COLS_V1 + "," + V2_FIELDS.join(",");
 
@@ -175,17 +177,21 @@ serve(async (req) => {
     const probe = await admin.from("creator_prospects").select("saved").limit(1);
     const v2 = !probe.error;
     const cols = v2 ? COLS_V2 : COLS_V1;
+    // read actions for view-only users: never select the contact columns at all
+    const readCols = v2 && !canManage ? COLS_V2.split(",").filter((c) => !CONTACT_FIELDS.includes(c)).join(",") : cols;
+    // belt and braces: whatever the query returned, a view-only response never carries contact fields
+    const forReader = (rows: Row[]) => (canManage ? rows : rows.map((r) => { const o = { ...r }; for (const f of CONTACT_FIELDS) delete o[f]; return o; }));
     const migrationRequired = () => json({ ok: false, error: "migration_required", message: "الحقول الجديدة تحتاج تطبيق migration v2 أولاً" }, 409);
 
     if (action === "search") {
       const deleted = body?.include_deleted === true;
-      let q = admin.from("creator_prospects").select(cols).limit(10000);
+      let q = admin.from("creator_prospects").select(readCols).limit(10000);
       q = deleted ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
       const f = (body?.filters && typeof body.filters === "object" ? body.filters : {}) as Row;
       if (v2 && typeof f.country === "string" && /^[A-Z]{2}$/.test(f.country)) q = q.eq("country", f.country);
       const { data, error } = await q;
       if (error) return json({ ok: false, error: "read failed" }, 500);
-      const res = searchCreators(data ?? [], {
+      const res = searchCreators(forReader((data ?? []) as Row[]), {
         q: cleanText(body?.q, 200) || "",
         filters: f,
         sort: cleanText(body?.sort, 20) || "best",
@@ -196,11 +202,11 @@ serve(async (req) => {
     }
 
     if (action === "list") {
-      let q = admin.from("creator_prospects").select(cols).order("created_at", { ascending: true }).limit(10000);
+      let q = admin.from("creator_prospects").select(readCols).order("created_at", { ascending: true }).limit(10000);
       if (!body?.include_deleted) q = q.is("deleted_at", null);
       const { data, error } = await q;
       if (error) return json({ ok: false, error: "read failed" }, 500);
-      return json({ ok: true, schema: v2 ? "v2" : "v1", rows: data ?? [] });
+      return json({ ok: true, schema: v2 ? "v2" : "v1", rows: forReader((data ?? []) as Row[]) });
     }
 
     if (action === "add") {
@@ -288,7 +294,13 @@ serve(async (req) => {
       const id = String(body?.id || "");
       if (!id) return json({ ok: false, error: "id required" }, 400);
       const { data } = await admin.from("creator_prospect_audit").select("action,actor,changes,created_at").eq("prospect_id", id).order("created_at", { ascending: false }).limit(50);
-      return json({ ok: true, entries: data ?? [] });
+      // the audit trail must not leak contact details to view-only users either
+      const entries = (data ?? []).map((e: Row) => {
+        if (canManage || !e.changes || typeof e.changes !== "object") return e;
+        const c = { ...(e.changes as Row) }; for (const f of CONTACT_FIELDS) delete c[f];
+        return { ...e, changes: c };
+      });
+      return json({ ok: true, entries });
     }
 
     if (action === "import") {
@@ -368,7 +380,12 @@ serve(async (req) => {
           const src = fresh.find((f) => f.line === d.line)!.row;
           const patch: Row = {}; for (const k of d.fills) patch[k] = src[k];
           const { error } = await admin.from("creator_prospects").update({ ...patch, updated_at: new Date().toISOString(), updated_by: actor }).eq("id", d.existing_id as string);
-          if (!error) merged++;
+          if (!error) {
+            merged++;
+            // one audit entry per merged row (fills only empty fields, so "from" is always empty)
+            const diff: Row = {}; for (const k of d.fills) diff[k] = { from: null, to: patch[k] };
+            await audit(d.existing_id as string, "update", { ...diff, _source: { from: null, to: `import: ${label}` } });
+          }
         }
       }
       await audit(null, "import", { label, summary, inserted, merged, merge });

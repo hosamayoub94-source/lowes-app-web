@@ -2,7 +2,8 @@
 // معاينة dry-run دائماً قبل الإدخال، والمكرر (نفس الحساب بأي كتابة: @x / x / رابط) لا يُضاف مرتين.
 import { useEffect, useState } from 'react';
 import { call, invalidate } from '@services/creatorProspectsApi';
-import { fmtNum } from './constants';
+import { decodeCsvBytes } from '@services/creatorWorkqueue';
+import { fmtNum, isGarbled } from './constants';
 
 // ---- header aliases for uploads (English + Arabic) ----
 const ALIASES = {
@@ -36,7 +37,7 @@ const ALIASES = {
   owner: ['owner', 'assignedto', 'المسؤول'],
   status: ['status', 'الحالة'],
 };
-const keyNorm = (s) => String(s || '').replace(/﻿/g, '').toLowerCase().replace(/[\s_\-.]/g, '');
+const keyNorm = (s) => String(s || '').replace(/\uFEFF/g, '').toLowerCase().replace(/[\s_\-.]/g, '');
 function mapRows(sheetRows) {
   if (!sheetRows.length) return [];
   const headers = Object.keys(sheetRows[0]);
@@ -48,13 +49,16 @@ function mapRows(sheetRows) {
 async function readFile(file) {
   const XLSX = await import('xlsx');
   const isCsv = /\.csv$/i.test(file.name);
-  const wb = isCsv ? XLSX.read(await file.text(), { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  // CSV: decode the bytes ourselves — an Arabic Excel CSV saved as Windows-1256 read as UTF-8 is what produced "??????" names.
+  const dec = isCsv ? decodeCsvBytes(await file.arrayBuffer()) : null;
+  const wb = isCsv ? XLSX.read(dec.text, { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   // raw:false => formatted text ("3.2%", "12,500"): raw numbers would turn "3.2%" into 0.032 and silently store 0.03.
-  return mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }));
+  const rows = mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }));
+  return { rows, encoding: dec?.encoding || 'xlsx', garbled: rows.filter((r) => isGarbled(r)).length };
 }
 function downloadTemplate() {
-  const csv = '﻿handle,name,platform,followers,engagement,country,governorate,city,location_confidence,creator_type,content_types,skincare_focus,source,source_url,verification_status,last_active,notes\n'
+  const csv = '\uFEFFhandle,name,platform,followers,engagement,country,governorate,city,location_confidence,creator_type,content_types,skincare_focus,source,source_url,verification_status,last_active,notes\n'
     + '@example_handle,اسم المبدع,instagram,12500,3.2%,SY,damascus,دمشق,medium,ugc,"ugc,reels",serums,Google Search,https://example.com/source,unverified,2026-10-01,ملاحظة اختيارية\n';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -71,6 +75,7 @@ export default function ImportModal({ onClose, onDone, preset }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null);
+  const [fileInfo, setFileInfo] = useState(null); // { encoding, garbled }
 
   async function preview(parsed, name) {
     setErr(''); setReport(null); setDone(null); setFileName(name); setBusy(true);
@@ -89,7 +94,11 @@ export default function ImportModal({ onClose, onDone, preset }) {
   async function pick(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    try { await preview(await readFile(file), file.name); } catch (ex) { setErr(ex.message || 'تعذّرت قراءة الملف'); }
+    try {
+      const r = await readFile(file);
+      setFileInfo(r);
+      await preview(r.rows, file.name);
+    } catch (ex) { setErr(ex.message || 'تعذّرت قراءة الملف'); }
   }
   async function confirm() {
     setBusy(true); setErr('');
@@ -123,6 +132,8 @@ export default function ImportModal({ onClose, onDone, preset }) {
               <div className="rounded-xl bg-gray-100 p-2"><div className="text-lg font-black text-gray-700">{s.duplicate_in_file}</div>مكرر داخل الملف</div>
               <div className="rounded-xl bg-red-50 p-2"><div className="text-lg font-black text-red-700">{s.invalid}</div>غير صالح</div>
             </div>
+            {fileInfo?.encoding === 'windows-1256' && <div className="rounded-lg bg-blue-50 text-blue-800 text-xs p-2">الملف محفوظ بترميز Windows عربي — قرأناه صح. للمرة الجاية احفظه «CSV UTF-8».</div>}
+            {fileInfo?.garbled > 0 && <div role="alert" className="rounded-lg bg-orange-50 text-orange-800 text-xs p-2">⚠ {fileInfo.garbled} صف فيه أسماء مشوّهة («???»). الأفضل تصحيح الملف قبل الاستيراد — وإلا رح تظهر بقائمة «يحتاج تصحيح».</div>}
             {s.dropped_v2_fields > 0 && <div className="rounded-lg bg-amber-50 text-amber-800 text-xs p-2">{s.dropped_v2_fields} صف فيه أعمدة جديدة (النوع، المحتوى…) ستُتجاهَل حتى تطبيق migration v2.</div>}
             {report.new.length > 0 && <details className="text-xs"><summary className="cursor-pointer font-bold">الجديد ({s.new})</summary><div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">{report.new.map((n) => <div key={n.line}>@{n.handle} {n.name ? `· ${n.name}` : ''} {n.followers ? `· ${fmtNum(n.followers)}` : ''}</div>)}</div></details>}
             {report.duplicate_existing.length > 0 && <details className="text-xs"><summary className="cursor-pointer font-bold">المكرر الموجود ({s.duplicate_existing})</summary><div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">{report.duplicate_existing.map((d) => <div key={d.line}>@{d.handle} {d.existing_name ? `· ${d.existing_name}` : ''} {d.deleted ? '· (محذوف)' : ''} {d.fills.length ? `· يكمّل: ${d.fills.join('، ')}` : ''}</div>)}</div></details>}

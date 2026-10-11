@@ -39,6 +39,19 @@ export async function searchProspects({ q = '', filters = {}, sort = 'best', pag
   return { ok: true, mode, schema, ...searchCreators(rows, { q, filters, sort, page, pageSize }) };
 }
 
+// Work-queue screen: load the whole list once (221 rows today) and search/filter/count in the browser with the same
+// _shared/creatorMatch.js — new views and counters work without redeploying the edge function. Writes stay on the function.
+export async function listProspects({ includeDeleted = false, force = false } = {}) {
+  if (force || !cache || cache.deleted !== includeDeleted) {
+    const l = await call('list', { include_deleted: includeDeleted });
+    if (!l.ok) return l;
+    cache = { deleted: includeDeleted, rows: l.rows || [], schema: l.schema };
+  }
+  const rows = cache.rows.filter((r) => (includeDeleted ? !!r.deleted_at : !r.deleted_at));
+  const schema = cache.schema || (cache.rows.length && 'saved' in cache.rows[0] ? 'v2' : 'v1');
+  return { ok: true, rows, schema };
+}
+
 // Status written to the DB: v2 values, or the closest v1 value while the deployed schema is still v1.
 export const wireStatus = (status, schema) => (schema === 'v2' ? status : V1_STATUS[status] || status);
 

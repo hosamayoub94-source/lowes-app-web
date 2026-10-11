@@ -14,7 +14,8 @@ export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'other']
 export const CONTENT_AR = { ugc: 'UGC', unboxing: 'Unboxing', review: 'مراجعة منتجات', reels: 'Reels', stories: 'Stories', photography: 'تصوير منتجات' };
 export const FOCUS_AR = { face_care: 'عناية بالوجه', body_care: 'عناية بالجسم', sunscreen: 'واقي شمس', serums: 'سيروم', creams: 'كريمات', hair_care: 'عناية بالشعر', beauty: 'Beauty' };
 export const TYPE_AR = { ugc: 'UGC Creator', skincare: 'Skincare Creator', beauty: 'Beauty Creator', unboxing: 'Unboxing Creator', reviewer: 'Product Reviewer', expert: 'خبير بشرة / صيدلاني', general: 'مؤثر عام' };
-export const STATUS_AR = { discovered: 'مُكتشَف', needs_review: 'يحتاج مراجعة', verified: 'متحقَّق', rejected: 'مرفوض', contacted: 'تم التواصل', interested: 'مهتم', collaborating: 'متعاون', not_interested: 'غير مهتم', inactive: 'غير نشط' };
+// status "verified" = a human approved the account («معتمد»); not the same thing as data verification (VERIFICATION_AR).
+export const STATUS_AR = { discovered: 'مُكتشَف', needs_review: 'يحتاج مراجعة', verified: 'معتمد', rejected: 'مرفوض', contacted: 'تم التواصل', interested: 'مهتم', collaborating: 'متعاون', not_interested: 'غير مهتم', inactive: 'غير نشط' };
 export const VERIFICATION_AR = { verified: 'متحقَّق', partial: 'متحقَّق جزئياً', unverified: 'غير متحقَّق' };
 export const CONFIDENCE_AR = { high: 'ثقة عالية', medium: 'ثقة متوسطة', low: 'ثقة منخفضة' };
 export const CATEGORY_AR = { skincare: 'عناية بالبشرة', beauty: 'جمال', makeup: 'مكياج', hair: 'شعر', fashion: 'أزياء', motherhood: 'أمومة', wellness: 'صحة', food: 'طعام', art: 'فن', fitness: 'لياقة', entertainment: 'ترفيه', music: 'موسيقى' };
@@ -59,9 +60,9 @@ export const countryOf = (code) => COUNTRIES.find((c) => c.code === code) || nul
 export function normalizeText(v) {
   return String(v ?? '')
     .toLowerCase()
-    .replace(/[ً-ٰٟـ]/g, '') // tashkeel + tatweel
-    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
-    .replace(/[،؛؟@#_\-./\\|,;:!?()[\]{}"'«»+*%]+/g, ' ')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '') // tashkeel + tatweel
+    .replace(/[\u0623\u0625\u0622\u0671]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[\u060C\u061B\u061F@#_\-./\\|,;:!?()[\]{}"'\u00AB\u00BB+*%]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -92,7 +93,7 @@ export const normalizeHandle = (raw) => { const p = parseHandle(raw); return p ?
 const AR_LAT = { 'ب': 'b', 'ت': 't', 'ث': 't', 'ج': 'j', 'ح': 'h', 'خ': 'k', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 's', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'غ': 'g', 'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h' };
 export function skeleton(word) {
   let w = normalizeText(word);
-  if (/[؀-ۿ]/.test(w)) w = [...w].map((c) => AR_LAT[c] ?? '').join('');
+  if (/[\u0600-\u06FF]/.test(w)) w = [...w].map((c) => AR_LAT[c] ?? '').join('');
   else w = w.replace(/th/g, 't').replace(/sh/g, 's').replace(/kh/g, 'k').replace(/gh/g, 'g').replace(/dh/g, 'd').replace(/ch/g, 's').replace(/q/g, 'k').replace(/c/g, 'k').replace(/g/g, 'j').replace(/[^a-z]/g, '').replace(/[aeiouyw]/g, '');
   w = w.replace(/g/g, 'j').replace(/(.)\1+/g, '$1').replace(/h$/, '');
   return w;
@@ -145,7 +146,7 @@ const AR_PREFIXES = ['وبال', 'وال', 'بال', 'لل', 'ال', 'وب', 'ب
 function lookupToken(tok) {
   if (STOP.has(tok)) return { stop: true };
   if (TERM_TO_CONCEPT.has(tok)) return { concept: TERM_TO_CONCEPT.get(tok) };
-  if (/[؀-ۿ]/.test(tok)) {
+  if (/[\u0600-\u06FF]/.test(tok)) {
     for (const p of AR_PREFIXES) {
       if (tok.startsWith(p) && tok.length - p.length >= 2) {
         const rest = tok.slice(p.length);
@@ -205,7 +206,7 @@ function haystack(r) {
     r.creator_type, TYPE_AR[r.creator_type], r.category, CATEGORY_AR[(r.category || '').toLowerCase()],
     ...arr(r.content_types), ...arr(r.content_types).map((c) => CONTENT_AR[c]),
     ...arr(r.skincare_focus), ...arr(r.skincare_focus).map((f) => FOCUS_AR[f]),
-    ...arr(r.tags), r.bio, r.notes, r.fit,
+    ...freeTags(r), r.bio, r.notes, r.fit,
   ];
   return ` ${normalizeText(parts.filter(Boolean).join(' '))} `;
 }
@@ -379,7 +380,44 @@ const asc = (x, y) => (x == null && y == null ? 0 : x == null ? 1 : y == null ? 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 const ts = (d) => { const t = Date.parse(d); return Number.isFinite(t) ? t : null; };
 
+// ---------------- work-queue helpers (D-094 follow-up: no migration — review answers live in reserved tags) ----------------
+// Reserved tag prefixes: "r:<key>=<value>" = one answer of the 8-question review, "collab:<verdict>" = derived collaboration type,
+// "reject:<reason>" = quick-reject reason. Everything else in `tags` is a free team tag.
+export const RESERVED_TAG_RE = /^(r|collab|reject):/;
+export const COLLABS = ['ugc_ready', 'pr_ready', 'paid_inquiry', 'expert', 'needs_review', 'not_relevant'];
+export const COLLAB_AR = { ugc_ready: 'UGC', pr_ready: 'PR / هدية', paid_inquiry: 'مدفوع', expert: 'خبير', needs_review: 'يحتاج مراجعة', not_relevant: 'غير مناسب' };
+export const freeTags = (r) => arr(r.tags).filter((t) => !RESERVED_TAG_RE.test(String(t)));
+export function reviewTags(r) {
+  const out = {};
+  for (const t of arr(r.tags)) { const m = /^r:([a-z_]+)=(.+)$/.exec(String(t)); if (m) out[m[1]] = m[2]; }
+  return out;
+}
+export function collabOf(r) {
+  const t = arr(r.tags).find((x) => String(x).startsWith('collab:'));
+  const v = t ? String(t).slice(7) : '';
+  return COLLABS.includes(v) ? v : null;
+}
+// "??????" or U+FFFD in a name/handle = text that was mangled on its way in (wrong file encoding). Never shown as if it were a name.
+export const isGarbled = (r) => /\?{3,}|\uFFFD/.test(`${r.name || ''} ${r.handle || ''}`);
+// Essentials a person needs before acting: account, readable name, followers, a place, a source.
+export function missingEssentials(r) {
+  const out = [];
+  if (String(r.handle || '').startsWith('pending_')) out.push('account');
+  if (isGarbled(r)) out.push('name');
+  if (r.followers == null || r.followers === '') out.push('followers');
+  if (!r.governorate && !r.city && !r.location) out.push('place');
+  if (!r.source) out.push('source');
+  return out;
+}
+const isReady = (r) => statusOf(r.status) === 'verified' && collabOf(r) !== 'not_relevant';
+
 function passFilters(r, f) {
+  if (f.no_source && r.source) return false;
+  if (f.incomplete && !missingEssentials(r).length) return false;
+  if (f.garbled && !isGarbled(r)) return false;
+  if (f.collab && collabOf(r) !== f.collab) return false;
+  if (f.ready && !isReady(r)) return false;
+  if (f.statuses && arr(f.statuses).length && !arr(f.statuses).includes(statusOf(r.status))) return false;
   if (f.country && r.country !== f.country) return false;
   if (f.governorate && r.governorate !== f.governorate) return false;
   if (f.city && normalizeText(r.city) !== normalizeText(f.city)) return false;
@@ -393,7 +431,50 @@ function passFilters(r, f) {
   return true;
 }
 
-export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page = 1, pageSize = 30, now = Date.now() } = {}) {
+// Header numbers: always over ALL live rows (never the filtered page), so the team sees the real state of the list.
+export function summarizeCreators(rows) {
+  const s = { total: 0, to_review: 0, verified: 0, rejected: 0, ready: 0, contacted: 0, ugc: 0, skincare: 0, saved: 0, unverified: 0, incomplete: 0, no_source: 0, garbled: 0, collab: {} };
+  for (const r of rows || []) {
+    if (r.deleted_at) continue;
+    s.total++;
+    const st = statusOf(r.status);
+    if (st === 'needs_review' || st === 'discovered') s.to_review++;
+    else if (st === 'verified') s.verified++;
+    else if (['rejected', 'not_interested', 'inactive'].includes(st)) s.rejected++;
+    else if (['contacted', 'interested', 'collaborating'].includes(st)) s.contacted++;
+    if (isReady(r)) s.ready++;
+    if (isUgc(r)) s.ugc++;
+    if (isSkincare(r)) s.skincare++;
+    if (r.saved) s.saved++;
+    if ((r.verification_status || 'unverified') === 'unverified') s.unverified++;
+    if (missingEssentials(r).length) s.incomplete++;
+    if (!r.source) s.no_source++;
+    if (isGarbled(r)) s.garbled++;
+    const c = collabOf(r); if (c) s.collab[c] = (s.collab[c] || 0) + 1;
+  }
+  return s;
+}
+
+// Ready-made views = named filter presets (combined with search + extra filters by the screen).
+export const VIEWS = [
+  { key: 'all', ar: 'الكل', filters: {} },
+  { key: 'review', ar: 'ابدأ المراجعة', filters: { statuses: ['needs_review', 'discovered'] }, count: 'to_review' },
+  { key: 'ugc', ar: 'UGC', filters: { ugcOnly: true }, count: 'ugc' },
+  { key: 'skincare', ar: 'Skincare', filters: { skincareOnly: true }, count: 'skincare' },
+  { key: 'unverified', ar: 'يحتاج تحقق', filters: { verification_status: 'unverified' }, count: 'unverified' },
+  { key: 'ready', ar: 'جاهز للتواصل', filters: { ready: true }, count: 'ready' },
+  { key: 'verified', ar: 'معتمد', filters: { status: 'verified' }, count: 'verified' },
+  { key: 'contacted', ar: 'تم التواصل', filters: { statuses: ['contacted', 'interested', 'collaborating'] }, count: 'contacted' },
+  { key: 'rejected', ar: 'مستبعد', filters: { statuses: ['rejected', 'not_interested', 'inactive'] }, count: 'rejected' },
+  { key: 'saved', ar: 'محفوظ', filters: { saved: true }, count: 'saved' },
+  { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
+  { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
+  { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },
+];
+export const viewOf = (key) => VIEWS.find((v) => v.key === key) || VIEWS[0];
+
+// `all: true` (browser only — the edge function never passes it) returns every match unpaged; the screen pages locally.
+export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page = 1, pageSize = 30, now = Date.now(), all = false } = {}) {
   const parsed = parseQuery(q);
   const base = [];
   for (const r of rows || []) {
@@ -420,7 +501,7 @@ export function searchCreators(rows, { q = '', filters = {}, sort = 'best', page
     active: (a, b) => desc(ts(a.last_active_at), ts(b.last_active_at)),
   }[sort] || ((a, b) => b.score - a.score);
   out.sort((a, b) => cmp(a, b) || String(a.handle).localeCompare(String(b.handle)));
-  const size = Math.max(1, Math.min(60, Number(pageSize) || 30));
+  const size = all ? Math.max(1, out.length) : Math.max(1, Math.min(60, Number(pageSize) || 30));
   const p = Math.max(1, Number(page) || 1);
   return { rows: out.slice((p - 1) * size, p * size), total: out.length, page: p, pageSize: size, counts, parsed: { concepts: parsed.concepts.map((c) => c.key), words: parsed.words, handles: parsed.handles } };
 }
