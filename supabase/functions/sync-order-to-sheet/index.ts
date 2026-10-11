@@ -196,7 +196,9 @@ Deno.serve(async (req: Request) => {
       const trPickup = (p: unknown) => TR_PICKUP_MAP[String(p ?? '').trim()] ?? p;
       const trPayload = {
         token: TR_TOKEN,
-        brand: o.brand || 'lowes',
+        // طلبات شبكة النجوم تنزل بتاب «شبكة النجوم» المستقل (قرار حسام 11 تشرين الأول 2026):
+        // brand='star' ⇒ SHEET_FOR.star بسكربت الجدول. إن لم يعرفه السكربت يرجع لـLOWES_TR.
+        brand: o.source === 'star_network' ? 'star' : (o.brand || 'lowes'),
         order: {
           order_id:         o.order_id,
           // Column A = وقت آخر تغيير حالة (updated_at) أو وقت الإنشاء إن لم يتغيّر بعد.

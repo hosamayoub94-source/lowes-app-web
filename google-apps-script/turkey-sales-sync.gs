@@ -30,7 +30,9 @@ var ANON           = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // Edge Function URL — يستخدم service_role داخلياً فيتجاوز RLS
 var SHEET_TO_APP_URL = SUPA_URL + '/functions/v1/sheet-to-app';
 
-var SHEET_FOR = { strong: 'STRONG_TR', lowes: 'LOWES_TR' };
+// star = طلبات شبكة النجوم (تاب مستقل «شبكة النجوم»، قرار حسام 11 تشرين الأول 2026).
+// الدالة sync-order-to-sheet ترسل brand:'star' لطلبات source='star_network'.
+var SHEET_FOR = { strong: 'STRONG_TR', lowes: 'LOWES_TR', star: 'شبكة النجوم' };
 
 // البند ٢: تابات التسليمات لكل براند. الطلبات «تم التسليم ✅» تُرحَّل تلقائياً
 // (يومياً) من التاب النشط لتاب التسليمات الموافق. غيّر الأسماء هنا لو رغبت.
@@ -225,7 +227,7 @@ function _fillTracking(items) {
 function onSheetEdit(e) {
   try {
     var sh = e.range.getSheet();
-    if (sh.getName() !== 'LOWES_TR' && sh.getName() !== 'STRONG_TR') return;
+    if (sh.getName() !== 'LOWES_TR' && sh.getName() !== 'STRONG_TR' && sh.getName() !== 'شبكة النجوم') return;
     var lastCol = sh.getLastColumn();
     var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
     var idCol = -1, stCol = -1, trCol = -1, dateCol = -1;
