@@ -2,7 +2,7 @@
 // يربط الأسئلة الثمانية للـWorkbench القديم (src/services/creatorReview.js — نفس deriveVerdict المختبَر) بأعمدة creator_prospects الحالية،
 // بلا migration (قرار حسام 10 أكتوبر 2026): كل إجابة = tag محجوز "r:<key>=<value>"، نوع التعاون = "collab:<verdict>"،
 // روابط الأدلة داخل evidence ("video:URL contact:URL pr:URL" بعد أي نص قديم). «غير متأكد» لا يُكتب أبداً — يبقى مجهولاً.
-import { deriveVerdict, reviewCompleteness } from './creatorReview.js';
+import { deriveVerdict, reviewCompleteness, outreachMessage } from './creatorReview.js';
 import {
   statusOf, freeTags, reviewTags, collabOf, isGarbled, missingEssentials, scoreCreator, govOf, countryOf,
   STATUS_AR, TYPE_AR, CONTENT_AR, FOCUS_AR, COLLAB_AR, VERIFICATION_AR,
@@ -169,6 +169,30 @@ export function quickRejectPatch(row = {}, reason, now = new Date()) {
   return { status: 'rejected', tags, verification_status: row.verification_status === 'verified' ? 'verified' : 'partial', last_verified_at: new Date(now).toISOString() };
 }
 
+const FOLLOW_UP_DAYS = 3;
+const daysSinceUpdate = (row, now = Date.now()) => { const t = Date.parse(row.updated_at || ''); return Number.isFinite(t) ? Math.floor((now - t) / 864e5) : null; };
+
+const KIND_OF = { pr_ready: 'gift', ugc_ready: 'ugc', paid_inquiry: 'paid', expert: 'gift' };
+/** Copy-paste message for a HUMAN to send (never sent from here). Only for approved accounts with a collaboration type. */
+export function outreachDraft(row = {}) {
+  if (statusOf(row.status) !== 'verified') return null;
+  const kind = KIND_OF[collabOf(row)];
+  if (!kind) return null;
+  const name = isGarbled(row) ? '' : row.name || '';
+  return { kind, text: outreachMessage({ name, kind }) };
+}
+/** One click «سجّلت التواصل»: status contacted + an owner (the legacy rule: no contact without an owner). */
+export function contactPatch(row = {}, actor = '') {
+  const owner = row.owner || String(actor || '').trim();
+  if (!owner) return { ok: false, reason: 'owner_required' };
+  if (statusOf(row.status) !== 'verified') return { ok: false, reason: 'not_approved' };
+  return { ok: true, patch: { status: 'contacted', owner } };
+}
+
+// ---------------- import: template sample row ----------------
+// The downloadable template ships one example row; it must never become a real account.
+export const isTemplateSample = (r = {}) => String(r.handle || '').replace(/^@+/, '').toLowerCase() === 'example_handle';
+
 /** «الخطوة التالية» for one account — the single line that tells the team what to do now. */
 export function nextStep(row = {}) {
   if (row.deleted_at) return { key: 'deleted', ar: 'محذوف — استرجعه إذا لزم', tone: 'gray' };
@@ -188,7 +212,11 @@ export function nextStep(row = {}) {
     if (!row.email && !row.phone && !igProfile(row)) return { key: 'find_contact', ar: 'لاقِ طريقة تواصل عامة', tone: 'amber' };
     return { key: 'contact', ar: `جاهز للتواصل${c && COLLAB_AR[c] ? ` — ${COLLAB_AR[c]}` : ''}`, tone: 'green' };
   }
-  if (st === 'contacted') return { key: 'follow_up', ar: 'تابع الرد', tone: 'blue' };
+  if (st === 'contacted') {
+    const days = daysSinceUpdate(row);
+    if (days != null && days >= FOLLOW_UP_DAYS) return { key: 'follow_up', ar: `مرّ ${days} يوم على آخر تحديث — تابع الرد`, tone: 'amber' };
+    return { key: 'wait_reply', ar: 'بانتظار الرد', tone: 'blue' };
+  }
   if (st === 'interested') return { key: 'arrange', ar: 'رتّب الاتفاق/الإرسال', tone: 'blue' };
   if (st === 'collaborating') return { key: 'track', ar: 'تابع النشر والنتيجة', tone: 'green' };
   return { key: 'review', ar: 'راجِع الحساب', tone: 'amber' };

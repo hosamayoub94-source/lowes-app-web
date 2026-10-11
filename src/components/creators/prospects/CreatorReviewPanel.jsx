@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { call, updateProspect } from '@services/creatorProspectsApi';
 import {
-  answersFromRow, verdictFor, reviewToPatch, quickRejectPatch, nextStep, missingAr,
+  answersFromRow, verdictFor, reviewToPatch, quickRejectPatch, nextStep, missingAr, outreachDraft, contactPatch,
   TRI_AR, FIT_AR, SKIN_AR, UGCQ_AR, PR_AR, ACTION_AR, REJECT_AR,
 } from '@services/creatorWorkqueue';
 import { Avatar, ScoreBadge } from './CreatorCard';
@@ -75,7 +75,7 @@ function Row({ label, children }) {
   );
 }
 
-export default function CreatorReviewPanel({ row, schema, owners, canManage, pos, total, done, onClose, onNav, onSaved, onToggleSave }) {
+export default function CreatorReviewPanel({ row, schema, owners, canManage, actor, pos, total, done, onClose, onNav, onSaved, onToggleSave }) {
   const v2 = schema === 'v2';
   const initial = useMemo(() => answersFromRow(row), [row]);
   const [a, setA] = useState(initial);
@@ -84,6 +84,9 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
   const [hist, setHist] = useState(null);
   const [editing, setEditing] = useState(false);
   const [why, setWhy] = useState(false);
+  const draft = useMemo(() => (canManage && v2 ? outreachDraft(row) : null), [row, canManage, v2]);
+  const [msg, setMsg] = useState(draft?.text || '');
+  const [copied, setCopied] = useState(false);
   const box = useRef(null);
   const set = (k, v) => setA((p) => ({ ...p, [k]: v }));
   const dirty = JSON.stringify(a) !== JSON.stringify(initial);
@@ -124,6 +127,20 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
   async function restore() {
     setBusy(true); const out = await call('restore', { id: row.id }); setBusy(false);
     if (out.ok) onSaved(out.row, { removed: true }); else setErr(out.message || out.error);
+  }
+  async function copyMsg() {
+    try { await navigator.clipboard.writeText(msg); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    catch { setErr('تعذّر النسخ — حدّد النص وانسخه يدوياً.'); }
+  }
+  async function markContacted() {
+    const c = contactPatch(row, actor);
+    if (!c.ok) { setErr(c.reason === 'owner_required' ? 'اكتب المسؤول بـ«تعديل كل الحقول» أولاً.' : 'اعتمد الحساب أولاً.'); return; }
+    if (!window.confirm('تأكيد: أنت أرسلت الرسالة فعلاً بنفسك؟ (التطبيق لا يرسل شيئاً)')) return;
+    setBusy(true); setErr('');
+    const out = await updateProspect(row.id, c.patch, schema);
+    setBusy(false);
+    if (!out.ok) { setErr(out.message || out.error); return; }
+    onSaved(out.row, {});
   }
   async function loadHist() { const r = await call('audit', { id: row.id }); setHist(r.ok ? r.entries : []); }
 
@@ -329,6 +346,22 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, pos
               <button disabled={busy} onClick={del} className="text-red-600 mr-auto">حذف</button>
             </div>
           </div>
+        )}
+
+        {/* outreach: copy-only message for a human to send */}
+        {draft && !row.deleted_at && (
+          <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2" aria-label="رسالة التواصل">
+            <div className="flex items-center gap-2">
+              <h3 className="font-black text-sm">رسالة التواصل — {COLLAB_AR[collab] || ''}</h3>
+              <span className="text-[11px] text-gray-500">نسخ فقط: التطبيق لا يرسل شيئاً</span>
+            </div>
+            <textarea className={inputCls} rows={5} value={msg} onChange={(e) => setMsg(e.target.value)} aria-label="نص الرسالة (قابل للتعديل)" />
+            <div className="flex flex-wrap gap-2">
+              <button onClick={copyMsg} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black">{copied ? '✓ نُسخت' : 'نسخ الرسالة'}</button>
+              {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl border text-sm font-bold">افتح الحساب لإرسالها ↗</a>}
+              <button disabled={busy} onClick={markContacted} className="px-4 py-2 rounded-xl border-2 border-emerald-600 text-emerald-800 text-sm font-black disabled:opacity-50 mr-auto">✓ أرسلتها — سجّل التواصل</button>
+            </div>
+          </section>
         )}
 
         {/* audit trail */}

@@ -45,7 +45,7 @@ function download(name, text) {
 }
 
 export default function CreatorProspectsScreen() {
-  const { session, role } = useAuth();
+  const { session, role, name: actorName } = useAuth();
   // Mirrors the edge function: admin, or the permission granted from /admin/users (extra minus denied). The server re-checks every write.
   const isAdmin = role === ROLES.ADMIN;
   const has = (p) => isAdmin || ((session?.extra_permissions || []).includes(p) && !(session?.denied_permissions || []).includes(p));
@@ -284,7 +284,7 @@ export default function CreatorProspectsScreen() {
       {panel && panelRow && (
         <CreatorReviewPanel
           key={`${panelRow.id}:${panelRow.updated_at || ''}`}
-          row={panelRow} schema={schema} owners={owners} canManage={canManage}
+          row={panelRow} schema={schema} owners={owners} canManage={canManage} actor={actorName || ''}
           pos={panel.queue.indexOf(panel.id) + 1} total={panel.queue.length} done={panel.done}
           onClose={() => setPanel(null)} onNav={panelNav} onSaved={onPanelSaved}
           onToggleSave={() => toggleSave(panelRow)}

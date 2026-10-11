@@ -2,7 +2,7 @@
 // معاينة dry-run دائماً قبل الإدخال، والمكرر (نفس الحساب بأي كتابة: @x / x / رابط) لا يُضاف مرتين.
 import { useEffect, useState } from 'react';
 import { call, invalidate } from '@services/creatorProspectsApi';
-import { decodeCsvBytes } from '@services/creatorWorkqueue';
+import { decodeCsvBytes, isTemplateSample } from '@services/creatorWorkqueue';
 import { fmtNum, isGarbled } from './constants';
 
 // ---- header aliases for uploads (English + Arabic) ----
@@ -54,8 +54,10 @@ async function readFile(file) {
   const wb = isCsv ? XLSX.read(dec.text, { type: 'string' }) : XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   // raw:false => formatted text ("3.2%", "12,500"): raw numbers would turn "3.2%" into 0.032 and silently store 0.03.
-  const rows = mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }));
-  return { rows, encoding: dec?.encoding || 'xlsx', garbled: rows.filter((r) => isGarbled(r)).length };
+  const all = mapRows(XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }));
+  // the template's example row must never become a real account
+  const rows = all.filter((r) => !isTemplateSample(r));
+  return { rows, encoding: dec?.encoding || 'xlsx', garbled: rows.filter((r) => isGarbled(r)).length, sampleDropped: all.length - rows.length };
 }
 function downloadTemplate() {
   const csv = '\uFEFFhandle,name,platform,followers,engagement,country,governorate,city,location_confidence,creator_type,content_types,skincare_focus,source,source_url,verification_status,last_active,notes\n'
@@ -133,6 +135,7 @@ export default function ImportModal({ onClose, onDone, preset }) {
               <div className="rounded-xl bg-red-50 p-2"><div className="text-lg font-black text-red-700">{s.invalid}</div>غير صالح</div>
             </div>
             {fileInfo?.encoding === 'windows-1256' && <div className="rounded-lg bg-blue-50 text-blue-800 text-xs p-2">الملف محفوظ بترميز Windows عربي — قرأناه صح. للمرة الجاية احفظه «CSV UTF-8».</div>}
+            {fileInfo?.sampleDropped > 0 && <div className="rounded-lg bg-blue-50 text-blue-800 text-xs p-2">تجاهلنا سطر المثال من القالب (example_handle) — ما بينضاف كحساب.</div>}
             {fileInfo?.garbled > 0 && <div role="alert" className="rounded-lg bg-orange-50 text-orange-800 text-xs p-2">⚠ {fileInfo.garbled} صف فيه أسماء مشوّهة («???»). الأفضل تصحيح الملف قبل الاستيراد — وإلا رح تظهر بقائمة «يحتاج تصحيح».</div>}
             {s.dropped_v2_fields > 0 && <div className="rounded-lg bg-amber-50 text-amber-800 text-xs p-2">{s.dropped_v2_fields} صف فيه أعمدة جديدة (النوع، المحتوى…) ستُتجاهَل حتى تطبيق migration v2.</div>}
             {report.new.length > 0 && <details className="text-xs"><summary className="cursor-pointer font-bold">الجديد ({s.new})</summary><div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">{report.new.map((n) => <div key={n.line}>@{n.handle} {n.name ? `· ${n.name}` : ''} {n.followers ? `· ${fmtNum(n.followers)}` : ''}</div>)}</div></details>}
