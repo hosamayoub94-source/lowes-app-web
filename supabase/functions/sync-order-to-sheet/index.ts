@@ -209,7 +209,10 @@ Deno.serve(async (req: Request) => {
           address:          o.address,
           amount:           o.amount,
           status:           o.status,
-          handler_name:     o.handler_name,
+          // العمود J «صاحب الطلب»: طلبات شبكة النجوم تُظهر اسم المسوّقة الفعلية
+          // (orders.external_seller) بدل «شبكة النجوم». handler_name بالقاعدة لا يتغيّر
+          // (يمنع عمولة الموظف المزدوجة وإشعار البائع) — هذا للعرض بالجدول فقط.
+          handler_name:     (o.source === 'star_network' && o.external_seller) ? o.external_seller : o.handler_name,
           tracking_number:  o.tracking_number,
           payment_method:   o.payment_method,
           pickup_type:      trPickup(o.pickup_type),

@@ -307,19 +307,27 @@ async function releaseLock(supabase: any, stats: any, started: number, fresh: an
   await supabase.from('integration_state').update(patch).eq('id', STATE_ID).then(() => {}, () => {});
 }
 
-// أسماء المسوّقات من profiles بمشروع شبكة النجوم (id نصّي 'u_xxx').
-// للملاحظات فقط — handler_name يبقى «شبكة النجوم» عمداً.
+// أسماء المسوّقات (id نصّي 'u_xxx') عبر دالة SECURITY DEFINER مُقيَّدة
+// `public.star_bridge_marketers` (anon فقط، تُرجع الاسم فقط ولمن لديه طلبات
+// تركيا فقط). جدول profiles نفسه مقفول بـRLS بلا policy (D-075) فالقراءة
+// المباشرة منه كانت تُرجع [] دائماً — فكانت الملاحظات تخلو من اسم المسوّقة.
+// الاسم يُحفظ بـorders.external_seller ويظهر بالعمود J بجدول تركيا؛
+// handler_name يبقى «شبكة النجوم» عمداً (لا عمولة موظف مزدوجة).
 async function fetchMarketerNames(userIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(userIds.filter(Boolean))];
   const out = new Map<string, string>();
   if (!ids.length) return out;
   try {
-    const res = await fetch(
-      `${STAR_URL}/rest/v1/profiles?select=id,name&id=in.(${ids.map(encodeURIComponent).join(',')})`,
-      { headers: { apikey: STAR_KEY, Authorization: `Bearer ${STAR_KEY}`, Prefer: 'count=none' } },
-    );
+    const res = await fetch(`${STAR_URL}/rest/v1/rpc/star_bridge_marketers`, {
+      method: 'POST',
+      headers: {
+        apikey: STAR_KEY, Authorization: `Bearer ${STAR_KEY}`,
+        Accept: 'application/json', 'Content-Type': 'application/json', Prefer: 'count=none',
+      },
+      body: JSON.stringify({ p_ids: ids.slice(0, 100) }),
+    });
     if (res.ok) for (const p of await res.json()) out.set(s(p.id), s(p.name));
-  } catch { /* best-effort — الاسم زينة بالملاحظات */ }
+  } catch { /* best-effort — فالـfallback بالشيت «شبكة النجوم» */ }
   return out;
 }
 
@@ -398,6 +406,8 @@ function buildRecord(row: any, status: string, marketer: string, known: any) {
     payment_method:   trpm ? `${pay.label} · ${TR_PAY_LABEL[trpm] ?? trpm}` : pay.label,
     shipping_company: s(row.shipco),
     handler_name:     HANDLER,
+    // اسم المسوّقة للعرض بالعمود J فقط — لا يُكتب فارغاً فوق اسم محفوظ سابقاً.
+    ...(marketer ? { external_seller: marketer } : {}),
     items,
     notes:            unmatched.length ? `${base} · ⚠️ أصناف غير معروفة بالكتالوج: ${unmatched.join('، ')}` : base,
     order_date:       s(row.created_at) || new Date().toISOString(),
