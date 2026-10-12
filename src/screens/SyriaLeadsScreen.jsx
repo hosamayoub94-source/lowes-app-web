@@ -26,6 +26,7 @@ import {
 } from '@services/syriaLeadsService';
 import { leadsApiFor } from '@services/b2bLeadsApi';
 import { canImportLeads } from '@services/b2bImport';
+import { nextStep, stepRank, needsFollowUp, ownerOf, ownerForSave, outreachMessage } from '@services/b2bNextStep';
 import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
 import {
   COUNTRIES, NATIONWIDE, regionLabelAr, cityLabelAr, waLinkFor,
@@ -132,7 +133,7 @@ function StatusEditor({ lead, myName, onSaved }) {
   const save = async () => {
     setSaving(true); setErr(null);
     try {
-      await api.updateStatus(lead.id, { status, notes, assigned_to: lead.assigned_to }, myName);
+      await api.updateStatus(lead.id, { status, notes, assigned_to: ownerForSave(lead, status, myName) }, myName);
       setFlash(true);
       onSaved?.();
       setTimeout(() => setFlash(false), 1500);
@@ -211,6 +212,46 @@ function PresenceEditor({ lead, myName, onSaved }) {
   );
 }
 
+const STEP_TONE = {
+  amber: 'bg-amber-50 text-amber-800 border-amber-200',
+  blue: 'bg-blue-50 text-blue-700 border-blue-200',
+  green: 'bg-green-50 text-green-700 border-green-200',
+  gray: 'bg-surface-alt text-muted border-border',
+};
+
+function NextStepRow({ lead }) {
+  const { country } = useLeadsCtx();
+  const step = nextStep(lead);
+  const owner = ownerOf(lead);
+  const [msg, setMsg] = useState(null); // null | string (editable draft)
+  const [copied, setCopied] = useState(false);
+  const canWrite = ['not_contacted', 'contacted', 'interested'].includes(lead.status || 'not_contacted');
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(msg); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked: the text stays selectable */ }
+  };
+  return (
+    <div className="space-y-1.5">
+      <div className={`flex items-center justify-between gap-2 flex-wrap rounded-xl border px-2.5 py-1.5 text-xs font-bold ${STEP_TONE[step.tone]}`}>
+        <span>← {step.ar}</span>
+        <span className="flex items-center gap-2 font-normal text-[11px]">
+          {owner && <span>المسؤول: <b>{owner}</b></span>}
+          {canWrite && <button type="button" onClick={() => setMsg(m => (m == null ? outreachMessage(lead, country) : null))} className="font-bold underline">{msg == null ? '✉️ رسالة جاهزة' : 'إخفاء الرسالة'}</button>}
+        </span>
+      </div>
+      {msg != null && (
+        <div className="space-y-1">
+          <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={5} dir={country === 'AE' ? 'ltr' : 'rtl'}
+            className="w-full text-xs bg-surface-alt border border-border rounded-xl px-2.5 py-2 text-text" aria-label="نص رسالة التواصل" />
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={copy} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-teal text-navy">{copied ? '✓ تم النسخ' : 'نسخ'}</button>
+            <span className="text-[10px] text-muted">نسخ فقط — أنت ترسلها بنفسك ثم سجّل «تم التواصل».</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeadCard({ lead, myName, onSaved }) {
   const { country } = useLeadsCtx();
   const online = lead.lead_type === 'online';
@@ -241,6 +282,7 @@ function LeadCard({ lead, myName, onSaved }) {
           {lead.delivery_coverage && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-alt text-muted border border-border">🚚 {lead.delivery_coverage}</span>}
         </div>
       )}
+      <NextStepRow lead={lead} />
       <ContactActions lead={lead} />
       {lead.reason && <p className="text-[11px] text-muted leading-relaxed">{lead.reason}</p>}
       <Sources lead={lead} />
@@ -563,6 +605,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [province, setProvince] = useState('all');
   const [tier, setTier]       = useState('all');
   const [status, setStatus]   = useState('all');
+  const [onlyFollow, setOnlyFollow] = useState(false);
   const [category, setCategory] = useState('all');
   const [presence, setPresence] = useState('all');
   const [onlyNew, setOnlyNew] = useState(false);
@@ -598,13 +641,14 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     if (category !== 'all' && l.category !== category) return false;
     if (view === 'online' && presence !== 'all' && (l.lowes_presence || 'not_listed') !== presence) return false;
     if (onlyNew && !isNewLead(l)) return false;
+    if (onlyFollow && !needsFollowUp(l)) return false;
     return true;
-  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, view]);
+  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, onlyFollow, view]);
 
   const sorted = useMemo(() => {
     const order = { ready: 0, check: 1, raw: 2 };
     return [...filtered].sort((a, b) =>
-      order[tierGroup(a.priority)] - order[tierGroup(b.priority)] || (b.score || 0) - (a.score || 0));
+      stepRank(a) - stepRank(b) || order[tierGroup(a.priority)] - order[tierGroup(b.priority)] || (b.score || 0) - (a.score || 0));
   }, [filtered]);
 
   const readyCount = filtered.filter(l => tierGroup(l.priority) === 'ready').length;
@@ -612,9 +656,10 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const contactedCount = filtered.filter(l => (l.status || 'not_contacted') !== 'not_contacted').length;
   const listedCount = filtered.filter(l => l.lowes_presence === 'listed').length;
   const newCount = typeLeads.filter(l => isNewLead(l)).length;
+  const followCount = typeLeads.filter(l => needsFollowUp(l)).length;
 
   const switchView = (v) => {
-    setView(v); setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false);
+    setView(v); setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false); setOnlyFollow(false);
   };
   const jumpTo = (lead) => {
     switchView(lead.lead_type === 'online' ? 'online' : 'physical');
@@ -688,6 +733,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
             <Chip active={category === 'all'} onClick={() => setCategory('all')}>كل الفئات</Chip>
             {categories.map(c => <Chip key={c} active={category === c} onClick={() => setCategory(c)}>{c}</Chip>)}
             {newCount > 0 && <Chip active={onlyNew} onClick={() => setOnlyNew(v => !v)}>🆕 جديد ({newCount})</Chip>}
+            {followCount > 0 && <Chip active={onlyFollow} onClick={() => setOnlyFollow(v => !v)}>⏰ تحتاج متابعة ({followCount})</Chip>}
           </div>
           {view === 'online' ? (
             <div className="flex flex-wrap gap-1.5">
