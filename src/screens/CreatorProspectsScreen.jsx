@@ -142,6 +142,13 @@ export default function CreatorProspectsScreen() {
     if (!out.ok) { setMsg(out.message || out.error); return; }
     setMsg(`تم تحديث ${out.updated} حساب`); setSel(new Set()); setBulk({ status: '', owner: '' }); invalidate(); load(true);
   }
+  async function purgeSelected() {
+    const n = sel.size;
+    if (!n || !window.confirm(`حذف نهائي لـ ${n} حساب؟ لا يمكن التراجع ولا استرجاعهم من «المحذوف».`)) return;
+    const out = await call('purge', { ids: [...sel], confirm: true });
+    if (!out.ok) { setMsg(out.message || out.error); return; }
+    setMsg(`تم الحذف النهائي لـ ${out.deleted} حساب`); setSel(new Set()); setPanel(null); invalidate(); load(true);
+  }
   function exportRows(list, label) {
     if (!list.length) return;
     const stamp = new Date().toISOString().slice(0, 10);
@@ -250,6 +257,7 @@ export default function CreatorProspectsScreen() {
                   <button onClick={applyBulk} disabled={!bulk.status && !bulk.owner} className="px-3 py-1 rounded-lg bg-blue-700 text-white font-bold disabled:opacity-40">تطبيق</button>
                 </>
               )}
+              {isAdmin && <button onClick={purgeSelected} className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold">🗑 حذف نهائي</button>}
               <button onClick={() => setSel(new Set())} className="text-gray-500 mr-auto">إلغاء التحديد</button>
             </div>
           )}
