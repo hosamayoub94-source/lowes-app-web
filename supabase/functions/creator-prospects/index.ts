@@ -1,7 +1,7 @@
 // Supabase Edge Function: creator-prospects  (ADMIN ONLY)
 // Single door to public.creator_prospects (RLS on, no policies, no grants for anon/authenticated).
 // Auth: real Supabase Auth session -> profiles.role_type = 'admin' (derived server-side, never from the body).
-// Actions: search (v2: server-side query/filter/score/page) | list | add | update | bulk_update | delete (soft) | restore | import (dry_run / merge) | audit
+// Actions: search (v2: server-side query/filter/score/page) | list | add | update | bulk_update | delete (soft) | restore | purge (admin, permanent) | import (dry_run / merge) | audit
 // Hard duplicate prevention: unique (platform, handle_key) in the database + pre-check here with a report.
 // The client never chooses a table, column list or filter: every field below is whitelisted.
 // v2 (D-094): search/score logic lives in ../_shared/creatorMatch.js (same file the screen uses as fallback).
@@ -288,6 +288,17 @@ serve(async (req) => {
       if (error || !data) return json({ ok: false, error: "not found" }, 404);
       await audit(id, action, { handle: data.handle });
       return json({ ok: true, row: data });
+    }
+
+    // Permanent delete: irreversible, so admin only (not the delegable manage permission) and the full row is kept in the audit trail.
+    if (action === "purge") {
+      if (profile.role_type !== "admin") return json({ ok: false, error: "no permission", message: "الحذف النهائي للأدمن فقط" }, 403);
+      const ids: string[] = Array.isArray(body?.ids) ? body.ids.map(String).slice(0, 500) : [];
+      if (ids.length === 0 || body?.confirm !== true) return json({ ok: false, error: "ids and confirm required" }, 400);
+      const { data: gone, error } = await admin.from("creator_prospects").delete().in("id", ids).select(cols);
+      if (error) return json({ ok: false, error: "purge failed" }, 500);
+      await audit(null, "purge", { count: gone?.length ?? 0, rows: gone ?? [] });
+      return json({ ok: true, deleted: gone?.length ?? 0 });
     }
 
     if (action === "audit") {
