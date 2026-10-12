@@ -20,7 +20,7 @@ import CreatorSummary from '@components/creators/prospects/CreatorSummary';
 import DiscoveryPanel from '@components/creators/prospects/DiscoveryPanel';
 import ImportModal from '@components/creators/prospects/ImportModal';
 import {
-  STATUSES, STATUS_AR, CONTENT_AR, FOCUS_AR, TYPE_AR, PLATFORM_AR, govOf, countryOf, viewOf, summarizeCreators, searchCreators, scoreCreator,
+  STATUSES, STATUS_AR, CONTENT_AR, FOCUS_AR, TYPE_AR, PLATFORM_AR, govOf, countryOf, viewOf, summarizeCreators, searchCreators, scoreCreator, displayName,
 } from '@components/creators/prospects/constants';
 
 const EMPTY = { country: '', governorate: '', city: '', creator_type: '', platform: '', status: '', verification_status: '', collab: '', content_types: [], skincare_focus: [] };
@@ -149,6 +149,22 @@ export default function CreatorProspectsScreen() {
     if (!out.ok) { setMsg(out.message || out.error); return; }
     setMsg(`تم الحذف النهائي لـ ${out.deleted} حساب`); setSel(new Set()); setPanel(null); invalidate(); load(true);
   }
+  // soft delete (restorable from «المحذوف»); the server re-checks manage_creator_data on every call
+  async function deleteOne(r) {
+    if (!window.confirm(`حذف «${displayName(r)}»؟ (حذف ناعم، بتقدر ترجّعه من «المحذوف»)`)) return;
+    const out = await call('delete', { id: r.id });
+    if (!out.ok) { setMsg(out.message || out.error); return; }
+    patchRow(out.row, true); setSel((p) => { const n = new Set(p); n.delete(r.id); return n; }); invalidate();
+    setMsg('تم الحذف — بتقدر ترجّعه من «المحذوف»');
+  }
+  async function deleteSelected() {
+    const ids = [...sel];
+    if (!ids.length || !window.confirm(`حذف ${ids.length} حساب؟ (حذف ناعم، بتقدر ترجّعهم من «المحذوف»)`)) return;
+    let ok = 0, failed = 0;
+    for (const id of ids) { const out = await call('delete', { id }); if (out.ok) ok += 1; else failed += 1; }
+    setMsg(failed ? `تم حذف ${ok} — وفشل ${failed}` : `تم حذف ${ok} حساب — بتقدر ترجّعهم من «المحذوف»`);
+    setSel(new Set()); invalidate(); load(true);
+  }
   function exportRows(list, label) {
     if (!list.length) return;
     const stamp = new Date().toISOString().slice(0, 10);
@@ -255,6 +271,7 @@ export default function CreatorProspectsScreen() {
                   <input list="owner-bulk" value={bulk.owner} onChange={(e) => setBulk((p) => ({ ...p, owner: e.target.value }))} placeholder="المسؤول…" className="border rounded-lg px-2 py-1 w-28" aria-label="المسؤول للمحدد" />
                   <datalist id="owner-bulk">{owners.map((o) => <option key={o} value={o} />)}</datalist>
                   <button onClick={applyBulk} disabled={!bulk.status && !bulk.owner} className="px-3 py-1 rounded-lg bg-blue-700 text-white font-bold disabled:opacity-40">تطبيق</button>
+                  <button onClick={deleteSelected} className="px-3 py-1 rounded-lg border border-red-300 bg-white font-bold text-red-700">🗑 حذف المحدد</button>
                 </>
               )}
               {isAdmin && <button onClick={purgeSelected} className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold">🗑 حذف نهائي</button>}
@@ -274,6 +291,7 @@ export default function CreatorProspectsScreen() {
                 selected={sel.has(r.id)} onSelect={() => toggle(r.id)}
                 onOpen={() => openAt(r.id)}
                 onSave={() => toggleSave(r)}
+                onDelete={() => deleteOne(r)}
               />
             ))}
           </div>

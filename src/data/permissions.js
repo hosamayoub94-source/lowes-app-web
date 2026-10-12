@@ -185,7 +185,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.EDIT_TASK,
     PERMISSIONS.DELETE_TASK,
     PERMISSIONS.VIEW_ALL_ATTENDANCE,
-    PERMISSIONS.VIEW_ANALYTICS,
+    // VIEW_ANALYTICS removed (Oct 2026): it revealed sales reports, product profitability,
+    // manager board and analytics — none are a social manager's business. Grant per user if ever needed.
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.VIEW_MEDIA_BUYER_BOARD,
   ],

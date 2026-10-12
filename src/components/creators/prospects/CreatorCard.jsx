@@ -26,7 +26,7 @@ export function ScoreBadge({ row, big = false }) {
 
 const chip = 'px-2 py-0.5 rounded-full text-[11px]';
 
-export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, v2, canManage }) {
+export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, onDelete, v2, canManage }) {
   const ig = instagramUrl(row);
   const other = !ig ? profileUrl(row) : '';
   const st = statusOf(row.status);
@@ -91,6 +91,10 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, v
         {!row.deleted_at && canManage && (
           <button onClick={onSave} disabled={!v2} title={row.saved ? 'إلغاء الحفظ' : 'حفظ بالقائمة المختصرة'} aria-label={row.saved ? 'إلغاء الحفظ' : 'حفظ'} aria-pressed={!!row.saved}
             className={`mr-auto w-8 h-8 rounded-lg border text-base disabled:opacity-40 ${row.saved ? 'bg-amber-100 border-amber-300 text-amber-700' : 'text-gray-400 hover:bg-gray-50'}`}>{row.saved ? '★' : '☆'}</button>
+        )}
+        {!row.deleted_at && canManage && onDelete && (
+          <button onClick={onDelete} title="حذف الحساب (حذف ناعم، بتقدر ترجّعه)" aria-label={`حذف ${displayName(row)}`}
+            className="w-8 h-8 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50">🗑</button>
         )}
       </div>
     </div>
