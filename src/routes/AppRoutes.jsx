@@ -249,7 +249,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={ALL_ROLES}>
+              <ProtectedRoute roles={ALL_ROLES.filter(r => r !== ROLES.SOCIAL_MANAGER)}>
                 <CustomersScreen />
               </ProtectedRoute>
             }

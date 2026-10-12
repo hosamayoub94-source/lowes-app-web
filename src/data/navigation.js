@@ -46,7 +46,7 @@ export const NAV_ITEMS = [
   { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'orders-uae',    label: 'طلبات الإمارات', icon: '🇦🇪', path: '/orders/uae', roles: [E, M, A, SM, MB], group: 'sales' },
-  { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL,             group: 'sales' },
+  { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL.filter(r => r !== SOC), group: 'sales' },
   // roles: [A] فقط بشكل افتراضي — الوصول الفعلي لموظفين محدَّدين عبر منح
   // صلاحية VIEW_SYRIA_LEADS يدوياً من /admin/users (roles/perm لازم يتطابقا
   // مع AppRoutes.jsx، نفس نمط admin-whatsapp أعلاه).
