@@ -5,6 +5,7 @@
 // Import button: admin persona only (paste the batch JSON, preview, pick rows, confirm, save — all against fake in-memory rows).
 // Open via the Vite dev server: /scripts/b2b/harness/leads.html?persona=admin&route=/uae-leads
 //   persona = admin | granted | denied | none | syria      route = /uae-leads | /syria-leads
+//   state   = hang | 401 | 403 | 404 | 409 | network | server | empty | flaky   (simulated load failures for the list call; flaky = first load fails, retry works)
 // Never shipped: not part of the app bundle.
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Routes, Route, Link } from 'react-router-dom';
@@ -44,6 +45,26 @@ const rows = [
   { ...base, id: 'UAE-PHY-T4', country: 'AE', province: 'Sharjah', name: 'Fake Distributor Sharjah (وهمي)', lead_type: 'physical', category: 'موزّع', priority: 'D', score: 15, lowes_presence: 'unverified', source_urls: 'https://example.com/ae4' },
 ];
 const log = (...a) => console.info('[harness]', ...a);
+const STATE = qs.get('state');
+let listCalls = 0;
+const httpErr = (status, body) => ({ data: null, error: { name: 'FunctionsHttpError', message: 'non-2xx', context: { status, clone: () => ({ json: async () => { if (body === undefined) throw new Error('no json'); return body; } }) } } });
+const FAULTS = {
+  401: () => httpErr(401, { ok: false, error: 'authenticated user session required' }),
+  403: () => httpErr(403, { ok: false, error: 'no permission', message: 'ما عندك صلاحية ليدز الإمارات' }),
+  404: () => httpErr(404, undefined),
+  409: () => httpErr(409, { ok: false, error: 'migration_required' }),
+  network: () => ({ data: null, error: { name: 'FunctionsFetchError', message: 'Failed to send a request to the Edge Function', context: new TypeError('x') } }),
+  server: () => httpErr(500, { ok: false, error: 'server error' }),
+  flaky: () => ({ data: null, error: { name: 'FunctionsFetchError', message: 'Failed to fetch', context: new TypeError('x') } }),
+};
+// returns a fault for the first/every list call, or undefined to continue normally
+const listFault = () => {
+  if (!STATE) return undefined;
+  listCalls += 1;
+  if (STATE === 'hang') return 'hang';
+  if (STATE === 'flaky') return listCalls === 1 ? FAULTS.flaky() : undefined;
+  return FAULTS[STATE]?.();
+};
 const ok = (data) => ({ data, error: null });
 
 // ── Syria: fake direct table access (after the migration, RLS lets the browser see Syria rows only) ──
@@ -56,6 +77,12 @@ class Q {
   insert(p) { this.op = 'insert'; this.p = p; return this; }
   then(res) {
     const visible = rows.filter((r) => r.country === 'SY');
+    if (this.op === 'select' && STATE && STATE !== 'empty') {
+      const fault = listFault();
+      if (fault === 'hang') return undefined; // never settles
+      if (fault) return res({ data: null, error: STATE === '401' ? { message: 'JWT expired', code: 'PGRST301', status: 401 } : { message: STATE === 'network' || STATE === 'flaky' ? 'Failed to fetch' : 'error', status: STATE === 'network' || STATE === 'flaky' ? undefined : Number(STATE) || 500 } });
+    }
+    if (this.op === 'select' && STATE === 'empty') return res(ok([]));
     if (this.op === 'select') return res(ok(visible.filter((r) => this.f.every((fn) => fn(r))).sort((a, b) => b.score - a.score)));
     if (this.op === 'update') { visible.filter((r) => this.f.every((fn) => fn(r))).forEach((r) => Object.assign(r, this.p)); log('SY update', this.p); return res(ok(null)); }
     rows.unshift({ country: 'SY', ...this.p }); log('SY insert', this.p.id); return res(ok(null));
@@ -67,6 +94,7 @@ Object.defineProperty(supabase, 'from', { value: () => new Q(), configurable: tr
 const refused = { data: null, error: { message: 'no permission', context: { status: 403, clone: () => ({ json: async () => ({ ok: false, error: 'no permission', message: 'ما عندك صلاحية ليدز الإمارات' }) }) } } };
 const invoke = async (_name, { body }) => {
   await new Promise((r) => setTimeout(r, 120));
+  if (body.country === 'AE' && body.action === 'list' && STATE) { if (STATE === 'empty') return ok({ ok: true, rows: [] }); const fault = listFault(); if (fault === 'hang') return new Promise(() => {}); if (fault) return fault; }
   const allowed = me.role === 'admin' || ((me.extra_permissions || []).includes('view_uae_leads') && !(me.denied_permissions || []).includes('view_uae_leads'));
   if (body.country !== 'AE') return ok({ ok: false, error: 'country_not_served' });
   if (!allowed) return refused;

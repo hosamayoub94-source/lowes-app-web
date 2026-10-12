@@ -28,6 +28,8 @@ import { leadsApiFor } from '@services/b2bLeadsApi';
 import { canImportLeads } from '@services/b2bImport';
 import { nextStep, stepRank, needsFollowUp, ownerOf, ownerForSave, outreachMessage } from '@services/b2bNextStep';
 import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
+import LoadStatePanel, { SlowLoadHint } from '@components/b2b/LoadStatePanel';
+import { toB2bError, logB2bError } from '@services/b2bErrors';
 import {
   COUNTRIES, NATIONWIDE, regionLabelAr, cityLabelAr, waLinkFor,
 } from '../../supabase/functions/_shared/countries.js';
@@ -600,6 +602,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
+  const [slow, setSlow] = useState(false);
   const [view, setView]       = useState('physical'); // physical | online | insights
   const [q, setQ]             = useState('');
   const [province, setProvince] = useState('all');
@@ -614,10 +617,11 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   useEffect(() => { saveLastCountry(C.code); }, [C.code]);   // «ليدز B2B» بالقائمة يرجع لآخر دولة
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadErr(null);
+    setLoading(true); setLoadErr(null); setSlow(false);
+    const slowTimer = setTimeout(() => setSlow(true), 8000);   // الحدّ الأقصى لكل نداء بـb2bErrors.LOAD_TIMEOUT_MS ثم تظهر لوحة الخطأ
     try { setLeads(await api.list()); }
-    catch (e) { setLeads([]); setLoadErr(e?.message || 'تعذّر التحميل'); }
-    finally { setLoading(false); }
+    catch (e) { const err = toB2bError(e, 'list'); logB2bError(err, 'list'); setLeads([]); setLoadErr(err); }
+    finally { clearTimeout(slowTimer); setSlow(false); setLoading(false); }
   }, [api]);
 
   useEffect(() => { load(); }, [load]);
@@ -682,7 +686,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
           </p>
         </div>
         <div className="shrink-0 flex flex-col items-stretch gap-1.5">
-          {view !== 'insights' && (
+          {view !== 'insights' && !loadErr && (
             <button onClick={() => setAddOpen(true)}
               className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm">
               + إضافة
@@ -706,9 +710,10 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
         ))}
       </div>
 
-      {loadErr && <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{loadErr}</p>}
+      {loadErr && <LoadStatePanel err={loadErr} onRetry={load} />}
+      {loading && slow && <SlowLoadHint />}
 
-      {view === 'insights' ? (
+      {loadErr ? null : view === 'insights' ? (
         loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" /> : <InsightsView leads={leads} onJump={jumpTo} />
       ) : (
         <>
@@ -761,6 +766,12 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map(i => <div key={i} className="h-20 bg-surface-alt animate-pulse rounded-2xl" />)}
+            </div>
+          ) : leads.length === 0 ? (
+            <div className="text-center py-16 text-muted" data-testid="empty-data">
+              <p className="text-4xl mb-3">🗂️</p>
+              <p className="text-sm font-semibold">لا توجد جهات لهذه الدولة بعد</p>
+              <p className="text-xs mt-1">{canImport ? 'استورد دفعة بحث (زر الاستيراد) أو أضف جهة يدوياً.' : 'تُضاف الجهات بعد اعتماد دفعات البحث، أو يدوياً من زر «إضافة».'}</p>
             </div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-16 text-muted">

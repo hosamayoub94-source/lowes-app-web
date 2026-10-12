@@ -7,7 +7,7 @@
 //   4. Subscribes to onAuthStateChange for live token refresh
 //   5. Renders nothing until `ready === true` (no flicker)
 // =============================================================
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   getCurrentSession,
   getMyProfile,
@@ -17,7 +17,9 @@ import {
   MANUAL_SESSION_KEY,
 } from '@services/authService';
 import { useAuthStore } from '@stores/authStore';
-import { LoadingScreen } from '@components/ui/Loading';
+import { LoadingScreen, LoadingStuckScreen } from '@components/ui/Loading';
+
+const BOOT_STUCK_MS = 12000; // after this the spinner is replaced by a retry screen (no auto-logout)
 import { initUsageTracker, shutdownUsageTracker } from '@/core/operations/tracking/usageTracker';
 import { initFrictionTracker, shutdownFrictionTracker } from '@/core/operations/tracking/frictionTracker';
 
@@ -25,6 +27,13 @@ export function AuthBoot({ children }) {
   const ready        = useAuthStore((s) => s.ready);
   const setReady     = useAuthStore((s) => s.setReady);
   const setSupaSession = useAuthStore((s) => s.setSupaSession);
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    if (ready) return undefined;
+    const t = setTimeout(() => setStuck(true), BOOT_STUCK_MS);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +106,7 @@ export function AuthBoot({ children }) {
     };
   }, [setReady, setSupaSession]);
 
-  if (!ready) return <LoadingScreen />;
+  if (!ready) return stuck ? <LoadingStuckScreen /> : <LoadingScreen />;
   return children;
 }
 
