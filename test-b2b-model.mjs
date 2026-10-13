@@ -105,11 +105,19 @@ ok(M.executionPriorityOf(L({ verified: 'closed_or_uncertain' }), NOW).key === 'b
 for (const l of [a, M.assess(pharm, NOW), M.assess(noSellerStore, NOW), M.assess(L({ status: 'customer' }), NOW)]) ok(l.exec.why.length > 0, 'execution priority always carries a reason');
 ok(M.EXEC_RANK.follow_up < M.EXEC_RANK.today && M.EXEC_RANK.today < M.EXEC_RANK.later && M.EXEC_RANK.later < M.EXEC_RANK.blocked, 'exec rank order: follow-up, today, later, blocked');
 
+// صيدلية تبيع عناية + مصدر قوي + قناة مباشرة = ابدأ اليوم؛ نفس الصيدلية بلا معرفة ببيع العناية = لاحقاً (المجهول لا يُفترض)
+const phBeauty = L({ category: 'صيدلية', sells_beauty: true, phone: '0431', verified: 'verified_multi_source' });
+const phUnknown = L({ category: 'صيدلية', phone: '0431', verified: 'verified_multi_source' });
+ok(M.executionPriorityOf(phBeauty, NOW).key === 'today', 'pharmacy that sells skincare + strong source + direct contact -> today');
+ok(M.executionPriorityOf(phUnknown, NOW).key === 'later' && /فرصة/.test(M.executionPriorityOf(phUnknown, NOW).why.join(' ')), 'pharmacy with unknown skincare range -> later, with the reason shown');
+ok(M.ACT_THRESHOLD === 35, 'one explicit action threshold');
+
 // ── سلسلة أم / فروع مشتقّة ──
 const lifeA = L({ id: 'a', name: 'Life Pharmacy - Al Barsha', province: 'Dubai' }), lifeB = L({ id: 'b', name: 'Life Pharmacy (JLT)', province: 'Dubai' }), lifeC = L({ id: 'c', name: 'Life Pharmacy | Sharjah', province: 'Sharjah' });
 const other = L({ id: 'd', name: 'Aster Pharmacy' }), syLife = L({ id: 'e', name: 'Life Pharmacy - Damascus', country: 'SY', province: 'Damascus' });
 const g = M.chainGroups([lifeA, lifeB, lifeC, other, syLife]);
 ok(g.length === 1 && g[0].members.length === 3, 'Life Pharmacy branches group into ONE parent with 3 branches (not 3 separate chains)');
+ok(g[0].name === 'Life Pharmacy', 'chain display name is the parent name without the branch');
 ok(g[0].regions.includes('Dubai') && g[0].regions.includes('Sharjah'), 'chain group lists its emirates');
 ok(!g[0].members.some((x) => x.id === 'e'), 'the same chain name in another country is not merged');
 ok(M.chainKeyOf(L({ name: 'Shop', website: 'https://www.instagram.com/shop' })) === null, 'social host never makes a chain');

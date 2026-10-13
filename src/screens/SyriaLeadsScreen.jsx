@@ -29,6 +29,9 @@ import { canImportLeads } from '@services/b2bImport';
 import { nextStep, stepRank, needsFollowUp, ownerOf, ownerForSave, outreachMessage } from '@services/b2bNextStep';
 import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
 import LoadStatePanel, { SlowLoadHint } from '@components/b2b/LoadStatePanel';
+import MarketDashboard from '@components/b2b/MarketDashboard';
+import LeadDetailsModal from '@components/b2b/LeadDetailsModal';
+import { assess, trackOf, READY_VIEWS, viewByKey, ORG_TYPES, STAGE_AR, SOURCE_QUALITY_AR, PIPELINE, ownerOf as modelOwnerOf } from '@services/b2bModel';
 import { toB2bError, logB2bError } from '@services/b2bErrors';
 import {
   COUNTRIES, NATIONWIDE, regionLabelAr, cityLabelAr, waLinkFor,
@@ -254,12 +257,33 @@ function NextStepRow({ lead }) {
   );
 }
 
-function LeadCard({ lead, myName, onSaved }) {
-  const { country } = useLeadsCtx();
-  const online = lead.lead_type === 'online';
-  const tier = tierGroup(lead.priority);
+const EXEC_TONE = {
+  follow_up: 'text-amber-800 bg-amber-50 border-amber-300', today: 'text-green-700 bg-green-50 border-green-300', verify_first: 'text-blue-700 bg-blue-50 border-blue-200',
+  find_contact: 'text-amber-700 bg-amber-50 border-amber-200', later: 'text-muted bg-surface-alt border-border', waiting: 'text-blue-600 bg-blue-50 border-blue-200',
+  done: 'text-purple-700 bg-purple-50 border-purple-200', blocked: 'text-red-600 bg-red-50 border-red-200',
+};
+const SQ_TONE = { strong: 'text-green-700 bg-green-50 border-green-200', medium: 'text-blue-700 bg-blue-50 border-blue-200', weak: 'text-amber-700 bg-amber-50 border-amber-200', unknown: 'text-muted bg-surface-alt border-dashed border-border' };
+
+// صف التقييم: نوع الجهة + المرحلة + جودة المصدر + أولوية التنفيذ (مع سببها) — كل واحد مستقل، لا رقم غامض واحد.
+function AssessRow({ a, onOpen }) {
+  const pill = 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border';
   return (
-    <div className={`bg-surface border rounded-2xl p-4 space-y-2 ${tier === 'ready' ? 'border-green-300' : 'border-border'}`} dir="rtl">
+    <div className="flex flex-wrap items-center gap-1.5" data-testid="assess-row">
+      <span className={`${pill} bg-surface-alt border-border text-text`} title={`طريقة التعامل: ${a.approach}`}>{a.org.icon} {a.org.ar}</span>
+      <span className={`${pill} bg-surface-alt border-border text-text`}>المرحلة: {STAGE_AR[a.stage]}</span>
+      <span className={`${pill} ${SQ_TONE[a.source.level]}`} title={a.source.reasons.join(' · ')}>{SOURCE_QUALITY_AR[a.source.level]} · {a.source.freshness.ar}</span>
+      <span className={`${pill} ${EXEC_TONE[a.exec.key]}`} title={a.exec.why.join(' · ')} data-testid="exec-pill">{a.exec.ar}</span>
+      <button type="button" onClick={onOpen} data-testid="open-details" className="mr-auto text-[11px] font-bold underline text-teal">التفاصيل ←</button>
+    </div>
+  );
+}
+
+function LeadCard({ lead, myName, onSaved, onOpen }) {
+  const { country } = useLeadsCtx();
+  const a = useMemo(() => assess(lead), [lead]);
+  const online = a.track === 'channel';
+  return (
+    <div className={`bg-surface border rounded-2xl p-4 space-y-2 ${a.exec.key === 'today' || a.exec.key === 'follow_up' ? 'border-green-300' : 'border-border'}`} dir="rtl">
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="font-extrabold text-sm text-text">{lead.name}</p>
@@ -269,7 +293,6 @@ function LeadCard({ lead, myName, onSaved }) {
           {lead.added_manually && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-teal bg-teal/10 border-teal/30">✋ أضافه {lead.added_by || 'الفريق'}</span>
           )}
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TIER_LABEL[tier].color}`}>{lead.priority} · {lead.score}</span>
           {online ? <PresenceBadge presence={lead.lowes_presence} /> : <StatusBadge status={lead.status} />}
         </div>
       </div>
@@ -284,6 +307,7 @@ function LeadCard({ lead, myName, onSaved }) {
           {lead.delivery_coverage && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-alt text-muted border border-border">🚚 {lead.delivery_coverage}</span>}
         </div>
       )}
+      <AssessRow a={a} onOpen={onOpen} />
       <NextStepRow lead={lead} />
       <ContactActions lead={lead} />
       {lead.reason && <p className="text-[11px] text-muted leading-relaxed">{lead.reason}</p>}
@@ -603,7 +627,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
   const [slow, setSlow] = useState(false);
-  const [view, setView]       = useState('physical'); // physical | online | insights
+  const [view, setView]       = useState(C.legacyDirect ? 'physical' : 'online'); // physical = جهات محلية | online = فرص القنوات | insights = لوحة السوق (الإمارات تبدأ بالقنوات)
   const [q, setQ]             = useState('');
   const [province, setProvince] = useState('all');
   const [tier, setTier]       = useState('all');
@@ -613,6 +637,11 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [presence, setPresence] = useState('all');
   const [onlyNew, setOnlyNew] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [readyKey, setReadyKey] = useState('all');
+  const [orgFilter, setOrgFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [ownerFilter, setOwnerFilter] = useState('all');
+  const [detailId, setDetailId] = useState(null);
 
   useEffect(() => { saveLastCountry(C.code); }, [C.code]);   // «ليدز B2B» بالقائمة يرجع لآخر دولة
 
@@ -627,11 +656,16 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   useEffect(() => { load(); }, [load]);
 
   const typeLeads = useMemo(
-    () => leads.filter(l => (l.lead_type || 'physical') === (view === 'online' ? 'online' : 'physical')),
+    () => leads.filter(l => trackOf(l) === (view === 'online' ? 'channel' : 'local')),   // قنوات (منصات/سلاسل/متاجر أونلاين) مقابل جهات محلية
     [leads, view],
   );
   const provinces = useMemo(() => Array.from(new Set(typeLeads.map(l => l.province).filter(Boolean))).sort(), [typeLeads]);
   const categories = useMemo(() => Array.from(new Set(typeLeads.map(l => l.category).filter(Boolean))), [typeLeads]);
+
+  const assessed = useMemo(() => new Map(leads.map(l => [l.id, assess(l)])), [leads]);
+  const owners = useMemo(() => Array.from(new Set(typeLeads.map(l => modelOwnerOf(l)).filter(Boolean))).sort(), [typeLeads]);
+  const ready = readyKey === 'all' ? null : viewByKey(readyKey);
+  const readyCounts = useMemo(() => Object.fromEntries(READY_VIEWS.map(v => [v.key, v.needsFields ? null : typeLeads.filter(l => v.test(l, Date.now())).length])), [typeLeads]);
 
   const filtered = useMemo(() => typeLeads.filter(l => {
     if (q) {
@@ -646,14 +680,21 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     if (view === 'online' && presence !== 'all' && (l.lowes_presence || 'not_listed') !== presence) return false;
     if (onlyNew && !isNewLead(l)) return false;
     if (onlyFollow && !needsFollowUp(l)) return false;
+    if (ready && !ready.test(l, Date.now())) return false;
+    const as = assessed.get(l.id);
+    if (orgFilter !== 'all' && as?.orgType !== orgFilter) return false;
+    if (stageFilter !== 'all' && as?.stage !== stageFilter) return false;
+    if (ownerFilter === '__none' && modelOwnerOf(l)) return false;
+    if (ownerFilter !== 'all' && ownerFilter !== '__none' && modelOwnerOf(l) !== ownerFilter) return false;
     return true;
-  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, onlyFollow, view]);
+  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, onlyFollow, view, ready, assessed, orgFilter, stageFilter, ownerFilter]);
 
   const sorted = useMemo(() => {
     const order = { ready: 0, check: 1, raw: 2 };
     return [...filtered].sort((a, b) =>
-      stepRank(a) - stepRank(b) || order[tierGroup(a.priority)] - order[tierGroup(b.priority)] || (b.score || 0) - (a.score || 0));
-  }, [filtered]);
+      (assessed.get(a.id)?.exec.rank ?? 9) - (assessed.get(b.id)?.exec.rank ?? 9) || stepRank(a) - stepRank(b)
+      || order[tierGroup(a.priority)] - order[tierGroup(b.priority)] || (b.score || 0) - (a.score || 0));
+  }, [filtered, assessed]);
 
   const readyCount = filtered.filter(l => tierGroup(l.priority) === 'ready').length;
   const checkCount = filtered.filter(l => tierGroup(l.priority) === 'check').length;
@@ -663,7 +704,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const followCount = typeLeads.filter(l => needsFollowUp(l)).length;
 
   const switchView = (v) => {
-    setView(v); setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false); setOnlyFollow(false);
+    setView(v); setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false); setOnlyFollow(false); setReadyKey('all'); setOrgFilter('all'); setStageFilter('all'); setOwnerFilter('all');
   };
   const jumpTo = (lead) => {
     switchView(lead.lead_type === 'online' ? 'online' : 'physical');
@@ -702,7 +743,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
       </div>
 
       <div className="grid grid-cols-3 gap-1.5 bg-surface-alt border border-border rounded-2xl p-1">
-        {[['physical', '🏪 محلات'], ['online', '🛒 متاجر أونلاين'], ['insights', '📊 تحليلات']].map(([k, l]) => (
+        {[['online', '🎯 فرص القنوات'], ['physical', '🏪 جهات محلية'], ['insights', '📊 لوحة السوق']].map(([k, l]) => (
           <button key={k} onClick={() => switchView(k)}
             className={`py-2 rounded-xl text-xs font-extrabold transition ${view === k ? 'bg-surface text-teal shadow-sm' : 'text-muted'}`}>
             {l}
@@ -714,7 +755,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
       {loading && slow && <SlowLoadHint />}
 
       {loadErr ? null : view === 'insights' ? (
-        loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" /> : <InsightsView leads={leads} onJump={jumpTo} />
+        loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" /> : <div className="space-y-4"><MarketDashboard leads={leads} country={C.code} onView={(k) => { switchView('physical'); setReadyKey(k); }} /><InsightsView leads={leads} onJump={jumpTo} /></div>
       ) : (
         <>
           <div className="grid grid-cols-4 gap-2.5">
@@ -724,6 +765,17 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
               ? <Stat label="موجودين عندهم" val={listedCount} />
               : <Stat label="يحتاج تأكيد" val={checkCount} />}
             <Stat label="تواصلنا معهم" val={contactedCount} />
+          </div>
+
+          <div className="flex flex-wrap gap-1.5" data-testid="ready-views" aria-label="عروض جاهزة">
+            <Chip active={readyKey === 'all'} onClick={() => setReadyKey('all')}>كل الجهات</Chip>
+            {READY_VIEWS.map(v => (
+              <button key={v.key} type="button" disabled={!!v.needsFields} data-view={v.key} onClick={() => setReadyKey(readyKey === v.key ? 'all' : v.key)}
+                title={v.needsFields ? 'يحتاج حقلاً غير موجود بعد (migration مقترحة)' : undefined}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full border transition disabled:opacity-40 disabled:cursor-not-allowed ${readyKey === v.key ? 'bg-teal/10 border-teal text-teal' : 'border-border text-muted hover:text-text'}`}>
+                {v.ar}{readyCounts[v.key] != null ? ` (${readyCounts[v.key]})` : ''}
+              </button>
+            ))}
           </div>
 
           <input type="search" value={q} onChange={e => setQ(e.target.value)}
@@ -763,6 +815,22 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
             ))}
           </div>
 
+          <div className="flex flex-wrap gap-2 text-xs" data-testid="extra-filters">
+            <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} aria-label="نوع الجهة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+              <option value="all">كل أنواع الجهات</option>
+              {Object.entries(ORG_TYPES).filter(([, o]) => o.track === (view === 'online' ? 'channel' : 'local')).map(([k, o]) => <option key={k} value={k}>{o.ar}</option>)}
+            </select>
+            <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} aria-label="المرحلة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+              <option value="all">كل المراحل</option>
+              {PIPELINE.filter(s => !['documents_requested', 'application_started', 'submitted', 'pending_approval', 'approved', 'paused'].includes(s)).map(s => <option key={s} value={s}>{STAGE_AR[s]}</option>)}
+            </select>
+            <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="المسؤول" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+              <option value="all">كل المسؤولين</option>
+              <option value="__none">بلا مسؤول</option>
+              {owners.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map(i => <div key={i} className="h-20 bg-surface-alt animate-pulse rounded-2xl" />)}
@@ -780,12 +848,15 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {sorted.map(l => <LeadCard key={l.id} lead={l} myName={name} onSaved={load} />)}
+              {sorted.map(l => <LeadCard key={l.id} lead={l} myName={name} onSaved={load} onOpen={() => setDetailId(l.id)} />)}
             </div>
           )}
         </>
       )}
 
+      {detailId && leads.find(l => l.id === detailId) && (
+        <LeadDetailsModal lead={leads.find(l => l.id === detailId)} leads={leads} country={C.code} onClose={() => setDetailId(null)} />
+      )}
       {addOpen && (
         <AddLeadModal myName={name} defaultType={view === 'online' ? 'online' : 'physical'}
           onClose={() => setAddOpen(false)} onSaved={load} />

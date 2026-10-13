@@ -135,7 +135,9 @@ export const toLegacyStatus = (stage) => STAGE_TO_LEGACY[stage] ?? null;
 export const isPersistableStage = (stage) => toLegacyStatus(stage) !== null;
 
 // ───────────────────────────── التقييمات الخمسة ─────────────────────────────
-const OPP_BASE = { marketplace: 30, quick_commerce: 25, chain: 25, distributor: 20, online_store: 15, beauty_center: 12, retail_store: 12, pharmacy: 10, other: 5 };
+const OPP_BASE = { marketplace: 30, chain: 30, quick_commerce: 25, distributor: 25, online_store: 20, pharmacy: 20, beauty_center: 20, retail_store: 20, other: 5 };
+// حدّ «يستحق عملاً الآن»: جهة محلية لا تصل له إلا إذا عُرف أنها تبيع تجميل/عناية؛ المنصة الكبيرة تصله بقبول البائعين.
+export const ACT_THRESHOLD = 35;
 
 /** الفرصة التجارية 0–100 + أسبابها + ما هو مجهول (المجهول لا يُحتسب لا لصالح ولا ضد). */
 export function opportunityOf(lead) {
@@ -210,10 +212,10 @@ export function executionPriorityOf(lead, now = Date.now()) {
   }
   if (!hasAnyContactPath(lead)) return { key: 'find_contact', rank: EXEC_RANK.find_contact, ar: EXEC_AR.find_contact, why: ['لا وسيلة تواصل مسجّلة'] };
   if (sq.level === 'weak' || sq.level === 'unknown') {
-    if (opp.value >= 45) return { key: 'verify_first', rank: EXEC_RANK.verify_first, ar: EXEC_AR.verify_first, why: [`فرصة ${opp.value}/100 لكن ${SOURCE_QUALITY_AR[sq.level]}`, ...sq.reasons] };
+    if (opp.value >= ACT_THRESHOLD) return { key: 'verify_first', rank: EXEC_RANK.verify_first, ar: EXEC_AR.verify_first, why: [`فرصة ${opp.value}/100 لكن ${SOURCE_QUALITY_AR[sq.level]}`, ...sq.reasons] };
     return { key: 'later', rank: EXEC_RANK.later, ar: EXEC_AR.later, why: [`فرصة منخفضة (${opp.value}/100) ومصدر غير مؤكد`] };
   }
-  if (opp.value >= 45 && ease.level !== 'low') {
+  if (opp.value >= ACT_THRESHOLD && ease.level !== 'low') {
     why.push(`فرصة ${opp.value}/100`, SOURCE_QUALITY_AR[sq.level]);
     if (hasDirect(lead)) why.push('قناة اتصال مباشرة');
     return { key: 'today', rank: EXEC_RANK.today, ar: EXEC_AR.today, why };
@@ -245,6 +247,12 @@ export function chainKeyOf(lead) {
   if (h && !SOCIAL_OR_MARKET_HOSTS.test(`${h}.`)) return `host:${h}`;
   return null;
 }
+/** اسم السلسلة للعرض: اسم الأساس بدون اسم الفرع. */
+function chainDisplayName(lead) {
+  const name = String(lead?.name || '').trim();
+  const m = name.match(/^(.{3,}?)\s*[-–—|(]\s*\S/);
+  return m ? m[1].trim() : (hostOf(lead?.website || '') || name);
+}
 /** مجموعات ≥2 جهة بنفس المفتاح داخل نفس الدولة. */
 export function chainGroups(leads) {
   const by = new Map();
@@ -253,7 +261,7 @@ export function chainGroups(leads) {
     const key = `${l.country || ''}|${k}`;
     (by.get(key) || by.set(key, []).get(key)).push(l);
   }
-  return [...by.entries()].filter(([, v]) => v.length >= 2).map(([key, members]) => ({ key, name: members[0].name, members, regions: [...new Set(members.map((m) => m.province).filter(Boolean))] }));
+  return [...by.entries()].filter(([, v]) => v.length >= 2).map(([key, members]) => ({ key, name: chainDisplayName(members[0]), members, regions: [...new Set(members.map((m) => m.province).filter(Boolean))] }));
 }
 
 // ───────────────────────────── التغطية ─────────────────────────────
