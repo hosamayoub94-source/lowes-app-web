@@ -31,8 +31,11 @@ export const supabase = createClient(url || 'http://localhost', anonKey || 'anon
 // a user JWT. Required for tables where the `authenticated` RLS policy is more
 // restrictive than `anon` (e.g. orders table restricted to own rows). Use this
 // client for SELECT-only queries where all users should see all rows.
+// storageKey مختلف عمداً: كان العميلان يتشاركان نفس المفتاح (sb-<ref>-auth-token) فيظهر تحذير
+// «Multiple GoTrueClient instances» ويتنافسان على نفس قفل Navigator Lock لقراءة/تجديد الجلسة.
+// هذا العميل بلا جلسة ولا تجديد، فلا حاجة لمشاركة مفتاح الجلسة.
 export const supabaseAnon = createClient(url || 'http://localhost', anonKey || 'anon', {
-  auth: { persistSession: false, autoRefreshToken: false },
+  auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-anon-sessionless' },
 });
 
 // Storage bucket helper — matches legacy upload path.

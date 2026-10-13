@@ -270,7 +270,7 @@ function AssessRow({ a, onOpen }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="assess-row">
       <span className={`${pill} bg-surface-alt border-border text-text`} title={`طريقة التعامل: ${a.approach}`}>{a.org.icon} {a.org.ar}</span>
-      <span className={`${pill} bg-surface-alt border-border text-text`}>المرحلة: {STAGE_AR[a.stage]}</span>
+      <span className={`${pill} bg-surface-alt border-dashed border-border text-text`} title="مرحلة مشتقّة من حالة التواصل وتواجد Lowe's — ليست «حالة حساب» محفوظة ولا يمكن متابعتها كمرحلة تسجيل بعد" data-testid="stage-pill">المرحلة (مشتقّة): {STAGE_AR[a.stage]}</span>
       <span className={`${pill} ${SQ_TONE[a.source.level]}`} title={a.source.reasons.join(' · ')}>{SOURCE_QUALITY_AR[a.source.level]} · {a.source.freshness.ar}</span>
       <span className={`${pill} ${EXEC_TONE[a.exec.key]}`} title={a.exec.why.join(' · ')} data-testid="exec-pill">{a.exec.ar}</span>
       <button type="button" onClick={onOpen} data-testid="open-details" className="mr-auto text-[11px] font-bold underline text-teal">التفاصيل ←</button>

@@ -18,9 +18,18 @@ export async function listLeads() {
   return data ?? [];
 }
 
+// RLS لا يرمي خطأً عندما يمنع التعديل — يرجّع صفر صفوف فقط. بدون هذا الفحص يظن المستخدم أن الحفظ تمّ وهو لم يتم.
+function assertRowChanged(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const e = new Error('لم يُحفظ التعديل — صلاحيتك أو جلستك لا تسمح بالتعديل.');
+    e.status = 403;
+    throw e;
+  }
+}
+
 /** Update only the contact-status fields — never touches research fields. */
 export async function updateLeadStatus(id, { status, notes, assigned_to }, updatedByName) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('syria_b2b_leads')
     .update({
       status,
@@ -30,8 +39,10 @@ export async function updateLeadStatus(id, { status, notes, assigned_to }, updat
       status_updated_by: updatedByName || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw error;
+  assertRowChanged(data);
 }
 
 // المحافظات من الإعداد المركزي للدول (D-119) — نفس القيم والتسميات حرفياً.
@@ -61,7 +72,7 @@ export const PRESENCE_LABELS_WITH_UNVERIFIED = { unverified: 'غير متحقق'
 /** تحديث تواجد Lowe's على متجر أونلاين — حقول الفريق فقط، لا يلمس البحث. */
 export async function updateLeadPresence(id, { lowes_presence, lowes_listing_url }, updatedByName) {
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('syria_b2b_leads')
     .update({
       lowes_presence,
@@ -70,8 +81,10 @@ export async function updateLeadPresence(id, { lowes_presence, lowes_listing_url
       presence_updated_by: updatedByName || null,
       updated_at: now,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw error;
+  assertRowChanged(data);
 }
 
 const DAY = 24 * 60 * 60 * 1000;

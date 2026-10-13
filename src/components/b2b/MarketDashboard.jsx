@@ -50,7 +50,7 @@ export default function MarketDashboard({ leads, country, onView }) {
         <Tile label="غير متحقَّق منها" val={D.weakSource} tone={D.weakSource ? 'warn' : 'default'} onClick={() => onView?.('unverified')} />
       </div>
 
-      <Section title="مسار فتح الحساب (Pipeline)" hint="الأرقام مشتقّة من حالة التواصل + تواجد Lowe's. المراحل الرمادية غير مُتتبَّعة بعد — تحتاج حقل «حالة الحساب» (migration مقترحة، لم تُطبَّق).">
+      <Section title="مسار فتح الحساب (Pipeline) — عرض مشتق، غير محفوظ" hint="الأرقام مشتقّة من حالة التواصل + تواجد Lowe's. المراحل الرمادية غير مُتتبَّعة بعد — تحتاج حقل «حالة الحساب» (migration مقترحة، لم تُطبَّق).">
         <ul className="space-y-1" data-testid="pipeline">
           {PIPELINE.map((s) => {
             const untracked = UNTRACKED_STAGES.includes(s);

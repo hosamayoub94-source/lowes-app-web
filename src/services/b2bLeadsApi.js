@@ -55,16 +55,30 @@ const direct = (fn, action, { friendly = false } = {}) => async (...args) => {
     if (e instanceof B2bError) { logB2bError(e, action); throw e; }
     if (friendly) { const err = toB2bError(e, action); logB2bError(err, action); throw err; }
     const err = toB2bError(e, action);
+    if (err.kind === 'forbidden' && e?.message) { const own = new B2bError('forbidden', { status: err.status, action, message: e.message }); logB2bError(own, action); throw own; }  // نصّ الرفض المحدّد أوضح من العام
     if (err.kind === 'session' || err.kind === 'network') { logB2bError(err, action); throw err; }
     throw e;
   }
+};
+
+// بعد إغلاق الجدول على anon: جلسة يدوية (بلا JWT) تقرأ صفاً صفراً بلا خطأ — نكشف ذلك ونعرض «انتهت جلستك» بدل «لا بيانات».
+async function hasRealSession() {
+  try {
+    const { data } = await withTimeout(supabase.auth.getSession(), 8000, 'session');
+    return !!data?.session;
+  } catch { return true; /* لا نحكم على الجلسة إن تعذّر فحصها (تجنّباً لرسالة خاطئة) */ }
+}
+const listWithSessionCheck = async () => {
+  const rows = await listLeads();
+  if (rows.length === 0 && !(await hasRealSession())) throw new B2bError('session', { action: 'list' });
+  return rows;
 };
 
 /** One interface for the screen, whatever the country. */
 export function leadsApiFor(code) {
   if (COUNTRIES[code]?.legacyDirect) {
     return {
-      list: direct(listLeads, 'list', { friendly: true }),
+      list: direct(listWithSessionCheck, 'list', { friendly: true }),
       updateStatus: direct((id, fields, by) => updateLeadStatus(id, fields, by), 'update_status'),
       updatePresence: direct((id, fields, by) => updateLeadPresence(id, fields, by), 'update_presence'),
       create: direct((form, by) => createLead(form, by), 'add'),

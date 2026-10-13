@@ -99,6 +99,32 @@ setInvoke(async () => reply(404, undefined));
 thrown = null; try { await api.leadsApiFor('AE').list(); } catch (e) { thrown = e; }
 ok(thrown?.kind === 'not_deployed' && calls === 1, 'AE list(): 404 throws not_deployed, one call');
 
+// ── Syria direct path after the lockdown: no session / no permission must be visible, never "empty" or a silent no-op ──
+const sbSY = ({ rows = [], session = { access_token: 'x' }, updateRows = [{ id: 'SYR-1' }], updateErr = null } = {}) => ({
+  auth: { getSession: async () => ({ data: { session } }) },
+  from: () => ({
+    select: () => ({ order: async () => ({ data: rows, error: null }) }),
+    update: () => ({ eq: () => ({ select: async () => ({ data: updateRows, error: updateErr }) }) }),
+  }),
+});
+globalThis.__sb = sbSY({ rows: [], session: null });
+thrown = null; try { await api.leadsApiFor('SY').list(); } catch (e) { thrown = e; }
+ok(thrown?.kind === 'session', 'SY list(): zero rows + NO real session (manual/anon session) -> "session expired", not an empty list');
+globalThis.__sb = sbSY({ rows: [], session: { access_token: 'x' } });
+ok((await api.leadsApiFor('SY').list()).length === 0, 'SY list(): zero rows WITH a real session -> genuinely empty');
+globalThis.__sb = sbSY({ rows: [{ id: 'SYR-1' }], session: null });
+ok((await api.leadsApiFor('SY').list()).length === 1, 'SY list(): rows present -> returned as is (no false session error)');
+globalThis.__sb = { auth: { getSession: async () => { throw new Error('boom'); } }, from: () => ({ select: () => ({ order: async () => ({ data: [], error: null }) }) }) };
+ok((await api.leadsApiFor('SY').list()).length === 0, 'SY list(): if the session check itself fails we do not invent a session error');
+globalThis.__sb = sbSY({ updateRows: [] });
+thrown = null; try { await api.leadsApiFor('SY').updateStatus('SYR-1', { status: 'contacted' }, 'Tester'); } catch (e) { thrown = e; }
+ok(thrown && thrown.status === 403 && /لم يُحفظ/.test(thrown.message), 'SY updateStatus(): RLS filtered the row (0 rows changed) -> explicit "not saved" error, never a silent success');
+globalThis.__sb = sbSY({ updateRows: [{ id: 'SYR-1' }] });
+ok((await api.leadsApiFor('SY').updateStatus('SYR-1', { status: 'contacted' }, 'Tester')) === undefined, 'SY updateStatus(): one row changed -> success');
+globalThis.__sb = sbSY({ updateRows: null, updateErr: { message: 'permission denied for table syria_b2b_leads', code: '42501', status: 401 } });
+thrown = null; try { await api.leadsApiFor('SY').updatePresence('SYR-1', { lowes_presence: 'listed' }, 'Tester'); } catch (e) { thrown = e; }
+ok(thrown?.kind === 'session' || thrown?.kind === 'forbidden' || thrown?.status === 401, 'SY updatePresence(): table privilege error surfaces (anon after REVOKE) instead of being swallowed');
+
 // Syria direct path: expired JWT is classified; empty data is []
 globalThis.__sb = { from: () => ({ select: () => ({ order: async () => ({ data: null, error: { message: 'JWT expired', code: 'PGRST301', status: 401 } }) }) }) };
 thrown = null; try { await api.leadsApiFor('SY').list(); } catch (e) { thrown = e; }

@@ -44,7 +44,7 @@ export default function LeadDetailsModal({ lead, leads, country, onClose }) {
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs" data-testid="assessments">
-          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة:</b> {STAGE_AR[a.stage]}</div>
+          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة (مشتقّة، غير محفوظة):</b> {STAGE_AR[a.stage]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>أولوية التنفيذ:</b> {EXEC_AR[a.exec.key]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>جودة المصدر:</b> {SOURCE_QUALITY_AR[a.source.level]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>الفرصة:</b> {a.opportunity.value}/100</div>

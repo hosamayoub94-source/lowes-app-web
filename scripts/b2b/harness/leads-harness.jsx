@@ -4,7 +4,7 @@
 // Every row below is FAKE (وهمي). The real routes + ProtectedRoute + permissions are used, so personas show the real gating.
 // Import button: admin persona only (paste the batch JSON, preview, pick rows, confirm, save — all against fake in-memory rows).
 // Open via the Vite dev server: /scripts/b2b/harness/leads.html?persona=admin&route=/uae-leads
-//   persona = admin | granted | denied | none | syria      route = /uae-leads | /syria-leads
+//   persona = admin | granted | denied | none | syria | anon (no session)      route = /uae-leads | /syria-leads
 //   state   = hang | 401 | 403 | 404 | 409 | network | server | empty | flaky   (simulated load failures for the list call; flaky = first load fails, retry works)
 // Never shipped: not part of the app bundle.
 import { createRoot } from 'react-dom/client';
@@ -29,10 +29,11 @@ const PERSONAS = {
   denied:  { role: 'employee', name: 'ممنوحة ثم محجوبة (وهمي)', extra_permissions: ['view_uae_leads'], denied_permissions: ['view_uae_leads'] },
   none:    { role: 'employee', name: 'بلا صلاحية (وهمي)' },
   syria:   { role: 'employee', name: 'موظفة سوريا (وهمي)', extra_permissions: ['view_syria_leads'] },
+  anon:    { role: 'employee', name: 'بلا جلسة (وهمي)', noSession: true },
 };
 const personaKey = PERSONAS[qs.get('persona')] ? qs.get('persona') : 'admin';
 const me = PERSONAS[personaKey];
-useAuthStore.setState({ session: { ...me, team: 'sales' }, isAuthenticated: true, ready: true });
+useAuthStore.setState(me.noSession ? { session: null, isAuthenticated: false, ready: true } : { session: { ...me, team: 'sales' }, isAuthenticated: true, ready: true });
 
 const day = (d) => new Date(Date.now() - d * 864e5).toISOString();
 const base = { status: 'not_contacted', priority: 'C', score: 35, lead_type: 'online', notes: null, discovered_at: day(30), last_verified_at: day(1), created_at: day(30) };
@@ -88,7 +89,7 @@ class Q {
     }
     if (this.op === 'select' && STATE === 'empty') return res(ok([]));
     if (this.op === 'select') return res(ok(visible.filter((r) => this.f.every((fn) => fn(r))).sort((a, b) => b.score - a.score)));
-    if (this.op === 'update') { visible.filter((r) => this.f.every((fn) => fn(r))).forEach((r) => Object.assign(r, this.p)); log('SY update', this.p); return res(ok(null)); }
+    if (this.op === 'update') { const hit = visible.filter((r) => this.f.every((fn) => fn(r))); hit.forEach((r) => Object.assign(r, this.p)); log('SY update', this.p); return res(ok(hit.map((r) => ({ id: r.id })))); }
     rows.unshift({ country: 'SY', ...this.p }); log('SY insert', this.p.id); return res(ok(null));
   }
 }
@@ -168,6 +169,7 @@ createRoot(document.getElementById('root')).render(
       <Sidebar />
       <div style={{ flex: 1, maxWidth: 760, margin: '0 auto', padding: 16 }}>
         <Routes>
+          <Route path={ROUTES.LOGIN} element={<p dir="rtl" data-testid="login">🔑 شاشة الدخول — لا جلسة</p>} />
           <Route path={ROUTES.HOME} element={<p dir="rtl" data-testid="home">🏠 الرئيسية — تم التحويل لأن الصلاحية غير متوفرة</p>} />
           <Route path={ROUTES.B2B_LEADS} element={<B2BLeadsEntry />} />
           <Route path={ROUTES.SYRIA_LEADS} element={<ProtectedRoute roles={[ROLES.ADMIN]} perm={P.VIEW_SYRIA_LEADS}><SyriaLeadsScreen key="SY" country="SY" /></ProtectedRoute>} />
