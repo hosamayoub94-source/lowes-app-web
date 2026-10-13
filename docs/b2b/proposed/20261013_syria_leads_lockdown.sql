@@ -1,6 +1,6 @@
 -- =============================================================
--- PROPOSED (NOT APPLIED) — إغلاق وصول anon لجدول syria_b2b_leads وربطه بجلسة حقيقية + صلاحية view_syria_leads
--- 13 تشرين الأول 2026 · لا يُطبَّق إلا بموافقة حسام الصريحة وبعد الشروط المسبقة (docs/b2b/SECURITY_SYRIA_LEADS_2026-10-13.md).
+-- ✅ APPLIED على الإنتاج 13 تشرين الأول 2026 06:58 UTC عبر apply_migration باسم syria_leads_lockdown (المشروع fghdumrgimoeqsafdhhh) — إغلاق وصول anon لجدول syria_b2b_leads وربطه بجلسة حقيقية + صلاحية view_syria_leads
+-- بموافقة حسام الصريحة وبعد تحقق شرط ديانا (دخول supabase_auth + جلسة حقيقية 06:55 UTC). التفاصيل: docs/b2b/SECURITY_SYRIA_LEADS_2026-10-13.md.
 --
 -- قبل:  السياسة b2b_leads_direct_syria_only = FOR ALL TO public USING (country='SY')  + anon يملك SELECT/INSERT/UPDATE/DELETE
 --       => أي حامل للمفتاح العام يقرأ ويعدّل ويحذف أرقام وبريد الـ155 جهة بلا تسجيل دخول.
