@@ -19,7 +19,7 @@ export const STATUSES = {
   waiting:      { label: 'بالانتظار/متابعة',  icon: '⏳', bg: 'bg-amber-bg',    text: 'text-amber-fg',   border: 'border-amber/30'    },
   not_received: { label: 'لم يتم الاستلام',   icon: '📭', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
   returning:    { label: 'راجع للمركز',       icon: '↩️', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
-  returned:     { label: 'تم الاسترجاع',       icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
+  returned:     { label: 'مرتجع',              icon: '🔁', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
   settled:      { label: 'تمت التسوية',       icon: '🤝', bg: 'bg-green-bg',    text: 'text-green-fg',   border: 'border-green/30'    },
   cancelled:    { label: 'ملغي',              icon: '❌', bg: 'bg-red-bg',      text: 'text-red-fg',     border: 'border-red/30'      },
 };
@@ -37,7 +37,9 @@ const TURKEY_STATUSES = ['preparing','delivered','not_received','on_way','at_cen
 // سوريا: أضيفت at_center/on_way (29 يوليو 2026) — حالتا تتبّع شركات الشحن
 // (بابل اكسبرس، شركة الكرم) صارتا رسميتين بدل ما تبقيا مكتوبتين تلقائياً فقط
 // بلا وجود بقائمة السوق (لم يقدر الفريق يختارهما يدوياً قبل هذا).
-const SYRIA_STATUSES  = ['pending','preparing','shipped','at_center','on_way','delivered','waiting','settled','cancelled'];
+// «مرتجع» (14 تشرين الأول 2026، طلب حسام): الزبون لم يستلم ورجع الطلب لنا؛
+// إن دفع الزبون لاحقاً قيمة المرتجع يُنقل إلى «تمت التسوية» (يخرج من نسبة الرجوع).
+const SYRIA_STATUSES  = ['pending','preparing','shipped','at_center','on_way','delivered','waiting','returned','settled','cancelled'];
 
 // الإمارات (27 أيلول 2026): نفس مسميات جدول «شحنات الامارات» (في التجهيز/في النقل/
 // تم التسليم/لم يتم الاستلام/بالانتظار/تمت التسوية) + استرجاع/إلغاء. أول عنصر =
