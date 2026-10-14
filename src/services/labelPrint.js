@@ -128,7 +128,7 @@ function inventoryReportHTML(market, rows, dateStr, orderCount) {
   return `
 <section class="report-sheet">
   <div class="report-head">
-    <div class="wordmark"><span class="wm-main">L O W E ' S</span><span class="wm-sub">p r o f e s s i o n a l</span></div>
+    <div class="wordmark"><span class="wm-main">L O W E ' S</span><span class="wm-sub">p r o f e s y o n a l</span></div>
     <div class="report-title">📋 المنتجات الخارجة اليوم — ${MARKET_LBL[market] || market}</div>
     <div class="report-meta">${dateStr} · ${orderCount} طلب مطبوع · ${rows.length} صنف · إجمالي ${total} قطعة خارجة</div>
   </div>
@@ -229,7 +229,7 @@ function labelHTML(o, idx, total, dateStr, joinQrDataUrl, igQrDataUrl) {
     <span class="counter">${idx + 1}/${total}</span>
     <div class="wordmark">
       <span class="wm-main">L O W E ' S</span>
-      <span class="wm-sub">p r o f e s s i o n a l</span>
+      <span class="wm-sub">p r o f e s y o n a l</span>
     </div>
     <span class="date">${dateStr}</span>
   </div>
