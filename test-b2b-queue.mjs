@@ -76,6 +76,15 @@ ok(Q.queueFilterByKey('waiting').test(waiting, as(waiting)) && !Q.queueFilterByK
 ok(Q.queueFilterByKey('verify').test(weak, as(weak)) && !Q.queueFilterByKey('verify').test(marketOpen, as(marketOpen)), 'verify filter = weak sources only');
 ok(Q.queueFilterByKey('nope') === null, 'unknown filter -> null');
 
+// ── تسمية «بدها مسؤول» (المنطق لم يتغيّر: نشِط/بانتظار رد وبلا مسؤول فقط؛ ليس «كل الجهات بلا مسؤول»)
+const noOwnerF = Q.queueFilterByKey('no_owner');
+ok(noOwnerF.ar === 'بدها مسؤول', 'bar label is بدها مسؤول');
+ok(!Q.QUEUE_FILTERS.some((f) => f.ar === 'بلا مسؤول'), 'old bar label gone');
+ok(noOwnerF.test(follow, as(follow)), 'actionable lead without owner counts');
+ok(!noOwnerF.test(waiting, as(waiting)), 'lead with an owner does not count');
+ok(!noOwnerF.test(noContact, as(noContact)), 'non-actionable unowned lead is not counted (differs from the all-leads advanced filter)');
+ok(M.viewByKey('no_owner').ar === 'بلا مسؤول' && M.viewByKey('no_owner').test(noContact, NOW), 'advanced filter keeps its own label and all-unowned meaning');
+
 // ── topPick
 const sorted = [waiting, marketOpen, follow];
 ok(Q.topPick(sorted, assessed).id === 'm2', 'topPick skips waiting, picks first actionable');

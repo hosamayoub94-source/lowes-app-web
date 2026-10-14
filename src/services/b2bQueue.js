@@ -83,7 +83,7 @@ export function primaryActionOf(lead, step, wa) {
 export const QUEUE_FILTERS = [
   { key: 'today', ar: 'تحتاج إجراء اليوم', tone: 'amber', test: (l, a) => GOING.includes(a.exec.key) },
   { key: 'waiting', ar: 'بانتظار رد', tone: 'blue', test: (l, a) => a.exec.key === 'waiting' },
-  { key: 'no_owner', ar: 'بلا مسؤول', tone: 'gray', test: (l, a) => [...GOING, 'waiting'].includes(a.exec.key) && !ownerOf(l) },
+  { key: 'no_owner', ar: 'بدها مسؤول', tone: 'gray', test: (l, a) => [...GOING, 'waiting'].includes(a.exec.key) && !ownerOf(l) },
   { key: 'verify', ar: 'تحتاج تحقق', tone: 'gray', test: (l, a) => !['done', 'blocked'].includes(a.exec.key) && ['weak', 'unknown'].includes(sourceQualityOf(l).level) },
 ];
 export const queueFilterByKey = (k) => QUEUE_FILTERS.find((f) => f.key === k) || null;
