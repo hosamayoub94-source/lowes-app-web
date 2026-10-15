@@ -585,7 +585,7 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
 }
 
 // ── Campaign Card ──────────────────────────────────────────────
-function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete, onToggleActive }) {
+function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onToggleActive }) {
   const disabled = isPaused(c);
   return (
     <div className={'bg-surface border rounded-2xl p-4 cursor-pointer transition-colors ' + (disabled ? 'border-border opacity-75' : 'border-border hover:border-teal')} onClick={() => onSelect(c)}>
@@ -638,9 +638,7 @@ function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete, o
           {canManage && (
             <span className="flex gap-3">
               <button onClick={e => { e.stopPropagation(); onEdit(c); }} className="text-[11px] text-teal font-semibold hover:underline">✏️ تعديل</button>
-              <button onClick={e => { e.stopPropagation(); onToggleActive?.(c); }} className="text-[11px] text-muted font-semibold hover:underline">{disabled ? '▶️ تشغيل' : '⏸️ إيقاف'}</button>
-              <button onClick={e => { e.stopPropagation(); onDelete(c); }} className="text-[11px] text-red-fg font-semibold hover:underline">🗑️ حذف</button>
-            </span>
+              <button onClick={e => { e.stopPropagation(); onToggleActive?.(c); }} className="text-[11px] text-muted font-semibold hover:underline">{disabled ? '▶️ تشغيل' : '⏸️ إيقاف'}</button>            </span>
           )}
         </div>
       )}
@@ -827,31 +825,8 @@ export default function CampaignsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // حملة لها تاريخ مبيعات (report_ad_results، FK=RESTRICT) → تعطيل ناعم يحفظ
-  // التاريخ. حملة فارغة (خطأ) → حذف نهائي مع تنظيف الأبناء.
-  const deleteCampaign = async (c) => {
-    const { count } = await supabase.from('report_ad_results')
-      .select('id', { count: 'exact', head: true }).eq('campaign_id', c.id);
-    if (count && count > 0) {
-      if (!window.confirm(`«${c.name}» لها ${count} تسجيل مبيعات — لا تُحذف (نحفظ التاريخ). إيقافها ونقلها للحملات الموقوفة؟`)) return;
-      const { error } = await supabase.from('campaigns')
-        .update({ is_active: false, status: 'paused', paused_at: c.paused_at || new Date().toISOString() }).eq('id', c.id);
-      if (error) { alert('فشل التعطيل: ' + error.message); return; }
-      load(); return;
-    }
-    if (!window.confirm(`حذف حملة "${c.name}" نهائياً مع إعلاناتها؟ (لا يوجد لها تسجيلات مبيعات)`)) return;
-    await supabase.from('report_ad_results').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('campaign_ads').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('ad_daily_logs').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('daily_reports').update({ campaign1_id: null }).eq('campaign1_id', c.id).then(() => {}, () => {});
-    await supabase.from('daily_reports').update({ campaign2_id: null }).eq('campaign2_id', c.id).then(() => {}, () => {});
-    const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
-    if (error) {
-      await supabase.from('campaigns').update({ is_active: false, status: 'paused', paused_at: new Date().toISOString() }).eq('id', c.id);
-      alert('تعذّر الحذف النهائي — أُوقفت الحملة بدلاً منه. (' + error.message + ')');
-    }
-    load();
-  };
+  // لا حذف للحملات من التطبيق (قرار حسام، 15 أكتوبر 2026): اللوحة للتحليل والمراقبة؛
+  // الحملة تُفتح/تُحذف بمدير إعلانات ميتا. هنا: إنشاء (للإسناد) + تعديل + إيقاف/تشغيل فقط.
 
   // تعطيل / إعادة تفعيل حملة (للمدراء) — is_active هو آلية الإخفاء الفعلية.
   // نزامن status معها بالاتجاهين حتى ما يرجع يصير تضارب متل قبل (حملة
@@ -944,7 +919,7 @@ export default function CampaignsScreen() {
                 {filtered.map(c => (
                   <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
                     onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }}
-                    onDelete={deleteCampaign} onToggleActive={toggleCampaignActive} />
+                    onToggleActive={toggleCampaignActive} />
                 ))}
               </div>
             )}
@@ -968,7 +943,7 @@ export default function CampaignsScreen() {
                   {pausedList.map(c => (
                     <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
                       onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }}
-                      onDelete={deleteCampaign} onToggleActive={toggleCampaignActive} />
+                      onToggleActive={toggleCampaignActive} />
                   ))}
                 </div>
               )}
