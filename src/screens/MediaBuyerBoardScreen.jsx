@@ -11,6 +11,7 @@ import { DailyTrendChart, HBarChart, SourceSplitDonut } from './mediaBuyer/chart
 
 const CUR_SYM = { try: '₺', syp: 'ل.س', usd: '$' };
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+const fmtTRY = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ₺';
 const fmtSales = (s) => ['usd', 'try', 'syp'].filter(c => s?.[c] > 0).map(c => `${fmt(s[c])} ${CUR_SYM[c]}`).join(' · ') || '—';
 
 // 15 أغسطس 2026: أُضيفت "أمس" (طلب مالك) — "مخصّص" كانت أصلاً بتغطي أي يوم
@@ -27,6 +28,46 @@ const DETAIL_KINDS = [
   { key: 'old_customer', label: 'زبون قديم (إعادة شراء)', icon: '👤' },
   { key: 'other',     label: 'مصدر آخر', icon: '🌐' },
 ];
+
+// الالتزام بالتسجيل بالأسماء (v2): ملتزمة / غير ملتزمة + أيام التسجيل من أيام الفترة.
+// «ملتزمة» = سجّلت اليوم (لو اليوم ضمن الفترة)، وإلا ≥80% من أيام الفترة.
+function ComplianceCard({ detail }) {
+  if (!detail) return null;
+  const { rows, committed, notCommitted, todayInRange, required } = detail;
+  const chip = (r, good) => (
+    <span key={r.name} className={'px-2 py-1 rounded-lg text-[11px] font-semibold ' + (good ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg')}>
+      {good ? '✅' : '⏳'} {r.name}
+    </span>
+  );
+  return (
+    <Card padding="md">
+      <CardTitle className="text-sm mb-1">🟢 الالتزام بالتسجيل ({committed.length}/{rows.length})</CardTitle>
+      <p className="text-[11px] text-muted mb-2">{todayInRange ? 'ملتزمة = سجّلت تقرير اليوم' : 'ملتزمة = سجّلت 80% أو أكثر من أيام الفترة'} · المطلوب بالفترة: {required} يوم</p>
+      {rows.length === 0 ? <p className="text-xs text-muted">لا موظفات مُسنَدات لحملات شغّالة.</p> : (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-bold text-green-fg mb-1">✅ ملتزمات ({committed.length})</p>
+            <div className="flex flex-wrap gap-1.5">{committed.length ? committed.map(r => chip(r, true)) : <span className="text-[11px] text-muted">لا أحد بعد</span>}</div>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-red-fg mb-1">⏳ غير ملتزمات ({notCommitted.length})</p>
+            <div className="flex flex-wrap gap-1.5">{notCommitted.length ? notCommitted.map(r => chip(r, false)) : <span className="text-[11px] text-green-fg">الكل ملتزم ✓</span>}</div>
+          </div>
+          <div className="divide-y divide-border/50 border-t border-border/50 pt-1">
+            {rows.map(r => (
+              <div key={r.name} className="py-1.5 flex items-center gap-2 text-xs">
+                <span className="text-text font-semibold flex-1 truncate">{r.reportedToday ? '🟢' : '⚪'} {r.name}</span>
+                <span className="text-muted shrink-0">{r.reported}/{r.required} يوم</span>
+                <span className={'shrink-0 font-bold ' + (r.rate >= 80 ? 'text-green-fg' : r.rate >= 50 ? 'text-amber-fg' : 'text-red-fg')}>{r.rate}%</span>
+                <span className="text-muted shrink-0 w-24 text-left">{r.lastDate ? `آخر: ${r.lastDate}` : 'لم تسجّل'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function MediaBuyerBoardScreen() {
   const [period, setPeriod] = useState('month');
@@ -127,6 +168,18 @@ export default function MediaBuyerBoardScreen() {
             <StatCard label="نسبة التحويل" value={t.convRate + '%'} icon="📈" tone="amber" />
             <StatCard label="عدد التقارير" value={fmt(t.reportsCount)} icon="🧾" />
           </div>
+          {/* v2: تكلفة التأكيد بالليرة التركية = مجموع (الميزانية اليومية × أيام التشغيل) ÷ تأكيدات الإعلانات */}
+          <Card padding="md">
+            <CardTitle className="text-sm mb-1">💰 تكلفة التأكيد (₺) — من الميزانيات اليومية</CardTitle>
+            {data.budgetSummary?.campaignsWithBudget > 0 ? (
+              <div className="flex items-center gap-4 flex-wrap">
+                <span><span className="text-xl font-extrabold text-amber-fg">{data.budgetSummary.costPerConfTry != null ? fmtTRY(data.budgetSummary.costPerConfTry) : '—'}</span> <span className="text-xs text-muted">لكل تأكيد</span></span>
+                <span className="text-xs text-muted">الإنفاق بالفترة: <b className="text-text">{fmtTRY(data.budgetSummary.spendTry)}</b> · تأكيدات الإعلانات: <b className="text-text">{fmt(data.budgetSummary.adConfirmations)}</b></span>
+              </div>
+            ) : (
+              <p className="text-xs text-muted">لا ميزانية يومية مُدخلة بعد. أدخلها لكل حملة من «الحملات ← ✏️ تعديل ← 💰 الميزانية اليومية (₺)».</p>
+            )}
+          </Card>
           <div className="grid sm:grid-cols-2 gap-2">
             <Card padding="md">
               <CardTitle className="text-sm mb-1">💵 إجمالي المبيعات</CardTitle>
@@ -177,11 +230,13 @@ export default function MediaBuyerBoardScreen() {
             <div className="mt-2 divide-y divide-border/50">
               {(data.perCampaign || []).map(c => (
                 <div key={c.id} className="py-2 flex items-center justify-between gap-2 text-xs">
-                  <span className="text-text font-semibold truncate flex-1">{c.name}
+                  <span className="text-text font-semibold truncate flex-1">{c.paused ? '⏸️ ' : ''}{c.name}
                     {c.avgStar ? <span className="text-amber-fg"> ★{c.avgStar}</span> : null}
                     <span className="text-muted font-normal"> · {c.sellersCount} موظف · {c.adsCount} إعلان</span>
                   </span>
                   <span className="text-muted shrink-0">💬{fmt(c.messages)} · ✅{fmt(c.confirmations)} ({c.convRate}%)</span>
+                  {c.dailyBudgetTry > 0 && <span className="text-amber-fg shrink-0" title={`الميزانية اليومية ${fmtTRY(c.dailyBudgetTry)} · إنفاق الفترة ${fmtTRY(c.budgetSpendTry)}`}>💰{fmtTRY(c.dailyBudgetTry)}/يوم{c.costPerConfTry != null ? ` · تأكيد=${fmtTRY(c.costPerConfTry)}` : ''}</span>}
+                  {c.costPerMessageTry > 0 && <span className="text-muted shrink-0">رسالة={fmtTRY(c.costPerMessageTry)}</span>}
                   {c.spend > 0 && <span className="text-amber-fg shrink-0">📊{fmt(c.spend)}{c.roas != null ? ` · ×${c.roas}` : ''}</span>}
                   <span className="text-teal font-bold shrink-0">{fmtSales(c.sales)}</span>
                 </div>
@@ -199,6 +254,7 @@ export default function MediaBuyerBoardScreen() {
                 <div key={a.id} className="py-2 flex items-center gap-2 text-xs">
                   {a.image && <img src={a.image} alt="" className="w-7 h-7 rounded object-cover shrink-0" />}
                   <span className="text-text font-semibold truncate flex-1">{a.ad_name}
+                    {a.deletedAt ? <span className="text-red-fg font-normal" title={a.deletedBy ? `حذفته: ${a.deletedBy}` : ''}> 🗑️ محذوف من الموظفات</span> : null}
                     {a.avgStar ? <span className="text-amber-fg"> ★{a.avgStar}</span> : null}
                     <span className="text-muted font-normal"> · {a.campaign_name}</span>
                   </span>
@@ -210,17 +266,8 @@ export default function MediaBuyerBoardScreen() {
             </div>
           </Card>
 
-          {/* الالتزام اليوم */}
-          <Card padding="md">
-            <CardTitle className="text-sm mb-2">🟢 التزام اليوم بالتسجيل ({data.compliance.reportedToday.length}/{data.compliance.expected.length})</CardTitle>
-            <div className="flex flex-wrap gap-1.5">
-              {data.compliance.expected.length === 0 ? <p className="text-xs text-muted">لا موظفين مُسنَدين لحملات نشطة.</p> :
-                data.compliance.expected.map(n => {
-                  const done = data.compliance.reportedToday.includes(n);
-                  return <span key={n} className={'px-2 py-1 rounded-lg text-[11px] font-semibold ' + (done ? 'bg-green-bg text-green-fg' : 'bg-red-bg text-red-fg')}>{done ? '✅' : '⏳'} {n}</span>;
-                })}
-            </div>
-          </Card>
+          {/* الالتزام بالتسجيل — بالأسماء: مين ملتزمة ومين لا (v2) */}
+          <ComplianceCard detail={data.compliance.detail} />
 
           {/* مصدر التثبيت بالتفصيل (D-085) — من report_source_results */}
           <Card padding="md">

@@ -14,6 +14,7 @@ import {
 // التاريخ الافتراضي = يوم الوردية لا اليوم التقويمي: موظف وردية 18:00→01:00
 // يسجّل تقريره 00:40 كان يُحفظ على تاريخ اليوم الجديد فيظهر «لم يسجّل».
 import { shiftDateISO } from '@utils/date';
+import { preservedHiddenResults } from '@services/mediaBuyerMetrics';
 
 const MAX_AD_IMAGES = 4;
 
@@ -47,6 +48,8 @@ export default function DailyReportScreen() {
   const [campaigns, setCampaigns] = useState([]);
   const [ads, setAds]         = useState([]);
   const [rows, setRows]       = useState({});   // ad_id → { messages, confirmations, amount, currency, star_rating, notes }
+  // سطور التقرير كما حُمّلت — لإعادة حفظ سطور إعلانات لم تعد ظاهرة (محذوفة ناعماً/حملة موقوفة)
+  const [loadedResults, setLoadedResults] = useState([]);
   // مصادر التثبيت من خارج الإعلانات النشطة (D-085): سطر لكل مصدر —
   // { kind, campaign_id, ad_id, platform_key, label, count, amount, currency, notes }
   const [srcRows, setSrcRows] = useState([]);
@@ -119,6 +122,7 @@ export default function DailyReportScreen() {
         };
       }
       setRows(r);
+      setLoadedResults(results);
       if (sources && sources.length) {
         setSrcRows(sources.map(sr => ({
           kind: sr.kind, campaign_id: sr.campaign_id || null, ad_id: sr.ad_id || null, platform_key: sr.platform_key || null,
@@ -206,6 +210,9 @@ export default function DailyReportScreen() {
           image_urls: (Number(r.messages) || 0) > 0 ? (r.image_urls || []).slice(0, MAX_AD_IMAGES) : [],
         };
       }).filter(Boolean);
+      // replaceAdResults يحذف كل سطور التقرير ثم يدرج — سطور إعلانات غير ظاهرة الآن
+      // (حذفتها الموظفة، أو حملتها موقوفة) كانت تُمسح بصمت عند تعديل تقرير قديم.
+      adRows.push(...preservedHiddenResults(loadedResults, new Set(ads.map(a => a.id))));
       await replaceAdResults(reportId, adRows);
       await replaceSourceResults(reportId, srcRows.map(r => ({
         kind: r.kind, campaign_id: r.kind === 'old_ad' ? r.campaign_id : null, ad_id: r.kind === 'old_ad' ? r.ad_id : null,
