@@ -23,6 +23,7 @@ import { useAuth }                 from '@hooks/useAuth';
 import { usePermissions }          from '@hooks/usePermissions';
 import { PERMISSIONS }             from '@data/permissions';
 import { supabase }                from '@services/supabase';
+import { isPaused, todayStatsByCampaign } from '@services/mediaBuyerMetrics';
 
 // ── helpers ────────────────────────────────────────────────────
 // محلي لا UTC — toISOString كان يُرجع «أمس» بين 00:00 و03:00 بتوقيت الفريق
@@ -37,6 +38,7 @@ function fmtDate(iso) {
 }
 function fmtNum(n) { return (Number(n) || 0).toLocaleString('ar-SA-u-nu-latn'); }
 function fmtUSD(n) { return '$' + (Number(n) || 0).toFixed(2); }
+function fmtTRY(n) { return (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ₺'; }
 
 const STATUS_COLOR = {
   active:   'bg-green-bg text-green-fg border border-green/20',
@@ -53,7 +55,8 @@ function StatusBadge({ status }) {
 const inputCls = 'w-full rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40';
 
 // ── New / Edit Campaign Modal ──────────────────────────────────
-const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '', manager_name: '', spend: '', spend_currency: 'TRY' };
+const EMPTY_CMP = { name: '', team: 'تيم سوريا', channel_type: 'page', channel_name: '', status: 'active', cost_usd: '', assigned_to: [], start_date: '', end_date: '', manager_name: '', spend: '', spend_currency: 'TRY', daily_budget_try: '', cost_per_message_try: '' };
+const numOrNull = (v) => (v === '' || v == null ? null : Number(v));
 
 function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCampaign, userName }) {
   const [form, setForm]   = useState(EMPTY_CMP);
@@ -71,6 +74,7 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         start_date: editCampaign.start_date ?? '', end_date: editCampaign.end_date ?? '',
         manager_name: editCampaign.manager_name ?? '',
         spend: editCampaign.spend ?? '', spend_currency: editCampaign.spend_currency ?? 'TRY',
+        daily_budget_try: editCampaign.daily_budget_try ?? '', cost_per_message_try: editCampaign.cost_per_message_try ?? '',
       });
     } else setForm(EMPTY_CMP);
     setErr(null);
@@ -103,6 +107,16 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
         spend: form.spend === '' ? 0 : Number(form.spend),
         spend_currency: form.spend_currency || 'TRY',
       };
+      // الميزانية اليومية وتكلفة الرسالة (₺) — حقلا تكلفة، يُرسلان فقط لمن يراهما
+      // حتى لا يمسح غير صاحب الصلاحية قيمة لا يراها.
+      if (canViewCost) {
+        payload.daily_budget_try = numOrNull(form.daily_budget_try);
+        payload.cost_per_message_try = numOrNull(form.cost_per_message_try);
+      }
+      // تاريخ الوقف: يُسجَّل لحظة الانتقال من «مفعّلة» لـ«متوقفة/منتهية»، ويُمسح عند إعادة التفعيل.
+      const wasActive = editCampaign ? !isPaused(editCampaign) : false;
+      if (form.status === 'active') payload.paused_at = null;
+      else if (!editCampaign || wasActive) payload.paused_at = new Date().toISOString();
       const q = editCampaign
         ? supabase.from('campaigns').update(payload).eq('id', editCampaign.id)
         : supabase.from('campaigns').insert({ ...payload, created_by: userName || null });
@@ -187,6 +201,20 @@ function CampaignModal({ open, onClose, onSaved, employees, canViewCost, editCam
               </div>
             </div>
           )}
+          {canViewCost && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted">💰 الميزانية اليومية (₺)</label>
+                <input type="number" min="0" step="0.01" value={form.daily_budget_try} onChange={e => set('daily_budget_try', e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+                <p className="text-[10px] text-muted">لحساب تكلفة التأكيد بالليرة التركية</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted">💬 تكلفة الرسالة (₺)</label>
+                <input type="number" min="0" step="0.01" value={form.cost_per_message_try} onChange={e => set('cost_per_message_try', e.target.value)} placeholder="0" className={inputCls} style={{ direction: 'ltr', textAlign: 'right' }} />
+                <p className="text-[10px] text-muted">إدخال يدوي (من مدير الإعلانات)</p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted">تاريخ البداية</label>
@@ -237,7 +265,7 @@ async function uploadAdImage(file, campaignId) {
 }
 
 // ── Add / Edit Ad Modal ────────────────────────────────────────
-function AddAdModal({ open, campaign, editAd, onClose, onSaved }) {
+function AddAdModal({ open, campaign, editAd, onClose, onSaved, userName }) {
   const [name, setName]   = useState('');
   const [img, setImg]     = useState('');
   const [uploading, setUploading] = useState(false);
@@ -267,7 +295,7 @@ function AddAdModal({ open, campaign, editAd, onClose, onSaved }) {
       const payload = { ad_name: name.trim(), ad_image_url: img.trim() || null };
       const q = editAd
         ? supabase.from('campaign_ads').update(payload).eq('id', editAd.id)
-        : supabase.from('campaign_ads').insert({ ...payload, campaign_id: campaign.id, status: 'active' });
+        : supabase.from('campaign_ads').insert({ ...payload, campaign_id: campaign.id, status: 'active', added_by: userName || null });
       const { error } = await q;
       if (error) throw new Error(error.message);
       onSaved(); onClose();
@@ -327,10 +355,29 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
   const [showAddAd, setShowAddAd] = useState(false);
   const [editAd, setEditAd]   = useState(null);
 
+  // حذف الإعلان (v2): الموظفة تحذف «من عندها» = حذف ناعم (deleted_at) — يختفي من
+  // تقريرها اليومي ويبقى عند الميديا باير بنتائجه. الميديا باير: إعلان له نتائج ⇒
+  // ناعم أيضاً (report_ad_results.ad_id بلا ON DELETE)، وإعلان فارغ ⇒ حذف نهائي.
   const deleteAd = async (ad) => {
-    if (!window.confirm(`حذف الإعلان "${ad.ad_name}" وكل تسجيلاته؟`)) return;
-    const { error } = await supabase.from('campaign_ads').delete().eq('id', ad.id);
-    if (error) { alert('فشل الحذف: ' + error.message); return; }
+    const hasResults = (perAd[ad.id]?.entries || 0) > 0;
+    if (canManage && !hasResults) {
+      if (!window.confirm(`حذف الإعلان "${ad.ad_name}" نهائياً؟ (لا توجد له تسجيلات)`)) return;
+      const { error } = await supabase.from('campaign_ads').delete().eq('id', ad.id);
+      if (error) { alert('فشل الحذف: ' + error.message); return; }
+    } else {
+      const msg = canManage
+        ? `إخفاء الإعلان "${ad.ad_name}" عن الموظفات؟ نتائجه تبقى محسوبة عندك ويمكن استرجاعه.`
+        : `حذف الإعلان "${ad.ad_name}" من عندك؟ (يبقى محسوباً عند الميديا باير بكل نتائجه)`;
+      if (!window.confirm(msg)) return;
+      const { error } = await supabase.from('campaign_ads')
+        .update({ deleted_at: new Date().toISOString(), deleted_by: userName || null }).eq('id', ad.id);
+      if (error) { alert('فشل الحذف: ' + error.message); return; }
+    }
+    reload(); onChanged?.();
+  };
+  const restoreAd = async (ad) => {
+    const { error } = await supabase.from('campaign_ads').update({ deleted_at: null, deleted_by: null }).eq('id', ad.id);
+    if (error) { alert('فشل الاسترجاع: ' + error.message); return; }
     reload(); onChanged?.();
   };
 
@@ -380,8 +427,13 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
   const missingToday = assigned.filter(n => !loggedToday.has(n));
 
   const isAssigned = assigned.includes(userName);
+  // الموظفة تضيف إعلاناتها بنفسها — فقط على حملة مكلّفة بها وشغّالة (طلب حسام v2).
+  const canAddAds = canManage || (isAssigned && !isPaused(campaign));
+  // الموظفة لا ترى المحذوف؛ الميديا باير يرى كل شيء مع شارة «محذوف» وزر استرجاع.
+  const visibleAds = canManage ? ads : ads.filter(a => !a.deleted_at);
+  const deletedCount = ads.filter(a => a.deleted_at).length;
 
-  const TABS = [['ads', `🖼️ الإعلانات (${ads.length})`], ['log', '📝 التسجيل اليومي']];
+  const TABS = [['ads', `🖼️ الإعلانات (${visibleAds.filter(a => !a.deleted_at).length})`], ['log', '📝 التسجيل اليومي']];
   if (canManage) TABS.push(['performance', '📊 الأداء والالتزام']);
 
   return (
@@ -420,28 +472,38 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
               {/* ── ADS TAB ── */}
               {tab === 'ads' && (
                 <div className="space-y-2">
-                  {canManage && (
+                  {canAddAds && (
                     <Button variant="teal" size="sm" className="w-full mb-2" onClick={() => setShowAddAd(true)}>➕ إضافة إعلان</Button>
                   )}
-                  {ads.length === 0 ? <EmptyState description="لا توجد إعلانات بعد" /> : ads.map(ad => {
+                  {canManage && deletedCount > 0 && (
+                    <p className="text-[11px] text-muted mb-1">🗑️ {deletedCount} إعلان محذوف من عند الموظفات — باقٍ هنا بنتائجه.</p>
+                  )}
+                  {visibleAds.length === 0 ? <EmptyState description={canAddAds ? 'لا توجد إعلانات بعد — أضيفي أول إعلان' : 'لا توجد إعلانات بعد'} /> : visibleAds.map(ad => {
                     const agg = perAd[ad.id] || { messages: 0, purchases: 0 };
                     const conv = agg.messages > 0 ? Math.round((agg.purchases / agg.messages) * 100) : 0;
+                    const deleted = !!ad.deleted_at;
+                    // الموظفة تعدّل الإعلان الذي أضافته هي فقط؛ الحذف (الناعم) متاح لها على إعلانات حملتها.
+                    const canEdit = canManage || (isAssigned && ad.added_by && ad.added_by === userName);
                     return (
-                      <div key={ad.id} className="flex items-center gap-3 p-3 rounded-xl border border-border">
-                        <div className="w-12 h-12 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                      <div key={ad.id} className={'flex items-center gap-3 p-3 rounded-xl border ' + (deleted ? 'border-dashed border-red/30 bg-red-bg/30' : 'border-border')}>
+                        <div className={'w-12 h-12 rounded-xl bg-surface-alt flex items-center justify-center text-lg shrink-0 overflow-hidden ' + (deleted ? 'opacity-50' : '')}>
                           {ad.ad_image_url ? <img src={ad.ad_image_url} alt={ad.ad_name} className="w-full h-full object-cover" /> : '🖼️'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-text truncate">{ad.ad_name}</p>
                           <p className="text-[11px] text-muted">💬 {fmtNum(agg.messages)} · 🛒 {fmtNum(agg.purchases)} · <span className="text-teal font-semibold">{conv}%</span></p>
+                          {canManage && ad.added_by && <p className="text-[10px] text-muted">➕ أضافته: {ad.added_by}</p>}
+                          {deleted && <p className="text-[10px] text-red-fg font-semibold">🗑️ محذوف من عند الموظفات{ad.deleted_by ? ` · بواسطة ${ad.deleted_by}` : ''} · {fmtDate(ad.deleted_at)}</p>}
                         </div>
-                        {(isAssigned || canManage) && (
+                        {!deleted && (isAssigned || canManage) && (
                           <a href="/daily-report" className="px-3 py-1.5 rounded-lg bg-teal/10 text-teal text-xs font-bold hover:bg-teal/20 transition shrink-0">📝 سجّل</a>
                         )}
-                        {canManage && (
+                        {deleted ? (
+                          canManage && <button onClick={() => restoreAd(ad)} title="استرجاع" className="px-2 h-8 rounded-lg bg-teal/10 text-teal text-xs font-bold shrink-0">♻️ استرجاع</button>
+                        ) : (
                           <>
-                            <button onClick={() => setEditAd(ad)} title="تعديل" className="w-8 h-8 rounded-lg bg-surface-alt text-muted hover:text-text text-sm shrink-0">✏️</button>
-                            <button onClick={() => deleteAd(ad)} title="حذف" className="w-8 h-8 rounded-lg bg-red-bg text-red-fg hover:bg-red/20 text-sm shrink-0">🗑️</button>
+                            {canEdit && <button onClick={() => setEditAd(ad)} title="تعديل" className="w-8 h-8 rounded-lg bg-surface-alt text-muted hover:text-text text-sm shrink-0">✏️</button>}
+                            {(canManage || isAssigned) && <button onClick={() => deleteAd(ad)} title="حذف" className="w-8 h-8 rounded-lg bg-red-bg text-red-fg hover:bg-red/20 text-sm shrink-0">🗑️</button>}
                           </>
                         )}
                       </div>
@@ -515,7 +577,7 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
         </div>
       </div>
 
-      <AddAdModal open={showAddAd || !!editAd} campaign={campaign} editAd={editAd}
+      <AddAdModal open={showAddAd || !!editAd} campaign={campaign} editAd={editAd} userName={userName}
         onClose={() => { setShowAddAd(false); setEditAd(null); }}
         onSaved={() => { reload(); onChanged?.(); }} />
     </div>
@@ -523,24 +585,44 @@ function CampaignDetail({ campaign, userName, canManage, canViewCost, onClose, o
 }
 
 // ── Campaign Card ──────────────────────────────────────────────
-function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete, onToggleActive }) {
-  const disabled = c.is_active === false;
+function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onToggleActive }) {
+  const disabled = isPaused(c);
   return (
-    <div className={'bg-surface border rounded-2xl p-4 cursor-pointer transition-colors ' + (disabled ? 'border-border opacity-60' : 'border-border hover:border-teal')} onClick={() => onSelect(c)}>
+    <div className={'bg-surface border rounded-2xl p-4 cursor-pointer transition-colors ' + (disabled ? 'border-border opacity-75' : 'border-border hover:border-teal')} onClick={() => onSelect(c)}>
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
-          <p className="font-bold text-text text-sm truncate">{disabled && '🚫 '}{c.name}</p>
+          <p className="font-bold text-text text-sm truncate">{c.name}</p>
           <p className="text-xs text-muted mt-0.5">{c.team}{c.manager_name ? ` · 🎯 ${c.manager_name}` : ''}</p>
         </div>
-        <StatusBadge status={c.status} />
+        <StatusBadge status={disabled && c.status === 'active' ? 'paused' : c.status} />
       </div>
       <div className="flex items-center gap-3 text-xs text-muted">
         <span>{c.channel_type === 'page' ? '📱' : '💬'} {c.channel_name || '—'}</span>
         <span className="mr-auto">{fmtDate(c.created_at)}</span>
       </div>
+      {disabled && (
+        <p className="mt-1.5 text-[11px] font-semibold text-amber-fg">⏸️ أُوقفت: {c.paused_at ? fmtDate(c.paused_at) : 'التاريخ غير مسجّل (أُوقفت قبل تفعيل التسجيل)'}</p>
+      )}
+      {/* الحملة الشغّالة: أرقام اليوم من برا بلا فتحها (طلب حسام v2) */}
+      {!disabled && (
+        <div className="mt-3 rounded-xl bg-teal/5 border border-teal/20 p-2 grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-black text-text">{fmtNum(c._todayMessages)}</p><p className="text-[10px] text-muted">💬 رسائل اليوم</p></div>
+          <div><p className="text-sm font-black text-teal">{fmtNum(c._todayConfirmations)}</p><p className="text-[10px] text-muted">✅ تأكيدات اليوم</p></div>
+          {canViewCost
+            ? <div><p className="text-sm font-black text-amber-fg">{Number(c.daily_budget_try) > 0 ? fmtTRY(c.daily_budget_try) : '—'}</p><p className="text-[10px] text-muted">💰 التكلفة اليومية</p></div>
+            : <div><p className="text-sm font-black text-amber-fg">{c._todayMessages > 0 ? Math.round((c._todayConfirmations / c._todayMessages) * 100) : 0}%</p><p className="text-[10px] text-muted">📈 تحويل اليوم</p></div>}
+        </div>
+      )}
+      {!disabled && canViewCost && (Number(c.cost_per_message_try) > 0 || (Number(c.daily_budget_try) > 0 && c._todayConfirmations > 0)) && (
+        <p className="mt-1.5 text-[11px] text-muted">
+          {Number(c.cost_per_message_try) > 0 && <>💬 تكلفة الرسالة: <b className="text-text">{fmtTRY(c.cost_per_message_try)}</b></>}
+          {Number(c.cost_per_message_try) > 0 && Number(c.daily_budget_try) > 0 && c._todayConfirmations > 0 && ' · '}
+          {Number(c.daily_budget_try) > 0 && c._todayConfirmations > 0 && <>✅ تكلفة التأكيد اليوم: <b className="text-amber-fg">{fmtTRY(Number(c.daily_budget_try) / c._todayConfirmations)}</b></>}
+        </p>
+      )}
       <div className="mt-3 pt-3 border-t border-border grid grid-cols-3 gap-2 text-center">
         <div><p className="text-xs font-bold text-text">{fmtNum(c._ads)}</p><p className="text-[10px] text-muted">إعلانات</p></div>
-        <div><p className="text-xs font-bold text-teal">{fmtNum(c._purchases)}</p><p className="text-[10px] text-muted">مشتريات</p></div>
+        <div><p className="text-xs font-bold text-teal">{fmtNum(c._purchases)}</p><p className="text-[10px] text-muted">مشتريات (الكل)</p></div>
         {canViewCost
           ? <div><p className="text-xs font-bold text-amber-fg">{fmtUSD(c.cost_usd)}</p><p className="text-[10px] text-muted">تكلفة</p></div>
           : <div><p className="text-xs font-bold text-text">{fmtNum(c._messages)}</p><p className="text-[10px] text-muted">رسائل</p></div>}
@@ -556,9 +638,7 @@ function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete, o
           {canManage && (
             <span className="flex gap-3">
               <button onClick={e => { e.stopPropagation(); onEdit(c); }} className="text-[11px] text-teal font-semibold hover:underline">✏️ تعديل</button>
-              <button onClick={e => { e.stopPropagation(); onToggleActive?.(c); }} className="text-[11px] text-muted font-semibold hover:underline">{disabled ? '♻️ تفعيل' : '🚫 تعطيل'}</button>
-              <button onClick={e => { e.stopPropagation(); onDelete(c); }} className="text-[11px] text-red-fg font-semibold hover:underline">🗑️ حذف</button>
-            </span>
+              <button onClick={e => { e.stopPropagation(); onToggleActive?.(c); }} className="text-[11px] text-muted font-semibold hover:underline">{disabled ? '▶️ تشغيل' : '⏸️ إيقاف'}</button>            </span>
           )}
         </div>
       )}
@@ -568,7 +648,7 @@ function CampaignCard({ c, canViewCost, canManage, onSelect, onEdit, onDelete, o
 
 // ── Manager dashboard (overview across all campaigns) ──────────
 function CampaignsDashboard({ campaigns, canViewCost }) {
-  const active = campaigns.filter(c => c.status === 'active');
+  const active = campaigns.filter(c => !isPaused(c));
   const totMsg = campaigns.reduce((s, c) => s + c._messages, 0);
   const totBuy = campaigns.reduce((s, c) => s + c._purchases, 0);
   const totCost = campaigns.reduce((s, c) => s + (Number(c.cost_usd) || 0), 0);
@@ -672,7 +752,7 @@ export default function CampaignsScreen() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
-  const [showDisabled, setShowDisabled] = useState(true);
+  const [showPaused, setShowPaused] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [selected, setSelected]   = useState(null);
@@ -687,21 +767,24 @@ export default function CampaignsScreen() {
       // للالتزام. (ad_daily_logs مهجور — التسجيل انتقل لشاشة «تقريري اليومي».)
       const [cmpRes, adsRes, rarRes, empRes, drRes] = await Promise.allSettled([
         supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
-        supabase.from('campaign_ads').select('id,campaign_id'),
+        supabase.from('campaign_ads').select('id,campaign_id,deleted_at'),
         // على دفعات — نتائج الإعلانات تتراكم يومياً وتتجاوز 1000 صف.
-        fetchAllRows(() => supabase.from('report_ad_results').select('campaign_id,messages,confirmations')),
+        fetchAllRows(() => supabase.from('report_ad_results').select('report_id,campaign_id,messages,confirmations')),
         supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name'),
-        supabase.from('daily_reports').select('employee_name').eq('report_date', today),
+        supabase.from('daily_reports').select('id,employee_name').eq('report_date', today),
       ]);
 
       let cmps = [];
       if (cmpRes.status === 'fulfilled' && !cmpRes.value.error) cmps = cmpRes.value.data || [];
       const ads  = (adsRes.status === 'fulfilled' && !adsRes.value.error) ? adsRes.value.data || [] : [];
       const rar  = (rarRes.status === 'fulfilled') ? rarRes.value || [] : [];
-      const reportedToday = new Set(((drRes.status === 'fulfilled' && !drRes.value.error) ? drRes.value.data || [] : []).map(r => r.employee_name));
+      const todayReports = (drRes.status === 'fulfilled' && !drRes.value.error) ? drRes.value.data || [] : [];
+      const reportedToday = new Set(todayReports.map(r => r.employee_name));
+      const todayStats = todayStatsByCampaign(rar, new Set(todayReports.map(r => r.id)));
       if (empRes.status === 'fulfilled' && !empRes.value.error) setEmployees(empRes.value.data || []);
 
-      const adCount = {}; ads.forEach(a => { adCount[a.campaign_id] = (adCount[a.campaign_id] || 0) + 1; });
+      // عدّاد الإعلانات = الظاهرة فقط (المحذوف ناعماً لا يُعدّ، ونتائجه تبقى بالمجاميع).
+      const adCount = {}; ads.forEach(a => { if (!a.deleted_at) adCount[a.campaign_id] = (adCount[a.campaign_id] || 0) + 1; });
       const byId = {};
       rar.forEach(l => {
         if (!byId[l.campaign_id]) byId[l.campaign_id] = { messages: 0, purchases: 0 };
@@ -721,66 +804,50 @@ export default function CampaignsScreen() {
           _ads: adCount[c.id] || 0,
           _messages:  byId[c.id]?.messages  || 0,
           _purchases: byId[c.id]?.purchases || 0,
+          _todayMessages:      todayStats[c.id]?.messages || 0,
+          _todayConfirmations: todayStats[c.id]?.confirmations || 0,
           _assignedCount: assigned.length,
           _loggedToday: assigned.filter(n => reportedToday.has(n)).length,
         };
       });
 
-      // الموظفون (غير المدراء) ما بيشوفوا المعطّلة أبداً — بغض النظر عن فلتر
-      // «إظهار المعطّلة» (هو خاص بشاشة المدير فقط). المدراء يشوفوا الكل
-      // افتراضياً (showDisabled=true) لحتى الحملة المعطّلة تضل ظاهرة عندهم.
+      // الموظفون (غير المدراء) ما بيشوفوا الموقوفة أبداً. المدراء يشوفوا الكل:
+      // الشغّالة بالقائمة الرئيسية والموقوفة بقسم «الحملات الموقوفة» (v2).
       if (!canManage) {
-        enriched = enriched.filter(c => c.is_active !== false && (c.assigned_to || []).includes(userName));
-      } else if (!showDisabled) {
-        enriched = enriched.filter(c => c.is_active !== false);
+        enriched = enriched.filter(c => !isPaused(c) && (c.assigned_to || []).includes(userName));
       }
 
       setCampaigns(enriched);
     } catch (e) {
       setError(e?.message || 'تعذّر تحميل البيانات');
     } finally { setLoading(false); }
-  }, [canManage, userName, showDisabled]);
+  }, [canManage, userName]);
 
   useEffect(() => { load(); }, [load]);
 
-  // حملة لها تاريخ مبيعات (report_ad_results، FK=RESTRICT) → تعطيل ناعم يحفظ
-  // التاريخ. حملة فارغة (خطأ) → حذف نهائي مع تنظيف الأبناء.
-  const deleteCampaign = async (c) => {
-    const { count } = await supabase.from('report_ad_results')
-      .select('id', { count: 'exact', head: true }).eq('campaign_id', c.id);
-    if (count && count > 0) {
-      if (!window.confirm(`«${c.name}» لها ${count} تسجيل مبيعات — لا تُحذف (نحفظ التاريخ). تعطيلها وإخفاؤها؟`)) return;
-      const { error } = await supabase.from('campaigns').update({ is_active: false }).eq('id', c.id);
-      if (error) { alert('فشل التعطيل: ' + error.message); return; }
-      load(); return;
-    }
-    if (!window.confirm(`حذف حملة "${c.name}" نهائياً مع إعلاناتها؟ (لا يوجد لها تسجيلات مبيعات)`)) return;
-    await supabase.from('report_ad_results').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('campaign_ads').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('ad_daily_logs').delete().eq('campaign_id', c.id).then(() => {}, () => {});
-    await supabase.from('daily_reports').update({ campaign1_id: null }).eq('campaign1_id', c.id).then(() => {}, () => {});
-    await supabase.from('daily_reports').update({ campaign2_id: null }).eq('campaign2_id', c.id).then(() => {}, () => {});
-    const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
-    if (error) {
-      await supabase.from('campaigns').update({ is_active: false }).eq('id', c.id);
-      alert('تعذّر الحذف النهائي — عُطّلت الحملة بدلاً منه. (' + error.message + ')');
-    }
-    load();
-  };
+  // لا حذف للحملات من التطبيق (قرار حسام، 15 أكتوبر 2026): اللوحة للتحليل والمراقبة؛
+  // الحملة تُفتح/تُحذف بمدير إعلانات ميتا. هنا: إنشاء (للإسناد) + تعديل + إيقاف/تشغيل فقط.
 
   // تعطيل / إعادة تفعيل حملة (للمدراء) — is_active هو آلية الإخفاء الفعلية.
   // نزامن status معها بالاتجاهين حتى ما يرجع يصير تضارب متل قبل (حملة
   // is_active=false لكن status لسا «نشطة» بالبادج، أو العكس).
   const toggleCampaignActive = async (c) => {
-    const willBeActive = c.is_active === false;
+    const willBeActive = isPaused(c);
+    if (!willBeActive && !window.confirm(`إيقاف «${c.name}»؟ تنتقل لقسم «الحملات الموقوفة» مع تاريخ الوقف، وتختفي من عند الموظفات.`)) return;
+    // paused_at = تاريخ الوقف (يظهر بقسم الموقوفة)، يُمسح عند إعادة التشغيل.
     const { error } = await supabase.from('campaigns')
-      .update({ is_active: willBeActive, status: willBeActive ? 'active' : 'paused' }).eq('id', c.id);
+      .update({ is_active: willBeActive, status: willBeActive ? 'active' : 'paused', paused_at: willBeActive ? null : new Date().toISOString() }).eq('id', c.id);
     if (error) { alert('فشل: ' + error.message); return; }
     load();
   };
 
-  const filtered = filterStatus === 'all' ? campaigns : campaigns.filter(c => c.status === filterStatus);
-  const activeCnt = campaigns.filter(c => c.status === 'active').length;
+  // v2: الشغّالة بالقائمة الرئيسية، والموقوفة (is_active=false أو حالة متوقفة/منتهية)
+  // بقسم منفصل «الحملات الموقوفة» مرتّبة بتاريخ الوقف (الأحدث أولاً).
+  const running = campaigns.filter(c => !isPaused(c));
+  const pausedList = campaigns.filter(c => isPaused(c))
+    .sort((a, b) => (b.paused_at || '').localeCompare(a.paused_at || '') || (b.created_at || '').localeCompare(a.created_at || ''));
+  const filtered = filterStatus === 'all' ? running : running.filter(c => (Number(c.daily_budget_try) > 0) === (filterStatus === 'budget'));
+  const activeCnt = running.length;
   const totPurchases = campaigns.reduce((s, c) => s + c._purchases, 0);
   const totCost = campaigns.reduce((s, c) => s + (Number(c.cost_usd) || 0), 0);
   // حملات دخلت تلقائياً من مزامنة ميتا (sync-meta-insights) — ميتا ما بتعرف
@@ -828,40 +895,62 @@ export default function CampaignsScreen() {
           : <StatCard label="إجمالي الرسائل" value={loading ? '—' : fmtNum(campaigns.reduce((s, c) => s + c._messages, 0))} tone="amber" />}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {[['all','الكل'],['active','🟢 مفعّلة'],['paused','⏸️ متوقفة'],['ended','🏁 منتهية']].map(([k, label]) => (
-          <button key={k} onClick={() => setFilterStatus(k)}
-            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' + (filterStatus === k ? 'bg-teal text-navy' : 'bg-surface border border-border text-muted hover:text-text')}>
-            {label}
-          </button>
-        ))}
-        {canManage && (
-          <button onClick={() => setShowDisabled(v => !v)}
-            className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ms-auto ' + (showDisabled ? 'bg-red-fg text-white' : 'bg-surface border border-border text-muted hover:text-text')}>
-            🚫 إظهار المعطّلة {showDisabled ? '✓' : ''}
-          </button>
-        )}
-      </div>
+      {/* Filter tabs — للحملات الشغّالة (الموقوفة بقسمها بالأسفل) */}
+      {canViewCost && (
+        <div className="flex gap-2 flex-wrap">
+          {[['all', 'كل الشغّالة'], ['budget', '💰 بميزانية يومية'], ['nobudget', '⚠️ بلا ميزانية']].map(([k, label]) => (
+            <button key={k} onClick={() => setFilterStatus(k)}
+              className={'px-4 py-2 rounded-xl text-xs font-bold transition-colors ' + (filterStatus === k ? 'bg-teal text-navy' : 'bg-surface border border-border text-muted hover:text-text')}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <Card>
-        <CardTitle>{canManage ? 'قائمة الحملات' : 'الحملات المكلّف بها'}</CardTitle>
+        <CardTitle>{canManage ? '🟢 الحملات الشغّالة' : 'الحملات المكلّف بها'}</CardTitle>
         <CardSubtitle>اضغط على الحملة لرؤية الإعلانات والتسجيل اليومي</CardSubtitle>
         <div className="mt-4">
           {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
             : error ? <p className="text-sm text-red-500 py-2">⚠️ {error}</p>
-            : filtered.length === 0 ? <EmptyState description={canManage ? 'لا توجد حملات بعد — أنشئ أول حملة' : 'لا توجد حملات مكلّف بها حالياً'} />
+            : filtered.length === 0 ? <EmptyState description={canManage ? 'لا توجد حملات شغّالة — أنشئ حملة أو شغّل وحدة من الموقوفة' : 'لا توجد حملات مكلّف بها حالياً'} />
             : (
               <div className="grid sm:grid-cols-2 gap-3">
                 {filtered.map(c => (
                   <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
                     onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }}
-                    onDelete={deleteCampaign} onToggleActive={toggleCampaignActive} />
+                    onToggleActive={toggleCampaignActive} />
                 ))}
               </div>
             )}
         </div>
       </Card>
+
+      {/* الحملات الموقوفة — لا تختفي، بقسم لحالها مع تاريخ الوقف (v2) */}
+      {canManage && !loading && !error && (
+        <Card>
+          <button onClick={() => setShowPaused(v => !v)} className="w-full flex items-center justify-between gap-2 text-start">
+            <span>
+              <CardTitle>⏸️ الحملات الموقوفة ({pausedList.length})</CardTitle>
+              <CardSubtitle>بياناتها ونتائجها محفوظة · مخفية عن الموظفات · اضغط «▶️ تشغيل» لإرجاعها</CardSubtitle>
+            </span>
+            <span className="text-muted text-sm shrink-0">{showPaused ? '▲' : '▼'}</span>
+          </button>
+          {showPaused && (
+            <div className="mt-4">
+              {pausedList.length === 0 ? <EmptyState description="لا توجد حملات موقوفة" /> : (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {pausedList.map(c => (
+                    <CampaignCard key={c.id} c={c} canViewCost={canViewCost} canManage={canManage}
+                      onSelect={setSelected} onEdit={(cc) => { setEditCampaign(cc); setShowCreate(true); }}
+                      onToggleActive={toggleCampaignActive} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {canManage && (
         <CampaignModal

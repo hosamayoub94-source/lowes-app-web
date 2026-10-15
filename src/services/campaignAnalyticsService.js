@@ -6,6 +6,7 @@
 // أسماء الموظفين نصّية (لا FK). RLS مفتوح + PIN-auth.
 // =============================================================
 import { supabase } from './supabase';
+import { budgetSpendTry, costPerConfirmation, complianceDetail, isPaused } from './mediaBuyerMetrics';
 
 // ── تواريخ محلية (لا انزياح UTC) ──────────────────────────────
 export function todayISO() {
@@ -54,6 +55,8 @@ export async function getMyCampaignsAndAds(userName) {
       .from('campaign_ads')
       .select('id, campaign_id, ad_name, ad_image_url, status, sort_order')
       .in('campaign_id', ids)
+      // v2: الإعلان المحذوف ناعماً يختفي من عند الموظفة ويبقى بنتائجه للميديا باير
+      .is('deleted_at', null)
       .order('sort_order', { ascending: true });
     ads = (data ?? []).filter(a => a.status !== 'inactive');
   }
@@ -290,8 +293,8 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
 
   const [repRes, campRes, adRes, profRes] = await Promise.all([
     repQ,
-    supabase.from('campaigns').select('id, name, team, is_active, members, manager_name, budget_usd, spend, spend_currency'),
-    supabase.from('campaign_ads').select('id, campaign_id, ad_name, ad_image_url'),
+    supabase.from('campaigns').select('id, name, team, status, is_active, members, manager_name, budget_usd, spend, spend_currency, daily_budget_try, cost_per_message_try, paused_at, created_at'),
+    supabase.from('campaign_ads').select('id, campaign_id, ad_name, ad_image_url, deleted_at, deleted_by'),
     supabase.from('profiles').select('employee_name, team, role_type, is_active').eq('is_active', true),
   ]);
 
@@ -427,6 +430,12 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     spendCur:    campSpend[c.id]?.cur || null,
     reach:       metaByCampaign[c.id]?.reach || 0,
     roas:        (campSpend[c.id]?.spend > 0 && campSpend[c.id]?.cur) ? +(((c.sales[campSpend[c.id].cur] || 0) / campSpend[c.id].spend)).toFixed(2) : null,
+    // v2: الميزانية اليومية (₺) × أيام التشغيل بالفترة ⇒ تكلفة التأكيد بالليرة التركية
+    dailyBudgetTry:    Number(campById[c.id]?.daily_budget_try) || 0,
+    costPerMessageTry: Number(campById[c.id]?.cost_per_message_try) || 0,
+    budgetSpendTry:    budgetSpendTry(campById[c.id], fromD, toD, today),
+    costPerConfTry:    costPerConfirmation(budgetSpendTry(campById[c.id], fromD, toD, today), c.confirmations),
+    paused:            isPaused(campById[c.id]),
   })).sort((a, b) => b.sales.usd + b.sales.try + b.sales.syp - (a.sales.usd + a.sales.try + a.sales.syp));
 
   // ── لكل إعلان ──
@@ -443,6 +452,8 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
   const perAd = Object.values(aAgg).map(a => ({
     ...a,
     ad_name:      adById[a.id]?.ad_name || '—',
+    deletedAt:    adById[a.id]?.deleted_at || null,
+    deletedBy:    adById[a.id]?.deleted_by || null,
     image:        adById[a.id]?.ad_image_url || null,
     campaign_name: campById[adById[a.id]?.campaign_id]?.name || '—',
     convRate:     a.messages > 0 ? Math.round((a.confirmations / a.messages) * 100) : 0,
@@ -503,6 +514,23 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
     expected:      [...expected],
     reportedToday: [...reportedToday],
     missingToday:  [...expected].filter(n => !reportedToday.has(n)),
+    // v2: بالأسماء — مين ملتزمة ومين لا، وكم يوم سجّلت من أيام الفترة
+    detail:        complianceDetail({ expected: [...expected], reports, from: fromD, to: toD, today }),
+  };
+
+  // ── v2: إنفاق الميزانيات اليومية (₺) وتكلفة التأكيد الإجمالية ──
+  // التأكيدات = تأكيدات الإعلانات فقط (adCount) — زبون قديم/مصدر آخر ليست نتيجة إنفاق.
+  let budgetTotalTry = 0;
+  for (const c of teamCampaigns) {
+    if (campaignId && c.id !== campaignId) continue;
+    budgetTotalTry += budgetSpendTry(c, fromD, toD, today);
+  }
+  budgetTotalTry = +budgetTotalTry.toFixed(2);
+  const budgetSummary = {
+    spendTry:        budgetTotalTry,
+    adConfirmations: adCount,
+    costPerConfTry:  costPerConfirmation(budgetTotalTry, adCount),
+    campaignsWithBudget: teamCampaigns.filter(c => Number(c.daily_budget_try) > 0).length,
   };
 
   // ── ملخّص ميتا (إنفاق + ROAS) ──
@@ -586,7 +614,7 @@ export async function loadCampaignAnalytics({ from, to, team = null, campaignId 
 
   return {
     range: { from: fromD, to: toD },
-    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary, recentNotes, sourceDetail,
+    totals, perCampaign, perAd, perEmployee, sourceSplit, dailyTrend, compliance, meta, spendSummary, recentNotes, sourceDetail, budgetSummary,
     filters: {
       campaigns: campaigns.filter(c => c.is_active !== false).map(c => ({ id: c.id, name: c.name })),
       teams: [...new Set(campaigns.map(c => c.team).filter(Boolean))],
