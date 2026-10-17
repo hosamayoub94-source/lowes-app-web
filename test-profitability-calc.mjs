@@ -153,8 +153,9 @@ eq(q.company.netProfit, sy(q).netProfit + tr(q).netProfit + ua(q).netProfit - 6,
 r = run([R({ items: [{ name: 'منتج مجهول', qty: 2 }] }), R({ items: [] }), R({ status: 'settled', delivered_at: null, delivery_basis: 'unknown', amount: 1250, currency: 'SYP', order_date: '2026-09-09T10:00:00+03:00' })]);
 ok(hasIssue(tr(r).quality, 'unmapped'), '16: اسم غير موحّد'); ok(hasIssue(tr(r).quality, 'missing_econ'), '16: منتج بلا سعر/تكلفة'); ok(hasIssue(tr(r).quality, 'no_items'), '16: مسلَّم بلا أصناف'); ok(hasIssue(tr(r).quality, 'settled_review'), '16: تسوية للمراجعة');
 eq(r.unmapped.length, 1, '16: القائمة غير الموحّدة'); eq(tr(r).unpricedUnits, 2, '16: القطع الناقصة'); eq(tr(r).revenue, 0, '16: الناقص لا إيراد ولا تكلفة صفرية'); eq(tr(r).settledCollected.SYP, 1250, '16: التسوية بعملتها');
-r = run(three); ok(hasIssue(r.company.quality, 'estimates') && r.company.quality.status === 'estimated', 'تقدير الوحدة = تقديري');
-r = run(three, { expenses: [E('all', 'حملات إعلانية', 1), E('all', 'أجور الشحن', 1)] });
+r = run(three); ok(hasIssue(r.company.quality, 'estimates'), 'تقدير الوحدة = تقديري'); ok(hasIssue(r.company.quality, 'legacy_unified_price') && hasIssue(r.company.quality, 'packaging_missing'), 'سعر موحّد قديم + تغليف ناقص يظهران');
+const MPF = (market) => ({ item_name: 'سيروم أ', market, effective_from: '2026-06-01', sale_price_usd: 20, cost_usd: null, shipping_cost_usd: null });
+r = run(three, { marketPriceRows: ['syria', 'turkey', 'uae'].map(MPF), expenses: [E('all', 'حملات إعلانية', 1), E('all', 'أجور الشحن', 1), E('all', 'تغليف', 1)] });
 ok(r.company.quality.status === 'final', 'بلا نواقص ولا تقديرات = نهائي (' + r.company.quality.issues.map((i) => i.code) + ')');
 const hl = [...Array.from({ length: 6 }, (_, i) => ({ item_name: `P${i}`, effective_from: '2026-08-01', sale_price_usd: 8, cost_usd: 4, ad_cost_usd: 0, shipping_cost_usd: 0, source: 'legacy_backfill' })), { item_name: 'جل', effective_from: '2026-10-01', sale_price_usd: 1, cost_usd: 1, ad_cost_usd: 0, shipping_cost_usd: 0, source: 'legacy_backfill' }];
 r = computeMonthly({ nameMapRows: [], historyRows: hl, expenses: [], month: '2026-10', orders: [R({ delivered_at: '2026-10-03T10:00:00+03:00', items: [{ name: 'P0', qty: 2 }, { name: 'جل', qty: 1 }] })] });
@@ -183,6 +184,64 @@ eq(mism, 0, 'نموذج مرجعي: 200 سيناريو (تسليم بشهر، se
 
 const b = monthBounds('2026-12'); ok(b.from === '2026-12-01T00:00:00+03:00' && b.to === '2027-01-01T00:00:00+03:00', 'حدود ديسمبر');
 eq(run([], {}, '2026-11').company.netProfit, 0, 'شهر فارغ = 0'); eq(run([], { expenses: [{ month: '2026-11-01', market: 'all', category: 'رواتب', amount_usd: 100 }] }, '2026-11').company.netProfit, -100, 'مصاريف بلا مبيعات = خسارة');
+
+// ════ أسعار حسب السوق (المرحلة الثانية) ════
+const MP2 = (market, from, price, cost = null, ship = null, item = 'سيروم أ') => ({ item_name: item, market, effective_from: from, sale_price_usd: price, cost_usd: cost, shipping_cost_usd: ship });
+const rows3 = [MP2('syria', '2026-06-01', 25), MP2('turkey', '2026-06-01', 30), MP2('uae', '2026-06-01', 40)];
+const m1 = run(three, { marketPriceRows: rows3 });
+eq(sy(m1).revenue, 25, 'M1: سعر سوريا'); eq(tr(m1).revenue, 30, 'M1: سعر تركيا'); eq(ua(m1).revenue, 40, 'M1: سعر الإمارات'); eq(m1.company.revenue, 95, 'M1: إيراد الشركة = مجموع الأسواق');
+ok(sy(m1).productCost === 8 && tr(m1).productCost === 8, 'M1: التكلفة الموحّدة لم تتأثر بسعر البيع');
+// M2: تغيير سعر سوريا لا يغيّر تركيا/الإمارات
+const rowsSyChanged = [MP2('syria', '2026-06-01', 99), MP2('turkey', '2026-06-01', 30), MP2('uae', '2026-06-01', 40)];
+const m2 = run(three, { marketPriceRows: rowsSyChanged });
+eq(sy(m2).revenue, 99, 'M2: سوريا تغيّر'); eq(tr(m2).revenue, tr(m1).revenue, 'M2: تركيا ثابتة'); eq(ua(m2).revenue, ua(m1).revenue, 'M2: الإمارات ثابتة');
+// M3: سعر تشرين الأول لا يغيّر أيلول (نتائج أيلول متطابقة حرفياً)
+const octRows = [...rows3, MP2('syria', '2026-10-01', 50), MP2('turkey', '2026-10-01', 31)];
+const sepBefore = run(three, { marketPriceRows: rows3 }, '2026-09'), sepAfter = run(three, { marketPriceRows: octRows }, '2026-09');
+ok(JSON.stringify(sepBefore.marketSummary) === JSON.stringify(sepAfter.marketSummary) && JSON.stringify(sepBefore.company) === JSON.stringify(sepAfter.company), 'M3: أيلول متطابق حرفياً قبل/بعد إضافة سعر تشرين الأول');
+const octThree = three.map((o) => ({ ...o, delivered_at: '2026-10-08T10:00:00+03:00', order_date: '2026-10-05T10:00:00+03:00' }));
+const o1 = run(octThree, { marketPriceRows: octRows }, '2026-10');
+eq(sy(o1).revenue, 50, 'M3: تشرين الأول يأخذ سعره الجديد'); eq(tr(o1).revenue, 31, 'M3: تركيا تشرين الأول'); eq(ua(o1).revenue, 40, 'M3: الإمارات ترث آخر سعر لها (لم يتغير)');
+// M5: التكلفة التاريخية لا تتغير بتغيير سعر البيع وحده
+const costRows = [MP2('syria', '2026-06-01', 25, 5), MP2('syria', '2026-10-01', 50, null)];
+const c9 = run([R({ market: 'syria' })], { marketPriceRows: costRows }, '2026-09');
+const c10 = run([R({ market: 'syria', order_date: '2026-10-05T10:00:00+03:00', delivered_at: '2026-10-08T10:00:00+03:00' })], { marketPriceRows: costRows }, '2026-10');
+eq(sy(c9).productCost, 5, 'M5: تكلفة أيلول = تكلفة السوق 5'); eq(sy(c10).productCost, 5, 'M5: تغيير سعر تشرين الأول وحده لم يغيّر التكلفة'); eq(sy(c10).revenue, 50, 'M5: والسعر الجديد 50');
+// M6: سوق بلا سعر لا يُحسب بسعر سوق آخر
+const NI = 'صنف-جديد-ZZ';
+const only = [MP2('turkey', '2026-06-01', 30, 10, null, NI)];
+const sOrd = R({ market: 'syria', items: [{ name: NI, qty: 2 }] }), tOrd = R({ market: 'turkey', items: [{ name: NI, qty: 2 }] });
+const m6 = run([sOrd, tOrd], { marketPriceRows: only });
+eq(sy(m6).revenue, 0, 'M6: سوريا بلا سعر → لا إيراد ولا استعارة من تركيا'); eq(sy(m6).unpricedUnits, 2, 'M6: القطع الناقصة تُعدّ'); ok(hasIssue(sy(m6).quality, 'missing_econ'), 'M6/7: تحذير الناقص ظاهر');
+eq(tr(m6).revenue, 60, 'M6: تركيا بسعرها 2×30'); eq(tr(m6).productCost, 20, 'M6: وتكلفة السوق 10');
+const ptRow = m6.priceTable.find((x) => x.name === NI);
+ok(!!ptRow && ptRow.markets.syria.status === 'missing' && ptRow.markets.uae.status === 'missing' && ['current', 'historical'].includes(ptRow.markets.turkey.status), 'M7: جدول الأسعار يوسم الناقص والمعتمد');
+// M6b: سعر موحّد قديم يظهر موسوماً لا صامتاً ولا من سوق آخر
+const m6b = run([R({ market: 'syria' })], { marketPriceRows: [MP2('turkey', '2026-06-01', 30)] });
+eq(sy(m6b).revenue, 20, 'M6b: سوريا تأخذ السعر الموحّد القديم (20) لا سعر تركيا (30)'); ok(hasIssue(sy(m6b).quality, 'legacy_unified_price'), 'M6b: ويُحذَّر منه'); ok(m6b.products[0].priceBasis === 'legacy_unified', 'M6b: أساس السعر موسوم');
+// حالة السعر: تاريخي/حالي
+const pAug = run(three, { marketPriceRows: rows3, nowMonth: '2026-10-01' }, '2026-09'); ok(pAug.products.every((p) => p.priceStatus === 'historical'), 'M8: سعر شهر سابق = تاريخي موثّق');
+const pNow = run(octThree, { marketPriceRows: rows3, nowMonth: '2026-10-01' }, '2026-10'); ok(pNow.products.every((p) => p.priceStatus === 'current'), 'M8: سعر الشهر الحالي = حالي');
+// المصاريف الفعلية لا تُحتسب مرتين + التغليف
+const chans = [{ id: 'chS', market: 'syria', kind: 'expense', name_ar: 'ق' }];
+const packEntry = { id: 'a1', entry_type: 'expense', category: 'تغليف', amount_usd: 5, amount_try: 0, amount_syp: 0, channel_id: 'chS', is_void: false };
+const k1 = run([R({ market: 'syria' })], { marketPriceRows: rows3, accountingEntries: [packEntry], channels: chans });
+eq(sy(k1).expensesByCategory['تغليف'], 5, 'P1: تغليف مسجّل بالمحاسبة يظهر ضمن الفعلي'); ok(!hasIssue(k1.company.quality, 'packaging_missing'), 'P1: لا تحذير ناقص حين يوجد قيد');
+const k2 = run([R({ market: 'syria' })], { marketPriceRows: rows3, accountingEntries: [packEntry], channels: chans, expenses: [E('syria', 'تغليف', 5, { accounting_entry_id: 'a1' })] });
+eq(sy(k2).expensesByCategory['تغليف'], 5, 'P2: المصروف اليدوي المربوط بالقيد لا يُحتسب ثانية'); ok(hasIssue(k2.company.quality, 'manual_duplicate'), 'P2: يُعلَن التجاهل');
+ok(hasIssue(run(three, { marketPriceRows: rows3 }).company.quality, 'packaging_missing'), 'P3: لا قيد ولا تكلفة وحدة → التغليف ناقص ظاهر');
+// المرتجع لا يضيف تغليفاً ولا يعدّل المخزون: مدخلات مجمَّدة بعمق
+const deepFreeze = (x) => { if (x && typeof x === 'object' && !Object.isFrozen(x)) { Object.freeze(x); Object.values(x).forEach(deepFreeze); } return x; };
+const retIn = deepFreeze({ orders: [R({ status: 'returned', delivered_before_return: true, return_at: '2026-09-20T10:00:00+03:00', restock_qty: 0, reserve_qty: 1, items: [{ name: 'Serum A', qty: 1 }] })], marketPriceRows: rows3 });
+let thrown = null, rr = null; try { rr = run(retIn.orders, { marketPriceRows: retIn.marketPriceRows }); } catch (e) { thrown = e; }
+ok(!thrown, 'S1: حساب المرتجع لا يعدّل أي مدخل (لا كتابة على حركات المخزون)'); ok(!!rr && tr(rr).returns.assumedRestockCost === 8, 'S1: الافتراض محاسبي فقط (assumedRestockCost=8)');
+ok(retIn.orders[0].restock_qty === 0, 'S1: restock_qty الأصلي لم يتغير');
+const retPack = run(retIn.orders, { marketPriceRows: rows3, accountingEntries: [packEntry], channels: chans });
+eq(tr(retPack).expensesByCategory['تغليف'] || 0, 0, 'P4: المرتجع لا يضيف تغليفاً من عنده'); eq(sy(retPack).expensesByCategory['تغليف'], 5, 'P4: التغليف الفعلي يُحتسب مرة واحدة فقط');
+// مجموع الأسواق = الشركة مع أسعار حسب السوق وقاعدة العملات
+const q2 = run(three, { marketPriceRows: rows3, expenses: [E('syria', 'تغليف', 2), E('all', 'رواتب', 3)], accountingEntries: [{ id: 'z1', entry_type: 'expense', category: 'أجور', amount_usd: 0, amount_try: 0, amount_syp: 500, channel_id: 'chS', is_void: false }], channels: chans, fxRates: [{ month: '2026-09-01', scope: 'all', currency: 'SYP', units_per_usd: 100, entered_at: '2026-10-01' }] });
+eq(q2.company.netProfit, sy(q2).netProfit + tr(q2).netProfit + ua(q2).netProfit - 3, 'M9: الشركة = Σ الأسواق − المشترك بعد تطبيق سعر الصرف المعتمد'); eq(sy(q2).expensesByCategory['أجور'], 5, 'M9: 500 SYP ÷ 100 = 5$');
+
 
 console.log(`\n${pass} نجح · ${fail} فشل`);
 process.exit(fail ? 1 : 0);

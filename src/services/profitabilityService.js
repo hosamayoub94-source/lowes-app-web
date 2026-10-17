@@ -24,7 +24,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   const { monthStart, from, to } = monthBounds(month || since || currentMonth());
   const nextStart = nextMonthStart(monthStart);
 
-  const [orders, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, failRes] = await Promise.all([
+  const [orders, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes, failRes] = await Promise.all([
     fetchAllRows(() => supabase.rpc('profitability_orders', { p_from: from, p_to: to })),
     fetchAllRows(() => supabase.from('accounting_entries')
       .select('id, entry_type, category, amount_usd, amount_try, amount_syp, channel_id, transfer_group, is_void, entry_date, book')
@@ -36,9 +36,10 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
     supabase.from('accounting_channels').select('id, name_ar, kind, market'),
     supabase.from('profitability_fx_rates').select('*').eq('month', monthStart).order('entered_at', { ascending: false }),
     supabase.from('profitability_month_closures').select('*').eq('month', monthStart).maybeSingle(),
+    supabase.from('product_market_prices').select('*').lte('effective_from', monthStart).order('effective_from', { ascending: false }),
     supabase.from('order_status_history_failures').select('id', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
   ]);
-  for (const res of [econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes]) if (res.error && !missingTable(res)) throw res.error;
+  for (const res of [econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes]) if (res.error && !missingTable(res)) throw res.error;
 
   const expenses = expensesRes.error ? [] : (expensesRes.data || []);
   const fxRates = fxRes.error ? [] : (fxRes.data || []);
@@ -49,6 +50,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
     currentRows: econRes.data || [],
     accountingEntries: entries,
     channels: channelsRes.data || [],
+    marketPriceRows: mktRes.error ? [] : (mktRes.data || []),
   });
   const closure = closureRes.error ? null : closureRes.data;
   const liveSnap = snapshotOf(result);
@@ -124,8 +126,20 @@ export async function saveEconomics(itemName, fields = {}) {
   const { data, error } = await supabase.rpc('profitability_save_economics', {
     p_item: itemName,
     p_price: pick('sale_price_usd'), p_cost: pick('cost_usd'),
-    p_ad: pick('ad_cost_usd'), p_ship: pick('shipping_cost_usd'),
+    p_ad: pick('ad_cost_usd'), p_ship: pick('shipping_cost_usd'), p_month: fields.month || null,
   });
   if (error) throw error;
+  return data;
+}
+
+/**
+ * سعر بيع (وتكلفة اختيارية) لمنتج في سوق ابتداءً من شهر. الشهر الحالي أو القادم فقط؛ إعادة حفظ الشهر نفسه تحدّث الصف نفسه.
+ * حقل null = يبقى كما هو (يرث من آخر صف سابق لنفس المنتج والسوق).
+ */
+export async function saveMarketPrice({ item, market, price = null, cost = null, ship = null, month = null, name = null }) {
+  const { data, error } = await supabase.rpc('profitability_save_market_price', {
+    p_item: item, p_market: market, p_price: price, p_cost: cost, p_ship: ship, p_month: month, p_name: name,
+  });
+  if (error) throw new Error(/past months/.test(error.message) ? 'لا يمكن تعديل شهر سابق — الأشهر الماضية لا تُعاد كتابتها' : /not allowed/.test(error.message) ? 'لا صلاحية لتعديل الأسعار' : error.message);
   return data;
 }

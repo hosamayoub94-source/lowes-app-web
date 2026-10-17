@@ -4,7 +4,7 @@
 // مع إدخال السعر/التكلفة/الإعلان/الشحن (يُحفظ ويُحسب فوراً).
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
-import { loadProfitability, saveEconomics, saveExpense, deleteExpense, saveFxRate, closeMonth, acknowledgeRetroDrift, setProductActive } from '@services/profitabilityService';
+import { loadProfitability, saveEconomics, saveMarketPrice, saveExpense, deleteExpense, saveFxRate, closeMonth, acknowledgeRetroDrift, setProductActive } from '@services/profitabilityService';
 import { DELIVERY_BASIS_LABELS, snapshotOf } from '@utils/profitabilityCalc';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
@@ -29,159 +29,115 @@ function StatCard({ icon, label, value, tone='navy' }) {
   );
 }
 
-function EconEditor({ p, onSave, onClose }) {
+// ───── محرّر الأسعار حسب السوق ─────
+// السعر مرتبط بالمنتج × السوق × شهر البدء. الماضي لا يُعاد كتابته، وسوق بلا سعر لا يستعير سعر سوق آخر.
+const MKTS = [['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا'], ['uae', '🇦🇪 الإمارات']];
+const PRICE_STATUS = {
+  current:        ['🟢 حالي', 'text-green-600'],
+  historical:     ['✅ موثّق', 'text-teal'],
+  legacy_unified: ['🟡 موحّد قديم', 'text-orange-600'],
+  missing:        ['🔴 ناقص', 'text-red-600'],
+};
+const thisMonth = () => new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 7);
+
+function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved }) {
   const toast = useToast();
-  const [f, setF] = useState({
-    sale_price_usd: p.price || '', cost_usd: p.cost || '',
-    ad_cost_usd: p.adRaw || '', shipping_cost_usd: p.shipRaw || '',
-  });
+  const cur = thisMonth();
+  const [startMonth, setStartMonth] = useState(cur);
+  const [q, setQ] = useState(focus || '');
+  const [showCost, setShowCost] = useState(false);
   const [busy, setBusy] = useState(false);
-  const set = (k, v) => setF(s => ({ ...s, [k]: v.replace(/[^\d.]/g, '') }));
-
-  const fields = [
-    ['sale_price_usd', '💵 سعر البيع'],
-    ['cost_usd',       '📦 تكلفة المنتج'],
-    ['ad_cost_usd',    '📣 إعلان/وحدة'],
-    ['shipping_cost_usd','🚚 شحن/وحدة'],
-  ];
-  const unitProfit = (Number(f.sale_price_usd)||0) - (Number(f.cost_usd)||0) - (Number(f.ad_cost_usd)||0) - (Number(f.shipping_cost_usd)||0);
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      await saveEconomics(p.name, {
-        sale_price_usd: Number(f.sale_price_usd)||0, cost_usd: Number(f.cost_usd)||0,
-        ad_cost_usd: Number(f.ad_cost_usd)||0, shipping_cost_usd: Number(f.shipping_cost_usd)||0,
-      });
-      onSave();
-    } catch (e) { toast.error(e.message || 'تعذّر الحفظ'); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4 bg-black/50" onClick={e=>e.target===e.currentTarget&&onClose()} dir="rtl">
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-2xl border border-border overflow-hidden">
-        <div className="px-4 py-3 bg-navy text-white">
-          <p className="font-bold text-sm">اقتصاديات: {p.name}</p>
-          <p className="text-[11px] text-white/70">بالدولار لكل وحدة · يسري من الشهر الحالي فقط، والأشهر السابقة لا تتغيّر</p>
-        </div>
-        <div className="p-4 space-y-2.5">
-          {fields.map(([k, label]) => (
-            <div key={k} className="flex items-center gap-2">
-              <label className="text-xs text-text flex-1">{label}</label>
-              <input value={f[k]} onChange={e=>set(k, e.target.value)} inputMode="decimal" placeholder="0"
-                className="w-24 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30" />
-            </div>
-          ))}
-          <div className={`text-center rounded-xl py-2 text-sm font-bold ${unitProfit>0?'bg-green-500/10 text-green-600':unitProfit<0?'bg-red-500/10 text-red-600':'bg-surface-alt text-muted'}`}>
-            ربح الوحدة: ${fmt(unitProfit)}
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إلغاء</button>
-            <button onClick={save} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 disabled:opacity-50">{busy?'جارٍ…':'حفظ'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// محرّر جماعي سريع — كل المنتجات بجدول واحد (يحلّ بطء الإدخال منتج-منتج)
-function BulkEconEditor({ products, onClose, onSaved }) {
-  const toast = useToast();
   const [rows, setRows] = useState(() => {
     const m = {};
-    products.forEach(p => { m[p.name] = {
-      sale_price_usd: p.price || '', cost_usd: p.cost || '',
-      ad_cost_usd: p.adRaw || '', shipping_cost_usd: p.shipRaw || '',
-    }; });
+    for (const t of table) {
+      for (const [mk] of MKTS) { const e = t.markets[mk]; m[`${t.key}|${mk}`] = { price: e.price > 0 ? String(e.price) : '', cost: e.costBasis === 'market' ? String(e.cost) : '' }; }
+      const anyCost = MKTS.map(([mk]) => t.markets[mk].cost).find((c) => c > 0);
+      m[`${t.key}|unified`] = { cost: anyCost ? String(anyCost) : '' };
+    }
     return m;
   });
   const [dirty, setDirty] = useState(() => new Set());
-  const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState('');
-
-  const set = (name, k, v) => {
-    setRows(s => ({ ...s, [name]: { ...s[name], [k]: v.replace(/[^\d.]/g, '') } }));
-    setDirty(d => new Set(d).add(name));
-  };
-  const unit = (r) => (Number(r.sale_price_usd)||0) - (Number(r.cost_usd)||0) - (Number(r.ad_cost_usd)||0) - (Number(r.shipping_cost_usd)||0);
+  const set = (id, k, v) => { setRows((s) => ({ ...s, [id]: { ...s[id], [k]: v.replace(/[^\d.]/g, '') } })); setDirty((d) => new Set(d).add(id)); };
 
   const saveAll = async () => {
     if (!dirty.size) { onClose(); return; }
+    if (startMonth < cur) { toast.error('شهر البدء لا يمكن أن يكون ماضياً — الأشهر السابقة لا تُعاد كتابتها'); return; }
     setBusy(true);
-    let done = 0, fail = 0;
-    for (const name of dirty) {
-      const r = rows[name];
+    let done = 0, fail = 0, firstErr = '';
+    const byKey = new Map(table.map((t) => [t.key, t]));
+    for (const id of dirty) {
+      const [key, mk] = id.split('|'); const t = byKey.get(key); const r = rows[id];
       try {
-        await saveEconomics(name, {
-          sale_price_usd: Number(r.sale_price_usd)||0, cost_usd: Number(r.cost_usd)||0,
-          ad_cost_usd: Number(r.ad_cost_usd)||0, shipping_cost_usd: Number(r.shipping_cost_usd)||0,
-        });
+        if (mk === 'unified') {
+          if (r.cost !== '') await saveEconomics(t.name, { cost_usd: Number(r.cost), month: `${startMonth}-01` });
+        } else {
+          const price = r.price === '' ? null : Number(r.price), cost = r.cost === '' ? null : Number(r.cost);
+          if (price !== null || cost !== null) await saveMarketPrice({ item: t.name, market: mk, price, cost, month: `${startMonth}-01`, name: actor });
+        }
         done++;
-      } catch { fail++; }
+      } catch (e) { fail++; firstErr = firstErr || e.message; }
     }
     setBusy(false);
-    toast[fail ? 'error' : 'success'](`حُفظ ${done}${fail ? ` · فشل ${fail}` : ''}`);
+    toast[fail ? 'error' : 'success'](`حُفظ ${done}${fail ? ` · فشل ${fail} (${firstErr})` : ''}`);
     onSaved();
   };
 
-  const list = products.filter(p => !q || p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const list = table.filter((t) => !q || t.name.toLowerCase().includes(q.trim().toLowerCase()));
   const INP = 'w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30';
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center sm:p-4 bg-black/50" onClick={e=>e.target===e.currentTarget&&onClose()} dir="rtl">
-      <div className="w-full sm:max-w-2xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
+    <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center sm:p-4 bg-black/50" onClick={(e) => e.target === e.currentTarget && onClose()} dir="rtl">
+      <div className="w-full sm:max-w-3xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
         <div className="px-4 py-3 bg-navy text-white shrink-0">
-          <p className="font-bold text-sm">✏️ تعديل التكاليف للكل — كل القيم بالدولار/وحدة</p>
-          <p className="text-[11px] text-white/70">يسري التغيير من الشهر الحالي فقط — الأشهر السابقة تبقى كما كانت. الإعلان/الشحن تقدير اختياري يُهمَل عند وجود مصروف فعلي.</p>
+          <p className="font-bold text-sm">💵 أسعار المنتجات حسب السوق — بالدولار للوحدة</p>
+          <p className="text-[11px] text-white/70">السعر الجديد يسري من شهر البدء فقط؛ الأشهر السابقة لا تتغيّر ولا يُنسخ إليها شيء. سوق بلا سعر لا يستعير سعر سوق آخر. القيم المعروضة هي المعتمدة لشهر {viewMonth}.</p>
         </div>
-        <div className="p-3 shrink-0">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="ابحث عن منتج…"
-            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+        <div className="p-3 shrink-0 flex flex-wrap gap-2 items-center">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث عن منتج…" className="flex-1 min-w-[10rem] border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+          <label className="text-xs text-text flex items-center gap-1.5">يبدأ من شهر
+            <input type="month" value={startMonth} min={cur} onChange={(e) => setStartMonth(e.target.value || cur)} className="border border-border rounded-lg px-2 py-1 text-xs bg-surface-alt text-text" />
+          </label>
+          <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={showCost} onChange={(e) => setShowCost(e.target.checked)} /> تكلفة خاصة بالسوق</label>
         </div>
         <div className="overflow-y-auto flex-1 px-3">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-surface">
               <tr className="text-muted text-[10px]">
                 <th className="text-start py-1.5 font-semibold">المنتج</th>
-                <th className="font-semibold">💵 سعر</th>
-                <th className="font-semibold">📦 تكلفة</th>
-                <th className="font-semibold">📣 إعلان</th>
-                <th className="font-semibold">🚚 شحن</th>
-                <th className="font-semibold">ربح/وحدة</th>
+                {MKTS.map(([k, l]) => <th key={k} className="font-semibold">{l}</th>)}
+                <th className="font-semibold">📦 تكلفة التصنيع (موحّدة)</th>
               </tr>
             </thead>
             <tbody>
-              {list.map((p) => {
-                const r = rows[p.name]; const u = unit(r);
-                return (
-                  <tr key={p.name} className="border-t border-border/40">
-                    <td className="py-1.5 pe-2 text-text font-medium">{p.name}<span className="text-muted text-[10px] mr-1">· {p.units}u</span></td>
-                    <td className="text-center"><input value={r.sale_price_usd} onChange={e=>set(p.name,'sale_price_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
-                    <td className="text-center"><input value={r.cost_usd} onChange={e=>set(p.name,'cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
-                    <td className="text-center"><input value={r.ad_cost_usd} onChange={e=>set(p.name,'ad_cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
-                    <td className="text-center"><input value={r.shipping_cost_usd} onChange={e=>set(p.name,'shipping_cost_usd',e.target.value)} inputMode="decimal" className={INP} placeholder="0" /></td>
-                    <td className={`text-center font-bold ${u>0?'text-green-600':u<0?'text-red-600':'text-muted'}`}>${fmt(u)}</td>
-                  </tr>
-                );
-              })}
+              {list.map((t) => (
+                <tr key={t.key} className="border-t border-border/40 align-top">
+                  <td className="py-1.5 pe-2 text-text font-medium">{t.name}</td>
+                  {MKTS.map(([mk]) => {
+                    const e = t.markets[mk], id = `${t.key}|${mk}`, [lab, cls] = PRICE_STATUS[e.status] || PRICE_STATUS.missing;
+                    return (
+                      <td key={mk} className="text-center py-1">
+                        <input value={rows[id].price} onChange={(ev) => set(id, 'price', ev.target.value)} inputMode="decimal" className={INP} placeholder="—" />
+                        <div className={`text-[9px] ${cls}`}>{lab}{e.from && e.status !== 'missing' ? ` · ${String(e.from).slice(0, 7)}` : ''}</div>
+                        {showCost && <input value={rows[id].cost} onChange={(ev) => set(id, 'cost', ev.target.value)} inputMode="decimal" className={`${INP} mt-1`} placeholder="تكلفة" />}
+                      </td>
+                    );
+                  })}
+                  <td className="text-center py-1"><input value={rows[`${t.key}|unified`].cost} onChange={(ev) => set(`${t.key}|unified`, 'cost', ev.target.value)} inputMode="decimal" className={INP} placeholder="—" /></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
         <div className="flex gap-2 p-3 border-t border-border shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إغلاق</button>
           <button onClick={saveAll} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 disabled:opacity-50">
-            {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'منتج' : 'الكل'}`}
+            {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'خانة' : ''}`}
           </button>
         </div>
       </div>
     </div>
   );
 }
-
-// المحرّر الجماعي يعرض كل صنف مرة واحدة (السعر/التكلفة لا يختلفان بين الأسواق)
-const uniqueProducts = (ps) => { const m = new Map(); ps.forEach(p => { const x = m.get(p.name); if (x) x.units += p.units; else m.set(p.name, { ...p }); }); return [...m.values()]; };
 
 const BRANDS = [
   { key: 'lowes',  label: "🌿 LOWE'S" },
@@ -490,7 +446,7 @@ export default function ProfitabilityScreen() {
 
       <button onClick={()=>setBulk(true)}
         className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
-        ✏️ تعديل التكاليف للكل دفعة واحدة
+        ✏️ أسعار وتكاليف المنتجات حسب السوق
       </button>
 
       {totals.unset > 0 && (
@@ -560,8 +516,8 @@ export default function ProfitabilityScreen() {
         )}
       </div>
 
-      {editing && <EconEditor p={editing} onClose={()=>setEditing(null)} onSave={()=>{ setEditing(null); toast.success('تم الحفظ'); load(); }} />}
-      {bulk && <BulkEconEditor products={uniqueProducts(products)} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
+      {editing && <MarketPriceEditor table={data.priceTable || []} focus={editing.name} viewMonth={month} actor={actor} onClose={()=>setEditing(null)} onSaved={()=>{ setEditing(null); load(); }} />}
+      {bulk && <MarketPriceEditor table={data.priceTable || []} focus="" viewMonth={month} actor={actor} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
     </div>
   );
 }

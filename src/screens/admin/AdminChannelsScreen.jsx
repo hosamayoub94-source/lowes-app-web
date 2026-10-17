@@ -27,12 +27,12 @@ const KINDS = [
 ];
 const KIND_LABEL = Object.fromEntries(KINDS.map(({ k, l }) => [k, l]));
 
-const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', both: '🌍 الاثنان' };
+const MARKET_LABEL = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', uae: '🇦🇪 الإمارات', both: '🌍 سوريا وتركيا' };
 
 const BLANK = {
   name_ar: '', kind: 'shipping', currency: '', is_active: true,
   allows_income: true, allows_expense: true, book: 'operational', sort_order: 100, icon: '🚚',
-  market: 'syria',
+  market: '',
 };
 
 export default function AdminChannelsScreen() {
@@ -56,8 +56,9 @@ export default function AdminChannelsScreen() {
       book:           edit.book || BOOK.OPERATIONAL,
       sort_order:     Number(edit.sort_order) || 100,
       icon:           edit.icon || null,
-      // حقل السوق: يُحفظ فقط لشركات الشحن (يؤثر على قائمة الشحن في نموذج الطلب)
-      market:         edit.kind === 'shipping' ? (edit.market || null) : null,
+      // السوق: يحدّد (1) قائمة الشحن بنموذج الطلب لشركات الشحن، و(2) إسناد مصاريف القناة لسوق بصفحة الربحية.
+      // لا يُخمَّن من الاسم؛ فارغ = «غير موزّع». شركة شحن بلا سوق تبقى «سوريا» كما كان سلوك نموذج الطلب.
+      market:         edit.market || (edit.kind === 'shipping' ? 'syria' : null),
     };
     try {
       if (edit.id) await updateChannel(edit.id, data);
@@ -98,7 +99,7 @@ export default function AdminChannelsScreen() {
           <span className="text-sm text-text">
             {c.icon || '📌'} {c.name_ar}
             <span className="text-muted text-xs"> · {KIND_LABEL[c.kind] || c.kind}
-              {c.kind === 'shipping' && c.market ? ` · ${MARKET_LABEL[c.market] || c.market}` : ''}
+              {c.market ? ` · ${MARKET_LABEL[c.market] || c.market}` : ' · ⚠️ بلا سوق'}
               {c.allows_income ? ' · 🟢وارد' : ''}{c.allows_expense ? ' · 🔴صادر' : ''}
               {c.currency ? ` · ${c.currency}` : ''}
               {!c.is_active ? ' · ⏸ مسكّرة' : ''}
@@ -146,17 +147,18 @@ export default function AdminChannelsScreen() {
                 </select>
               </div>
             </div>
-            {/* السوق: يظهر فقط لشركات الشحن — يحدد في أي نموذج طلب تظهر */}
-            {edit.kind === 'shipping' && (
-              <div>
-                <label className="text-xs text-muted">السوق (لشركات الشحن):</label>
-                <select className={INP} value={edit.market || ''} onChange={e => setEdit({ ...edit, market: e.target.value })}>
-                  <option value="syria">🇸🇾 سوريا فقط</option>
-                  <option value="turkey">🇹🇷 تركيا فقط</option>
-                  <option value="both">🌍 الاثنان</option>
-                </select>
-              </div>
-            )}
+            {/* السوق لكل القنوات: شحن ← قائمة نموذج الطلب؛ ومصاريف كل قناة ← سوقها بصفحة الربحية */}
+            <div>
+              <label className="text-xs text-muted">السوق (تُسنَد إليه مصاريف هذه القناة بصفحة الربحية):</label>
+              <select className={INP} value={edit.market || ''} onChange={e => setEdit({ ...edit, market: e.target.value })}>
+                <option value="">{edit.kind === 'shipping' ? '— (يُحفظ سوريا لشركات الشحن)' : '— بلا سوق (مصروف غير موزّع)'}</option>
+                <option value="syria">🇸🇾 سوريا</option>
+                <option value="turkey">🇹🇷 تركيا</option>
+                <option value="uae">🇦🇪 الإمارات</option>
+                {edit.kind === 'shipping' && <option value="both">🌍 سوريا وتركيا (للشحن فقط — يظهر بالربحية «غير موزّع»)</option>}
+              </select>
+            </div>
+
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="text-xs text-muted">الكتاب:</label>
