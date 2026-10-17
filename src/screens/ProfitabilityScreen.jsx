@@ -1,5 +1,5 @@
 // =============================================================
-// ProfitabilityScreen (#1) — ربحية المنتج الحقيقية
+// ProfitabilityScreen (#1) — الربحية والنتائج الشهرية (الإيراد من قيمة الطلب الفعلية بعد التحويل بسعر صرف شهري معتمد)
 // يعرض الوحدات المباعة + المرتجعات + الربح الصافي لكل صنف،
 // مع إدخال السعر/التكلفة/الإعلان/الشحن (يُحفظ ويُحسب فوراً).
 // =============================================================
@@ -17,6 +17,7 @@ const FLAG = {
   risky: { label: '⚠️ مرتجعات',cls: 'bg-orange-500/10 text-orange-600 border-orange-500/20' },
   loss:  { label: '🔻 خاسر',   cls: 'bg-red-500/10 text-red-600 border-red-500/20' },
   unset: { label: '➕ حدّد',    cls: 'bg-surface-alt text-muted border-border' },
+  nofx:  { label: '💱 بلا إيراد محوَّل', cls: 'bg-red-500/10 text-red-600 border-red-500/20' },
 };
 
 function StatCard({ icon, label, value, tone='navy' }) {
@@ -182,7 +183,9 @@ function MarketCard({ k, x }) {
     <div className="text-[10px] text-muted mt-1">{x.orders||0} طلب سُلِّم بالشهر · {x.units||0} قطعة</div>
     {basis && <div className="text-[10px] text-muted">مصدر تاريخ التسليم — {basis}</div>}
     <div className="text-[10px] text-muted mt-1.5 space-y-0.5">
-      {row('إيراد البيع (محسوب من سعر المنتج)', x.revenue)}
+      {row('إيراد المبيعات الفعلي (قيمة الطلبات بالدولار بعد التحويل)', x.revenue)}
+      {x.unallocatedRevenue > 0 && <div className="text-[10px] text-orange-600">منه غير موزَّع على المنتجات: ${fmt(x.unallocatedRevenue)} ({x.unallocatedOrders} طلب)</div>}
+      {x.referenceRevenue > 0 && <div className="text-[10px] text-muted">مرجع تحليلي فقط (سعر المنتج × الكمية): ${fmt(x.referenceRevenue)} — لا يدخل الربح</div>}
       {row('تخفيض الإيراد بسبب مرتجع (شهر الإرجاع)', R.revenueReduction, true)}
       {row('تكلفة المنتجات المُسلَّمة', x.productCost, true)}
       {row('تكلفة مخزون مُسترَد (حركة موثَّقة + مفترض بقاعدة المالك)', R.restockedCost, false, null, true)}
@@ -196,7 +199,10 @@ function MarketCard({ k, x }) {
     {(R.orders > 0) && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">↩️ مرتجعات مكتملة بالشهر: {R.orders} طلب · {R.units} قطعة · تكلفة خرجت ${fmt(R.costOut)}{R.unresolvedCost > 0 ? <b className="text-orange-600"> · تسوية غير محسومة ${fmt(R.unresolvedCost)}</b> : null}</div>}
     {x.pendingReturns?.orders > 0 && <div className="text-[10px] text-muted">⏳ معلّقة (راجع للمركز/لم يُستلم): {x.pendingReturns.orders} طلب · تعرّض ${fmt(x.pendingReturns.cost)} — لا أثر مالي قبل ثبوت الحالة</div>}
     {x.returnTimingUnknown?.orders > 0 && <div className="text-[10px] text-orange-600">⚠️ {x.returnTimingUnknown.orders} مرتجع بتوقيت غير موثوق · إيراد معلّق ${fmt(x.returnTimingUnknown.revenue)} / تكلفة ${fmt(x.returnTimingUnknown.cost)} لم تُخصم</div>}
-    {Object.keys(x.collected || {}).length > 0 && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">💵 المحصَّل من طلبات المسلَّم (بعملة الطلب — غير مُحوَّل ولا مُجمَّع): {CUR(x.collected)}</div>}
+    {Object.keys(x.revenueByCurrency || {}).length > 0 && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">💵 قيمة الطلبات المحوَّلة (بعملتها الأصلية): {CUR(x.revenueByCurrency)}</div>}
+    {x.revenueNoFx?.orders > 0 && <div className="text-[10px] text-red-600 font-semibold">💱 {x.revenueNoFx.orders} طلب بلا سعر صرف شهري: {CUR(x.revenueNoFx.byCurrency)} — لا إيراد ولا تكلفة لها بالأرقام حتى يُدخَل السعر</div>}
+    {x.revenueMissing?.orders > 0 && <div className="text-[10px] text-red-600">🔴 {x.revenueMissing.orders} طلب مسلَّم بقيمة صفرية أو بلا عملة — لا إيراد لها</div>}
+    {x.returns?.fxMissingOrders > 0 && <div className="text-[10px] text-red-600">🔴 {x.returns.fxMissingOrders} مرتجع بعد تسليم تعذّر تحويل قيمته (بلا سعر صرف لشهر التسليم) — لم يُحسب أثره</div>}
     {x.settledOrders > 0 && <div className="text-[10px] text-muted mt-1">🤝 تسويات (ليست مبيعات منتجات): {x.settledOrders} طلب{Object.keys(x.settledCollected || {}).length ? ` · ${CUR(x.settledCollected)}` : ''}</div>}
     {Object.keys(x.unconverted || {}).length > 0 && <div className="text-[10px] text-red-600">💱 بلا سعر صرف: {CUR(x.unconverted)} (أثره بالدولار غير محسوب)</div>}
     <IssueList q={x.quality} />
@@ -366,8 +372,8 @@ export default function ProfitabilityScreen() {
   return (
     <div className="max-w-3xl mx-auto pb-24 space-y-4" dir="rtl">
       <div className="bg-navy rounded-2xl p-5 text-white">
-        <h1 className="text-xl font-extrabold flex items-center gap-2">💎 ربحية المنتج</h1>
-        <p className="text-white/70 text-xs mt-1">البيع يُسجَّل في شهر التسليم الفعلي حين يتوفر تاريخ موثوق — وما لا يُعرف يُعرض ولا يُخمَّن</p>
+        <h1 className="text-xl font-extrabold flex items-center gap-2">💎 الربحية والنتائج الشهرية</h1>
+        <p className="text-white/70 text-xs mt-1">الإيراد = قيمة الطلب الفعلية بعد التسليم محوَّلة للدولار بسعر صرف شهري معتمد لكل سوق · في شهر التسليم الفعلي · وما لا يُعرف يُعرض ولا يُخمَّن</p>
       </div>
 
       <div className="flex gap-1.5">
@@ -396,11 +402,11 @@ export default function ProfitabilityScreen() {
         </div>
         <div className="rounded-xl bg-navy text-white p-3 mt-2">
           <div className="flex items-center justify-between"><span className="text-xs font-bold flex items-center gap-2">🏢 الشركة كاملة <QualityBadge q={company.quality} /></span><span className={`text-xl font-black ${company.netProfit>=0?'text-green-300':'text-red-300'}`}>${fmt(company.netProfit)}</span></div>
-          <div className="text-[10px] text-white/70 mt-1">{company.orders||0} طلب · {company.units||0} قطعة · إيراد محسوب من سعر المنتج ${fmt(company.revenue)} · تكلفة ${fmt(company.productCost)} · مصاريف الأسواق ${fmt(company.marketExpenses)}</div>
+          <div className="text-[10px] text-white/70 mt-1">{company.orders||0} طلب · {company.units||0} قطعة · إيراد فعلي ${fmt(company.revenue)} (مرجع تحليلي بسعر المنتج ${fmt(company.referenceRevenue)}) · تكلفة ${fmt(company.productCost)} · مصاريف الأسواق ${fmt(company.marketExpenses)}</div>
           <div className="text-[10px] text-white/70">مصاريف مشتركة غير موزعة على الأسواق: ${fmt(data.sharedExpenses)} · مصروف غير موزّع على سوق (سوق غير معروف): ${fmt(unallocated.usd)} — يدخلان بصافي الشركة فقط</div>
           {company.returns?.unresolvedCost > 0 && <div className="text-[10px] text-orange-200">تسوية مرتجعات غير محسومة: ${fmt(company.returns.unresolvedCost)} (لا تالفة ولا قابلة للبيع حتى يثبت مصيرها)</div>}
           {Object.keys(company.unconverted || {}).length > 0 && <div className="text-[10px] text-red-200">💱 مصاريف بلا سعر صرف شهري: {CUR(company.unconverted)} — غير داخلة بالدولار</div>}
-          <div className="text-[10px] text-white/60 mt-1">الإيراد مبنيّ على سعر المنتج بالدولار × الكمية، وليس تحصيلاً نقدياً مؤكداً. المحصَّل بعملات الأسواق في بطاقة كل سوق دون جمع أو تحويل.</div>
+          <div className="text-[10px] text-white/60 mt-1">الإيراد = قيمة الطلب الفعلية (amount) المسلَّم، محوَّلة بسعر الصرف الشهري المعتمد لكل سوق؛ وسعر المنتج × الكمية مرجع تحليلي لا يدخل الربح. {company.revenueNoFx?.orders > 0 ? `💱 ${company.revenueNoFx.orders} طلب بلا سعر صرف: ${CUR(company.revenueNoFx.byCurrency)} — أدخل أسعار الصرف من لوحة «أسعار الصرف الشهرية» أدناه.` : ''}</div>
           <IssueList q={company.quality} dark />
         </div>
       </div>
@@ -431,6 +437,14 @@ export default function ProfitabilityScreen() {
         <p className="text-[10px] text-muted mt-2">orders.delivery_cost معلومة عن الطلب ولا يُجمع مع مصاريف الشحن. campaigns.spend تحليلي فقط (لا تاريخ إنفاق يومياً موثوقاً).</p>
       </Panel>
 
+      {(data.revenueGaps || []).length > 0 && (
+        <Panel icon="🔴" title="طلبات مسلَّمة بلا إيراد محوَّل (لا إيراد ولا تكلفة لها بالأرقام)" count={`${data.revenueGaps.length} طلب`}>
+          <p className="text-[10px] text-muted mb-1">إما عملة بلا سعر صرف شهري معتمد لهذا السوق/الشهر، أو قيمة الطلب صفر/غير مسجَّلة. تظهر بعملتها الأصلية ولا تُحوَّل بسعر مفترض.</p>
+          <Table head={['الطلب', 'السوق', 'القيمة', 'السبب']} rows={data.revenueGaps.slice(0, 80).map(g => [g.code, MARKET_LABELS[g.market] || g.market, g.currency ? `${fmt(g.amount)} ${g.currency}` : fmt(g.amount), g.why === 'no_fx' ? 'بلا سعر صرف' : g.why === 'no_currency' ? 'بلا عملة' : 'قيمة صفرية'])} />
+          {data.revenueGaps.length > 80 && <p className="text-[10px] text-muted mt-1">… و{data.revenueGaps.length - 80} غيرها</p>}
+        </Panel>
+      )}
+
       <Panel icon="💱" title="أسعار الصرف الشهرية (إدخال يدوي)" tone="info" count={`${fxRates.length} سجل لهذا الشهر`}>
         <FxPanel month={month} rates={fxRates} closed={closed} actor={actor} onSaved={load} />
       </Panel>
@@ -451,7 +465,7 @@ export default function ProfitabilityScreen() {
 
       {totals.unset > 0 && (
         <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2.5">
-          💡 {totals.unset} صنف بدون سعر/تكلفة مؤكدين لهذا الشهر — مستبعدون من الأرقام (التكلفة المفقودة ليست صفراً). أدخلها من «✏️ تعديل التكاليف للكل»؛ تسري من الشهر الحالي فقط ولا تُغيّر الأشهر السابقة.
+          💡 {totals.unset} صنف بلا تكلفة مؤكدة لهذا الشهر (التكلفة المفقودة ليست صفراً)، وأصناف أخرى بلا إيراد محوَّل لغياب سعر الصرف. أدخل التكاليف من «✏️ أسعار وتكاليف المنتجات حسب السوق»؛ تسري من الشهر المحدّد فقط ولا تُغيّر الأشهر السابقة.
         </div>
       )}
 
@@ -468,6 +482,7 @@ export default function ProfitabilityScreen() {
         </Panel>
       )}
 
+      <div className="flex items-center justify-between pt-1"><h2 className="font-bold text-sm">🏷️ أسعار وتكاليف المنتجات — حسب السوق</h2><span className="text-[10px] text-muted">الإيراد الموزَّع = قيمة الطلب موزَّعة بنسبة الأسعار المرجعية</span></div>
       {/* Product rows */}
       <div className="space-y-2">
         {products.map((p, i) => {
@@ -496,7 +511,7 @@ export default function ProfitabilityScreen() {
                   ) : null}
                   <div className="flex items-center gap-1 mt-1 justify-end">
                     <button onClick={()=>setEditing(p)} className="text-[11px] font-semibold text-teal hover:bg-teal/10 px-2.5 py-1 rounded-lg transition">
-                      {p.hasEcon ? 'تعديل' : '➕ حدّد'}
+                      {p.hasEcon ? 'تعديل' : (p.flag === 'nofx' ? 'الأسعار' : '➕ حدّد')}
                     </button>
                     {p.brand === 'strong' && (
                       <button onClick={()=>toggleFreeze(p)} disabled={freezing===p.name}

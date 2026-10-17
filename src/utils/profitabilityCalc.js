@@ -153,9 +153,10 @@ export function buildFxLookup(rows = [], monthStart) {
 const num = (v) => Number(v) || 0;
 // سياسة المالك (18 تشرين الأول): الطلب المرتجع يعود للمخزون؛ شحنه مرة ونصف إجمالاً (بعد التسليم يُضاف نصف مرة فوق الشحن المحسوب عند التسليم)
 const RETURN_SHIP_FACTOR = (afterDelivery) => (afterDelivery ? 0.5 : 1.5);
-const emptyReturns = () => ({ assumedRestockCost: 0, orders: 0, units: 0, revenueReduction: 0, costOut: 0, restockedCost: 0, damagedLoss: 0, unresolvedCost: 0, unresolvedOrders: 0, unpricedUnits: 0 });
+const emptyReturns = () => ({ fxMissingOrders: 0, assumedRestockCost: 0, orders: 0, units: 0, revenueReduction: 0, costOut: 0, restockedCost: 0, damagedLoss: 0, unresolvedCost: 0, unresolvedOrders: 0, unpricedUnits: 0 });
 const emptyMarket = () => ({
-  orders: 0, ordersNoItems: 0, units: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, productProfit: 0,
+  orders: 0, ordersNoItems: 0, units: 0, revenue: 0, referenceRevenue: 0, unallocatedRevenue: 0, unallocatedOrders: 0, mixedBrandUnsplit: 0,
+  revenueByCurrency: {}, revenueNoFx: { orders: 0, units: 0, byCurrency: {} }, revenueMissing: { orders: 0, units: 0 }, productCost: 0, estAds: 0, estShipping: 0, productProfit: 0,
   returns: emptyReturns(),
   expenses: 0, expensesByCategory: {}, actualShipping: 0, netProfit: 0,
   unpricedUnits: 0, legacyUnifiedUnits: 0, unmappedUnits: 0, collected: {}, settledOrders: 0, settledCollected: {},
@@ -166,7 +167,12 @@ const emptyMarket = () => ({
 });
 
 const ISSUES = {
-  missing_econ: ['partial', 'قطع بلا سعر/تكلفة (مستبعدة من الأرقام)'],
+  missing_econ: ['partial', 'قطع بلا تكلفة معتمدة (تكلفتها غير محسوبة)'],
+  revenue_fx_missing: ['partial', 'طلبات مسلَّمة بعملة بلا سعر صرف شهري معتمد — لا إيراد ولا تكلفة لها بالأرقام'],
+  revenue_missing: ['partial', 'طلبات مسلَّمة بقيمة صفرية أو غير مسجَّلة — لا إيراد ولا تكلفة لها بالأرقام'],
+  revenue_unsplit: ['partial', 'طلبات بأصناف من براندات مختلفة تعذّر توزيع قيمتها (لم تُحسب)'],
+  unallocated_revenue: ['estimated', 'إيراد طلبات غير موزّع على المنتجات (سعر مرجعي ناقص لأحد أصنافها أو طلب بلا أصناف)'],
+  return_fx_missing: ['partial', 'مرتجعات بعد تسليم تعذّر تحويل قيمة بيعها (بلا سعر صرف) — لم يُحسب أثرها'],
   no_items: ['partial', 'طلبات مسلَّمة بلا أصناف'],
   unknown_delivery: ['partial', 'طلبات مسلَّمة بتاريخ تسليم غير معروف (غير مُسنَدة لأي شهر)'],
   fx_missing: ['partial', 'مصاريف بعملة بلا سعر صرف شهري معتمد (غير محسوبة بالدولار)'],
@@ -175,7 +181,7 @@ const ISSUES = {
   unallocated_expenses: ['estimated', 'مصاريف غير موزّعة على سوق'],
   substitute_dates: ['estimated', 'مبيعات بتاريخ تسليم بديل (وقت تسجيل/تحديث وليس وقت تسليم مؤكد)'],
   legacy_prices: ['estimated', 'أسعار/تكاليف تاريخها مستنتج من updated_at وليس من سجل أصلي'],
-  legacy_unified_price: ['estimated', 'قطع مسعَّرة بالسعر الموحّد القديم لأن سعراً لهذا السوق لم يُدخَل (راجع محرر الأسعار)'],
+  legacy_unified_price: ['estimated', 'قطع بسعر مرجعي موحّد قديم لأن سعراً لهذا السوق لم يُدخَل (يؤثر على توزيع الإيراد والمرجع التحليلي)'],
   packaging_missing: ['partial', 'أجور التغليف: لا قيد محاسبي بالشهر ولا تكلفة تغليف معتمدة لكل وحدة (ناقص — غير محسوب)'],
   unmapped: ['estimated', 'قطع بأسماء غير موحَّدة (تحتاج مراجعة)'],
   settled_review: ['estimated', 'طلبات «تمت التسوية» ليست بيع منتجات (للمراجعة)'],
@@ -212,10 +218,13 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
   const versions = buildVersionIndex(historyRows, currentRows);
   const marketIdx = buildMarketIndex(marketPriceRows);
   const nowM = nowMonth || istanbulMonthStart(new Date().toISOString());
-  const fx = buildFxLookup(fxRates, monthStart);
+
   const chById = Array.isArray(channels) ? Object.fromEntries(channels.map((c) => [c.id, c])) : channels;
   const summary = { syria: emptyMarket(), turkey: emptyMarket(), uae: emptyMarket() };
   const mk = (m) => (summary[m] ||= emptyMarket());
+
+  const fxCacheTop = new Map();
+  const fx = (cur, mkt) => { if (!fxCacheTop.has(monthStart)) fxCacheTop.set(monthStart, buildFxLookup(fxRates, monthStart)); return fxCacheTop.get(monthStart)(cur, mkt); };
 
   // ── المصاريف: محاسبة (مصدر رسمي) + إضافية ──
   const records = [];                 // {market:'syria'|…|'shared'|'unallocated', group, category, usd, source}
@@ -246,7 +255,7 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
   for (const k of MARKET_KEYS) { summary[k].adsEstimated = !actual('ads', k); summary[k].shippingEstimated = !actual('shipping', k); }
 
   // ── الطلبات ──
-  const agg = new Map(), unmapped = new Map(), usedVersions = new Map(), unknownList = [], returnLists = { unresolved: [], timingUnknown: [], pending: [] };
+  const agg = new Map(), unmapped = new Map(), usedVersions = new Map(), unknownList = [], returnLists = { unresolved: [], timingUnknown: [], pending: [] }, revenueGaps = [];
   const itemsOf = (o) => {
     const out = [];
     for (const it of Array.isArray(o.items) ? o.items : []) {
@@ -279,21 +288,65 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     M.unknownDelivery.orders++; M.unknownDelivery.units += c.units;
     unknownList.push({ id: o.id, code: o.order_code, market: m, order_date: o.order_date, units: c.units, reason: o.delivery_bulk_suspect ? 'bulk_import_event' : (o.hist_rows ? 'no_delivered_event' : 'no_history') });
   };
+  // ── إيراد الطلب الفعلي (قيمة الطلب amount بعملته) → دولار بسعر الصرف الشهري المعتمد للسوق ──
+  const fxCache = new Map();
+  const fxAt = (mth) => { if (!fxCache.has(mth)) fxCache.set(mth, buildFxLookup(fxRates, mth)); return fxCache.get(mth); };
+  const orderRevenue = (o, m, mth) => {
+    const amount = num(o.amount), cur = String(o.currency || '').trim().toUpperCase();
+    if (!(amount > 0)) return { ok: false, why: 'no_amount', amount, cur };
+    if (!cur) return { ok: false, why: 'no_currency', amount, cur };
+    if (cur === 'USD') return { ok: true, usd: amount, amount, cur, rate: 1 };
+    const rate = fxAt(mth)(cur, m);
+    return rate ? { ok: true, usd: amount / rate, amount, cur, rate } : { ok: false, why: 'no_fx', amount, cur };
+  };
+  const refPriceOf = (it, m, mth) => resolveEcon(versions, marketIdx, it.key, m, mth, nowM).price * it.q;
+  /** يوزّع إيراد الطلب الفعلي على أصنافه بنسبة أسعارها المرجعية. mode: noitems | allocated | unallocated | skip */
+  const splitRevenue = (c, rv, mth) => {
+    if (c.all.length === 0) return { mode: 'noitems', total: rv.usd, shares: [] };
+    const w = c.all.map((it) => refPriceOf(it, c.m, mth));
+    const wSum = w.reduce((s, x) => s + x, 0);
+    if (w.every((x) => x > 0)) {
+      const shares = c.all.map((it, i) => ({ it, usd: rv.usd * (w[i] / wSum) })).filter((s) => c.items.includes(s.it));
+      return { mode: 'allocated', total: shares.reduce((s, x) => s + x.usd, 0), shares };
+    }
+    if (c.items.length === c.all.length) return { mode: 'unallocated', total: rv.usd, shares: [] };
+    return { mode: 'skip', total: 0, shares: [] };
+  };
   const handleDelivery = (c) => {
     const { o, M, m } = c;
-    if (countedItems(c)) {
-      M.orders++;
-      M.deliveryBasis[o.delivery_basis] = (M.deliveryBasis[o.delivery_basis] || 0) + 1;
-      if (String(o.delivery_basis).startsWith('substitute')) { M.substituteOrders++; M.substituteUnits += c.units; }
-      if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
-    } else if (c.all.length === 0 && (brand === 'all' || brand === 'lowes')) M.ordersNoItems++;
-    for (const it of c.items) {
+    const noItemsOrder = c.all.length === 0 && (brand === 'all' || brand === 'lowes');
+    if (!countedItems(c) && !noItemsOrder) return;
+    M.orders++;
+    M.deliveryBasis[o.delivery_basis] = (M.deliveryBasis[o.delivery_basis] || 0) + 1;
+    if (String(o.delivery_basis).startsWith('substitute')) { M.substituteOrders++; M.substituteUnits += c.units; }
+    if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
+    if (noItemsOrder) M.ordersNoItems++;
+    const pvs = c.items.map((it) => {
       const r = row(it, m); const pv = versionFor(it, monthStart, m);
       if (pv.basis === 'legacy_unified') M.legacyUnifiedUnits += it.q;
       r.units += it.q; M.units += it.q;
       if (!it.mapped) { const u = unmapped.get(it.key) || { name: it.raw, units: 0 }; u.units += it.q; unmapped.set(it.key, u); M.unmappedUnits += it.q; }
-      if (!pv.complete) { r.complete = false; M.unpricedUnits += it.q; continue; }
-      r.revenue += pv.price * it.q; r.productCost += pv.cost * it.q; r.estAds += (M.adsEstimated ? pv.ad : 0) * it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
+      return { it, r, pv };
+    });
+    const rv = orderRevenue(o, m, monthStart);
+    if (!rv.ok) {
+      // لا إيراد ولا تكلفة لهذا الطلب (لا نُظهر ربحاً بنصف البيانات)
+      if (rv.why === 'no_fx') { M.revenueNoFx.orders++; M.revenueNoFx.units += c.units; M.revenueNoFx.byCurrency[rv.cur] = (M.revenueNoFx.byCurrency[rv.cur] || 0) + rv.amount; }
+      else { M.revenueMissing.orders++; M.revenueMissing.units += c.units; }
+      for (const { r } of pvs) { r.complete = false; r.noRevenue = true; }
+      revenueGaps.push({ id: o.id, code: o.order_code, market: m, currency: rv.cur || null, amount: rv.amount, why: rv.why, units: c.units });
+      return;
+    }
+    M.revenueByCurrency[rv.cur] = (M.revenueByCurrency[rv.cur] || 0) + rv.amount;
+    const sp = splitRevenue(c, rv, monthStart);
+    M.revenue += sp.total;
+    if (sp.mode === 'noitems' || sp.mode === 'unallocated') { M.unallocatedRevenue += sp.total; M.unallocatedOrders++; }
+    else if (sp.mode === 'skip') M.mixedBrandUnsplit++;
+    for (const s of sp.shares) pvs.find((x) => x.it === s.it).r.revenue += s.usd;
+    for (const { it, r, pv } of pvs) {
+      if (pv.price > 0) M.referenceRevenue += pv.price * it.q;
+      if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; }
+      r.estAds += (M.adsEstimated ? pv.ad : 0) * it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
     }
   };
   const handleCompletedReturn = (c) => {
@@ -301,11 +354,17 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     const R = M.returns; R.orders++; R.units += c.units;
     const afterDelivery = !!o.delivered_before_return && !!o.delivered_at;
     const dMonth = afterDelivery ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
-    let costOut = 0, revRed = 0, incomplete = 0;
+    let revRed = 0;
+    if (afterDelivery) {
+      const rv = orderRevenue(o, m, dMonth);
+      if (!rv.ok) { R.fxMissingOrders++; return; }   // لا يمكن تحويل قيمة البيع الأصلي → لا نخصم ولا نسترد جزئياً
+      revRed = splitRevenue(c, rv, dMonth).total;
+    }
+    let costOut = 0, incomplete = 0;
     for (const it of c.items) {
       const pv = versionFor(it, dMonth, m);
-      if (!pv.complete) { incomplete += it.q; continue; }
-      costOut += pv.cost * it.q; if (afterDelivery) revRed += pv.price * it.q;
+      if (!(pv.cost > 0)) { incomplete += it.q; continue; }
+      costOut += pv.cost * it.q;
       const r = row(it, m); r.returns += it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
     }
     R.unpricedUnits += incomplete;
@@ -316,20 +375,21 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     R.assumedRestockCost += assumed;
     R.revenueReduction += revRed; R.costOut += costOut; R.restockedCost += restocked; R.damagedLoss += damaged; R.unresolvedCost += unresolved;
     if (unresolved > 1e-9 || incomplete) { R.unresolvedOrders++; returnLists.unresolved.push({ id: o.id, code: o.order_code, market: m, units: c.units, cost: unresolved, afterDelivery, return_at: o.return_at }); }
-    // أثر P&L المؤكَّد فقط: − تخفيض الإيراد + التكلفة المستردة (إن سُلِّم سابقاً)؛ − التالف الموثَّق (إن لم يُسلَّم سابقاً: التكلفة لم تُسجَّل أصلاً فنخصم التالف فقط)
+    // أثر P&L المؤكَّد فقط: − تخفيض الإيراد الفعلي + التكلفة المستردة (إن سُلِّم سابقاً)؛ − التالف الموثَّق (إن لم يُسلَّم سابقاً)
     M.__returnEffect = (M.__returnEffect || 0) + (afterDelivery ? -revRed + restocked : -damaged);
   };
   const handleReturnTimingUnknown = (c) => {
     const { o, M, m } = c;
     let rev = 0, cost = 0;
     const ref = o.delivered_at ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
-    for (const it of c.items) { const pv = versionFor(it, ref, m); if (pv.complete) { cost += pv.cost * it.q; if (o.delivered_before_return) rev += pv.price * it.q; } }
+    if (o.delivered_before_return) { const rv = orderRevenue(o, m, ref); if (rv.ok) rev = splitRevenue(c, rv, ref).total; }
+    for (const it of c.items) { const pv = versionFor(it, ref, m); if (pv.cost > 0) cost += pv.cost * it.q; }
     M.returnTimingUnknown.orders++; M.returnTimingUnknown.units += c.units; M.returnTimingUnknown.revenue += rev; M.returnTimingUnknown.cost += cost;
     returnLists.timingUnknown.push({ id: o.id, code: o.order_code, market: m, units: c.units, revenue: rev, cost, afterDelivery: !!o.delivered_before_return });
   };
   const handlePending = (c) => {
     const { o, M, m } = c;
-    let cost = 0; for (const it of c.items) { const pv = versionFor(it, istanbulMonthStart(o.order_date), m); if (pv.complete) cost += pv.cost * it.q; }
+    let cost = 0; for (const it of c.items) { const pv = versionFor(it, istanbulMonthStart(o.order_date), m); if (pv.cost > 0) cost += pv.cost * it.q; }
     M.pendingReturns.orders++; M.pendingReturns.units += c.units; M.pendingReturns.cost += cost;
     returnLists.pending.push({ id: o.id, code: o.order_code, market: m, status: o.status, units: c.units, cost });
   };
@@ -359,12 +419,12 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     p.unitProfit = r.units && r.complete ? p.netProfit / r.units : null;
     p.margin = r.revenue ? Math.round((p.netProfit * 100) / r.revenue) : null;
     const ret = r.units + r.returns ? Math.round((r.returns * 100) / (r.units + r.returns)) : 0; p.returnRate = ret;
-    p.flag = !r.complete ? 'unset' : p.unitProfit <= 0 ? 'loss' : ret > 25 ? 'risky' : p.netProfit > 0 && r.units >= 2 ? 'star' : 'ok';
+    p.flag = r.noRevenue ? 'nofx' : !r.complete ? 'unset' : p.unitProfit <= 0 ? 'loss' : ret > 25 ? 'risky' : p.netProfit > 0 && r.units >= 2 ? 'star' : 'ok';
     const rk = usedVersions.get(`${r.key}|${r.market}`); const ee = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
     p.versionFrom = ee.priceFrom; p.priceBasis = ee.basis; p.priceStatus = ee.status;
     p.price = ee.price; p.cost = ee.cost; p.adRaw = ee.ad; p.shipRaw = ee.ship; p.ad = m.adsEstimated ? p.adRaw : 0; p.ship = m.shippingEstimated ? p.shipRaw : 0;
     products.push(p);
-    m.revenue += r.revenue; m.productCost += r.productCost; m.estAds += r.estAds; m.estShipping += r.estShipping;
+    m.productCost += r.productCost; m.estAds += r.estAds; m.estShipping += r.estShipping;
   }
   products.sort((a, b) => b.netProfit - a.netProfit);
 
@@ -404,6 +464,11 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
   const unconvertedCount = unconvertedList.length;
   const qualityFor = (m, scope) => assess({
     missing_econ: { units: m.unpricedUnits + m.returns.unpricedUnits },
+    revenue_fx_missing: { orders: m.revenueNoFx.orders },
+    revenue_missing: { orders: m.revenueMissing.orders },
+    revenue_unsplit: { orders: m.mixedBrandUnsplit },
+    unallocated_revenue: { orders: m.unallocatedOrders },
+    return_fx_missing: { orders: m.returns.fxMissingOrders },
     no_items: { orders: m.ordersNoItems },
     unknown_delivery: { orders: m.unknownDelivery.orders, units: m.unknownDelivery.units },
     fx_missing: scope === 'company' ? { count: unconvertedCount } : { count: Object.keys(m.unconverted).length },
@@ -428,7 +493,11 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     orders: sumM((m) => m.orders), units: sumM((m) => m.units), revenue: sumM((m) => m.revenue), productCost: sumM((m) => m.productCost),
     estAds: sumM((m) => m.estAds), estShipping: sumM((m) => m.estShipping), productProfit: sumM((m) => m.productProfit),
     marketExpenses: sumM((m) => m.expenses), sharedExpenses: company.shared, unallocatedExpenses: company.unallocated,
-    returns: ['orders', 'units', 'revenueReduction', 'costOut', 'assumedRestockCost', 'restockedCost', 'damagedLoss', 'unresolvedCost', 'unresolvedOrders', 'unpricedUnits'].reduce((o, k) => (o[k] = sumM((m) => m.returns[k]), o), {}),
+    returns: ['orders', 'units', 'revenueReduction', 'costOut', 'assumedRestockCost', 'restockedCost', 'damagedLoss', 'unresolvedCost', 'unresolvedOrders', 'unpricedUnits', 'fxMissingOrders'].reduce((o, k) => (o[k] = sumM((m) => m.returns[k]), o), {}),
+    referenceRevenue: sumM((m) => m.referenceRevenue), unallocatedRevenue: sumM((m) => m.unallocatedRevenue), unallocatedOrders: sumM((m) => m.unallocatedOrders), mixedBrandUnsplit: sumM((m) => m.mixedBrandUnsplit),
+    revenueByCurrency: Object.values(summary).reduce((o, m) => { for (const [k, v] of Object.entries(m.revenueByCurrency)) o[k] = (o[k] || 0) + v; return o; }, {}),
+    revenueNoFx: { orders: sumM((m) => m.revenueNoFx.orders), units: sumM((m) => m.revenueNoFx.units), byCurrency: Object.values(summary).reduce((o, m) => { for (const [k, v] of Object.entries(m.revenueNoFx.byCurrency)) o[k] = (o[k] || 0) + v; return o; }, {}) },
+    revenueMissing: { orders: sumM((m) => m.revenueMissing.orders), units: sumM((m) => m.revenueMissing.units) },
     unpricedUnits: sumM((m) => m.unpricedUnits), legacyUnifiedUnits: sumM((m) => m.legacyUnifiedUnits), unmappedUnits: sumM((m) => m.unmappedUnits), ordersNoItems: sumM((m) => m.ordersNoItems), settledOrders: sumM((m) => m.settledOrders),
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },
@@ -456,7 +525,7 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     month: monthStart, products, marketSummary: summary, company: total,
     sharedExpenses: company.shared, sharedByCategory: company.sharedByCategory,
     unallocated: { usd: company.unallocated, byCategory: company.unallocatedByCategory, unconverted: unconvertedList },
-    priceTable, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
+    priceTable, revenueGaps, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
     unmapped: [...unmapped.values()].sort((a, b) => b.units - a.units), reviewList,
     totals: { netProfit: total.netProfit, revenue: total.revenue, stars: flagCount('star'), losers: flagCount('loss'), risky: flagCount('risky'), unset: flagCount('unset') },
   };

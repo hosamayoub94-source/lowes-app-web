@@ -69,7 +69,7 @@ export const NAV_ITEMS = [
   { id: 'campaigns',     label: 'الحملات',          icon: '📣', path: '/campaigns',    roles: [A, M, SM, MB, SOC, E], group: 'sales', perm: P.MANAGE_CAMPAIGNS },
   { id: 'daily-report',  label: 'تقريري اليومي',    icon: '🧾', path: '/daily-report', roles: [E, M, A, SM, MB, SOC], group: 'sales' },
   { id: 'crm',           label: 'CRM',              icon: '🤝', path: '/crm',          roles: [M, A, SM],     group: 'sales' },
-  { id: 'profitability', label: 'ربحية المنتج',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales', perm: P.VIEW_ANALYTICS },
+  { id: 'profitability', label: 'الربحية والنتائج الشهرية',     icon: '💎', path: '/profitability', roles: [M, A, SM],    group: 'sales', perm: P.VIEW_ANALYTICS },
 
   // ── Inventory (NOT regular employees — revealed by stock permissions)
   { id: 'inventory',  label: 'المنتجات', icon: '📦', path: '/inventory',  roles: [A, M, SM], group: 'inventory', perm: P.VIEW_INVENTORY },

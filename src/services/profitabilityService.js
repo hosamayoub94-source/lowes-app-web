@@ -34,7 +34,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
     supabase.from('product_economics_history').select('*').lte('effective_from', monthStart),
     supabase.from('profitability_expenses').select('*').eq('month', monthStart).order('created_at', { ascending: true }),
     supabase.from('accounting_channels').select('id, name_ar, kind, market'),
-    supabase.from('profitability_fx_rates').select('*').eq('month', monthStart).order('entered_at', { ascending: false }),
+    supabase.from('profitability_fx_rates').select('*').lte('month', monthStart).order('entered_at', { ascending: false }),
     supabase.from('profitability_month_closures').select('*').eq('month', monthStart).maybeSingle(),
     supabase.from('product_market_prices').select('*').lte('effective_from', monthStart).order('effective_from', { ascending: false }),
     supabase.from('order_status_history_failures').select('id', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
@@ -42,9 +42,11 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   for (const res of [econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes]) if (res.error && !missingTable(res)) throw res.error;
 
   const expenses = expensesRes.error ? [] : (expensesRes.data || []);
-  const fxRates = fxRes.error ? [] : (fxRes.data || []);
+  // كل أسعار الصرف حتى الشهر (المرتجع يُحوَّل بسعر شهر التسليم الأصلي)؛ لوحة الصرف تعرض شهر التقرير فقط
+  const fxAllRates = fxRes.error ? [] : (fxRes.data || []);
+  const fxRates = fxAllRates.filter((r) => String(r.month).slice(0, 10) === monthStart);
   const result = computeMonthly({
-    orders, month: monthStart, brand, expenses, fxRates,
+    orders, month: monthStart, brand, expenses, fxRates: fxAllRates,
     nameMapRows: mapRes.data || [],
     historyRows: historyRes.error ? [] : (historyRes.data || []),
     currentRows: econRes.data || [],

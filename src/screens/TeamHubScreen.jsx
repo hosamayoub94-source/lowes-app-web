@@ -37,7 +37,7 @@ const CONFIGS = {
       { icon: '📈', label: 'تقارير المبيعات', path: ROUTES.SALES },
       { icon: '📣', label: 'الحملات', path: ROUTES.CAMPAIGNS },
       { icon: '🤝', label: 'CRM', path: ROUTES.CRM },
-      { icon: '💎', label: 'ربحية المنتج', path: ROUTES.PROFITABILITY },
+      { icon: '💎', label: 'الربحية والنتائج الشهرية', path: ROUTES.PROFITABILITY },
       { icon: '🧾', label: 'تقريري اليومي', path: ROUTES.DAILY_REPORT },
       { icon: '📈', label: 'لوحة المدير', path: ROUTES.MANAGER_BOARD },
     ],
