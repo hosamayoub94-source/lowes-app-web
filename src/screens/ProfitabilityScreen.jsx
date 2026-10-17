@@ -178,7 +178,7 @@ function MarketCard({ k, x }) {
   const basis = Object.entries(x.deliveryBasis || {}).map(([b, n]) => `${BASIS_LABELS[b] || b}: ${n}`).join(' · ');
   return <div className="rounded-xl bg-surface-alt p-3 border border-border/60">
     <div className="flex items-center justify-between gap-1"><p className="text-xs font-bold">{MARKET_LABELS[k]}</p><QualityBadge q={x.quality} /></div>
-    <p className={`text-lg font-black mt-1 ${Number(x.netProfit)>=0?'text-green-600':'text-red-600'}`}>${fmt(x.netProfit)}</p>
+    {x.revenue === 0 && x.revenueNoFx?.orders > 0 ? <p className="text-sm font-black mt-1 text-orange-600" title="كل إيراد هذا السوق بعملة بلا سعر صرف شهري">— بانتظار سعر الصرف</p> : <p className={`text-lg font-black mt-1 ${Number(x.netProfit)>=0?'text-green-600':'text-red-600'}`}>${fmt(x.netProfit)}</p>}
     <div className="text-[10px] text-muted">صافي الربح بالدولار — حساب {QUALITY[x.quality?.status]?.label.replace(/^\S+ /, '') || ''}</div>
     <div className="text-[10px] text-muted mt-1">{x.orders||0} طلب سُلِّم بالشهر · {x.units||0} قطعة</div>
     {basis && <div className="text-[10px] text-muted">مصدر تاريخ التسليم — {basis}</div>}
