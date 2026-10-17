@@ -4,7 +4,7 @@
 // مع إدخال السعر/التكلفة/الإعلان/الشحن (يُحفظ ويُحسب فوراً).
 // =============================================================
 import { useState, useEffect, useCallback } from 'react';
-import { loadProfitability, saveEconomics, setProductActive } from '@services/profitabilityService';
+import { loadProfitability, saveEconomics, saveExpense, deleteExpense, setProductActive } from '@services/profitabilityService';
 import { useToast } from '@hooks/useToast';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(n || 0);
@@ -28,9 +28,10 @@ function StatCard({ icon, label, value, tone='navy' }) {
 }
 
 function EconEditor({ p, onSave, onClose }) {
+  const toast = useToast();
   const [f, setF] = useState({
     sale_price_usd: p.price || '', cost_usd: p.cost || '',
-    ad_cost_usd: p.ad || '', shipping_cost_usd: p.ship || '',
+    ad_cost_usd: p.adRaw || '', shipping_cost_usd: p.shipRaw || '',
   });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF(s => ({ ...s, [k]: v.replace(/[^\d.]/g, '') }));
@@ -51,7 +52,8 @@ function EconEditor({ p, onSave, onClose }) {
         ad_cost_usd: Number(f.ad_cost_usd)||0, shipping_cost_usd: Number(f.shipping_cost_usd)||0,
       });
       onSave();
-    } finally { setBusy(false); }
+    } catch (e) { toast.error(e.message || 'تعذّر الحفظ'); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -59,7 +61,7 @@ function EconEditor({ p, onSave, onClose }) {
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-2xl border border-border overflow-hidden">
         <div className="px-4 py-3 bg-navy text-white">
           <p className="font-bold text-sm">اقتصاديات: {p.name}</p>
-          <p className="text-[11px] text-white/70">كل القيم بالدولار (USD) لكل وحدة</p>
+          <p className="text-[11px] text-white/70">بالدولار لكل وحدة · يسري من الشهر الحالي فقط، والأشهر السابقة لا تتغيّر</p>
         </div>
         <div className="p-4 space-y-2.5">
           {fields.map(([k, label]) => (
@@ -89,7 +91,7 @@ function BulkEconEditor({ products, onClose, onSaved }) {
     const m = {};
     products.forEach(p => { m[p.name] = {
       sale_price_usd: p.price || '', cost_usd: p.cost || '',
-      ad_cost_usd: p.ad || '', shipping_cost_usd: p.ship || '',
+      ad_cost_usd: p.adRaw || '', shipping_cost_usd: p.shipRaw || '',
     }; });
     return m;
   });
@@ -130,7 +132,7 @@ function BulkEconEditor({ products, onClose, onSaved }) {
       <div className="w-full sm:max-w-2xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
         <div className="px-4 py-3 bg-navy text-white shrink-0">
           <p className="font-bold text-sm">✏️ تعديل التكاليف للكل — كل القيم بالدولار/وحدة</p>
-          <p className="text-[11px] text-white/70">عبّي التكلفة (والإعلان/الشحن إن وُجد) → احفظ مرّة واحدة. الربح يظهر فوراً.</p>
+          <p className="text-[11px] text-white/70">يسري التغيير من الشهر الحالي فقط — الأشهر السابقة تبقى كما كانت. الإعلان/الشحن تقدير اختياري يُهمَل عند وجود مصروف فعلي.</p>
         </div>
         <div className="p-3 shrink-0">
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="ابحث عن منتج…"
@@ -176,24 +178,76 @@ function BulkEconEditor({ products, onClose, onSaved }) {
   );
 }
 
-const PERIODS = [
-  { key: '90d',   label: 'آخر 3 شهور' },
-  { key: 'month', label: 'هذا الشهر' },
-  { key: 'all',   label: 'الكل' },
-];
-function sinceFor(period) {
-  const d = new Date();
-  if (period === 'month') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
-  if (period === 'all')   return '2020-01-01';
-  d.setDate(d.getDate() - 90);
-  return d.toISOString().slice(0, 10);
-}
-
 const BRANDS = [
   { key: 'lowes',  label: "🌿 LOWE'S" },
   { key: 'strong', label: '💊 سترونغ' },
   { key: 'all',    label: 'الكل' },
 ];
+
+const EXPENSE_CATEGORIES = ['حملات إعلانية', 'سوشل ميديا', 'أجور الشحن', 'تغليف + أجور التغليف', 'تخزين + نقل', 'رواتب', 'محاسبة + الضرائب الشهرية', 'ضرائب الربح', 'مصاريف إضافية', 'بلوغرات + هدايا'];
+const MARKET_LABELS = { syria: '🇸🇾 سوريا', turkey: '🇹🇷 تركيا', uae: '🇦🇪 الإمارات', unknown: 'غير محدد' };
+
+function ExpenseEditor({ month, expenses, onSaved }) {
+  const toast = useToast();
+  const blank = { category: EXPENSE_CATEGORIES[0], market: 'all', amount_usd: '', notes: '' };
+  const [form, setForm] = useState(blank);
+  const [editId, setEditId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!(Number(form.amount_usd) > 0)) return toast.error('أدخل قيمة المصروف');
+    setBusy(true);
+    try {
+      await saveExpense({ id: editId, month, ...form });
+      setForm(blank); setEditId(null);
+      toast.success(editId ? 'تم تعديل المصروف' : 'تم حفظ المصروف للشهر'); onSaved();
+    } catch (e) { toast.error(e.message || 'تعذّر حفظ المصروف'); }
+    finally { setBusy(false); }
+  };
+  const startEdit = (e) => { setEditId(e.id); setForm({ category: e.category, market: e.market, amount_usd: String(e.amount_usd), notes: e.notes || '' }); };
+  const cancelEdit = () => { setEditId(null); setForm(blank); };
+  const remove = async (e) => {
+    if (!window.confirm(`حذف «${e.category}» ($${fmt(e.amount_usd)})؟`)) return;
+    try { await deleteExpense(e.id); if (editId === e.id) cancelEdit(); onSaved(); toast.success('تم الحذف'); }
+    catch (err) { toast.error(err.message || 'تعذّر حذف المصروف'); }
+  };
+  const total = expenses.reduce((s, e) => s + (Number(e.amount_usd) || 0), 0);
+  const categories = EXPENSE_CATEGORIES.includes(form.category) ? EXPENSE_CATEGORIES : [form.category, ...EXPENSE_CATEGORIES];
+  return <div className="bg-surface border border-border rounded-2xl p-3" dir="rtl">
+    <div className="flex items-center justify-between mb-2">
+      <h2 className="font-bold text-sm">🧾 مصاريف الشهر اليدوية {editId && <span className="text-orange-600">· وضع التعديل</span>}</h2>
+      <span className="text-[11px] text-muted">المجموع <b className="text-text">${fmt(total)}</b></span>
+    </div>
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="border border-border rounded-xl px-2 py-2 text-xs bg-surface-alt text-text">{categories.map(x=><option key={x}>{x}</option>)}</select>
+      <select value={form.market} onChange={e=>setForm({...form,market:e.target.value})} className="border border-border rounded-xl px-2 py-2 text-xs bg-surface-alt text-text"><option value="all">مشترك على الشركة</option><option value="syria">سوريا</option><option value="turkey">تركيا</option><option value="uae">الإمارات</option></select>
+      <input type="number" min="0" step="0.01" value={form.amount_usd} onChange={e=>setForm({...form,amount_usd:e.target.value})} placeholder="القيمة USD" className="border border-border rounded-xl px-2 py-2 text-xs bg-surface-alt text-text" />
+      <input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="ملاحظة اختيارية" className="border border-border rounded-xl px-2 py-2 text-xs bg-surface-alt text-text" />
+      <div className="flex gap-1">
+        <button onClick={save} disabled={busy} className="flex-1 rounded-xl bg-teal text-navy font-bold text-xs py-2 disabled:opacity-50">{busy?'جارٍ…':editId?'حفظ التعديل':'إضافة'}</button>
+        {editId && <button onClick={cancelEdit} className="rounded-xl border border-border text-xs px-2">إلغاء</button>}
+      </div>
+    </div>
+    <p className="text-[10px] text-muted mt-2">«حملات إعلانية» و«أجور الشحن» الفعلية تُلغي تقدير الإعلان/الشحن لكل وحدة بنفس الشهر (منعاً للعدّ المزدوج). المصاريف المشتركة لا تُوزَّع على الأسواق.</p>
+    {expenses.length > 0 && <div className="mt-3 space-y-1">{expenses.map(e=><div key={e.id} className="flex items-center justify-between gap-2 text-xs border-t border-border/50 pt-1.5"><span className="min-w-0 truncate">{e.category} · {e.market==='all'?'مشترك':MARKET_LABELS[e.market]} {e.notes && `· ${e.notes}`}</span><span className="flex items-center gap-2 shrink-0"><b>${fmt(e.amount_usd)}</b><button onClick={()=>startEdit(e)} className="text-teal">تعديل</button><button onClick={()=>remove(e)} className="text-red-500">حذف</button></span></div>)}</div>}
+  </div>;
+}
+
+function MarketCard({ k, x }) {
+  const row = (label, v, neg) => v ? <div className="flex justify-between"><span>{label}</span><span className={neg ? 'text-red-600' : ''}>{neg ? '−' : ''}${fmt(v)}</span></div> : null;
+  return <div className="rounded-xl bg-surface-alt p-3 border border-border/60">
+    <p className="text-xs font-bold">{MARKET_LABELS[k]}</p>
+    <p className={`text-lg font-black mt-1 ${Number(x.netProfit)>=0?'text-green-600':'text-red-600'}`}>${fmt(x.netProfit)}</p>
+    <div className="text-[10px] text-muted mt-1">{x.orders||0} طلب مسلَّم · {x.units||0} قطعة{x.returns?` · ↩️ ${x.returns} مرتجع`:''}</div>
+    <div className="text-[10px] text-muted mt-1.5 space-y-0.5">
+      {row('المبيعات', x.revenue)}{row('تكلفة المنتجات', x.productCost, true)}{row('خسارة المرتجعات', x.returnLoss, true)}
+      {row('إعلان (تقدير)', x.estAds, true)}{row('شحن (تقدير)', x.estShipping, true)}
+      {Object.entries(x.expensesByCategory || {}).map(([c, v]) => <div key={c} className="flex justify-between"><span>{c}</span><span className="text-red-600">−${fmt(v)}</span></div>)}
+    </div>
+    {Object.keys(x.collected || {}).length > 0 && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">المحصَّل الفعلي: {Object.entries(x.collected).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ')}</div>}
+    {x.unpricedUnits > 0 && <div className="text-[10px] text-orange-600 mt-1">⚠️ {x.unpricedUnits} قطعة بلا سعر/تكلفة — الربح أقل من الحقيقي</div>}
+    {x.ordersNoItems > 0 && <div className="text-[10px] text-orange-600">⚠️ {x.ordersNoItems} طلب مسلَّم بلا أصناف — لا يدخل القطع/المبيعات</div>}
+  </div>;
+}
 
 export default function ProfitabilityScreen() {
   const toast = useToast();
@@ -201,16 +255,16 @@ export default function ProfitabilityScreen() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [bulk, setBulk]       = useState(false);
-  const [period, setPeriod]   = useState('90d');
+  const [month, setMonth]     = useState(() => new Date().toISOString().slice(0, 7));
   const [brand, setBrand]     = useState('lowes');
   const [freezing, setFreezing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await loadProfitability({ since: sinceFor(period), brand })); }
+    try { setData(await loadProfitability({ since: `${month}-01`, brand })); }
     catch (e) { toast.error(e.message || 'تعذّر التحميل'); }
     finally { setLoading(false); }
-  }, [toast, period, brand]);
+  }, [toast, month, brand]);
   useEffect(() => { load(); }, [load]);
 
   const toggleFreeze = async (p) => {
@@ -223,6 +277,13 @@ export default function ProfitabilityScreen() {
     finally { setFreezing(null); }
   };
 
+  if (!data && !loading) return (
+    <div className="max-w-3xl mx-auto p-6 text-center space-y-3" dir="rtl">
+      <p className="text-sm text-muted">تعذّر تحميل الربحية.</p>
+      <button onClick={load} className="px-4 py-2 rounded-xl bg-navy text-white text-xs font-bold">إعادة المحاولة</button>
+    </div>
+  );
+
   if (loading && !data) return (
     <div className="max-w-3xl mx-auto pb-24 space-y-3" dir="rtl">
       <div className="h-24 rounded-2xl bg-surface-alt animate-pulse" />
@@ -230,7 +291,7 @@ export default function ProfitabilityScreen() {
     </div>
   );
 
-  const { products, totals } = data;
+  const { products, totals, marketSummary = {}, expenses = [], company = {}, unmapped = [] } = data;
 
   return (
     <div className="max-w-3xl mx-auto pb-24 space-y-4" dir="rtl">
@@ -249,19 +310,30 @@ export default function ProfitabilityScreen() {
         ))}
       </div>
 
-      {/* Period toggle */}
-      <div className="flex gap-1.5">
-        {PERIODS.map(p => (
-          <button key={p.key} onClick={()=>setPeriod(p.key)}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${period===p.key?'bg-teal text-navy border-teal':'bg-surface text-muted border-border hover:border-teal/40'}`}>
-            {p.label}
-          </button>
-        ))}
+      <div className="bg-surface border border-border rounded-2xl p-3 flex items-center gap-3">
+        <label className="text-xs font-bold text-text whitespace-nowrap">📅 شهر التقرير</label>
+        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+        <button onClick={load} className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold">تحديث</button>
       </div>
+
+      <div className="bg-surface border border-border rounded-2xl p-3" dir="rtl">
+        <div className="flex items-center justify-between mb-2"><h2 className="font-bold text-sm">📊 ملخص الأسواق — بالدولار</h2><span className="text-[10px] text-muted">المبيعات = الطلبات المسلّمة/المسوّاة فقط</span></div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {['syria','turkey','uae'].map(k => <MarketCard key={k} k={k} x={marketSummary[k] || {}} />)}
+        </div>
+        <div className="rounded-xl bg-navy text-white p-3 mt-2">
+          <div className="flex items-center justify-between"><span className="text-xs font-bold">🏢 الشركة كاملة</span><span className={`text-xl font-black ${company.netProfit>=0?'text-green-300':'text-red-300'}`}>${fmt(company.netProfit)}</span></div>
+          <div className="text-[10px] text-white/70 mt-1">{company.orders||0} طلب · {company.units||0} قطعة · مبيعات ${fmt(company.revenue)} · تكلفة ${fmt(company.productCost)} · مرتجعات ${fmt(company.returnLoss)} · مصاريف الأسواق ${fmt(company.marketExpenses)}</div>
+          <div className="text-[10px] text-white/70">مصاريف مشتركة غير موزعة: ${fmt(data.sharedExpenses)} (تدخل في صافي الشركة فقط){Object.entries(data.sharedByCategory||{}).length>0 && ' — '+Object.entries(data.sharedByCategory).map(([c,v])=>c+' $'+fmt(v)).join(' · ')}</div>
+        </div>
+        {(data.estimates?.ads || data.estimates?.shipping) && <p className="text-[10px] text-muted mt-2">ℹ️ {data.estimates.ads && 'الإعلان '}{data.estimates.ads && data.estimates.shipping && 'و'}{data.estimates.shipping && 'الشحن '}محسوبان بتقدير الوحدة (إن وُجد) لأن لا مصروف فعلي مُدخل لهما هذا الشهر.</p>}
+      </div>
+
+      <ExpenseEditor month={month} expenses={expenses} onSaved={load} />
 
       {/* Totals */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatCard icon="💰" label="صافي الربح (المحدَّد)" value={`$${fmt(totals.netProfit)}`} tone={totals.netProfit>=0?'green':'red'} />
+        <StatCard icon="💰" label="صافي الشركة (بعد المصاريف)" value={`$${fmt(totals.netProfit)}`} tone={totals.netProfit>=0?'green':'red'} />
         <StatCard icon="💎" label="منتجات نجوم" value={totals.stars} tone="green" />
         <StatCard icon="🔻" label="خاسرة" value={totals.losers} tone="red" />
         <StatCard icon="⚠️" label="مرتجعات عالية" value={totals.risky} tone="orange" />
@@ -276,6 +348,12 @@ export default function ProfitabilityScreen() {
       {totals.unset > 0 && (
         <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2.5">
           💡 {totals.unset} صنف بدون تكلفة محدّدة — اضغط «✏️ تعديل التكاليف للكل» لإدخالها دفعة واحدة وتظهر الأرباح فوراً.
+        </div>
+      )}
+
+      {unmapped.length > 0 && (
+        <div className="text-xs bg-orange-500/5 border border-orange-500/20 rounded-xl px-3 py-2.5 text-text">
+          🔗 {unmapped.length} اسم منتج مباع غير مربوط بالأسماء الموحّدة (يظهر باسمه الخام): {unmapped.slice(0, 6).map(u => `${u.name} (${u.units})`).join('، ')}{unmapped.length > 6 ? '…' : ''}
         </div>
       )}
 
