@@ -64,14 +64,14 @@ for (const s of SOURCES) { const c = mkClient(null); const okRes = await recordS
 const retBase = { status: 'returned', delivered_at: null, delivery_basis: 'unknown', return_at: '2026-09-20T10:00:00+03:00', return_source: 'yurtici', items: [{ name: 'Serum A', qty: 2 }], reserve_qty: 2 };
 r = run([R({ ...retBase, restock_qty: 2 })]);
 eq(tr(r).returns.costOut, 16, '6: تكلفة ما خرج من المخزون 2×8'); eq(tr(r).returns.restockedCost, 16, '6: التكلفة المستردة كاملة'); eq(tr(r).returns.damagedLoss, 0, '6: لا تالف'); eq(tr(r).returns.unresolvedCost, 0, '6: لا تسوية معلّقة');
-eq(tr(r).estShipping, 4, '6: تقدير الشحن 2×2 يبقى (الشحن خرج فعلاً)'); eq(tr(r).productProfit, -4, '6: لا أثر ربحي من البضاعة المستردة — الأثر الوحيد تقدير الشحن'); ok(!hasIssue(tr(r).quality, 'return_unresolved'), '6: لا تحذير غير محسوم');
+eq(tr(r).estShipping, 6, '6: شحن المرتجع غير المسلَّم = مرة ونصف (1.5×2×2)'); eq(tr(r).productProfit, -6, '6: لا أثر ربحي من البضاعة المستردة — الأثر الوحيد تقدير الشحن'); ok(!hasIssue(tr(r).quality, 'return_unresolved'), '6: لا تحذير غير محسوم');
 r = run([R({ ...retBase, restock_qty: 1 })]);
-eq(tr(r).returns.restockedCost, 8, '6: استرداد جزئي = نصف التكلفة فقط'); eq(tr(r).returns.unresolvedCost, 8, '6: النصف الآخر غير محسوم'); ok(hasIssue(tr(r).quality, 'return_unresolved'), '6: تحذير الباقي');
+eq(tr(r).returns.restockedCost, 16, '6: استرداد جزئي مثبَت 8 + الباقي 8 يُعدّ إعادة للمخزون بقاعدة المالك'); eq(tr(r).returns.assumedRestockCost, 8, '6: الجزء المفترض مُعلَن'); eq(tr(r).returns.unresolvedCost, 0, '6: لا تسوية معلّقة');
 r = run([R({ ...retBase, waste_qty: 2 })]);
-eq(tr(r).returns.damagedLoss, 16, '7: خسارة التالف الموثَّق = التكلفة'); eq(tr(r).productProfit, -16 - 4, '7: خسارة التالف 16 + تقدير شحن 4'); eq(tr(r).returns.restockedCost, 0, '7: لا استرداد');
+eq(tr(r).returns.damagedLoss, 16, '7: خسارة التالف الموثَّق = التكلفة'); eq(tr(r).productProfit, -16 - 6, '7: خسارة التالف 16 + شحن 6'); eq(tr(r).returns.restockedCost, 0, '7: لا استرداد');
 r = run([R({ ...retBase })]);
-eq(tr(r).returns.damagedLoss, 0, '8: المجهول لا يُحتسب تالفاً'); eq(tr(r).returns.restockedCost, 0, '8: ولا مستَرداً'); eq(tr(r).returns.unresolvedCost, 16, '8: يظهر كتسوية غير محسومة 16');
-eq(tr(r).productProfit, -4, '8: لا أثر للبضاعة غير المحسومة على الربح (الشحن التقديري فقط)'); ok(hasIssue(tr(r).quality, 'return_unresolved') && tr(r).quality.status === 'estimated', '8: الحالة تقديري مع التحذير');
+eq(tr(r).returns.damagedLoss, 0, '8: المجهول لا يُحتسب تالفاً'); eq(tr(r).returns.restockedCost, 16, '8: مصير غير موثَّق = إعادة للمخزون بقاعدة المالك'); eq(tr(r).returns.assumedRestockCost, 16, '8: ويُعلَن أنه مفترض'); eq(tr(r).returns.unresolvedCost, 0, '8: لا تسوية معلّقة');
+eq(tr(r).productProfit, -6, '8: أثر المرتجع غير المسلَّم = الشحن 1.5× فقط'); ok(!hasIssue(tr(r).quality, 'return_unresolved'), '8: لا تحذير غير محسوم');
 r = run([R({ status: 'returning', delivered_at: null, delivery_basis: 'unknown' }), R({ status: 'not_received', delivered_at: null, delivery_basis: 'unknown' })]);
 eq(tr(r).returns.orders, 0, '8: returning/not_received ليسا مرتجعاً مكتملاً'); eq(tr(r).pendingReturns.orders, 2, '8: يظهران معلّقين'); eq(tr(r).productProfit, 0, '8: بلا أثر ربحي'); ok(hasIssue(tr(r).quality, 'pending_returns'), '8: تحذير المعلّق');
 const dr = R({ status: 'returned', order_date: '2026-09-02T10:00:00+03:00', delivered_at: '2026-09-10T10:00:00+03:00', delivered_before_return: true, return_at: '2026-10-05T10:00:00+03:00', items: [{ name: 'ROSEMARY SHAMPOO', qty: 2 }], reserve_qty: 2, restock_qty: 2 });
@@ -82,7 +82,7 @@ eq(tr(octR).returns.restockedCost, 8, '9: التكلفة المستردة بسع
 eq(tr(sepR).productProfit + tr(octR).productProfit, 0, '9: الإجمالي عبر الشهرين = صفر لمرتجع كامل مُسترَد');
 ok(!!dr.order_code, '9: مرجع الطلب الأصلي (رمز الطلب) محفوظ بالصف');
 const o2 = run([R({ ...dr, restock_qty: 0 })], {}, '2026-10');
-eq(tr(o2).productProfit, -20, '9: بلا إثبات مخزون: −الإيراد فقط'); eq(tr(o2).returns.unresolvedCost, 8, '9: تكلفة 8 غير محسومة (قد تُسترد)'); ok(o2.returnLists.unresolved[0].code === dr.order_code, '9: قائمة غير المحسوم تحمل رمز الطلب الأصلي');
+eq(tr(o2).productProfit, -20 + 8, '9: بلا إثبات: −الإيراد + التكلفة المفترضة المستردة'); eq(tr(o2).returns.assumedRestockCost, 8, '9: التكلفة المفترضة المستردة 8'); eq(tr(o2).returns.unresolvedCost, 0, '9: لا تسوية معلّقة');
 const rb = R({ ...dr, return_at: null, return_bulk_suspect: true });
 r = run([rb], {}, '2026-09'); eq(tr(r).returnTimingUnknown.orders, 1, '9: مرتجع بتوقيت جماعي غير موثوق يظهر'); eq(tr(r).returnTimingUnknown.revenue, 20, '9: قيمته المعلّقة 20'); ok(hasIssue(tr(r).quality, 'return_timing_unknown'), '9: تحذير التوقيت');
 r = run([rb], {}, '2026-10'); eq(tr(r).returns.orders, 0, '9: لا يُنسَب لتشرين الأول'); eq(tr(r).returnTimingUnknown.orders, 0, '9: ولا يظهر بشهر غير شهر تسليمه');

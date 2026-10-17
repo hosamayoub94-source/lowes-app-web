@@ -123,7 +123,9 @@ export function buildFxLookup(rows = [], monthStart) {
 
 // ───────────────────────── الحساب ─────────────────────────
 const num = (v) => Number(v) || 0;
-const emptyReturns = () => ({ orders: 0, units: 0, revenueReduction: 0, costOut: 0, restockedCost: 0, damagedLoss: 0, unresolvedCost: 0, unresolvedOrders: 0, unpricedUnits: 0 });
+// سياسة المالك (18 تشرين الأول): الطلب المرتجع يعود للمخزون؛ شحنه مرة ونصف إجمالاً (بعد التسليم يُضاف نصف مرة فوق الشحن المحسوب عند التسليم)
+const RETURN_SHIP_FACTOR = (afterDelivery) => (afterDelivery ? 0.5 : 1.5);
+const emptyReturns = () => ({ assumedRestockCost: 0, orders: 0, units: 0, revenueReduction: 0, costOut: 0, restockedCost: 0, damagedLoss: 0, unresolvedCost: 0, unresolvedOrders: 0, unpricedUnits: 0 });
 const emptyMarket = () => ({
   orders: 0, ordersNoItems: 0, units: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, productProfit: 0,
   returns: emptyReturns(),
@@ -271,13 +273,14 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
       const pv = versionFor(it, dMonth);
       if (!pv.complete) { incomplete += it.q; continue; }
       costOut += pv.cost * it.q; if (afterDelivery) revRed += pv.price * it.q;
-      const r = row(it, m); r.returns += it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
+      const r = row(it, m); r.returns += it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
     }
     R.unpricedUnits += incomplete;
     const denom = num(o.reserve_qty) > 0 ? num(o.reserve_qty) : c.allUnits;
     const rr = denom > 0 ? Math.min(1, num(o.restock_qty) / denom) : 0;
     const rw = denom > 0 ? Math.min(1 - rr, num(o.waste_qty) / denom) : 0;
-    const restocked = costOut * rr, damaged = costOut * rw, unresolved = costOut - restocked - damaged;
+    const damaged = costOut * rw, assumed = costOut - costOut * rr - damaged, restocked = costOut * rr + assumed, unresolved = 0;
+    R.assumedRestockCost += assumed;
     R.revenueReduction += revRed; R.costOut += costOut; R.restockedCost += restocked; R.damagedLoss += damaged; R.unresolvedCost += unresolved;
     if (unresolved > 1e-9 || incomplete) { R.unresolvedOrders++; returnLists.unresolved.push({ id: o.id, code: o.order_code, market: m, units: c.units, cost: unresolved, afterDelivery, return_at: o.return_at }); }
     // أثر P&L المؤكَّد فقط: − تخفيض الإيراد + التكلفة المستردة (إن سُلِّم سابقاً)؛ − التالف الموثَّق (إن لم يُسلَّم سابقاً: التكلفة لم تُسجَّل أصلاً فنخصم التالف فقط)
@@ -389,7 +392,7 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     orders: sumM((m) => m.orders), units: sumM((m) => m.units), revenue: sumM((m) => m.revenue), productCost: sumM((m) => m.productCost),
     estAds: sumM((m) => m.estAds), estShipping: sumM((m) => m.estShipping), productProfit: sumM((m) => m.productProfit),
     marketExpenses: sumM((m) => m.expenses), sharedExpenses: company.shared, unallocatedExpenses: company.unallocated,
-    returns: ['orders', 'units', 'revenueReduction', 'costOut', 'restockedCost', 'damagedLoss', 'unresolvedCost', 'unresolvedOrders', 'unpricedUnits'].reduce((o, k) => (o[k] = sumM((m) => m.returns[k]), o), {}),
+    returns: ['orders', 'units', 'revenueReduction', 'costOut', 'assumedRestockCost', 'restockedCost', 'damagedLoss', 'unresolvedCost', 'unresolvedOrders', 'unpricedUnits'].reduce((o, k) => (o[k] = sumM((m) => m.returns[k]), o), {}),
     unpricedUnits: sumM((m) => m.unpricedUnits), unmappedUnits: sumM((m) => m.unmappedUnits), ordersNoItems: sumM((m) => m.ordersNoItems), settledOrders: sumM((m) => m.settledOrders),
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },

@@ -229,7 +229,8 @@ function MarketCard({ k, x }) {
       {row('إيراد البيع (محسوب من سعر المنتج)', x.revenue)}
       {row('تخفيض الإيراد بسبب مرتجع (شهر الإرجاع)', R.revenueReduction, true)}
       {row('تكلفة المنتجات المُسلَّمة', x.productCost, true)}
-      {row('تكلفة مخزون مُسترَد (حركة موثَّقة)', R.restockedCost, false, null, true)}
+      {row('تكلفة مخزون مُسترَد (حركة موثَّقة + مفترض بقاعدة المالك)', R.restockedCost, false, null, true)}
+      {R.assumedRestockCost > 0 && <div className="text-[10px] text-muted">منها مفترض (بلا حركة مخزون): ${fmt(R.assumedRestockCost)}</div>}
       {row('خسارة منتجات تالفة (سجل إتلاف)', R.damagedLoss, true)}
       {row('شحن فعلي (محاسبة/إضافي)', x.actualShipping, true)}
       {row('شحن', x.estShipping, true, 'تقدير')}
