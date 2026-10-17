@@ -178,6 +178,9 @@ function BulkEconEditor({ products, onClose, onSaved }) {
   );
 }
 
+// المحرّر الجماعي يعرض كل صنف مرة واحدة (السعر/التكلفة لا يختلفان بين الأسواق)
+const uniqueProducts = (ps) => { const m = new Map(); ps.forEach(p => { const x = m.get(p.name); if (x) x.units += p.units; else m.set(p.name, { ...p }); }); return [...m.values()]; };
+
 const BRANDS = [
   { key: 'lowes',  label: "🌿 LOWE'S" },
   { key: 'strong', label: '💊 سترونغ' },
@@ -367,6 +370,7 @@ export default function ProfitabilityScreen() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-bold text-text truncate">{p.name}</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-alt border border-border text-muted">{MARKET_LABELS[p.market] || p.market}</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${flag.cls}`}>{flag.label}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-[11px] text-muted flex-wrap">
@@ -405,7 +409,7 @@ export default function ProfitabilityScreen() {
       </div>
 
       {editing && <EconEditor p={editing} onClose={()=>setEditing(null)} onSave={()=>{ setEditing(null); toast.success('تم الحفظ'); load(); }} />}
-      {bulk && <BulkEconEditor products={products} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
+      {bulk && <BulkEconEditor products={uniqueProducts(products)} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
     </div>
   );
 }
