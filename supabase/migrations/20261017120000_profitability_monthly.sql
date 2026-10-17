@@ -36,11 +36,13 @@ CREATE INDEX IF NOT EXISTS product_economics_history_lookup_idx
 -- One-time, re-runnable baseline copy (existing rows are never touched).
 INSERT INTO public.product_economics_history
   (item_name, effective_from, sale_price_usd, cost_usd, ad_cost_usd, shipping_cost_usd)
-SELECT item_name, DATE '2000-01-01',
-       COALESCE(sale_price_usd,0), COALESCE(cost_usd,0),
-       COALESCE(ad_cost_usd,0), COALESCE(shipping_cost_usd,0)
-FROM public.product_economics
+SELECT pe.item_name, DATE '2000-01-01',
+       COALESCE(pe.sale_price_usd,0), COALESCE(pe.cost_usd,0),
+       COALESCE(pe.ad_cost_usd,0), COALESCE(pe.shipping_cost_usd,0)
+FROM public.product_economics pe
+WHERE NOT EXISTS (SELECT 1 FROM public.product_economics_history h WHERE h.item_name = pe.item_name)
 ON CONFLICT (item_name, effective_from) DO NOTHING;
+-- NOTE: the 2000-01-01 baseline is corrected by 20261017180000 (it assumed today's values were historical); the NOT EXISTS guard stops a re-run from re-creating it.
 
 CREATE TABLE IF NOT EXISTS public.profitability_expenses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

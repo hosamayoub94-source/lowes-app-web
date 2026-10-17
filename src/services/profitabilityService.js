@@ -1,11 +1,11 @@
 // =============================================================
 // Profitability Service — ربحية شهرية من الطلبات الفعلية + مصاريف شهرية يدوية.
 // الحساب نفسه في @utils/profitabilityCalc (دوال صرفة مُختبَرة)؛ هنا الجلب والحفظ فقط.
-// السعر/التكلفة مُنسَّخان بالشهر: product_economics_history (انظر migration 20261017120000).
+// السعر/التكلفة مُنسَّخان بالشهر: product_economics_history (migrations 20261017120000 + 20261017180000).
 // =============================================================
 import { supabase, supabaseAnon } from './supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
-import { computeMonthly, monthBounds, SALE_STATUSES, RETURN_STATUSES } from '@utils/profitabilityCalc';
+import { computeMonthly, monthBounds, SALE_STATUSES, SETTLED_STATUSES, RETURN_STATUSES } from '@utils/profitabilityCalc';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const missingTable = (res) => res?.error && /does not exist|schema cache/i.test(res.error.message || '');
@@ -17,16 +17,43 @@ async function requireSession() {
   }
 }
 
+/** سجل حالات المرتجعات (لمعرفة هل سُلِّم الطلب قبل إرجاعه). null = تعذّر الجلب. */
+async function loadReturnHistory(orderIds) {
+  const out = {};
+  for (let i = 0; i < orderIds.length; i += 100) {
+    const chunk = orderIds.slice(i, i + 100);
+    const { data, error } = await supabase.from('order_status_history').select('order_id, to_status, changed_at').in('order_id', chunk);
+    if (error) return null;
+    (data || []).forEach((h) => { (out[h.order_id] ||= []).push(h); });
+  }
+  return out;
+}
+
+/** مصاريف الشحن/الإعلانات المسجَّلة بدفتر المحاسبة لنفس الشهر — للعرض فقط، لا تدخل الحساب (منعاً للعدّ المزدوج). */
+async function loadAccountingNotice(monthStart, to) {
+  const { data, error } = await supabase.from('accounting_entries')
+    .select('category, amount_usd, amount_try, amount_syp, is_void')
+    .eq('entry_type', 'expense').in('category', ['شحن', 'إعلانات'])
+    .gte('entry_date', monthStart).lt('entry_date', to.slice(0, 10));
+  if (error) return null;
+  const rows = {};
+  (data || []).filter((e) => !e.is_void).forEach((e) => {
+    const r = (rows[e.category] ||= { n: 0, USD: 0, TRY: 0, SYP: 0 });
+    r.n++; r.USD += Number(e.amount_usd) || 0; r.TRY += Number(e.amount_try) || 0; r.SYP += Number(e.amount_syp) || 0;
+  });
+  return rows;
+}
+
 export async function loadProfitability({ month, since, brand = 'lowes' } = {}) {
   await requireSession();
   const { monthStart, from, to } = monthBounds(month || since || currentMonth());
 
   const [orders, econRes, mapRes, historyRes, expensesRes] = await Promise.all([
-    // على دفعات (orders ضخم). نجلب المبيعات والمرتجعات فقط؛ المحذوف (soft-delete) مستبعد.
+    // على دفعات (orders ضخم). نجلب التسليم والمرتجعات والتسويات فقط؛ المحذوف (soft-delete) مستبعد.
     fetchAllRows(() => supabaseAnon.from('orders')
-      .select('status, items, order_date, market, amount, currency')
+      .select('id, status, items, order_date, market, amount, currency')
       .is('deleted_at', null)
-      .in('status', [...SALE_STATUSES, ...RETURN_STATUSES])
+      .in('status', [...SALE_STATUSES, ...SETTLED_STATUSES, ...RETURN_STATUSES])
       .gte('order_date', from).lt('order_date', to)),
     supabase.from('product_economics').select('*'),
     supabase.from('product_name_map').select('*'),
@@ -38,14 +65,21 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   if (historyRes.error && !missingTable(historyRes)) throw historyRes.error;
   if (expensesRes.error && !missingTable(expensesRes)) throw expensesRes.error;
 
+  const returnIds = orders.filter((o) => RETURN_STATUSES.includes(o.status)).map((o) => o.id);
+  const [statusHistory, accountingNotice] = await Promise.all([
+    returnIds.length ? loadReturnHistory(returnIds) : Promise.resolve({}),
+    loadAccountingNotice(monthStart, to),
+  ]);
+
   const expenses = expensesRes.error ? [] : (expensesRes.data || []);
   const result = computeMonthly({
     orders, month: monthStart, brand, expenses,
     nameMapRows: mapRes.data || [],
     historyRows: historyRes.error ? [] : (historyRes.data || []),
     currentRows: econRes.data || [],
+    statusHistory: statusHistory || undefined,
   });
-  return { ...result, expenses, since: monthStart };
+  return { ...result, expenses, since: monthStart, accountingNotice, returnHistoryUnavailable: statusHistory === null };
 }
 
 /** إضافة مصروف (بلا id) أو تعديله (مع id). month بصيغة YYYY-MM. */

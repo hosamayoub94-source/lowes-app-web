@@ -235,20 +235,42 @@ function ExpenseEditor({ month, expenses, onSaved }) {
   </div>;
 }
 
+const QUALITY = {
+  final:     { label: '✅ نهائي',  cls: 'bg-green-500/10 text-green-600 border-green-500/30', hint: 'لا نواقص ولا تقديرات' },
+  estimated: { label: '🟡 تقديري', cls: 'bg-orange-500/10 text-orange-600 border-orange-500/30', hint: 'يحتوي تقديرات أو بنوداً تحتاج مراجعة' },
+  partial:   { label: '🔴 جزئي',   cls: 'bg-red-500/10 text-red-600 border-red-500/30', hint: 'بيانات جوهرية ناقصة — ليس رقماً نهائياً' },
+};
+const CUR = (o) => Object.entries(o || {}).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ');
+
+function QualityBadge({ q }) {
+  const m = QUALITY[q?.status] || QUALITY.estimated;
+  return <span title={m.hint} className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${m.cls}`}>{m.label}</span>;
+}
+
+function IssueList({ q, dark }) {
+  if (!q?.issues?.length) return null;
+  return <ul className={`text-[10px] mt-1.5 space-y-0.5 ${dark ? 'text-white/80' : 'text-orange-600'}`}>
+    {q.issues.map(i => <li key={i.code}>⚠️ {i.label}{i.orders ? ` — ${i.orders} طلب` : ''}{i.units ? ` · ${fmt(i.units)} قطعة` : ''}</li>)}
+  </ul>;
+}
+
 function MarketCard({ k, x }) {
-  const row = (label, v, neg) => v ? <div className="flex justify-between"><span>{label}</span><span className={neg ? 'text-red-600' : ''}>{neg ? '−' : ''}${fmt(v)}</span></div> : null;
+  const row = (label, v, neg, tag) => v ? <div className="flex justify-between"><span>{label}{tag && <i className="not-italic text-orange-600"> ({tag})</i>}</span><span className={neg ? 'text-red-600' : ''}>{neg ? '−' : ''}${fmt(v)}</span></div> : null;
   return <div className="rounded-xl bg-surface-alt p-3 border border-border/60">
-    <p className="text-xs font-bold">{MARKET_LABELS[k]}</p>
+    <div className="flex items-center justify-between gap-1"><p className="text-xs font-bold">{MARKET_LABELS[k]}</p><QualityBadge q={x.quality} /></div>
     <p className={`text-lg font-black mt-1 ${Number(x.netProfit)>=0?'text-green-600':'text-red-600'}`}>${fmt(x.netProfit)}</p>
-    <div className="text-[10px] text-muted mt-1">{x.orders||0} طلب مسلَّم · {x.units||0} قطعة{x.returns?` · ↩️ ${x.returns} مرتجع`:''}</div>
+    <div className="text-[10px] text-muted">صافي الربح بالدولار — حساب {QUALITY[x.quality?.status]?.label.replace(/^\S+ /, '') || ''}</div>
+    <div className="text-[10px] text-muted mt-1">{x.orders||0} طلب مسلَّم · {x.units||0} قطعة</div>
     <div className="text-[10px] text-muted mt-1.5 space-y-0.5">
-      {row('المبيعات', x.revenue)}{row('تكلفة المنتجات', x.productCost, true)}{row('خسارة المرتجعات', x.returnLoss, true)}
-      {row('إعلان (تقدير)', x.estAds, true)}{row('شحن (تقدير)', x.estShipping, true)}
-      {Object.entries(x.expensesByCategory || {}).map(([c, v]) => <div key={c} className="flex justify-between"><span>{c}</span><span className="text-red-600">−${fmt(v)}</span></div>)}
+      {row('إيراد محسوب من سعر المنتج', x.revenue)}{row('تكلفة المنتجات', x.productCost, true)}
+      {row('خسارة المرتجعات (تكلفة المنتج)', x.returnLoss, true)}
+      {row('إعلان', x.estAds, true, 'تقدير')}{row('شحن', x.estShipping, true, 'تقدير')}
+      {Object.entries(x.expensesByCategory || {}).map(([c, v]) => <div key={c} className="flex justify-between"><span>{c} <i className="not-italic text-green-700">(فعلي)</i></span><span className="text-red-600">−${fmt(v)}</span></div>)}
     </div>
-    {Object.keys(x.collected || {}).length > 0 && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">المحصَّل الفعلي: {Object.entries(x.collected).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ')}</div>}
-    {x.unpricedUnits > 0 && <div className="text-[10px] text-orange-600 mt-1">⚠️ {x.unpricedUnits} قطعة بلا سعر/تكلفة — الربح أقل من الحقيقي</div>}
-    {x.ordersNoItems > 0 && <div className="text-[10px] text-orange-600">⚠️ {x.ordersNoItems} طلب مسلَّم بلا أصناف — لا يدخل القطع/المبيعات</div>}
+    {(x.returnedOrders > 0 || x.returns > 0) && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">↩️ مرتجعات (منفصلة عن المبيعات): {x.returnedOrders} طلب · {x.returns} قطعة</div>}
+    {Object.keys(x.collected || {}).length > 0 && <div className="text-[10px] text-muted mt-1.5 border-t border-border/50 pt-1">💵 المحصَّل من طلبات المسلَّم (بعملة الطلب — غير مُحوَّل ولا مُجمَّع): {CUR(x.collected)}</div>}
+    {x.settledOrders > 0 && <div className="text-[10px] text-muted mt-1">🤝 تسويات (ليست مبيعات منتجات): {x.settledOrders} طلب{Object.keys(x.settledCollected || {}).length ? ` · ${CUR(x.settledCollected)}` : ''}</div>}
+    <IssueList q={x.quality} />
   </div>;
 }
 
@@ -320,16 +342,19 @@ export default function ProfitabilityScreen() {
       </div>
 
       <div className="bg-surface border border-border rounded-2xl p-3" dir="rtl">
-        <div className="flex items-center justify-between mb-2"><h2 className="font-bold text-sm">📊 ملخص الأسواق — بالدولار</h2><span className="text-[10px] text-muted">المبيعات = الطلبات المسلّمة/المسوّاة فقط</span></div>
+        <div className="flex items-center justify-between mb-2"><h2 className="font-bold text-sm">📊 ملخص الأسواق — بالدولار</h2><span className="text-[10px] text-muted">المبيعات = «تم التسليم» فقط · التسويات والمرتجعات منفصلة</span></div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {['syria','turkey','uae'].map(k => <MarketCard key={k} k={k} x={marketSummary[k] || {}} />)}
         </div>
         <div className="rounded-xl bg-navy text-white p-3 mt-2">
-          <div className="flex items-center justify-between"><span className="text-xs font-bold">🏢 الشركة كاملة</span><span className={`text-xl font-black ${company.netProfit>=0?'text-green-300':'text-red-300'}`}>${fmt(company.netProfit)}</span></div>
-          <div className="text-[10px] text-white/70 mt-1">{company.orders||0} طلب · {company.units||0} قطعة · مبيعات ${fmt(company.revenue)} · تكلفة ${fmt(company.productCost)} · مرتجعات ${fmt(company.returnLoss)} · مصاريف الأسواق ${fmt(company.marketExpenses)}</div>
+          <div className="flex items-center justify-between"><span className="text-xs font-bold flex items-center gap-2">🏢 الشركة كاملة <QualityBadge q={company.quality} /></span><span className={`text-xl font-black ${company.netProfit>=0?'text-green-300':'text-red-300'}`}>${fmt(company.netProfit)}</span></div>
+          <div className="text-[10px] text-white/70 mt-1">{company.orders||0} طلب مسلَّم · {company.units||0} قطعة · إيراد محسوب من سعر المنتج ${fmt(company.revenue)} · تكلفة ${fmt(company.productCost)} · مرتجعات ${fmt(company.returnLoss)} · مصاريف الأسواق ${fmt(company.marketExpenses)}</div>
           <div className="text-[10px] text-white/70">مصاريف مشتركة غير موزعة: ${fmt(data.sharedExpenses)} (تدخل في صافي الشركة فقط){Object.entries(data.sharedByCategory||{}).length>0 && ' — '+Object.entries(data.sharedByCategory).map(([c,v])=>c+' $'+fmt(v)).join(' · ')}</div>
+          <div className="text-[10px] text-white/60 mt-1">الإيراد مبنيّ على سعر المنتج بالدولار × الكمية، وليس تحصيلاً نقدياً مؤكداً. المحصَّل الفعلي بعملات الأسواق مُعروض في بطاقة كل سوق دون جمع أو تحويل.</div>
+          <IssueList q={company.quality} dark />
         </div>
-        {(data.estimates?.ads || data.estimates?.shipping) && <p className="text-[10px] text-muted mt-2">ℹ️ {data.estimates.ads && 'الإعلان '}{data.estimates.ads && data.estimates.shipping && 'و'}{data.estimates.shipping && 'الشحن '}محسوبان بتقدير الوحدة (إن وُجد) لأن لا مصروف فعلي مُدخل لهما هذا الشهر.</p>}
+        {data.returnHistoryUnavailable && <p className="text-[10px] text-orange-600 mt-2">⚠️ تعذّر جلب سجل حالات المرتجعات — توقيت التسليم/الإرجاع غير مُتحقَّق منه.</p>}
+        {data.accountingNotice && Object.keys(data.accountingNotice).length > 0 && <p className="text-[10px] text-muted mt-2">📒 مسجَّل بدفتر المحاسبة لنفس الشهر (غير مدمج هنا ولا يدخل الحساب — لا تُدخله يدوياً إن كان مسجّلاً هناك لتجنّب التكرار): {Object.entries(data.accountingNotice).map(([c, r]) => `${c}: ${r.n} قيد${r.SYP ? ' · ' + fmt(r.SYP) + ' SYP' : ''}${r.TRY ? ' · ' + fmt(r.TRY) + ' TRY' : ''}${r.USD ? ' · $' + fmt(r.USD) : ''}`).join(' | ')}</p>}
       </div>
 
       <ExpenseEditor month={month} expenses={expenses} onSaved={load} />
@@ -355,9 +380,10 @@ export default function ProfitabilityScreen() {
       )}
 
       {unmapped.length > 0 && (
-        <div className="text-xs bg-orange-500/5 border border-orange-500/20 rounded-xl px-3 py-2.5 text-text">
-          🔗 {unmapped.length} اسم منتج مباع غير مربوط بالأسماء الموحّدة (يظهر باسمه الخام): {unmapped.slice(0, 6).map(u => `${u.name} (${u.units})`).join('، ')}{unmapped.length > 6 ? '…' : ''}
-        </div>
+        <details className="text-xs bg-orange-500/5 border border-orange-500/20 rounded-xl px-3 py-2.5 text-text">
+          <summary className="cursor-pointer">🔗 {unmapped.length} اسم منتج مباع غير موحَّد ({fmt(unmapped.reduce((s, u) => s + u.units, 0))} قطعة) — يظهر باسمه الخام ويحتاج مراجعة؛ لا يُدمج تلقائياً</summary>
+          <ul className="mt-2 space-y-0.5">{unmapped.map(u => <li key={u.name}>{u.name} <b>({u.units})</b></li>)}</ul>
+        </details>
       )}
 
       {/* Product rows */}
