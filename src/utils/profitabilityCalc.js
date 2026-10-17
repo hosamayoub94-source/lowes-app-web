@@ -156,6 +156,7 @@ const RETURN_SHIP_FACTOR = (afterDelivery) => (afterDelivery ? 0.5 : 1.5);
 const emptyReturns = () => ({ fxMissingOrders: 0, assumedRestockCost: 0, orders: 0, units: 0, revenueReduction: 0, costOut: 0, restockedCost: 0, damagedLoss: 0, unresolvedCost: 0, unresolvedOrders: 0, unpricedUnits: 0 });
 const emptyMarket = () => ({
   orders: 0, ordersNoItems: 0, units: 0, revenue: 0, referenceRevenue: 0, unallocatedRevenue: 0, unallocatedOrders: 0, mixedBrandUnsplit: 0,
+  customerDeliveryFees: {}, partialPayment: { orders: 0, byCurrency: {} }, payrollMissing: false,
   revenueByCurrency: {}, revenueNoFx: { orders: 0, units: 0, byCurrency: {} }, revenueMissing: { orders: 0, units: 0 }, productCost: 0, estAds: 0, estShipping: 0, productProfit: 0,
   returns: emptyReturns(),
   expenses: 0, expensesByCategory: {}, actualShipping: 0, netProfit: 0,
@@ -178,6 +179,8 @@ const ISSUES = {
   fx_missing: ['partial', 'مصاريف بعملة بلا سعر صرف شهري معتمد (غير محسوبة بالدولار)'],
   estimates: ['estimated', 'إعلان/شحن بتقدير الوحدة (لا مصروف فعلي محوَّل)'],
   estimate_with_unallocated: ['estimated', 'تقدير مستخدم بينما يوجد مصروف فعلي غير موزّع على سوق (قد يتكرر)'],
+  payroll_missing: ['partial', 'رواتب غير مُدخَلة لسوق فيه نشاط (لا يدوياً ولا بالمحاسبة) — أدخلها يدوياً أو اكتب 0 صراحةً'],
+  payroll_from_accounting: ['estimated', 'رواتب مأخوذة من المحاسبة مؤقتاً — لم تُدخَل يدوياً للسوق'],
   unallocated_expenses: ['estimated', 'مصاريف غير موزّعة على سوق'],
   substitute_dates: ['estimated', 'مبيعات بتاريخ تسليم بديل (وقت تسجيل/تحديث وليس وقت تسليم مؤكد)'],
   legacy_prices: ['estimated', 'أسعار/تكاليف تاريخها مستنتج من updated_at وليس من سجل أصلي'],
@@ -251,6 +254,17 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     const v = num(e.amount_usd);
     records.push({ market: e.market === 'all' || !e.market ? 'shared' : e.market, group: expenseGroup(e.category), category: e.category, usd: v, source: 'manual', id: e.id });
   }
+  // الرواتب: الإدخال اليدوي لسوق يحلّ محل رواتب المحاسبة لنفس السوق (لا جمع الاثنين)؛ «مشترك» اليدوي يحلّ محل «غير موزّع» المحاسبي
+  const manualPayroll = new Set(records.filter((r) => r.source === 'manual' && r.group === 'payroll').map((r) => r.market));
+  const payrollOverridden = [];
+  for (let i = records.length - 1; i >= 0; i--) {
+    const r = records[i];
+    if (r.source === 'accounting' && r.group === 'payroll' && (manualPayroll.has(r.market) || (r.market === 'unallocated' && manualPayroll.has('shared')))) { payrollOverridden.push(r); records.splice(i, 1); }
+  }
+  const payroll = {};
+  for (const k of [...MARKET_KEYS, 'shared', 'unallocated']) payroll[k] = { manual: 0, accounting: 0, overridden: 0, entered: false };
+  for (const r of records) if (r.group === 'payroll' && payroll[r.market]) { if (r.source === 'manual') { payroll[r.market].manual += r.usd; payroll[r.market].entered = true; } else payroll[r.market].accounting += r.usd; }
+  for (const r of payrollOverridden) payroll[r.market].overridden += r.usd;
   const actual = (group, m) => records.some((r) => r.group === group && r.usd > 0 && (r.market === m || r.market === 'shared'));
   for (const k of MARKET_KEYS) { summary[k].adsEstimated = !actual('ads', k); summary[k].shippingEstimated = !actual('shipping', k); }
 
@@ -338,6 +352,8 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
       return;
     }
     M.revenueByCurrency[rv.cur] = (M.revenueByCurrency[rv.cur] || 0) + rv.amount;
+    if (o.shipping_payer === 'customer' && num(o.delivery_cost) > 0) M.customerDeliveryFees[rv.cur] = (M.customerDeliveryFees[rv.cur] || 0) + num(o.delivery_cost);
+    if (o.payment_status === 'partial') { M.partialPayment.orders++; M.partialPayment.byCurrency[rv.cur] = (M.partialPayment.byCurrency[rv.cur] || 0) + num(o.paid_amount); }
     const sp = splitRevenue(c, rv, monthStart);
     M.revenue += sp.total;
     if (sp.mode === 'noitems' || sp.mode === 'unallocated') { M.unallocatedRevenue += sp.total; M.unallocatedOrders++; }
@@ -486,7 +502,10 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     pending_returns: { orders: m.pendingReturns.orders, units: m.pendingReturns.units },
     history_conflict: { count: m.historyConflict },
     manual_duplicate: scope === 'company' ? { count: manualDup } : null,
+    payroll_missing: { count: scope === 'company' ? MARKET_KEYS.filter((k) => summary[k].payrollMissing).length : (m.payrollMissing ? 1 : 0) },
+    payroll_from_accounting: { count: scope === 'company' ? MARKET_KEYS.filter((k) => summary[k].payrollFromAccounting).length : (m.payrollFromAccounting ? 1 : 0) },
   });
+  for (const k of MARKET_KEYS) { const m = summary[k]; m.payrollMissing = (m.orders > 0 || m.revenueNoFx.orders > 0) && !(payroll[k].entered || payroll[k].accounting > 0 || payroll.shared.entered); m.payrollFromAccounting = !payroll[k].entered && !payroll.shared.entered && payroll[k].accounting > 0; }
   for (const m of Object.values(summary)) m.quality = qualityFor(m, 'market');
 
   const total = {
@@ -498,6 +517,8 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     revenueByCurrency: Object.values(summary).reduce((o, m) => { for (const [k, v] of Object.entries(m.revenueByCurrency)) o[k] = (o[k] || 0) + v; return o; }, {}),
     revenueNoFx: { orders: sumM((m) => m.revenueNoFx.orders), units: sumM((m) => m.revenueNoFx.units), byCurrency: Object.values(summary).reduce((o, m) => { for (const [k, v] of Object.entries(m.revenueNoFx.byCurrency)) o[k] = (o[k] || 0) + v; return o; }, {}) },
     revenueMissing: { orders: sumM((m) => m.revenueMissing.orders), units: sumM((m) => m.revenueMissing.units) },
+    customerDeliveryFees: Object.values(summary).reduce((o, m) => { for (const [k, v] of Object.entries(m.customerDeliveryFees)) o[k] = (o[k] || 0) + v; return o; }, {}),
+    partialPayment: { orders: sumM((m) => m.partialPayment.orders) },
     unpricedUnits: sumM((m) => m.unpricedUnits), legacyUnifiedUnits: sumM((m) => m.legacyUnifiedUnits), unmappedUnits: sumM((m) => m.unmappedUnits), ordersNoItems: sumM((m) => m.ordersNoItems), settledOrders: sumM((m) => m.settledOrders),
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },
@@ -525,7 +546,7 @@ export function computeMonthly({ orders = [], nameMapRows = [], historyRows = []
     month: monthStart, products, marketSummary: summary, company: total,
     sharedExpenses: company.shared, sharedByCategory: company.sharedByCategory,
     unallocated: { usd: company.unallocated, byCategory: company.unallocatedByCategory, unconverted: unconvertedList },
-    priceTable, revenueGaps, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
+    payroll, payrollOverridden, priceTable, revenueGaps, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
     unmapped: [...unmapped.values()].sort((a, b) => b.units - a.units), reviewList,
     totals: { netProfit: total.netProfit, revenue: total.revenue, stars: flagCount('star'), losers: flagCount('loss'), risky: flagCount('risky'), unset: flagCount('unset') },
   };

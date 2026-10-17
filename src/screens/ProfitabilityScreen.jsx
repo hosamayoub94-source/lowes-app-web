@@ -295,23 +295,88 @@ function FxPanel({ month, rates, closed, actor, onSaved }) {
   </div>;
 }
 
+function StatusBanner({ q }) {
+  if (!q || q.status === 'final') return <div className="text-[12px] font-bold text-green-700 bg-green-500/10 border border-green-500/30 rounded-2xl px-3 py-2">✅ النتيجة نهائية: لا نواقص ولا تقديرات.</div>;
+  const partial = q.issues.filter(i => i.level === 'partial');
+  const est = q.issues.filter(i => i.level !== 'partial');
+  const tone = q.status === 'partial' ? 'bg-red-500/10 border-red-500/40 text-red-700' : 'bg-orange-500/10 border-orange-500/40 text-orange-700';
+  return <div className={`rounded-2xl border px-3 py-2.5 ${tone}`} role="alert">
+    <p className="text-[13px] font-extrabold">{q.status === 'partial' ? '🔴 الربح جزئي — ليس رقماً نهائياً' : '🟡 الربح تقديري — يحتوي تقديرات'}</p>
+    <p className="text-[11px] mt-0.5">{q.status === 'partial' ? 'لا تعتمده حتى تُدخَل أسعار الصرف الشهرية والتكاليف والرواتب الناقصة وتُعالَج البنود أدناه.' : 'لا يوجد نقص جوهري لكنه يعتمد تقديرات أو بنوداً للمراجعة.'}</p>
+    {partial.length > 0 && <ul className="text-[11px] mt-1.5 space-y-0.5 list-disc pe-4">{partial.slice(0, 8).map(i => <li key={i.code}>{i.label}{i.orders ? ` — ${fmt(i.orders)} طلب` : ''}{i.units ? ` · ${fmt(i.units)} قطعة` : ''}{i.count ? ` · ${fmt(i.count)}` : ''}</li>)}</ul>}
+    {partial.length === 0 && est.length > 0 && <p className="text-[11px] mt-1">{est.length} بند للمراجعة (التفاصيل بالبطاقات أدناه).</p>}
+  </div>;
+}
+
+function AmountMeaning({ company }) {
+  const fees = company.customerDeliveryFees || {};
+  return <Panel icon="ℹ️" title="ما هي «قيمة الطلب» (amount) المستخدمة كإيراد؟" tone="info" count="موثّق من كود الطلبات وبياناتها">
+    <ul className="text-[11px] space-y-1 list-disc pe-4">
+      <li><b>أجور التوصيل: لا تشملها.</b> قيمة الطلب هي قيمة البضاعة فقط؛ أجور التوصيل عمود مستقل (delivery_cost) تُضاف لتحصيل العميل فقط إذا كان الدافع «العميل»، ولا تدخل الإيراد هنا. أجور توصيل على العميل بهذا الشهر: {Object.keys(fees).length ? CUR(fees) : 'لا شيء'}.</li>
+      <li><b>الخصم: لا عمود منفصل له.</b> الخصم مدمج بالقيمة المُدخَلة يدوياً عند إنشاء الطلب (لا يمكن فصله). لذلك الإيراد الفعلي قد يقلّ عن «سعر المنتج × الكمية» المرجعي، والفرق يُعرض بالبطاقات.</li>
+      <li><b>ليست بالضرورة المبلغ المحصَّل فعلياً.</b> هي قيمة الطلب المتفق عليها (أساس التحصيل عند الباب). حالة الدفع (payment_status) لا تُحدَّث عادةً بعد التسليم (معظم المسلَّمة «غير مدفوع») والدفع الجزئي يخفّض المتبقي فقط. هنا: {company.partialPayment?.orders || 0} طلب بدفع جزئي. التحصيل النقدي الفعلي مكانه المحاسبة وليس هذه الصفحة.</li>
+    </ul>
+  </Panel>;
+}
+
+function PayrollPanel({ month, expenses, payroll = {}, closed, onSaved }) {
+  const toast = useToast();
+  const MK = [['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا'], ['uae', '🇦🇪 الإمارات'], ['all', '🏢 مشتركة (الشركة)']];
+  const existing = (mk) => expenses.find(e => e.category === 'رواتب' && e.market === mk && !e.accounting_entry_id);
+  const [vals, setVals] = useState(() => Object.fromEntries(MK.map(([k]) => [k, existing(k) ? String(existing(k).amount_usd) : ''])));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (closed && !reason.trim()) return toast.error('الشهر مغلق: اكتب سبب التعديل الرجعي');
+    setBusy(true);
+    try {
+      for (const [k] of MK) {
+        const raw = vals[k]; if (raw === '' || raw === undefined) continue;
+        const ex = existing(k); const n = Number(raw);
+        if (!(n >= 0)) throw new Error('القيمة لا يمكن أن تكون سالبة');
+        if (ex && Number(ex.amount_usd) === n) continue;
+        await saveExpense({ id: ex?.id, month, market: k, category: 'رواتب', amount_usd: n, notes: 'راتب شهري مُدخَل يدوياً', retro_reason: reason });
+      }
+      toast.success('حُفظت الرواتب'); setReason(''); onSaved();
+    } catch (e) { toast.error(e.message || 'تعذّر الحفظ'); } finally { setBusy(false); }
+  };
+  return <div className="bg-surface border border-border rounded-2xl p-3" dir="rtl">
+    <h2 className="font-bold text-sm mb-1">👥 الرواتب الشهرية لكل سوق (إدخال/تعديل يدوي)</h2>
+    <p className="text-[10px] text-muted mb-2">القيمة اليدوية لسوق تحلّ محل رواتب المحاسبة لنفس السوق (لا تُجمعان). اكتب 0 صراحةً إن لم تكن هناك رواتب. السوق الذي فيه نشاط وبلا رواتب يُعدّ ناقصاً.</p>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {MK.map(([k, label]) => {
+        const p = payroll[k === 'all' ? 'shared' : k] || {};
+        return <div key={k} className="rounded-xl bg-surface-alt border border-border/60 p-2">
+          <label className="text-[11px] font-bold block mb-1">{label}</label>
+          <input type="number" min="0" step="0.01" value={vals[k]} onChange={e => setVals({ ...vals, [k]: e.target.value })} placeholder="$ بالشهر" className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-surface" />
+          <div className="text-[9px] text-muted mt-1">{p.entered ? '✍️ يدوي' : p.accounting > 0 ? `📒 من المحاسبة $${fmt(p.accounting)} (مؤقت)` : '— لا شيء'}{p.overridden > 0 ? ` · استُبدل $${fmt(p.overridden)} من المحاسبة` : ''}</div>
+        </div>;
+      })}
+    </div>
+    {closed && <input value={reason} onChange={e => setReason(e.target.value)} placeholder="سبب التعديل الرجعي (الشهر مغلق)" className="mt-2 w-full border border-orange-400 rounded-xl px-2 py-2 text-xs bg-surface-alt" />}
+    <button onClick={save} disabled={busy} className="mt-2 w-full rounded-xl bg-teal text-navy font-bold text-xs py-2 disabled:opacity-50">{busy ? '…' : 'حفظ الرواتب'}</button>
+  </div>;
+}
+
 function ClosureBar({ month, data, actor, onChanged }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
   const closure = data.closure;
+  const blocked = data.company.quality.status === 'partial';
   const doClose = async () => {
+    if (blocked) { toast.error('لا يمكن إغلاق شهر ناقص (جزئي): أدخل أسعار الصرف والتكاليف والرواتب الناقصة أولاً'); return; }
     if (!window.confirm(`إغلاق ${month}؟ بعد الإغلاق أي تعديل بمصاريفه أو أسعار صرفه يتطلّب سبباً ويُسجَّل قبل/بعد.${data.company.quality.status !== 'final' ? '\nتنبيه: الصافي ليس «نهائياً» (' + QUALITY[data.company.quality.status].label + ') — تُحفَظ حالته كما هي.' : ''}`)) return;
     setBusy(true);
     try { await closeMonth({ month, result: data, name: actor }); toast.success('أُغلق الشهر وحُفظت لقطته'); onChanged(); }
-    catch (e) { toast.error(e.message || 'تعذّر الإغلاق'); } finally { setBusy(false); }
+    catch (e) { toast.error(/MONTH_NOT_CLOSABLE/.test(e.message || '') ? 'مرفوض: الشهر جزئي (سعر صرف/تكلفة/إيراد ناقص)' : (e.message || 'تعذّر الإغلاق')); } finally { setBusy(false); }
   };
   const ack = async () => {
     setBusy(true);
     try { await acknowledgeRetroDrift({ month, reason, before: closure.snapshot, after: snapshotOf(data), name: actor }); setReason(''); toast.success('سُجّل التغيّر الرجعي'); onChanged(); }
     catch (e) { toast.error(e.message || 'تعذّر التسجيل'); } finally { setBusy(false); }
   };
-  if (!closure) return <div className="flex items-center justify-between bg-surface border border-border rounded-2xl px-3 py-2"><span className="text-[11px] text-muted">🔓 الشهر مفتوح — يمكن إغلاقه لحفظ لقطة رسمية بأرقامه.</span><button onClick={doClose} disabled={busy} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-navy text-white disabled:opacity-50">🔒 إغلاق الشهر</button></div>;
+  if (!closure) return <div className="flex items-center justify-between bg-surface border border-border rounded-2xl px-3 py-2"><span className="text-[11px] text-muted">{blocked ? '🔓 الشهر مفتوح — لا يُغلق ما دام جزئياً (سعر صرف/تكلفة/إيراد/رواتب ناقصة).' : '🔓 الشهر مفتوح — يمكن إغلاقه لحفظ لقطة رسمية بأرقامه (تُحفظ حالته: نهائي أو تقديري).'}</span><button onClick={doClose} disabled={busy || blocked} title={blocked ? 'الشهر جزئي — لا يُغلق' : ''} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-navy text-white disabled:opacity-40">{blocked ? '🔒 لا يُغلق (جزئي)' : '🔒 إغلاق الشهر'}</button></div>;
   return <div className="bg-surface border border-navy/30 rounded-2xl px-3 py-2 text-[11px]">
     <p>🔒 مُغلق بتاريخ {DATE_FMT(closure.closed_at)} بواسطة {closure.closed_by_name} — لقطة الإغلاق: صافي ${fmt(closure.snapshot.netProfit)} · مصاريف ${fmt(closure.snapshot.expenses)} · حالة {QUALITY[closure.snapshot.status]?.label}</p>
     {data.closureDiff.length > 0 ? <div className="mt-1.5 text-orange-600">
@@ -391,6 +456,8 @@ export default function ProfitabilityScreen() {
         <button onClick={load} className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold">تحديث</button>
       </div>
 
+      <StatusBanner q={company.quality} />
+
       <ClosureBar month={month} data={data} actor={actor} onChanged={load} />
 
       {data.historyFailures30d > 0 && <div className="text-[11px] text-red-600 bg-red-500/5 border border-red-500/20 rounded-xl px-3 py-2">🔴 {data.historyFailures30d} محاولة تسجيل حالة طلب فشلت خلال 30 يوماً (جدول order_status_history_failures) — تواريخ التسليم/الإرجاع الناتجة غير مكتملة.</div>}
@@ -448,6 +515,10 @@ export default function ProfitabilityScreen() {
       <Panel icon="💱" title="أسعار الصرف الشهرية (إدخال يدوي)" tone="info" count={`${fxRates.length} سجل لهذا الشهر`}>
         <FxPanel month={month} rates={fxRates} closed={closed} actor={actor} onSaved={load} />
       </Panel>
+
+      <PayrollPanel key={`${month}-${expenses.length}-${(data.payroll?.syria?.entered ? 1 : 0)}`} month={month} expenses={expenses} payroll={data.payroll} closed={closed} onSaved={load} />
+
+      <AmountMeaning company={company} />
 
       <ExpenseEditor month={month} expenses={expenses} onSaved={load} closed={closed} actor={actor} />
 

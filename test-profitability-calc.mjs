@@ -160,7 +160,7 @@ ok(hasIssue(tr(r).quality, 'unmapped'), '16: اسم غير موحّد'); ok(hasI
 eq(r.unmapped.length, 1, '16: القائمة غير الموحّدة'); eq(tr(r).unpricedUnits, 2, '16: القطع الناقصة'); eq(tr(r).revenue, 80, '16: الإيراد الفعلي 50+30 (غير موزَّع على المنتجات)'); eq(tr(r).productCost, 0, '16: ولا تكلفة صفرية مخترَعة'); ok(hasIssue(tr(r).quality, 'unallocated_revenue'), '16: إيراد غير موزَّع ظاهر'); eq(tr(r).settledCollected.SYP, 1250, '16: التسوية بعملتها');
 r = run(three); ok(hasIssue(r.company.quality, 'estimates'), 'تقدير الوحدة = تقديري'); ok(hasIssue(r.company.quality, 'legacy_unified_price') && hasIssue(r.company.quality, 'packaging_missing'), 'سعر موحّد قديم + تغليف ناقص يظهران');
 const MPF = (market) => ({ item_name: 'سيروم أ', market, effective_from: '2026-06-01', sale_price_usd: 20, cost_usd: null, shipping_cost_usd: null });
-r = run(three, { marketPriceRows: ['syria', 'turkey', 'uae'].map(MPF), expenses: [E('all', 'حملات إعلانية', 1), E('all', 'أجور الشحن', 1), E('all', 'تغليف', 1)] });
+r = run(three, { marketPriceRows: ['syria', 'turkey', 'uae'].map(MPF), expenses: [E('all', 'حملات إعلانية', 1), E('all', 'أجور الشحن', 1), E('all', 'تغليف', 1), E('syria', 'رواتب', 0), E('turkey', 'رواتب', 0), E('uae', 'رواتب', 0)] });
 ok(r.company.quality.status === 'final', 'بلا نواقص ولا تقديرات = نهائي (' + r.company.quality.issues.map((i) => i.code) + ')');
 const hl = [...Array.from({ length: 6 }, (_, i) => ({ item_name: `P${i}`, effective_from: '2026-08-01', sale_price_usd: 8, cost_usd: 4, ad_cost_usd: 0, shipping_cost_usd: 0, source: 'legacy_backfill' })), { item_name: 'جل', effective_from: '2026-10-01', sale_price_usd: 1, cost_usd: 1, ad_cost_usd: 0, shipping_cost_usd: 0, source: 'legacy_backfill' }];
 r = computeMonthly({ nameMapRows: [], historyRows: hl, expenses: [], month: '2026-10', orders: [R({ delivered_at: '2026-10-03T10:00:00+03:00', items: [{ name: 'P0', qty: 2 }, { name: 'جل', qty: 1 }] })] });
@@ -300,6 +300,59 @@ eq(tr(retPack).expensesByCategory['تغليف'] || 0, 0, 'P4: المرتجع ل�
 const q2 = run(three, { marketPriceRows: rows3, expenses: [E('syria', 'تغليف', 2), E('all', 'رواتب', 3)], accountingEntries: [{ id: 'z1', entry_type: 'expense', category: 'أجور', amount_usd: 0, amount_try: 0, amount_syp: 500, channel_id: 'chS', is_void: false }], channels: chans, fxRates: [FX('SYP', 'all', 100)] });
 eq(q2.company.netProfit, sy(q2).netProfit + tr(q2).netProfit + ua(q2).netProfit - 3, 'M9: الشركة = Σ الأسواق − المشترك بعد تطبيق سعر الصرف المعتمد'); eq(sy(q2).expensesByCategory['أجور'], 5, 'M9: 500 SYP ÷ 100 = 5$');
 
+
+// ════ معنى قيمة الطلب: خصم + أجور توصيل + دفع جزئي (amount = قيمة البضاعة لا المحصَّل ولا أجور التوصيل) ════
+const dOrd = R({ market: 'syria', amount: 90, shipping_payer: 'customer', delivery_cost: 10, payment_status: 'unpaid' });
+const dRun = run([dOrd]);
+eq(sy(dRun).revenue, 90, 'D1: أجور التوصيل على العميل لا تُضاف للإيراد (amount فقط)'); eq(sy(dRun).customerDeliveryFees.USD, 10, 'D1: وتُعرض معلومةً منفصلة'); eq(sy(dRun).referenceRevenue, 20, 'D1: المرجع لا يتأثر');
+const cOrd = run([R({ market: 'syria', amount: 90, shipping_payer: 'company', delivery_cost: 7 })]);
+eq(sy(cOrd).revenue, 90, 'D2: أجور توصيل على الشركة: لا تغيّر الإيراد'); eq(Object.keys(sy(cOrd).customerDeliveryFees).length, 0, 'D2: ولا تُعدّ محصّلة من العميل'); eq(sy(cOrd).expenses, 0, 'D2: ولا تدخل مصروفاً (delivery_cost معلومة فقط)');
+const pOrd = run([R({ market: 'syria', amount: 90, payment_status: 'partial', paid_amount: 40 })]);
+eq(sy(pOrd).revenue, 90, 'D3: الدفع الجزئي لا يخفّض الإيراد (القيمة كاملة)'); eq(sy(pOrd).partialPayment.orders, 1, 'D3: يُعرض كمعلومة'); eq(sy(pOrd).partialPayment.byCurrency.USD, 40, 'D3: المدفوع مقدَّماً 40');
+const dscM = run([R({ market: 'turkey', amount: 27, items: [{ name: 'ROSEMARY SHAMPOO', qty: 1 }, { name: 'Serum A', qty: 1 }], shipping_payer: 'customer', delivery_cost: 5 })]);
+eq(tr(dscM).revenue, 27, 'D4: خصم على عدة منتجات + توصيل: الإيراد 27 فقط'); const dp = Object.fromEntries(dscM.products.map((p) => [p.name, p.revenue])); eq(dp['شامبو الروزماري'], 9, 'D4: توزيع 27 بنسبة 10:20 → 9'); eq(dp['سيروم أ'], 18, 'D4: → 18');
+// خصم أكبر من المرجع (سعر أعلى من المرجع) لا يكسر شيئاً
+eq(run([R({ market: 'turkey', amount: 45 })]).marketSummary.turkey.revenue, 45, 'D5: قيمة أعلى من المرجع تُقبل كما هي');
+
+// ════ عزل سوريا: سعر/تكلفة سوريا لا يؤثران على تركيا والإمارات ════
+const isoOrders = [R({ market: 'syria', amount: 20 }), R({ market: 'turkey', amount: 20 }), R({ market: 'uae', amount: 20 })];
+const isoBase = run(isoOrders, { marketPriceRows: [MP2('turkey', '2026-06-01', 30, 6), MP2('uae', '2026-06-01', 40, 7)], expenses: [E('syria', 'رواتب', 1), E('turkey', 'رواتب', 1), E('uae', 'رواتب', 1)] });
+const isoSyria = run(isoOrders, { marketPriceRows: [MP2('syria', '2026-06-01', 99, 1), MP2('turkey', '2026-06-01', 30, 6), MP2('uae', '2026-06-01', 40, 7)], expenses: [E('syria', 'رواتب', 1), E('turkey', 'رواتب', 1), E('uae', 'رواتب', 1)] });
+ok(JSON.stringify(isoBase.marketSummary.turkey) === JSON.stringify(isoSyria.marketSummary.turkey), 'I1: تغيير سعر وتكلفة سوريا لم يغيّر أي رقم لتركيا (تطابق حرفي)');
+ok(JSON.stringify(isoBase.marketSummary.uae) === JSON.stringify(isoSyria.marketSummary.uae), 'I1: ولا للإمارات (تطابق حرفي)');
+ok(isoBase.marketSummary.syria.productCost !== isoSyria.marketSummary.syria.productCost, 'I1: بينما تغيّرت سوريا نفسها (الاختبار حسّاس)'); eq(isoSyria.marketSummary.syria.productCost, 1, 'I1: تكلفة سوريا الخاصة 1');
+eq(isoSyria.marketSummary.turkey.productCost, 6, 'I1: تكلفة تركيا الخاصة 6 لم تتأثر'); eq(isoSyria.marketSummary.uae.productCost, 7, 'I1: تكلفة الإمارات الخاصة 7');
+
+// ════ الرواتب: يدوي لكل سوق يحلّ محل المحاسبة ولا يُجمع معها ════
+const chP = [{ id: 'chS', market: 'syria', kind: 'expense', name_ar: 'ق' }, { id: 'chT', market: 'turkey', kind: 'expense', name_ar: 'ت' }];
+const accPay = (id, ch, syp) => ({ id, entry_type: 'expense', category: 'رواتب + سلف', amount_usd: 0, amount_try: 0, amount_syp: syp, channel_id: ch, is_void: false });
+const fx100 = [FX('SYP', 'all', 100)];
+const onlyAcc = run([R({ market: 'syria', amount: 20 })], { accountingEntries: [accPay('p1', 'chS', 500)], channels: chP, fxRates: fx100 });
+eq(sy(onlyAcc).expensesByCategory['رواتب + سلف'], 5, 'Y1: بلا إدخال يدوي تُقرأ رواتب المحاسبة (5$)'); ok(hasIssue(sy(onlyAcc).quality, 'payroll_from_accounting') && sy(onlyAcc).quality.status !== 'final', 'Y1: وتُوسَم مؤقتة (تقديري)');
+const withManual = run([R({ market: 'syria', amount: 20 })], { accountingEntries: [accPay('p1', 'chS', 500)], channels: chP, fxRates: fx100, expenses: [E('syria', 'رواتب', 20)] });
+eq(sy(withManual).expenses, 20, 'Y2: الراتب اليدوي 20 يحلّ محل رواتب المحاسبة (لا 25)'); eq(withManual.payroll.syria.overridden, 5, 'Y2: المُستبعَد من المحاسبة 5 معروض'); eq(withManual.payrollOverridden.length, 1, 'Y2: قائمة المستبعَد'); ok(!hasIssue(sy(withManual).quality, 'payroll_from_accounting'), 'Y2: لا وسم مؤقت');
+const otherMarket = run([R({ market: 'syria', amount: 20 }), R({ market: 'turkey', amount: 20 })], { accountingEntries: [accPay('p1', 'chT', 500)], channels: chP, fxRates: fx100, expenses: [E('syria', 'رواتب', 20)] });
+eq(tr(otherMarket).expenses, 5, 'Y3: راتب سوريا اليدوي لا يستبعد رواتب تركيا بالمحاسبة'); eq(sy(otherMarket).expenses, 20, 'Y3: سوريا 20');
+const zeroManual = run([R({ market: 'turkey', amount: 20 })], { expenses: [E('turkey', 'رواتب', 0)] }); ok(!hasIssue(tr(zeroManual).quality, 'payroll_missing'), 'Y4: صفر مُدخَل صراحةً = لا نقص');
+const noPay = run([R({ market: 'turkey', amount: 20 })]); ok(hasIssue(tr(noPay).quality, 'payroll_missing') && tr(noPay).quality.status === 'partial', 'Y5: سوق فيه نشاط بلا رواتب = ناقص (جزئي)'); ok(!hasIssue(ua(noPay).quality, 'payroll_missing'), 'Y5: سوق بلا نشاط لا يُطالَب برواتب');
+const sharedPay = run([R({ market: 'turkey', amount: 20 })], { expenses: [E('all', 'رواتب', 9)] }); ok(!hasIssue(tr(sharedPay).quality, 'payroll_missing'), 'Y6: راتب مشترك يُسقط النقص'); eq(sharedPay.company.netProfit, tr(sharedPay).netProfit - 9, 'Y6: ويُطرح من صافي الشركة فقط');
+
+// ════ ثغرات كشفها اختبار الطفرات ════
+// بداية الشهر شاملة: تسليم عند 00:00:00 تماماً يُحسب بذلك الشهر
+const firstSec = run([R({ market: 'turkey', amount: 20, delivered_at: '2026-10-01T00:00:00+03:00', order_date: '2026-09-28T10:00:00+03:00' })], {}, '2026-10');
+eq(tr(firstSec).orders, 1, 'B1: تسليم عند 00:00:00 من أول الشهر يُحسب بذلك الشهر (البداية شاملة)');
+eq(run([R({ market: 'turkey', amount: 20, delivered_at: '2026-10-01T00:00:00+03:00' })], {}, '2026-09').marketSummary.turkey.orders, 0, 'B1: وليس بالشهر السابق');
+// تحويل داخلي: يُحصى كتحويل لا كمصروف
+const trEntry = { id: 'tx1', entry_type: 'transfer', category: 'تحويل بين محافظ', amount_usd: 50, amount_try: 0, amount_syp: 0, channel_id: null, is_void: false };
+const trRun = run([R({ market: 'turkey', amount: 20 })], { accountingEntries: [trEntry] });
+eq(trRun.skippedAccounting.transfer, 1, 'B2: قيد من نوع transfer يُصنَّف تحويلاً داخلياً'); eq(trRun.company.expenses, 0, 'B2: ولا يدخل المصاريف');
+// سوق الطلب غير معروف: لا يُسند لسوريا ولا لغيرها
+const unkMkt = run([R({ market: 'ksa', amount: 77 }), R({ market: null, amount: 33 })]);
+eq(sy(unkMkt).revenue, 0, 'B3: سوق غير معروف لا يُسند لسوريا'); eq(tr(unkMkt).revenue, 0, 'B3: ولا لتركيا'); eq(ua(unkMkt).revenue, 0, 'B3: ولا للإمارات'); eq(unkMkt.marketSummary.unknown.revenue, 110, 'B3: يبقى ضمن «غير محدد» ظاهراً');
+// البراند: lowes لا يحوي سترونغ والعكس
+const nmBrand = [...nameMap, { alias_name: 'Strong X', canonical_name: 'ستونغ إكس', brand: 'strong', is_active: true }];
+const brandOrd = [R({ market: 'turkey', amount: 20 }), R({ market: 'turkey', amount: 50, items: [{ name: 'Strong X', qty: 1 }] })];
+eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'lowes' })).units, 1, 'B4: براند lowes يستبعد منتجات سترونغ'); eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'strong' })).units, 1, 'B4: براند strong يستبعد lowes'); eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'all' })).units, 2, 'B4: الكل يشمل الاثنين');
 
 console.log(`\n${pass} نجح · ${fail} فشل`);
 process.exit(fail ? 1 : 0);
