@@ -8,6 +8,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 // SECURITY: the service-role key is auto-injected by the Supabase Edge runtime —
 // never hardcode it (the previous literal is in git history and MUST be rotated).
@@ -193,10 +194,10 @@ Deno.serve(async (req) => {
         const { data: nu } = await supabase.from('orders')
           .select('id, handler_name, customer_name').eq('order_id', record.order_id).maybeSingle();
         if (nu?.id) {
-          await supabase.from('order_status_history').insert({
+          await recordStatusHistory(supabase, {
             order_id: nu.id, from_status: null, to_status: record.status,
             changed_by: 'الجدول', source: 'sheet',
-          }).then(() => {}, () => {});
+          }, 'sheet-to-app');
           await notifySeller(supabase, nu, record.status, 'الجدول');
         }
         return json({ ok: true, created: record.order_id }, 200);
@@ -226,10 +227,10 @@ Deno.serve(async (req) => {
 
       // الخط الزمني + إشعار البائع: تغيير الحالة القادم من الجدول (source='sheet')
       if (cur?.id && newStatus && newStatus !== cur.status) {
-        await supabase.from('order_status_history').insert({
+        await recordStatusHistory(supabase, {
           order_id: cur.id, from_status: cur.status, to_status: newStatus,
           changed_by: 'الجدول', source: 'sheet',
-        }).then(() => {}, () => {});
+        }, 'sheet-to-app');
         await notifySeller(supabase, cur, newStatus, 'الجدول');
         // واتساب للعميل (تركيا فقط): تغيير الحالة من الجدول (يدوي أو سكربت تتبّع يورتيتشي) كان
         // الاستثناء الوحيد بلا إشعار — 124 طلب تسليم بـ14 يوم لم تصلهم رسالة التسليم/فيديو
@@ -362,10 +363,10 @@ Deno.serve(async (req) => {
           .is('deleted_at', null);
         if (!dErr) {
           reconciled++;
-          await supabase.from('order_status_history').insert({
+          await recordStatusHistory(supabase, {
             order_id: o.id, from_status: o.status, to_status: 'cancelled',
             changed_by: 'الجدول (حذف صف)', source: 'sheet',
-          }).then(() => {}, () => {});
+          }, 'sheet-to-app');
         }
       }
       return json({ ok: true, reconciled, examined: live.length, present: presentSet.size }, 200);

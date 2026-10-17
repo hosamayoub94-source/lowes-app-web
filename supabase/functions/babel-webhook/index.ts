@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -129,9 +130,9 @@ Deno.serve(async (req) => {
       .update({ status: newStatus, updated_by: 'بابل-webhook', updated_at: new Date().toISOString() })
       .eq('id', order.id).is('deleted_at', null);
     if (!upErr) {
-      await supabase.from('order_status_history').insert({
+      await recordStatusHistory(supabase, {
         order_id: order.id, from_status: order.status, to_status: newStatus, changed_by: 'بابل اكسبرس', source: 'babel_webhook',
-      }).then(() => {}, () => {});
+      }, 'babel-webhook');
       await notifySeller(supabase, order, newStatus, true);
       await notifyWhatsAppStatus(order, newStatus, 'syria');
       if (!(['delivered', 'returned', 'cancelled'].includes(newStatus) && !order.sheet_synced)) await syncSheet(order.id);

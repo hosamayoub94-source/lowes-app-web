@@ -25,6 +25,7 @@
 // =============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -554,8 +555,8 @@ async function notifyFulfillment(
 }
 
 async function history(supabase: any, orderId: string, from: string | null, to: string) {
-  await supabase.from('order_status_history').insert({
+  await recordStatusHistory(supabase, {
     order_id: orderId, from_status: from, to_status: to,
     changed_by: HANDLER, source: 'star',
-  }).then(() => {}, () => {});
+  }, 'pull-star-orders');
 }

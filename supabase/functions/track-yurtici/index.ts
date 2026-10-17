@@ -6,6 +6,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
 import { getAccount, type YkAccount } from '../_shared/yurticiAccounts.ts';
+import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;   // SB_SECRET_KEY أولاً، وإلا الـservice_role المُحقَن
@@ -247,9 +248,9 @@ Deno.serve(async (req) => {
 
       if (patch.status) {
         updated++;
-        await supabase.from('order_status_history').insert({
+        await recordStatusHistory(supabase, {
           order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
-        }).then(() => {}, () => {});
+        }, 'track-yurtici');
         await notifySeller(supabase, o, newStatus);
         await notifyWhatsAppStatus(o, newStatus, 'turkey');
       }
@@ -287,9 +288,9 @@ Deno.serve(async (req) => {
       if (e2) continue;
       updated++;
       results.push({ order: o.order_id, public: j.ShipmentStatus, mapped: newStatus });
-      await supabase.from('order_status_history').insert({
+      await recordStatusHistory(supabase, {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
-      }).then(() => {}, () => {});
+      }, 'track-yurtici');
       await notifySeller(supabase, o, newStatus);
       await notifyWhatsAppStatus(o, newStatus, 'turkey');
       if (!(TERMINAL.includes(newStatus) && !o.sheet_synced)) await syncSheet(o.id);

@@ -1,7 +1,7 @@
 // =============================================================
 // sync-prices — Edge Function
 // يقرأ تبويب أسعار سوريا (Product Price) عبر gviz (سعر البيع بالدولار $)
-// ويحدّث product_economics.sale_price_usd. السعر الأساسي بالدولار هو المرساة
+// ويحدّث السعر عبر profitability_save_economics (يسري من الشهر الحالي فقط). السعر الأساسي بالدولار هو المرساة
 // الثابتة (العروض تتغيّر بالعملة المحلية فقط، والأكواد/الأسماء مشتركة مع تركيا).
 // يُستدعى من زر «🔄 مزامنة الأسعار» للمدير. لا يلمس المنتجات غير الموجودة
 // بالجدول (مثل الدِرما/الإكسسوارات المُدخلة يدوياً) لأن الـupsert يطال صفوف الجدول فقط.
@@ -58,12 +58,28 @@ Deno.serve(async (req) => {
     if (!entries.length) return json({ error: 'no prices parsed' }, 422);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { error } = await supabase
-      .from('product_economics')
-      .upsert(entries, { onConflict: 'item_name' });
-    if (error) return json({ error: error.message }, 500);
 
-    return json({ ok: true, synced: entries.length });
+    // 18 تشرين الأول 2026: لم يعد يكتب product_economics مباشرة (كان يغيّر السعر الحالي بلا أثر
+    // بسجل الأشهر). كل تغيير سعر يمرّ عبر profitability_save_economics: يسري من الشهر الحالي فقط،
+    // والأشهر السابقة لا تُمَسّ، وإعادة التنفيذ لا تُكرّر السجل. الأسعار المتطابقة تُتخطّى.
+    const byName = new Map<string, number>();
+    for (const e of entries) byName.set(e.item_name, e.sale_price_usd);
+    const { data: cur, error: curErr } = await supabase.from('product_economics').select('item_name, sale_price_usd');
+    if (curErr) return json({ error: curErr.message }, 500);
+    const current = new Map<string, number>((cur ?? []).map((r: any) => [r.item_name, Number(r.sale_price_usd) || 0]));
+
+    let changed = 0, created = 0, unchanged = 0;
+    const failed: { item: string; error: string }[] = [];
+    for (const [item, price] of byName) {
+      const prev = current.get(item);
+      if (prev !== undefined && Math.abs(prev - price) < 1e-9) { unchanged++; continue; }
+      const { error } = await supabase.rpc('profitability_save_economics', { p_item: item, p_price: price });
+      if (error) { failed.push({ item, error: error.message }); continue; }
+      if (prev === undefined) created++; else changed++;
+    }
+    if (failed.length) console.error('[sync-prices] failed items', JSON.stringify(failed.slice(0, 20)));
+
+    return json({ ok: failed.length === 0, synced: changed + created, changed, created, unchanged, failed: failed.length, failures: failed.slice(0, 10) }, failed.length ? 207 : 200);
   } catch (e) {
     return json({ error: String(e?.message ?? e) }, 500);
   }

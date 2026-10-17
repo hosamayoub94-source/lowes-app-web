@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -133,9 +134,9 @@ Deno.serve(async (req) => {
         .eq('id', o.id).is('deleted_at', null);
       if (upErr) continue;
       updated++;
-      await supabase.from('order_status_history').insert({
+      await recordStatusHistory(supabase, {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'PTT Kargo', source: 'ptt',
-      }).then(() => {}, () => {});
+      }, 'track-ptt');
       await notifySeller(supabase, o, newStatus);
       await notifyWhatsAppStatus(o, newStatus, 'turkey');
       // 🛡️ لا تدفع للجدول طلباً نهائياً (تسليم/تسوية/راجع) لم يُزامَن معه أصلاً
