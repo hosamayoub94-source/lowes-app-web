@@ -60,6 +60,8 @@ const MUTANTS = [
   R('المرجع يعتمد السعر الموحّد القديم', "pv.basis === 'market' && pv.price > 0", 'pv.price > 0'),
   R('حالة التكلفة: ناقصة تُعدّ موحّدة', "costStatus: cost > 0 ? (mc ? 'market' : 'unified') : 'missing'", "costStatus: mc ? 'market' : 'unified'"),
   R('الأصل بالكتالوج مقلوب', 'catalogKeys.has(key)', '!catalogKeys.has(key)'),
+  R('العلامة من الطلب لا تُطبَّق', 'if (o.brand && brand !== \'all\' && o.brand !== brand) {', 'if (false) {'),
+  R('اسم الصنف يحدد العلامة بدل الطلب', 'items = o.brand ? all.filter((it) => it.active) : filt(all)', 'items = filt(all)'),
 ];
 
 const run = () => spawnSync(process.execPath, ['test-profitability-calc.mjs'], { encoding: 'utf8', timeout: 180000 });

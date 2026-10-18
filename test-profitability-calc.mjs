@@ -367,5 +367,15 @@ const orphan = run([R({ market: 'syria', amount: 20 })], { catalogNames: ['شي�
 const noCost = run([R({ market: 'syria', amount: 20, items: [{ name: 'صنف-بلا-تكلفة', qty: 1 }] })], { marketPriceRows: [{ item_name: 'صنف-بلا-تكلفة', market: 'syria', effective_from: '2026-06-01', sale_price_usd: 9, cost_usd: null, shipping_cost_usd: null }] });
 eq(sy(noCost).unpricedUnits, 1, 'K5: سعر بيع بلا تكلفة لا يكفي — التكلفة ناقصة'); ok(noCost.priceTable.find((x) => x.name === 'صنف-بلا-تكلفة').markets.syria.costStatus === 'missing', 'K5: حالة التكلفة ناقصة');
 
+// ════ العلامة (لويز/سترونغ) من الطلب نفسه ════
+const bL = R({ market: 'turkey', amount: 40, brand: 'lowes' }), bS = R({ market: 'turkey', amount: 90, brand: 'strong', items: [{ name: 'Ginseng (3)+SUPER(1)', qty: 1 }] }), bN = R({ market: 'turkey', amount: 10, brand: null });
+const brL = run([bL, bS, bN], { brand: 'lowes' }), brS = run([bL, bS, bN], { brand: 'strong' }), brA = run([bL, bS, bN], { brand: 'all' });
+eq(tr(brL).revenue, 50, 'BR1: لويز = طلب لويز (40) + طلب بلا علامة (10) فقط — طلب سترونغ مستبعد'); eq(tr(brL).orders, 2, 'BR1: طلبان');
+eq(tr(brS).revenue, 90, 'BR2: سترونغ = 90 فقط'); eq(tr(brS).orders, 1, 'BR2: طلب واحد');
+eq(tr(brA).revenue, 140, 'BR3: الكل = 140');
+eq(brL.brandExcluded.turkey, 1, 'BR4: يُعلَن عدد المستبعد (1)'); eq(Object.keys(brA.brandExcluded).length, 0, 'BR4: لا استبعاد مع «الكل»');
+ok(!brL.products.some((p) => /Ginseng/.test(p.name)), 'BR5: اسم سترونغ الحر لا يظهر كمنتج لويز');
+eq(brL.marketSummary.turkey.unmappedUnits, 0, 'BR6: اسم سترونغ غير الموحَّد لا يُحسب «غير موحَّد» بعرض لويز');eq(brS.marketSummary.turkey.unmappedUnits, 1, 'BR6: ويظهر بعرض سترونغ');
+
 console.log(`\n${pass} نجح · ${fail} فشل`);
 process.exit(fail ? 1 : 0);

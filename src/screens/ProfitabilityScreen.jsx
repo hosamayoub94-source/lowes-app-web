@@ -454,6 +454,13 @@ export default function ProfitabilityScreen() {
         <button onClick={load} className="px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold">تحديث</button>
       </div>
 
+      {brand !== 'all' && (
+        <div className="text-[11px] rounded-xl border border-border bg-surface px-3 py-2">
+          {brand === 'lowes' ? "🌿 المعروض: LOWE'S فقط" : '💊 المعروض: سترونغ فقط'} — العلامة من الطلب نفسه. استُبعد من هذا الشهر {fmt(Object.values(data.brandExcluded || {}).reduce((a, b) => a + b, 0))} طلب مسلَّم من العلامة الأخرى
+          {Object.entries(data.brandExcluded || {}).filter(([, n]) => n > 0).map(([k, n]) => ` · ${MARKET_LABELS[k] || k}: ${fmt(n)}`).join('')}. غيّر العلامة من الأزرار أعلاه.
+        </div>
+      )}
+
       <StatusBanner q={company.quality} />
 
       <ClosureBar month={month} data={data} actor={actor} onChanged={load} />

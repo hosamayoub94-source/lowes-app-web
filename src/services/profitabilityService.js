@@ -24,8 +24,10 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   const { monthStart, from, to } = monthBounds(month || since || currentMonth());
   const nextStart = nextMonthStart(monthStart);
 
-  const [orders, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes, catalogRes, failRes] = await Promise.all([
+  const winFrom = new Date(Date.parse(from) - 120 * 86400000).toISOString();
+  const [ordersRaw, brandRows, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes, catalogRes, failRes] = await Promise.all([
     fetchAllRows(() => supabase.rpc('profitability_orders', { p_from: from, p_to: to })),
+    fetchAllRows(() => supabase.from('orders').select('id, brand').is('deleted_at', null).gte('order_date', winFrom).lt('order_date', to).in('status', ['delivered', 'settled', 'returned', 'returning', 'not_received']).order('id')),
     fetchAllRows(() => supabase.from('accounting_entries')
       .select('id, entry_type, category, amount_usd, amount_try, amount_syp, channel_id, transfer_group, is_void, entry_date, book')
       .in('entry_type', ['expense', 'transfer']).gte('entry_date', monthStart).lt('entry_date', nextStart).order('id')),
@@ -42,6 +44,8 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   ]);
   for (const res of [econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes]) if (res.error && !missingTable(res)) throw res.error;
 
+  const brandById = new Map((brandRows || []).map((r) => [r.id, r.brand]));
+  const orders = (ordersRaw || []).map((r) => ({ ...r, brand: brandById.get(r.id) || null }));
   const expenses = expensesRes.error ? [] : (expensesRes.data || []);
   // كل أسعار الصرف حتى الشهر (المرتجع يُحوَّل بسعر شهر التسليم الأصلي)؛ لوحة الصرف تعرض شهر التقرير فقط
   const fxAllRates = fxRes.error ? [] : (fxRes.data || []);

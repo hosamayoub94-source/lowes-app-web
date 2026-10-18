@@ -271,7 +271,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   for (const k of MARKET_KEYS) { summary[k].adsEstimated = !actual('ads', k); summary[k].shippingEstimated = !actual('shipping', k); }
 
   // ── الطلبات ──
-  const agg = new Map(), unmapped = new Map(), usedVersions = new Map(), unknownList = [], returnLists = { unresolved: [], timingUnknown: [], pending: [] }, revenueGaps = [];
+  const agg = new Map(), unmapped = new Map(), usedVersions = new Map(), unknownList = [], returnLists = { unresolved: [], timingUnknown: [], pending: [] }, revenueGaps = [], brandExcluded = {};
   const itemsOf = (o) => {
     const out = [];
     for (const it of Array.isArray(o.items) ? o.items : []) {
@@ -408,7 +408,12 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   };
   const handleOrder = (o) => {
     const m = MARKET_KEYS.includes(o.market) ? o.market : 'unknown';
-    const all = itemsOf(o), items = filt(all);
+    // العلامة من الطلب نفسه (orders.brand) وليست من تخمين أسماء الأصناف: تركيا فيها طلبات لويز وسترونغ معاً، وأسماء سترونغ الحرّة كانت تُحسب «لويز» افتراضياً
+    if (o.brand && brand !== 'all' && o.brand !== brand) {
+      if (o.status === 'delivered' && o.delivered_at && inM(o.delivered_at)) { const mm = MARKET_KEYS.includes(o.market) ? o.market : 'unknown'; brandExcluded[mm] = (brandExcluded[mm] || 0) + 1; }
+      return undefined;
+    }
+    const all = itemsOf(o), items = o.brand ? all.filter((it) => it.active) : filt(all);
     const c = { o, m, M: mk(m), all, items, units: items.reduce((s, i) => s + i.q, 0), allUnits: all.reduce((s, i) => s + i.q, 0) };
     if (o.status === 'settled') return handleSettled(c);
     if (o.status === 'delivered' && (!o.delivered_at || o.delivery_basis === 'unknown')) return handleUnknownDelivery(c);
@@ -545,7 +550,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     month: monthStart, products, marketSummary: summary, company: total,
     sharedExpenses: company.shared, sharedByCategory: company.sharedByCategory,
     unallocated: { usd: company.unallocated, byCategory: company.unallocatedByCategory, unconverted: unconvertedList },
-    payroll, payrollOverridden, priceTable, revenueGaps, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
+    payroll, payrollOverridden, priceTable, revenueGaps, brandExcluded, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
     unmapped: [...unmapped.values()].sort((a, b) => b.units - a.units), reviewList,
     totals: { netProfit: total.netProfit, revenue: total.revenue, stars: flagCount('star'), losers: flagCount('loss'), risky: flagCount('risky'), unset: flagCount('unset') },
   };
