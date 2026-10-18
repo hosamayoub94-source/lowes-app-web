@@ -2,11 +2,11 @@
 // الأرقام دائماً على كل الحسابات الحيّة (لا على الصفحة المفلترة).
 const TILES = [
   { key: 'all', count: 'total', ar: 'كل الحسابات', cls: 'text-gray-900' },
+  { key: 'saved', count: 'saved', ar: 'المفضلين', cls: 'text-amber-600' },
   { key: 'review', count: 'to_review', ar: 'يحتاج مراجعة', cls: 'text-amber-700' },
   { key: 'ready', count: 'ready', ar: 'جاهز للتواصل', cls: 'text-emerald-700' },
   { key: 'ugc', count: 'ugc', ar: 'UGC', cls: 'text-gray-900' },
   { key: 'skincare', count: 'skincare', ar: 'Skincare', cls: 'text-gray-900' },
-  { key: 'unverified', count: 'unverified', ar: 'غير متحقَّق', cls: 'text-gray-600' },
   { key: 'incomplete', count: 'incomplete', ar: 'بيانات ناقصة', cls: 'text-orange-700' },
   { key: 'rejected', count: 'rejected', ar: 'مستبعد', cls: 'text-red-700' },
 ];

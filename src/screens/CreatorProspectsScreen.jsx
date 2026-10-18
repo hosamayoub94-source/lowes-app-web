@@ -227,7 +227,7 @@ export default function CreatorProspectsScreen() {
 
       {tab === 'list' && !showDeleted && canManage && (summary?.to_review || 0) > 0 && view !== 'review' && (
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-wrap items-center gap-2">
-          <div className="text-sm text-amber-900 ml-auto"><b>{summary.to_review}</b> حساب بانتظار المراجعة — افتح الحساب، جاوب الأسئلة الثمانية، وقرّر. دقيقة لكل حساب تقريباً.</div>
+          <div className="text-sm text-amber-900 ml-auto"><b>{summary.to_review}</b> حساب بانتظار المراجعة — افتح الحساب، جاوب الأسئلة الخمسة، وقرّر. دقيقة لكل حساب تقريباً.</div>
           <button onClick={beginReview} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-black">ابدأ المراجعة ←</button>
         </div>
       )}

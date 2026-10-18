@@ -81,58 +81,63 @@ ok(nextStep({ ...R4, platform: 'tiktok' }).key === 'find_contact', 'verified, no
 ok(nextStep({ ...R4, status: 'contacted' }).key === 'wait_reply', 'contacted with unknown age -> waiting for reply');
 ok(nextStep({ ...R1, tags: ['r:fit=yes'] }).key === 'complete_review', 'half review -> complete');
 
-// ---- the 8 questions without a migration ----
+// ---- the 5 review questions without a migration (team notes, 18 Oct 2026) ----
 const fresh = answersFromRow(R1);
-ok(fresh.active === 'unsure' && fresh.action === 'unsure' && fresh.videos.length === 0, 'fresh row -> all unsure');
-const v0 = verdictFor(fresh, R1);
-ok(v0.primary === 'needs_review', 'nothing answered -> needs review (never a guess)');
+ok(fresh.face === 'unsure' && fresh.voice === 'unsure' && fresh.ugc_quality === 'unsure' && fresh.action === 'unsure', 'fresh row -> all unsure');
+ok(!('active' in fresh) && !('fit' in fresh) && !('videos' in fresh) && !('pr' in fresh) && !('skin' in fresh) && !('talks' in fresh), 'removed questions are gone from the form model');
+const blank = { ...fresh, governorate: "", city: "" }; // R1 already has a place on file
+const v0 = verdictFor(blank, R1);
+ok(v0.primary === 'needs_review' && v0.completeness.done === 0 && v0.completeness.total === 5, 'nothing answered -> needs review, 0/5 (never a guess)');
 
-const UGC = { ...fresh, active: 'yes', last_post: '2026-10-05', fit: 'yes', creator_type: 'skincare', face: 'yes', talks: 'yes', review: 'yes', unbox: 'no', ugc_quality: 'high', videos: ['https://www.instagram.com/reel/abc/'], skin: 'yes', pr: 'open_to_collab', action: 'ugc' };
+const UGC = { ...fresh, creator_type: 'skincare', face: 'yes', voice: 'no', ugc_quality: 'high', governorate: 'damascus', no_contact: true, action: 'ugc' };
 const vu = verdictFor(UGC, R1);
 ok(vu.labels.includes('ugc_ready') && vu.labels.includes('pr_ready'), `ugc + pr ready (${vu.labels})`);
-ok(vu.completeness.done >= 7, `completeness counted (${vu.completeness.done})`);
+ok(vu.completeness.done === 5 && vu.completeness.complete, `5/5 counted (${vu.completeness.done})`);
 const { patch: pu } = reviewToPatch(UGC, R1, NOW);
 ok(pu.status === 'verified', 'ready verdict -> verified');
-ok(pu.tags.includes('UGC') && pu.tags.includes('r:fit=yes') && pu.tags.includes('collab:ugc_ready'), 'free tag kept + answers + collab');
+ok(pu.tags.includes('UGC') && pu.tags.includes('r:face=yes') && pu.tags.includes('r:voice=no') && pu.tags.includes('r:ugcq=high') && pu.tags.includes('collab:ugc_ready'), 'free tag kept + answers + collab');
 ok(!pu.tags.some((t) => t.includes('unsure')), 'unsure never written');
-ok(pu.content_types.includes('review') && pu.content_types.includes('ugc') && !pu.content_types.includes('unboxing'), 'content types from answers');
-ok(pu.evidence === 'video:https://www.instagram.com/reel/abc/', 'video evidence stored');
+ok(!pu.tags.some((t) => /^r:(active|fit|talks|review|unbox|pr|skin)=/.test(t)), 'no tags for the removed questions');
+ok(pu.content_types.includes('ugc'), 'ugc content type added only when ugc_ready');
+ok(!('evidence' in pu) && !('last_active_at' in pu) && !('skincare_focus' in pu), 'no video links / activity / skincare fields written any more');
 ok(pu.verification_status === 'partial' && pu.last_verified_at === NOW.toISOString(), 'manual check recorded');
-ok(pu.last_active_at === '2026-10-05' && pu.creator_type === 'skincare', 'activity + type');
+ok(pu.creator_type === 'skincare' && !('governorate' in pu), 'type written; unchanged place not re-sent');
+// voice-over alone is enough for UGC evidence
+ok(verdictFor({ ...UGC, face: 'no', voice: 'yes' }, R1).labels.includes('ugc_ready'), 'voice-over without face -> ugc ready');
+ok(!verdictFor({ ...UGC, face: 'no', voice: 'no' }, R1).labels.includes('ugc_ready'), 'neither face nor voice-over -> not ugc ready');
+ok(!verdictFor({ ...UGC, ugc_quality: 'low' }, R1).labels.includes('ugc_ready'), 'low quality -> not ugc ready');
 // round trip: the stored row re-opens with the same answers
 const stored = { ...R1, ...pu };
 const back = answersFromRow(stored);
-ok(back.fit === 'yes' && back.face === 'yes' && back.ugc_quality === 'high' && back.action === 'ugc' && back.videos[0] === UGC.videos[0], 'answers round-trip through tags/evidence');
+ok(back.face === 'yes' && back.voice === 'no' && back.ugc_quality === 'high' && back.action === 'ugc' && back.no_contact === true, 'answers round-trip through tags');
 ok(collabOf(stored) === 'ugc_ready', 'collab readable after save');
 // re-review replaces old reserved tags (no duplicates)
 const { patch: p2 } = reviewToPatch({ ...back, action: 'none' }, stored, NOW);
 ok(p2.tags.filter((t) => t.startsWith('collab:')).length === 1 && p2.tags.includes('collab:not_relevant'), 'collab replaced, not duplicated');
 ok(p2.tags.filter((t) => t.startsWith('r:action=')).length === 1, 'answer replaced, not duplicated');
 ok(p2.status === 'rejected', 'no collaboration -> rejected (excluded, kept)');
-// legacy evidence text preserved
-const { patch: p3 } = reviewToPatch(UGC, { ...R1, evidence: 'Medium' }, NOW);
-ok(p3.evidence.startsWith('Medium video:'), 'legacy evidence level kept');
-// UGC wanted but no video -> needs review, with an Arabic reason
-const noVid = verdictFor({ ...UGC, videos: [], pr: 'none', action: 'ugc' }, R1);
-ok(!noVid.labels.includes('ugc_ready'), 'no video -> not ugc ready');
-ok(noVid.missing.some((m) => missingAr(m).includes('رابط فيديو')), 'Arabic missing reason');
+// existing evidence text and links are never lost
+const { patch: p3 } = reviewToPatch({ ...UGC, contact_src: 'https://linktr.ee/a' }, { ...R1, evidence: 'Medium video:https://x.co/v/' }, NOW);
+ok(p3.evidence === 'Medium video:https://x.co/v/ contact:https://linktr.ee/a', 'legacy evidence + existing links kept, contact source added: ' + p3.evidence);
+// UGC wanted without the evidence -> not ugc ready, with an Arabic reason
+const noEv = verdictFor({ ...UGC, face: 'unsure', voice: 'unsure', ugc_quality: 'unsure' }, R1);
+ok(!noEv.labels.includes('ugc_ready') && noEv.missing.some((m) => missingAr(m).includes('فويس أوفر')), 'Arabic missing reason mentions voice-over');
 // expert
-ok(verdictFor({ ...fresh, active: 'yes', fit: 'partial', creator_type: 'expert', action: 'gift' }, R1).labels.includes('expert'), 'expert label');
+ok(verdictFor({ ...fresh, creator_type: 'expert', action: 'gift' }, R1).labels.includes('expert'), 'expert label');
+ok(!verdictFor({ ...fresh, creator_type: 'expert', action: 'unsure' }, R1).labels.includes('expert'), 'expert needs a decision first');
 // status already in outreach is never pushed back
 ok(!('status' in reviewToPatch(UGC, { ...R1, status: 'contacted' }, NOW).patch), 'outreach status kept (not sent)');
 // unchanged fields are not sent (readable audit trail)
 const same = reviewToPatch(answersFromRow(stored), stored, NOW).patch;
 ok(Object.keys(same).join() === 'last_verified_at', `re-saving an unchanged review sends only the check date (${Object.keys(same)})`);
-// videos capped, evidence <= 500 chars
-const long = Array.from({ length: 6 }, (_, i) => `https://www.instagram.com/reel/${'x'.repeat(150)}${i}/`);
-const pl = reviewToPatch({ ...UGC, videos: long }, R1, NOW).patch;
-ok(pl.evidence.length <= 500 && pl.evidence.split(' ').every((t) => t.endsWith('/')), `evidence capped without cutting a URL (${pl.evidence.length})`);
-// invalid URLs dropped
-ok(!reviewToPatch({ ...UGC, videos: ['javascript:alert(1)'] }, R1, NOW).patch.evidence, 'non-http video url ignored');
+// progress per question
+ok(verdictFor({ ...blank, creator_type: 'ugc' }, R1).completeness.done === 1, 'type alone = 1/5');
+ok(verdictFor({ ...blank, face: 'yes', voice: 'yes' }, R1).completeness.done === 0, 'shooting needs all three answers');
+ok(verdictFor({ ...fresh, face: 'yes', voice: 'no', ugc_quality: 'medium' }, R1).completeness.answered.q2, 'shooting answered with face + voice + quality');
 
-// quick reject
-const qr = quickRejectPatch({ ...R1, tags: ['UGC', 'r:active=yes', 'r:fit=yes', 'r:face=yes'] }, 'inactive', NOW);
-ok(qr.status === 'rejected' && qr.tags.includes('reject:inactive') && qr.tags.includes('r:active=no') && !qr.tags.includes('r:active=yes'), 'quick reject inactive');
+// quick reject (keeps the answers already given)
+const qr = quickRejectPatch({ ...R1, tags: ['UGC', 'r:face=yes', 'r:action=ugc'] }, 'inactive', NOW);
+ok(qr.status === 'rejected' && qr.tags.includes('reject:inactive') && qr.tags.includes('collab:not_relevant'), 'quick reject inactive');
 ok(qr.tags.includes('r:face=yes') && qr.tags.includes('UGC'), 'quick reject keeps other answers + free tags');
 let threw = false; try { quickRejectPatch(R1, 'whatever'); } catch { threw = true; }
 ok(threw, 'unknown reject reason refused');
