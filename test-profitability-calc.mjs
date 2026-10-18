@@ -158,7 +158,7 @@ eq(q.company.netProfit, sy(q).netProfit + tr(q).netProfit + ua(q).netProfit - 6,
 r = run([R({ amount: 50, items: [{ name: 'منتج مجهول', qty: 2 }] }), R({ amount: 30, items: [] }), R({ status: 'settled', delivered_at: null, delivery_basis: 'unknown', amount: 1250, currency: 'SYP', order_date: '2026-09-09T10:00:00+03:00' })]);
 ok(hasIssue(tr(r).quality, 'unmapped'), '16: اسم غير موحّد'); ok(hasIssue(tr(r).quality, 'missing_econ'), '16: منتج بلا سعر/تكلفة'); ok(hasIssue(tr(r).quality, 'no_items'), '16: مسلَّم بلا أصناف'); ok(hasIssue(tr(r).quality, 'settled_review'), '16: تسوية للمراجعة');
 eq(r.unmapped.length, 1, '16: القائمة غير الموحّدة'); eq(tr(r).unpricedUnits, 2, '16: القطع الناقصة'); eq(tr(r).revenue, 80, '16: الإيراد الفعلي 50+30 (غير موزَّع على المنتجات)'); eq(tr(r).productCost, 0, '16: ولا تكلفة صفرية مخترَعة'); ok(hasIssue(tr(r).quality, 'unallocated_revenue'), '16: إيراد غير موزَّع ظاهر'); eq(tr(r).settledCollected.SYP, 1250, '16: التسوية بعملتها');
-r = run(three); ok(hasIssue(r.company.quality, 'estimates'), 'تقدير الوحدة = تقديري'); ok(hasIssue(r.company.quality, 'legacy_unified_price') && hasIssue(r.company.quality, 'packaging_missing'), 'سعر موحّد قديم + تغليف ناقص يظهران');
+r = run(three); ok(hasIssue(r.company.quality, 'estimates'), 'تقدير الوحدة = تقديري'); ok(hasIssue(r.company.quality, 'packaging_missing') && !hasIssue(r.company.quality, 'legacy_unified_price'), 'التغليف الناقص يظهر ولا تحذير بسعر البيع (غير مطلوب)');
 const MPF = (market) => ({ item_name: 'سيروم أ', market, effective_from: '2026-06-01', sale_price_usd: 20, cost_usd: null, shipping_cost_usd: null });
 r = run(three, { marketPriceRows: ['syria', 'turkey', 'uae'].map(MPF), expenses: [E('all', 'حملات إعلانية', 1), E('all', 'أجور الشحن', 1), E('all', 'تغليف', 1), E('syria', 'رواتب', 0), E('turkey', 'رواتب', 0), E('uae', 'رواتب', 0)] });
 ok(r.company.quality.status === 'final', 'بلا نواقص ولا تقديرات = نهائي (' + r.company.quality.issues.map((i) => i.code) + ')');
@@ -220,22 +220,22 @@ const NI = 'صنف-جديد-ZZ';
 const only = [MP2('turkey', '2026-06-01', 30, 10, null, NI)];
 const sOrd = R({ market: 'syria', amount: 70, items: [{ name: NI, qty: 2 }] }), tOrd = R({ market: 'turkey', amount: 55, items: [{ name: NI, qty: 2 }] });
 const m6 = run([sOrd, tOrd], { marketPriceRows: only });
-eq(sy(m6).revenue, 70, 'M6: إيراد سوريا فعلي رغم غياب سعرها المرجعي'); eq(sy(m6).unallocatedRevenue, 70, 'M6: غير موزَّع على المنتجات (لا استعارة من تركيا)'); eq(sy(m6).referenceRevenue, 0, 'M6: لا مرجع لسوريا');
-ok(hasIssue(sy(m6).quality, 'unallocated_revenue') && hasIssue(sy(m6).quality, 'missing_econ'), 'M6/7: تحذيرات التوزيع والتكلفة الناقصة ظاهرة'); eq(sy(m6).unpricedUnits, 2, 'M6: قطعتا سوريا بلا تكلفة');
+eq(sy(m6).revenue, 70, 'M6: إيراد سوريا فعلي رغم غياب سعرها المرجعي'); eq(sy(m6).unallocatedRevenue, 0, 'M6: يوزَّع بالقطع على المنتجات (لا حاجة لسعر بيع)'); eq(sy(m6).referenceRevenue, 0, 'M6: لا مرجع لسوريا');
+ok(hasIssue(sy(m6).quality, 'missing_econ') && !hasIssue(sy(m6).quality, 'unallocated_revenue'), 'M6/7: تحذير التكلفة الناقصة ظاهر ولا تحذير توزيع'); eq(sy(m6).unpricedUnits, 2, 'M6: قطعتا سوريا بلا تكلفة');
 eq(tr(m6).revenue, 55, 'M6: تركيا إيرادها الفعلي 55'); eq(tr(m6).referenceRevenue, 60, 'M6: ومرجعها 2×30'); eq(tr(m6).productCost, 20, 'M6: وتكلفة السوق 2×10'); eq(tr(m6).unallocatedRevenue, 0, 'M6: موزَّع بالكامل');
 const ptRow = m6.priceTable.find((x) => x.name === NI);
 ok(!!ptRow && ptRow.markets.syria.status === 'missing' && ptRow.markets.uae.status === 'missing' && ['current', 'historical'].includes(ptRow.markets.turkey.status), 'M7: جدول الأسعار يوسم الناقص والمعتمد');
 const m6b = run([R({ market: 'syria', amount: 18 })], { marketPriceRows: [MP2('turkey', '2026-06-01', 30)] });
-eq(sy(m6b).referenceRevenue, 20, 'M6b: المرجع لسوريا السعر الموحّد القديم (20) لا سعر تركيا (30)'); ok(hasIssue(sy(m6b).quality, 'legacy_unified_price'), 'M6b: ويُحذَّر منه'); ok(m6b.products[0].priceBasis === 'legacy_unified', 'M6b: أساس السعر موسوم');
+eq(sy(m6b).referenceRevenue, 0, 'M6b: لا مرجع لسوريا: لا يُستعار سعر تركيا ولا يدخل السعر الموحّد القديم'); ok(m6b.products[0].priceBasis === 'legacy_unified', 'M6b: أساس السعر موسوم');
 const pAug = run(three, { marketPriceRows: rows3, nowMonth: '2026-10-01' }, '2026-09'); ok(pAug.products.every((p) => p.priceStatus === 'historical'), 'M8: سعر شهر سابق = تاريخي موثّق');
 const pNow = run(octThree, { marketPriceRows: rows3, nowMonth: '2026-10-01' }, '2026-10'); ok(pNow.products.every((p) => p.priceStatus === 'current'), 'M8: سعر الشهر الحالي = حالي');
 
 // ── قيمة الطلب الفعلية: خصم، عدة منتجات، تحويل العملة ──
 const disc = run([R({ market: 'syria', amount: 18 })]);
-eq(sy(disc).revenue, 18, 'X1: خصم → الإيراد 18 لا 20'); eq(sy(disc).referenceRevenue, 20, 'X1: المرجع 20'); eq(disc.products[0].revenue, 18, 'X1: صف المنتج يأخذ الإيراد الفعلي');
+eq(sy(disc).revenue, 18, 'X1: خصم → الإيراد 18 لا 20'); eq(sy(disc).referenceRevenue, 0, 'X1: لا مرجع بلا سعر سوق مُدخَل'); eq(run([R({ market: 'syria', amount: 18 })], { marketPriceRows: [MP2('syria', '2026-06-01', 20)] }).marketSummary.syria.referenceRevenue, 20, 'X1: المرجع 20 حين يُدخَل سعر للسوق'); eq(disc.products[0].revenue, 18, 'X1: صف المنتج يأخذ الإيراد الفعلي');
 const multi = run([R({ market: 'turkey', amount: 24, items: [{ name: 'ROSEMARY SHAMPOO', qty: 1 }, { name: 'Serum A', qty: 1 }] })]);
 const mp = Object.fromEntries(multi.products.map((p) => [p.name, p]));
-eq(mp['شامبو الروزماري'].revenue, 8, 'X2: توزيع 24 بنسبة 10:20 → 8'); eq(mp['سيروم أ'].revenue, 16, 'X2: → 16'); eq(tr(multi).revenue, 24, 'X2: إيراد السوق = قيمة الطلب'); eq(tr(multi).unallocatedRevenue, 0, 'X2: موزَّع');
+eq(mp['شامبو الروزماري'].revenue, 12, 'X2: توزيع 24 بالقطع (1:1) → 12'); eq(mp['سيروم أ'].revenue, 12, 'X2: → 12'); eq(tr(multi).revenue, 24, 'X2: إيراد السوق = قيمة الطلب'); eq(tr(multi).unallocatedRevenue, 0, 'X2: موزَّع');
 const noItems = run([R({ market: 'turkey', amount: 33, items: [] })]);
 eq(tr(noItems).revenue, 33, 'X3: طلب بلا أصناف: الإيراد فعلي'); eq(tr(noItems).unallocatedRevenue, 33, 'X3: غير موزَّع على المنتجات'); ok(hasIssue(tr(noItems).quality, 'no_items'), 'X3: ويظهر تحذير بلا أصناف');
 // تحويل العملة بسعر شهري معتمد لكل سوق
@@ -304,13 +304,13 @@ eq(q2.company.netProfit, sy(q2).netProfit + tr(q2).netProfit + ua(q2).netProfit 
 // ════ معنى قيمة الطلب: خصم + أجور توصيل + دفع جزئي (amount = قيمة البضاعة لا المحصَّل ولا أجور التوصيل) ════
 const dOrd = R({ market: 'syria', amount: 90, shipping_payer: 'customer', delivery_cost: 10, payment_status: 'unpaid' });
 const dRun = run([dOrd]);
-eq(sy(dRun).revenue, 90, 'D1: أجور التوصيل على العميل لا تُضاف للإيراد (amount فقط)'); eq(sy(dRun).customerDeliveryFees.USD, 10, 'D1: وتُعرض معلومةً منفصلة'); eq(sy(dRun).referenceRevenue, 20, 'D1: المرجع لا يتأثر');
+eq(sy(dRun).revenue, 90, 'D1: أجور التوصيل على العميل لا تُضاف للإيراد (amount فقط)'); eq(sy(dRun).customerDeliveryFees.USD, 10, 'D1: وتُعرض معلومةً منفصلة'); eq(sy(dRun).referenceRevenue, 0, 'D1: لا مرجع بلا سعر سوق');
 const cOrd = run([R({ market: 'syria', amount: 90, shipping_payer: 'company', delivery_cost: 7 })]);
 eq(sy(cOrd).revenue, 90, 'D2: أجور توصيل على الشركة: لا تغيّر الإيراد'); eq(Object.keys(sy(cOrd).customerDeliveryFees).length, 0, 'D2: ولا تُعدّ محصّلة من العميل'); eq(sy(cOrd).expenses, 0, 'D2: ولا تدخل مصروفاً (delivery_cost معلومة فقط)');
 const pOrd = run([R({ market: 'syria', amount: 90, payment_status: 'partial', paid_amount: 40 })]);
 eq(sy(pOrd).revenue, 90, 'D3: الدفع الجزئي لا يخفّض الإيراد (القيمة كاملة)'); eq(sy(pOrd).partialPayment.orders, 1, 'D3: يُعرض كمعلومة'); eq(sy(pOrd).partialPayment.byCurrency.USD, 40, 'D3: المدفوع مقدَّماً 40');
 const dscM = run([R({ market: 'turkey', amount: 27, items: [{ name: 'ROSEMARY SHAMPOO', qty: 1 }, { name: 'Serum A', qty: 1 }], shipping_payer: 'customer', delivery_cost: 5 })]);
-eq(tr(dscM).revenue, 27, 'D4: خصم على عدة منتجات + توصيل: الإيراد 27 فقط'); const dp = Object.fromEntries(dscM.products.map((p) => [p.name, p.revenue])); eq(dp['شامبو الروزماري'], 9, 'D4: توزيع 27 بنسبة 10:20 → 9'); eq(dp['سيروم أ'], 18, 'D4: → 18');
+eq(tr(dscM).revenue, 27, 'D4: خصم على عدة منتجات + توصيل: الإيراد 27 فقط'); const dp = Object.fromEntries(dscM.products.map((p) => [p.name, p.revenue])); eq(dp['شامبو الروزماري'], 13.5, 'D4: توزيع 27 بالقطع → 13.5'); eq(dp['سيروم أ'], 13.5, 'D4: → 13.5');
 // خصم أكبر من المرجع (سعر أعلى من المرجع) لا يكسر شيئاً
 eq(run([R({ market: 'turkey', amount: 45 })]).marketSummary.turkey.revenue, 45, 'D5: قيمة أعلى من المرجع تُقبل كما هي');
 
@@ -353,6 +353,19 @@ eq(sy(unkMkt).revenue, 0, 'B3: سوق غير معروف لا يُسند لسور
 const nmBrand = [...nameMap, { alias_name: 'Strong X', canonical_name: 'ستونغ إكس', brand: 'strong', is_active: true }];
 const brandOrd = [R({ market: 'turkey', amount: 20 }), R({ market: 'turkey', amount: 50, items: [{ name: 'Strong X', qty: 1 }] })];
 eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'lowes' })).units, 1, 'B4: براند lowes يستبعد منتجات سترونغ'); eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'strong' })).units, 1, 'B4: براند strong يستبعد lowes'); eq(tr(run(brandOrd, { nameMapRows: nmBrand, brand: 'all' })).units, 2, 'B4: الكل يشمل الاثنين');
+
+// ════ تكلفة فقط: التوزيع بالقطع، حالة التكلفة بالسوق، الأصل بالكتالوج، كمية مشبوهة ════
+const kq2 = run([R({ market: 'turkey', amount: 30, items: [{ name: 'ROSEMARY SHAMPOO', qty: 2 }, { name: 'Serum A', qty: 1 }] })]);
+const kq2p = Object.fromEntries(kq2.products.map((p) => [p.name, p.revenue])); eq(kq2p['شامبو الروزماري'], 20, 'K1: التوزيع بنسبة الكمية 2:1 → 20'); eq(kq2p['سيروم أ'], 10, 'K1: → 10'); eq(tr(kq2).revenue, 30, 'K1: مجموع الإيراد = قيمة الطلب');
+const hugeQty = run([R({ market: 'turkey', amount: 50, items: [{ name: 'Serum A', qty: 100959260 }] })]);
+eq(tr(hugeQty).units, 1, 'K2: كمية 100 مليون (خطأ إدخال) تُعدّ قطعة واحدة'); eq(tr(hugeQty).productCost, 8, 'K2: ولا تتضخّم التكلفة'); ok(hasIssue(tr(hugeQty).quality, 'qty_suspect') && tr(hugeQty).quality.status === 'partial', 'K2: جزئي بتحذير الكمية المشبوهة');
+const costTbl = run([R({ market: 'syria', amount: 20 })], { marketPriceRows: [{ item_name: 'سيروم أ', market: 'turkey', effective_from: '2026-06-01', sale_price_usd: null, cost_usd: 5, shipping_cost_usd: null }], catalogNames: ['سيروم أ'] });
+const ctRow = costTbl.priceTable.find((x) => x.name === 'سيروم أ');
+ok(ctRow.markets.turkey.costStatus === 'market' && ctRow.markets.turkey.cost === 5, 'K3: تكلفة خاصة بتركيا (5) موسومة market'); ok(ctRow.markets.syria.costStatus === 'unified' && ctRow.markets.syria.cost === 8, 'K3: سوريا ترث الموحّدة (8)'); ok(ctRow.markets.uae.costStatus === 'unified' && ctRow.markets.uae.cost === 8, 'K3: الإمارات ترث الموحّدة (8) ولا تتأثر بتركيا');
+ok(ctRow.inCatalog === true, 'K4: صنف بالكتالوج');
+const orphan = run([R({ market: 'syria', amount: 20 })], { catalogNames: ['شيء آخر'] }); ok(orphan.priceTable.find((x) => x.name === 'سيروم أ').inCatalog === false, 'K4: صنف بلا أصل بالكتالوج يُوسَم false');
+const noCost = run([R({ market: 'syria', amount: 20, items: [{ name: 'صنف-بلا-تكلفة', qty: 1 }] })], { marketPriceRows: [{ item_name: 'صنف-بلا-تكلفة', market: 'syria', effective_from: '2026-06-01', sale_price_usd: 9, cost_usd: null, shipping_cost_usd: null }] });
+eq(sy(noCost).unpricedUnits, 1, 'K5: سعر بيع بلا تكلفة لا يكفي — التكلفة ناقصة'); ok(noCost.priceTable.find((x) => x.name === 'صنف-بلا-تكلفة').markets.syria.costStatus === 'missing', 'K5: حالة التكلفة ناقصة');
 
 console.log(`\n${pass} نجح · ${fail} فشل`);
 process.exit(fail ? 1 : 0);

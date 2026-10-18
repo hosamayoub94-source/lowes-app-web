@@ -24,7 +24,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   const { monthStart, from, to } = monthBounds(month || since || currentMonth());
   const nextStart = nextMonthStart(monthStart);
 
-  const [orders, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes, failRes] = await Promise.all([
+  const [orders, entries, econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes, catalogRes, failRes] = await Promise.all([
     fetchAllRows(() => supabase.rpc('profitability_orders', { p_from: from, p_to: to })),
     fetchAllRows(() => supabase.from('accounting_entries')
       .select('id, entry_type, category, amount_usd, amount_try, amount_syp, channel_id, transfer_group, is_void, entry_date, book')
@@ -37,6 +37,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
     supabase.from('profitability_fx_rates').select('*').lte('month', monthStart).order('entered_at', { ascending: false }),
     supabase.from('profitability_month_closures').select('*').eq('month', monthStart).maybeSingle(),
     supabase.from('product_market_prices').select('*').lte('effective_from', monthStart).order('effective_from', { ascending: false }),
+    supabase.from('products').select('name, is_active'),
     supabase.from('order_status_history_failures').select('id', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
   ]);
   for (const res of [econRes, mapRes, historyRes, expensesRes, channelsRes, fxRes, closureRes, mktRes]) if (res.error && !missingTable(res)) throw res.error;
@@ -52,6 +53,7 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
     currentRows: econRes.data || [],
     accountingEntries: entries,
     channels: channelsRes.data || [],
+    catalogNames: catalogRes?.error ? [] : (catalogRes?.data || []).map((p) => p.name),
     marketPriceRows: mktRes.error ? [] : (mktRes.data || []),
   });
   const closure = closureRes.error ? null : closureRes.data;

@@ -19,8 +19,6 @@ const MUTANTS = [
   R('FX: سعر الكل يتقدّم على سعر السوق', "m.get(`${currency}|${market}`) ?? m.get(`${currency}|all`)", "m.get(`${currency}|all`) ?? m.get(`${currency}|${market}`)"),
   R('FX مصاريف: القسمة صارت ضرباً', 'if (rate) usd += a / rate;', 'if (rate) usd += a * rate;'),
   R('مرتجع: عامل الشحن معكوس', 'afterDelivery ? 0.5 : 1.5', 'afterDelivery ? 1.5 : 0.5'),
-  R('توزيع: يُعتبر كل طلب مسعَّراً', 'if (w.every((x) => x > 0)) {', 'if (true) {'),
-  R('توزيع: الغير موزَّع يُسقَط', "if (c.items.length === c.all.length) return { mode: 'unallocated'", "if (false) return { mode: 'unallocated'"),
   R('إيراد السوق لا يُضاف', 'M.revenue += sp.total;', ''),
   R('أجور توصيل العميل تُضاف للإيراد', 'M.revenue += sp.total;', "M.revenue += sp.total + (o.shipping_payer === 'customer' ? num(o.delivery_cost) : 0);"),
   afterNeedle('بلا صرف: الطلب يكمل ويحسب تكلفته', 'revenueGaps.push(', 'return;', ''),
@@ -55,8 +53,13 @@ const MUTANTS = [
   R('مرتجع بتحويل جماعي يُقبل', "o.return_at && !o.return_bulk_suspect", 'o.return_at'),
   R('مصروف يدوي مربوط بقيد يُحتسب مرتين', 'if (e.accounting_entry_id && countedAccIds.has(e.accounting_entry_id)) { manualDup++; continue; }', ''),
   R('المحصَّل بالعملة الأصلية لا يُسجَّل', "M.revenueByCurrency[rv.cur] = (M.revenueByCurrency[rv.cur] || 0) + rv.amount;", ''),
-  R('الإيراد المرجعي لا يُحسب', 'if (pv.price > 0) M.referenceRevenue += pv.price * it.q;', ''),
+  R('الإيراد المرجعي لا يُحسب', "if (pv.basis === 'market' && pv.price > 0) M.referenceRevenue += pv.price * it.q;", ''),
   R('الدفع الجزئي لا يُعرض', "if (o.payment_status === 'partial') { M.partialPayment.orders++;", "if (false) { M.partialPayment.orders++;"),
+  R('توزيع: بالتساوي بدل الكمية', 'rv.usd * (it.q / totalQ)', 'rv.usd * (1 / c.all.length)'),
+  R('كمية مشبوهة تُقبل', 'qty > 0 && !bad ? qty : 1', 'qty > 0 ? qty : 1'),
+  R('المرجع يعتمد السعر الموحّد القديم', "pv.basis === 'market' && pv.price > 0", 'pv.price > 0'),
+  R('حالة التكلفة: ناقصة تُعدّ موحّدة', "costStatus: cost > 0 ? (mc ? 'market' : 'unified') : 'missing'", "costStatus: mc ? 'market' : 'unified'"),
+  R('الأصل بالكتالوج مقلوب', 'catalogKeys.has(key)', '!catalogKeys.has(key)'),
 ];
 
 const run = () => spawnSync(process.execPath, ['test-profitability-calc.mjs'], { encoding: 'utf8', timeout: 180000 });

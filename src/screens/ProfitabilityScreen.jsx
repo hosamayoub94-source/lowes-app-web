@@ -30,14 +30,14 @@ function StatCard({ icon, label, value, tone='navy' }) {
   );
 }
 
-// ───── محرّر الأسعار حسب السوق ─────
-// السعر مرتبط بالمنتج × السوق × شهر البدء. الماضي لا يُعاد كتابته، وسوق بلا سعر لا يستعير سعر سوق آخر.
+// ───── محرّر تكلفة المنتجات حسب السوق ─────
+// التكلفة فقط. سعر البيع يتغيّر من طلب لآخر، فلا يُدخَل هنا: الإيراد يُؤخذ من قيمة كل طلب فعلياً.
+// تكلفة خاصة بسوق تتفوق على التكلفة الموحّدة؛ الخانة الفارغة = ترث الموحّدة. الماضي لا يُعاد كتابته.
 const MKTS = [['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا'], ['uae', '🇦🇪 الإمارات']];
-const PRICE_STATUS = {
-  current:        ['🟢 حالي', 'text-green-600'],
-  historical:     ['✅ موثّق', 'text-teal'],
-  legacy_unified: ['🟡 موحّد قديم', 'text-orange-600'],
-  missing:        ['🔴 ناقص', 'text-red-600'],
+const COST_STATUS = {
+  market:  ['🟢 خاصة بالسوق', 'text-green-600'],
+  unified: ['🔵 موحّدة', 'text-teal'],
+  missing: ['🔴 ناقصة', 'text-red-600'],
 };
 const thisMonth = () => new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 7);
 
@@ -46,19 +46,19 @@ function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved })
   const cur = thisMonth();
   const [startMonth, setStartMonth] = useState(cur);
   const [q, setQ] = useState(focus || '');
-  const [showCost, setShowCost] = useState(false);
+  const [onlyMissing, setOnlyMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState(() => {
     const m = {};
     for (const t of table) {
-      for (const [mk] of MKTS) { const e = t.markets[mk]; m[`${t.key}|${mk}`] = { price: e.price > 0 ? String(e.price) : '', cost: e.costBasis === 'market' ? String(e.cost) : '' }; }
-      const anyCost = MKTS.map(([mk]) => t.markets[mk].cost).find((c) => c > 0);
-      m[`${t.key}|unified`] = { cost: anyCost ? String(anyCost) : '' };
+      for (const [mk] of MKTS) { const e = t.markets[mk]; m[`${t.key}|${mk}`] = { cost: e.costBasis === 'market' && e.cost > 0 ? String(e.cost) : '' }; }
+      const uni = MKTS.map(([mk]) => t.markets[mk]).find((e) => e.costBasis === 'unified' && e.cost > 0);
+      m[`${t.key}|unified`] = { cost: uni ? String(uni.cost) : '' };
     }
     return m;
   });
   const [dirty, setDirty] = useState(() => new Set());
-  const set = (id, k, v) => { setRows((s) => ({ ...s, [id]: { ...s[id], [k]: v.replace(/[^\d.]/g, '') } })); setDirty((d) => new Set(d).add(id)); };
+  const set = (id, v) => { setRows((s) => ({ ...s, [id]: { cost: v.replace(/[^\d.]/g, '') } })); setDirty((d) => new Set(d).add(id)); };
 
   const saveAll = async () => {
     if (!dirty.size) { onClose(); return; }
@@ -67,72 +67,70 @@ function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved })
     let done = 0, fail = 0, firstErr = '';
     const byKey = new Map(table.map((t) => [t.key, t]));
     for (const id of dirty) {
-      const [key, mk] = id.split('|'); const t = byKey.get(key); const r = rows[id];
+      const [key, mk] = id.split('|'); const t = byKey.get(key); const raw = rows[id].cost;
+      if (raw === '') continue;
       try {
-        if (mk === 'unified') {
-          if (r.cost !== '') await saveEconomics(t.name, { cost_usd: Number(r.cost), month: `${startMonth}-01` });
-        } else {
-          const price = r.price === '' ? null : Number(r.price), cost = r.cost === '' ? null : Number(r.cost);
-          if (price !== null || cost !== null) await saveMarketPrice({ item: t.name, market: mk, price, cost, month: `${startMonth}-01`, name: actor });
-        }
+        if (mk === 'unified') await saveEconomics(t.name, { cost_usd: Number(raw), month: `${startMonth}-01` });
+        else await saveMarketPrice({ item: t.name, market: mk, price: null, cost: Number(raw), month: `${startMonth}-01`, name: actor });
         done++;
       } catch (e) { fail++; firstErr = firstErr || e.message; }
     }
     setBusy(false);
-    toast[fail ? 'error' : 'success'](`حُفظ ${done}${fail ? ` · فشل ${fail} (${firstErr})` : ''}`);
+    toast[fail ? 'error' : 'success'](`حُفظت ${done} تكلفة${fail ? ` · فشل ${fail} (${firstErr})` : ''}`);
     onSaved();
   };
 
-  const list = table.filter((t) => !q || t.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const missingCount = (t) => MKTS.filter(([mk]) => t.markets[mk].costStatus === 'missing').length;
+  const list = table.filter((t) => (!q || t.name.toLowerCase().includes(q.trim().toLowerCase())) && (!onlyMissing || missingCount(t) > 0));
   const INP = 'w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-stretch sm:items-center justify-center sm:p-4 bg-black/50" onClick={(e) => e.target === e.currentTarget && onClose()} dir="rtl">
       <div className="w-full sm:max-w-3xl bg-surface sm:rounded-3xl shadow-2xl border border-border flex flex-col max-h-screen sm:max-h-[92vh]">
         <div className="px-4 py-3 bg-navy text-white shrink-0">
-          <p className="font-bold text-sm">💵 أسعار المنتجات حسب السوق — بالدولار للوحدة</p>
-          <p className="text-[11px] text-white/70">السعر الجديد يسري من شهر البدء فقط؛ الأشهر السابقة لا تتغيّر ولا يُنسخ إليها شيء. سوق بلا سعر لا يستعير سعر سوق آخر. القيم المعروضة هي المعتمدة لشهر {viewMonth}.</p>
+          <p className="font-bold text-sm">📦 تكلفة المنتجات حسب السوق — بالدولار للوحدة</p>
+          <p className="text-[11px] text-white/70">هذه <b>التكلفة فقط</b> — لا سعر بيع هنا لأن البيع يتغيّر من طلب لآخر؛ الإيراد يُؤخذ من قيمة كل طلب فعلياً. التكلفة الموحّدة تسري على كل الأسواق، وتكلفة السوق (إن أدخلتها) تتفوق عليها. الجديد يسري من شهر البدء فقط ولا يغيّر الأشهر السابقة. القيم المعروضة لشهر {viewMonth}.</p>
         </div>
         <div className="p-3 shrink-0 flex flex-wrap gap-2 items-center">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث عن منتج…" className="flex-1 min-w-[10rem] border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
-          <label className="text-xs text-text flex items-center gap-1.5">يبدأ من شهر
+          <label className="text-xs text-text flex items-center gap-1.5">تسري من شهر
             <input type="month" value={startMonth} min={cur} onChange={(e) => setStartMonth(e.target.value || cur)} className="border border-border rounded-lg px-2 py-1 text-xs bg-surface-alt text-text" />
           </label>
-          <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={showCost} onChange={(e) => setShowCost(e.target.checked)} /> تكلفة خاصة بالسوق</label>
+          <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} /> الناقصة فقط</label>
         </div>
         <div className="overflow-y-auto flex-1 px-3">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-surface">
               <tr className="text-muted text-[10px]">
                 <th className="text-start py-1.5 font-semibold">المنتج</th>
-                {MKTS.map(([k, l]) => <th key={k} className="font-semibold">{l}</th>)}
-                <th className="font-semibold">📦 تكلفة التصنيع (موحّدة)</th>
+                <th className="font-semibold">📦 تكلفة موحّدة (كل الأسواق)</th>
+                {MKTS.map(([k, l]) => <th key={k} className="font-semibold">{l}<div className="font-normal">تكلفة خاصة (اختياري)</div></th>)}
               </tr>
             </thead>
             <tbody>
               {list.map((t) => (
                 <tr key={t.key} className="border-t border-border/40 align-top">
-                  <td className="py-1.5 pe-2 text-text font-medium">{t.name}</td>
+                  <td className="py-1.5 pe-2 text-text font-medium">{t.name}{t.inCatalog === false && <div className="text-[9px] text-orange-600 font-normal">⚠️ بلا أصل بالكتالوج</div>}</td>
+                  <td className="text-center py-1"><input value={rows[`${t.key}|unified`].cost} onChange={(ev) => set(`${t.key}|unified`, ev.target.value)} inputMode="decimal" className={INP} placeholder="—" /></td>
                   {MKTS.map(([mk]) => {
-                    const e = t.markets[mk], id = `${t.key}|${mk}`, [lab, cls] = PRICE_STATUS[e.status] || PRICE_STATUS.missing;
+                    const e = t.markets[mk], id = `${t.key}|${mk}`, [lab, cls] = COST_STATUS[e.costStatus] || COST_STATUS.missing;
                     return (
                       <td key={mk} className="text-center py-1">
-                        <input value={rows[id].price} onChange={(ev) => set(id, 'price', ev.target.value)} inputMode="decimal" className={INP} placeholder="—" />
-                        <div className={`text-[9px] ${cls}`}>{lab}{e.from && e.status !== 'missing' ? ` · ${String(e.from).slice(0, 7)}` : ''}</div>
-                        {showCost && <input value={rows[id].cost} onChange={(ev) => set(id, 'cost', ev.target.value)} inputMode="decimal" className={`${INP} mt-1`} placeholder="تكلفة" />}
+                        <input value={rows[id].cost} onChange={(ev) => set(id, ev.target.value)} inputMode="decimal" className={INP} placeholder={e.costStatus === 'unified' ? String(e.cost) : '—'} />
+                        <div className={`text-[9px] ${cls}`}>{lab}{e.cost > 0 ? ` · $${e.cost}` : ''}</div>
                       </td>
                     );
                   })}
-                  <td className="text-center py-1"><input value={rows[`${t.key}|unified`].cost} onChange={(ev) => set(`${t.key}|unified`, 'cost', ev.target.value)} inputMode="decimal" className={INP} placeholder="—" /></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {list.length === 0 && <p className="text-center text-muted text-xs py-6">لا منتجات مطابقة.</p>}
         </div>
         <div className="flex gap-2 p-3 border-t border-border shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border font-semibold hover:bg-surface-alt">إغلاق</button>
           <button onClick={saveAll} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-teal text-navy font-bold hover:bg-teal/90 disabled:opacity-50">
-            {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'خانة' : ''}`}
+            {busy ? 'جارٍ الحفظ…' : `حفظ ${dirty.size || ''} ${dirty.size ? 'تكلفة' : ''}`}
           </button>
         </div>
       </div>
@@ -184,8 +182,8 @@ function MarketCard({ k, x }) {
     {basis && <div className="text-[10px] text-muted">مصدر تاريخ التسليم — {basis}</div>}
     <div className="text-[10px] text-muted mt-1.5 space-y-0.5">
       {row('إيراد المبيعات الفعلي (قيمة الطلبات بالدولار بعد التحويل)', x.revenue)}
-      {x.unallocatedRevenue > 0 && <div className="text-[10px] text-orange-600">منه غير موزَّع على المنتجات: ${fmt(x.unallocatedRevenue)} ({x.unallocatedOrders} طلب)</div>}
-      {x.referenceRevenue > 0 && <div className="text-[10px] text-muted">مرجع تحليلي فقط (سعر المنتج × الكمية): ${fmt(x.referenceRevenue)} — لا يدخل الربح</div>}
+      {x.unallocatedRevenue > 0 && <div className="text-[10px] text-orange-600">منه بلا أصناف (غير موزَّع على المنتجات): ${fmt(x.unallocatedRevenue)} ({x.unallocatedOrders} طلب)</div>}
+      {x.referenceRevenue > 0 && <div className="text-[10px] text-muted">مرجع تحليلي فقط (أسعار بيع مُدخَلة للسوق × الكمية): ${fmt(x.referenceRevenue)} — لا يدخل الربح</div>}
       {row('تخفيض الإيراد بسبب مرتجع (شهر الإرجاع)', R.revenueReduction, true)}
       {row('تكلفة المنتجات المُسلَّمة', x.productCost, true)}
       {row('تكلفة مخزون مُسترَد (حركة موثَّقة + مفترض بقاعدة المالك)', R.restockedCost, false, null, true)}
@@ -531,12 +529,12 @@ export default function ProfitabilityScreen() {
 
       <button onClick={()=>setBulk(true)}
         className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition flex items-center justify-center gap-2">
-        ✏️ أسعار وتكاليف المنتجات حسب السوق
+        ✏️ تكلفة المنتجات حسب السوق
       </button>
 
       {totals.unset > 0 && (
         <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2.5">
-          💡 {totals.unset} صنف بلا تكلفة مؤكدة لهذا الشهر (التكلفة المفقودة ليست صفراً)، وأصناف أخرى بلا إيراد محوَّل لغياب سعر الصرف. أدخل التكاليف من «✏️ أسعار وتكاليف المنتجات حسب السوق»؛ تسري من الشهر المحدّد فقط ولا تُغيّر الأشهر السابقة.
+          💡 {totals.unset} صنف بلا تكلفة مؤكدة لهذا الشهر (التكلفة المفقودة ليست صفراً)، وأصناف أخرى بلا إيراد محوَّل لغياب سعر الصرف. أدخل التكاليف من «✏️ تكلفة المنتجات حسب السوق»؛ تسري من الشهر المحدّد فقط ولا تُغيّر الأشهر السابقة.
         </div>
       )}
 
@@ -553,7 +551,7 @@ export default function ProfitabilityScreen() {
         </Panel>
       )}
 
-      <div className="flex items-center justify-between pt-1"><h2 className="font-bold text-sm">🏷️ أسعار وتكاليف المنتجات — حسب السوق</h2><span className="text-[10px] text-muted">الإيراد الموزَّع = قيمة الطلب موزَّعة بنسبة الأسعار المرجعية</span></div>
+      <div className="flex items-center justify-between pt-1"><h2 className="font-bold text-sm">🏷️ تكلفة المنتجات — حسب السوق</h2><span className="text-[10px] text-muted">الإيراد الموزَّع = قيمة الطلب موزَّعة بنسبة الكمية (سعر البيع غير مُدخَل)</span></div>
       {/* Product rows */}
       <div className="space-y-2">
         {products.map((p, i) => {
