@@ -6,12 +6,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { call, updateProspect } from '@services/creatorProspectsApi';
 import {
   answersFromRow, verdictFor, reviewToPatch, quickRejectPatch, nextStep, missingAr, outreachDraft, contactPatch,
-  TRI_AR, FIT_AR, SKIN_AR, UGCQ_AR, PR_AR, ACTION_AR, REJECT_AR,
+  TRI_AR, UGCQ_AR, ACTION_AR, REJECT_AR,
 } from '@services/creatorWorkqueue';
 import { Avatar, ScoreBadge } from './CreatorCard';
 import CreatorEditModal from './CreatorEditModal';
 import {
-  CREATOR_TYPES, TYPE_AR, SKINCARE_FOCUS, FOCUS_AR, STATUS_AR, STATUS_CLS, VERIFICATION_AR, VERIFY_CLS, CONFIDENCE_AR, CATEGORY_AR, WEIGHTS,
+  CREATOR_TYPES, TYPE_AR, FOCUS_AR, STATUS_AR, STATUS_CLS, VERIFICATION_AR, VERIFY_CLS, CONFIDENCE_AR, CATEGORY_AR, WEIGHTS,
   GOVERNORATES, COLLAB_AR, COLLAB_CLS, TONE_CLS, MISSING_AR, CONTENT_AR,
   statusOf, fmtNum, instagramUrl, profileUrl, placeOf, contactUrl, PLATFORM_AR, isPending, shownHandle, collabOf, isGarbled, missingEssentials, displayName,
 } from './constants';
@@ -23,7 +23,7 @@ const ACTION_KEYS = ['gift', 'ugc', 'paid', 'none'];
 const FIELD_AR = {
   status: 'الحالة', tags: 'الإجابات/الوسوم', content_types: 'أنواع المحتوى', skincare_focus: 'تخصص العناية', creator_type: 'نوع المبدع', verification_status: 'التحقق',
   last_verified_at: 'آخر تحقق', last_active_at: 'آخر نشاط', location_confidence: 'ثقة الموقع', preferred_contact: 'التواصل المفضل', governorate: 'المحافظة', city: 'المدينة', email: 'البريد', phone: 'الهاتف', notes: 'ملاحظات', evidence: 'الأدلة',
-  followers: 'المتابعون', engagement_pct: 'التفاعل', name: 'الاسم', handle: 'الحساب', saved: 'محفوظ', owner: 'المسؤول', source: 'المصدر',
+  followers: 'المتابعون', engagement_pct: 'التفاعل', name: 'الاسم', handle: 'الحساب', saved: 'المفضلين', owner: 'المسؤول', source: 'المصدر',
 };
 const ACT_AR = { add: 'إضافة', update: 'تعديل', delete: 'حذف', restore: 'استرجاع', bulk_update: 'تعديل جماعي', import: 'استيراد' };
 const inputCls = 'border rounded-lg px-2 py-1.5 text-sm w-full bg-white';
@@ -201,7 +201,7 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, act
         <div className="flex flex-wrap gap-2">
           {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl bg-gradient-to-l from-pink-500 to-amber-400 text-white text-sm font-black">افتح الحساب وشوف المحتوى ↗</a>}
           {contact && <a href={contact} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl border text-sm font-bold" title="يفتح المحادثة فقط — لا يُرسل شيئاً">تواصل ↗</a>}
-          {canManage && !row.deleted_at && <button disabled={!v2} onClick={onToggleSave} aria-pressed={!!row.saved} className={`px-4 py-2 rounded-xl border text-sm font-bold disabled:opacity-40 ${row.saved ? 'bg-amber-100 border-amber-300' : ''}`}>{row.saved ? '★ محفوظ' : '☆ حفظ'}</button>}
+          {canManage && !row.deleted_at && <button disabled={!v2} onClick={onToggleSave} aria-pressed={!!row.saved} className={`px-4 py-2 rounded-xl border text-sm font-bold disabled:opacity-40 ${row.saved ? 'bg-amber-100 border-amber-300' : ''}`}>{row.saved ? '★ بالمفضلين' : '☆ للمفضلين'}</button>}
           {canManage && <button onClick={() => setEditing(true)} className="px-4 py-2 rounded-xl border text-sm font-bold">✎ تعديل كل الحقول</button>}
         </div>
 
@@ -261,40 +261,26 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, act
         {writable && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-sm">المراجعة — {verdict.completeness.done}/8</h3>
+              <h3 className="font-black text-sm">المراجعة — {verdict.completeness.done}/5</h3>
               <span className="text-[11px] text-gray-500">«غير متأكد» = نتركه فاضي، ما منخمّن</span>
             </div>
-            <Q n={1} title="هل الحساب نشط فعلاً؟" done={comp.q1}>
-              <Choice label="نشط" value={a.active} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('active', v)} />
-              <label className="flex items-center gap-2 text-xs text-gray-600"><span className="w-28 shrink-0">آخر منشور شفته</span><input type="date" className={`${inputCls} max-w-[11rem]`} value={a.last_post} onChange={(e) => set('last_post', e.target.value)} /></label>
-            </Q>
-            <Q n={2} title="هل المحتوى مناسب لـLOWE'S؟ وشو نوعه؟" done={comp.q2}>
-              <Choice label="مناسب" value={a.fit} options={['yes', 'partial', 'no']} labels={FIT_AR} onChange={(v) => set('fit', v)} />
+            <Q n={1} title="نوع الحساب" done={comp.q1}>
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="نوع المبدع">
                 {CREATOR_TYPES.map((t) => <button key={t} type="button" role="radio" aria-checked={a.creator_type === t} onClick={() => set('creator_type', a.creator_type === t ? '' : t)} className={`px-2.5 py-1 rounded-full border text-xs font-bold ${a.creator_type === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white'}`}>{TYPE_AR[t]}</button>)}
               </div>
             </Q>
-            <Q n={3} title="كيف بيصوّر؟ (دليل UGC)" done={comp.q3}>
-              <Choice label="يظهر وجهه" value={a.face} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('face', v)} />
-              <Choice label="بيحكي للكاميرا" value={a.talks} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('talks', v)} />
-              <Choice label="بيعمل ريفيو" value={a.review} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('review', v)} />
-              <Choice label="بيعمل أنبوكسنغ" value={a.unbox} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('unbox', v)} />
+            <Q n={2} title="كيف بيصوّر؟" done={comp.q2}>
+              <Choice label="يظهر الوجه" value={a.face} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('face', v)} />
+              <Choice label="فويس أوفر" value={a.voice} options={['yes', 'no']} labels={TRI_AR} onChange={(v) => set('voice', v)} />
               <Choice label="جودة التصوير" value={a.ugc_quality} options={['high', 'medium', 'low']} labels={UGCQ_AR} onChange={(v) => set('ugc_quality', v)} />
-              <div className="space-y-1">
-                <div className="text-xs text-gray-600">روابط فيديو كدليل (حتى 3)</div>
-                {[0, 1, 2].map((i) => (i === 0 || a.videos[i - 1]) && (
-                  <input key={i} dir="ltr" className={inputCls} placeholder="https://www.instagram.com/reel/…" value={a.videos[i] || ''}
-                    onChange={(e) => { const v = [...a.videos]; v[i] = e.target.value.trim(); set('videos', v.filter((x, j) => x || j < i)); }} aria-label={`رابط فيديو ${i + 1}`} />
-                ))}
-              </div>
             </Q>
-            <Q n={4} title="المدينة (كما يذكرها هو)" done={comp.q4}>
+            <Q n={3} title="المدينة (كما يذكرها هو)" done={comp.q3}>
               <div className="grid grid-cols-2 gap-2">
                 <select className={inputCls} value={a.governorate} onChange={(e) => set('governorate', e.target.value)} aria-label="المحافظة"><option value="">المحافظة غير معروفة</option>{govs.map((g) => <option key={g.slug} value={g.slug}>{g.ar}</option>)}</select>
                 <input className={inputCls} placeholder="المدينة" value={a.city} onChange={(e) => set('city', e.target.value)} aria-label="المدينة" />
               </div>
             </Q>
-            <Q n={5} title="تواصل عام (منشور بالبروفايل فقط)" done={comp.q5}>
+            <Q n={4} title="تواصل عام (منشور بالبروفايل فقط)" done={comp.q4}>
               <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={a.no_contact} onChange={(e) => set('no_contact', e.target.checked)} /> ما في أي تواصل عام غير رسائل المنصة</label>
               {!a.no_contact && (
                 <div className="grid grid-cols-2 gap-2">
@@ -305,17 +291,7 @@ export default function CreatorReviewPanel({ row, schema, owners, canManage, act
                 </div>
               )}
             </Q>
-            <Q n={6} title="هل ظاهر إنه بيقبل هدايا/تعاون؟" done={comp.q6}>
-              <Choice label="إشارة PR" value={a.pr} options={['none', 'open_to_collab', 'gifted_seen']} labels={PR_AR} onChange={(v) => set('pr', v)} />
-              {a.pr === 'gifted_seen' && <input dir="ltr" className={inputCls} placeholder="رابط المنشور اللي شفت فيه الهدية (مطلوب)" value={a.pr_url} onChange={(e) => set('pr_url', e.target.value)} aria-label="رابط دليل الهدية" />}
-            </Q>
-            <Q n={7} title="مناسب للسكين كير / الريتينول؟" done={comp.q7}>
-              <Choice label="مناسب" value={a.skin} options={['yes', 'maybe', 'no']} labels={SKIN_AR} onChange={(v) => set('skin', v)} />
-              <div className="flex flex-wrap gap-1.5">
-                {SKINCARE_FOCUS.map((f) => { const on = a.skincare_focus.includes(f); return <button key={f} type="button" aria-pressed={on} onClick={() => set('skincare_focus', on ? a.skincare_focus.filter((x) => x !== f) : [...a.skincare_focus, f])} className={`px-2.5 py-1 rounded-full border text-xs font-bold ${on ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white'}`}>{on ? '✓ ' : ''}{FOCUS_AR[f]}</button>; })}
-              </div>
-            </Q>
-            <Q n={8} title="القرار: شو نوع التعاون؟" done={comp.q8}>
+            <Q n={5} title="القرار: شو نوع التعاون؟" done={comp.q5}>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="القرار">
                 {ACTION_KEYS.map((k, i) => (
                   <button key={k} type="button" role="radio" aria-checked={a.action === k} onClick={() => set('action', a.action === k ? 'unsure' : k)}

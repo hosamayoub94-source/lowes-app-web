@@ -458,6 +458,7 @@ export function summarizeCreators(rows) {
 // Ready-made views = named filter presets (combined with search + extra filters by the screen).
 export const VIEWS = [
   { key: 'all', ar: 'الكل', filters: {} },
+  { key: 'saved', ar: 'المفضلين', filters: { saved: true }, count: 'saved' },
   { key: 'review', ar: 'ابدأ المراجعة', filters: { statuses: ['needs_review', 'discovered'] }, count: 'to_review' },
   { key: 'ugc', ar: 'UGC', filters: { ugcOnly: true }, count: 'ugc' },
   { key: 'skincare', ar: 'Skincare', filters: { skincareOnly: true }, count: 'skincare' },
@@ -466,7 +467,6 @@ export const VIEWS = [
   { key: 'verified', ar: 'معتمد', filters: { status: 'verified' }, count: 'verified' },
   { key: 'contacted', ar: 'تم التواصل', filters: { statuses: ['contacted', 'interested', 'collaborating'] }, count: 'contacted' },
   { key: 'rejected', ar: 'مستبعد', filters: { statuses: ['rejected', 'not_interested', 'inactive'] }, count: 'rejected' },
-  { key: 'saved', ar: 'محفوظ', filters: { saved: true }, count: 'saved' },
   { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
   { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
   { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },

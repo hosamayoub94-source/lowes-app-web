@@ -89,7 +89,7 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, o
           {canManage && !row.deleted_at && ['review', 'complete_review'].includes(step.key) ? 'راجِع ←' : 'التفاصيل'}
         </button>
         {!row.deleted_at && canManage && (
-          <button onClick={onSave} disabled={!v2} title={row.saved ? 'إلغاء الحفظ' : 'حفظ بالقائمة المختصرة'} aria-label={row.saved ? 'إلغاء الحفظ' : 'حفظ'} aria-pressed={!!row.saved}
+          <button onClick={onSave} disabled={!v2} title={row.saved ? 'إزالة من المفضلين' : 'إضافة للمفضلين'} aria-label={row.saved ? 'إزالة من المفضلين' : 'إضافة للمفضلين'} aria-pressed={!!row.saved}
             className={`mr-auto w-8 h-8 rounded-lg border text-base disabled:opacity-40 ${row.saved ? 'bg-amber-100 border-amber-300 text-amber-700' : 'text-gray-400 hover:bg-gray-50'}`}>{row.saved ? '★' : '☆'}</button>
         )}
         {!row.deleted_at && canManage && onDelete && (
