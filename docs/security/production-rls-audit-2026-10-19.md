@@ -68,3 +68,32 @@ A second read-only query against `information_schema.role_table_grants` showed b
 **Important distinction:** RLS policies do not constrain `TRUNCATE`. The grant catalog is a strong warning requiring verification of effective role membership, schema exposure, and actual API reachability; this query alone is not proof that an unauthenticated external client successfully executed a truncate or any other destructive operation.
 
 This elevates the next verification priority: inspect effective grants/default privileges and exposed schemas, then revoke excess privileges only after a table-by-table compatibility plan and tested rollback. Do not attempt a production write/delete/truncate probe.
+
+
+## Additional finding: effective privilege checks and schema usage
+
+On 2026-10-19, a separate read-only query used PostgreSQL `has_table_privilege(role, table, privilege)` for the named roles on the sensitive tables. This verifies effective privilege checks for the database roles rather than relying only on the formatting of `information_schema.role_table_grants`.
+
+For the following **`public` schema** tables, the query returned `true` for each of `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, and `TRIGGER` for both `anon` and `authenticated`:
+
+- `orders`
+- `customers`
+- `accounting_entries`
+- `employee_salary_settings`
+- `salary_deductions`
+- `monthly_payroll`
+- `leave_requests`
+- `invoices`
+
+For `public.profiles`, the effective check returned `anon`: INSERT/REFERENCES/TRIGGER/TRUNCATE true, SELECT/UPDATE/DELETE false; and `authenticated`: INSERT/DELETE/REFERENCES/TRIGGER/TRUNCATE true, SELECT/UPDATE false. RLS policy predicates may still affect row-level SELECT/INSERT/UPDATE/DELETE behavior, but they do **not** constrain TRUNCATE or REFERENCES/TRIGGER privileges. This combination requires immediate, careful privilege remediation planning.
+
+The same query returned no table privileges for `anon` or `authenticated` on the four reviewed `commerce` tables (`orders`, `customers`, `order_items`, `payments`), while `service_role` has broad table privileges. The schema check showed `commerce` has USAGE for `anon` and `authenticated`; schema USAGE alone does not grant table access. This is a useful contrast: do not treat the security-advisor “RLS enabled but no policies” finding for those commerce tables as equivalent to the current public-schema table exposure.
+
+The role-membership query showed `authenticator` can SET ROLE to `anon`, `authenticated`, and `service_role`, as expected in a PostgREST-style role-switching arrangement; it did not show `anon` or `authenticated` as members of `service_role`. This does not make the service role safe to expose: service-role credentials must remain server-side.
+
+### Interpretation and next action
+
+- These are **effective database privilege checks**, not proof that an outside party has successfully performed any operation through the HTTP API.
+- The exposed `public` schema plus effective `anon` TRUNCATE on sensitive tables is a higher-priority finding than ordinary over-broad RLS row policies because RLS does not protect against TRUNCATE.
+- Do **not** probe by attempting INSERT/UPDATE/DELETE/TRUNCATE through the public API.
+- Next, build an inventory of application/Edge Function dependencies and the intended role grants. Then prepare a minimal, reversible SQL proposal to revoke only unnecessary privileges, run it against a faithful non-production schema, and test legitimate workflows plus negative cases before any separately approved production action.
