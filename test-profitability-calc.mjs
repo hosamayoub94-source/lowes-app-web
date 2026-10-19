@@ -76,7 +76,7 @@ r = run([R({ ...retBase, waste_qty: 2 })]);
 eq(tr(r).returns.damagedLoss, 16, '7: خسارة التالف الموثَّق = التكلفة'); eq(tr(r).productProfit, -16 - 6, '7: خسارة التالف 16 + شحن 6'); eq(tr(r).returns.restockedCost, 0, '7: لا استرداد');
 r = run([R({ ...retBase })]);
 eq(tr(r).returns.damagedLoss, 0, '8: المجهول لا يُحتسب تالفاً'); eq(tr(r).returns.restockedCost, 0, '8: بلا حركة استرداد لا تُحتسب تكلفة مستردة'); eq(tr(r).returns.assumedRestockCost, 0, '8: لا افتراض بعودة المخزون'); eq(tr(r).returns.unresolvedCost, 16, '8: كامل التكلفة غير محسومة'); ok(hasIssue(tr(r).quality, 'return_unresolved'), '8: يظهر تحذير غير محسوم');
-eq(tr(r).productProfit, -6, '8: أثر المرتجع غير المسلَّم = الشحن 1.5× فقط'); ok(!hasIssue(tr(r).quality, 'return_unresolved'), '8: لا تحذير غير محسوم');
+eq(tr(r).productProfit, -6, '8: أثر المرتجع غير المسلَّم = الشحن 1.5× فقط');
 r = run([R({ status: 'returning', delivered_at: null, delivery_basis: 'unknown' }), R({ status: 'not_received', delivered_at: null, delivery_basis: 'unknown' })]);
 eq(tr(r).returns.orders, 0, '8: returning/not_received ليسا مرتجعاً مكتملاً'); eq(tr(r).pendingReturns.orders, 2, '8: يظهران معلّقين'); eq(tr(r).productProfit, 0, '8: بلا أثر ربحي'); ok(hasIssue(tr(r).quality, 'pending_returns'), '8: تحذير المعلّق');
 const dr = R({ status: 'returned', order_date: '2026-09-02T10:00:00+03:00', delivered_at: '2026-09-10T10:00:00+03:00', delivered_before_return: true, return_at: '2026-10-05T10:00:00+03:00', items: [{ name: 'ROSEMARY SHAMPOO', qty: 2 }], reserve_qty: 2, restock_qty: 2 });
