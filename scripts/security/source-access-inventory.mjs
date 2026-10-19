@@ -12,17 +12,17 @@ const SELF_PATH = 'scripts/security/source-access-inventory.mjs';
 const tick = String.fromCharCode(96);
 
 const patterns = [
-  { kind: 'table', regex: /\\.from\\(\\s*['\"\\x60]([^'\"\\x60]+)['\"\\x60]\\s*\\)/g },
-  { kind: 'rpc', regex: /\\.rpc\\(\\s*['\"\\x60]([^'\"\\x60]+)['\"\\x60]/g },
-  { kind: 'edge-invoke', regex: /\\.functions\\.invoke\\(\\s*['\"\\x60]([^'\"\\x60]+)['\"\\x60]/g },
-  { kind: 'edge-url', regex: /functions\\/v1\\/([a-zA-Z0-9_-]+)/g },
-  { kind: 'rest-table-url', regex: /\\/rest\\/v1\\/([a-zA-Z0-9_]+)/g },
-  { kind: 'rest-rpc-url', regex: /\\/rest\\/v1\\/rpc\\/([a-zA-Z0-9_]+)/g },
+  { kind: 'table', regex: /\.from\(\s*['"\x60]([^'"\x60]+)['"\x60]\s*\)/g },
+  { kind: 'rpc', regex: /\.rpc\(\s*['"\x60]([^'"\x60]+)['"\x60]/g },
+  { kind: 'edge-invoke', regex: /\.functions\.invoke\(\s*['"\x60]([^'"\x60]+)['"\x60]/g },
+  { kind: 'edge-url', regex: /functions\/v1\/([a-zA-Z0-9_-]+)/g },
+  { kind: 'rest-table-url', regex: /\/rest\/v1\/([a-zA-Z0-9_]+)/g },
+  { kind: 'rest-rpc-url', regex: /\/rest\/v1\/rpc\/([a-zA-Z0-9_]+)/g },
 ];
 
 function lineAt(text, index) {
   let line = 1;
-  for (let i = 0; i < index; i += 1) if (text[i] === '\\n') line += 1;
+  for (let i = 0; i < index; i += 1) if (text[i] === '\n') line += 1;
   return line;
 }
 
@@ -56,7 +56,7 @@ const sensitiveNames = new Set([
 ]);
 
 function add(kind, target, file, line) {
-  const key = kind + '\\0' + target;
+  const key = kind + '\0' + target;
   if (!records.has(key)) records.set(key, { kind, target, sites: [] });
   records.get(key).sites.push({ file, line });
 }
@@ -66,13 +66,15 @@ for (const file of [...fileSet].sort()) {
   if (relative === SELF_PATH) continue;
   const text = await fs.readFile(file, 'utf8');
   let literalFromCount = 0;
+
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern.regex)) {
       add(pattern.kind, match[1], relative, lineAt(text, match.index ?? 0));
       if (pattern.kind === 'table') literalFromCount += 1;
     }
   }
-  const anyFromCount = [...text.matchAll(/\\.from\\s*\\(/g)].length;
+
+  const anyFromCount = [...text.matchAll(/\.from\s*\(/g)].length;
   if (anyFromCount > literalFromCount) unresolved.push({ file: relative, count: anyFromCount - literalFromCount });
 }
 
@@ -131,7 +133,7 @@ if (!unresolved.length) {
 }
 lines.push('', '## Required follow-up', '', 'Review the generated identifiers against deployed Edge Function versions, SQL functions/triggers, scheduled jobs, Google Apps Script, and external integrations. Do not revoke table/RPC access solely from this static report.', '');
 
-const report = lines.join('\\n');
+const report = lines.join('\n');
 const outIndex = process.argv.indexOf('--out');
 const outputPath = outIndex >= 0 ? process.argv[outIndex + 1] : null;
 if (outputPath) {
