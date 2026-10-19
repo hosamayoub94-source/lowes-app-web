@@ -28,5 +28,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Lint application source
+        run: npm run lint
+
+      - name: Check auth sign-out scope regression
+        run: node test-auth-signout-scope.mjs
+
       - name: Build production bundle
         run: npm run build
