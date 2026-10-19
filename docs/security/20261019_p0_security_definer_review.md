@@ -117,3 +117,21 @@ This makes the risk more than a theoretical function grant: normal app workflows
 - Bind `performed_by` to a server-verified actor rather than browser-supplied text.
 - Test both role capabilities used by the existing UI and service-driven order-status transitions, including a staff member with order-management permission but no warehouse-manage permission.
 - Ensure an unauthorized direct call cannot alter quantity even if the UI is bypassed; verify every permitted stock mutation has exactly one attributable movement entry in the same transaction.
+
+
+## Additional P0: direct anonymous table-level inventory writes
+
+A separate live catalog query checked effective table privileges and pg_policies for inventory-related tables. It confirmed that anon and authenticated both have SELECT/INSERT/UPDATE/DELETE grants for each of these tables, and the public policy is permissive (cmd = ALL, USING true, WITH CHECK true):
+
+| Table | Live policy | Consequence |
+|---|---|---|
+| wh_stock | wh_stock_all — public ALL, true/true | An anonymous caller can read, insert, update, and delete stock rows directly, without either stock RPC. |
+| wh_movements | wh_movements_all — public ALL, true/true | An anonymous caller can forge or delete the movement log as well as bypass it. |
+| wh_warehouses | wh_warehouses_all — public ALL, true/true | An anonymous caller can read and mutate warehouse definitions/mapping. |
+| products | products_all — public ALL, true/true | An anonymous caller can create/edit/delete the product catalog, not only view it. |
+
+This is a **confirmed database-policy/privilege exposure**, not just a client-side issue. It means fixing wh_apply_stock_delta and wh_transfer_stock alone would not secure inventory. Direct writes to wh_stock bypass the RPC's stock math; direct writes to wh_movements can falsify/delete the audit record. The same policy pattern on products can affect product data used by sales/inventory.
+
+The read-only check also found broad table grants on purchase_orders, purchase_order_items, sales_orders, sales_order_items, and shipments; the current policies on these five tables use auth.uid() IS NOT NULL rather than true, so do not describe them as anonymous row access based on this snapshot alone. Their effective anon table grants should still be removed or deliberately scoped as part of the least-privilege work.
+
+**Implication:** the inventory remediation tranche must cover table grants + RLS + RPCs together, and must preserve the real app flows (adjustStock currently upserts wh_stock directly; _logMovement() inserts wh_movements directly). The safest design is to move quantity changes and audit writes to narrow server-side operations that validate the real caller/permission and commit the stock and movement row atomically. After that, replace the wide-open inventory policies and remove unneeded anon table privileges. Because order reservation/release is also driven by order-status workflows, a blanket policy/revoke is likely to break legitimate operations unless those service paths are explicitly migrated first.
