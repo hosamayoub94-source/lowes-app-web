@@ -1,22 +1,47 @@
 name: Deploy Supabase Edge Functions
 
+# Safety gate: Edge Functions contain privileged integrations and must not deploy
+# automatically on every push. Run manually only after verifying the target ref,
+# required secrets, and the change set.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/functions/**'
+    inputs:
+      confirm_production_deploy:
+        description: "I verified the configured Supabase project ref and approve deploying all Edge Functions."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-edge-functions-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: ${{ inputs.confirm_production_deploy == true }}
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "$SUPABASE_PROJECT_REF" || { echo "::error::SUPABASE_PROJECT_REF is not configured"; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::SUPABASE_ACCESS_TOKEN is not configured"; exit 1; }
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
+
       - name: Deploy all Edge Functions
-        run: supabase functions deploy --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
         env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
