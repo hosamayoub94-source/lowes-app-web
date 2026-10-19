@@ -75,12 +75,16 @@ for (const file of [...fileSet].sort()) {
     }
   }
 
-  // Attribute direct literal .from('table') calls to the two known client
-  // variables. This is deliberately a heuristic: aliases, wrappers, or query
-  // builders passed between functions need manual review.
-  const clientPattern = /\b(supabaseAnon|supabase)\s*\.\s*from\(\s*['"\x60]([^'"\x60]+)['"\x60]\s*\)/g;
-  for (const match of text.matchAll(clientPattern)) {
-    clientCalls.push({ client: match[1], table: match[2], file: relative, line: lineAt(text, match.index ?? 0) });
+  // Attribute browser-side direct literal calls only. Edge Functions and
+  // scripts may also name a server/service-role client "supabase", which is
+  // not equivalent to the browser client exported by src/services/supabase.js.
+  // This is still a heuristic: aliases, wrappers, or query builders passed
+  // between functions need manual review.
+  if (relative.startsWith('src/')) {
+    const clientPattern = /\b(supabaseAnon|supabase)\s*\.\s*from\(\s*['"\x60]([^'"\x60]+)['"\x60]\s*\)/g;
+    for (const match of text.matchAll(clientPattern)) {
+      clientCalls.push({ client: match[1], table: match[2], file: relative, line: lineAt(text, match.index ?? 0) });
+    }
   }
 
   const anyFromCount = [...text.matchAll(/\.from\s*\(/g)].length;
@@ -122,7 +126,7 @@ const lines = [
   '',
   '## Sensitive table client attribution',
   '',
-  'This section attributes only literal call expressions that visibly begin with supabaseAnon.from(...) or supabase.from(...). It does not prove the runtime auth role and may miss aliases/wrappers; see the auth/session review before changing RLS.',
+  'This section attributes only literal browser-source call expressions in src/ that visibly begin with supabaseAnon.from(...) or supabase.from(...). Edge Functions and scripts are intentionally excluded because a variable named supabase may be a server-side service-role client. It still does not prove the runtime auth role and may miss aliases/wrappers; review auth/session handling before changing RLS.',
   '',
   '| Table | supabaseAnon sites | supabase sites |',
   '|---|---|---|',
