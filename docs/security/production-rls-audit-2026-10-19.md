@@ -97,3 +97,29 @@ The role-membership query showed `authenticator` can SET ROLE to `anon`, `authen
 - The exposed `public` schema plus effective `anon` TRUNCATE on sensitive tables is a higher-priority finding than ordinary over-broad RLS row policies because RLS does not protect against TRUNCATE.
 - Do **not** probe by attempting INSERT/UPDATE/DELETE/TRUNCATE through the public API.
 - Next, build an inventory of application/Edge Function dependencies and the intended role grants. Then prepare a minimal, reversible SQL proposal to revoke only unnecessary privileges, run it against a faithful non-production schema, and test legitimate workflows plus negative cases before any separately approved production action.
+
+
+## Critical finding: database-wide privilege breadth and default ACLs
+
+A catalog-only, read-only count across all base/partitioned tables in `public` returned:
+
+| Effective privilege | `anon` tables | `authenticated` tables |
+|---|---:|---:|
+| SELECT | 164 / 187 | not counted in this aggregate |
+| INSERT | 166 / 187 | not counted in this aggregate |
+| UPDATE | 165 / 187 | not counted in this aggregate |
+| DELETE | 165 / 187 | not counted in this aggregate |
+| TRUNCATE | **166 / 187** | **174 / 187** |
+
+The sensitive-table checks above independently confirmed that these effective privileges include customer, order, accounting, payroll, salary, invoice, leave, and profile-related tables. The list query was capped at 100 rows for inspection; the aggregate counts above cover all 187 `public` base/partitioned tables.
+
+The `pg_default_acl` catalog also returned default table ACLs for both `postgres` and `supabase_admin` in the `public` schema that include `anon=arwdDxtm` and `authenticated=arwdDxtm` (the standard table privileges, including TRUNCATE and TRIGGER). This means newly created tables by those grantor roles may inherit broad privileges unless the creation process explicitly overrides the defaults. The default ACL finding must be validated against the intended project-wide role model, but it is a concrete configuration issue to include in remediation.
+
+### Priority update
+
+Treat this as a **P0 privilege-boundary issue**. It is broader than isolated over-permissive RLS policies and means a table-by-table policy cleanup alone would be incomplete. The remediation plan must address both:
+
+1. Existing effective grants on all exposed `public` tables, especially destructive privileges that RLS cannot constrain.
+2. Default privileges for future tables created by relevant owner/grantor roles.
+
+Do not apply a blanket revoke to production. Many existing workflows may currently depend on grants; first build a dependency inventory, create a least-privilege role matrix, and rehearse the exact GRANT/REVOKE/default-privilege changes on a faithful non-production schema. Validate service-role access, authenticated workflows, Edge Functions, cron jobs, and migrations before requesting a separate production approval.
