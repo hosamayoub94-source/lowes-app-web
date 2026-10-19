@@ -1,4 +1,5 @@
 import { runPayrollBatch } from './src/modules/payroll/services/payrollBatch.js';
+import { getPayrollBlockingEntryIssues } from './src/modules/payroll/services/payrollValidation.js';
 
 let pass = 0;
 let fail = 0;
@@ -76,6 +77,20 @@ const employees = [
   equal(attempts, 2, 'both writes were attempted sequentially');
   ok(message.includes('بعد حفظ 1 قيداً') && message.includes('database unavailable'),
     'partial persistence failure is explicit');
+}
+
+// Approval gate blocks missing rates and counts an employee only once if issues overlap.
+{
+  const issues = getPayrollBlockingEntryIssues([
+    { employee_id: 'a', base_salary_usd: 100, team: 'turkey', notes: '✅ valid' },
+    { employee_id: 'b', base_salary_usd: 100, team: 'turkey', notes: '⚠️ سعر صرف ناقص' },
+    { employee_id: 'c', base_salary_usd: 0, team: 'syria', notes: '⚠️ سعر صرف ناقص' },
+    { employee_id: 'd', base_salary_usd: 100, team: null, commission_exempt: false, notes: null },
+  ]);
+  equal(issues.missingRateEntries.length, 2, 'missing exchange rates identify both affected employees');
+  equal(issues.zeroSalaryEntries.length, 1, 'zero salary remains a blocker');
+  equal(issues.noTeamEntries.length, 1, 'missing team remains a blocker');
+  equal(issues.blockingEntries, 3, 'overlapping issues count each employee once');
 }
 
 console.log(`${fail === 0 ? '✅' : '⚠️'} Payroll batch: ${pass}/${pass + fail} checks passed`);
