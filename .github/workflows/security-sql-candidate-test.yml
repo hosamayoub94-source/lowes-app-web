@@ -6,12 +6,16 @@ on:
     paths:
       - 'docs/security/candidates/**'
       - 'docs/security/tests/**'
+      - 'docs/security/source-access-inventory-2026-10-19.md'
+      - 'scripts/security/**'
       - '.github/workflows/security-sql-candidate-test.yml'
   push:
     branches: [main]
     paths:
       - 'docs/security/candidates/**'
       - 'docs/security/tests/**'
+      - 'docs/security/source-access-inventory-2026-10-19.md'
+      - 'scripts/security/**'
       - '.github/workflows/security-sql-candidate-test.yml'
 
 permissions:
@@ -42,6 +46,17 @@ jobs:
       PGDATABASE: lowes_security_test
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate source access inventory
+        run: node scripts/security/source-access-inventory.mjs --out source-access-inventory.md
+
+      - name: Upload source access inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-access-inventory-${{ github.sha }}
+          path: source-access-inventory.md
+          retention-days: 14
 
       - name: Install PostgreSQL client
         run: |
