@@ -1,0 +1,63 @@
+name: Security SQL Candidate Rehearsal
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/security/candidates/**'
+      - 'docs/security/tests/**'
+      - '.github/workflows/security-sql-candidate-test.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/security/candidates/**'
+      - 'docs/security/tests/**'
+      - '.github/workflows/security-sql-candidate-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  p0-privilege-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: lowes_security_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lowes_security_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: lowes_security_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Prepare disposable legacy-ACL fixture
+        run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261019_p0_privilege_rehearsal_setup.sql
+
+      - name: Apply the candidate only to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f docs/security/candidates/20261019_p0_revoke_dangerous_table_privileges.sql
+
+      - name: Verify current and future table grants
+        run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261019_p0_privilege_rehearsal_verify.sql
+
+      - name: Ensure acceptance query returned no rows
+        run: |
+          count="$(psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN (VALUES ('anon'::name), ('authenticated'::name)) AS r(rolname) CROSS JOIN (VALUES ('TRUNCATE'), ('TRIGGER'), ('REFERENCES')) AS p(privilege_type) WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND has_table_privilege(r.rolname, c.oid, p.privilege_type)")"
+          test "$count" = "0" || { echo "::error::Found $count surviving dangerous grants"; exit 1; }
