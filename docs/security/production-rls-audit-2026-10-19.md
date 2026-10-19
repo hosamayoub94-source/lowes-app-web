@@ -59,3 +59,12 @@ These counts are advisor findings, not proof that every function is exploitable.
 - No policy, grant, table, function, secret, or deployed function was changed.
 - The existing profile trigger/guard must be inspected alongside RLS before making claims about effective profile protection.
 - Do not treat this document as authorization to apply any migration.
+
+
+## Additional finding: table grants
+
+A second read-only query against `information_schema.role_table_grants` showed broad table-level privileges granted directly to `anon` and `authenticated` on the reviewed sensitive tables. For example, the catalog returned `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and also `TRUNCATE` among the privileges for `anon` on `orders`, `customers`, `accounting_entries`, payroll/salary tables, and invoices. The `profiles` grant set differs slightly but still includes concerning privileges.
+
+**Important distinction:** RLS policies do not constrain `TRUNCATE`. The grant catalog is a strong warning requiring verification of effective role membership, schema exposure, and actual API reachability; this query alone is not proof that an unauthenticated external client successfully executed a truncate or any other destructive operation.
+
+This elevates the next verification priority: inspect effective grants/default privileges and exposed schemas, then revoke excess privileges only after a table-by-table compatibility plan and tested rollback. Do not attempt a production write/delete/truncate probe.
