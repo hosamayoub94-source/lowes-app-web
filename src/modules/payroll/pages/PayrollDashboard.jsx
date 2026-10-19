@@ -244,6 +244,11 @@ export function PayrollDashboard() {
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
     } catch (e) {
+      // A database error during the final upsert phase can happen after earlier
+      // rows were persisted. Refresh before showing the error so the UI cannot
+      // present stale payroll entries after a partial save.
+      try { await loadEntries(run.id); }
+      catch (refreshError) { console.warn('Could not refresh payroll entries after failure:', refreshError); }
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
       setEngineRunning(false);
