@@ -97,3 +97,23 @@ The following trigger-only functions were found attached; preserve these behavio
 - No production grants, function definitions, RLS policies, data, secrets, or deployed functions were changed.
 - The inventory is read-only catalog/source evidence; it is not a penetration test and does not prove an exploit was executed.
 - Keep production authorization remediation blocked until the exact caller map, restorable clone, positive/negative integration suite, rollback and explicit owner approval are complete.
+
+
+## Confirmed application call sites for the two P0 stock RPCs
+
+The generated source inventory and direct source review confirm both RPCs are used by the browser-side warehouse service:
+
+- `src/services/warehouseService.js` calls `supabase.rpc('wh_apply_stock_delta', ...)` in `_applyDelta()`; this path is used by stock receive, waste/write-off, order reserve/release, and movement reversal.
+- The same service calls `supabase.rpc('wh_transfer_stock', ...)` during `allocateStock()`.
+- `src/screens/WarehouseScreen.jsx` gates buttons in the UI with `MANAGE_CENTRAL_STOCK` and `MANAGE_SALES_STOCK`. This is client-side gating only; it cannot authorize an unauthenticated or unauthorized direct PostgREST RPC call.
+- The caller writes the `wh_movements` audit row separately after the RPC returns. A direct invocation of the RPC does not need to perform that separate client step, so the stock quantity can change without the corresponding application movement-log row.
+- The `performedBy` value sent for that movement row comes from the browser session name; the SQL stock RPC itself does not validate that claimed actor.
+
+This makes the risk more than a theoretical function grant: normal app workflows rely on these functions, so simply revoking all browser EXECUTE grants will break stock receive, transfer, waste and order reserve/release paths. Equally, retaining open execution lets callers bypass the UI's permissions and skip the separate movement audit. A replacement must preserve legitimate order-status automation while validating actor identity and inventory permission inside a trusted boundary, and preferably write the stock change plus movement/audit entry atomically.
+
+## Extra verification required for stock RPC replacement
+
+- Map every stock-delta call origin separately: manual receive, waste/write-off, order reserve/release, reversals, allocations, and any scheduled or external integrations.
+- Bind `performed_by` to a server-verified actor rather than browser-supplied text.
+- Test both role capabilities used by the existing UI and service-driven order-status transitions, including a staff member with order-management permission but no warehouse-manage permission.
+- Ensure an unauthorized direct call cannot alter quantity even if the UI is bypassed; verify every permitted stock mutation has exactly one attributable movement entry in the same transaction.
