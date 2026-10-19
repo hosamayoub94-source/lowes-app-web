@@ -13,10 +13,13 @@ export function getPayrollBlockingEntryIssues(entries = []) {
   );
 
   // Count employees once even if more than one issue applies to a row.
+  const blockingRows = new Set([
+    ...zeroSalaryEntries,
+    ...noTeamEntries,
+    ...missingRateEntries,
+  ]);
   const blockingEmployeeIds = new Set(
-    [...zeroSalaryEntries, ...noTeamEntries, ...missingRateEntries]
-      .map((entry) => entry.employee_id)
-      .filter(Boolean),
+    [...blockingRows].map((entry) => entry.employee_id || entry),
   );
 
   return {
