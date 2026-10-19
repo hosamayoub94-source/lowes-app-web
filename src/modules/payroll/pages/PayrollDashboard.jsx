@@ -234,6 +234,11 @@ export function PayrollDashboard() {
         onProgress: (done, total) => setEngineProgress({ done, total }),
       });
       await loadEntries(run.id); // refresh from DB
+      if (res.errors.length && res.count === 0) {
+        setCommMsg('⛔ أُوقفت حسبة الرواتب ولم تُحفَظ قيود جديدة. راجع الأخطاء ثم أعد المحاولة.');
+        console.warn('Payroll engine blocked the run:', res.errors);
+        return;
+      }
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
