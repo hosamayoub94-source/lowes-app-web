@@ -43,6 +43,9 @@ jobs:
       - name: Check auth sign-out scope regression
         run: node test-auth-signout-scope.mjs
 
+      - name: Check auth security source contracts
+        run: node test-auth-security-contract.mjs
+
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 
