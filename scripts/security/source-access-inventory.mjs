@@ -99,7 +99,7 @@ for (const list of byKind.values()) list.sort((a, b) => a.target.localeCompare(b
 
 const tableRecords = byKind.get('table') || [];
 const sensitiveRecords = tableRecords.filter(r => sensitiveNames.has(r.target));
-const uniqueClientCalls = [...new Map(clientCalls.map(c => [c.client + '\\0' + c.table + '\\0' + c.file + ':' + c.line, c])).values()]
+const uniqueClientCalls = [...new Map(clientCalls.map(c => [c.client + '\0' + c.table + '\0' + c.file + ':' + c.line, c])).values()]
   .sort((a, b) => a.table.localeCompare(b.table) || a.client.localeCompare(b.client) || a.file.localeCompare(b.file) || a.line - b.line);
 const sensitiveClientTables = [...new Set(uniqueClientCalls.filter(c => sensitiveNames.has(c.table)).map(c => c.table))].sort();
 const allCalls = [...records.values()].reduce((sum, r) => sum + r.sites.length, 0);
@@ -126,7 +126,7 @@ const lines = [
   '',
   '| Table | supabaseAnon sites | supabase sites |',
   '|---|---|---|',
-);
+];
 for (const table of sensitiveClientTables) {
   const anonSites = uniqueClientCalls.filter(c => c.table === table && c.client === 'supabaseAnon');
   const authClientSites = uniqueClientCalls.filter(c => c.table === table && c.client === 'supabase');
@@ -136,7 +136,7 @@ lines.push('', '## Sensitive table call sites',
   '',
   '| Table | Direct references (file:line) |',
   '|---|---|',
-];
+);
 for (const r of sensitiveRecords) {
   lines.push('| ' + tick + r.target + tick + ' | ' + r.sites.map(s => tick + s.file + ':' + s.line + tick).join('<br>') + ' |');
 }
