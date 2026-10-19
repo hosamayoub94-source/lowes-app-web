@@ -59,6 +59,12 @@ Do not equate a browser UI's route protection with database authorization. The r
 - Observe application errors and core workflows; revert the tranche if acceptance gates fail.
 - Never use destructive DML/TRUNCATE as a production security test.
 
+## Candidate rehearsal status — 2026-10-19
+
+- **Passed in disposable PostgreSQL 17 CI:** the narrow candidate removes effective TRUNCATE/TRIGGER/REFERENCES grants from existing public tables for `anon` and `authenticated`, preserves SELECT/INSERT/UPDATE/DELETE grants, and keeps the dangerous privileges from returning on new tables created by the tested `postgres` and `supabase_admin` roles. Rehearsal: PR #37, workflow “Security SQL Candidate Rehearsal”.
+- **Not yet proven:** compatibility against the actual LOWE'S schema and its integrations, the real ownership/grantor inventory, full RLS isolation, Edge Functions, cron, login, order, inventory, accounting, leave, and payroll workflows.
+- **Release decision unchanged:** no production SQL was applied. The tested candidate is still not a production release approval; the actual restorable staging-clone and end-to-end test gates below remain mandatory.
+
 ## Release decision
 
 **BLOCKED pending** (a) complete caller dependency inventory, (b) faithful non-production rehearsal and positive/negative tests, (c) verified recovery, and (d) explicit approval for production SQL/secret/deploy operations.
