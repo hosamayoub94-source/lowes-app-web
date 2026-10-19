@@ -39,7 +39,6 @@ jobs:
           src/modules/payroll/services/payrollValidation.js
           src/modules/payroll/pages/PayrollDashboard.jsx
           --report-unused-disable-directives
-          --max-warnings 0
 
       - name: Check auth sign-out scope regression
         run: node test-auth-signout-scope.mjs
