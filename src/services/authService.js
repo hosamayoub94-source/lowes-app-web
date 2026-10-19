@@ -146,7 +146,6 @@ export async function signInWithPin(employeeName, pin) {
         entityLabel: employeeName,
         userId:      profile.id,
         userName:    profile.employee_name,
-        sessionId:   data.session?.access_token?.slice(0, 20) || null,
       }).catch(() => {});
       return { user: data.user, session: data.session, profile };
     }
