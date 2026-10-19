@@ -1,0 +1,88 @@
+# P0 authorization dependency matrix — employee app
+
+**Date:** 2026-10-19  
+**Status:** Review artifact; **not authorization sign-off and not a production change**.  
+**Branch:** security/2026-10-19-authorization-callsite-matrix  
+**Basis:** main-branch source inspection plus the read-only production catalog snapshot dated 2026-10-19.  
+**Scope:** high-risk tables and caller flows that must be preserved or deliberately replaced during authorization remediation.
+
+## Executive result
+
+The source map exposes an important architectural dependency: the application's local/manual session and a real Supabase Auth session are not equivalent.
+
+- src/services/authService.js can store a manual session in localStorage when the password sign-in fallback is reached.
+- src/services/supabase.js exports two clients: supabase (uses a Supabase Auth session if one exists) and supabaseAnon (always sessionless).
+- src/services/payrollEngine.js imports both clients; src/screens/OrdersScreen.jsx has direct order operations through supabaseAnon as well as calls through supabase.
+- A local UI session does not itself create an authenticated Postgres JWT. If manual fallback is active, requests through the normal client may still be evaluated as anon; requests through supabaseAnon are deliberately sent without a user session in all cases.
+
+**Consequence:** replacing open RLS policies with authenticated-only rules would likely break some direct browser workflows unless each one is migrated to a real authenticated path or a narrowly scoped server-side endpoint. This is a compatibility warning, not a reason to keep permissive RLS. The separate privilege candidate that removes only TRUNCATE, TRIGGER and REFERENCES leaves ordinary CRUD table grants unchanged; its effect is different from tightening row policies.
+
+The currently reviewed source also shows a PIN-verification Edge Function accepting an unauthenticated request and comparing a 4-digit PIN. The inspected function body contains no visible attempt counter, delay, lockout, or rate-limit logic. Confirm deployed parity and any external controls; treat missing evidence as a high-priority open item, not proof no protection exists elsewhere.
+
+## Evidence and confidence legend
+
+- **Confirmed source path:** direct call or behavior is visible in the cited repository file.
+- **Live catalog finding:** recorded in docs/security/production-rls-audit-2026-10-19.md from read-only database metadata checks.
+- **Proposed policy:** recommended target to validate; not a claim about present app behavior.
+- **Unknown:** requires query/function/deployed-config inspection or an integration test.
+
+The automated source inventory scanned 754 source files, recorded 129 direct table identifiers and 956 literal call/URL occurrences, and flagged 44 files with potential non-literal .from(...) calls. Its own limitations include dynamic wrappers, runtime configuration, SQL execution paths, deployed-code drift and integrations outside the repository. The generated scan is evidence for triage, not a complete call graph.
+
+## High-risk table and workflow matrix
+
+| Data area | Confirmed source paths / observed operation | Expected authorization boundary to test | Priority regression cases |
+|---|---|---|---|
+| Profiles and staff identity | src/services/authService.js reads profiles for name/role selection and current profile; src/services/employeeService.js upserts a profile and selects a narrow result; supabase/functions/verify-pin/index.ts reads the PIN via the privileged server-side client and returns the PIN-stripped profile; src/screens/OrdersScreen.jsx reads profile IDs for seller linkage. | Browser clients must not read the PIN or freely mutate roles, active status, salary fields, permissions or identity links. Keep the public login/name lookup narrow; profile mutations should be an explicitly authorized server-side/admin workflow. | Anonymous profile enumeration; PIN column never returned; role/permission escalation denied; user cannot modify another profile; disabled user cannot sign in; manual-session behavior is identified and blocked from privileged actions. |
+| Orders | src/screens/OrdersScreen.jsx directly inserts and updates orders, including paths using supabaseAnon; src/screens/PublicTrackScreen.jsx reads orders for tracking; src/modules/payroll/services/payrollEngine.js reads monthly realized sales and returns; src/services/customerService.js uses orders/customer history; shipping, sync, webhook and scheduled Edge Functions also touch orders. | Separate public tracking from staff CRUD; public tracking must return only the minimum tracking fields and a single permitted order, never the whole order row. Staff CRUD needs real identity and explicit role/team/market scope. Payroll requires a read-only and field-minimized aggregate path if practical. Service and cron callers need per-function authentication contracts. | Anonymous order listing denied; valid tracking lookup succeeds with minimal fields; guessed/foreign tracking identifiers do not expose customers or order contents; staff cannot write outside allowed markets/team; payroll sales still calculate correctly; shipping/webhook/sheet sync jobs still run. |
+| Customers and customer history | src/modules/crm/services/crmService.js accesses customers; src/services/customerService.js powers customer intelligence from orders/views and calls get_customer_orders_by_key RPC. | CRM reads/writes require real staff authorization and appropriate scope. If the RPC is intentionally public, validate its key strength, output minimization, enumeration resistance and EXECUTE grants separately. | Anonymous customer listing denied; authorized CRM search works; one seller/market cannot exceed allowed scope; RPC rejects invalid/reused/guessable keys and never returns unrelated customer details. |
+| Accounting entries | src/modules/accounting/services/accountingService.js selects, inserts, updates and deletes entries; src/screens/OrdersScreen.jsx may insert a delivery-income entry; src/services/profitabilityService.js reads accounting/derived figures; supabase/functions/ai-assistant/index.ts has direct accounting call sites. | Finance write operations must be limited to explicit finance/admin capability or reviewed server-side automation. A general employee session must not be enough merely because the UI has a hidden button. Automation writes must be narrow and auditable. | Anonymous read/write denied; non-finance staff cannot create/edit/delete entries; authorized finance can create/update/delete; delivery-income automation is idempotent; paired transfer legs cannot be edited/deleted independently; profitability totals remain stable. |
+| Payroll runs and entries | src/modules/payroll/services/payrollService.js upserts/deletes payroll entries and reads/writes payroll configuration; src/modules/payroll/services/payrollEngine.js reads profiles, employee_salary_settings, exchange_rates, orders and employee_requests; PayrollDashboard contains the payroll execution flow. | Payroll configuration, salary details, run approval and record deletion require the payroll role, with server-enforced authorization. An employee-facing view should expose only its own permitted records; ordinary staff must not be able to write a run or another employee's amount. | Non-payroll role cannot read other salaries or mutate runs/entries; authorized payroll can calculate and approve; missing exchange rates/config fail closed; batch failure does not silently create partial new results; selected month and run state remain consistent. |
+| Salary settings and deductions | employee_salary_settings is read in payroll engine/service and configured in src/screens/admin/AdminSettingsScreen.jsx; salary_deductions is in the live risk set, but this static scan did not find a direct literal consumer for the latter. | Treat both as compensation-sensitive. Salary-setting writes should be restricted to explicit payroll/admin operations; do not infer that salary_deductions is unused because its consumer may be dynamic, indirect or backend-only. | Anonymous access denied; manager without payroll authority cannot change compensation; employee cannot read another employee's compensation; all known consumers/SQL dependencies identified before policy changes. |
+| Monthly payroll / invoices | monthly_payroll and invoices are live-catalog high-risk tables. The current literal call-site map does not establish all consumers of either table. | **Unknown dependency status. No access change until mapped.** Review dynamic callers, SQL views/functions, triggers, Edge Functions, scripts and any external sync. | Search source, SQL routines, deployed function code and schedulers; document every SELECT/INSERT/UPDATE/DELETE call and the required actor; test both valid and invalid paths before any policy/grant change. |
+| Leave requests | src/screens/LeaveRequestsScreen.jsx, src/screens/HRDashboard.jsx, src/screens/ProfileScreen.jsx and src/screens/HolidaysScreen.jsx access leave data; src/modules/payroll/services/payrollEngine.js and supabase/functions/ai-assistant/index.ts also read approved leave data. | Staff may request/view only their own leave; HR/authorized managers may review within explicit scope; payroll consumption should be read-only. AI tooling must not widen access beyond the authenticated caller's authority. | Staff cannot read or edit another person's leave; staff cannot approve their own request unless that is an explicit policy; authorized approver can approve/deny; payroll can read approved leave only; HR dashboard totals stay correct. |
+| Attendance | src/services/attendanceService.js, src/modules/attendance/services/attendanceService.js, attendance/profile/report/dashboard screens, payroll attendance links and reminder/analytics Edge Functions use attendance-related tables. | Self check-in/out, supervisor correction, reporting and scheduled reminders are separate capabilities. Scope by employee/team and prevent users editing other people's attendance. Verify both attendance and attendance_records names/table paths rather than treating them as interchangeable. | User can read/submit own attendance; cross-user mutation denied; manager sees only permitted team; payroll absence summary matches accepted baseline; scheduled reminders and reports remain functional. |
+| Employee requests / advances | src/modules/requests/services/requestsService.js and src/modules/payroll/services/payrollEngine.js use employee_requests; src/screens/AdvanceRequestsScreen.jsx uses advance_requests. | Requester-owned submission/status view; approval and repayment state changes limited to defined approving roles; payroll needs only the required approved/repayment fields. Confirm whether employee_requests and advance_requests are separate concepts or linked workflows. | Requester cannot self-approve or alter approved repayment data; approver role can act; payroll totals use approved values only; cross-employee reads/writes denied. |
+| Exchange rates | src/modules/payroll/services/payrollEngine.js, src/modules/payroll/services/payrollService.js, src/modules/accounting/services/accountingService.js and src/screens/admin/AdminSettingsScreen.jsx access exchange_rates. | Reading rates may be broader than editing them. Rate writes require admin/finance authority; payroll should fail closed when a needed rate is absent rather than treating access/query failure as zero. | Staff cannot edit rates; authorized admin can maintain them; payroll/accounting read succeeds; missing or stale required rate blocks approval; currency calculations match the known fixtures. |
+| Inventory and shipments | src/modules/inventory/services/orderService.js uses purchase_orders, purchase_order_items, sales_orders, sales_order_items and shipments; inventory services and screens use stock tables. Shipping Edge Functions use orders and create/update shipment records. | Preserve operational paths but constrain stock-changing RPCs and shipping functions to explicit server-side/caller authorization. Do not assume table RLS alone protects SECURITY DEFINER RPCs or webhooks. | Unauthorized stock delta/transfer/reservation/release denied; valid order allocation and shipment flow succeeds; repeated webhook/sync is idempotent; quantities reconcile with baseline. |
+
+## Cross-cutting function, session, and role checks
+
+1. **Manual session vs Supabase Auth:** src/services/authService.js can create a localStorage manual session when Supabase sign-in fails. src/services/supabase.js has a sessionless client and a normal persisted-session client. The UI's isAuthenticated state must not be treated as proof that Postgres sees role authenticated. Test normal Auth sessions and manual fallback separately; ideally privileged app use should fail closed if no real Auth identity exists.
+2. **PIN verification:** supabase/functions/verify-pin/index.ts accepts employeeName and pin, has wildcard CORS, queries profiles with a server secret/service-role credential, and attempts to create an Auth identity after the PIN matches. The inspected source does not show throttling, IP/account attempt limits, progressive delay or alerting. Verify deployed version, Edge Function gateway settings, logs/monitoring and any external rate limiter; then add tested abuse controls before marking this path safe.
+3. **SECURITY DEFINER RPCs:** The production Security Advisor snapshot lists 23 functions executable by anon and 28 by authenticated. Treat these as a function-by-function queue, not proof every function is exploitable. Check arguments, caller checks, owner privileges, fixed search_path, EXECUTE grants and whether returned data can be enumerated. Particular known app RPCs include get_customer_orders_by_key, increment_order_sync_attempts, reserve_inventory, release_inventory, wh_apply_stock_delta, wh_transfer_stock and profitability_* functions.
+4. **Open RLS policy combination:** Supabase permissive policies combine with OR. Adding a restrictive-looking permissive policy does not cancel an existing USING(true)/WITH CHECK(true) policy. Policy replacement must be explicit, operation-specific and tested with anon plus real authenticated users.
+5. **Privilege changes vs RLS changes:** The proposed privilege-only candidate removes TRUNCATE/TRIGGER/REFERENCES and preserves SELECT/INSERT/UPDATE/DELETE; its isolated PostgreSQL rehearsal passed. This is not evidence the later row-policy redesign will preserve the app. Treat the work as two separately tested tranches.
+
+## Ordered next work
+
+### A. Before changing production policy or grants
+- Confirm a recent restorable backup and exercise restore to an isolated project.
+- Export current table/function grants, default ACLs, RLS policies, trigger definitions, function ownership and exposed schemas from the target staging clone.
+- Expand the generated source map to all detected RPCs/Edge Functions and match each function to the deployed source/version plus cron/webhook caller.
+- Identify every direct browser write through supabaseAnon and all code paths reachable when a manual session exists.
+- Establish baseline happy-path results for login, order entry/status, tracking, shipping, accounting, payroll, leave, attendance and inventory.
+
+### B. Tests required before replacing permissive RLS
+For each sensitive table and RPC, test SELECT/INSERT/UPDATE/DELETE separately against: (1) no session/anon, (2) real authenticated staff with no special permission, (3) owner/requester, (4) authorized manager, (5) finance/payroll/admin, (6) service-role Edge Function. Include cross-user, cross-team/market and role-escalation negative tests. Record expected denial as well as successful business behavior.
+
+### C. Production gate
+No production migration, grant/policy change, secret change, or function deployment is authorized by this document. Keep the release gate blocked until the call graph is reconciled, the non-production schema and actual app workflows pass, restore/rollback are exercised, and the owner approves the exact tranche.
+
+## Source references
+
+- docs/security/production-rls-audit-2026-10-19.md — read-only live catalog and Security Advisor findings.
+- docs/security/source-access-inventory-2026-10-19.md — selected-file call-site map and limits.
+- scripts/security/source-access-inventory.mjs — static literal scanner.
+- src/services/authService.js — PIN flow and manual-session fallback.
+- src/services/supabase.js — persisted-session and sessionless client definitions.
+- supabase/functions/verify-pin/index.ts — server-side PIN verification and Auth identity provision.
+- src/screens/OrdersScreen.jsx — direct order writes, some through supabaseAnon.
+- src/modules/accounting/services/accountingService.js — direct accounting CRUD.
+- src/modules/payroll/services/payrollService.js and src/modules/payroll/services/payrollEngine.js — payroll, rates, orders and request dependencies.
+
+
+## Follow-up: live SECURITY DEFINER function review
+
+A separate read-only catalog pass is documented in `docs/security/20261019_p0_security_definer_review.md`. It confirms two more urgent P0 paths: anon-executable SECURITY DEFINER functions `wh_apply_stock_delta` and `wh_transfer_stock` can mutate stock without visible caller authorization checks. It also flags `get_customer_orders_by_key(text)` as an anon-executable full-order-row lookup using normalized phone/WhatsApp numbers.
+
+These findings came from catalog privileges and function definitions only; no RPC was invoked. The report separates confirmed ACL/body evidence from untested exploitability. Production function/grant changes remain blocked pending a staging clone and workflow tests.
