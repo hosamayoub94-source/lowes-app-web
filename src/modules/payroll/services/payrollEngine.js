@@ -462,7 +462,6 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
   const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
-  const salaryMissing = salary.source === null || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing);
 
   // ── Pro-rate base salary for a partial-month join/close-out (spec §6-7).
   //    Divides by the FULL calendar month (holidays included), counts only
@@ -720,7 +719,6 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
-  const errors = [];
   // This guard is intentionally enforced here as well as in the UI. Payroll
   // must never be computed from defaults when the month snapshot is unconfirmed.
   if (!run?.month_setup_confirmed_at) {
