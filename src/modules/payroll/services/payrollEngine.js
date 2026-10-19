@@ -496,6 +496,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (emp.payroll_commission_exempt) {
     const notes = [
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
+      ((salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing))
+        ? '⚠️ سعر صرف ناقص' : null,
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
     ];
