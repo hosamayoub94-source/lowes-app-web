@@ -15,13 +15,33 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
+
+  // Reject unexpectedly large requests before parsing. This endpoint only needs a
+  // short employee name and PIN; a generous 8 KiB cap prevents body abuse.
+  const contentLength = Number(req.headers.get('content-length') ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 8 * 1024) {
+    return json({ ok: false, error: 'request_too_large' }, 413);
+  }
 
   try {
-    const { employeeName, pin } = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ ok: false, error: 'invalid_json' }, 400);
+    }
 
-    if (!employeeName || pin == null) {
-      return new Response(JSON.stringify({ ok: false, error: 'employeeName and pin required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ ok: false, error: 'invalid_request' }, 400);
+    }
+
+    const { employeeName, pin } = body as { employeeName?: unknown; pin?: unknown };
+    if (typeof employeeName !== 'string' || !employeeName.trim() ||
+        employeeName.trim().length > 120 ||
+        (typeof pin !== 'string' && typeof pin !== 'number') ||
+        String(pin).length === 0 || String(pin).length > 32) {
+      return json({ ok: false, error: 'employeeName and pin required' }, 400);
     }
 
     const supabase = createClient(
@@ -32,7 +52,7 @@ Deno.serve(async (req: Request) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, extra_permissions, denied_permissions, pin')
-      .eq('employee_name', employeeName)
+      .eq('employee_name', employeeName.trim())
       .limit(1)
       .maybeSingle();
 
@@ -84,8 +104,10 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, profile: safeProfile, authIdentity }, 200);
 
   } catch (err) {
-    console.error('[verify-pin]', err);
-    return json({ ok: false, error: String(err) }, 500);
+    // Keep implementation details out of the public response. Full errors remain
+    // in server logs for operators; clients receive a stable, non-sensitive code.
+    console.error('[verify-pin] request failed', err);
+    return json({ ok: false, error: 'server_error' }, 500);
   }
 
   function json(body: unknown, status: number) {
