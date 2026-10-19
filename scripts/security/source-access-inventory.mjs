@@ -47,6 +47,7 @@ for (const root of INCLUDE_ROOTS) {
 }
 
 const records = new Map();
+const clientCalls = [];
 const unresolved = [];
 const sensitiveNames = new Set([
   'profiles', 'orders', 'customers', 'accounting_entries', 'employee_salary_settings',
@@ -74,6 +75,14 @@ for (const file of [...fileSet].sort()) {
     }
   }
 
+  // Attribute direct literal .from('table') calls to the two known client
+  // variables. This is deliberately a heuristic: aliases, wrappers, or query
+  // builders passed between functions need manual review.
+  const clientPattern = /\\b(supabaseAnon|supabase)\\s*\\.\\s*from\\(\\s*['\"\\x60]([^'\"\\x60]+)['\"\\x60]\\s*\\)/g;
+  for (const match of text.matchAll(clientPattern)) {
+    clientCalls.push({ client: match[1], table: match[2], file: relative, line: lineAt(text, match.index ?? 0) });
+  }
+
   const anyFromCount = [...text.matchAll(/\.from\s*\(/g)].length;
   if (anyFromCount > literalFromCount) unresolved.push({ file: relative, count: anyFromCount - literalFromCount });
 }
@@ -90,6 +99,9 @@ for (const list of byKind.values()) list.sort((a, b) => a.target.localeCompare(b
 
 const tableRecords = byKind.get('table') || [];
 const sensitiveRecords = tableRecords.filter(r => sensitiveNames.has(r.target));
+const uniqueClientCalls = [...new Map(clientCalls.map(c => [c.client + '\\0' + c.table + '\\0' + c.file + ':' + c.line, c])).values()]
+  .sort((a, b) => a.table.localeCompare(b.table) || a.client.localeCompare(b.client) || a.file.localeCompare(b.file) || a.line - b.line);
+const sensitiveClientTables = [...new Set(uniqueClientCalls.filter(c => sensitiveNames.has(c.table)).map(c => c.table))].sort();
 const allCalls = [...records.values()].reduce((sum, r) => sum + r.sites.length, 0);
 const fileCount = fileSet.size;
 const lines = [
@@ -104,8 +116,23 @@ const lines = [
   '- Sensitive-table identifiers with direct call sites: ' + sensitiveRecords.length + ' / ' + sensitiveNames.size + ' listed in scanner rules',
   '- Direct call/URL occurrences recorded: ' + allCalls,
   '- Files with possible dynamic/non-literal .from(...) calls: ' + unresolved.length,
+  '- Direct literal table calls attributed to supabaseAnon: ' + uniqueClientCalls.filter(c => c.client === 'supabaseAnon').length,
+  '- Direct literal table calls attributed to supabase: ' + uniqueClientCalls.filter(c => c.client === 'supabase').length,
+  '- Sensitive tables with at least one client-attributed direct call: ' + sensitiveClientTables.length + ' / ' + sensitiveNames.size,
   '',
-  '## Sensitive table call sites',
+  '## Sensitive table client attribution',
+  '',
+  'This section attributes only literal call expressions that visibly begin with supabaseAnon.from(...) or supabase.from(...). It does not prove the runtime auth role and may miss aliases/wrappers; see the auth/session review before changing RLS.',
+  '',
+  '| Table | supabaseAnon sites | supabase sites |',
+  '|---|---|---|',
+);
+for (const table of sensitiveClientTables) {
+  const anonSites = uniqueClientCalls.filter(c => c.table === table && c.client === 'supabaseAnon');
+  const authClientSites = uniqueClientCalls.filter(c => c.table === table && c.client === 'supabase');
+  lines.push('| ' + tick + table + tick + ' | ' + (anonSites.length ? anonSites.map(s => tick + s.file + ':' + s.line + tick).join('<br>') : '—') + ' | ' + (authClientSites.length ? authClientSites.map(s => tick + s.file + ':' + s.line + tick).join('<br>') : '—') + ' |');
+}
+lines.push('', '## Sensitive table call sites',
   '',
   '| Table | Direct references (file:line) |',
   '|---|---|',
