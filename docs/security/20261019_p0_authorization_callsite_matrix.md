@@ -80,3 +80,9 @@ No production migration, grant/policy change, secret change, or function deploym
 - src/modules/accounting/services/accountingService.js — direct accounting CRUD.
 - src/modules/payroll/services/payrollService.js and src/modules/payroll/services/payrollEngine.js — payroll, rates, orders and request dependencies.
 
+
+## Follow-up: live SECURITY DEFINER function review
+
+A separate read-only catalog pass is documented in `docs/security/20261019_p0_security_definer_review.md`. It confirms two more urgent P0 paths: anon-executable SECURITY DEFINER functions `wh_apply_stock_delta` and `wh_transfer_stock` can mutate stock without visible caller authorization checks. It also flags `get_customer_orders_by_key(text)` as an anon-executable full-order-row lookup using normalized phone/WhatsApp numbers.
+
+These findings came from catalog privileges and function definitions only; no RPC was invoked. The report separates confirmed ACL/body evidence from untested exploitability. Production function/grant changes remain blocked pending a staging clone and workflow tests.
