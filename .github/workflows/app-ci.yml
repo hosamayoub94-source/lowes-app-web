@@ -28,5 +28,23 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      # The repository currently has pre-existing lint debt across unrelated
+      # screens (13 errors / 227 warnings). Gate this change on the files it
+      # touches; keep whole-app lint cleanup in its own reviewed workstream.
+      - name: Lint payroll files changed in this PR
+        run: >-
+          npx eslint
+          src/modules/payroll/services/payrollEngine.js
+          src/modules/payroll/services/payrollBatch.js
+          src/modules/payroll/services/payrollValidation.js
+          src/modules/payroll/pages/PayrollDashboard.jsx
+          --report-unused-disable-directives
+
+      - name: Check auth sign-out scope regression
+        run: node test-auth-signout-scope.mjs
+
+      - name: Check payroll fail-closed behavior
+        run: node test-payroll-batch.mjs
+
       - name: Build production bundle
         run: npm run build

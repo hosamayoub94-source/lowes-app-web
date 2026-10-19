@@ -1,7 +1,7 @@
 // =============================================================
 // PayrollDashboard — Payroll Hub (theme-aware v2)
 // =============================================================
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
 import {
@@ -29,6 +29,7 @@ import {
 } from '../types/payroll.types.js';
 import { ROLES } from '@data/teams';
 import { printRunReport } from '../utils/printPayslip.js';
+import { getPayrollBlockingEntryIssues } from '../services/payrollValidation.js';
 
 // ─── Input class ─────────────────────────────────────────────
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text outline-none focus:border-teal transition';
@@ -130,6 +131,31 @@ export function PayrollDashboard() {
 
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
+  // Remember each failed payroll run across refreshes in this browser tab;
+  // a successful calculation for one month must not clear another month's block.
+  const [engineBlockedRunIds, setEngineBlockedRunIds] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('lowes_payroll_engine_blocked_run_ids') || '[]');
+      return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('lowes_payroll_engine_blocked_run_ids', JSON.stringify(engineBlockedRunIds));
+    } catch (error) {
+      console.warn('Could not persist payroll calculation guard:', error);
+    }
+  }, [engineBlockedRunIds]);
+  const markEngineBlockedRun = (runId, blocked) => {
+    if (!runId) return;
+    setEngineBlockedRunIds((previous) => (
+      blocked
+        ? [...new Set([...previous, runId])]
+        : previous.filter((id) => id !== runId)
+    ));
+  };
 
   const handleDeleteRun = useCallback(async () => {
     if (!run) return;
@@ -234,10 +260,23 @@ export function PayrollDashboard() {
         onProgress: (done, total) => setEngineProgress({ done, total }),
       });
       await loadEntries(run.id); // refresh from DB
+      if (res.errors.length && res.count === 0) {
+        markEngineBlockedRun(run.id, true);
+        setCommMsg('⛔ أُوقفت حسبة الرواتب ولم تُحفَظ قيود جديدة. راجع الأخطاء ثم أعد المحاولة.');
+        console.warn('Payroll engine blocked the run:', res.errors);
+        return;
+      }
+      markEngineBlockedRun(run.id, false);
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
     } catch (e) {
+      // A database error during the final upsert phase can happen after earlier
+      // rows were persisted. Refresh before showing the error so the UI cannot
+      // present stale payroll entries after a partial save.
+      try { await loadEntries(run.id); }
+      catch (refreshError) { console.warn('Could not refresh payroll entries after failure:', refreshError); }
+      markEngineBlockedRun(run.id, true);
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
       setEngineRunning(false);
@@ -358,16 +397,16 @@ export function PayrollDashboard() {
     return acc;
   }, {});
 
-  // ⚠️ موظفون بلا راتب أساسي مُدخل (base=0) — يحصلون على صفر بصمت.
-  // نُبرزهم بوضوح، وهذا الآن يمنع الاعتماد فعلياً (لا تحذير فقط —
-  // spec: "لا تبدأ الحسبة النهائية بشكل ناقص أو صامت").
-  const zeroSalaryEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) === 0);
-  // ⚠️ موظفون براتب لكن بلا فريق (سوريا/تركيا) محدَّد — التارجت/العمولة/
-  // الرواجع لن تُحتسب تلقائياً لهم. يُبرَز منفصلاً لأن السبب مختلف
-  // (لا ينقصهم راتب، ينقصهم تصنيف الفريق).
-  const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team && !e.commission_exempt);
-  const blockingEntries = zeroSalaryEntries.length + noTeamEntries.length;
-  const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
+  // Approval must be blocked whenever salary/team inputs or a required currency
+  // conversion is incomplete. Otherwise the employee card may show zero sales,
+  // zero advance repayment, or an understated salary while appearing approvable.
+  const {
+    zeroSalaryEntries,
+    noTeamEntries,
+    missingRateEntries,
+    blockingEntries,
+  } = getPayrollBlockingEntryIssues(entries);
+  const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -532,10 +571,28 @@ export function PayrollDashboard() {
                   </p>
                 </div>
               )}
+              {!loadingEntries && missingRateEntries.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ سعر صرف ناقص لـ {missingRateEntries.length} موظف — <b>الاعتماد معطَّل</b> حتى تُستكمل أسعار الصرف المطلوبة.
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">
+                    الموظفون: <span className="font-semibold">{missingRateEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{missingRateEntries.length > 6 ? ' …' : ''}</span>.
+                    حدّث أسعار الصرف في إعدادات الرواتب ثم أعد تشغيل الدورة.
+                  </p>
+                </div>
+              )}
               {!loadingEntries && entries.length > 0 && !run.month_setup_confirmed_at && (
                 <div className="mx-5 mt-4 rounded-xl border border-blue-400/40 bg-blue-50 px-4 py-3">
                   <p className="text-sm font-bold text-blue-700">
                     ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && engineBlockedRunIds.includes(run.id) && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-500/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ فشلت آخر حسبة تلقائية لهذه الدورة — <b>الاعتماد معطَّل</b> حتى تصلح السبب وتعيد تشغيل الحسبة بنجاح.
                   </p>
                 </div>
               )}

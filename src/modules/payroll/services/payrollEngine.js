@@ -38,6 +38,7 @@
 import { supabase, supabaseAnon } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
+import { runPayrollBatch } from './payrollBatch.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -354,7 +355,7 @@ export async function fetchAdvanceRepaymentUsd(employeeId, year, month, rateMap)
     .eq('repay_year', year)
     .eq('repay_month', month);
 
-  if (error) return { usd: 0, missingRate: false };
+  if (error) throw new Error('تعذّر جلب السلف المستحقة: ' + error.message);
   let usd = 0, missingRate = false;
   for (const r of (data || [])) {
     const { usd: v, missing } = toUsd(r.advance_amount, r.advance_currency || 'USD', rateMap);
@@ -394,7 +395,8 @@ export async function fetchApprovedPaidLeaveDatesInMonth(employeeId, year, month
     .lte('leave_from', monthEndStr)
     .gte('leave_to', from);
 
-  if (error || !data) return dates;
+  if (error) throw new Error('تعذّر جلب الإجازات المعتمدة: ' + error.message);
+  if (!data) throw new Error('تعذّر جلب الإجازات المعتمدة: لم تُرجع قاعدة البيانات بيانات');
   const mm = String(month).padStart(2, '0');
   for (const r of data) {
     if (UNPAID_LEAVE_TYPES.has(String(r.leave_type || '').toLowerCase())) continue;
@@ -460,7 +462,6 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
   const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
-  const salaryMissing = salary.source === null || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing);
 
   // ── Pro-rate base salary for a partial-month join/close-out (spec §6-7).
   //    Divides by the FULL calendar month (holidays included), counts only
@@ -495,6 +496,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (emp.payroll_commission_exempt) {
     const notes = [
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
+      ((salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing))
+        ? '⚠️ سعر صرف ناقص' : null,
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
     ];
@@ -555,8 +558,12 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
     fetchApprovedPaidLeaveDatesInMonth(emp.id, year, month),
   ]);
+  // Attendance is a display-only reference by owner decision; preserve the
+  // prior fallback on attendance failure. Approved-leave lookup affects the
+  // payroll record and therefore must fail this employee's calculation.
+  if (leaveResult.status === 'rejected') throw leaveResult.reason;
   const att = attResult.status === 'fulfilled' ? attResult.value : null;
-  const requestLeaveDates = leaveResult.status === 'fulfilled' ? leaveResult.value : new Set();
+  const requestLeaveDates = leaveResult.value;
   if (att) {
     workingDays = att.workingDays || workingDays;
     const leaveDatesUnion = new Set([...(att.leaveDates || []), ...requestLeaveDates]);
@@ -675,7 +682,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const net = base + allowances + commissionUsd - shortfallDeductionUsd - absenceDeduction - advance;
 
   notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
-  if (salesMissing || advMissing || salaryMissing) notes.push('⚠️ سعر صرف ناقص');
+  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
 
   return {
     run_id: runId,
@@ -720,9 +727,10 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
-  const errors = [];
+  // This guard is intentionally enforced here as well as in the UI. Payroll
+  // must never be computed from defaults when the month snapshot is unconfirmed.
   if (!run?.month_setup_confirmed_at) {
-    errors.push('⚠️ لم يُؤكَّد "إعداد الشهر" (التارجت/أسعار الصرف) بعد — القيم الافتراضية استُخدمت مؤقتاً. أكِّد الإعداد قبل الاعتماد.');
+    throw new Error('يجب تأكيد إعداد الشهر (التارجت وأسعار الصرف) قبل تشغيل حسبة الرواتب. لم تُحفَظ أي قيود.');
   }
 
   // 1. Employees active THIS month (id, name, alias, role, team, flat salary
@@ -744,7 +752,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     const { data: settings, error: sErr } = await supabase
       .from('employee_salary_settings')
       .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active');
-    if (sErr) errors.push('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
+    if (sErr) throw new Error('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
     for (const s of (settings || [])) {
       // keep the active/most-relevant row per employee
       if (!settingsById.has(s.employee_id) || s.is_active) settingsById.set(s.employee_id, s);
@@ -762,36 +770,27 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     // month never re-prices it off today's live rate.
     if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
     if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
-  } catch (e) { errors.push('تعذّر جلب أسعار الصرف: ' + (e?.message || e)); }
-  try { salesIndex = await fetchMonthlySalesIndex(year, month); }
-  catch (e) { errors.push('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — العمولات = 0'); }
+  } catch (e) {
+    throw new Error('تعذّر جلب أسعار الصرف: ' + (e?.message || e) + ' — أُوقفت الحسبة قبل حفظ أي قيد.');
+  }
+  try {
+    salesIndex = await fetchMonthlySalesIndex(year, month);
+  } catch (e) {
+    throw new Error('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — أُوقفت الحسبة قبل حفظ أي قيد لتجنّب عمولات أو حسميات خاطئة.');
+  }
 
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
-  const entries = [];
-  let done = 0;
-  const total = (emps || []).length;
-
-  for (const emp of (emps || [])) {
-    if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
-    try {
-      const entry = await computeEmployeeEntry({
-        emp, settings: settingsById.get(emp.id) || null,
-        runId, year, month, salesIndex, rateMap, run,
-      });
-      // null = not employed at all during this month (hired after it ended,
-      // or account closed before it started) — no entry, not an error.
-      if (entry === null) { done++; onProgress?.(done, total); continue; }
-      const saved = await upsertPayrollEntry(entry);
-      entries.push(saved);
-    } catch (e) {
-      errors.push(`${emp.employee_name}: ${e?.message || e}`);
-    }
-    done++;
-    onProgress?.(done, total);
-  }
-
-  const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary_usd) || 0), 0);
-  return { count: entries.length, totalNet, entries, errors };
+  return runPayrollBatch({
+    employees: emps || [],
+    skipEmployeeIds: skip,
+    onProgress,
+    calculateEntry: (emp) => computeEmployeeEntry({
+      emp,
+      settings: settingsById.get(emp.id) || null,
+      runId, year, month, salesIndex, rateMap, run,
+    }),
+    persistEntry: upsertPayrollEntry,
+  });
 }
