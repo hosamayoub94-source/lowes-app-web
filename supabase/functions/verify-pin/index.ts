@@ -15,6 +15,11 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ ok: false, error: 'method_not_allowed' }), {
+      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'POST, OPTIONS' },
+    });
+  }
 
   try {
     const { employeeName, pin } = await req.json();
@@ -84,8 +89,10 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, profile: safeProfile, authIdentity }, 200);
 
   } catch (err) {
-    console.error('[verify-pin]', err);
-    return json({ ok: false, error: String(err) }, 500);
+    // Avoid returning raw database/runtime exception text to unauthenticated callers.
+    // Keep server logs useful without logging request bodies, PINs, or credentials.
+    console.error('[verify-pin] request failed', err instanceof Error ? err.name : 'unknown_error');
+    return json({ ok: false, error: 'server_error' }, 500);
   }
 
   function json(body: unknown, status: number) {
