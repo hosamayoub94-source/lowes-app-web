@@ -78,7 +78,7 @@ for (const file of [...fileSet].sort()) {
   // Attribute direct literal .from('table') calls to the two known client
   // variables. This is deliberately a heuristic: aliases, wrappers, or query
   // builders passed between functions need manual review.
-  const clientPattern = /\\b(supabaseAnon|supabase)\\s*\\.\\s*from\\(\\s*['\"\\x60]([^'\"\\x60]+)['\"\\x60]\\s*\\)/g;
+  const clientPattern = /\b(supabaseAnon|supabase)\s*\.\s*from\(\s*['"\x60]([^'"\x60]+)['"\x60]\s*\)/g;
   for (const match of text.matchAll(clientPattern)) {
     clientCalls.push({ client: match[1], table: match[2], file: relative, line: lineAt(text, match.index ?? 0) });
   }
