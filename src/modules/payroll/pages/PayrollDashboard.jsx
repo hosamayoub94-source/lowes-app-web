@@ -29,6 +29,7 @@ import {
 } from '../types/payroll.types.js';
 import { ROLES } from '@data/teams';
 import { printRunReport } from '../utils/printPayslip.js';
+import { getPayrollBlockingEntryIssues } from '../services/payrollValidation.js';
 
 // ─── Input class ─────────────────────────────────────────────
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text outline-none focus:border-teal transition';
@@ -363,15 +364,15 @@ export function PayrollDashboard() {
     return acc;
   }, {});
 
-  // ⚠️ موظفون بلا راتب أساسي مُدخل (base=0) — يحصلون على صفر بصمت.
-  // نُبرزهم بوضوح، وهذا الآن يمنع الاعتماد فعلياً (لا تحذير فقط —
-  // spec: "لا تبدأ الحسبة النهائية بشكل ناقص أو صامت").
-  const zeroSalaryEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) === 0);
-  // ⚠️ موظفون براتب لكن بلا فريق (سوريا/تركيا) محدَّد — التارجت/العمولة/
-  // الرواجع لن تُحتسب تلقائياً لهم. يُبرَز منفصلاً لأن السبب مختلف
-  // (لا ينقصهم راتب، ينقصهم تصنيف الفريق).
-  const noTeamEntries = entries.filter(e => (Number(e.base_salary_usd) || 0) > 0 && !e.team && !e.commission_exempt);
-  const blockingEntries = zeroSalaryEntries.length + noTeamEntries.length;
+  // Approval must be blocked whenever salary/team inputs or a required currency
+  // conversion is incomplete. Otherwise the employee card may show zero sales,
+  // zero advance repayment, or an understated salary while appearing approvable.
+  const {
+    zeroSalaryEntries,
+    noTeamEntries,
+    missingRateEntries,
+    blockingEntries,
+  } = getPayrollBlockingEntryIssues(entries);
   const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
 
   return (
@@ -534,6 +535,17 @@ export function PayrollDashboard() {
                   <p className="text-[11px] text-amber-700/80 mt-0.5">
                     عيّن الفريق من «إدارة → الموظفين» ثم أعد تشغيل الدورة:
                     <span className="font-semibold"> {noTeamEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{noTeamEntries.length > 6 ? ' …' : ''}</span>
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && missingRateEntries.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ سعر صرف ناقص لـ {missingRateEntries.length} موظف — <b>الاعتماد معطَّل</b> حتى تُستكمل أسعار الصرف المطلوبة.
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">
+                    الموظفون: <span className="font-semibold">{missingRateEntries.slice(0, 6).map(e => e.employee_name).join('، ')}{missingRateEntries.length > 6 ? ' …' : ''}</span>.
+                    حدّث أسعار الصرف في إعدادات الرواتب ثم أعد تشغيل الدورة.
                   </p>
                 </div>
               )}
