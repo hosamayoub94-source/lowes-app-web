@@ -552,10 +552,16 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   // مصدرا الإجازة: تعليم الحضور اليومي اليدوي (attendance) + شاشة «الطلبات»
   // المعتمدة (employee_requests, leave) — الاتحاد بينهما بلا ازدواج بالعدّ.
   let workingDays = 26, attRef = null, leaveDaysThisMonth = 0;
-  const [att, requestLeaveDates] = await Promise.all([
+  const [attResult, leaveResult] = await Promise.allSettled([
     fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
     fetchApprovedPaidLeaveDatesInMonth(emp.id, year, month),
   ]);
+  // Attendance is a display-only reference by owner decision; preserve the
+  // prior fallback on attendance failure. Approved-leave lookup affects the
+  // payroll record and therefore must fail this employee's calculation.
+  if (leaveResult.status === 'rejected') throw leaveResult.reason;
+  const att = attResult.status === 'fulfilled' ? attResult.value : null;
+  const requestLeaveDates = leaveResult.value;
   if (att) {
     workingDays = att.workingDays || workingDays;
     const leaveDatesUnion = new Set([...(att.leaveDates || []), ...requestLeaveDates]);
