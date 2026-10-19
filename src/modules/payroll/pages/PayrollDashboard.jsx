@@ -131,20 +131,29 @@ export function PayrollDashboard() {
 
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
-  // Remember calculation failures across a page refresh in this browser tab;
-  // otherwise stale saved rows could become approvable after the UI state resets.
-  const [engineBlockedRunId, setEngineBlockedRunId] = useState(() => {
-    try { return sessionStorage.getItem('lowes_payroll_engine_blocked_run_id') || null; }
-    catch { return null; }
-  });
-  const markEngineBlockedRun = (runId) => {
-    setEngineBlockedRunId(runId);
+  // Remember each failed payroll run across refreshes in this browser tab;
+  // a successful calculation for one month must not clear another month's block.
+  const [engineBlockedRunIds, setEngineBlockedRunIds] = useState(() => {
     try {
-      if (runId) sessionStorage.setItem('lowes_payroll_engine_blocked_run_id', runId);
-      else sessionStorage.removeItem('lowes_payroll_engine_blocked_run_id');
-    } catch (error) {
-      console.warn('Could not persist payroll calculation guard:', error);
+      const saved = JSON.parse(sessionStorage.getItem('lowes_payroll_engine_blocked_run_ids') || '[]');
+      return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+    } catch {
+      return [];
     }
+  });
+  const markEngineBlockedRun = (runId, blocked) => {
+    if (!runId) return;
+    setEngineBlockedRunIds((previous) => {
+      const nextIds = blocked
+        ? [...new Set([...previous, runId])]
+        : previous.filter((id) => id !== runId);
+      try {
+        sessionStorage.setItem('lowes_payroll_engine_blocked_run_ids', JSON.stringify(nextIds));
+      } catch (error) {
+        console.warn('Could not persist payroll calculation guard:', error);
+      }
+      return nextIds;
+    });
   };
 
   const handleDeleteRun = useCallback(async () => {
@@ -251,12 +260,12 @@ export function PayrollDashboard() {
       });
       await loadEntries(run.id); // refresh from DB
       if (res.errors.length && res.count === 0) {
-        markEngineBlockedRun(run.id);
+        markEngineBlockedRun(run.id, true);
         setCommMsg('⛔ أُوقفت حسبة الرواتب ولم تُحفَظ قيود جديدة. راجع الأخطاء ثم أعد المحاولة.');
         console.warn('Payroll engine blocked the run:', res.errors);
         return;
       }
-      markEngineBlockedRun(null);
+      markEngineBlockedRun(run.id, false);
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
@@ -266,7 +275,7 @@ export function PayrollDashboard() {
       // present stale payroll entries after a partial save.
       try { await loadEntries(run.id); }
       catch (refreshError) { console.warn('Could not refresh payroll entries after failure:', refreshError); }
-      markEngineBlockedRun(run.id);
+      markEngineBlockedRun(run.id, true);
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
       setEngineRunning(false);
@@ -396,7 +405,7 @@ export function PayrollDashboard() {
     missingRateEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
-  const canApprove = blockingEntries === 0 && engineBlockedRunId !== run?.id && !!run?.month_setup_confirmed_at && entries.length > 0;
+  const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -579,7 +588,7 @@ export function PayrollDashboard() {
                   </p>
                 </div>
               )}
-              {!loadingEntries && engineBlockedRunId === run.id && (
+              {!loadingEntries && engineBlockedRunIds.includes(run.id) && (
                 <div className="mx-5 mt-4 rounded-xl border border-red-500/40 bg-red-50 px-4 py-3">
                   <p className="text-sm font-bold text-red-700">
                     ⛔ فشلت آخر حسبة تلقائية لهذه الدورة — <b>الاعتماد معطَّل</b> حتى تصلح السبب وتعيد تشغيل الحسبة بنجاح.
