@@ -384,7 +384,8 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const denom = num(o.reserve_qty) > 0 ? num(o.reserve_qty) : c.allUnits;
     const rr = denom > 0 ? Math.min(1, num(o.restock_qty) / denom) : 0;
     const rw = denom > 0 ? Math.min(1 - rr, num(o.waste_qty) / denom) : 0;
-    const damaged = costOut * rw, assumed = costOut - costOut * rr - damaged, restocked = costOut * rr + assumed, unresolved = 0;
+    const damaged = costOut * rw, restocked = costOut * rr, assumed = 0, unresolved = Math.max(0, costOut - restocked - damaged);
+    // لا نفترض عودة الباقي للمخزون: بلا حركة restock أو waste موثّقة يبقى غير محسوم.
     R.assumedRestockCost += assumed;
     R.revenueReduction += revRed; R.costOut += costOut; R.restockedCost += restocked; R.damagedLoss += damaged; R.unresolvedCost += unresolved;
     if (unresolved > 1e-9 || incomplete) { R.unresolvedOrders++; returnLists.unresolved.push({ id: o.id, code: o.order_code, market: m, units: c.units, cost: unresolved, afterDelivery, return_at: o.return_at }); }
