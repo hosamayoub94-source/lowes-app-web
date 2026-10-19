@@ -782,7 +782,6 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
-  const skip = skipEmployeeIds || new Set();
   return runPayrollBatch({
     employees: emps || [],
     skipEmployeeIds: skip,
