@@ -675,7 +675,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const net = base + allowances + commissionUsd - shortfallDeductionUsd - absenceDeduction - advance;
 
   notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
-  if (salesMissing || advMissing || salaryMissing) notes.push('⚠️ سعر صرف ناقص');
+  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
 
   return {
     run_id: runId,
