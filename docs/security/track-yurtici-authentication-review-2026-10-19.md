@@ -48,3 +48,16 @@ Do not turn on JWT verification or add a secret check blindly. First identify an
 ## Current status
 
 **Open — do not deploy an authentication change yet.** The repository source confirms a privileged handler without an in-handler caller check, but the exact production caller inventory has not been established. This document changes no application behavior and does not authorize production changes.
+
+
+## Verified production scheduler metadata (read-only)
+
+A read-only inspection of `cron.job` on 2026-10-19 identified the **active** scheduled job:
+
+- `jobid=1`, `jobname=track-yurtici-30min`
+- Schedule: `*/30 * * * *` (every 30 minutes)
+- Command references `track-yurtici` and uses `net.http_post`.
+- The command contains the text `authorization`; the full command was **not retrieved or printed** because it may contain a live credential.
+- The command does not contain the text `vault`; this alone does not establish how the credential is stored or whether the header contains a valid token.
+
+**Release blocker:** Do not turn on JWT verification or change the endpoint authentication until the scheduler's actual credential format, the current deployed JWT mode, and the intended frontend/manual callers have been verified safely. Otherwise the existing every-30-minute tracking job could fail.
