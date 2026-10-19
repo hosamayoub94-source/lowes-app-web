@@ -131,8 +131,21 @@ export function PayrollDashboard() {
 
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
-  // After a failed automatic calculation, old rows must not be approvable as if current.
-  const [engineBlockedRunId, setEngineBlockedRunId] = useState(null);
+  // Remember calculation failures across a page refresh in this browser tab;
+  // otherwise stale saved rows could become approvable after the UI state resets.
+  const [engineBlockedRunId, setEngineBlockedRunId] = useState(() => {
+    try { return sessionStorage.getItem('lowes_payroll_engine_blocked_run_id') || null; }
+    catch { return null; }
+  });
+  const markEngineBlockedRun = (runId) => {
+    setEngineBlockedRunId(runId);
+    try {
+      if (runId) sessionStorage.setItem('lowes_payroll_engine_blocked_run_id', runId);
+      else sessionStorage.removeItem('lowes_payroll_engine_blocked_run_id');
+    } catch (error) {
+      console.warn('Could not persist payroll calculation guard:', error);
+    }
+  };
 
   const handleDeleteRun = useCallback(async () => {
     if (!run) return;
@@ -238,12 +251,12 @@ export function PayrollDashboard() {
       });
       await loadEntries(run.id); // refresh from DB
       if (res.errors.length && res.count === 0) {
-        setEngineBlockedRunId(run.id);
+        markEngineBlockedRun(run.id);
         setCommMsg('⛔ أُوقفت حسبة الرواتب ولم تُحفَظ قيود جديدة. راجع الأخطاء ثم أعد المحاولة.');
         console.warn('Payroll engine blocked the run:', res.errors);
         return;
       }
-      setEngineBlockedRunId(null);
+      markEngineBlockedRun(null);
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
@@ -253,7 +266,7 @@ export function PayrollDashboard() {
       // present stale payroll entries after a partial save.
       try { await loadEntries(run.id); }
       catch (refreshError) { console.warn('Could not refresh payroll entries after failure:', refreshError); }
-      setEngineBlockedRunId(run.id);
+      markEngineBlockedRun(run.id);
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
       setEngineRunning(false);
