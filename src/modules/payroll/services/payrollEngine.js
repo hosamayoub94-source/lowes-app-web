@@ -38,6 +38,7 @@
 import { supabase, supabaseAnon } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
+import { runPayrollBatch } from './payrollBatch.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -775,47 +776,16 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
-  // Phase 1: calculate every candidate without writing anything. A failure
-  // for any employee (for example, failed advance lookup) blocks the whole
-  // calculation so the run cannot be left with a mixed old/new payroll.
-  const computed = [];
-  let done = 0;
-  const total = (emps || []).length;
-
-  for (const emp of (emps || [])) {
-    if (skip.has(emp.id)) { done++; onProgress?.(done, total); continue; }
-    try {
-      const entry = await computeEmployeeEntry({
-        emp, settings: settingsById.get(emp.id) || null,
-        runId, year, month, salesIndex, rateMap, run,
-      });
-      // null = not employed at all during this month (hired after it ended,
-      // or account closed before it started) — no entry, not an error.
-      if (entry !== null) computed.push(entry);
-    } catch (e) {
-      errors.push(`${emp.employee_name}: ${e?.message || e}`);
-    }
-    done++;
-    onProgress?.(done, total);
-  }
-
-  if (errors.length) {
-    return {
-      count: 0,
-      totalNet: 0,
-      entries: [],
-      errors: [...errors, '⛔ لم تُحفَظ أي قيود من هذه الجولة؛ أصلح الأخطاء ثم أعد الحسبة.'],
-    };
-  }
-
-  // Phase 2: persist only after all employee calculations succeeded.
-  // Database upserts remain individual requests; a storage/network failure
-  // during this phase can still leave some entries saved and is surfaced.
-  const entries = [];
-  for (const entry of computed) {
-    entries.push(await upsertPayrollEntry(entry));
-  }
-
-  const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary_usd) || 0), 0);
-  return { count: entries.length, totalNet, entries, errors };
+  const skip = skipEmployeeIds || new Set();
+  return runPayrollBatch({
+    employees: emps || [],
+    skipEmployeeIds: skip,
+    onProgress,
+    calculateEntry: (emp) => computeEmployeeEntry({
+      emp,
+      settings: settingsById.get(emp.id) || null,
+      runId, year, month, salesIndex, rateMap, run,
+    }),
+    persistEntry: upsertPayrollEntry,
+  });
 }
