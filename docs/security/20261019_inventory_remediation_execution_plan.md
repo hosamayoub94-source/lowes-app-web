@@ -130,3 +130,16 @@ Each case must be run via PostgREST using real role/JWT states, with SQL-level g
 At the time of this check, Supabase project listing returned `lowes-attendance` and `lowes-production`; no separate staging project was visible in the current connected project list. No new billable project has been created. The SQL candidate must not be applied to `lowes-attendance` or `lowes-production` as a substitute for staging.
 
 Release is blocked until a faithful restorable staging clone is available, phases 0–3 pass, restore/rollback has been exercised, and the exact production tranche is approved. The SQL candidate rehearsal against disposable PostgreSQL is useful for syntax/ACL acceptance, but is not a substitute for the real Supabase schema, Auth session behavior, PostgREST, Edge Functions, or app end-to-end tests.
+
+
+### Manual-session usage confirmed in audit logs
+
+A read-only aggregate over `public.activity_logs` confirms the localStorage fallback is active, not merely legacy code:
+
+- **76 manual-session login events** in the last 30 days across **10 distinct active users**.
+- Those users span **2 admins, 6 employees, 1 sales manager, and 1 social manager**.
+- The latest recorded manual-session login was **2026-10-19 19:12:34 UTC**.
+- The audit log also records **57 failed login events** in the same 30-day window. This is not proof of an attack; it does strengthen the case for implementing and testing rate limiting on the unauthenticated PIN-verification path.
+- For comparison, the same window recorded 189 non-manual login events across 25 distinct users.
+
+**Impact on rollout:** Phase 0 is a hard blocker. Removing fallback immediately would affect current users across multiple roles. Do not turn off the fallback until those identities can authenticate reliably and the migration is verified. At the same time, the manual fallback currently leaves those sessions operating under the anon database role, so it cannot be treated as an acceptable long-term exception.
