@@ -131,6 +131,8 @@ export function PayrollDashboard() {
 
   // ── Status / result message
   const [commMsg, setCommMsg] = useState(null);
+  // After a failed automatic calculation, old rows must not be approvable as if current.
+  const [engineBlockedRunId, setEngineBlockedRunId] = useState(null);
 
   const handleDeleteRun = useCallback(async () => {
     if (!run) return;
@@ -236,10 +238,12 @@ export function PayrollDashboard() {
       });
       await loadEntries(run.id); // refresh from DB
       if (res.errors.length && res.count === 0) {
+        setEngineBlockedRunId(run.id);
         setCommMsg('⛔ أُوقفت حسبة الرواتب ولم تُحفَظ قيود جديدة. راجع الأخطاء ثم أعد المحاولة.');
         console.warn('Payroll engine blocked the run:', res.errors);
         return;
       }
+      setEngineBlockedRunId(null);
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
       setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
@@ -249,6 +253,7 @@ export function PayrollDashboard() {
       // present stale payroll entries after a partial save.
       try { await loadEntries(run.id); }
       catch (refreshError) { console.warn('Could not refresh payroll entries after failure:', refreshError); }
+      setEngineBlockedRunId(run.id);
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
       setEngineRunning(false);
@@ -378,7 +383,7 @@ export function PayrollDashboard() {
     missingRateEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
-  const canApprove = blockingEntries === 0 && !!run?.month_setup_confirmed_at && entries.length > 0;
+  const canApprove = blockingEntries === 0 && engineBlockedRunId !== run?.id && !!run?.month_setup_confirmed_at && entries.length > 0;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -558,6 +563,13 @@ export function PayrollDashboard() {
                 <div className="mx-5 mt-4 rounded-xl border border-blue-400/40 bg-blue-50 px-4 py-3">
                   <p className="text-sm font-bold text-blue-700">
                     ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && engineBlockedRunId === run.id && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-500/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ فشلت آخر حسبة تلقائية لهذه الدورة — <b>الاعتماد معطَّل</b> حتى تصلح السبب وتعيد تشغيل الحسبة بنجاح.
                   </p>
                 </div>
               )}
