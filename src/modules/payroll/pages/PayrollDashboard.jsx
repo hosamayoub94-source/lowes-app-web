@@ -1,7 +1,7 @@
 // =============================================================
 // PayrollDashboard — Payroll Hub (theme-aware v2)
 // =============================================================
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@hooks/useAuth';
 import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
 import {
@@ -141,19 +141,20 @@ export function PayrollDashboard() {
       return [];
     }
   });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('lowes_payroll_engine_blocked_run_ids', JSON.stringify(engineBlockedRunIds));
+    } catch (error) {
+      console.warn('Could not persist payroll calculation guard:', error);
+    }
+  }, [engineBlockedRunIds]);
   const markEngineBlockedRun = (runId, blocked) => {
     if (!runId) return;
-    setEngineBlockedRunIds((previous) => {
-      const nextIds = blocked
+    setEngineBlockedRunIds((previous) => (
+      blocked
         ? [...new Set([...previous, runId])]
-        : previous.filter((id) => id !== runId);
-      try {
-        sessionStorage.setItem('lowes_payroll_engine_blocked_run_ids', JSON.stringify(nextIds));
-      } catch (error) {
-        console.warn('Could not persist payroll calculation guard:', error);
-      }
-      return nextIds;
-    });
+        : previous.filter((id) => id !== runId)
+    ));
   };
 
   const handleDeleteRun = useCallback(async () => {
