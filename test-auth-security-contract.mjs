@@ -2,7 +2,6 @@
 // These checks are intentionally source-level guards, not end-to-end Auth tests.
 // Run with: node test-auth-security-contract.mjs
 import fs from 'node:fs';
-import assert from 'node:assert/strict';
 
 const authService = fs.readFileSync('src/services/authService.js', 'utf8');
 const verifyPin = fs.readFileSync('supabase/functions/verify-pin/index.ts', 'utf8');
