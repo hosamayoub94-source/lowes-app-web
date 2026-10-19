@@ -28,5 +28,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Verify PIN endpoint hardening
+        run: npm run test:verify-pin-hardening
+
       - name: Build production bundle
         run: npm run build
