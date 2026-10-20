@@ -1358,4 +1358,240 @@ BEGIN
 END
 $order_acl$;
 
+\echo 'Checking order edit and stock reconciliation share one transaction...'
+INSERT INTO inventory_rehearsal.profiles
+  (id, role_type, is_active, extra_permissions, denied_permissions, employee_name, warehouse_id, order_role)
+VALUES
+  ('00000000-0000-0000-0000-000000000012', 'employee', true, '[]'::jsonb, '[]'::jsonb,
+   'Order Edit Seller', '10000000-0000-0000-0000-000000000004', NULL);
+
+INSERT INTO inventory_rehearsal.wh_stock (warehouse_id, product_id, quantity, updated_at)
+VALUES
+  ('10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 20, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000002', 20, pg_catalog.now())
+ON CONFLICT (warehouse_id, product_id)
+DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = pg_catalog.now();
+
+INSERT INTO inventory_rehearsal.orders
+  (id, status, market, brand, source, handler_name, items)
+VALUES
+  ('30000000-0000-0000-0000-000000000014', 'pending', 'syria', 'lowes', NULL, 'Order Edit Seller',
+   '[{"name":"Rosemary Oil","qty":2}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000015', 'pending', 'syria', 'lowes', NULL, 'Order Edit Seller',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb);
+
+DO $order_edit_acl$
+BEGIN
+  IF has_function_privilege('anon', 'inventory_rehearsal.wh_edit_order(uuid,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: anon can execute atomic order edit';
+  END IF;
+  IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_edit_order(uuid,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: authenticated cannot execute atomic order edit';
+  END IF;
+END
+$order_edit_acl$;
+
+-- Manager updates the status and line quantity in one call. Reservation is derived
+-- from the newly persisted item list, not a client-supplied stock delta.
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_edit_order(
+  '30000000-0000-0000-0000-000000000014',
+  '{"status":"preparing","items":[{"name":"Rosemary Oil","qty":3}]}'::jsonb
+);
+RESET ROLE;
+DO $order_edit_reserves_new_quantity$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000014') <> 'preparing'
+     OR (SELECT items->0->>'qty' FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000014') <> '3'
+     OR (SELECT updated_by FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000014') <> 'Order Manager'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 17
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000014'
+           AND type = 'reserve' AND quantity = 3) <> 1 THEN
+    RAISE EXCEPTION 'FAIL: atomic order edit did not persist and reserve the edited item quantity';
+  END IF;
+END
+$order_edit_reserves_new_quantity$;
+COMMIT;
+
+-- A same-status edit that increases the quantity reserves only the difference.
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_edit_order(
+  '30000000-0000-0000-0000-000000000014',
+  '{"items":[{"name":"Rosemary Oil","qty":4}]}'::jsonb
+);
+RESET ROLE;
+DO $order_edit_increase_delta$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 16
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000014' AND type = 'reserve') <> 2
+     OR (SELECT COALESCE(sum(quantity),0) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000014' AND type = 'reserve') <> 4 THEN
+    RAISE EXCEPTION 'FAIL: order edit did not reserve only the one-unit increase';
+  END IF;
+END
+$order_edit_increase_delta$;
+COMMIT;
+
+-- The owning employee can edit items/status for their own order, but not routing,
+-- market, brand, or source fields that can redirect stock or bypass exemptions.
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000012', true);
+SELECT inventory_rehearsal.wh_edit_order(
+  '30000000-0000-0000-0000-000000000014',
+  '{"items":[{"name":"Rosemary Oil","qty":2}]}'::jsonb
+);
+DO $owner_cannot_change_market$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_edit_order(
+      '30000000-0000-0000-0000-000000000014',
+      '{"market":"turkey"}'::jsonb
+    );
+    RAISE EXCEPTION 'FAIL: owner edited order market' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: owner cannot change order market/routing';
+  END;
+END
+$owner_cannot_change_market$;
+RESET ROLE;
+DO $owner_edit_delta$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 18
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000014' AND type = 'release') <> 1
+     OR (SELECT market FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000014') <> 'syria' THEN
+    RAISE EXCEPTION 'FAIL: owner item edit did not release the removed quantity or changed protected fields';
+  END IF;
+END
+$owner_edit_delta$;
+COMMIT;
+
+-- Switching the source to an externally stocked system releases any old reservation
+-- in the same transaction as the source edit, even when status remains deducted.
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_edit_order(
+  '30000000-0000-0000-0000-000000000014',
+  '{"source":"star_network"}'::jsonb
+);
+RESET ROLE;
+DO $order_edit_external_source$
+BEGIN
+  IF (SELECT source FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000014') <> 'star_network'
+     OR (SELECT status FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000014') <> 'preparing'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 20
+     OR EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id = '30000000-0000-0000-0000-000000000014'
+       GROUP BY product_id, COALESCE(from_warehouse_id,to_warehouse_id)
+       HAVING sum(CASE WHEN type='reserve' THEN quantity ELSE -quantity END) <> 0
+     ) THEN
+    RAISE EXCEPTION 'FAIL: source edit did not atomically release the prior reservation';
+  END IF;
+END
+$order_edit_external_source$;
+COMMIT;
+
+\echo 'Checking stock shortage rolls back both order fields and reservation ledger...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+DO $order_edit_shortage_rollback$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_edit_order(
+      '30000000-0000-0000-0000-000000000015',
+      '{"status":"preparing","items":[{"name":"Rosemary Oil","qty":21}]}'::jsonb
+    );
+    RAISE EXCEPTION 'FAIL: oversized order edit was accepted' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: shortage rejected the order edit';
+  END;
+END
+$order_edit_shortage_rollback$;
+RESET ROLE;
+DO $order_edit_shortage_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000015') <> 'pending'
+     OR (SELECT items->0->>'qty' FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000015') <> '1'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 20
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000015') THEN
+    RAISE EXCEPTION 'FAIL: failed order edit left changed fields, stock, or audit rows';
+  END IF;
+END
+$order_edit_shortage_unchanged$;
+COMMIT;
+
+\echo 'Checking unauthorized caller and unknown fields cannot mutate an order...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+DO $order_edit_unauthorized$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_edit_order(
+      '30000000-0000-0000-0000-000000000014',
+      '{"items":[{"name":"Rosemary Oil","qty":1}]}'::jsonb
+    );
+    RAISE EXCEPTION 'FAIL: unrelated employee edited another employee order' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: unrelated employee cannot edit order';
+  END;
+  BEGIN
+    PERFORM inventory_rehearsal.wh_edit_order(
+      '30000000-0000-0000-0000-000000000014',
+      '{"arbitrary_stock_delta":-999}'::jsonb
+    );
+    RAISE EXCEPTION 'FAIL: arbitrary fields accepted by order edit' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    RAISE NOTICE 'PASS: unknown fields rejected';
+  END;
+END
+$order_edit_unauthorized$;
+RESET ROLE;
+DO $order_edit_unauthorized_unchanged$
+BEGIN
+  IF (SELECT source FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000014') <> 'star_network'
+     OR (SELECT status FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000014') <> 'preparing'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000004'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 20
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000015'
+                  AND type IN ('reserve','release') AND quantity <= 0) THEN
+    RAISE EXCEPTION 'FAIL: unauthorized order edit changed protected state';
+  END IF;
+END
+$order_edit_unauthorized_unchanged$;
+COMMIT;
+
 \echo 'PASS: disposable inventory and order-stock lifecycle contract rehearsal complete.'
