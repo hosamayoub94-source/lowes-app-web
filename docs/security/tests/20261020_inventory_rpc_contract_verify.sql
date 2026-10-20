@@ -1130,6 +1130,174 @@ END
 $denied_owner_unchanged$;
 COMMIT;
 
+\echo 'Checking same-status reconciliation adjusts edited order items by exact net differences...'
+INSERT INTO inventory_rehearsal.orders
+  (id, status, market, brand, source, handler_name, items)
+VALUES
+  ('30000000-0000-0000-0000-000000000012', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb);
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000012', 'preparing'
+);
+RESET ROLE;
+DO $edit_initial_reservation$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 6
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 3 THEN
+    RAISE EXCEPTION 'FAIL: initial edit-reconciliation fixture did not reserve expected quantities';
+  END IF;
+END
+$edit_initial_reservation$;
+COMMIT;
+
+-- Simulate an order-editor save that changes items while status remains preparing.
+-- A future production cutover must combine this row update and reconciliation in
+-- one RPC/transaction; this fixture tests the diff reconciler's idempotent contract.
+UPDATE inventory_rehearsal.orders
+SET items = '[{"name":"Rosemary Oil","qty":3},{"name":"Vitamin C Serum","qty":2}]'::jsonb
+WHERE id = '30000000-0000-0000-0000-000000000012';
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000012', 'preparing'
+);
+RESET ROLE;
+DO $edit_items_increased$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 5
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 2
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000012' AND type = 'reserve') <> 4
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <>
+        (SELECT COALESCE(sum(quantity),0) FROM inventory_rehearsal.wh_stock
+         WHERE product_id = '20000000-0000-0000-0000-000000000001')
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000002') <>
+        (SELECT COALESCE(sum(quantity),0) FROM inventory_rehearsal.wh_stock
+         WHERE product_id = '20000000-0000-0000-0000-000000000002') THEN
+    RAISE EXCEPTION 'FAIL: same-status reconciliation did not reserve the item quantity increase';
+  END IF;
+END
+$edit_items_increased$;
+COMMIT;
+
+UPDATE inventory_rehearsal.orders
+SET items = '[{"name":"Rosemary Oil","qty":1}]'::jsonb
+WHERE id = '30000000-0000-0000-0000-000000000012';
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000012', 'preparing'
+);
+RESET ROLE;
+DO $edit_items_decreased$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 7
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000012' AND type = 'release') <> 2 THEN
+    RAISE EXCEPTION 'FAIL: same-status reconciliation did not release reduced/removed item quantities';
+  END IF;
+END
+$edit_items_decreased$;
+COMMIT;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000012', 'cancelled'
+);
+RESET ROLE;
+DO $edit_items_final_release$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000012') <> 'cancelled'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id = '30000000-0000-0000-0000-000000000012'
+       GROUP BY product_id, COALESCE(from_warehouse_id,to_warehouse_id)
+       HAVING sum(CASE WHEN type='reserve' THEN quantity ELSE -quantity END) <> 0
+     ) THEN
+    RAISE EXCEPTION 'FAIL: final cancellation did not return exactly the remaining reservation';
+  END IF;
+END
+$edit_items_final_release$;
+COMMIT;
+
+\echo 'Checking a reservation is released when an order becomes externally stocked...'
+INSERT INTO inventory_rehearsal.orders
+  (id, status, market, brand, source, handler_name, items)
+VALUES
+  ('30000000-0000-0000-0000-000000000013', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb);
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000013', 'preparing'
+);
+RESET ROLE;
+COMMIT;
+
+UPDATE inventory_rehearsal.orders
+SET source = 'star_network'
+WHERE id = '30000000-0000-0000-0000-000000000013';
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000013', 'preparing'
+);
+RESET ROLE;
+DO $new_exemption_releases_old_reservation$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000013') <> 'preparing'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id = '30000000-0000-0000-0000-000000000013'
+       GROUP BY product_id, COALESCE(from_warehouse_id,to_warehouse_id)
+       HAVING sum(CASE WHEN type='reserve' THEN quantity ELSE -quantity END) <> 0
+     ) THEN
+    RAISE EXCEPTION 'FAIL: switching to external source left a stale inventory reservation';
+  END IF;
+END
+$new_exemption_releases_old_reservation$;
+COMMIT;
+
 \echo 'Checking order RPC privileges are narrow...'
 DO $order_acl$
 BEGIN
