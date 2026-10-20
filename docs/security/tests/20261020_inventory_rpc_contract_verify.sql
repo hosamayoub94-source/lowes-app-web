@@ -1564,6 +1564,9 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: unrelated employee cannot edit order';
   END;
+  -- Use an authorized manager so the test reaches the unknown-field validator
+  -- rather than correctly stopping earlier at the ownership boundary.
+  PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
   BEGIN
     PERFORM inventory_rehearsal.wh_edit_order(
       '30000000-0000-0000-0000-000000000014',
