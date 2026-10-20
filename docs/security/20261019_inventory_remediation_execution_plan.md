@@ -200,3 +200,17 @@ Production `src/screens/OrdersScreen.jsx` still writes status through `supabaseA
 
 
 A separate CI concurrency script now runs 24 independent sessions against the same synthetic order and calls the transition RPC to `preparing`. It asserts the order status is `preparing`, only one reserve movement is written per matched item (two in the fixture), the quantity decreases exactly once for each item, `updated_by` is server-derived, and product quantity mirrors still reconcile. This tests the order-row lock/idempotency contract in disposable PostgreSQL. It still does not replace a real Supabase JWT/PostgREST test or change the live browser-driven order workflow.
+
+
+### Order-owner and fulfillment authorization contract — 2026-10-20
+
+The latest fixture pass adds `profiles.order_role` to its synthetic profile model and checks two paths separately:
+
+- **Owner-only update:** a regular active employee without global order-management authority may transition an order when the persisted `orders.handler_name` equals the active profile's `employee_name`. A caller cannot send a replacement handler name to satisfy that check.
+- **Fulfillment:** an active profile whose persisted `order_role = 'fulfillment'` may advance operational orders without gaining stock-manager permissions.
+- **Explicit denial:** an active owner whose `denied_permissions` contains `manage_orders` is rejected; an explicit denial is not bypassed by matching `handler_name`.
+- An employee attempting to advance a different seller's order remains denied. In all cases the order ID and target status are the only client-supplied values; item list, market, source, brand, owner and warehouse are read from persisted fixture records.
+
+This is still fixture-only contract logic. Read of `src/screens/OrdersScreen.jsx` confirms its existing client-side `canAdvanceOrder` gate is `isFulfillment || isManager || order.handler_name === userName`, while archive/active list fetches use `supabaseAnon` and do not ask the server to enforce that ownership test. The active app's route argument `forcedMarket` is a presentation/filter lock, not a value the proposed RPC trusts. The permissions UI and the Orders screen also derive authority somewhat differently; the precise meaning of explicit `manage_orders` grants and market-specific manager scope must be reconciled before enabling the production RPC.
+
+**Production remains unchanged:** no direct orders write was switched to an RPC in this pass, and no table grant or RLS policy was modified. Before rollout, the owner check must be paired with a reviewed manager/fulfillment scope model, all single/batch/save/cancel/delete entry points must call the same trusted operation, and real Auth session coverage must pass without relying on the localStorage fallback.
