@@ -20,25 +20,16 @@ psql -X -v ON_ERROR_STOP=1 -c "TRUNCATE inventory_rehearsal.wh_movements"
 psql -X -v ON_ERROR_STOP=1 -c "UPDATE inventory_rehearsal.wh_stock SET quantity = 20 WHERE warehouse_id = '$CENTRAL_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'"
 psql -X -v ON_ERROR_STOP=1 -c "UPDATE inventory_rehearsal.wh_stock SET quantity = 5 WHERE warehouse_id = '$SALES_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'"
 
-result_file="$(mktemp)"
-trap 'rm -f "$result_file"' EXIT
-
 export ACTOR_ID CENTRAL_WAREHOUSE_ID PRODUCT_ID
+# xargs returns non-zero if any one of the independent psql sessions fails.
 seq 1 "$CONCURRENT_CALLS" | xargs -P "$PARALLEL_WORKERS" -I '{}' bash -c '
   set -euo pipefail
   psql -X -qAt -v ON_ERROR_STOP=1 \
     -v actor_id="$ACTOR_ID" \
     -v warehouse_id="$CENTRAL_WAREHOUSE_ID" \
     -v product_id="$PRODUCT_ID" \
-    -f docs/security/tests/20261020_inventory_rpc_concurrency_client.sql
-' > "$result_file"
-
-completed="$(wc -l < "$result_file" | tr -d ' ')"
-if [[ "$completed" != "$CONCURRENT_CALLS" ]]; then
-  echo "FAIL: expected $CONCURRENT_CALLS successful RPC outputs, got $completed"
-  cat "$result_file"
-  exit 1
-fi
+    -f docs/security/tests/20261020_inventory_rpc_concurrency_client.sql > /dev/null
+'
 
 central_qty="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT quantity FROM inventory_rehearsal.wh_stock WHERE warehouse_id = '$CENTRAL_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'")"
 sales_qty="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT quantity FROM inventory_rehearsal.wh_stock WHERE warehouse_id = '$SALES_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'")"
