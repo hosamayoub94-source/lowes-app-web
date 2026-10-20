@@ -181,6 +181,18 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: explicit sales-stock denial overrides warehouse_manager default';
   END;
+
+  -- The same sales-stock denial covers a distributor warehouse, not only type=sales.
+  PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000008', true);
+  BEGIN
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
+      '10000000-0000-0000-0000-000000000003',
+      '20000000-0000-0000-0000-000000000001', 1
+    );
+    RAISE EXCEPTION 'FAIL: warehouse_manager with sales denial changed distributor stock';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: explicit sales-stock denial covers distributor warehouse';
+  END;
 END
 $denials$;
 RESET ROLE;
@@ -445,6 +457,12 @@ SELECT inventory_rehearsal.wh_apply_stock_delta(
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 SELECT inventory_rehearsal.wh_apply_stock_delta(
   '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 1
+);
+
+-- The same default sales-stock capability includes distributor sub-warehouses.
+SELECT inventory_rehearsal.wh_apply_stock_delta(
+  '10000000-0000-0000-0000-000000000003',
   '20000000-0000-0000-0000-000000000001', 1
 );
 
