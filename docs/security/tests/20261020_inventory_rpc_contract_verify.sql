@@ -690,7 +690,7 @@ VALUES
    '[{"name":"ROSEMARY SERUM","qty":2},{"name":"Vitamin C Serum","qty":1},{"name":"Untracked add-on","qty":50}]'::jsonb),
   ('30000000-0000-0000-0000-000000000002', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
    '[{"name":"Rosemary Oil","qty":500},{"name":"Vitamin C Serum","qty":1}]'::jsonb),
-  ('30000000-0000-0000-0000-000000000003', 'pending', 'moon', 'lowes', NULL, 'Seller Syria',
+  ('30000000-0000-0000-0000-000000000003', 'pending', 'uae', 'lowes', NULL, 'Seller Syria',
    '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
   ('30000000-0000-0000-0000-000000000004', 'pending', 'turkey', 'lowes', 'star_network', NULL,
    '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
@@ -957,7 +957,9 @@ END
 $order_market_fallback$;
 COMMIT;
 
-\echo 'Checking missing-market warehouse and malformed item quantity fail atomically...'
+\echo 'Checking missing active market warehouse and malformed item quantity fail atomically...'
+UPDATE inventory_rehearsal.wh_warehouses SET is_active = false
+WHERE id = '10000000-0000-0000-0000-000000000005';
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
