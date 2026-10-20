@@ -168,7 +168,7 @@ BEGIN
 
   IF v_warehouse_type = 'central' THEN
     v_permission := 'manage_central_stock';
-  ELSIF v_warehouse_type = 'sales' THEN
+  ELSIF v_warehouse_type IN ('sales', 'wholesale', 'distributor', 'returns') THEN
     v_permission := 'manage_sales_stock';
   ELSE
     RETURN false;
