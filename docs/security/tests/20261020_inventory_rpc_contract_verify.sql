@@ -665,4 +665,346 @@ COMMIT;
 DROP TRIGGER rehearsal_fail_stock_adjustment_audit ON inventory_rehearsal.wh_movements;
 DROP FUNCTION inventory_rehearsal.fail_stock_adjustment_audit_when_requested();
 
-\echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
+\echo 'Preparing synthetic order fixtures for atomic stock lifecycle tests...'
+TRUNCATE inventory_rehearsal.wh_movements;
+TRUNCATE inventory_rehearsal.orders;
+
+INSERT INTO inventory_rehearsal.wh_stock AS fixture_stock
+  (warehouse_id, product_id, quantity, updated_at)
+VALUES
+  ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 20, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 5, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 8, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 9, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000001', 6, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 10, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', 4, pg_catalog.now()),
+  ('10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000002', 3, pg_catalog.now())
+ON CONFLICT (warehouse_id, product_id)
+DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = pg_catalog.now();
+
+INSERT INTO inventory_rehearsal.orders
+  (id, status, market, brand, source, handler_name, items)
+VALUES
+  ('30000000-0000-0000-0000-000000000001', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"ROSEMARY SERUM","qty":2},{"name":"Vitamin C Serum","qty":1},{"name":"Untracked add-on","qty":50}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000002', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":500},{"name":"Vitamin C Serum","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000003', 'pending', 'moon', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000004', 'pending', 'turkey', 'lowes', 'star_network', NULL,
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000005', 'pending', 'uae', 'lowes', 'uae_sheet_import', NULL,
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000006', 'pending', 'syria', 'strong', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000007', 'pending', 'turkey', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000008', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":"bad"}]'::jsonb);
+
+\echo 'Checking order-manager role can reserve trusted persisted order items without stock-write permission...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'preparing'
+);
+RESET ROLE;
+DO $order_reserve_success$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000001') <> 'preparing'
+     OR (SELECT updated_by FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000001') <> 'Order Manager'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 6
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 3
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000001' AND type = 'reserve') <> 2
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000001' AND type <> 'reserve') THEN
+    RAISE EXCEPTION 'FAIL: order transition did not reserve matched items and attribute the trusted actor';
+  END IF;
+END
+$order_reserve_success$;
+COMMIT;
+
+\echo 'Checking repeated status updates are idempotent and deducted-to-deducted transitions do not reserve twice...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000007', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'preparing'
+);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'shipped'
+);
+RESET ROLE;
+DO $order_idempotent$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000001') <> 'shipped'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 6
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 3
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000001') <> 2 THEN
+    RAISE EXCEPTION 'FAIL: repeated or deducted-to-deducted status changed stock twice';
+  END IF;
+END
+$order_idempotent$;
+COMMIT;
+
+\echo 'Checking waiting/cancelled transitions release the net reserved amounts and allow a later re-reserve...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'waiting'
+);
+RESET ROLE;
+DO $order_release$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000001' AND type = 'release') <> 2 THEN
+    RAISE EXCEPTION 'FAIL: order release did not return the reserved net quantities';
+  END IF;
+END
+$order_release$;
+COMMIT;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'preparing'
+);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000001', 'cancelled'
+);
+RESET ROLE;
+DO $order_reentry$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000001' AND type = 'reserve') <> 4
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000001' AND type = 'release') <> 4
+     OR EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id = '30000000-0000-0000-0000-000000000001'
+       GROUP BY product_id, COALESCE(from_warehouse_id, to_warehouse_id)
+       HAVING SUM(CASE WHEN type = 'reserve' THEN quantity ELSE -quantity END) <> 0
+     ) THEN
+    RAISE EXCEPTION 'FAIL: repeated reserve/release cycles did not reconcile to zero';
+  END IF;
+END
+$order_reentry$;
+COMMIT;
+
+\echo 'Checking insufficient order stock rolls back status, every item, audit rows, and product mirror...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+DO $order_insufficient$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_transition_order_status(
+      '30000000-0000-0000-0000-000000000002', 'preparing'
+    );
+    RAISE EXCEPTION 'FAIL: order with insufficient stock advanced into preparing';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: insufficient order stock rejected';
+  END;
+END
+$order_insufficient$;
+RESET ROLE;
+DO $order_insufficient_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000002') <> 'pending'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000002')
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <>
+        (SELECT COALESCE(SUM(quantity), 0) FROM inventory_rehearsal.wh_stock
+         WHERE product_id = '20000000-0000-0000-0000-000000000001')
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000002') <>
+        (SELECT COALESCE(SUM(quantity), 0) FROM inventory_rehearsal.wh_stock
+         WHERE product_id = '20000000-0000-0000-0000-000000000002') THEN
+    RAISE EXCEPTION 'FAIL: failed order transition left partial inventory effects';
+  END IF;
+END
+$order_insufficient_unchanged$;
+COMMIT;
+
+\echo 'Checking unauthorised/inactive users and explicit manage_orders denial cannot change order status or stock...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+DO $order_denied$
+DECLARE
+  v_subject uuid;
+BEGIN
+  FOREACH v_subject IN ARRAY ARRAY[
+    '00000000-0000-0000-0000-000000000003'::uuid,
+    '00000000-0000-0000-0000-000000000006'::uuid,
+    '00000000-0000-0000-0000-000000000009'::uuid
+  ]
+  LOOP
+    PERFORM set_config('request.jwt.claim.sub', v_subject::text, true);
+    BEGIN
+      PERFORM inventory_rehearsal.wh_transition_order_status(
+        '30000000-0000-0000-0000-000000000002', 'preparing'
+      );
+      RAISE EXCEPTION 'FAIL: caller % without effective manage_orders changed an order', v_subject;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE NOTICE 'PASS: caller % without effective manage_orders was denied', v_subject;
+    END;
+  END LOOP;
+END
+$order_denied$;
+RESET ROLE;
+DO $order_denied_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000002') <> 'pending'
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000002') THEN
+    RAISE EXCEPTION 'FAIL: unauthorised order transition changed status or movements';
+  END IF;
+END
+$order_denied_unchanged$;
+COMMIT;
+
+\echo 'Checking externally stocked sources and non-lowes brands are not double-deducted...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000004', 'preparing');
+SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000005', 'preparing');
+SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000006', 'preparing');
+RESET ROLE;
+DO $external_source_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000004') <> 'preparing'
+     OR (SELECT status FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000005') <> 'preparing'
+     OR (SELECT status FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000006') <> 'preparing'
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id IN (
+                  '30000000-0000-0000-0000-000000000004',
+                  '30000000-0000-0000-0000-000000000005',
+                  '30000000-0000-0000-0000-000000000006'
+                )) THEN
+    RAISE EXCEPTION 'FAIL: externally stocked or non-lowes order was deducted by employee app';
+  END IF;
+END
+$external_source_unchanged$;
+COMMIT;
+
+\echo 'Checking seller warehouse market mismatch falls back to the order market...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000007', 'preparing');
+RESET ROLE;
+DO $order_market_fallback$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 4
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR NOT EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id = '30000000-0000-0000-0000-000000000007'
+         AND type = 'reserve'
+         AND from_warehouse_id = '10000000-0000-0000-0000-000000000002'
+         AND product_id = '20000000-0000-0000-0000-000000000001'
+         AND performed_by = 'Order Manager'
+     ) THEN
+    RAISE EXCEPTION 'FAIL: order with cross-market seller link used the wrong stock warehouse';
+  END IF;
+END
+$order_market_fallback$;
+COMMIT;
+
+\echo 'Checking missing-market warehouse and malformed item quantity fail atomically...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+DO $order_invalid$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000003', 'preparing');
+    RAISE EXCEPTION 'FAIL: order advanced without an active warehouse for its market';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: missing market warehouse blocks stock transition';
+  END;
+
+  BEGIN
+    PERFORM inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000008', 'preparing');
+    RAISE EXCEPTION 'FAIL: malformed item quantity was accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    RAISE NOTICE 'PASS: malformed order item quantity rejected';
+  END;
+END
+$order_invalid$;
+RESET ROLE;
+DO $order_invalid_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000003') <> 'pending'
+     OR (SELECT status FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000008') <> 'pending'
+     OR EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE order_id IN ('30000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000008')
+     ) THEN
+    RAISE EXCEPTION 'FAIL: invalid order transition left status or audit changes';
+  END IF;
+END
+$order_invalid_unchanged$;
+COMMIT;
+
+\echo 'Checking order RPC privileges are narrow...'
+DO $order_acl$
+BEGIN
+  IF has_function_privilege('anon', 'inventory_rehearsal.wh_transition_order_status(uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: anon can execute order-stock transition';
+  END IF;
+  IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transition_order_status(uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: authenticated cannot execute order-stock transition';
+  END IF;
+END
+$order_acl$;
+
+\echo 'PASS: disposable inventory and order-stock lifecycle contract rehearsal complete.'
