@@ -1,0 +1,53 @@
+name: Edge Function CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/_shared/pinRateLimit.js'
+      - 'test-pin-rate-limit.mjs'
+      - '.github/workflows/edge-functions-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/_shared/pinRateLimit.js'
+      - 'test-pin-rate-limit.mjs'
+      - '.github/workflows/edge-functions-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-function-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js for npm compatibility
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked npm dependencies for Deno node_modules resolution
+        run: npm ci
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
+      # Type-check this function's source without traversing all upstream type declarations.
+      # @supabase/auth-js has separate WebAuthn DOM declarations unavailable in this Edge Worker check.
+      - name: Type-check verify-pin Edge Function source
+        run: deno check supabase/functions/verify-pin/index.ts
+
+      - name: Run PIN rate-limit helper behavior tests
+        run: deno run test-pin-rate-limit.mjs
