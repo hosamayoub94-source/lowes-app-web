@@ -7,6 +7,7 @@
 // Deploy: supabase functions deploy verify-pin --no-verify-jwt
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { checkPinRateLimit } from '../_shared/pinRateLimit.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -33,6 +34,23 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
     );
+
+    // Opt-in only: enable after the matching SQL candidate is reviewed and applied.
+    // Missing/invalid limiter configuration or RPC failure blocks login when enabled.
+    const rateLimitDecision = await checkPinRateLimit({
+      request: req,
+      employeeName,
+      client: supabase,
+      env: { get: (name: string) => Deno.env.get(name) },
+    });
+    if (!rateLimitDecision.allowed) {
+      if (rateLimitDecision.reason === 'unavailable') {
+        console.error('[verify-pin] rate limiter unavailable');
+        return json({ ok: false, error: 'server_error' }, 503);
+      }
+      // Keep throttling indistinguishable from a wrong PIN to unauthenticated clients.
+      return json({ ok: false, error: 'wrong_pin' }, 200);
+    }
 
     const { data: profile, error } = await supabase
       .from('profiles')
