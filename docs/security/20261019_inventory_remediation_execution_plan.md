@@ -391,3 +391,23 @@ The read-only aggregate query is stored at `docs/security/queries/20261020_order
 4. Do not auto-create reserve movements, release stock, clamp negative balances, or update historic orders from the exploratory under/over counts.
 
 This finding narrows the next safe step: first establish the correct cohort and product matching contract; only then can the movement ledger be used to produce a reviewed correction candidate.
+
+
+### Auth-session readiness recheck — read-only, 2026-10-20
+
+A fresh read-only aggregate against `lowes-attendance` reconfirmed the key Phase 0 counts:
+
+| Check | Current result |
+|---|---:|
+| Active profiles | 36 |
+| Active profiles with matching `auth.users.id = profiles.id` | 35 |
+| Active profiles with no matching Auth identity | 1 |
+| Matching Auth identities with `last_sign_in_at` in the last 30 days | 24 |
+| `activity_logs` entries with `action_type='login'` and `metadata.mode='manual_session'` in the last 30 days | 72 |
+| Distinct users represented by those manual-session login entries | 10 |
+| Latest matching manual-session login event | 2026-10-19 19:12:34 UTC |
+| `login_failed` events in the last 30 days | 57 |
+
+The manual-session number above uses an explicit, reproducible filter on `action_type='login'` and `metadata.mode='manual_session'`; an earlier broader audit summary recorded 76. Treat 72 as the count for this exact filter, not as proof that four historical events were removed. No usernames, IP values, PINs, passwords, device strings, or raw event metadata were fetched by this query.
+
+**Release consequence is unchanged:** the fallback is still in active use by 10 distinct users in the query window. A production `auth.uid()` gate or anon privilege revocation is not safe until the missing Auth identity is handled and current manual-session users have a tested, supported path to obtain real Auth sessions. Do not reset credentials or disable fallback based on aggregate counts alone.
