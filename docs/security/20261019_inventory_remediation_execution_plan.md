@@ -311,3 +311,10 @@ A status-only RPC is insufficient for safe production cutover. The future server
 7. Migrate every caller before revoking legacy access: individual status change, batch advance, order create/edit save, soft delete/cancel, restore, order-sheet integrations, and shipping tracker Edge Functions that can update order status. For externally stocked sources, status changes must not create a second deduction, and edits from/from-exempt sources must release any stale prior reservation as defined by the contract.
 
 Before this contract reaches production, Phase 0 still has to establish real Supabase Auth sessions for current manual-session users. No production SQL/RLS/grant/credential changes or runtime deploy are authorized by the fixture PRs.
+
+
+### External and browser order writers inventoried — 2026-10-20
+
+The source-level writer matrix is now recorded in `docs/security/20261020_order_status_writer_cutover_matrix.md`. It confirms that an order-status cutover cannot update only `OrdersScreen`: `sheet-to-app`, Star Network mirroring, and carrier-tracking Edge Functions can also write the persisted order row. In particular, carrier or sheet updates from a deducted state into `returning`, `not_received`, or `cancelled` do not currently run inventory reconciliation in the same transaction. Those server-role writers need a narrowly defined integration contract as well as the user-scoped Auth RPC; service-role calls should not be passed through an `auth.uid()`-only function without a separate trusted caller contract.
+
+Shipment-creation functions were reviewed separately and their inspected write snippets update tracking/cargo metadata rather than status. The sheet and carrier writers need explicit allowlists so a metadata-only operation does not automatically gain stock mutation authority. The new matrix is a static map of source code; it does not prove every deployed Edge Function version matches the repository, and it changes no production behavior.
