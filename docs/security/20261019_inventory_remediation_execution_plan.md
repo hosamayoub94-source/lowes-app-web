@@ -230,3 +230,23 @@ A fresh read-only query of the live `lowes-attendance` catalog confirmed an impo
 **Test-fixture boundary:** the disposable `inventory_rehearsal.wh_apply_stock_delta` contract deliberately rejects a delta that would result in negative stock. That passing fixture is a test of the *target* invariant, not evidence the live function currently provides it. The test/rollout report must not describe production stock as non-negative until a real migration has added the guard, checked existing data, and verified all call sites against the actual Supabase schema.
 
 This finding came from metadata/function-definition reads only. No production SQL, rows, grants, policies, Auth identities, or credentials were changed.
+
+
+### Current live stock integrity snapshot (read-only, 2026-10-20)
+
+A follow-up aggregate over `public.wh_stock`, `public.products`, and `public.wh_movements` found that this is not only a theoretical risk:
+
+| Read-only check | Current result |
+|---|---:|
+| Rows in `wh_stock` | 155 |
+| Stock rows with negative quantity | 32 |
+| Sum of the negative quantities | -4,333 |
+| Products whose net warehouse total is negative | 4 |
+| Product rows whose `quantity` differs from summed warehouse stock | 0 |
+| Stock rows at exactly zero | 9 |
+| Historical `reserve` movements | 9,085 |
+| Historical `release` movements | 712 |
+
+The quantity mirror is currently internally consistent (zero mismatches), but that does **not** mean the stock ledger is healthy: both `wh_stock.quantity` and the corresponding `products.quantity` can match while remaining negative. The audit did not read product names, customer/order payloads, PINs, credentials, or individual movement records.
+
+**Remediation warning:** do not automatically clamp negative balances to zero and do not mass-reverse historical movements. First create a per-warehouse/product reconciliation report from opening quantities, reserve/release movements, transfers, write-offs, and physical counts; identify which entries explain the negative totals; get the owner to approve adjustments; then apply a separate audited correction with a rollback plan. Until that reconciliation is complete, the report should describe these as live negative balances, not merely as a potential bypass.
