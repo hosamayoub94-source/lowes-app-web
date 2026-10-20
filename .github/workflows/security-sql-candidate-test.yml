@@ -99,6 +99,9 @@ jobs:
       - name: Test concurrent order reservations and transfers cannot oversell
         run: bash docs/security/tests/20261020_order_transfer_race.sh
 
+      - name: Test concurrent preparing/cancelled transitions reconcile net reservation
+        run: bash docs/security/tests/20261020_order_status_race.sh
+
       - name: Prepare disposable PIN rate-limit fixture
         run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261020_pin_rate_limit_setup.sql
 
