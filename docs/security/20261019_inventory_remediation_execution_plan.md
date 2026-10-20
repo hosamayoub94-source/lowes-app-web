@@ -260,3 +260,28 @@ The negative balances are concentrated in two market/type groups:
 A separate aggregate linked movements to those negative product/warehouse pairs: 4,227 reserve rows, 221 release rows, 25 adjustment rows and 2 allocation rows were associated with the affected pairs. This is a **related-history count**, not yet a causal attribution; movement records can predate the current negative balance and the present adjustment movement format does not reliably preserve signed deltas.
 
 **Remediation warning:** do not automatically clamp negative balances to zero and do not mass-reverse historical movements. First create a per-warehouse/product reconciliation report from opening quantities, reserve/release movements, transfers, write-offs, and physical counts; identify which entries explain the negative totals; get the owner to approve adjustments; then apply a separate audited correction with a rollback plan. Until that reconciliation is complete, the report should describe these as live negative balances, not merely as a potential bypass.
+
+
+### Additional live P0: outstanding order reservations do not consistently match persisted order state (read-only, 2026-10-20)
+
+A second read-only reconciliation grouped `reserve` and `release` movements by order/product/warehouse and compared the positive net reservation with the persisted `orders.status`, current brand/source exceptions, and current stock row. It returned no customer names, phone numbers, addresses, order IDs, or payloads.
+
+**Observed snapshot:**
+
+| Reservation-ledger category | Orders / orphan order IDs | Product/warehouse reservation lines | Net reserved units | Lines at negative stock | Net reserved units on negative positions |
+|---|---:|---:|---:|---:|---:|
+| Status no longer requires a stock deduction | 114 | 316 | 379 | 211 | 268 |
+| Brand/source normally excluded from this stock path, but reservation remains | 20 | 56 | 88 | 37 | 56 |
+| Movement references an order ID with no matching current `orders` row | 1 | 1 | 1 | 0 | 0 |
+| Regular brand/source with a deducted status | 3,017 | 7,978 | 9,657 | 3,752 | 4,570 |
+
+In this app, physical stock is intended to be “out” only for `preparing`, `ready`, `motor_prep`, `at_center`, `shipped`, `on_way`, `special_delivery`, `motor`, `prepaid`, `delivered`, and `settled`. The first row includes persisted orders in states such as `cancelled`, `returning`, `returned`, `not_received`, and `waiting` that still have a positive reserve-minus-release ledger. The exemption row includes orders whose current brand is not Lowe's or whose source uses an externally managed stock path, despite the existing app contract intending to skip those.
+
+These are **ledger/state discrepancies requiring reconciliation**, not a ready-made correction list. Possible explanations include failed or skipped best-effort client reconciliation, status edits made through a path that did not finish stock synchronization, historical order brand/source changes, or old/incomplete movement history. The aggregate does not prove which explanation applies to an individual row. Do not blindly release 379 units, reverse 88 units, or delete orphaned movements without verifying each affected order/item/warehouse history.
+
+Read-only drilldown query:
+- `docs/security/queries/20261020_order_reservation_reconciliation_readonly.sql`
+
+**Implementation consequence:** the production order status change and stock reservation/release must be one server-side transaction over the persisted order row. It must lock the order and relevant stock rows, derive the target reserved state from persisted market/status/brand/source/items, write matching audit movements in that same transaction, and reject an invalid transition without changing either status or stock. All single, batch, edit/save, cancel, soft-delete, and restore paths need a reviewed migration plan. The client currently calls status updates and `syncOrderStock()` separately; the latter catches exceptions, so a status update can complete while inventory reconciliation fails.
+
+**Safety boundary:** all figures above are read-only aggregates over production. No status, stock, movement, permission, RLS, grant, Auth identity, or credential was changed.
