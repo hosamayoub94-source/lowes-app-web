@@ -364,3 +364,30 @@ Those flags overlap and must not be added together. The archived/deleted bucket 
 **New regression coverage in the current test branch:** the disposable fixture now removes its artificial `CHECK(quantity >= 0)` from `inventory_rehearsal.wh_stock`, matching the live table's relevant constraint shape. The target `wh_apply_stock_delta` contract is then tested to ensure a negative delta against a missing row fails before a stock row, movement record or derived product quantity can change. This test matters because retaining an artificial table CHECK would hide the exact production bypass. It tests a future safe contract only; the live function and production data remain unchanged.
 
 **Rollout remains blocked.** Do not deploy a function change or revoke anon execution in isolation while the manual-session fallback still exists. Do not clamp negative balances, auto-release historical reservations, or mass-reverse movements. First establish authenticated caller readiness, switch each trusted stock/order writer through its reviewed transaction boundary, reconcile historic stock against physical counts and source records, and obtain approval for each separately audited correction.
+
+
+### Exploratory order-item vs reservation comparison — cohort boundary required (read-only, 2026-10-20)
+
+A further read-only comparison matched persisted `orders.items` (using the current product-name normalization and the five documented aliases) to `products`, calculated the reservation target implied by current order status/brand/source, and compared that map to the reserve-minus-release ledger by order/product/warehouse. It returned aggregates only, with no order IDs or customer payloads:
+
+| Exploratory metric | Orders / IDs | Product/warehouse lines | Units / lines |
+|---|---:|---:|---:|
+| Expected reservation exceeds current ledger | 17,768 | 33,405 | 44,045 units |
+| Current ledger exceeds expected reservation | 166 | 425 | 524 units |
+| Reservation movement references an absent current order row | 24 | 32 | 1 net unit |
+| Positive-status orders with matched stock items but no resolved source warehouse | 0 | — | — |
+| Item lines that do not match the current product catalog or aliases | — | 4,703 | — |
+| Item lines with non-integer/missing-as-invalid quantities in the exploratory parser | — | 7 | — |
+
+**Do not use these figures as a correction list.** The comparison currently has no validated cutover cohort that distinguishes orders created before warehouse tracking was operational from orders that should have acquired inventory movements. A separate read-only `created_at` distribution showed 31,811 rows timestamped between 2026-06-03 and 2026-06-09; 31,697 of those rows currently have a status in the deducted set, but only 101 have any linked `reserve` movement. The first recorded `reserve` movement in the database is 2026-06-03 17:59:45 UTC. This pattern suggests that `orders.created_at` may reflect a bulk import/backfill for older orders or another initialization event; the aggregate alone cannot prove the reason.
+
+The read-only aggregate query is stored at `docs/security/queries/20261020_order_item_reservation_diff_readonly.sql` so its assumptions can be reviewed and rerun against the intended project. The 44,045-unit under-reservation figure therefore mixes likely historical/untracked orders with real possible gaps. Likewise, 4,703 item lines not matched by the present catalog rules are not automatically errors: the app explicitly ignores untracked add-ons, and the current name/alias mapping is not a formally versioned inventory classification. The normalization in this exploratory query is a read-only approximation of the current JavaScript matcher, not proof of exact equivalence for every Unicode/product-name edge case.
+
+**Required next diagnostic gate before history correction:**
+
+1. Determine the approved inventory-tracking start time / cohort from deployment and business records, not from the first observed movement alone.
+2. Validate item-name matching against a reviewed set of real tracked products and intentional untracked add-ons without exporting customer payloads.
+3. Rerun the grouped comparison only for the approved cohort and keep its output at aggregate level until the owner authorizes a per-order/product/warehouse review.
+4. Do not auto-create reserve movements, release stock, clamp negative balances, or update historic orders from the exploratory under/over counts.
+
+This finding narrows the next safe step: first establish the correct cohort and product matching contract; only then can the movement ledger be used to produce a reviewed correction candidate.
