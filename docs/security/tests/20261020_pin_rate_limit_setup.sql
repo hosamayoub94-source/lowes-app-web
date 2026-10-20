@@ -97,7 +97,7 @@ BEGIN
         END,
         attempts = CASE
           WHEN bucket.window_start = EXCLUDED.window_start
-            THEN pg_catalog.least(bucket.attempts + 1, p_source_limit + 1)
+            THEN LEAST(bucket.attempts + 1, p_source_limit + 1)
           ELSE 1
         END
   RETURNING attempts INTO v_source_attempts;
