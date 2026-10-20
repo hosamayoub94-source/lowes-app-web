@@ -12,7 +12,7 @@ For each request, the function obtains transaction-scoped advisory locks for the
 - anon cannot execute the function or read the backing table;
 - account limits are not bypassed by changing source hashes;
 - source limits are not bypassed by changing account hashes;
-- old fixed windows reset;
+- old fixed windows reset, and stale rows are removed opportunistically under a non-blocking cleanup lock (up to 500 per call);
 - invalid configurations and un-hashed input identifiers are rejected;
 - concurrent independent PostgreSQL sessions with the same account produce exactly five allowed requests and nineteen denials when the test limit is five.
 
@@ -20,12 +20,12 @@ The limits used in these tests are **test values only**, not a final recommendat
 
 ## Integration requirements before this becomes a real login control
 
-1. **No deploy from this fixture alone.** The fixture is deliberately isolated and does not yet modify the Edge Function or the production schema.
+1. **No deploy from this fixture alone.** The SQL candidate is exercised only against the disposable database; it is not a production migration and does not modify the Edge Function or production schema.
 2. **Use a server-only key.** The Edge Function should call the rate-limit RPC using its server-held secret/service-role client. The browser must never be able to call the limiter RPC or read its counters. Fail closed with a stable server error if the limiter cannot be reached; do not continue PIN verification without a successful limiter decision.
 3. **Hash with a server-side pepper.** Generate the account and source hashes inside the Edge Function using HMAC-SHA-256 and a dedicated secret, not a plain hash of predictable employee names or IP addresses. Do not log the input or hashes.
 4. **Verify the source-address contract.** Only use a gateway-managed client IP header that has been confirmed in the deployed Supabase path. Do not accept a caller-controlled X-Forwarded-For value as authoritative. This must be tested in the actual Edge Function environment before release. If a trustworthy source identity cannot be derived, document that limitation and do not claim source-level limiting is in force.
 5. **Agree on thresholds and response behavior.** The implementation must decide and document account/source windows, limits, cooldown, response status, and support recovery. Use a generic unauthenticated response for unknown/inactive account, wrong PIN, and throttling where practical so the endpoint does not become an account-state oracle.
-6. **Choose the window model consciously.** This fixture uses fixed windows; requests around a window boundary can burst across two windows. A sliding-window or token-bucket implementation may be required if the risk assessment demands stricter burst control.
+6. **Choose the window model consciously.** This candidate uses fixed windows; requests around a window boundary can burst across two windows. A sliding-window or token-bucket implementation may be required if the risk assessment demands stricter burst control. The opportunistic cleanup is bounded, but production still needs monitoring of row growth and cleanup effectiveness.
 7. **Keep behavior change separate from credential reconciliation.** Rate limiting must not reset existing Auth passwords or disable the local-session fallback by itself. Validate the exact client expectations and recovery path independently.
 
 ## Release gate
