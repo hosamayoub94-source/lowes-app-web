@@ -29,6 +29,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js for npm compatibility
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked npm dependencies for Deno node_modules resolution
+        run: npm ci
+
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
