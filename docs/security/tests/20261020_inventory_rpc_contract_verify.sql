@@ -23,9 +23,13 @@ BEGIN
      OR has_function_privilege('anon', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'FAIL: anon can execute a stock-mutation RPC';
   END IF;
+  IF has_function_privilege('anon', 'inventory_rehearsal.wh_set_stock_quantity(uuid,uuid,integer,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: anon can execute exact-count stock adjustment';
+  END IF;
   IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
-     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
-    RAISE EXCEPTION 'FAIL: authenticated lacks the intended narrow RPC EXECUTE grants';
+     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_set_stock_quantity(uuid,uuid,integer,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: authenticated lacks the intended narrow inventory RPC EXECUTE grants';
   END IF;
 END
 $acl$;
@@ -111,6 +115,16 @@ BEGIN
     RAISE EXCEPTION 'FAIL: anon invoked transfer_stock';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: anon transfer RPC denied';
+  END;
+
+  BEGIN
+    PERFORM inventory_rehearsal.wh_set_stock_quantity(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 99, 'anon attempt'
+    );
+    RAISE EXCEPTION 'FAIL: anon invoked exact-count stock adjustment';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: anon exact-count adjustment RPC denied';
   END;
 END
 $anon$;
@@ -491,5 +505,164 @@ BEGIN
   END IF;
 END
 $permission_matrix_unchanged$;
+
+\echo 'Checking exact-count adjustment is atomic and keeps product quantity in sync...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT inventory_rehearsal.wh_set_stock_quantity(
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 12, 'stocktake count'
+);
+RESET ROLE;
+DO $set_count_down$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 12
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 21
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 3
+     OR NOT EXISTS (
+       SELECT 1 FROM inventory_rehearsal.wh_movements
+       WHERE type = 'adjust' AND quantity = 12 AND reason = 'stocktake count'
+         AND performed_by = '00000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'FAIL: exact-count adjustment down did not keep stock, audit, and product mirror together';
+  END IF;
+END
+$set_count_down$;
+COMMIT;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT inventory_rehearsal.wh_set_stock_quantity(
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 18, 'recount after receipt'
+);
+RESET ROLE;
+DO $set_count_up$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 18
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 27
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 4 THEN
+    RAISE EXCEPTION 'FAIL: exact-count adjustment up did not keep stock, audit, and product mirror together';
+  END IF;
+END
+$set_count_up$;
+COMMIT;
+
+\echo 'Checking zero is a valid exact stock count, but negative counts are rejected...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT inventory_rehearsal.wh_set_stock_quantity(
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 0, 'counted empty'
+);
+DO $negative_exact_count$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_set_stock_quantity(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', -1, 'invalid negative count'
+    );
+    RAISE EXCEPTION 'FAIL: exact-count adjustment accepted a negative quantity';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    RAISE NOTICE 'PASS: negative exact count denied';
+  END;
+END
+$negative_exact_count$;
+RESET ROLE;
+DO $zero_count_unchanged$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 0
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 5 THEN
+    RAISE EXCEPTION 'FAIL: zero/negative exact-count tests left unexpected stock or audit rows';
+  END IF;
+END
+$zero_count_unchanged$;
+COMMIT;
+
+\echo 'Checking exact-count adjustment rejects a session without auth.uid()...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+DO $exact_no_identity$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_set_stock_quantity(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 7, 'no identity'
+    );
+    RAISE EXCEPTION 'FAIL: exact-count adjustment accepted a caller without auth.uid()';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: exact-count adjustment without Auth identity denied';
+  END;
+END
+$exact_no_identity$;
+RESET ROLE;
+COMMIT;
+
+\echo 'Checking audit-write failure rolls back exact-count adjustment...'
+CREATE OR REPLACE FUNCTION inventory_rehearsal.fail_stock_adjustment_audit_when_requested()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, inventory_rehearsal
+AS $fail_adjust_audit$
+BEGIN
+  IF current_setting('inventory_rehearsal.fail_adjust_audit', true) = 'on' THEN
+    RAISE EXCEPTION 'forced exact-adjustment audit failure' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$fail_adjust_audit$;
+
+CREATE TRIGGER rehearsal_fail_stock_adjustment_audit
+BEFORE INSERT ON inventory_rehearsal.wh_movements
+FOR EACH ROW EXECUTE FUNCTION inventory_rehearsal.fail_stock_adjustment_audit_when_requested();
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT set_config('inventory_rehearsal.fail_adjust_audit', 'on', true);
+DO $exact_audit_rollback$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_set_stock_quantity(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 7, 'must roll back'
+    );
+    RAISE EXCEPTION 'FAIL: exact-count adjustment succeeded when audit insert failed';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: audit failure rejected exact-count adjustment';
+  END;
+END
+$exact_audit_rollback$;
+RESET ROLE;
+DO $exact_audit_unchanged$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 0
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 5 THEN
+    RAISE EXCEPTION 'FAIL: exact-count audit failure changed stock, product mirror, or audit history';
+  END IF;
+END
+$exact_audit_unchanged$;
+COMMIT;
+
+DROP TRIGGER rehearsal_fail_stock_adjustment_audit ON inventory_rehearsal.wh_movements;
+DROP FUNCTION inventory_rehearsal.fail_stock_adjustment_audit_when_requested();
 
 \echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
