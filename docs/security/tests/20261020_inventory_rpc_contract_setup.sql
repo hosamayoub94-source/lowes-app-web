@@ -28,13 +28,17 @@ CREATE TABLE inventory_rehearsal.profiles (
   role_type text NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
   extra_permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
-  denied_permissions jsonb NOT NULL DEFAULT '[]'::jsonb
+  denied_permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  employee_name text,
+  warehouse_id uuid
 );
 
 CREATE TABLE inventory_rehearsal.products (
   id uuid PRIMARY KEY,
   is_active boolean NOT NULL DEFAULT true,
-  quantity integer NOT NULL DEFAULT 0
+  quantity integer NOT NULL DEFAULT 0,
+  name text,
+  name_en text
 );
 
 CREATE TABLE inventory_rehearsal.wh_warehouses (
@@ -67,26 +71,51 @@ CREATE TABLE inventory_rehearsal.wh_movements (
   reverses_id uuid
 );
 
-INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permissions, denied_permissions) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'admin', true, '[]'::jsonb, '["manage_central_stock","manage_sales_stock"]'::jsonb),
-  ('00000000-0000-0000-0000-000000000002', 'warehouse_manager', true, '[]'::jsonb, '[]'::jsonb),
-  ('00000000-0000-0000-0000-000000000003', 'employee', true, '[]'::jsonb, '[]'::jsonb),
-  ('00000000-0000-0000-0000-000000000004', 'manager', true, '[]'::jsonb, '["manage_central_stock"]'::jsonb),
-  ('00000000-0000-0000-0000-000000000005', 'employee', true, '["manage_central_stock"]'::jsonb, '[]'::jsonb),
-  ('00000000-0000-0000-0000-000000000006', 'employee', false, '["manage_central_stock","manage_sales_stock"]'::jsonb, '[]'::jsonb),
-  ('00000000-0000-0000-0000-000000000007', 'sales_manager', true, '[]'::jsonb, '[]'::jsonb),
-  ('00000000-0000-0000-0000-000000000008', 'warehouse_manager', true, '[]'::jsonb, '["manage_sales_stock"]'::jsonb);
+INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permissions, denied_permissions, employee_name, warehouse_id) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'admin', true, '[]'::jsonb, '["manage_central_stock","manage_sales_stock"]'::jsonb, 'Fixture Admin', NULL),
+  ('00000000-0000-0000-0000-000000000002', 'warehouse_manager', true, '[]'::jsonb, '[]'::jsonb, 'Seller Syria', '10000000-0000-0000-0000-000000000003'),
+  ('00000000-0000-0000-0000-000000000003', 'employee', true, '[]'::jsonb, '[]'::jsonb, 'Ordinary Employee', NULL),
+  ('00000000-0000-0000-0000-000000000004', 'manager', true, '[]'::jsonb, '["manage_central_stock"]'::jsonb, 'Order Manager', NULL),
+  ('00000000-0000-0000-0000-000000000005', 'employee', true, '["manage_central_stock"]'::jsonb, '[]'::jsonb, 'Central Stock Employee', NULL),
+  ('00000000-0000-0000-0000-000000000006', 'employee', false, '["manage_central_stock","manage_sales_stock","manage_orders"]'::jsonb, '[]'::jsonb, 'Inactive Employee', NULL),
+  ('00000000-0000-0000-0000-000000000007', 'sales_manager', true, '[]'::jsonb, '[]'::jsonb, 'Sales Manager', NULL),
+  ('00000000-0000-0000-0000-000000000008', 'warehouse_manager', true, '[]'::jsonb, '["manage_sales_stock"]'::jsonb, 'Denied Warehouse Manager', NULL),
+  ('00000000-0000-0000-0000-000000000009', 'manager', true, '[]'::jsonb, '["manage_orders"]'::jsonb, 'Orders Denied Manager', NULL);
 
 INSERT INTO inventory_rehearsal.wh_warehouses (id, type, market, is_active) VALUES
   ('10000000-0000-0000-0000-000000000001', 'central', 'turkey', true),
   ('10000000-0000-0000-0000-000000000002', 'sales', 'turkey', true),
-  ('10000000-0000-0000-0000-000000000003', 'distributor', 'syria', true);
+  ('10000000-0000-0000-0000-000000000003', 'distributor', 'syria', true),
+  ('10000000-0000-0000-0000-000000000004', 'sales', 'syria', true),
+  ('10000000-0000-0000-0000-000000000005', 'sales', 'uae', true);
 
-INSERT INTO inventory_rehearsal.products (id, is_active)
-VALUES ('20000000-0000-0000-0000-000000000001', true);
+INSERT INTO inventory_rehearsal.products (id, is_active, name, name_en)
+VALUES
+  ('20000000-0000-0000-0000-000000000001', true, 'Rosemary Oil', 'Rosemary Oil'),
+  ('20000000-0000-0000-0000-000000000002', true, 'Vitamin C Serum', 'Vitamin C Serum');
 
 -- Mirror the live trg_wh_stock_sync dependency: products.quantity is derived from
 -- the sum of wh_stock and must remain correct after authorized mutations.
+CREATE TABLE inventory_rehearsal.orders (
+  id uuid PRIMARY KEY,
+  status text NOT NULL,
+  market text NOT NULL,
+  brand text,
+  source text,
+  handler_name text,
+  items jsonb,
+  updated_by text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE inventory_rehearsal.product_aliases (
+  alias_norm text PRIMARY KEY,
+  product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id)
+);
+
+INSERT INTO inventory_rehearsal.product_aliases (alias_norm, product_id)
+VALUES ('rosemaryserum', '20000000-0000-0000-0000-000000000001');
+
 CREATE OR REPLACE FUNCTION inventory_rehearsal.sync_product_quantity()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -114,6 +143,9 @@ FOR EACH ROW EXECUTE FUNCTION inventory_rehearsal.sync_product_quantity();
 INSERT INTO inventory_rehearsal.wh_stock (warehouse_id, product_id, quantity) VALUES
   ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 20),
   ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 5);
+ 
+-- Seed order workflows use only synthetic fixture rows; extra warehouse stock is
+-- intentionally added later in the order-specific tests, after the core ACL tests.
 
 ALTER TABLE inventory_rehearsal.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_rehearsal.products ENABLE ROW LEVEL SECURITY;
