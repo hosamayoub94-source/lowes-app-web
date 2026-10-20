@@ -1,6 +1,6 @@
 # PIN attempt limiter — disposable PostgreSQL contract
 
-**Status:** CI rehearsal contract only; not a production migration or live control.  
+**Status:** CI rehearsal contract plus an opt-in source integration path; not a production migration or active live control.  
 **Cost:** uses the existing ephemeral PostgreSQL 17 service in GitHub Actions. No Supabase branch/project or external rate-limit service is needed.
 
 ## What the fixture proves
@@ -20,10 +20,10 @@ The limits used in these tests are **test values only**, not a final recommendat
 
 ## Integration requirements before this becomes a real login control
 
-1. **No deploy from this fixture alone.** The SQL candidate is exercised only against the disposable database; it is not a production migration and does not modify the Edge Function or production schema.
-2. **Use a server-only key.** The Edge Function should call the rate-limit RPC using its server-held secret/service-role client. The browser must never be able to call the limiter RPC or read its counters. Fail closed with a stable server error if the limiter cannot be reached; do not continue PIN verification without a successful limiter decision.
-3. **Hash with a server-side pepper.** Generate the account and source hashes inside the Edge Function using HMAC-SHA-256 and a dedicated secret, not a plain hash of predictable employee names or IP addresses. Do not log the input or hashes.
-4. **Verify the source-address contract.** Only use a gateway-managed client IP header that has been confirmed in the deployed Supabase path. Do not accept a caller-controlled X-Forwarded-For value as authoritative. This must be tested in the actual Edge Function environment before release. If a trustworthy source identity cannot be derived, document that limitation and do not claim source-level limiting is in force.
+1. **No production enablement yet.** The SQL candidate is exercised only against the disposable database; it is not a production migration. The Edge Function source now has a guarded integration path, but it is opt-in and is not deployed. With `PIN_RATE_LIMIT_ENABLED` missing or not equal to `true`, the legacy login flow continues without calling the limiter. Do not enable the flag until the candidate has been turned into a reviewed migration and applied, and the request source header is verified in the live Edge Function environment.
+2. **Use a server-only key.** The Edge Function calls the rate-limit RPC using its server-held secret/service-role client when the feature flag is explicitly enabled. The browser must never be able to call the limiter RPC or read its counters. Fail closed with a stable server error if the limiter cannot be reached; do not continue PIN verification without a successful limiter decision.
+3. **Hash with a server-side pepper.** The opt-in helper generates account and source hashes inside the Edge Function using HMAC-SHA-256 and a dedicated secret, not a plain hash of predictable employee names or IP addresses. Do not log the input or hashes.
+4. **Verify the source-address contract.** The opt-in helper uses only `cf-connecting-ip` and does not fall back to `X-Forwarded-For`. Only enable it after confirming the gateway-managed client IP header is populated and trustworthy in this project's deployed Supabase path. If a trustworthy source identity cannot be derived, document that limitation and do not claim source-level limiting is in force.
 5. **Agree on thresholds and response behavior.** The implementation must decide and document account/source windows, limits, cooldown, response status, and support recovery. Use a generic unauthenticated response for unknown/inactive account, wrong PIN, and throttling where practical so the endpoint does not become an account-state oracle.
 6. **Choose the window model consciously.** This candidate uses fixed windows; requests around a window boundary can burst across two windows. A sliding-window or token-bucket implementation may be required if the risk assessment demands stricter burst control. The opportunistic cleanup is bounded, but production still needs monitoring of row growth and cleanup effectiveness.
 7. **Keep behavior change separate from credential reconciliation.** Rate limiting must not reset existing Auth passwords or disable the local-session fallback by itself. Validate the exact client expectations and recovery path independently.
