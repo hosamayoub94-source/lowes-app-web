@@ -197,30 +197,6 @@ Deno.serve(async (req) => {
     return json({ ok: true, raw: info.raw, mapped: mapKaram(info.raw), timeline: info.timeline });
   }
 
-  // وضع تصحيح: يختبر تسجيل الدخول + بحث هاتف واحد مباشرة بلا لمس قاعدة البيانات.
-  if (body?.debugPhone) {
-    const cookie = await karamLogin();
-    if (!cookie) return json({ ok: false, error: 'login_failed' });
-    const matches = await karamSearchByPhone(cookie, String(body.debugPhone));
-    return json({ ok: true, matches });
-  }
-
-  // وضع تصحيح: تسجيل دخول واحد ثم عدّة عمليات بحث متسلسلة بنفس الجلسة (لعزل مشكلة
-  // إعادة استخدام الكوكي عبر طلبات متتالية).
-  if (Array.isArray(body?.debugPhones)) {
-    const t0 = Date.now();
-    const cookie = await karamLogin();
-    const loginMs = Date.now() - t0;
-    if (!cookie) return json({ ok: false, error: 'login_failed', loginMs });
-    const out: any[] = [];
-    for (const p of body.debugPhones) {
-      const t1 = Date.now();
-      const matches = await karamSearchByPhone(cookie, String(p));
-      out.push({ phone: p, ms: Date.now() - t1, count: matches.length });
-    }
-    return json({ ok: true, loginMs, out });
-  }
-
   let linked = 0;
   const linkResults: any[] = [];
 
