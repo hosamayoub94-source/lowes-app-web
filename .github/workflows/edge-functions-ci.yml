@@ -1,0 +1,42 @@
+name: Edge Function CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/_shared/pinRateLimit.js'
+      - 'test-pin-rate-limit.mjs'
+      - '.github/workflows/edge-functions-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/_shared/pinRateLimit.js'
+      - 'test-pin-rate-limit.mjs'
+      - '.github/workflows/edge-functions-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-function-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
+      - name: Type-check verify-pin Edge Function and imported modules
+        run: deno check --all supabase/functions/verify-pin/index.ts
+
+      - name: Run PIN rate-limit helper behavior tests
+        run: deno run test-pin-rate-limit.mjs
