@@ -69,7 +69,7 @@ transfer_qty="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT COALESCE(sum(quantity
 orphan_prepare="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM inventory_rehearsal.orders o WHERE o.status = 'preparing' AND NOT EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements m WHERE m.order_id = o.id AND m.type = 'reserve')")"
 orphan_reserve="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM inventory_rehearsal.wh_movements m JOIN inventory_rehearsal.orders o ON o.id = m.order_id WHERE m.type = 'reserve' AND o.status <> 'preparing'")"
 wrong_order_actor="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM inventory_rehearsal.wh_movements WHERE type = 'reserve' AND performed_by <> 'Order Manager'")"
-wrong_transfer_actor="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM inventory_rehearsal.wh_movements WHERE type = 'allocate' AND performed_by <> 'Seller Syria'")"
+wrong_transfer_actor="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM inventory_rehearsal.wh_movements WHERE type = 'allocate' AND performed_by <> '$TRANSFER_ACTOR_ID'")"
 product_qty="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT quantity FROM inventory_rehearsal.products WHERE id = '$PRODUCT_ID'")"
 sum_qty="$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT COALESCE(sum(quantity),0) FROM inventory_rehearsal.wh_stock WHERE product_id = '$PRODUCT_ID'")"
 
