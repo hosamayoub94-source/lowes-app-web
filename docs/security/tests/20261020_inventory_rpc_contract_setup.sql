@@ -486,9 +486,11 @@ DECLARE
   v_product_id uuid;
   v_warehouse_id uuid;
   v_should_be_out boolean;
-  v_is_reserved boolean;
   v_net record;
   v_new_qty integer;
+  v_desired_items jsonb := '{}'::jsonb;
+  v_desired_qty integer;
+  v_delta integer;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
@@ -548,49 +550,23 @@ BEGIN
     RAISE EXCEPTION 'status is not enabled for order market' USING ERRCODE = '22023';
   END IF;
 
-  -- These sources/brands manage physical stock elsewhere. Status can advance,
-  -- but the employee app must not deduct them a second time.
-  IF COALESCE(v_order.brand, 'lowes') <> 'lowes'
-     OR v_order.source IN ('star_network', 'uae_sheet_import') THEN
-    UPDATE inventory_rehearsal.orders
-    SET status = p_new_status, updated_at = pg_catalog.now(),
-        updated_by = v_actor.employee_name
-    WHERE id = p_order_id;
-    RETURN;
-  END IF;
-
+  -- Desired state is derived from persisted order status + brand/source.
+  -- If an order's brand/source changes to an externally-stocked path, old net
+  -- reservations must be released rather than silently left on the ledger.
   v_should_be_out := p_new_status IN (
     'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
     'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled'
-  );
+  ) AND COALESCE(v_order.brand, 'lowes') = 'lowes'
+    AND COALESCE(v_order.source, '') NOT IN ('star_network', 'uae_sheet_import');
 
-  IF EXISTS (
-    SELECT 1
-    FROM inventory_rehearsal.wh_movements AS m
-    WHERE m.order_id = p_order_id
-      AND m.type IN ('reserve', 'release')
-    GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
-    HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) < 0
-  ) THEN
-    RAISE EXCEPTION 'reservation ledger is inconsistent' USING ERRCODE = '23514';
-  END IF;
-
-  SELECT EXISTS (
-    SELECT 1
-    FROM inventory_rehearsal.wh_movements AS m
-    WHERE m.order_id = p_order_id
-      AND m.type IN ('reserve', 'release')
-    GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
-    HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) > 0
-  ) INTO v_is_reserved;
-
-  IF v_should_be_out AND NOT v_is_reserved THEN
-    -- Prefer the handler's linked active warehouse if its market matches;
+  IF v_should_be_out THEN
+    -- Prefer the handler's linked active warehouse when its market matches;
     -- otherwise use the active sales warehouse for this order's market.
     SELECT w.id INTO v_warehouse_id
     FROM inventory_rehearsal.profiles AS p
     JOIN inventory_rehearsal.wh_warehouses AS w ON w.id = p.warehouse_id
     WHERE p.employee_name = v_order.handler_name
+      AND p.is_active IS TRUE
       AND w.is_active IS TRUE
       AND (w.market IS NULL OR w.market = v_order.market)
     ORDER BY p.id
@@ -610,6 +586,9 @@ BEGIN
       RAISE EXCEPTION 'no active stock warehouse for order market' USING ERRCODE = '23514';
     END IF;
 
+    -- Aggregate all matched items by product ID. This makes a repeated call
+    -- reconcile exact quantities (including line edits), not merely ask whether
+    -- any positive reservation exists. Untracked add-ons remain intentionally skipped.
     FOR v_item IN
       SELECT e.value
       FROM pg_catalog.jsonb_array_elements(
@@ -619,7 +598,7 @@ BEGIN
     LOOP
       v_item_name := v_item ->> 'name';
       v_qty_text := COALESCE(NULLIF(pg_catalog.btrim(v_item ->> 'qty'), ''), '1');
-      IF v_qty_text ~ '[^0-9]' THEN
+      IF v_qty_text !~ '^[0-9]+$' THEN
         RAISE EXCEPTION 'invalid order item quantity' USING ERRCODE = '22023';
       END IF;
       v_qty := v_qty_text::integer;
@@ -653,27 +632,33 @@ BEGIN
         CONTINUE;
       END IF;
 
-      UPDATE inventory_rehearsal.wh_stock AS s
-      SET quantity = s.quantity - v_qty,
-          updated_at = pg_catalog.now()
-      WHERE s.warehouse_id = v_warehouse_id
-        AND s.product_id = v_product_id
-        AND s.quantity >= v_qty
-      RETURNING s.quantity INTO v_new_qty;
-
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'insufficient stock for order item' USING ERRCODE = '23514';
-      END IF;
-
-      INSERT INTO inventory_rehearsal.wh_movements
-        (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by, order_id)
-      VALUES
-        (v_product_id, v_warehouse_id, NULL, v_qty, 'reserve',
-         'order status: ' || p_new_status, v_actor.employee_name, p_order_id);
+      v_desired_qty := COALESCE((v_desired_items ->> v_product_id::text)::integer, 0) + v_qty;
+      v_desired_items := pg_catalog.jsonb_set(
+        v_desired_items,
+        ARRAY[v_product_id::text],
+        pg_catalog.to_jsonb(v_desired_qty),
+        true
+      );
     END LOOP;
+  END IF;
 
-  ELSIF NOT v_should_be_out AND v_is_reserved THEN
-    FOR v_net IN
+  IF EXISTS (
+    SELECT 1
+    FROM inventory_rehearsal.wh_movements AS m
+    WHERE m.order_id = p_order_id
+      AND m.type IN ('reserve', 'release')
+    GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
+    HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) < 0
+  ) THEN
+    RAISE EXCEPTION 'reservation ledger is inconsistent' USING ERRCODE = '23514';
+  END IF;
+
+  -- Compare every existing net reservation line with the desired line map.
+  -- Differences are applied in deterministic product/warehouse order so repeated
+  -- calls and order-item edits add/remove only the delta. All changes, audit rows,
+  -- and the status update remain in this transaction.
+  FOR v_net IN
+    WITH actual AS (
       SELECT m.product_id,
              COALESCE(m.from_warehouse_id, m.to_warehouse_id) AS warehouse_id,
              pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END)::integer AS quantity
@@ -681,12 +666,56 @@ BEGIN
       WHERE m.order_id = p_order_id
         AND m.type IN ('reserve', 'release')
       GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
-      HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) > 0
-      ORDER BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
-    LOOP
+    ),
+    desired AS (
+      SELECT e.key::uuid AS product_id,
+             v_warehouse_id AS warehouse_id,
+             e.value::integer AS quantity
+      FROM pg_catalog.jsonb_each_text(v_desired_items) AS e
+    ),
+    combined AS (
+      SELECT COALESCE(a.product_id, d.product_id) AS product_id,
+             COALESCE(a.warehouse_id, d.warehouse_id) AS warehouse_id,
+             COALESCE(a.quantity, 0)::integer AS actual_quantity,
+             COALESCE(d.quantity, 0)::integer AS desired_quantity
+      FROM actual AS a
+      FULL OUTER JOIN desired AS d
+        ON d.product_id = a.product_id AND d.warehouse_id = a.warehouse_id
+    )
+    SELECT c.product_id, c.warehouse_id, c.actual_quantity,
+           c.desired_quantity, c.desired_quantity - c.actual_quantity AS delta
+    FROM combined AS c
+    WHERE c.actual_quantity <> c.desired_quantity
+    ORDER BY c.product_id, c.warehouse_id
+  LOOP
+    v_delta := v_net.delta;
+
+    IF v_delta > 0 THEN
+      -- Increasing the reservation consumes only stock available inside this
+      -- transaction. Missing rows, concurrent depletion, or insufficient stock fail closed.
+      UPDATE inventory_rehearsal.wh_stock AS s
+      SET quantity = s.quantity - v_delta,
+          updated_at = pg_catalog.now()
+      WHERE s.warehouse_id = v_net.warehouse_id
+        AND s.product_id = v_net.product_id
+        AND s.quantity >= v_delta
+      RETURNING s.quantity INTO v_new_qty;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'insufficient stock for order reconciliation' USING ERRCODE = '23514';
+      END IF;
+
+      INSERT INTO inventory_rehearsal.wh_movements
+        (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by, order_id)
+      VALUES
+        (v_net.product_id, v_net.warehouse_id, NULL, v_delta, 'reserve',
+         'order status/reconciliation: ' || p_new_status, v_actor.employee_name, p_order_id);
+    ELSIF v_delta < 0 THEN
+      v_delta := -v_delta;
+
       INSERT INTO inventory_rehearsal.wh_stock AS current_stock
         (warehouse_id, product_id, quantity, updated_at)
-      VALUES (v_net.warehouse_id, v_net.product_id, v_net.quantity, pg_catalog.now())
+      VALUES (v_net.warehouse_id, v_net.product_id, v_delta, pg_catalog.now())
       ON CONFLICT (warehouse_id, product_id)
       DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity,
                     updated_at = pg_catalog.now();
@@ -694,10 +723,10 @@ BEGIN
       INSERT INTO inventory_rehearsal.wh_movements
         (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by, order_id)
       VALUES
-        (v_net.product_id, NULL, v_net.warehouse_id, v_net.quantity, 'release',
-         'order status: ' || p_new_status, v_actor.employee_name, p_order_id);
-    END LOOP;
-  END IF;
+        (v_net.product_id, NULL, v_net.warehouse_id, v_delta, 'release',
+         'order status/reconciliation: ' || p_new_status, v_actor.employee_name, p_order_id);
+    END IF;
+  END LOOP;
 
   UPDATE inventory_rehearsal.orders
   SET status = p_new_status, updated_at = pg_catalog.now(),
