@@ -689,7 +689,7 @@ VALUES
   ('30000000-0000-0000-0000-000000000001', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
    '[{"name":"ROSEMARY SERUM","qty":2},{"name":"Vitamin C Serum","qty":1},{"name":"Untracked add-on","qty":50}]'::jsonb),
   ('30000000-0000-0000-0000-000000000002', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
-   '[{"name":"Rosemary Oil","qty":500},{"name":"Vitamin C Serum","qty":1}]'::jsonb),
+   '[{"name":"Rosemary Oil","qty":2},{"name":"Vitamin C Serum","qty":500}]'::jsonb),
   ('30000000-0000-0000-0000-000000000003', 'pending', 'uae', 'lowes', NULL, 'Seller Syria',
    '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
   ('30000000-0000-0000-0000-000000000004', 'pending', 'turkey', 'lowes', 'star_network', NULL,
@@ -701,7 +701,9 @@ VALUES
   ('30000000-0000-0000-0000-000000000007', 'pending', 'turkey', 'lowes', NULL, 'Seller Syria',
    '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
   ('30000000-0000-0000-0000-000000000008', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
-   '[{"name":"Rosemary Oil","qty":"bad"}]'::jsonb);
+   '[{"name":"Rosemary Oil","qty":"bad"}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000009', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
+   '[{"name":"Rosemary Oil","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb);
 
 \echo 'Checking order-manager role can reserve trusted persisted order items without stock-write permission...'
 BEGIN;
@@ -996,6 +998,75 @@ BEGIN
 END
 $order_invalid_unchanged$;
 COMMIT;
+
+\echo 'Checking order audit failure on the second item rolls back first-item stock and the order status...'
+CREATE OR REPLACE FUNCTION inventory_rehearsal.fail_order_audit_on_second_item()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, inventory_rehearsal
+AS $fail_order_audit$
+BEGIN
+  IF current_setting('inventory_rehearsal.fail_order_audit', true) = 'on'
+     AND NEW.order_id = '30000000-0000-0000-0000-000000000009'
+     AND NEW.type = 'reserve'
+     AND NEW.product_id = '20000000-0000-0000-0000-000000000002' THEN
+    RAISE EXCEPTION 'forced second-item order audit failure' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$fail_order_audit$;
+
+CREATE TRIGGER rehearsal_fail_order_audit_on_second_item
+BEFORE INSERT ON inventory_rehearsal.wh_movements
+FOR EACH ROW EXECUTE FUNCTION inventory_rehearsal.fail_order_audit_on_second_item();
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT set_config('inventory_rehearsal.fail_order_audit', 'on', true);
+DO $order_audit_rollback$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_transition_order_status(
+      '30000000-0000-0000-0000-000000000009', 'preparing'
+    );
+    RAISE EXCEPTION 'FAIL: order transition succeeded despite second-item audit failure';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: second-item audit failure aborted order transition';
+  END;
+END
+$order_audit_rollback$;
+RESET ROLE;
+DO $order_audit_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000009') <> 'pending'
+     OR (SELECT updated_by FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000009') IS NOT NULL
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 8
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000003'
+           AND product_id = '20000000-0000-0000-0000-000000000002') <> 4
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000009')
+     OR (SELECT quantity FROM inventory_rehearsal.products p
+         WHERE p.id = '20000000-0000-0000-0000-000000000001') <>
+        (SELECT COALESCE(sum(s.quantity),0) FROM inventory_rehearsal.wh_stock s
+         WHERE s.product_id = '20000000-0000-0000-0000-000000000001')
+     OR (SELECT quantity FROM inventory_rehearsal.products p
+         WHERE p.id = '20000000-0000-0000-0000-000000000002') <>
+        (SELECT COALESCE(sum(s.quantity),0) FROM inventory_rehearsal.wh_stock s
+         WHERE s.product_id = '20000000-0000-0000-0000-000000000002') THEN
+    RAISE EXCEPTION 'FAIL: order audit failure left partial stock, audit or order status changes';
+  END IF;
+END
+$order_audit_unchanged$;
+COMMIT;
+
+DROP TRIGGER rehearsal_fail_order_audit_on_second_item ON inventory_rehearsal.wh_movements;
+DROP FUNCTION inventory_rehearsal.fail_order_audit_on_second_item();
 
 \echo 'Checking order RPC privileges are narrow...'
 DO $order_acl$
