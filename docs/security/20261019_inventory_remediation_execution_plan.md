@@ -214,3 +214,49 @@ The latest fixture pass adds `profiles.order_role` to its synthetic profile mode
 This is still fixture-only contract logic. Read of `src/screens/OrdersScreen.jsx` confirms its existing client-side `canAdvanceOrder` gate is `isFulfillment || isManager || order.handler_name === userName`, while archive/active list fetches use `supabaseAnon` and do not ask the server to enforce that ownership test. The active app's route argument `forcedMarket` is a presentation/filter lock, not a value the proposed RPC trusts. The permissions UI and the Orders screen also derive authority somewhat differently; the precise meaning of explicit `manage_orders` grants and market-specific manager scope must be reconciled before enabling the production RPC.
 
 **Production remains unchanged:** no direct orders write was switched to an RPC in this pass, and no table grant or RLS policy was modified. Before rollout, the owner check must be paired with a reviewed manager/fulfillment scope model, all single/batch/save/cancel/delete entry points must call the same trusted operation, and real Auth session coverage must pass without relying on the localStorage fallback.
+
+
+### Additional live P0: the delta RPC and table do not enforce non-negative stock (verified 2026-10-20)
+
+A fresh read-only query of the live `lowes-attendance` catalog confirmed an important gap that must remain explicit in the rollout gate:
+
+- `public.wh_apply_stock_delta(uuid, uuid, integer)` performs an upsert and, on conflict, sets `quantity = wh_stock.quantity + p_delta`. It does not require a non-null `auth.uid()`, check active profile/permissions, reject zero deltas, or guard `quantity + p_delta >= 0`.
+- The live `public.wh_stock` table has its primary key, warehouse/product foreign keys and unique `(warehouse_id, product_id)` constraint, but **no CHECK constraint requiring `quantity >= 0`**.
+- Consequently a direct call to the publicly executable SECURITY DEFINER delta function can bypass `wh_transfer_stock`'s source-quantity validation and can write a negative quantity. The client-side precheck in `writeOffStock()` is separate from the database mutation and cannot provide a concurrency-safe invariant; order reserve also calls the delta function without the UI's waste precheck.
+- `sync_product_quantity()` mirrors the sum from `wh_stock`, so an invalid negative warehouse quantity can flow into `products.quantity` as well.
+
+**Safe target contract:** the future stock delta primitive must require verified identity and relevant stock permission, validate the warehouse/product and the intended operation, and perform a conditional locked update that refuses to make stock negative. If the stock row does not exist, a negative delta must fail rather than insert a negative row. Keep stock mutation and the corresponding `wh_movements` row atomic. For order reservation, additionally validate persisted order items and status inside the trusted order-transition transaction; do not use a free-form delta as an order API.
+
+**Test-fixture boundary:** the disposable `inventory_rehearsal.wh_apply_stock_delta` contract deliberately rejects a delta that would result in negative stock. That passing fixture is a test of the *target* invariant, not evidence the live function currently provides it. The test/rollout report must not describe production stock as non-negative until a real migration has added the guard, checked existing data, and verified all call sites against the actual Supabase schema.
+
+This finding came from metadata/function-definition reads only. No production SQL, rows, grants, policies, Auth identities, or credentials were changed.
+
+
+### Current live stock integrity snapshot (read-only, 2026-10-20)
+
+A follow-up aggregate over `public.wh_stock`, `public.products`, and `public.wh_movements` found that this is not only a theoretical risk:
+
+| Read-only check | Current result |
+|---|---:|
+| Rows in `wh_stock` | 155 |
+| Stock rows with negative quantity | 32 |
+| Sum of the negative quantities | -4,333 |
+| Products whose net warehouse total is negative | 4 |
+| Product rows whose `quantity` differs from summed warehouse stock | 0 |
+| Stock rows at exactly zero | 9 |
+| Historical `reserve` movements | 9,085 |
+| Historical `release` movements | 712 |
+
+The quantity mirror is currently internally consistent (zero mismatches), but that does **not** mean the stock ledger is healthy: both `wh_stock.quantity` and the corresponding `products.quantity` can match while remaining negative. The audit did not read product names, customer/order payloads, PINs, credentials, or individual movement records.
+
+The negative balances are concentrated in two market/type groups:
+
+| Warehouse market / type | Negative rows | Products affected | Sum of negative quantities |
+|---|---:|---:|---:|
+| Turkey / sales | 27 | 27 | -3,609 |
+| Syria / sales | 5 | 5 | -724 |
+| **Total** | **32** | **32** | **-4,333** |
+
+A separate aggregate linked movements to those negative product/warehouse pairs: 4,227 reserve rows, 221 release rows, 25 adjustment rows and 2 allocation rows were associated with the affected pairs. This is a **related-history count**, not yet a causal attribution; movement records can predate the current negative balance and the present adjustment movement format does not reliably preserve signed deltas.
+
+**Remediation warning:** do not automatically clamp negative balances to zero and do not mass-reverse historical movements. First create a per-warehouse/product reconciliation report from opening quantities, reserve/release movements, transfers, write-offs, and physical counts; identify which entries explain the negative totals; get the owner to approve adjustments; then apply a separate audited correction with a rollback plan. Until that reconciliation is complete, the report should describe these as live negative balances, not merely as a potential bypass.
