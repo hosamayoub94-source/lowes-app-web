@@ -24,7 +24,19 @@ psql -X -v ON_ERROR_STOP=1 -c "TRUNCATE inventory_rehearsal.orders"
 psql -X -v ON_ERROR_STOP=1 -c "DELETE FROM inventory_rehearsal.wh_stock"
 psql -X -v ON_ERROR_STOP=1 -c "INSERT INTO inventory_rehearsal.wh_stock (warehouse_id, product_id, quantity) VALUES ('$CENTRAL_WAREHOUSE_ID', '$ROSEMARY_PRODUCT_ID', 20), ('$SALES_WAREHOUSE_ID', '$ROSEMARY_PRODUCT_ID', 5), ('$SELLER_WAREHOUSE_ID', '$ROSEMARY_PRODUCT_ID', 8), ('$SELLER_WAREHOUSE_ID', '$VITAMIN_C_PRODUCT_ID', 4)"
 
-psql -X -v ON_ERROR_STOP=1 -c "INSERT INTO inventory_rehearsal.orders (id, status, market, brand, source, handler_name, items) VALUES ('$ORDER_ID', 'pending', 'syria', 'lowes', NULL, 'Seller Syria', '[{"name":"ROSEMARY SERUM","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb)"
+psql -X -v ON_ERROR_STOP=1 -v order_id="$ORDER_ID" <<'SQL'
+INSERT INTO inventory_rehearsal.orders
+  (id, status, market, brand, source, handler_name, items)
+VALUES (
+  :'order_id'::uuid,
+  'pending',
+  'syria',
+  'lowes',
+  NULL,
+  'Seller Syria',
+  '[{"name":"ROSEMARY SERUM","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb
+);
+SQL
 
 export ACTOR_ID ORDER_ID
 seq 1 "$CONCURRENT_CALLS" | xargs -P "$PARALLEL_WORKERS" -I '{}' bash -c '
