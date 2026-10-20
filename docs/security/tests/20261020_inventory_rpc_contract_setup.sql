@@ -750,6 +750,136 @@ BEGIN
 END
 $order_transition$;
 
+-- Atomic order-edit contract: only a reviewed JSON patch is accepted. The persisted
+-- order is locked, authorization is checked against its before-image, allowed fields
+-- are patched, then reservation reconciliation runs in the same outer transaction.
+CREATE OR REPLACE FUNCTION inventory_rehearsal.wh_edit_order(
+  p_order_id uuid,
+  p_patch jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, inventory_rehearsal
+AS $order_edit$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_actor inventory_rehearsal.profiles%ROWTYPE;
+  v_order inventory_rehearsal.orders%ROWTYPE;
+  v_key text;
+  v_new_status text;
+  v_can_manage boolean;
+  v_item jsonb;
+  v_qty_text text;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_patch IS NULL OR pg_catalog.jsonb_typeof(p_patch) <> 'object'
+     OR p_patch = '{}'::jsonb THEN
+    RAISE EXCEPTION 'non-empty JSON object patch required' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT p.* INTO v_actor
+  FROM inventory_rehearsal.profiles AS p
+  WHERE p.id = v_uid AND p.is_active IS TRUE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'active profile required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT o.* INTO v_order
+  FROM inventory_rehearsal.orders AS o
+  WHERE o.id = p_order_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  v_can_manage := inventory_rehearsal.has_order_permission();
+  IF NOT v_can_manage
+     AND (v_order.handler_name IS DISTINCT FROM v_actor.employee_name
+          OR COALESCE(
+            pg_catalog.jsonb_typeof(v_actor.denied_permissions) = 'array'
+            AND v_actor.denied_permissions ? 'manage_orders',
+            false
+          )) THEN
+    RAISE EXCEPTION 'order-management permission or order ownership required' USING ERRCODE = '42501';
+  END IF;
+
+  FOR v_key IN SELECT k FROM pg_catalog.jsonb_object_keys(p_patch) AS keys(k)
+  LOOP
+    IF v_key <> ALL (ARRAY['status','items','handler_name','market','brand','source']::text[]) THEN
+      RAISE EXCEPTION 'order field is not editable: %', v_key USING ERRCODE = '22023';
+    END IF;
+    IF NOT v_can_manage AND v_key NOT IN ('status','items') THEN
+      RAISE EXCEPTION 'owner cannot edit order field: %', v_key USING ERRCODE = '42501';
+    END IF;
+  END LOOP;
+
+  IF p_patch ? 'status' AND pg_catalog.jsonb_typeof(p_patch->'status') <> 'string' THEN
+    RAISE EXCEPTION 'status must be a string' USING ERRCODE = '22023';
+  END IF;
+  IF p_patch ? 'items' THEN
+    IF pg_catalog.jsonb_typeof(p_patch->'items') <> 'array' THEN
+      RAISE EXCEPTION 'items must be an array' USING ERRCODE = '22023';
+    END IF;
+    FOR v_item IN SELECT e.value FROM pg_catalog.jsonb_array_elements(p_patch->'items') AS e(value)
+    LOOP
+      IF pg_catalog.jsonb_typeof(v_item) <> 'object' THEN
+        RAISE EXCEPTION 'each order item must be an object' USING ERRCODE = '22023';
+      END IF;
+      v_qty_text := COALESCE(NULLIF(pg_catalog.btrim(v_item->>'qty'), ''), '1');
+      IF v_qty_text !~ '^[0-9]+
+REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) TO authenticated;
+
+COMMIT;
+ OR v_qty_text::numeric < 1
+         OR v_qty_text::numeric > 2147483647 THEN
+        RAISE EXCEPTION 'invalid order item quantity' USING ERRCODE = '22023';
+      END IF;
+      IF v_item ? 'name' AND pg_catalog.jsonb_typeof(v_item->'name') NOT IN ('string','null') THEN
+        RAISE EXCEPTION 'item name must be a string or null' USING ERRCODE = '22023';
+      END IF;
+    END LOOP;
+  END IF;
+  FOREACH v_key IN ARRAY ARRAY['handler_name','market','brand','source']::text[]
+  LOOP
+    IF p_patch ? v_key
+       AND pg_catalog.jsonb_typeof(p_patch->v_key) NOT IN ('string','null') THEN
+      RAISE EXCEPTION 'invalid value for order field: %', v_key USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+
+  v_new_status := COALESCE(p_patch->>'status', v_order.status);
+
+  UPDATE inventory_rehearsal.orders AS o
+  SET status = CASE WHEN p_patch ? 'status' THEN p_patch->>'status' ELSE o.status END,
+      items = CASE WHEN p_patch ? 'items' THEN p_patch->'items' ELSE o.items END,
+      handler_name = CASE WHEN p_patch ? 'handler_name' THEN p_patch->>'handler_name' ELSE o.handler_name END,
+      market = CASE WHEN p_patch ? 'market' THEN p_patch->>'market' ELSE o.market END,
+      brand = CASE WHEN p_patch ? 'brand' THEN p_patch->>'brand' ELSE o.brand END,
+      source = CASE WHEN p_patch ? 'source' THEN p_patch->>'source' ELSE o.source END,
+      updated_at = pg_catalog.now()
+  WHERE o.id = p_order_id;
+
+  -- This call derives the reservation target from the patched persisted row.
+  -- Any authorization/stock/audit failure rolls back the patch as well.
+  PERFORM inventory_rehearsal.wh_transition_order_status(p_order_id, v_new_status);
+END
+$order_edit$;
+
 -- SECURITY DEFINER APIs have no public/default EXECUTE path.
 REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
