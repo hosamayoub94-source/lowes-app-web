@@ -302,4 +302,59 @@ END
 $transfer_unchanged$;
 COMMIT;
 
+
+\echo 'Checking audit-write failure rolls back the stock mutation...'
+CREATE OR REPLACE FUNCTION inventory_rehearsal.fail_movement_insert_when_requested()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, inventory_rehearsal
+AS $fail$
+BEGIN
+  IF current_setting('inventory_rehearsal.fail_audit', true) = 'on' THEN
+    RAISE EXCEPTION 'forced audit failure for rollback test' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$fail$;
+
+CREATE TRIGGER rehearsal_force_audit_failure
+BEFORE INSERT ON inventory_rehearsal.wh_movements
+FOR EACH ROW EXECUTE FUNCTION inventory_rehearsal.fail_movement_insert_when_requested();
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT set_config('inventory_rehearsal.fail_audit', 'on', true);
+DO $audit_rollback$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.apply_stock_delta(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 2
+    );
+    RAISE EXCEPTION 'FAIL: stock mutation succeeded when audit insert failed';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: audit insert failure rejected the stock mutation';
+  END;
+END
+$audit_rollback$;
+RESET ROLE;
+DO $audit_rollback_unchanged$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 19
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
+    RAISE EXCEPTION 'FAIL: stock or movement history changed after audit insertion failed';
+  END IF;
+END
+$audit_rollback_unchanged$;
+COMMIT;
+
+DROP TRIGGER rehearsal_force_audit_failure ON inventory_rehearsal.wh_movements;
+DROP FUNCTION inventory_rehearsal.fail_movement_insert_when_requested();
+
 \echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
