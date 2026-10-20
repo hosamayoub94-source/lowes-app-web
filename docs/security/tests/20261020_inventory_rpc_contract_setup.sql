@@ -25,8 +25,8 @@ CREATE TABLE inventory_rehearsal.profiles (
   id uuid PRIMARY KEY,
   role_type text NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
-  extra_permissions text[] NOT NULL DEFAULT ARRAY[]::text[],
-  denied_permissions text[] NOT NULL DEFAULT ARRAY[]::text[]
+  extra_permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  denied_permissions jsonb NOT NULL DEFAULT '[]'::jsonb
 );
 
 CREATE TABLE inventory_rehearsal.products (
@@ -61,12 +61,14 @@ CREATE TABLE inventory_rehearsal.wh_movements (
 );
 
 INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permissions, denied_permissions) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'admin', true, ARRAY[]::text[], ARRAY[]::text[]),
-  ('00000000-0000-0000-0000-000000000002', 'warehouse_manager', true, ARRAY[]::text[], ARRAY[]::text[]),
-  ('00000000-0000-0000-0000-000000000003', 'employee', true, ARRAY[]::text[], ARRAY[]::text[]),
-  ('00000000-0000-0000-0000-000000000004', 'manager', true, ARRAY[]::text[], ARRAY['manage_central_stock']::text[]),
-  ('00000000-0000-0000-0000-000000000005', 'employee', true, ARRAY['manage_central_stock']::text[], ARRAY[]::text[]),
-  ('00000000-0000-0000-0000-000000000006', 'employee', false, ARRAY['manage_central_stock', 'manage_sales_stock']::text[], ARRAY[]::text[]);
+  ('00000000-0000-0000-0000-000000000001', 'admin', true, '[]'::jsonb, '["manage_central_stock","manage_sales_stock"]'::jsonb),
+  ('00000000-0000-0000-0000-000000000002', 'warehouse_manager', true, '[]'::jsonb, '[]'::jsonb),
+  ('00000000-0000-0000-0000-000000000003', 'employee', true, '[]'::jsonb, '[]'::jsonb),
+  ('00000000-0000-0000-0000-000000000004', 'manager', true, '[]'::jsonb, '["manage_central_stock"]'::jsonb),
+  ('00000000-0000-0000-0000-000000000005', 'employee', true, '["manage_central_stock"]'::jsonb, '[]'::jsonb),
+  ('00000000-0000-0000-0000-000000000006', 'employee', false, '["manage_central_stock","manage_sales_stock"]'::jsonb, '[]'::jsonb),
+  ('00000000-0000-0000-0000-000000000007', 'sales_manager', true, '[]'::jsonb, '[]'::jsonb),
+  ('00000000-0000-0000-0000-000000000008', 'warehouse_manager', true, '[]'::jsonb, '["manage_sales_stock"]'::jsonb);
 
 INSERT INTO inventory_rehearsal.wh_warehouses (id, type, market, is_active) VALUES
   ('10000000-0000-0000-0000-000000000001', 'central', 'turkey', true),
@@ -100,8 +102,8 @@ DECLARE
   v_uid uuid := auth.uid();
   v_role text;
   v_active boolean;
-  v_extra text[];
-  v_denied text[];
+  v_extra jsonb;
+  v_denied jsonb;
   v_warehouse_type text;
   v_permission text;
 BEGIN
@@ -141,7 +143,7 @@ BEGIN
     RETURN false;
   END IF;
 
-  IF v_permission = ANY(COALESCE(v_denied, ARRAY[]::text[])) THEN
+  IF COALESCE(pg_catalog.jsonb_typeof(v_denied) = 'array' AND v_denied ? v_permission, false) THEN
     RETURN false;
   END IF;
 
@@ -149,7 +151,7 @@ BEGIN
     RETURN true;
   END IF;
 
-  RETURN v_permission = ANY(COALESCE(v_extra, ARRAY[]::text[]));
+  RETURN COALESCE(pg_catalog.jsonb_typeof(v_extra) = 'array' AND v_extra ? v_permission, false);
 END
 $permission$;
 

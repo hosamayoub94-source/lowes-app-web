@@ -20,7 +20,7 @@ These findings describe the audited production configuration at the time of revi
 
 ## Why the existing CI fixture is not yet production SQL
 
-`docs/security/tests/20261020_inventory_rpc_contract_setup.sql` and `..._verify.sql` model an intended authorization/atomicity contract in a disposable `inventory_rehearsal` schema. The fixture uses synthetic UUIDs and a simplified profile shape. It does **not** execute against production table definitions, does not prove that every app call site has been migrated, and does not remove any production grant or policy.
+`docs/security/tests/20261020_inventory_rpc_contract_setup.sql` and `..._verify.sql` model an intended authorization/atomicity contract in a disposable `inventory_rehearsal` schema. The fixture uses synthetic UUIDs and now models the production-relevant permission fields (`role_type`, `is_active`, `extra_permissions`, `denied_permissions`) with JSONB arrays, matching the storage type used by `profiles` and the app resolver's role-default / extra-grant / explicit-denial semantics. It still includes only the fields needed by the fixture and uses separate rehearsal table definitions. It does **not** execute against production table definitions, prove that every app call site has been migrated, or remove any production grant or policy.
 
 The fixture now also checks that a database session with role `authenticated` but no `auth.uid()` cannot mutate stock. This specifically captures the failure mode that must be understood before moving the current manual-session users to database-enforced authorization.
 
