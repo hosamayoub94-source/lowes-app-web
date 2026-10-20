@@ -119,7 +119,7 @@ END
 $anon_unchanged$;
 COMMIT;
 
-\echo 'Checking employee, inactive profile, and explicit denial cannot mutate...'
+\echo 'Checking JSONB permissions, inactive profiles, and explicit denials...'
 BEGIN;
 SET LOCAL ROLE authenticated;
 DO $denials$
@@ -129,7 +129,8 @@ BEGIN
   FOREACH denied_subject IN ARRAY ARRAY[
     '00000000-0000-0000-0000-000000000003'::uuid, -- employee without capability
     '00000000-0000-0000-0000-000000000004'::uuid, -- manager explicitly denied central stock
-    '00000000-0000-0000-0000-000000000006'::uuid  -- inactive profile with extra capabilities
+    '00000000-0000-0000-0000-000000000006'::uuid, -- inactive profile with extra capabilities
+    '00000000-0000-0000-0000-000000000007'::uuid  -- sales_manager has no stock default
   ]
   LOOP
     PERFORM set_config('request.jwt.claim.sub', denied_subject::text, true);
@@ -154,6 +155,18 @@ BEGIN
     RAISE EXCEPTION 'FAIL: central-only employee changed sales stock';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: central-only capability does not grant sales-stock access';
+  END;
+
+  -- Explicit denials override warehouse_manager defaults for non-admin users.
+  PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000008', true);
+  BEGIN
+    PERFORM inventory_rehearsal.apply_stock_delta(
+      '10000000-0000-0000-0000-000000000002',
+      '20000000-0000-0000-0000-000000000001', 1
+    );
+    RAISE EXCEPTION 'FAIL: warehouse_manager with an explicit sales denial changed stock';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: explicit sales-stock denial overrides warehouse_manager default';
   END;
 END
 $denials$;
@@ -389,5 +402,47 @@ BEGIN
 END
 $no_auth_identity_unchanged$;
 COMMIT;
+
+\echo 'Checking manager, warehouse-manager, and admin role defaults against JSONB overrides...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+
+-- A manager denied central stock is still allowed to manage sales stock.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT inventory_rehearsal.apply_stock_delta(
+  '10000000-0000-0000-0000-000000000002',
+  '20000000-0000-0000-0000-000000000001', 1
+);
+
+-- A warehouse manager retains its default central capability.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT inventory_rehearsal.apply_stock_delta(
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 1
+);
+
+-- Admin is unrestricted in the app's resolver, even if deny JSON contains keys.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT inventory_rehearsal.apply_stock_delta(
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 1
+);
+RESET ROLE;
+-- Roll back allowed-call probes so the baseline used by tests remains identical.
+ROLLBACK;
+
+DO $permission_matrix_unchanged$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 19
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
+    RAISE EXCEPTION 'FAIL: rolled-back permission probes changed stock or movement history';
+  END IF;
+END
+$permission_matrix_unchanged$;
 
 \echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
