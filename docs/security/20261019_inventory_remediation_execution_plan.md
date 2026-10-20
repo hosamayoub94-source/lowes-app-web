@@ -325,3 +325,42 @@ Shipment-creation functions were reviewed separately and their inspected write s
 A read-only comparison of active Supabase Edge Functions with repository `main` confirmed that deployed versions of `track-yurtici` v72, `track-babel` v40, `track-karam` v44, and `track-ptt` v39 exactly match the inspected source and are configured with `verify_jwt=false`. Their batch paths currently have no user-JWT or dedicated poll-secret check before creating a service-role client and reading/updating orders. `track-karam` v44 additionally has public `debugPhone`/`debugPhones` branches which return tracking metadata for arbitrary supplied phone numbers. There were no application call sites for these debug branches in the inspected source files.
 
 The repository branch for the related PR removes those unused Karam debug branches and adds a CI regression check; it does **not** deploy the function, so production v44 remains as-is until an approved deployment. The same PR enables Deno type-checking for this function. The broader batch-poll endpoints still need a reviewed split between real-Auth user lookups and trusted server-only/cron polling. Do not enable a blanket JWT gate until the manual-session fallback and all cron/integration callers have a tested migration path.
+
+
+### Follow-up live refresh — negative stock and reservation aggregates (read-only, 2026-10-20)
+
+A later read-only catalog/data refresh during this review produced a different negative-stock snapshot from the earlier table above. The earlier figures (32 negative rows / −4,333 units) are retained as their historical observation; they must not be interpreted as the current count or as evidence that a correction occurred.
+
+| Latest read-only check | Result |
+|---|---:|
+| `wh_stock` rows | 155 |
+| Negative stock rows | 23 |
+| Sum of negative quantities | −3,115 |
+| Products whose `products.quantity` differs from summed warehouse quantities | 0 of 39 |
+| Negative rows in Turkey / sales | 18 (−2,391 units) |
+| Negative rows in Syria / sales | 5 (−724 units) |
+
+This discrepancy between same-day snapshots itself requires a repeat using the checked-in read-only query and target project confirmation before any correction decision. No individual product names, SKU, orders or movement payloads were extracted in this refresh.
+
+The current constraint catalog again shows only the `wh_stock` primary key, unique `(warehouse_id, product_id)), and the two foreign keys. There is **no quantity CHECK constraint**. The current `public.wh_apply_stock_delta(uuid,uuid,integer)` definition still runs as `SECURITY DEFINER`, is executable by `anon` and `authenticated`, and performs:
+- `INSERT ... VALUES (p_warehouse, p_product, p_delta)` when the stock row is missing;
+- on conflict, `quantity = wh_stock.quantity + p_delta`;
+- no non-negative guard, no `auth.uid()` requirement and no stock permission check.
+
+The confirmed live defect is more specific than “a negative delta can overdraw an existing row”: **a negative delta against a missing (warehouse, product) row can insert a negative row directly**, because the table has no CHECK and the function's conflict branch does not run for a new row. `wh_transfer_stock` performs a source check first, but direct EXECUTE of the delta function bypasses that safeguard.
+
+A refreshed order-ledger aggregation also found positive reserve-minus-release balances on 3,152 order IDs / orphan IDs (8,351 product/warehouse lines; 10,125 net units). These totals include valid deducted orders and are **not** a correction target. Separate, overlapping flags were:
+
+| Flag (overlaps other flags) | Orders / orphan IDs | Product/warehouse lines | Positive net units |
+|---|---:|---:|---:|
+| Persisted status is not in the deducted-status set | 114 | 316 | 379 |
+| Non-Lowe's brand currently has a reservation | 26 | 75 | 110 |
+| Source is `star_network` or `uae_sheet_import` | 0 | 0 | 0 |
+| No matching current `orders` row | 1 | 1 | 1 |
+| Archived or soft-deleted order | 2,234 | 5,919 | 7,182 |
+
+Those flags overlap and must not be added together. The archived/deleted bucket is especially not automatically invalid: some such orders can be delivered/settled history, and archival alone is not authorization to restore stock. The checked-in `docs/security/queries/20261020_order_reservation_reconciliation_readonly.sql` remains the reproducible, read-only drilldown; it intentionally avoids returning order IDs or customer payloads.
+
+**New regression coverage in the current test branch:** the disposable fixture now removes its artificial `CHECK(quantity >= 0)` from `inventory_rehearsal.wh_stock`, matching the live table's relevant constraint shape. The target `wh_apply_stock_delta` contract is then tested to ensure a negative delta against a missing row fails before a stock row, movement record or derived product quantity can change. This test matters because retaining an artificial table CHECK would hide the exact production bypass. It tests a future safe contract only; the live function and production data remain unchanged.
+
+**Rollout remains blocked.** Do not deploy a function change or revoke anon execution in isolation while the manual-session fallback still exists. Do not clamp negative balances, auto-release historical reservations, or mass-reverse movements. First establish authenticated caller readiness, switch each trusted stock/order writer through its reviewed transaction boundary, reconcile historic stock against physical counts and source records, and obtain approval for each separately audited correction.
