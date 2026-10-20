@@ -357,7 +357,7 @@ COMMIT;
 DROP TRIGGER rehearsal_force_audit_failure ON inventory_rehearsal.wh_movements;
 DROP FUNCTION inventory_rehearsal.fail_movement_insert_when_requested();
 
-\\echo 'Checking authenticated DB role with no Supabase Auth identity is denied...'
+\echo 'Checking authenticated DB role with no Supabase Auth identity is denied...'
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '', true);
@@ -390,4 +390,4 @@ END
 $no_auth_identity_unchanged$;
 COMMIT;
 
-\\echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
+\echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
