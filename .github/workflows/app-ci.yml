@@ -46,6 +46,9 @@ jobs:
       - name: Check auth security source contracts
         run: node test-auth-security-contract.mjs
 
+      - name: Check PIN rate-limit helper
+        run: node test-pin-rate-limit.mjs
+
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 

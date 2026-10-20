@@ -5,6 +5,7 @@ import fs from 'node:fs';
 
 const authService = fs.readFileSync('src/services/authService.js', 'utf8');
 const verifyPin = fs.readFileSync('supabase/functions/verify-pin/index.ts', 'utf8');
+const limiter = fs.readFileSync('supabase/functions/_shared/pinRateLimit.js', 'utf8');
 
 const checks = [
   [
@@ -33,6 +34,25 @@ const checks = [
     'Successful PIN response strips the stored PIN before returning profile data',
     verifyPin.includes('const { pin: _omit, ...safeProfile } = profile;') &&
       verifyPin.includes('return json({ ok: true, profile: safeProfile, authIdentity }, 200);'),
+  ],
+  [
+    'PIN limiter is opt-in unless explicitly enabled',
+    limiter.includes("env.get('PIN_RATE_LIMIT_ENABLED') !== 'true'"),
+  ],
+  [
+    'Enabled limiter runs before the profile lookup',
+    verifyPin.indexOf('checkPinRateLimit({') >= 0 &&
+      verifyPin.indexOf('checkPinRateLimit({') < verifyPin.indexOf(".from('profiles')"),
+  ],
+  [
+    'Limiter infrastructure failure fails closed without exposing details',
+    verifyPin.includes("rateLimitDecision.reason === 'unavailable'") &&
+      verifyPin.includes("return json({ ok: false, error: 'server_error' }, 503);"),
+  ],
+  [
+    'Source limiter trusts only cf-connecting-ip, not X-Forwarded-For',
+    limiter.includes("request.headers.get('cf-connecting-ip')") &&
+      !limiter.includes("request.headers.get('x-forwarded-for')"),
   ],
   [
     'Successful-login audit payload does not write an access-token fragment',
