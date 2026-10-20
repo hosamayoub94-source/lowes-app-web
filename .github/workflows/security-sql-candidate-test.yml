@@ -83,6 +83,9 @@ jobs:
       - name: Test inventory RPC authorization and atomic audit contract
         run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261020_inventory_rpc_contract_verify.sql
 
+      - name: Test concurrent inventory delta boundary and quantity mirror
+        run: bash docs/security/tests/20261020_inventory_rpc_concurrency.sh
+
       - name: Prepare disposable PIN rate-limit fixture
         run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261020_pin_rate_limit_setup.sql
 
