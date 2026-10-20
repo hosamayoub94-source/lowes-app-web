@@ -44,8 +44,8 @@ jobs:
           deno-version: v2.x
           cache: true
 
-# Type-check the function's own source without traversing all upstream type declarations.
-      # @supabase/auth-js currently references WebAuthn DOM types absent from Deno's Edge Worker libs.
+      # Type-check this function's source without traversing all upstream type declarations.
+      # @supabase/auth-js has separate WebAuthn DOM declarations unavailable in this Edge Worker check.
       - name: Type-check verify-pin Edge Function source
         run: deno check supabase/functions/verify-pin/index.ts
 
