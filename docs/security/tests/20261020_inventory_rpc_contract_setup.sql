@@ -31,33 +31,38 @@ CREATE TABLE inventory_rehearsal.profiles (
 
 CREATE TABLE inventory_rehearsal.products (
   id uuid PRIMARY KEY,
-  is_active boolean NOT NULL DEFAULT true
+  is_active boolean NOT NULL DEFAULT true,
+  quantity integer NOT NULL DEFAULT 0
 );
 
 CREATE TABLE inventory_rehearsal.wh_warehouses (
   id uuid PRIMARY KEY,
-  type text NOT NULL CHECK (type IN ('central', 'sales')),
-  market text NOT NULL,
+  type text NOT NULL CHECK (type IN ('central', 'sales', 'wholesale', 'distributor', 'returns')),
+  market text,
   is_active boolean NOT NULL DEFAULT true
 );
 
 CREATE TABLE inventory_rehearsal.wh_stock (
-  warehouse_id uuid NOT NULL REFERENCES inventory_rehearsal.wh_warehouses(id),
-  product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id),
-  quantity integer NOT NULL CHECK (quantity >= 0),
-  PRIMARY KEY (warehouse_id, product_id)
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse_id uuid NOT NULL REFERENCES inventory_rehearsal.wh_warehouses(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id) ON DELETE CASCADE,
+  quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (warehouse_id, product_id)
 );
 
 CREATE TABLE inventory_rehearsal.wh_movements (
-  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  movement_type text NOT NULL CHECK (movement_type IN ('delta', 'transfer')),
-  product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id),
-  from_warehouse_id uuid REFERENCES inventory_rehearsal.wh_warehouses(id),
-  to_warehouse_id uuid REFERENCES inventory_rehearsal.wh_warehouses(id),
-  quantity integer NOT NULL CHECK (quantity > 0),
-  delta integer,
-  actor_id uuid NOT NULL REFERENCES inventory_rehearsal.profiles(id),
-  created_at timestamptz NOT NULL DEFAULT now()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id) ON DELETE CASCADE,
+  from_warehouse_id uuid REFERENCES inventory_rehearsal.wh_warehouses(id) ON DELETE SET NULL,
+  to_warehouse_id uuid REFERENCES inventory_rehearsal.wh_warehouses(id) ON DELETE SET NULL,
+  quantity integer NOT NULL,
+  type text NOT NULL,
+  reason text,
+  performed_by text,
+  order_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reverses_id uuid
 );
 
 INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permissions, denied_permissions) VALUES
@@ -76,6 +81,32 @@ INSERT INTO inventory_rehearsal.wh_warehouses (id, type, market, is_active) VALU
 
 INSERT INTO inventory_rehearsal.products (id, is_active)
 VALUES ('20000000-0000-0000-0000-000000000001', true);
+
+-- Mirror the live trg_wh_stock_sync dependency: products.quantity is derived from
+-- the sum of wh_stock and must remain correct after authorized mutations.
+CREATE OR REPLACE FUNCTION inventory_rehearsal.sync_product_quantity()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, inventory_rehearsal
+AS $sync$
+DECLARE
+  v_product_id uuid;
+BEGIN
+  v_product_id := COALESCE(NEW.product_id, OLD.product_id);
+  UPDATE inventory_rehearsal.products AS p
+  SET quantity = (
+    SELECT COALESCE(SUM(s.quantity), 0)
+    FROM inventory_rehearsal.wh_stock AS s
+    WHERE s.product_id = v_product_id
+  )
+  WHERE p.id = v_product_id;
+  RETURN NULL;
+END
+$sync$;
+
+CREATE TRIGGER rehearsal_wh_stock_sync
+AFTER INSERT OR UPDATE OR DELETE ON inventory_rehearsal.wh_stock
+FOR EACH ROW EXECUTE FUNCTION inventory_rehearsal.sync_product_quantity();
 
 INSERT INTO inventory_rehearsal.wh_stock (warehouse_id, product_id, quantity) VALUES
   ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 20),
@@ -155,12 +186,12 @@ BEGIN
 END
 $permission$;
 
-CREATE OR REPLACE FUNCTION inventory_rehearsal.apply_stock_delta(
-  p_warehouse_id uuid,
-  p_product_id uuid,
+CREATE OR REPLACE FUNCTION inventory_rehearsal.wh_apply_stock_delta(
+  p_warehouse uuid,
+  p_product uuid,
   p_delta integer
 )
-RETURNS void
+RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, inventory_rehearsal
@@ -175,20 +206,21 @@ BEGIN
   IF p_delta IS NULL OR p_delta = 0 THEN
     RAISE EXCEPTION 'delta must be nonzero' USING ERRCODE = '22023';
   END IF;
-  IF NOT inventory_rehearsal.has_stock_permission(p_warehouse_id) THEN
+  IF NOT inventory_rehearsal.has_stock_permission(p_warehouse) THEN
     RAISE EXCEPTION 'stock permission required for this warehouse' USING ERRCODE = '42501';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM inventory_rehearsal.products AS p
-    WHERE p.id = p_product_id AND p.is_active IS TRUE
+    WHERE p.id = p_product AND p.is_active IS TRUE
   ) THEN
     RAISE EXCEPTION 'active product required' USING ERRCODE = '23503';
   END IF;
 
-  INSERT INTO inventory_rehearsal.wh_stock AS current_stock (warehouse_id, product_id, quantity)
-  VALUES (p_warehouse_id, p_product_id, p_delta)
+  INSERT INTO inventory_rehearsal.wh_stock AS current_stock (warehouse_id, product_id, quantity, updated_at)
+  VALUES (p_warehouse, p_product, p_delta, pg_catalog.now())
   ON CONFLICT (warehouse_id, product_id)
-  DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity
+  DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity,
+                updated_at = pg_catalog.now()
   WHERE current_stock.quantity + EXCLUDED.quantity >= 0
   RETURNING quantity INTO v_new_quantity;
 
@@ -198,20 +230,21 @@ BEGIN
 
   -- The movement is inserted in the same database transaction as the quantity change.
   INSERT INTO inventory_rehearsal.wh_movements
-    (movement_type, product_id, from_warehouse_id, to_warehouse_id, quantity, delta, actor_id)
+    (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by)
   VALUES
-    ('delta', p_product_id,
-     CASE WHEN p_delta < 0 THEN p_warehouse_id ELSE NULL END,
-     CASE WHEN p_delta > 0 THEN p_warehouse_id ELSE NULL END,
-     abs(p_delta), p_delta, v_actor);
+    (p_product,
+     CASE WHEN p_delta < 0 THEN p_warehouse ELSE NULL END,
+     CASE WHEN p_delta > 0 THEN p_warehouse ELSE NULL END,
+     abs(p_delta), 'adjust', 'delta=' || p_delta::text, v_actor::text);
+  RETURN v_new_quantity;
 END
 $delta$;
 
-CREATE OR REPLACE FUNCTION inventory_rehearsal.transfer_stock(
-  p_from_warehouse_id uuid,
-  p_to_warehouse_id uuid,
-  p_product_id uuid,
-  p_quantity integer
+CREATE OR REPLACE FUNCTION inventory_rehearsal.wh_transfer_stock(
+  p_from uuid,
+  p_to uuid,
+  p_product uuid,
+  p_qty integer
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -225,54 +258,55 @@ BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
   END IF;
-  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+  IF p_qty IS NULL OR p_qty <= 0 THEN
     RAISE EXCEPTION 'quantity must be positive' USING ERRCODE = '22023';
   END IF;
-  IF p_from_warehouse_id = p_to_warehouse_id THEN
+  IF p_from = p_to THEN
     RAISE EXCEPTION 'source and destination must differ' USING ERRCODE = '22023';
   END IF;
-  IF NOT inventory_rehearsal.has_stock_permission(p_from_warehouse_id)
-     OR NOT inventory_rehearsal.has_stock_permission(p_to_warehouse_id) THEN
+  IF NOT inventory_rehearsal.has_stock_permission(p_from)
+     OR NOT inventory_rehearsal.has_stock_permission(p_to) THEN
     RAISE EXCEPTION 'stock permission required for both warehouses' USING ERRCODE = '42501';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM inventory_rehearsal.products AS p
-    WHERE p.id = p_product_id AND p.is_active IS TRUE
+    WHERE p.id = p_product AND p.is_active IS TRUE
   ) THEN
     RAISE EXCEPTION 'active product required' USING ERRCODE = '23503';
   END IF;
 
   SELECT s.quantity INTO v_source_quantity
   FROM inventory_rehearsal.wh_stock AS s
-  WHERE s.warehouse_id = p_from_warehouse_id AND s.product_id = p_product_id
+  WHERE s.warehouse_id = p_from AND s.product_id = p_product
   FOR UPDATE;
 
-  IF NOT FOUND OR v_source_quantity < p_quantity THEN
+  IF NOT FOUND OR v_source_quantity < p_qty THEN
     RAISE EXCEPTION 'insufficient source stock' USING ERRCODE = '23514';
   END IF;
 
   UPDATE inventory_rehearsal.wh_stock
-  SET quantity = quantity - p_quantity
-  WHERE warehouse_id = p_from_warehouse_id AND product_id = p_product_id;
+  SET quantity = quantity - p_qty, updated_at = pg_catalog.now()
+  WHERE warehouse_id = p_from AND product_id = p_product;
 
   INSERT INTO inventory_rehearsal.wh_stock AS destination_stock
-    (warehouse_id, product_id, quantity)
-  VALUES (p_to_warehouse_id, p_product_id, p_quantity)
+    (warehouse_id, product_id, quantity, updated_at)
+  VALUES (p_to, p_product, p_qty, pg_catalog.now())
   ON CONFLICT (warehouse_id, product_id)
-  DO UPDATE SET quantity = destination_stock.quantity + EXCLUDED.quantity;
+  DO UPDATE SET quantity = destination_stock.quantity + EXCLUDED.quantity,
+                updated_at = pg_catalog.now();
 
   INSERT INTO inventory_rehearsal.wh_movements
-    (movement_type, product_id, from_warehouse_id, to_warehouse_id, quantity, delta, actor_id)
+    (product_id, from_warehouse_id, to_warehouse_id, quantity, type, performed_by)
   VALUES
-    ('transfer', p_product_id, p_from_warehouse_id, p_to_warehouse_id, p_quantity, NULL, v_actor);
+    (p_product, p_from, p_to, p_qty, 'allocate', v_actor::text);
 END
 $transfer$;
 
 -- SECURITY DEFINER APIs have no public/default EXECUTE path.
 REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.apply_stock_delta(uuid, uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
 
 COMMIT;
