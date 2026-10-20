@@ -18,6 +18,12 @@ For each request, the function obtains transaction-scoped advisory locks for the
 
 The limits used in these tests are **test values only**, not a final recommendation for production login behavior.
 
+## Read-only request-header evidence (2026-10-20)
+
+A read-only aggregate of the connected `lowes-attendance` Supabase unified logs over the default last-24-hour window found **8** `function_edge_logs` entries for `/functions/v1/verify-pin`; all 8 had non-empty `request.headers.cf_connecting_ip` and `request.headers.x_real_ip` fields. The query returned counts and paths only; it did not retrieve or store any IP values.
+
+This proves the header is present in the observed hosted request logs, but not by itself that clients cannot influence it all the way through the specific gateway path. Cloudflare documents `CF-Connecting-IP` as the client IP header added on traffic from Cloudflare's edge to an origin (see [Cloudflare HTTP headers](https://developers.cloudflare.com/fundamentals/reference/http-headers/)). Keep the feature flag off until the specific Supabase request path and spoofing boundary have been reviewed. Do not make a production request just to manufacture this evidence; use existing aggregate telemetry or an approved test.
+
 ## Integration requirements before this becomes a real login control
 
 1. **No production enablement yet.** The SQL candidate is exercised only against the disposable database; it is not a production migration. The Edge Function source now has a guarded integration path, but it is opt-in and is not deployed. With `PIN_RATE_LIMIT_ENABLED` missing or not equal to `true`, the legacy login flow continues without calling the limiter. Do not enable the flag until the candidate has been turned into a reviewed migration and applied, and the request source header is verified in the live Edge Function environment.
