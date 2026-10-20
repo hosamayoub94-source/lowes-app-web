@@ -345,7 +345,7 @@ export async function syncOrderStock(order, performedBy) {
     });
     if (action === 'reserve') await _reserveOrder(order, performedBy);
     else if (action === 'release') await _releaseOrder(order, performedBy);
-  } catch { /* best-effort; report separately before changing this API contract */ }
+  } catch { /* Preserve the existing best-effort caller contract; CI tests the decision policy separately. */ }
 }
 
 // تراجع عن حركة استلام/تخصيص أُدخلت خطأً: يعكس أثرها على المخزون + يسجّل
