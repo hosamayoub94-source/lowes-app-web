@@ -1,7 +1,9 @@
 -- Disposable inventory authorization fixture for GitHub Actions PostgreSQL.
 -- TEST FIXTURE ONLY. This is not a production migration and does not connect to Supabase.
--- It models the intended contract: mutation via authenticated, permission-checked
--- SECURITY DEFINER functions; stock and movement log commit in one SQL statement.
+-- It mirrors the production-relevant subset (RPC names/argument names, stock unique
+-- key, movement column names, JSONB permission fields, and derived product quantity).
+-- Synthetic IDs, isolated schema and reduced data model are deliberate; this is not
+-- drop-in production SQL. It models permission-checked, atomic stock + audit mutations.
 BEGIN;
 
 DROP SCHEMA IF EXISTS inventory_rehearsal CASCADE;
