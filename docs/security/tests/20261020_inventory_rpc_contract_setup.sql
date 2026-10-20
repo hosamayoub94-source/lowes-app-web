@@ -30,7 +30,8 @@ CREATE TABLE inventory_rehearsal.profiles (
   extra_permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
   denied_permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
   employee_name text,
-  warehouse_id uuid
+  warehouse_id uuid,
+  order_role text
 );
 
 CREATE TABLE inventory_rehearsal.products (
@@ -81,6 +82,11 @@ INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permis
   ('00000000-0000-0000-0000-000000000007', 'sales_manager', true, '[]'::jsonb, '[]'::jsonb, 'Sales Manager', NULL),
   ('00000000-0000-0000-0000-000000000008', 'warehouse_manager', true, '[]'::jsonb, '["manage_sales_stock"]'::jsonb, 'Denied Warehouse Manager', NULL),
   ('00000000-0000-0000-0000-000000000009', 'manager', true, '[]'::jsonb, '["manage_orders"]'::jsonb, 'Orders Denied Manager', NULL);
+
+INSERT INTO inventory_rehearsal.profiles
+  (id, role_type, is_active, extra_permissions, denied_permissions, employee_name, warehouse_id, order_role)
+VALUES
+  ('00000000-0000-0000-0000-000000000010', 'employee', true, '[]'::jsonb, '[]'::jsonb, 'Fulfillment Tester', NULL, 'fulfillment');
 
 INSERT INTO inventory_rehearsal.wh_warehouses (id, type, market, is_active) VALUES
   ('10000000-0000-0000-0000-000000000001', 'central', 'turkey', true),
@@ -170,6 +176,7 @@ DECLARE
   v_active boolean;
   v_extra jsonb;
   v_denied jsonb;
+  v_order_role text;
   v_warehouse_type text;
   v_permission text;
 BEGIN
@@ -177,8 +184,8 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions
-    INTO v_role, v_active, v_extra, v_denied
+  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions, p.order_role
+    INTO v_role, v_active, v_extra, v_denied, v_order_role
   FROM inventory_rehearsal.profiles AS p
   WHERE p.id = v_uid;
 
@@ -445,7 +452,8 @@ BEGIN
     RETURN false;
   END IF;
 
-  IF v_role IN ('manager', 'sales_manager', 'media_buyer') THEN
+  IF v_role IN ('manager', 'sales_manager', 'media_buyer')
+     OR v_order_role = 'fulfillment' THEN
     RETURN true;
   END IF;
 
@@ -492,10 +500,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'active profile required' USING ERRCODE = '42501';
   END IF;
-  IF NOT inventory_rehearsal.has_order_permission() THEN
-    RAISE EXCEPTION 'order-management permission required' USING ERRCODE = '42501';
-  END IF;
-
   IF p_new_status IS NULL OR p_new_status NOT IN (
     'pending', 'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
     'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled',
@@ -511,6 +515,21 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'order not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Match the live OrdersScreen authorization shape: manager/admin/sales-manager
+  -- and fulfillment sessions may advance orders globally; other active users may
+  -- advance their own order only. Use persisted profile/order fields, never client
+  -- state. An explicit manage_orders denial blocks even an owner fallback.
+  IF NOT inventory_rehearsal.has_order_permission() THEN
+    IF v_order.handler_name IS DISTINCT FROM v_actor.employee_name
+       OR COALESCE(
+         pg_catalog.jsonb_typeof(v_actor.denied_permissions) = 'array'
+         AND v_actor.denied_permissions ? 'manage_orders',
+         false
+       ) THEN
+      RAISE EXCEPTION 'order-management permission or order ownership required' USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   -- Mirror the market-specific status lists in src/data/orderStatus.js.
