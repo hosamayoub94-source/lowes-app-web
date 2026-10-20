@@ -1,6 +1,7 @@
 // «الخطوة التالية» لكل ليد B2B + رسالة تواصل جاهزة للنسخ (نسخ فقط — لا إرسال تلقائي أبداً).
 // منطق نقي بلا اعتماد على React/Supabase (قابل للاختبار): نفس فكرة طابور صناع المحتوى.
 import { hasAnyContact, hasDirectContact } from './syriaLeadsService';
+import { needsFollowUp as modelNeedsFollowUp } from './b2bModel';
 
 const DAY = 86400000;
 export const FOLLOW_UP_DAYS = 3;
@@ -11,12 +12,8 @@ export function daysSinceUpdate(lead, now = Date.now()) {
   return Math.max(0, Math.floor((now - new Date(lead.status_updated_at).getTime()) / DAY));
 }
 
-/** حالة «تم التواصل» بلا تحديث منذ FOLLOW_UP_DAYS يوم أو أكثر. */
-export function needsFollowUp(lead, now = Date.now()) {
-  if ((lead?.status || 'not_contacted') !== 'contacted') return false;
-  const d = daysSinceUpdate(lead, now);
-  return d != null && d >= FOLLOW_UP_DAYS;
-}
+/** حالة «تم التواصل» بلا تحديث منذ FOLLOW_UP_DAYS يوم أو أكثر — المصدر الوحيد للقاعدة بـb2bModel. */
+export const needsFollowUp = (lead, now = Date.now()) => modelNeedsFollowUp(lead, now, FOLLOW_UP_DAYS);
 
 /**
  * The single next action for a lead.  tone: 'amber' (needs action) | 'blue' (waiting) | 'green' (good) | 'gray' (closed / low).

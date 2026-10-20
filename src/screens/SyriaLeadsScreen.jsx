@@ -235,9 +235,44 @@ const TONE_PILL = {
   gray: 'bg-surface-alt text-muted border-border',
 };
 
-// بطاقة مختصرة: الجهة ← الحالة ← الخطوة التالية (بارزة) ← المسؤول/العائق ← زر رئيسي واحد.
+// تسجيل النتيجة بنقرة واحدة من البطاقة (نفس نداء StatusEditor، تحفظ الملاحظة الحالية كما هي).
+const QUICK_RESULTS = [
+  { status: 'contacted', label: '✓ تواصلنا' },
+  { status: 'interested', label: '👍 مهتم' },
+  { status: 'not_interested', label: '👎 غير مهتم' },
+];
+function QuickResult({ lead, myName, onSaved }) {
+  const { api } = useLeadsCtx();
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState(null);
+  const current = lead.status || 'not_contacted';
+  if (!['not_contacted', 'contacted', 'interested'].includes(current)) return null;   // عميل/مغلق: لا تسجيل سريع
+  const save = async (status) => {
+    setBusy(status); setErr(null);
+    try {
+      await api.updateStatus(lead.id, { status, notes: lead.notes || '', assigned_to: ownerForSave(lead, status, myName) }, myName);
+      await onSaved?.();
+    } catch (e) { setErr(e?.message || 'تعذّر الحفظ'); }
+    finally { setBusy(null); }
+  };
+  return (
+    <div className="space-y-1" data-testid="quick-result">
+      <div className="flex gap-1.5">
+        {QUICK_RESULTS.filter(r => r.status !== current).map(r => (
+          <button key={r.status} type="button" disabled={!!busy} onClick={() => save(r.status)} data-quick={r.status}
+            className="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-surface-alt border border-border text-text disabled:opacity-50">
+            {busy === r.status ? '…' : r.label}
+          </button>
+        ))}
+      </div>
+      {err && <p className="text-[10px] text-red-500">{err}</p>}
+    </div>
+  );
+}
+
+// بطاقة مختصرة: الجهة ← الحالة ← الخطوة التالية (بارزة) ← المسؤول/العائق ← زر رئيسي واحد ← تسجيل النتيجة بنقرة.
 // كل ما عداه (المصادر، سبب التقييم، الملاحظات، التحديث والحفظ) داخل «التفاصيل».
-function LeadCard({ lead, onOpen }) {
+function LeadCard({ lead, onOpen, myName, onSaved }) {
   const { country } = useLeadsCtx();
   const a = useMemo(() => assess(lead), [lead]);
   const step = useMemo(() => stepOf(lead, a), [lead, a]);
@@ -285,6 +320,7 @@ function LeadCard({ lead, onOpen }) {
             className="text-xs font-bold px-3 py-2 rounded-xl bg-surface-alt border border-border text-text">التفاصيل</button>
         )}
       </footer>
+      <QuickResult lead={lead} myName={myName} onSaved={onSaved} />
     </article>
   );
 }
@@ -620,7 +656,8 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const ctx = useMemo(() => ({ country: C.code, api }), [C.code, api]);
   const provLabel = (p) => regionLabelAr(C.code, p);
   const { name, role } = useAuth();
-  const canImport = canImportLeads(role, C.code);   // أدمن + دولة غير سوريا — الخادم يفحص مرة ثانية
+  const { can } = usePermissions();
+  const canImport = canImportLeads(role, C.code, can);   // أدمن أو صاحب صلاحية ليدز الدولة (سوريا والإمارات) — الخادم يفحص مرة ثانية
   const [importOpen, setImportOpen] = useState(false);
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -652,6 +689,11 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     try { setLeads(await api.list()); }
     catch (e) { const err = toB2bError(e, 'list'); logB2bError(err, 'list'); setLeads([]); setLoadErr(err); }
     finally { clearTimeout(slowTimer); setSlow(false); setLoading(false); }
+  }, [api]);
+  // تحديث صامت بعد تسجيل سريع: بلا هياكل تحميل ولا فقدان موضع التمرير؛ فشله يُبقي القائمة الحالية (الحفظ نفسه نجح).
+  const refresh = useCallback(async () => {
+    try { setLeads(await api.list()); }
+    catch (e) { logB2bError(toB2bError(e, 'list'), 'list'); }
   }, [api]);
 
   useEffect(() => { load(); }, [load]);
@@ -734,7 +776,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
           {canImport && (
             <button onClick={() => setImportOpen(true)} data-testid="import-open"
               className="px-3 py-2 rounded-xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal transition">
-              ⬆️ استيراد (أدمن)
+              ⬆️ استيراد من ملف
             </button>
           )}
           {view !== 'insights' && !loadErr && (
@@ -860,7 +902,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
             <div className="text-center py-16 text-muted" data-testid="empty-data">
               <p className="text-4xl mb-3">🗂️</p>
               <p className="text-sm font-semibold">لا توجد جهات لهذه الدولة بعد</p>
-              <p className="text-xs mt-1">{canImport ? 'استورد دفعة بحث (زر الاستيراد) أو أضف جهة يدوياً.' : 'تُضاف الجهات بعد اعتماد دفعات البحث، أو يدوياً من زر «إضافة».'}</p>
+              <p className="text-xs mt-1">{canImport ? 'استورد ملف Excel (زر الاستيراد) أو أضف جهة يدوياً.' : 'تُضاف الجهات بعد اعتماد دفعات البحث، أو يدوياً من زر «إضافة».'}</p>
             </div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-14 text-muted">
@@ -870,7 +912,7 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" data-testid="lead-grid">
-              {sorted.map(l => <LeadCard key={l.id} lead={l} onOpen={() => setDetailId(l.id)} />)}
+              {sorted.map(l => <LeadCard key={l.id} lead={l} onOpen={() => setDetailId(l.id)} myName={name} onSaved={refresh} />)}
             </div>
           )}
         </>

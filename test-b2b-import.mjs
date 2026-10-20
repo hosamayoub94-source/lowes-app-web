@@ -14,19 +14,20 @@ const out = path.join(root, '.tmp-b2b-import-unit.mjs');
 await build({ entryPoints: [path.join(root, 'src/services/b2bImport.js')], bundle: true, format: 'esm', platform: 'node', outfile: out, external: ['xlsx'], logLevel: 'silent' });
 let m;
 try { m = await import(pathToFileURL(out).href + `?t=${Date.now()}`); } finally { fs.unlinkSync(out); }
-const { canImportLeads, rowsFromJsonText, rowsFromSheetBuffer, buildPreview, rowsToSave, canSave, isWeakSource, MAX_IMPORT_ROWS } = m;
+const { canImportLeads, rowsFromJsonText, rowsFromSheetBuffer, buildPreview, rowsToSave, canSave, isWeakSource, MAX_IMPORT_ROWS, mapColumns, applyFileDefaults, normalizeLeadType, arabicRowError } = m;
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 const rejects = async (p) => { try { await p; return null; } catch (e) { return e.message; } };
 
-// ── بوابة الأدمن (الحالات الأربع + سوريا) ──
-const roles = [['admin', 'admin'], ['granted (employee + view_uae_leads)', 'employee'], ['denied (employee)', 'employee'], ['none (employee)', 'employee'], ['syria-only (employee)', 'employee'], ['manager', 'manager']];
-const table = roles.map(([k, r]) => ({ persona: k, AE: canImportLeads(r, 'AE'), SY: canImportLeads(r, 'SY'), TR: canImportLeads(r, 'TR') }));
-console.table(table);
-ok(canImportLeads('admin', 'AE') === true, 'admin + AE -> can import');
-ok(canImportLeads('admin', 'SY') === false, 'admin + SY -> no (Syria stays on the direct path, no import UI)');
+// ── بوابة الاستيراد: أدمن، أو من يملك صلاحية ليدز الدولة (سوريا والإمارات) ──
+const canOf = (...perms) => (p) => perms.includes(p);
+ok(canImportLeads('admin', 'AE') === true && canImportLeads('admin', 'SY') === true, 'admin -> AE and SY');
 ok(canImportLeads('admin', 'TR') === false, 'admin + TR (disabled) -> no');
 ok(canImportLeads('admin', 'XX') === false && canImportLeads(null, 'AE') === false && canImportLeads(undefined, 'AE') === false, 'unknown country / no role -> no');
-ok(['employee', 'manager', 'sales_manager', 'media_buyer', 'social_manager'].every((r) => canImportLeads(r, 'AE') === false), 'every non-admin role -> no (even with view_uae_leads: permission is not enough for import)');
+ok(canImportLeads('employee', 'AE', canOf('view_uae_leads')) === true, 'employee + view_uae_leads -> AE');
+ok(canImportLeads('employee', 'SY', canOf('view_syria_leads')) === true, 'employee + view_syria_leads -> SY');
+ok(canImportLeads('employee', 'AE', canOf('view_syria_leads')) === false && canImportLeads('employee', 'SY', canOf('view_uae_leads')) === false, 'permission of the OTHER country is not enough');
+ok(canImportLeads('employee', 'AE', canOf()) === false && canImportLeads('employee', 'AE') === false, 'no permission / no can() -> no');
+ok(canImportLeads('employee', 'AE', () => 'yes') === false, 'can() must return exactly true');
 
 // ── JSON ──
 const batch = JSON.parse(fs.readFileSync(path.join(root, 'data/b2b/uae/uae_batch1_2026-10-08.json'), 'utf8'));
@@ -46,6 +47,27 @@ const csv = 'name,province,lead_type,source_urls,last_verified_at,website,accept
 const csvRows = await rowsFromSheetBuffer(csv, 'string');
 ok(csvRows.length === 1 && csvRows[0].name === 'Fake Csv Shop (وهمي)' && csvRows[0].source_urls === 'https://a.example | https://b.example' && !('website' in csvRows[0]) && csvRows[0].accepts_sellers === 'نعم', `CSV parses with Arabic text, pipes and empty cells (${JSON.stringify(csvRows[0])})`);
 ok(/بلا صفوف/.test(await rejects(rowsFromSheetBuffer('name,province\n', 'string'))), 'CSV with header only -> clear message');
+
+// ── مطابقة الأعمدة (عربي/إنجليزي) ──
+const mp = mapColumns([
+  { 'الاسم': 'متجر وهمي', 'الإمارة': 'دبي', 'النوع (محل / أونلاين)': 'أونلاين', 'الموقع': 'https://x.example', 'ملاحظات': 'ملاحظة', 'عمود غريب': 'zzz', 'الهاتف': '' },
+  { Name: 'Fake Two', Emirate: 'Dubai', IG: 'fake_two', 'Source URLs': 'x', source_urls: 'https://a.example' },
+]);
+ok(mp.rows[0].name === 'متجر وهمي' && mp.rows[0].province === 'دبي' && mp.rows[0].lead_type === 'أونلاين' && mp.rows[0].website === 'https://x.example' && mp.rows[0].reason === 'ملاحظة', `Arabic headers map to the server's fields (${JSON.stringify(mp.rows[0])})`);
+ok(!('phone' in mp.rows[0]), 'an empty cell stays absent (never "")');
+ok(mp.ignored.length === 1 && mp.ignored[0] === 'عمود غريب', 'unknown columns are reported and dropped, not guessed');
+ok(mp.rows[1].name === 'Fake Two' && mp.rows[1].province === 'Dubai' && mp.rows[1].instagram === 'fake_two', 'English headers in any case map too');
+ok(mp.rows[1].source_urls === 'x', 'first non-empty value wins when two columns map to one field');
+ok(mapColumns([{ name: 'A', province: 'Dubai', lead_type: 'online', source_urls: 'https://a.example', last_verified_at: '2026-10-08', accepts_sellers: 'نعم' }]).ignored.length === 0, 'canonical JSON keys pass through untouched');
+ok(normalizeLeadType('أونلاين') === 'online' && normalizeLeadType('Online') === 'online' && normalizeLeadType('متجر إلكتروني') === 'online', 'online words');
+ok(normalizeLeadType('محل') === 'physical' && normalizeLeadType('صيدلية') === 'physical' && normalizeLeadType('physical') === 'physical', 'physical words');
+ok(normalizeLeadType('غير معروف') === 'غير معروف', 'unknown type left as is (server refuses with a clear reason)');
+const dflt = applyFileDefaults([{ name: 'A' }, { name: 'B', lead_type: 'محل', province: 'Dubai' }, { name: 'C', lead_type: 'physical' }], { leadType: 'online' });
+ok(dflt[0].lead_type === 'online' && dflt[0].province === 'Nationwide', 'missing type -> the chosen type; online without region -> nationwide');
+ok(dflt[1].lead_type === 'physical' && dflt[1].province === 'Dubai', 'type from the file wins over the chosen default');
+ok(dflt[2].lead_type === 'physical' && !dflt[2].province, 'physical without region is NOT given a region (server refuses it)');
+ok(!('lead_type' in applyFileDefaults([{ name: 'A' }], { leadType: 'auto' })[0]), 'auto + no column -> no type invented');
+ok(/نوع الجهة/.test(arabicRowError('lead_type must be physical|online')) && /الاسم/.test(arabicRowError('name required')) && arabicRowError('something else') === 'something else', 'row errors translated, unknown ones kept');
 
 // ── معاينة: ربط الصف الجديد بصفّه الأصلي من id الذي يبنيه الخادم ──
 const fileRows = [{ name: 'Row One' }, { name: 'Row Two' }, { name: 'Row Three' }, { name: 'Row Four' }];
