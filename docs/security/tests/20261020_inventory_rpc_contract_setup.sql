@@ -390,6 +390,300 @@ BEGIN
 END
 $set_quantity$;
 
+-- Normalize product names in the same broad way as warehouseService.js.
+-- Alias matching is a fixture abstraction; this is not an app-wide catalog migration.
+CREATE OR REPLACE FUNCTION inventory_rehearsal.normalize_product_name(p_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog
+AS $normalize$
+  SELECT pg_catalog.regexp_replace(
+    pg_catalog.regexp_replace(
+      pg_catalog.lower(pg_catalog.translate(
+        COALESCE(p_value, ''),
+        'İıŞşĞğÇçÖöÜü',
+        'iissggccoouu'
+      )),
+      '[^a-z0-9ء-ي]', '', 'g'
+    ),
+    '^lowes', ''
+  )
+$normalize$;
+
+CREATE OR REPLACE FUNCTION inventory_rehearsal.has_order_permission()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, inventory_rehearsal
+AS $order_permission$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_role text;
+  v_active boolean;
+  v_extra jsonb;
+  v_denied jsonb;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN false;
+  END IF;
+
+  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions
+    INTO v_role, v_active, v_extra, v_denied
+  FROM inventory_rehearsal.profiles AS p
+  WHERE p.id = v_uid;
+
+  IF NOT FOUND OR v_active IS DISTINCT FROM true THEN
+    RETURN false;
+  END IF;
+
+  IF v_role = 'admin' THEN
+    RETURN true;
+  END IF;
+
+  IF COALESCE(pg_catalog.jsonb_typeof(v_denied) = 'array' AND v_denied ? 'manage_orders', false) THEN
+    RETURN false;
+  END IF;
+
+  IF v_role IN ('manager', 'sales_manager', 'media_buyer') THEN
+    RETURN true;
+  END IF;
+
+  RETURN COALESCE(pg_catalog.jsonb_typeof(v_extra) = 'array' AND v_extra ? 'manage_orders', false);
+END
+$order_permission$;
+
+-- One server-side status transition is the transaction boundary:
+-- it reads the persisted order (including items/source/brand), reconciles stock,
+-- records reservation/release movements, and only then persists the new status.
+-- The caller supplies only the order id and target status, never a stock delta.
+CREATE OR REPLACE FUNCTION inventory_rehearsal.wh_transition_order_status(
+  p_order_id uuid,
+  p_new_status text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, inventory_rehearsal
+AS $order_transition$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_actor inventory_rehearsal.profiles%ROWTYPE;
+  v_order inventory_rehearsal.orders%ROWTYPE;
+  v_item jsonb;
+  v_item_name text;
+  v_qty_text text;
+  v_qty integer;
+  v_product_id uuid;
+  v_warehouse_id uuid;
+  v_should_be_out boolean;
+  v_is_reserved boolean;
+  v_net record;
+  v_new_qty integer;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT p.* INTO v_actor
+  FROM inventory_rehearsal.profiles AS p
+  WHERE p.id = v_uid AND p.is_active IS TRUE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'active profile required' USING ERRCODE = '42501';
+  END IF;
+  IF NOT inventory_rehearsal.has_order_permission() THEN
+    RAISE EXCEPTION 'order-management permission required' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_new_status IS NULL OR p_new_status NOT IN (
+    'pending', 'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
+    'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled',
+    'waiting', 'not_received', 'returning', 'returned', 'cancelled'
+  ) THEN
+    RAISE EXCEPTION 'unsupported order status' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT o.* INTO v_order
+  FROM inventory_rehearsal.orders AS o
+  WHERE o.id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- These sources/brands manage physical stock elsewhere. Status can advance,
+  -- but the employee app must not deduct them a second time.
+  IF COALESCE(v_order.brand, 'lowes') <> 'lowes'
+     OR v_order.source IN ('star_network', 'uae_sheet_import') THEN
+    UPDATE inventory_rehearsal.orders
+    SET status = p_new_status, updated_at = pg_catalog.now(),
+        updated_by = v_actor.employee_name
+    WHERE id = p_order_id;
+    RETURN;
+  END IF;
+
+  v_should_be_out := p_new_status IN (
+    'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
+    'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled'
+  );
+
+  IF EXISTS (
+    SELECT 1
+    FROM inventory_rehearsal.wh_movements AS m
+    WHERE m.order_id = p_order_id
+      AND m.type IN ('reserve', 'release')
+    GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
+    HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) < 0
+  ) THEN
+    RAISE EXCEPTION 'reservation ledger is inconsistent' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM inventory_rehearsal.wh_movements AS m
+    WHERE m.order_id = p_order_id
+      AND m.type IN ('reserve', 'release')
+    GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
+    HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) > 0
+  ) INTO v_is_reserved;
+
+  IF v_should_be_out AND NOT v_is_reserved THEN
+    -- Prefer the handler's linked active warehouse if its market matches;
+    -- otherwise use the active sales warehouse for this order's market.
+    SELECT w.id INTO v_warehouse_id
+    FROM inventory_rehearsal.profiles AS p
+    JOIN inventory_rehearsal.wh_warehouses AS w ON w.id = p.warehouse_id
+    WHERE p.employee_name = v_order.handler_name
+      AND w.is_active IS TRUE
+      AND (w.market IS NULL OR w.market = v_order.market)
+    ORDER BY p.id
+    LIMIT 1;
+
+    IF v_warehouse_id IS NULL THEN
+      SELECT w.id INTO v_warehouse_id
+      FROM inventory_rehearsal.wh_warehouses AS w
+      WHERE w.type = 'sales'
+        AND w.market = v_order.market
+        AND w.is_active IS TRUE
+      ORDER BY w.id
+      LIMIT 1;
+    END IF;
+
+    IF v_warehouse_id IS NULL THEN
+      RAISE EXCEPTION 'no active stock warehouse for order market' USING ERRCODE = '23514';
+    END IF;
+
+    FOR v_item IN
+      SELECT e.value
+      FROM pg_catalog.jsonb_array_elements(
+        CASE WHEN pg_catalog.jsonb_typeof(v_order.items) = 'array'
+             THEN v_order.items ELSE '[]'::jsonb END
+      ) AS e(value)
+    LOOP
+      v_item_name := v_item ->> 'name';
+      v_qty_text := COALESCE(NULLIF(pg_catalog.btrim(v_item ->> 'qty'), ''), '1');
+      IF v_qty_text !~ '^[0-9]+
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
+
+COMMIT;
+ THEN
+        RAISE EXCEPTION 'invalid order item quantity' USING ERRCODE = '22023';
+      END IF;
+      v_qty := v_qty_text::integer;
+      IF v_qty <= 0 OR COALESCE(v_item_name, '') = '' THEN
+        CONTINUE;
+      END IF;
+
+      SELECT p.id INTO v_product_id
+      FROM inventory_rehearsal.products AS p
+      WHERE p.is_active IS TRUE
+        AND (
+          inventory_rehearsal.normalize_product_name(v_item_name)
+            = inventory_rehearsal.normalize_product_name(p.name)
+          OR inventory_rehearsal.normalize_product_name(v_item_name)
+            = inventory_rehearsal.normalize_product_name(p.name_en)
+          OR EXISTS (
+            SELECT 1 FROM inventory_rehearsal.product_aliases AS a
+            WHERE a.product_id = p.id
+              AND a.alias_norm = inventory_rehearsal.normalize_product_name(v_item_name)
+          )
+        )
+      ORDER BY
+        CASE WHEN inventory_rehearsal.normalize_product_name(v_item_name)
+                       IN (inventory_rehearsal.normalize_product_name(p.name),
+                           inventory_rehearsal.normalize_product_name(p.name_en))
+             THEN 0 ELSE 1 END,
+        p.id
+      LIMIT 1;
+
+      IF v_product_id IS NULL THEN
+        CONTINUE;
+      END IF;
+
+      UPDATE inventory_rehearsal.wh_stock AS s
+      SET quantity = s.quantity - v_qty,
+          updated_at = pg_catalog.now()
+      WHERE s.warehouse_id = v_warehouse_id
+        AND s.product_id = v_product_id
+        AND s.quantity >= v_qty
+      RETURNING s.quantity INTO v_new_qty;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'insufficient stock for order item' USING ERRCODE = '23514';
+      END IF;
+
+      INSERT INTO inventory_rehearsal.wh_movements
+        (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by, order_id)
+      VALUES
+        (v_product_id, v_warehouse_id, NULL, v_qty, 'reserve',
+         'order status: ' || p_new_status, v_actor.employee_name, p_order_id);
+    END LOOP;
+
+  ELSIF NOT v_should_be_out AND v_is_reserved THEN
+    FOR v_net IN
+      SELECT m.product_id,
+             COALESCE(m.from_warehouse_id, m.to_warehouse_id) AS warehouse_id,
+             pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END)::integer AS quantity
+      FROM inventory_rehearsal.wh_movements AS m
+      WHERE m.order_id = p_order_id
+        AND m.type IN ('reserve', 'release')
+      GROUP BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
+      HAVING pg_catalog.sum(CASE WHEN m.type = 'reserve' THEN m.quantity ELSE -m.quantity END) > 0
+      ORDER BY m.product_id, COALESCE(m.from_warehouse_id, m.to_warehouse_id)
+    LOOP
+      INSERT INTO inventory_rehearsal.wh_stock AS current_stock
+        (warehouse_id, product_id, quantity, updated_at)
+      VALUES (v_net.warehouse_id, v_net.product_id, v_net.quantity, pg_catalog.now())
+      ON CONFLICT (warehouse_id, product_id)
+      DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity,
+                    updated_at = pg_catalog.now();
+
+      INSERT INTO inventory_rehearsal.wh_movements
+        (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by, order_id)
+      VALUES
+        (v_net.product_id, NULL, v_net.warehouse_id, v_net.quantity, 'release',
+         'order status: ' || p_new_status, v_actor.employee_name, p_order_id);
+    END LOOP;
+  END IF;
+
+  UPDATE inventory_rehearsal.orders
+  SET status = p_new_status, updated_at = pg_catalog.now(),
+      updated_by = v_actor.employee_name
+  WHERE id = p_order_id;
+END
+$order_transition$;
+
 -- SECURITY DEFINER APIs have no public/default EXECUTE path.
 REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
