@@ -411,3 +411,15 @@ A fresh read-only aggregate against `lowes-attendance` reconfirmed the key Phase
 The manual-session number above uses an explicit, reproducible filter on `action_type='login'` and `metadata.mode='manual_session'`; an earlier broader audit summary recorded 76. Treat 72 as the count for this exact filter, not as proof that four historical events were removed. No usernames, IP values, PINs, passwords, device strings, or raw event metadata were fetched by this query.
 
 **Release consequence is unchanged:** the fallback is still in active use by 10 distinct users in the query window. A production `auth.uid()` gate or anon privilege revocation is not safe until the missing Auth identity is handled and current manual-session users have a tested, supported path to obtain real Auth sessions. Do not reset credentials or disable fallback based on aggregate counts alone.
+
+
+### Atomic order-edit fixture added — 2026-10-20 (PR #74)
+
+The disposable PostgreSQL rehearsal now includes `inventory_rehearsal.wh_edit_order(uuid,jsonb)` alongside `wh_transition_order_status(uuid,text)`. The edit contract accepts only the reviewed fields `status`, `items`, `handler_name`, `market`, `brand`, and `source`; it locks and authorizes the persisted order before applying the patch, then runs reservation reconciliation before the same SQL transaction can commit.
+
+- Order managers/fulfillment can use the reviewed patch allowlist. An owner fallback can edit only `status` and `items`, and cannot change the handler, market, brand, or source.
+- The caller cannot send a stock delta, before-image, warehouse ID, or reservation ledger. The RPC derives the target from the patched persisted order and the existing reservation ledger.
+- Tests cover initial reserve with an item edit, quantity increase (reserve only the difference), owner quantity decrease (release only the difference), source change to `star_network` releasing the old reservation, unknown-field rejection, unrelated-employee denial, and shortage rollback restoring the original order fields and leaving stock/audit unchanged.
+- The test fixture's `products.quantity` mirror is asserted against summed warehouse stock. Application CI and Security SQL Candidate Rehearsal passed after the test corrections on commit `3c72e6c967711061c29c67824b555de93c10dd27`.
+
+**Still fixture-only.** No production caller invokes this function; it is not a Supabase migration and has not been deployed. The real browser, Apps Script, sheet integration, Star Network, and carrier-tracker writers still require separate user-Auth and trusted-service integration contracts. Phase 0 (supported Auth sessions for manual-session users) and the full writer cutover remain blockers. Do not apply production grants/RLS changes or reconcile historical negative balances from these fixture results.
