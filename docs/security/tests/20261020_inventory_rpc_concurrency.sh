@@ -17,6 +17,9 @@ PARALLEL_WORKERS=12
 
 # Reset to a known fixture baseline. The existing trigger also resets products.quantity.
 psql -X -v ON_ERROR_STOP=1 -c "TRUNCATE inventory_rehearsal.wh_movements"
+# The authorization contract suite now creates extra warehouses/items for order tests.
+# Remove those synthetic rows so this concurrency test starts from only its two-stock baseline.
+psql -X -v ON_ERROR_STOP=1 -c "DELETE FROM inventory_rehearsal.wh_stock WHERE NOT ((warehouse_id = '$CENTRAL_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID') OR (warehouse_id = '$SALES_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'))"
 psql -X -v ON_ERROR_STOP=1 -c "UPDATE inventory_rehearsal.wh_stock SET quantity = 20 WHERE warehouse_id = '$CENTRAL_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'"
 psql -X -v ON_ERROR_STOP=1 -c "UPDATE inventory_rehearsal.wh_stock SET quantity = 5 WHERE warehouse_id = '$SALES_WAREHOUSE_ID' AND product_id = '$PRODUCT_ID'"
 
