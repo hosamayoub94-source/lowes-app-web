@@ -86,6 +86,9 @@ jobs:
       - name: Prepare disposable PIN rate-limit fixture
         run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261020_pin_rate_limit_setup.sql
 
+      - name: Apply PIN rate-limit SQL candidate only to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f docs/security/candidates/20261020_pin_rate_limit_rpc.sql
+
       - name: Test PIN rate-limit thresholds and scopes
         run: psql -v ON_ERROR_STOP=1 -f docs/security/tests/20261020_pin_rate_limit_verify.sql
 
