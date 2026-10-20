@@ -305,11 +305,66 @@ BEGIN
 END
 $transfer$;
 
+-- Exact-count adjustment API. Replaces the legacy client-side upsert so the
+-- exact quantity and its audit movement share a transaction and actor identity.
+CREATE OR REPLACE FUNCTION inventory_rehearsal.wh_set_stock_quantity(
+  p_warehouse uuid,
+  p_product uuid,
+  p_quantity integer,
+  p_reason text DEFAULT NULL
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, inventory_rehearsal
+AS $set_quantity$
+DECLARE
+  v_actor uuid := auth.uid();
+  v_new_quantity integer;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_quantity IS NULL OR p_quantity < 0 THEN
+    RAISE EXCEPTION 'quantity must be non-negative' USING ERRCODE = '22023';
+  END IF;
+  IF NOT inventory_rehearsal.has_stock_permission(p_warehouse) THEN
+    RAISE EXCEPTION 'stock permission required for this warehouse' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM inventory_rehearsal.products AS p
+    WHERE p.id = p_product AND p.is_active IS TRUE
+  ) THEN
+    RAISE EXCEPTION 'active product required' USING ERRCODE = '23503';
+  END IF;
+
+  INSERT INTO inventory_rehearsal.wh_stock AS current_stock
+    (warehouse_id, product_id, quantity, updated_at)
+  VALUES (p_warehouse, p_product, p_quantity, pg_catalog.now())
+  ON CONFLICT (warehouse_id, product_id)
+  DO UPDATE SET quantity = EXCLUDED.quantity,
+                updated_at = pg_catalog.now()
+  RETURNING quantity INTO v_new_quantity;
+
+  -- Match the current UI contract (movement quantity stores the set quantity),
+  -- while deriving the actor on the server and writing the audit in this transaction.
+  INSERT INTO inventory_rehearsal.wh_movements
+    (product_id, from_warehouse_id, to_warehouse_id, quantity, type, reason, performed_by)
+  VALUES
+    (p_product, p_warehouse, p_warehouse, p_quantity, 'adjust',
+     COALESCE(NULLIF(pg_catalog.btrim(p_reason), ''), 'جرد/تصحيح'), v_actor::text);
+
+  RETURN v_new_quantity;
+END
+$set_quantity$;
+
 -- SECURITY DEFINER APIs have no public/default EXECUTE path.
 REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
 
 COMMIT;
