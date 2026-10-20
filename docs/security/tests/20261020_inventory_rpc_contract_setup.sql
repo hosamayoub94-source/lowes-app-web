@@ -599,20 +599,7 @@ BEGIN
     LOOP
       v_item_name := v_item ->> 'name';
       v_qty_text := COALESCE(NULLIF(pg_catalog.btrim(v_item ->> 'qty'), ''), '1');
-      IF v_qty_text !~ '^[0-9]+
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
-
-COMMIT;
- THEN
+      IF v_qty_text ~ '[^0-9]' THEN
         RAISE EXCEPTION 'invalid order item quantity' USING ERRCODE = '22023';
       END IF;
       v_qty := v_qty_text::integer;
@@ -704,8 +691,12 @@ REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLI
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
 
 COMMIT;
