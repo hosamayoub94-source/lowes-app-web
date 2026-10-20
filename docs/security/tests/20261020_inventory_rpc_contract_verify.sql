@@ -23,9 +23,13 @@ BEGIN
      OR has_function_privilege('anon', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'FAIL: anon can execute a stock-mutation RPC';
   END IF;
+  IF has_function_privilege('anon', 'inventory_rehearsal.wh_set_stock_quantity(uuid,uuid,integer,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: anon can execute exact-count stock adjustment';
+  END IF;
   IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
-     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
-    RAISE EXCEPTION 'FAIL: authenticated lacks the intended narrow RPC EXECUTE grants';
+     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_set_stock_quantity(uuid,uuid,integer,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'FAIL: authenticated lacks the intended narrow inventory RPC EXECUTE grants';
   END IF;
 END
 $acl$;
@@ -111,6 +115,16 @@ BEGIN
     RAISE EXCEPTION 'FAIL: anon invoked transfer_stock';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: anon transfer RPC denied';
+  END;
+
+  BEGIN
+    PERFORM inventory_rehearsal.wh_set_stock_quantity(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 99, 'anon attempt'
+    );
+    RAISE EXCEPTION 'FAIL: anon invoked exact-count stock adjustment';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: anon exact-count adjustment RPC denied';
   END;
 END
 $anon$;
