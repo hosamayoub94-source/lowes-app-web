@@ -249,4 +249,14 @@ A follow-up aggregate over `public.wh_stock`, `public.products`, and `public.wh_
 
 The quantity mirror is currently internally consistent (zero mismatches), but that does **not** mean the stock ledger is healthy: both `wh_stock.quantity` and the corresponding `products.quantity` can match while remaining negative. The audit did not read product names, customer/order payloads, PINs, credentials, or individual movement records.
 
+The negative balances are concentrated in two market/type groups:
+
+| Warehouse market / type | Negative rows | Products affected | Sum of negative quantities |
+|---|---:|---:|---:|
+| Turkey / sales | 27 | 27 | -3,609 |
+| Syria / sales | 5 | 5 | -724 |
+| **Total** | **32** | **32** | **-4,333** |
+
+A separate aggregate linked movements to those negative product/warehouse pairs: 4,227 reserve rows, 221 release rows, 25 adjustment rows and 2 allocation rows were associated with the affected pairs. This is a **related-history count**, not yet a causal attribution; movement records can predate the current negative balance and the present adjustment movement format does not reliably preserve signed deltas.
+
 **Remediation warning:** do not automatically clamp negative balances to zero and do not mass-reverse historical movements. First create a per-warehouse/product reconciliation report from opening quantities, reserve/release movements, transfers, write-offs, and physical counts; identify which entries explain the negative totals; get the owner to approve adjustments; then apply a separate audited correction with a rollback plan. Until that reconciliation is complete, the report should describe these as live negative balances, not merely as a potential bypass.
