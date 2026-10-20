@@ -357,4 +357,37 @@ COMMIT;
 DROP TRIGGER rehearsal_force_audit_failure ON inventory_rehearsal.wh_movements;
 DROP FUNCTION inventory_rehearsal.fail_movement_insert_when_requested();
 
-\echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
+\\echo 'Checking authenticated DB role with no Supabase Auth identity is denied...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+DO $no_auth_identity$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.apply_stock_delta(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001', 1
+    );
+    RAISE EXCEPTION 'FAIL: profile-less authenticated session changed stock';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: authenticated role without auth.uid() cannot mutate stock';
+  END;
+END
+$no_auth_identity$;
+RESET ROLE;
+DO $no_auth_identity_unchanged$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 19
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+      WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
+    RAISE EXCEPTION 'FAIL: missing-identity call changed stock or movement history';
+  END IF;
+END
+$no_auth_identity_unchanged$;
+COMMIT;
+
+\\echo 'PASS: disposable inventory RPC authorization contract rehearsal complete.'
