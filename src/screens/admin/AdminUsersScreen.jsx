@@ -261,6 +261,9 @@ export default function AdminUsersScreen() {
   const [error, setError]             = useState(null);
   const [search, setSearch]           = useState('');
   const [roleFilter, setRoleFilter]   = useState('all');
+  // الافتراضي: النشطون فقط — الحسابات المعطّلة/المستقيلة بتبويب مستقل ما بتزاحم القائمة.
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [menuId, setMenuId]           = useState(null);
   const [editUser, setEditUser]       = useState(null);
   const [form, setForm]               = useState(EMPTY_FORM);
   const [saving, setSaving]           = useState(false);
@@ -282,11 +285,17 @@ export default function AdminUsersScreen() {
   useEffect(() => { load(); }, [load]);
 
   // ── Filtering ────────────────────────────────────────────────
+  const ROLE_ORDER = ['admin', 'manager', 'sales_manager', 'social_manager', 'media_buyer'];
+  const roleRank = (r) => { const i = ROLE_ORDER.indexOf(r); return i === -1 ? ROLE_ORDER.length : i; };
   const filtered = profiles.filter(p => {
     const q = search.toLowerCase();
     return (!search || p.employee_name?.toLowerCase().includes(q) || p.team?.toLowerCase().includes(q))
-      && (roleFilter === 'all' || p.role_type === roleFilter);
-  });
+      && (roleFilter === 'all' || p.role_type === roleFilter)
+      && (statusFilter === 'all' || (statusFilter === 'active' ? !!p.is_active : !p.is_active));
+  }).sort((a, b) =>
+    (Number(!!b.is_active) - Number(!!a.is_active))
+    || (roleRank(a.role_type) - roleRank(b.role_type))
+    || String(a.employee_name || '').localeCompare(String(b.employee_name || '')));
 
   // ── Edit ─────────────────────────────────────────────────────
   const openEdit = (p) => {
@@ -492,6 +501,7 @@ export default function AdminUsersScreen() {
   // ── KPIs ──────────────────────────────────────────────────────
   const total    = profiles.length;
   const active   = profiles.filter(p => p.is_active).length;
+  const inactive = total - active;
   const managers = profiles.filter(p => ['admin','manager','sales_manager'].includes(p.role_type)).length;
 
   return (
@@ -523,21 +533,43 @@ export default function AdminUsersScreen() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label: 'إجمالي الموظفين', value: total,    icon: '👥' },
-          { label: 'نشطون',           value: active,   icon: '✅' },
+          { label: 'إجمالي الحسابات', value: total,    icon: '👥', go: 'all' },
+          { label: 'نشطون',           value: active,   icon: '✅', go: 'active' },
+          { label: 'غير نشطين',       value: inactive, icon: '⏸️', go: 'inactive' },
           { label: 'الإدارة',         value: managers, icon: '🏅' },
         ].map(k => (
-          <div key={k.label} className="bg-surface border border-border rounded-xl p-4 text-center">
-            <div className="text-2xl mb-1">{k.icon}</div>
-            <div className="text-2xl font-bold text-text">{k.value}</div>
-            <div className="text-xs text-muted mt-0.5">{k.label}</div>
-          </div>
+          <button
+            key={k.label} type="button" disabled={!k.go} onClick={() => k.go && setStatusFilter(k.go)}
+            className={['bg-surface border rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-start transition',
+              k.go && statusFilter === k.go ? 'border-teal ring-1 ring-teal/30' : 'border-border', k.go ? 'hover:border-teal/50' : 'cursor-default'].join(' ')}
+          >
+            <span className="text-xl">{k.icon}</span>
+            <span className="min-w-0">
+              <span className="block text-lg font-bold text-text leading-tight">{k.value}</span>
+              <span className="block text-[11px] text-muted truncate">{k.label}</span>
+            </span>
+          </button>
         ))}
       </div>
 
       {/* Filters */}
+      <div className="flex gap-1 p-1 bg-surface-alt rounded-xl w-fit" role="tablist">
+        {[
+          { k: 'active',   label: 'نشطون',     n: active },
+          { k: 'inactive', label: 'غير نشطين', n: inactive },
+          { k: 'all',      label: 'الكل',      n: total },
+        ].map(t => (
+          <button
+            key={t.k} type="button" role="tab" aria-selected={statusFilter === t.k} onClick={() => setStatusFilter(t.k)}
+            className={['px-3.5 py-1.5 rounded-lg text-sm transition', statusFilter === t.k ? 'bg-surface text-text font-semibold shadow-sm' : 'text-muted hover:text-text'].join(' ')}
+          >
+            {t.label} <span className="text-xs opacity-70">({t.n})</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -566,97 +598,88 @@ export default function AdminUsersScreen() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
           <div className="text-4xl mb-2">📭</div>
-          <p className="text-muted text-sm">{search ? 'لا نتائج مطابقة' : 'لا يوجد موظفون'}</p>
+          <p className="text-muted text-sm">{search ? 'لا نتائج مطابقة' : statusFilter === 'inactive' ? 'لا توجد حسابات غير نشطة' : 'لا يوجد موظفون'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(p => {
             const lvl = getLevel(p.total_points ?? 0);
+            const off = !p.is_active;
+            const offLabel = p.employment_status === 'resigned' ? 'مستقيل' : 'معطّل';
+            const meta = [p.team, p.page_name && `📱 ${p.page_name}`].filter(Boolean).join(' · ');
+            const shiftIcon = p.shift_type === 'morning' ? '🌅' : p.shift_type === 'evening' ? '🌇' : p.shift_type === 'night' ? '🌙' : '🕐';
             return (
               <div
                 key={p.id}
-                className={['bg-surface border border-border rounded-2xl p-4 space-y-3 transition', !p.is_active && 'opacity-60'].filter(Boolean).join(' ')}
+                className={['rounded-2xl p-4 flex flex-col gap-3 border transition',
+                  off ? 'bg-surface-alt/60 border-dashed border-border' : 'bg-surface border-border hover:shadow-sm'].join(' ')}
               >
-                {/* Avatar + name */}
                 <div className="flex items-center gap-3">
                   <div className="relative shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-teal/10 flex items-center justify-center text-teal font-bold text-lg overflow-hidden">
+                    <div className={['w-11 h-11 rounded-full bg-teal/10 flex items-center justify-center text-teal font-bold text-lg overflow-hidden', off && 'grayscale opacity-70'].filter(Boolean).join(' ')}>
                       {p.avatar_url
-                        ? <img src={p.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        ? <img src={p.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover" />
                         : (p.employee_name?.[0] ?? '?')}
                     </div>
-                    <span className="absolute -bottom-0.5 -end-0.5 text-xs leading-none" title={lvl.label}>{lvl.icon}</span>
+                    {!off && <span className="absolute -bottom-0.5 -end-0.5 text-xs leading-none" title={lvl.label}>{lvl.icon}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-text truncate">{p.employee_name}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {p.team && <p className="text-xs text-muted">{p.team}</p>}
-                      {p.page_name && (
-                        <span className="text-xs text-teal font-medium truncate">📱 {p.page_name}</span>
+                    <p className={['font-semibold truncate', off ? 'text-muted' : 'text-text'].join(' ')}>{p.employee_name}</p>
+                    {meta && <p className="text-xs text-muted truncate">{meta}</p>}
+                  </div>
+                  {isAdmin && (
+                    <div className="relative shrink-0">
+                      <button
+                        type="button" aria-label="المزيد" aria-haspopup="menu" aria-expanded={menuId === p.id}
+                        onClick={() => setMenuId(menuId === p.id ? null : p.id)}
+                        className="w-8 h-8 rounded-lg text-muted hover:bg-surface-alt hover:text-text transition text-lg leading-none"
+                      >⋯</button>
+                      {menuId === p.id && (
+                        <>
+                          <button type="button" aria-label="إغلاق" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenuId(null)} />
+                          <div role="menu" className="absolute end-0 top-9 z-20 w-52 bg-surface border border-border rounded-xl shadow-lg p-1 text-sm">
+                            {off && (
+                              <button role="menuitem" onClick={() => { setMenuId(null); setPinResetUser(p); }} className="w-full text-start px-3 py-2 rounded-lg hover:bg-surface-alt text-text">🔑 تغيير PIN</button>
+                            )}
+                            {!off && (
+                              <button role="menuitem" onClick={() => { setMenuId(null); toggleActive(p); }} className="w-full text-start px-3 py-2 rounded-lg hover:bg-surface-alt text-text">🔴 تعطيل الحساب</button>
+                            )}
+                            {!off && (
+                              <button role="menuitem" onClick={() => { setMenuId(null); markResigned(p); }} className="w-full text-start px-3 py-2 rounded-lg hover:bg-surface-alt text-text">👋 وضع كمستقيل <span className="text-xs text-muted">(يحفظ البيانات)</span></button>
+                            )}
+                            <div className="my-1 border-t border-border" />
+                            <button role="menuitem" onClick={() => { setMenuId(null); handleDelete(p); }} className="w-full text-start px-3 py-2 rounded-lg hover:bg-red-bg text-red-fg">🗑️ حذف نهائي</button>
+                          </div>
+                        </>
                       )}
                     </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* Role + status + points */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[p.role_type] ?? 'bg-gray-100 text-gray-600'}`}>
+                <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                  <span className={`font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[p.role_type] ?? 'bg-gray-100 text-gray-600'}`}>
                     {ROLE_LABELS[p.role_type] ?? p.role_type}
                   </span>
-                  <div className="flex items-center gap-2">
-                    {(p.total_points ?? 0) > 0 && (
-                      <span className="text-xs font-semibold text-teal">{p.total_points} نقطة</span>
-                    )}
-                    <span className={`text-xs ${p.is_active ? 'text-green-fg' : 'text-red-fg'}`}>
-                      {p.is_active ? '● نشط' : '○ غير نشط'}
+                  <span className={['px-2 py-0.5 rounded-full', off ? 'bg-surface-alt text-muted border border-border' : 'bg-green-bg text-green-fg'].join(' ')}>
+                    {off ? `○ ${offLabel}` : '● نشط'}
+                  </span>
+                  {!off && (p.total_points ?? 0) > 0 && <span className="font-semibold text-teal">{p.total_points} نقطة</span>}
+                  {!off && p.shift_type && (
+                    <span className="text-muted">
+                      {shiftIcon} {SHIFT_OPTIONS.find(s => s.value === p.shift_type)?.label.split(' ')[1] ?? p.shift_type}
+                      {p.rest_day && <span className="ms-1.5">🗓️ {p.rest_day}</span>}
                     </span>
-                  </div>
+                  )}
                 </div>
 
-                {/* Shift badge */}
-                {p.shift_type && (
-                  <div className="text-xs text-muted">
-                    {p.shift_type === 'morning' ? '🌅' : p.shift_type === 'evening' ? '🌇' : p.shift_type === 'night' ? '🌙' : '🕐'}
-                    {' '}
-                    {SHIFT_OPTIONS.find(s => s.value === p.shift_type)?.label.split(' ')[1] ?? p.shift_type}
-                    {p.rest_day && <span className="ms-2">🗓️ {p.rest_day}</span>}
-                  </div>
-                )}
-
-                {/* Actions */}
                 {isAdmin && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(p)} className="flex-1 py-1.5 rounded-lg border border-border text-xs text-text hover:bg-surface-alt transition">
-                        ✏️ تعديل
-                      </button>
-                      <button
-                        onClick={() => toggleActive(p)}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition ${p.is_active ? 'border border-red/20 text-red-fg hover:bg-red-bg' : 'border border-green/20 text-green-fg hover:bg-green-bg'}`}
-                      >
-                        {p.is_active ? '🔴 تعطيل' : '🟢 تفعيل'}
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setPinResetUser(p)}
-                      className="w-full py-1.5 rounded-lg bg-amber-bg border border-amber/30 text-amber-fg text-xs font-medium hover:bg-amber/20 transition"
-                    >
-                      🔑 تغيير PIN
-                    </button>
-                    {p.is_active && (
-                      <button
-                        onClick={() => markResigned(p)}
-                        className="w-full py-1.5 rounded-lg bg-surface-alt border border-border text-text text-xs font-medium hover:border-amber/40 transition"
-                      >
-                        👋 وضع كمستقيل (يحفظ البيانات)
-                      </button>
+                  <div className="flex gap-2 mt-auto pt-0.5">
+                    {off ? (
+                      <button onClick={() => toggleActive(p)} className="flex-1 py-1.5 rounded-lg bg-green-bg border border-green/20 text-green-fg text-xs font-semibold hover:opacity-90 transition">🟢 تفعيل</button>
+                    ) : (
+                      <button onClick={() => setPinResetUser(p)} className="flex-1 py-1.5 rounded-lg bg-amber-bg border border-amber/30 text-amber-fg text-xs font-medium hover:bg-amber/20 transition">🔑 تغيير PIN</button>
                     )}
-                    <button
-                      onClick={() => handleDelete(p)}
-                      className="w-full py-1.5 rounded-lg bg-red-bg border border-red/30 text-red-fg text-xs font-medium hover:bg-red/20 transition"
-                    >
-                      🗑️ حذف نهائي
-                    </button>
+                    <button onClick={() => openEdit(p)} className="flex-1 py-1.5 rounded-lg border border-border text-xs text-text hover:bg-surface-alt transition">✏️ تعديل</button>
                   </div>
                 )}
               </div>
