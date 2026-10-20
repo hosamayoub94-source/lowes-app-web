@@ -513,6 +513,21 @@ BEGIN
     RAISE EXCEPTION 'order not found' USING ERRCODE = 'P0002';
   END IF;
 
+  -- Mirror the market-specific status lists in src/data/orderStatus.js.
+  IF (v_order.market = 'turkey' AND p_new_status <> ALL (ARRAY[
+        'preparing','delivered','not_received','on_way','at_center','shipped',
+        'returning','prepaid','waiting','special_delivery','motor_prep','settled','cancelled','motor','pending'
+      ]::text[]))
+     OR (v_order.market = 'syria' AND p_new_status <> ALL (ARRAY[
+        'pending','preparing','shipped','at_center','on_way','delivered','waiting','returned','settled','cancelled'
+      ]::text[]))
+     OR (v_order.market = 'uae' AND p_new_status <> ALL (ARRAY[
+        'preparing','shipped','on_way','delivered','not_received','waiting','settled','returned','cancelled','pending'
+      ]::text[]))
+     OR v_order.market NOT IN ('turkey','syria','uae') THEN
+    RAISE EXCEPTION 'status is not enabled for order market' USING ERRCODE = '22023';
+  END IF;
+
   -- These sources/brands manage physical stock elsewhere. Status can advance,
   -- but the employee app must not deduct them a second time.
   IF COALESCE(v_order.brand, 'lowes') <> 'lowes'
