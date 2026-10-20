@@ -176,3 +176,24 @@ The repository also contains `src/modules/inventory/services/inventoryService.js
 The disposable PostgreSQL fixture now models the production-relevant subset more closely: JSONB permission arrays; the live RPC names and argument names (`wh_apply_stock_delta`, `wh_transfer_stock`); `wh_stock.id` plus its unique `(warehouse_id, product_id)` key; the live `wh_movements` column names (`type`, `performed_by`, `reason`, `order_id`, `reverses_id`); and an equivalent `trg_wh_stock_sync` mirror that keeps `products.quantity` equal to summed `wh_stock.quantity`. Tests cover explicit denials overriding non-admin role defaults; warehouse-manager defaults including distributor stock; sales managers having no stock-write default; central-only extra grants not implying sales-stock access; inactive/no-identity callers being denied; admin behavior matching the frontend resolver; atomic audit inserts; and quantity-mirror integrity after successful, denied, rejected, and rolled-back operations. This is still contract rehearsal only: it uses synthetic profiles/warehouses and an isolated `inventory_rehearsal` schema, and does not prove real Supabase JWT/PostgREST behavior or justify a production rollout.
 
 **Next hard blocker remains Phase 0:** do not revoke the current `anon` path until the manual-session users have a verified, tested server-side identity/recovery path. After that, migrate every row in the table above before changing production grants/policies.
+
+
+### Order-status + stock lifecycle contract added 2026-10-20
+
+The disposable fixture now includes a proposed server-side `wh_transition_order_status(order_id, new_status)` contract. It takes only the order ID and target status, locks and reads the persisted fixture order row, and derives market, brand, source, handler and item names/quantities from that row. It does not accept a client-selected product, warehouse or arbitrary stock delta.
+
+The fixture models the current business behavior that must survive a production migration:
+
+- A role with effective `manage_orders` may run a validated order transition even without direct stock-write permission; this does not grant that caller the standalone stock mutation RPCs.
+- `profiles.warehouse_id` is preferred only when the linked active warehouse is compatible with the order market; otherwise routing falls back to the active `sales` warehouse for that market.
+- Persisted `items` JSONB uses the observed `name` and `qty` keys; direct product name/name_en matches and a fixture alias are resolved against the catalog. Unmatched non-catalog items are skipped, consistent with the current service.
+- Entering a deducted status creates one `reserve` movement for each matched stocked item. Repeated calls and moves between already-deducted statuses do not reserve again. Leaving deducted statuses returns each warehouse/product's net reserved amount and writes `release` movements. The order row lock serializes concurrent calls for the same order.
+- The transaction commits the order status, all stock changes and all reservation movements together. Insufficient stock, invalid item quantity or no active warehouse for the order market aborts the whole transition.
+- `star_network`, `uae_sheet_import`, and non-`lowes` brands can advance status without a second stock deduction.
+- The RPC applies the market-specific status lists from `src/data/orderStatus.js`, and derives `updated_by` from the active profile rather than accepting a caller-supplied display name.
+
+These are synthetic contract tests in `inventory_rehearsal`, not production SQL or a deployed RPC. They do not yet reproduce all order/team/market authorization rules, the full production catalog matching behavior, or the real Supabase JWT/PostgREST path.
+
+### Remaining order workflow blocker
+
+Production `src/screens/OrdersScreen.jsx` still writes status through `supabaseAnon.from('orders').update(...)` and then calls `syncOrderStock()` asynchronously. The batch path also fires that stock reconciliation without awaiting it; `syncOrderStock()` catches and swallows errors. The fixture does **not** change any of those runtime call sites. A production migration must establish a real Auth session/recovery path, confirm who may change which order, migrate every individual/batch/save/cancel/delete entry point to a single reviewed server-side operation, preserve notifications/sheet sync/accounting behavior, and only then close direct table/RPC write paths. The current production grant/RLS exposure remains open.
