@@ -49,6 +49,9 @@ jobs:
       - name: Check PIN rate-limit helper
         run: node test-pin-rate-limit.mjs
 
+      - name: Check order stock reservation policy
+        run: node test-order-stock-policy.mjs
+
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 
