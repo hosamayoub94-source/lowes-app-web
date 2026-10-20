@@ -86,7 +86,8 @@ INSERT INTO inventory_rehearsal.profiles (id, role_type, is_active, extra_permis
 INSERT INTO inventory_rehearsal.profiles
   (id, role_type, is_active, extra_permissions, denied_permissions, employee_name, warehouse_id, order_role)
 VALUES
-  ('00000000-0000-0000-0000-000000000010', 'employee', true, '[]'::jsonb, '[]'::jsonb, 'Fulfillment Tester', NULL, 'fulfillment');
+  ('00000000-0000-0000-0000-000000000010', 'employee', true, '[]'::jsonb, '[]'::jsonb, 'Fulfillment Tester', NULL, 'fulfillment'),
+  ('00000000-0000-0000-0000-000000000011', 'employee', true, '[]'::jsonb, '["manage_orders"]'::jsonb, 'Denied Owner Tester', NULL, NULL);
 
 INSERT INTO inventory_rehearsal.wh_warehouses (id, type, market, is_active) VALUES
   ('10000000-0000-0000-0000-000000000001', 'central', 'turkey', true),
