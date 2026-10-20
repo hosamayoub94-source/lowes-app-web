@@ -1,0 +1,33 @@
+# PIN attempt limiter — disposable PostgreSQL contract
+
+**Status:** CI rehearsal contract only; not a production migration or live control.  
+**Cost:** uses the existing ephemeral PostgreSQL 17 service in GitHub Actions. No Supabase branch/project or external rate-limit service is needed.
+
+## What the fixture proves
+
+The test setup defines a narrow privileged database function named consume_pin_attempt_rate_limit that is callable only by service_role in the fixture. It stores no account names or IP strings: the caller must provide 64-character lowercase hex key hashes. The backing bucket table is in the private schema, has RLS enabled, and has no direct table grants to anon, authenticated, or service_role.
+
+For each request, the function obtains transaction-scoped advisory locks for the account key and source key, then atomically increments two fixed-window counters. It returns a boolean only. The fixture verifies:
+
+- anon cannot execute the function or read the backing table;
+- account limits are not bypassed by changing source hashes;
+- source limits are not bypassed by changing account hashes;
+- old fixed windows reset;
+- invalid configurations and un-hashed input identifiers are rejected;
+- concurrent independent PostgreSQL sessions with the same account produce exactly five allowed requests and nineteen denials when the test limit is five.
+
+The limits used in these tests are **test values only**, not a final recommendation for production login behavior.
+
+## Integration requirements before this becomes a real login control
+
+1. **No deploy from this fixture alone.** The fixture is deliberately isolated and does not yet modify the Edge Function or the production schema.
+2. **Use a server-only key.** The Edge Function should call the rate-limit RPC using its server-held secret/service-role client. The browser must never be able to call the limiter RPC or read its counters. Fail closed with a stable server error if the limiter cannot be reached; do not continue PIN verification without a successful limiter decision.
+3. **Hash with a server-side pepper.** Generate the account and source hashes inside the Edge Function using HMAC-SHA-256 and a dedicated secret, not a plain hash of predictable employee names or IP addresses. Do not log the input or hashes.
+4. **Verify the source-address contract.** Only use a gateway-managed client IP header that has been confirmed in the deployed Supabase path. Do not accept a caller-controlled X-Forwarded-For value as authoritative. This must be tested in the actual Edge Function environment before release. If a trustworthy source identity cannot be derived, document that limitation and do not claim source-level limiting is in force.
+5. **Agree on thresholds and response behavior.** The implementation must decide and document account/source windows, limits, cooldown, response status, and support recovery. Use a generic unauthenticated response for unknown/inactive account, wrong PIN, and throttling where practical so the endpoint does not become an account-state oracle.
+6. **Choose the window model consciously.** This fixture uses fixed windows; requests around a window boundary can burst across two windows. A sliding-window or token-bucket implementation may be required if the risk assessment demands stricter burst control.
+7. **Keep behavior change separate from credential reconciliation.** Rate limiting must not reset existing Auth passwords or disable the local-session fallback by itself. Validate the exact client expectations and recovery path independently.
+
+## Release gate
+
+Passing this fixture demonstrates only the PostgreSQL algorithm modeled here. It does not prove the live verify-pin endpoint calls the limiter, that a real request source header is trusted, that production credentials/schema match the fixture, or that the actual rate limits are already enforced. No production function, schema, Auth identity, login credential, RLS/grant, or data has been changed by this test work.
