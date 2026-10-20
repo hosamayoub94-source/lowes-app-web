@@ -19,16 +19,27 @@ BEGIN
      OR has_table_privilege('anon', 'inventory_rehearsal.wh_movements', 'DELETE') THEN
     RAISE EXCEPTION 'FAIL: anon still has direct movement-log mutation privileges';
   END IF;
-  IF has_function_privilege('anon', 'inventory_rehearsal.apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
-     OR has_function_privilege('anon', 'inventory_rehearsal.transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'inventory_rehearsal.wh_apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
+     OR has_function_privilege('anon', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'FAIL: anon can execute a stock-mutation RPC';
   END IF;
-  IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
-     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
+  IF NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_apply_stock_delta(uuid,uuid,integer)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'inventory_rehearsal.wh_transfer_stock(uuid,uuid,uuid,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'FAIL: authenticated lacks the intended narrow RPC EXECUTE grants';
   END IF;
 END
 $acl$;
+
+DO $derived_quantity_baseline$
+BEGIN
+  IF (SELECT quantity FROM inventory_rehearsal.products
+      WHERE id = '20000000-0000-0000-0000-000000000001') <> 25
+     OR (SELECT COALESCE(SUM(quantity), 0) FROM inventory_rehearsal.wh_stock
+         WHERE product_id = '20000000-0000-0000-0000-000000000001') <> 25 THEN
+    RAISE EXCEPTION 'FAIL: products.quantity does not match the initial wh_stock total';
+  END IF;
+END
+$derived_quantity_baseline$;
 
 \echo 'Checking anon cannot mutate stock, audit, warehouse, or product...'
 BEGIN;
@@ -53,8 +64,8 @@ BEGIN
 
   BEGIN
     INSERT INTO inventory_rehearsal.wh_movements
-      (movement_type, product_id, quantity, delta, actor_id)
-    VALUES ('delta', '20000000-0000-0000-0000-000000000001', 1, 1, '00000000-0000-0000-0000-000000000001');
+      (type, product_id, quantity, performed_by)
+    VALUES ('adjust', '20000000-0000-0000-0000-000000000001', 1, '00000000-0000-0000-0000-000000000001');
     RAISE EXCEPTION 'FAIL: anon forged a movement log';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: anon movement-log insert denied';
@@ -82,7 +93,7 @@ BEGIN
   END;
 
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001', 1
     );
@@ -92,7 +103,7 @@ BEGIN
   END;
 
   BEGIN
-    PERFORM inventory_rehearsal.transfer_stock(
+    PERFORM inventory_rehearsal.wh_transfer_stock(
       '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000002',
       '20000000-0000-0000-0000-000000000001', 1
@@ -112,7 +123,9 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 5
-     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 0 THEN
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 0
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 25 THEN
     RAISE EXCEPTION 'FAIL: denied anon requests changed stock or movements';
   END IF;
 END
@@ -135,7 +148,7 @@ BEGIN
   LOOP
     PERFORM set_config('request.jwt.claim.sub', denied_subject::text, true);
     BEGIN
-      PERFORM inventory_rehearsal.apply_stock_delta(
+      PERFORM inventory_rehearsal.wh_apply_stock_delta(
         '10000000-0000-0000-0000-000000000001',
         '20000000-0000-0000-0000-000000000001', 1
       );
@@ -148,7 +161,7 @@ BEGIN
   -- The extra capability is central-only: it must not imply sales-stock permission.
   PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000005', true);
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000002',
       '20000000-0000-0000-0000-000000000001', 1
     );
@@ -160,13 +173,25 @@ BEGIN
   -- Explicit denials override warehouse_manager defaults for non-admin users.
   PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000008', true);
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000002',
       '20000000-0000-0000-0000-000000000001', 1
     );
     RAISE EXCEPTION 'FAIL: warehouse_manager with an explicit sales denial changed stock';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: explicit sales-stock denial overrides warehouse_manager default';
+  END;
+
+  -- The same sales-stock denial covers a distributor warehouse, not only type=sales.
+  PERFORM set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000008', true);
+  BEGIN
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
+      '10000000-0000-0000-0000-000000000003',
+      '20000000-0000-0000-0000-000000000001', 1
+    );
+    RAISE EXCEPTION 'FAIL: warehouse_manager with sales denial changed distributor stock';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: explicit sales-stock denial covers distributor warehouse';
   END;
 END
 $denials$;
@@ -179,7 +204,9 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 5
-     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 0 THEN
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 0
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 25 THEN
     RAISE EXCEPTION 'FAIL: denied profile requests changed stock or movements';
   END IF;
 END
@@ -190,7 +217,7 @@ COMMIT;
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000005', true);
-SELECT inventory_rehearsal.apply_stock_delta(
+SELECT inventory_rehearsal.wh_apply_stock_delta(
   '10000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000001', 3
 );
@@ -199,7 +226,9 @@ DO $delta_success$
 BEGIN
   IF (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
-        AND product_id = '20000000-0000-0000-0000-000000000001') <> 23 THEN
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 23
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28 THEN
     RAISE EXCEPTION 'FAIL: authorized delta produced wrong quantity';
   END IF;
   IF (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 1 THEN
@@ -207,8 +236,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM inventory_rehearsal.wh_movements
-    WHERE actor_id = '00000000-0000-0000-0000-000000000005'
-      AND movement_type = 'delta' AND delta = 3 AND quantity = 3
+    WHERE performed_by = '00000000-0000-0000-0000-000000000005'
+      AND type = 'adjust' AND reason = 'delta=3' AND quantity = 3
   ) THEN
     RAISE EXCEPTION 'FAIL: movement actor was not bound to auth.uid()';
   END IF;
@@ -223,7 +252,7 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002
 DO $negative$
 BEGIN
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001', -999
     );
@@ -239,7 +268,9 @@ BEGIN
   IF (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 23
-     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 1 THEN
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 1
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28 THEN
     RAISE EXCEPTION 'FAIL: rejected delta changed stock or audit history';
   END IF;
 END
@@ -250,7 +281,7 @@ COMMIT;
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
-SELECT inventory_rehearsal.transfer_stock(
+SELECT inventory_rehearsal.wh_transfer_stock(
   '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000002',
   '20000000-0000-0000-0000-000000000001', 4
@@ -263,14 +294,16 @@ BEGIN
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 19
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
-        AND product_id = '20000000-0000-0000-0000-000000000001') <> 9 THEN
+        AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28 THEN
     RAISE EXCEPTION 'FAIL: transfer quantities do not reconcile';
   END IF;
   IF (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2
      OR NOT EXISTS (
        SELECT 1 FROM inventory_rehearsal.wh_movements
-       WHERE movement_type = 'transfer'
-         AND actor_id = '00000000-0000-0000-0000-000000000002'
+       WHERE type = 'allocate'
+         AND performed_by = '00000000-0000-0000-0000-000000000002'
          AND from_warehouse_id = '10000000-0000-0000-0000-000000000001'
          AND to_warehouse_id = '10000000-0000-0000-0000-000000000002'
          AND quantity = 4
@@ -288,7 +321,7 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002
 DO $transfer_rejected$
 BEGIN
   BEGIN
-    PERFORM inventory_rehearsal.transfer_stock(
+    PERFORM inventory_rehearsal.wh_transfer_stock(
       '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000002',
       '20000000-0000-0000-0000-000000000001', 999
@@ -308,6 +341,8 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28
      OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
     RAISE EXCEPTION 'FAIL: rejected transfer changed stock or audit history';
   END IF;
@@ -341,7 +376,7 @@ SELECT set_config('inventory_rehearsal.fail_audit', 'on', true);
 DO $audit_rollback$
 BEGIN
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001', 2
     );
@@ -360,6 +395,8 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28
      OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
     RAISE EXCEPTION 'FAIL: stock or movement history changed after audit insertion failed';
   END IF;
@@ -377,7 +414,7 @@ SELECT set_config('request.jwt.claim.sub', '', true);
 DO $no_auth_identity$
 BEGIN
   BEGIN
-    PERFORM inventory_rehearsal.apply_stock_delta(
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
       '10000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001', 1
     );
@@ -396,6 +433,8 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28
      OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
     RAISE EXCEPTION 'FAIL: missing-identity call changed stock or movement history';
   END IF;
@@ -409,21 +448,27 @@ SET LOCAL ROLE authenticated;
 
 -- A manager denied central stock is still allowed to manage sales stock.
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
-SELECT inventory_rehearsal.apply_stock_delta(
+SELECT inventory_rehearsal.wh_apply_stock_delta(
   '10000000-0000-0000-0000-000000000002',
   '20000000-0000-0000-0000-000000000001', 1
 );
 
 -- A warehouse manager retains its default central capability.
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
-SELECT inventory_rehearsal.apply_stock_delta(
+SELECT inventory_rehearsal.wh_apply_stock_delta(
   '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001', 1
+);
+
+-- The same default sales-stock capability includes distributor sub-warehouses.
+SELECT inventory_rehearsal.wh_apply_stock_delta(
+  '10000000-0000-0000-0000-000000000003',
   '20000000-0000-0000-0000-000000000001', 1
 );
 
 -- Admin is unrestricted in the app's resolver, even if deny JSON contains keys.
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
-SELECT inventory_rehearsal.apply_stock_delta(
+SELECT inventory_rehearsal.wh_apply_stock_delta(
   '10000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000001', 1
 );
@@ -439,6 +484,8 @@ BEGIN
      OR (SELECT quantity FROM inventory_rehearsal.wh_stock
       WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
         AND product_id = '20000000-0000-0000-0000-000000000001') <> 9
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 28
      OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 2 THEN
     RAISE EXCEPTION 'FAIL: rolled-back permission probes changed stock or movement history';
   END IF;
