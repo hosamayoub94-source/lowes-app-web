@@ -146,6 +146,54 @@ END
 $anon_unchanged$;
 COMMIT;
 
+\echo 'Checking negative delta against a missing stock row is rejected without a database CHECK constraint...'
+DO $fixture_matches_live_stock_constraints$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'inventory_rehearsal.wh_stock'::regclass
+      AND contype = 'c'
+  ) THEN
+    RAISE EXCEPTION 'FAIL: fixture must not depend on a wh_stock CHECK constraint to prevent negative stock';
+  END IF;
+END
+$fixture_matches_live_stock_constraints$;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+DO $negative_missing_row$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_apply_stock_delta(
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000002', -3
+    );
+    RAISE EXCEPTION 'FAIL: negative delta inserted a missing stock row';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: missing-row negative delta denied by RPC guard';
+  END;
+END
+$negative_missing_row$;
+RESET ROLE;
+DO $negative_missing_row_unchanged$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM inventory_rehearsal.wh_stock
+    WHERE warehouse_id = '10000000-0000-0000-0000-000000000001'
+      AND product_id = '20000000-0000-0000-0000-000000000002'
+  )
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000002') <> 0
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements) <> 0
+     OR (SELECT quantity FROM inventory_rehearsal.products
+         WHERE id = '20000000-0000-0000-0000-000000000001') <> 25 THEN
+    RAISE EXCEPTION 'FAIL: rejected missing-row negative delta changed stock, audit, or product mirror';
+  END IF;
+END
+$negative_missing_row_unchanged$;
+COMMIT;
+
 \echo 'Checking JSONB permissions, inactive profiles, and explicit denials...'
 BEGIN;
 SET LOCAL ROLE authenticated;
