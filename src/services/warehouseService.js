@@ -5,6 +5,7 @@
 // =============================================================
 // أنواع الحركات: receive | allocate | adjust | reserve | release | reverse | waste (D-076)
 import { supabase } from './supabase';
+import { getOrderStockAction, hasOutstandingReservations } from './orderStockPolicy.js';
 
 // List active warehouses (central first, then sales, then others).
 export async function listWarehouses() {
@@ -246,28 +247,15 @@ async function _matchItemsToProducts(items) {
   return matched;
 }
 
-// الحالات التي يكون فيها مخزون الطلب «خارج المخزن» (مخصوم): من «في التجهيز»
-// فما فوق حتى التسليم/التسوية. أي حالة أخرى (وارد جديد/بالانتظار/راجع/ملغي/لم
-// يُستلم) تعني أن البضاعة موجودة بالمخزن — فيُسترد ما كان مخصوماً.
-// قرار المالك (يونيو 2026): الخصم يبدأ عند «📦 في التجهيز» لا عند الإنشاء.
-const DEDUCTED_STATUSES = new Set([
-  'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
-  'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled',
-]);
-
-// هل الطلب مخصوم فعلاً الآن؟ (صافي الحركات: Σحجز − Σإرجاع > 0).
-async function _isCurrentlyReserved(orderId) {
-  const { data: moves } = await supabase
+// هل بقي أي حجز فعلي بعد جمع reserve/release لكل منتج ومخزن على حدة؟
+async function _hasOutstandingReservation(orderId) {
+  const { data: moves, error } = await supabase
     .from('wh_movements')
-    .select('type, quantity')
+    .select('product_id, type, quantity, from_warehouse_id, to_warehouse_id')
     .eq('order_id', orderId)
     .in('type', ['reserve', 'release']);
-  let reserved = 0, released = 0;
-  for (const m of (moves || [])) {
-    if (m.type === 'reserve') reserved += Number(m.quantity || 0);
-    else                      released += Number(m.quantity || 0);
-  }
-  return reserved > released;
+  if (error) throw error;
+  return hasOutstandingReservations(moves ?? []);
 }
 
 // داخلي: اخصم أصناف الطلب من مخزن المصدر + سجّل حركة 'reserve'.
@@ -289,11 +277,12 @@ async function _reserveOrder(order, performedBy) {
 // داخلي: أعد الصافي المخصوم المتبقّي لكل (مخزن، منتج) إلى المخزن + سجّل 'release'.
 // net-aware: يدعم دورات تجهيز↔انتظار متكررة دون ازدواج (يرجّع الفرق فقط).
 async function _releaseOrder(order, performedBy) {
-  const { data: moves } = await supabase
+  const { data: moves, error } = await supabase
     .from('wh_movements')
     .select('product_id, quantity, type, from_warehouse_id, to_warehouse_id')
     .eq('order_id', order.id)
     .in('type', ['reserve', 'release']);
+  if (error) throw error;
   const net = {}; // "whId|productId" → { whId, productId, qty }
   for (const m of (moves || [])) {
     const whId = m.type === 'reserve' ? m.from_warehouse_id : m.to_warehouse_id;
@@ -327,7 +316,8 @@ const EXTERNALLY_STOCKED_SOURCES = new Set(['star_network', 'uae_sheet_import'])
 async function _isExternallyStocked(order) {
   let src = order.source;
   if (src === undefined) {
-    const { data } = await supabase.from('orders').select('source').eq('id', order.id).maybeSingle();
+    const { data, error } = await supabase.from('orders').select('source').eq('id', order.id).maybeSingle();
+    if (error) throw error;
     src = data?.source ?? null;
   }
   return EXTERNALLY_STOCKED_SOURCES.has(src);
@@ -335,17 +325,27 @@ async function _isExternallyStocked(order) {
 
 // مُصلِّح الحالة الموحّد: يضمن أن مخزون الطلب يطابق حالته الحالية.
 // يُستدعى عند كل إنشاء/تغيير حالة (فردي/جماعي) + الحذف/الإلغاء.
-// idempotent + net-aware. no-op للعلامات غير lowes. best-effort (لا يرمي).
+// A changed brand/source must not strand an earlier reserve: excluded orders
+// never create new reservations, but any existing reserve ledger is released.
 export async function syncOrderStock(order, performedBy) {
   try {
     if (!order?.id) return;
-    if ((order.brand || 'lowes') !== 'lowes') return;
-    if (await _isExternallyStocked(order)) return;
-    const desiredOut   = DEDUCTED_STATUSES.has(order.status);
-    const currentlyOut = await _isCurrentlyReserved(order.id);
-    if (desiredOut && !currentlyOut)      await _reserveOrder(order, performedBy);
-    else if (!desiredOut && currentlyOut) await _releaseOrder(order, performedBy);
-  } catch { /* best-effort */ }
+    const brand = order.brand || 'lowes';
+    // An exempt brand already implies "do not reserve"; do not block cleanup
+    // on a source lookup for that order.
+    const externallyStocked = brand === 'lowes'
+      ? await _isExternallyStocked(order)
+      : false;
+    const currentlyOut = await _hasOutstandingReservation(order.id);
+    const action = getOrderStockAction({
+      status: order.status,
+      brand,
+      externallyStocked,
+      hasOutstandingReservation: currentlyOut,
+    });
+    if (action === 'reserve') await _reserveOrder(order, performedBy);
+    else if (action === 'release') await _releaseOrder(order, performedBy);
+  } catch { /* best-effort; report separately before changing this API contract */ }
 }
 
 // تراجع عن حركة استلام/تخصيص أُدخلت خطأً: يعكس أثرها على المخزون + يسجّل
