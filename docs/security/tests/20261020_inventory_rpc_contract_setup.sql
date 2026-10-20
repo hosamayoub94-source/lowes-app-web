@@ -53,7 +53,8 @@ CREATE TABLE inventory_rehearsal.wh_stock (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   warehouse_id uuid NOT NULL REFERENCES inventory_rehearsal.wh_warehouses(id) ON DELETE CASCADE,
   product_id uuid NOT NULL REFERENCES inventory_rehearsal.products(id) ON DELETE CASCADE,
-  quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  -- Production has no CHECK(quantity >= 0); the RPC must enforce the invariant itself.
+  quantity integer NOT NULL DEFAULT 0,
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (warehouse_id, product_id)
 );
@@ -258,16 +259,30 @@ BEGIN
     RAISE EXCEPTION 'active product required' USING ERRCODE = '23503';
   END IF;
 
-  INSERT INTO inventory_rehearsal.wh_stock AS current_stock (warehouse_id, product_id, quantity, updated_at)
-  VALUES (p_warehouse, p_product, p_delta, pg_catalog.now())
-  ON CONFLICT (warehouse_id, product_id)
-  DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity,
-                updated_at = pg_catalog.now()
-  WHERE current_stock.quantity + EXCLUDED.quantity >= 0
-  RETURNING quantity INTO v_new_quantity;
+  IF p_delta < 0 THEN
+    -- Do not let a negative UPSERT insert a new negative row. UPDATE must match
+    -- an existing stock row and leave enough units; row locking makes this atomic.
+    UPDATE inventory_rehearsal.wh_stock AS current_stock
+    SET quantity = current_stock.quantity + p_delta,
+        updated_at = pg_catalog.now()
+    WHERE current_stock.warehouse_id = p_warehouse
+      AND current_stock.product_id = p_product
+      AND current_stock.quantity >= -p_delta
+    RETURNING current_stock.quantity INTO v_new_quantity;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'insufficient stock' USING ERRCODE = '23514';
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'insufficient stock' USING ERRCODE = '23514';
+    END IF;
+  ELSE
+    -- Positive deltas may create a missing row. This branch can never create
+    -- negative quantity because p_delta is known to be strictly positive.
+    INSERT INTO inventory_rehearsal.wh_stock AS current_stock
+      (warehouse_id, product_id, quantity, updated_at)
+    VALUES (p_warehouse, p_product, p_delta, pg_catalog.now())
+    ON CONFLICT (warehouse_id, product_id)
+    DO UPDATE SET quantity = current_stock.quantity + EXCLUDED.quantity,
+                  updated_at = pg_catalog.now()
+    RETURNING quantity INTO v_new_quantity;
   END IF;
 
   -- The movement is inserted in the same database transaction as the quantity change.
