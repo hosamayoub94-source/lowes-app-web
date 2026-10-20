@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/track-karam/**'
       - 'supabase/functions/_shared/pinRateLimit.js'
       - 'test-pin-rate-limit.mjs'
       - '.github/workflows/edge-functions-ci.yml'
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/verify-pin/**'
+      - 'supabase/functions/track-karam/**'
       - 'supabase/functions/_shared/pinRateLimit.js'
       - 'test-pin-rate-limit.mjs'
       - '.github/workflows/edge-functions-ci.yml'
@@ -48,6 +50,9 @@ jobs:
       # @supabase/auth-js has separate WebAuthn DOM declarations unavailable in this Edge Worker check.
       - name: Type-check verify-pin Edge Function source
         run: deno check supabase/functions/verify-pin/index.ts
+
+      - name: Type-check track-karam Edge Function source
+        run: deno check supabase/functions/track-karam/index.ts
 
       - name: Run PIN rate-limit helper behavior tests
         run: deno run test-pin-rate-limit.mjs
