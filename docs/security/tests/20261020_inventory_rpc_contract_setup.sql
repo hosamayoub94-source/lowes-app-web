@@ -177,7 +177,6 @@ DECLARE
   v_active boolean;
   v_extra jsonb;
   v_denied jsonb;
-  v_order_role text;
   v_warehouse_type text;
   v_permission text;
 BEGIN
@@ -185,8 +184,8 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions, p.order_role
-    INTO v_role, v_active, v_extra, v_denied, v_order_role
+  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions
+    INTO v_role, v_active, v_extra, v_denied
   FROM inventory_rehearsal.profiles AS p
   WHERE p.id = v_uid;
 
@@ -431,13 +430,14 @@ DECLARE
   v_active boolean;
   v_extra jsonb;
   v_denied jsonb;
+  v_order_role text;
 BEGIN
   IF v_uid IS NULL THEN
     RETURN false;
   END IF;
 
-  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions
-    INTO v_role, v_active, v_extra, v_denied
+  SELECT p.role_type, p.is_active, p.extra_permissions, p.denied_permissions, p.order_role
+    INTO v_role, v_active, v_extra, v_denied, v_order_role
   FROM inventory_rehearsal.profiles AS p
   WHERE p.id = v_uid;
 
