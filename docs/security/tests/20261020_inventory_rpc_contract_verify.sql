@@ -703,7 +703,11 @@ VALUES
   ('30000000-0000-0000-0000-000000000008', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
    '[{"name":"Rosemary Oil","qty":"bad"}]'::jsonb),
   ('30000000-0000-0000-0000-000000000009', 'pending', 'syria', 'lowes', NULL, 'Seller Syria',
-   '[{"name":"Rosemary Oil","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb);
+   '[{"name":"Rosemary Oil","qty":2},{"name":"Vitamin C Serum","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000010', 'pending', 'turkey', 'lowes', NULL, 'Ordinary Employee',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb),
+  ('30000000-0000-0000-0000-000000000011', 'pending', 'turkey', 'lowes', NULL, 'Denied Owner Tester',
+   '[{"name":"Rosemary Oil","qty":1}]'::jsonb);
 
 \echo 'Checking order-manager role can reserve trusted persisted order items without stock-write permission...'
 BEGIN;
@@ -906,8 +910,11 @@ COMMIT;
 \echo 'Checking externally stocked sources and non-lowes brands are not double-deducted...'
 BEGIN;
 SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+-- A fulfillment profile can advance the operational order without stock manager rights.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000010', true);
 SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000004', 'preparing');
+-- Order manager can advance other-source and non-Lowe's orders.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
 SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000005', 'preparing');
 SELECT inventory_rehearsal.wh_transition_order_status('30000000-0000-0000-0000-000000000006', 'preparing');
 RESET ROLE;
@@ -1067,6 +1074,61 @@ COMMIT;
 
 DROP TRIGGER rehearsal_fail_order_audit_on_second_item ON inventory_rehearsal.wh_movements;
 DROP FUNCTION inventory_rehearsal.fail_order_audit_on_second_item();
+
+\echo 'Checking ordinary employees can advance their own order but not another employee’s order...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+SELECT inventory_rehearsal.wh_transition_order_status(
+  '30000000-0000-0000-0000-000000000010', 'preparing'
+);
+RESET ROLE;
+DO $owner_order_success$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000010') <> 'preparing'
+     OR (SELECT updated_by FROM inventory_rehearsal.orders
+         WHERE id = '30000000-0000-0000-0000-000000000010') <> 'Ordinary Employee'
+     OR (SELECT quantity FROM inventory_rehearsal.wh_stock
+         WHERE warehouse_id = '10000000-0000-0000-0000-000000000002'
+           AND product_id = '20000000-0000-0000-0000-000000000001') <> 3
+     OR (SELECT count(*) FROM inventory_rehearsal.wh_movements
+         WHERE order_id = '30000000-0000-0000-0000-000000000010'
+           AND type = 'reserve' AND performed_by = 'Ordinary Employee') <> 1 THEN
+    RAISE EXCEPTION 'FAIL: employee could not safely advance own order and reserve stock';
+  END IF;
+END
+$owner_order_success$;
+COMMIT;
+
+\echo 'Checking explicit manage_orders denial blocks the owner fallback...'
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000011', true);
+DO $denied_owner_order$
+BEGIN
+  BEGIN
+    PERFORM inventory_rehearsal.wh_transition_order_status(
+      '30000000-0000-0000-0000-000000000011', 'preparing'
+    );
+    RAISE EXCEPTION 'FAIL: owner with explicit manage_orders denial advanced own order';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: explicit manage_orders denial blocks owner fallback';
+  END;
+END
+$denied_owner_order$;
+RESET ROLE;
+DO $denied_owner_unchanged$
+BEGIN
+  IF (SELECT status FROM inventory_rehearsal.orders
+      WHERE id = '30000000-0000-0000-0000-000000000011') <> 'pending'
+     OR EXISTS (SELECT 1 FROM inventory_rehearsal.wh_movements
+                WHERE order_id = '30000000-0000-0000-0000-000000000011') THEN
+    RAISE EXCEPTION 'FAIL: explicitly denied owner changed status or stock';
+  END IF;
+END
+$denied_owner_unchanged$;
+COMMIT;
 
 \echo 'Checking order RPC privileges are narrow...'
 DO $order_acl$
