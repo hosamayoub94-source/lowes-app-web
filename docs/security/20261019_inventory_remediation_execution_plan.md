@@ -285,3 +285,29 @@ Read-only drilldown query:
 **Implementation consequence:** the production order status change and stock reservation/release must be one server-side transaction over the persisted order row. It must lock the order and relevant stock rows, derive the target reserved state from persisted market/status/brand/source/items, write matching audit movements in that same transaction, and reject an invalid transition without changing either status or stock. All single, batch, edit/save, cancel, soft-delete, and restore paths need a reviewed migration plan. The client currently calls status updates and `syncOrderStock()` separately; the latter catches exceptions, so a status update can complete while inventory reconciliation fails.
 
 **Safety boundary:** all figures above are read-only aggregates over production. No status, stock, movement, permission, RLS, grant, Auth identity, or credential was changed.
+
+
+### Order reservation exact-difference contract — fixture update 2026-10-20
+
+The disposable `inventory_rehearsal.wh_transition_order_status(uuid,text)` contract was strengthened after reviewing the live `src/services/warehouseService.js` implementation:
+
+- The earlier boolean rule (“any positive reservation exists”) could skip work when a reserved order's persisted `items` changed. For example, if the order had a positive reservation on product A but the editor changed product B or increased a quantity, another status call could leave an incomplete reservation.
+- The updated fixture builds the desired per-product reservation from the persisted `items` for a deducted target status, aggregates duplicate matching product lines, and compares it with the reserve-minus-release ledger grouped by product and warehouse. It writes only the difference, in deterministic key order.
+- Repeated same-status calls with no item change are idempotent. An item quantity increase reserves the extra units; a decreased/removed item releases the difference. If the persisted brand/source moves to an excluded path (`brand <> lowes`, `star_network`, or `uae_sheet_import`), a pre-existing positive reservation is released instead of being left behind.
+- These paths now have disposable PostgreSQL acceptance tests for changed quantities, removed items, final cancellation, a status remaining `preparing` while the source changes to `star_network`, audit count, and the derived `products.quantity` mirror. Security SQL Candidate Rehearsal passed on PR #68.
+
+**The live app still is not migrated.** In `OrdersScreen.jsx`, order status and order form data are written directly to `orders`; `syncOrderStock()` is then called as a separate best-effort client action, and its implementation catches errors. The new fixture function is not deployed and no app code calls it. Therefore this does not remove the production inconsistency window.
+
+### Required next implementation boundary — order edit + inventory must share one transaction
+
+A status-only RPC is insufficient for safe production cutover. The future server-side contract must accept a reviewed field allowlist for an order edit (including `items`, `handler_name`, `market`, `brand`, and `source` only where the UI is allowed to edit them), and in **one transaction**:
+
+1. Lock the persisted order row and re-check the caller's verified Auth identity, active profile, global/owner/fulfillment authorization, and explicit `manage_orders` denial.
+2. Validate the permitted status for that market and all editable fields. Do not trust a caller-supplied actor name, stock delta, previous item list, brand/source exemption, or reservation state.
+3. Preserve the before-image of the order by applying the field patch only inside the RPC. Compute both the current reservation ledger and the desired ledger from the resulting persisted row; reconcile their exact per-product/per-warehouse differences.
+4. Perform all stock decrements/increments with conditional non-negative guards and deterministic locking; write every `reserve`/`release` audit movement in the same transaction.
+5. Update the order row only after checks succeed. A shortage, malformed tracked-item quantity, authorization failure, or audit insert failure must roll back both the order edit/status and every stock/audit change.
+6. Preserve untracked add-on behavior only for explicitly reviewed product aliases/non-stock items; don't silently turn a product-name mismatch into a successful “all items reserved” claim.
+7. Migrate every caller before revoking legacy access: individual status change, batch advance, order create/edit save, soft delete/cancel, restore, order-sheet integrations, and shipping tracker Edge Functions that can update order status. For externally stocked sources, status changes must not create a second deduction, and edits from/from-exempt sources must release any stale prior reservation as defined by the contract.
+
+Before this contract reaches production, Phase 0 still has to establish real Supabase Auth sessions for current manual-session users. No production SQL/RLS/grant/credential changes or runtime deploy are authorized by the fixture PRs.
