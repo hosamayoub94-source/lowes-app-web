@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "\${PGHOST:?PGHOST must point to the disposable PostgreSQL service}"
-: "\${PGPORT:?PGPORT must be set}"
-: "\${PGUSER:?PGUSER must be set}"
-: "\${PGPASSWORD:?PGPASSWORD must be set}"
-: "\${PGDATABASE:?PGDATABASE must be set}"
+: "${PGHOST:?PGHOST must point to the disposable PostgreSQL service}"
+: "${PGPORT:?PGPORT must be set}"
+: "${PGUSER:?PGUSER must be set}"
+: "${PGPASSWORD:?PGPASSWORD must be set}"
+: "${PGDATABASE:?PGDATABASE must be set}"
 
 # Synthetic, non-sensitive SHA-256-shaped keys used only in the CI fixture.
 export RATE_ACCOUNT_HASH="$(printf '%064d' 0)"
@@ -27,7 +27,7 @@ allowed="$(grep -xc 't' "$result_file" || true)"
 denied="$(grep -xc 'f' "$result_file" || true)"
 
 if [[ "$allowed" != "5" || "$denied" != "19" ]]; then
-  echo "FAIL: expected 5 allowed / 19 denied concurrent attempts; got \${allowed} allowed / \${denied} denied"
+  echo "FAIL: expected 5 allowed / 19 denied concurrent attempts; got ${allowed} allowed / ${denied} denied"
   cat "$result_file"
   exit 1
 fi
