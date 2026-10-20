@@ -829,24 +829,8 @@ BEGIN
         RAISE EXCEPTION 'each order item must be an object' USING ERRCODE = '22023';
       END IF;
       v_qty_text := COALESCE(NULLIF(pg_catalog.btrim(v_item->>'qty'), ''), '1');
-      IF v_qty_text !~ '^[0-9]+
-REVOKE ALL ON FUNCTION inventory_rehearsal.has_stock_permission(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) TO authenticated;
-
-COMMIT;
- OR v_qty_text::numeric < 1
-         OR v_qty_text::numeric > 2147483647 THEN
+      IF v_qty_text !~ '^[0-9]+' OR v_qty_text ~ '[^0-9]'
+         OR v_qty_text::numeric < 1 OR v_qty_text::numeric > 2147483647 THEN
         RAISE EXCEPTION 'invalid order item quantity' USING ERRCODE = '22023';
       END IF;
       IF v_item ? 'name' AND pg_catalog.jsonb_typeof(v_item->'name') NOT IN ('string','null') THEN
@@ -888,9 +872,11 @@ REVOKE ALL ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, int
 REVOKE ALL ON FUNCTION inventory_rehearsal.normalize_product_name(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.has_order_permission() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_apply_stock_delta(uuid, uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transfer_stock(uuid, uuid, uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_set_stock_quantity(uuid, uuid, integer, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_transition_order_status(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION inventory_rehearsal.wh_edit_order(uuid, jsonb) TO authenticated;
 
 COMMIT;
