@@ -143,6 +143,27 @@ $window_reset$;
 RESET ROLE;
 COMMIT;
 
+\echo 'Checking stale rate-limit bucket cleanup is bounded and active...'
+INSERT INTO private.pin_login_rate_limit_buckets (scope, key_hash, window_start, attempts)
+VALUES ('source', repeat('e',64), pg_catalog.clock_timestamp() - interval '2 days', 3);
+
+BEGIN;
+SET LOCAL ROLE service_role;
+SELECT public.consume_pin_attempt_rate_limit(repeat('f',64), repeat('1',64), 300, 5, 30);
+RESET ROLE;
+COMMIT;
+
+DO $cleanup_assert$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM private.pin_login_rate_limit_buckets
+    WHERE scope = 'source' AND key_hash = repeat('e',64)
+  ) THEN
+    RAISE EXCEPTION 'FAIL: stale rate-limit bucket was not cleaned up';
+  END IF;
+END
+$cleanup_assert$;
+
 \echo 'Checking invalid configuration and unhashed identifiers are rejected...'
 DO $invalid$
 BEGIN
