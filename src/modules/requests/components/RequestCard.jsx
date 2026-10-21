@@ -62,6 +62,18 @@ export function RequestCard({ request, onApprove, onReject, onCancel, canDecide,
           </div>
         )}
 
+        {/* Hourly permission details */}
+        {request.request_type === 'permission' && request.permission_date && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="text-muted">📅 {formatDate(request.permission_date)}</span>
+            {request.permission_hours != null && (
+              <span className="bg-surface-alt text-teal font-semibold px-2 py-0.5 rounded-full">
+                ⏱️ {Number(request.permission_hours)} ساعة
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Advance details */}
         {request.request_type === 'advance' && request.advance_amount && (
           <div className="flex items-center gap-1.5 text-xs">

@@ -28,7 +28,19 @@ const REQUEST_TABS = [
   { key: 'pending',  label: 'بانتظار الموافقة',  icon: '⏳' },
   { key: 'leave',    label: 'إجازات',             icon: '🏖️' },
   { key: 'advance',  label: 'سلف',               icon: '💵' },
+  { key: 'permission', label: 'أذونات',           icon: '⏱️' },
 ];
+
+// ─── Hourly permission helpers ───────────────────────────────
+// الإذن الساعي: بلا حد شهري ولا يُخصم من الرصيد السنوي — الرواتب والأرصدة
+// تقرأ request_type='leave' فقط، فـ'permission' خارجها تلقائياً.
+function permissionHours(from, to) {
+  if (!from || !to) return 0;
+  const [fh, fm] = from.split(':').map(Number);
+  const [th, tm] = to.split(':').map(Number);
+  const mins = (th * 60 + tm) - (fh * 60 + fm);
+  return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
+}
 
 // ─── KPI card ────────────────────────────────────────────────
 function KpiCard({ icon, label, value, colorClass }) {
@@ -66,25 +78,35 @@ export function RequestsDashboard() {
     leave_days:       '',
     advance_amount:   '',
     advance_currency: 'USD',
+    permission_date:  '',
+    permission_from:  '',
+    permission_to:    '',
     reason:           '',
   });
 
   const resetForm = () => setForm({
     request_type: REQUEST_TYPE.LEAVE, leave_type: LEAVE_TYPE.ANNUAL,
     leave_from: '', leave_to: '', leave_days: '',
-    advance_amount: '', advance_currency: 'USD', reason: '',
+    advance_amount: '', advance_currency: 'USD',
+    permission_date: '', permission_from: '', permission_to: '', reason: '',
   });
+
+  const permHours = permissionHours(form.permission_from, form.permission_to);
+  const permInvalid = form.request_type === REQUEST_TYPE.PERMISSION
+    && (!form.permission_date || permHours <= 0);
 
   // ── Filter
   const filtered = useMemo(() => requests.filter(r => {
     if (activeTab === 'pending') return r.status === 'pending';
     if (activeTab === 'leave')   return r.request_type === 'leave';
     if (activeTab === 'advance') return r.request_type === 'advance';
+    if (activeTab === 'permission') return r.request_type === 'permission';
     return true;
   }), [requests, activeTab]);
 
   // ── Submit
   const handleSubmit = async () => {
+    if (permInvalid) return;
     const payload = { request_type: form.request_type, reason: form.reason };
     if (form.request_type === REQUEST_TYPE.LEAVE) {
       Object.assign(payload, {
@@ -98,6 +120,16 @@ export function RequestsDashboard() {
       Object.assign(payload, {
         advance_amount:   form.advance_amount ? Number(form.advance_amount) : null,
         advance_currency: form.advance_currency,
+      });
+    }
+    if (form.request_type === REQUEST_TYPE.PERMISSION) {
+      // الجدول فيه تاريخ + عدد ساعات فقط، فنافذة الوقت تنحفظ ضمن السبب
+      // ليشوفها المدير على البطاقة.
+      const timeWindow = `من ${form.permission_from} إلى ${form.permission_to}`;
+      Object.assign(payload, {
+        permission_date:  form.permission_date,
+        permission_hours: permHours,
+        reason: form.reason.trim() ? `${timeWindow} — ${form.reason.trim()}` : timeWindow,
       });
     }
     const requestTypeLabel = REQUEST_TYPE_LABELS[form.request_type] || 'جديد';
@@ -256,7 +288,7 @@ export function RequestsDashboard() {
               <div>
                 <label className="text-xs font-bold text-muted uppercase tracking-wider mb-2 block">نوع الطلب</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[REQUEST_TYPE.LEAVE, REQUEST_TYPE.ADVANCE, REQUEST_TYPE.DOCUMENT, REQUEST_TYPE.VACATION, REQUEST_TYPE.OTHER].map(t => (
+                  {[REQUEST_TYPE.LEAVE, REQUEST_TYPE.PERMISSION, REQUEST_TYPE.ADVANCE, REQUEST_TYPE.DOCUMENT, REQUEST_TYPE.VACATION, REQUEST_TYPE.OTHER].map(t => (
                     <button
                       key={t}
                       onClick={() => setForm(f => ({ ...f, request_type: t }))}
@@ -337,6 +369,40 @@ export function RequestsDashboard() {
                 </div>
               )}
 
+              {/* Hourly permission fields */}
+              {form.request_type === REQUEST_TYPE.PERMISSION && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted mb-1.5 block">التاريخ</label>
+                    <input type="date" value={form.permission_date}
+                      onChange={e => setForm(f => ({ ...f, permission_date: e.target.value }))}
+                      className={INP} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-muted mb-1.5 block">من الساعة</label>
+                      <input type="time" value={form.permission_from}
+                        onChange={e => setForm(f => ({ ...f, permission_from: e.target.value }))}
+                        className={INP} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted mb-1.5 block">إلى الساعة</label>
+                      <input type="time" value={form.permission_to}
+                        onChange={e => setForm(f => ({ ...f, permission_to: e.target.value }))}
+                        className={INP} />
+                    </div>
+                  </div>
+                  {form.permission_from && form.permission_to && (
+                    permHours > 0 ? (
+                      <p className="text-xs text-teal font-semibold">⏱️ المدة: {permHours} ساعة</p>
+                    ) : (
+                      <p className="text-xs text-red-fg">وقت النهاية لازم يكون بعد وقت البداية</p>
+                    )
+                  )}
+                  <p className="text-[11px] text-muted">لا يُخصم الإذن الساعي من رصيد الإجازة السنوية.</p>
+                </div>
+              )}
+
               {/* Reason */}
               <div>
                 <label className="text-xs font-semibold text-muted mb-1.5 block">السبب</label>
@@ -354,7 +420,7 @@ export function RequestsDashboard() {
             <div className="flex gap-3 px-5 py-4 border-t border-border/40">
               <button
                 onClick={handleSubmit}
-                disabled={loading.action}
+                disabled={loading.action || permInvalid}
                 className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition active:scale-95"
               >
                 {loading.action ? '…جار الإرسال' : '✓ إرسال الطلب'}

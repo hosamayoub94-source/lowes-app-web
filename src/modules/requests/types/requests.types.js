@@ -5,6 +5,7 @@
 export const REQUEST_TYPE = {
   LEAVE:    'leave',
   ADVANCE:  'advance',
+  PERMISSION: 'permission',
   VACATION: 'vacation',
   DOCUMENT: 'document',
   OTHER:    'other',
@@ -13,6 +14,7 @@ export const REQUEST_TYPE = {
 export const REQUEST_TYPE_LABELS = {
   [REQUEST_TYPE.LEAVE]:    'إجازة',
   [REQUEST_TYPE.ADVANCE]:  'سلفة',
+  [REQUEST_TYPE.PERMISSION]: 'إذن ساعي',
   [REQUEST_TYPE.VACATION]: 'عطلة',
   [REQUEST_TYPE.DOCUMENT]: 'وثيقة',
   [REQUEST_TYPE.OTHER]:    'أخرى',
@@ -21,6 +23,7 @@ export const REQUEST_TYPE_LABELS = {
 export const REQUEST_TYPE_ICONS = {
   [REQUEST_TYPE.LEAVE]:    '🏖️',
   [REQUEST_TYPE.ADVANCE]:  '💵',
+  [REQUEST_TYPE.PERMISSION]: '⏱️',
   [REQUEST_TYPE.VACATION]: '✈️',
   [REQUEST_TYPE.DOCUMENT]: '📄',
   [REQUEST_TYPE.OTHER]:    '📝',
