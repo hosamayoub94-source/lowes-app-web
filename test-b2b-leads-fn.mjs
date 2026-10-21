@@ -117,14 +117,15 @@ globalThis.__db = makeDb('post', seedPost);
 ok((await post({ action: 'list', country: 'AE' }, null)).status === 401, 'no token -> 401');
 ok((await post({ action: 'list', country: 'AE' }, 'bogus')).status === 401, 'bad token -> 401');
 ok((await post({ action: 'list', country: 'AE' }, 'off-token')).status === 403, 'inactive profile -> 403');
-ok((await post({ action: 'list', country: 'SY' })).error === 'country_not_served', 'SY is never served here (stays on the old path), even for admin');
+ok((await post({ action: 'list', country: 'SY' })).error === 'country_not_served', 'SY list is never served here (stays on the old path), even for admin');
+for (const a of ['add', 'update_status', 'update_presence']) ok((await post({ action: a, country: 'SY', id: 'SYR-DAM-0001', status: 'customer', row: { name: 'X', province: 'Damascus' } })).error === 'country_not_served', `SY ${a} is not served here (only import is)`);
 ok((await post({ action: 'list', country: 'TR' })).error === 'country_not_served', 'disabled country refused');
 ok((await post({ action: 'list' })).error === 'country_not_served', 'missing country refused');
 
 // ================= the 4 cases (+ Syria-only) per action =================
 const cases = [
   ['admin', 'admin-token', { list: 200, add: 200, update_status: 200, update_presence: 200, import: 200 }],
-  ['granted view_uae_leads', 'uae-token', { list: 200, add: 200, update_status: 200, update_presence: 200, import: 403 }],
+  ['granted view_uae_leads', 'uae-token', { list: 200, add: 200, update_status: 200, update_presence: 200, import: 200 }],
   ['granted but denied', 'den-token', { list: 403, add: 403, update_status: 403, update_presence: 403, import: 403 }],
   ['no permission', 'none-token', { list: 403, add: 403, update_status: 403, update_presence: 403, import: 403 }],
   ['syria-only permission', 'sy-token', { list: 403, add: 403, update_status: 403, update_presence: 403, import: 403 }],
@@ -250,9 +251,66 @@ ok(rowsNow.filter((x) => x.discovery_source?.startsWith('research:')).map((x) =>
 ok(rowsNow.filter((x) => x.discovery_source?.startsWith('research:')).every((x) => x.country === 'AE' && x.lowes_presence === 'unverified' && x.status === 'not_contacted' && x.last_verified_at && x.source_urls), 'flow: saved rows carry AE + unverified + not_contacted + date + source');
 const again = flow.buildPreview(fileRows, await post({ action: 'import', country: 'AE', rows: fileRows }));
 ok(again.newItems.length === 2 && again.duplicateExisting.some((d) => d.row.name === batch.rows[0].name), 're-preview: saved rows are now duplicates, the 2 unselected are still new');
-ok((await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'uae-token')).status === 403, 'flow: a user with view_uae_leads cannot import (admin only, server-side)');
+const byUae = await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'uae-token');
+ok(byUae.status === 200 && byUae.inserted === 0 && byUae.summary.duplicate_existing === picked.length, 'flow: a user with view_uae_leads CAN import (country permission, owner decision) — here every row is already saved, so 0 inserted');
+ok((await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'den-token')).status === 403, 'flow: denied permission -> 403');
 ok((await post({ action: 'import', country: 'AE', rows: picked, dry_run: false }, 'none-token')).status === 403, 'flow: no permission -> 403');
 ok(syriaSnapshot(globalThis.__db) === JSON.stringify(seedPost.filter((r) => r.country === 'SY')), 'flow: Syria rows byte-identical after the whole import flow');
+
+// ================= file import (source_mode "file"): relaxed rules, Syria served for import only =================
+globalThis.__db = makeDb('post', seedPost);
+const looseRows = [
+  { name: 'Fake Loose Store', province: 'Dubai', lead_type: 'online', website: 'https://fake-loose.example' },                 // no source, no date
+  { name: 'Fake Claims A', province: 'Dubai', lead_type: 'online', priority: 'A', source_urls: 'not a url | https://a.example', verified: 'verified_multi_source' }, // tries to claim A + verified
+  { name: 'Fake Bad Region', province: 'Damascus', lead_type: 'online' },                                                       // wrong emirate still refused
+  { name: 'Fake Bad Date', province: 'Sharjah', lead_type: 'physical', last_verified_at: 'sometime' },
+];
+r = await post({ action: 'import', country: 'AE', rows: looseRows });                      // strict (no source_mode) = the old behaviour
+ok(r.summary.new === 0 && r.summary.invalid === 4, `strict mode still refuses rows without source/date ${JSON.stringify(r.summary)}`);
+r = await post({ action: 'import', country: 'AE', rows: looseRows, source_mode: 'file', file_name: 'متاجر-الإمارات.xlsx' });
+ok(r.ok && r.dry_run === true && r.summary.new === 3 && r.summary.invalid === 1, `file mode accepts source-less rows (3 new) and still refuses a wrong region ${JSON.stringify(r.summary)}`);
+ok(globalThis.__db.writes.length === 0, 'file mode preview writes nothing');
+r = await post({ action: 'import', country: 'AE', rows: looseRows, source_mode: 'file', file_name: 'متاجر-الإمارات.xlsx', dry_run: false });
+const fileSaved = globalThis.__db.tables.syria_b2b_leads.filter((x) => x.discovery_source?.startsWith('file:'));
+ok(fileSaved.length === 3 && fileSaved.every((x) => x.country === 'AE' && x.verified === 'discovered_unconfirmed' && x.lowes_presence === 'unverified' && x.status === 'not_contacted'), 'file rows: AE + discovered_unconfirmed + unverified + not_contacted');
+ok(fileSaved.every((x) => x.priority === 'D'), 'file rows can never claim A/B (priority capped at D)');
+const loose = fileSaved.find((x) => x.name === 'Fake Loose Store');
+ok(loose.last_verified_at === null && loose.source_urls === null, 'no date and no source stay NULL — nothing invented');
+const claimsA = fileSaved.find((x) => x.name === 'Fake Claims A');
+ok(claimsA.source_urls === 'https://a.example' && claimsA.verified === 'discovered_unconfirmed', 'non-URL "source" dropped, "verified_multi_source" claim ignored');
+ok(fileSaved[0].discovery_source === 'file:متاجر-الإمارات.xlsx', 'discovery_source records the file name');
+
+// A real .xlsx with the Arabic template headers (same ones downloadTemplate writes) → read → map → defaults → function
+const XLSX = (await import('xlsx')).default;
+const wbk = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wbk, XLSX.utils.aoa_to_sheet([
+  ['الاسم', 'الإمارة', 'النوع (محل / أونلاين)', 'الموقع', 'المصدر (رابط)', 'ملاحظات', 'عمود غريب'],
+  ['متجر إكسل وهمي', '', 'أونلاين', 'https://fake-xlsx.example', '', 'ملاحظة من الملف', 'x'],
+  ['صيدلية إكسل وهمية', 'الشارقة', 'محل', '', '', '', ''],
+  ['', 'دبي', 'محل', '', '', '', ''],
+]), 'ليدز');
+const xl = await flow.rowsFromSheetBuffer(XLSX.write(wbk, { type: 'buffer', bookType: 'xlsx' }), 'buffer');
+const xm = flow.mapColumns(xl);
+ok(xm.ignored.join() === 'عمود غريب' && xm.rows[0].name === 'متجر إكسل وهمي' && xm.rows[0].reason === 'ملاحظة من الملف', 'xlsx: Arabic headers read from a real workbook');
+globalThis.__db = makeDb('post', seedPost);
+r = await post({ action: 'import', country: 'AE', rows: flow.applyFileDefaults(xm.rows, { leadType: 'auto' }), source_mode: 'file', file_name: 'x.xlsx' });
+ok(r.summary.new === 2 && r.summary.invalid === 1 && /name required/.test(r.invalid[0].error), `xlsx: 2 new (online without region -> nationwide), 1 invalid (no name) ${JSON.stringify(r.summary)}`);
+ok(r.new.find((n) => n.name === 'متجر إكسل وهمي').province === 'Nationwide' && r.new.find((n) => n.name === 'صيدلية إكسل وهمية').province === 'Sharjah', 'xlsx: regions resolved (Nationwide / الشارقة -> Sharjah)');
+
+// Syria: import only, admin or view_syria_leads, never a UAE-only user
+const syBase = makeDb('post', seedPost); globalThis.__db = syBase;
+const syRows = [{ name: 'Fake Syria Loose Shop', province: 'دمشق', lead_type: 'physical' }, { name: 'Fake Syria Online', lead_type: 'online', province: 'Nationwide', website: 'https://fake-sy-online.example' }];
+r = await post({ action: 'import', country: 'SY', rows: syRows, source_mode: 'file', file_name: 'sy.xlsx' }, 'sy-token');
+ok(r.ok && r.dry_run === true && r.summary.new === 2 && syBase.writes.length === 0, 'Syria: a view_syria_leads user can preview a file import (no write)');
+r = await post({ action: 'import', country: 'SY', rows: syRows, source_mode: 'file', file_name: 'sy.xlsx', dry_run: false }, 'sy-token');
+const syNew = syBase.tables.syria_b2b_leads.filter((x) => x.discovery_source === 'file:sy.xlsx');
+ok(r.ok && r.inserted === 2 && syNew.every((x) => x.country === 'SY' && /^SYR-/.test(x.id) && x.verified === 'discovered_unconfirmed'), 'Syria: rows saved as SY with the SYR prefix, unconfirmed');
+ok(syNew.find((x) => x.name === 'Fake Syria Loose Shop').province === 'Damascus', 'Syria: Arabic governorate normalised');
+ok(syBase.tables.syria_b2b_leads.filter((x) => x.country === 'AE').length === seedPost.filter((x) => x.country === 'AE').length, 'Syria import never touches UAE rows');
+ok((await post({ action: 'import', country: 'SY', rows: syRows, source_mode: 'file' }, 'uae-token')).status === 403, 'Syria: a UAE-only user is refused');
+ok((await post({ action: 'import', country: 'SY', rows: syRows, source_mode: 'file' }, 'none-token')).status === 403, 'Syria: no permission -> 403');
+r = await post({ action: 'import', country: 'SY', rows: syRows, source_mode: 'file' }, 'admin-token');
+ok(r.summary.duplicate_existing === 2, 'Syria: re-import finds the saved rows as existing (dedupe by name+region / website)');
 
 console.log(`b2b-leads fn: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

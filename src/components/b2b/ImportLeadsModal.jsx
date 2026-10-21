@@ -1,6 +1,7 @@
-// ImportLeadsModal — استيراد دفعة بحث لدولة غير سوريا (D-119). أدمن فقط (الزر مخفي لغيره، والخادم يرفض غيره).
-// 1) اختيار ملف (JSON/CSV/Excel) أو لصق JSON  ←  2) «معاينة» = dry_run: لا يُحفظ شيء  ←
+// ImportLeadsModal — استيراد جهات من ملف لأي دولة مفعّلة (سوريا والإمارات). للأدمن ولمن يملك صلاحية ليدز الدولة (الخادم يفحص مرة ثانية).
+// 1) اختيار ملف (Excel/CSV/JSON) — أعمدته عربية أو إنجليزية، ونموذج جاهز للتنزيل  ←  2) «معاينة» = dry_run: لا يُحفظ شيء  ←
 // 3) تحديد الصفوف المطلوبة (الافتراضي: ولا صف)  ←  4) إقرار صريح أنها غير متحقق منها  ←  5) «حفظ المحدد».
+// ملف الفريق بلا مصدر/تاريخ يدخل «غير متحقق» (التاريخ يبقى فارغاً). لصق JSON بحثي يبقى بالقواعد الصارمة (مصدر وتاريخ إلزاميان).
 // لا حفظ تلقائي أبداً: الحفظ ضغطة منفصلة، ويرسل الصفوف المحدّدة فقط، والخادم يعيد كل الفحوص قبل الإدراج.
 import { useState, useMemo } from 'react';
 import {
@@ -8,6 +9,7 @@ import {
 } from '../../../supabase/functions/_shared/countries.js';
 import {
   rowsFromFile, rowsFromJsonText, buildPreview, rowsToSave, canSave, isWeakSource,
+  mapColumns, applyFileDefaults, arabicRowError, downloadTemplate,
 } from '@services/b2bImport';
 import { importLeads } from '@services/b2bLeadsApi';
 
@@ -37,13 +39,18 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [leadType, setLeadType] = useState('auto');   // auto = من عمود النوع بالملف؛ وإلا يُطبَّق على كل صف بلا نوع
+  const [fileRows, setFileRows] = useState(null);     // صفوف الملف بعد مطابقة الأعمدة (قبل الافتراضات) — لإعادة المعاينة عند تغيير النوع
+  const [mapInfo, setMapInfo] = useState(null);
+  const [mode, setMode] = useState('file');           // file = قواعد مخففة (غير متحقق) | paste = صارمة (مصدر وتاريخ)
 
-  const reset = () => { setRows(null); setPreview(null); setSelected(new Set()); setAck(false); setResult(null); setError(null); };
+  const reset = () => { setRows(null); setPreview(null); setSelected(new Set()); setAck(false); setResult(null); setError(null); setFileRows(null); setMapInfo(null); };
+  const sendOpts = (m, name) => (m === 'file' ? { sourceMode: 'file', fileName: name } : {});
 
-  const runPreview = async (parsedRows) => {
+  const runPreview = async (parsedRows, m = mode, name = fileName) => {
     setBusy(true); setError(null); setPreview(null); setSelected(new Set()); setAck(false); setResult(null);
     try {
-      const report = await importLeads(country, parsedRows, true);      // dry_run — لا حفظ
+      const report = await importLeads(country, parsedRows, true, sendOpts(m, name));      // dry_run — لا حفظ
       setRows(parsedRows);
       setPreview(buildPreview(parsedRows, report));
     } catch (e) {
@@ -54,15 +61,24 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
   const onPickFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFileName(f.name); setError(null);
-    try { await runPreview(await rowsFromFile(f)); }
-    catch (err) { setError(err?.message || 'تعذّرت قراءة الملف'); }
+    setFileName(f.name); setMode('file'); setError(null);
+    try {
+      const mapped = mapColumns(await rowsFromFile(f));
+      setFileRows(mapped.rows); setMapInfo(mapped);
+      await runPreview(applyFileDefaults(mapped.rows, { leadType }), 'file', f.name);
+    } catch (err) { setError(err?.message || 'تعذّرت قراءة الملف'); }
     e.target.value = '';
   };
 
+  // تغيير «نوع الجهات» بعد قراءة الملف: إعادة معاينة بنفس الصفوف (لا حفظ).
+  const onLeadType = (v) => {
+    setLeadType(v);
+    if (fileRows && mode === 'file') runPreview(applyFileDefaults(fileRows, { leadType: v }), 'file', fileName);
+  };
+
   const onPreviewPasted = async () => {
-    setFileName('لصق'); setError(null);
-    try { await runPreview(rowsFromJsonText(pasted)); }
+    setFileName('لصق'); setMode('paste'); setError(null); setFileRows(null); setMapInfo(null);
+    try { await runPreview(rowsFromJsonText(pasted), 'paste', 'لصق'); }
     catch (err) { setError(err?.message || 'تعذّرت قراءة النص'); }
   };
 
@@ -74,7 +90,7 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
     setBusy(true); setError(null);
     try {
       const toSave = rowsToSave(preview, [...selected]);
-      const res = await importLeads(country, toSave, false);            // حفظ فعلي: المحدّد فقط
+      const res = await importLeads(country, toSave, false, sendOpts(mode, fileName));            // حفظ فعلي: المحدّد فقط
       setResult(res);
       onSaved?.();
     } catch (e) {
@@ -87,7 +103,7 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
       <div className="bg-surface rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <div>
-            <h3 className="text-base font-extrabold text-text">استيراد ليدز {C.ar} (أدمن)</h3>
+            <h3 className="text-base font-extrabold text-text">استيراد ليدز {C.ar} من ملف</h3>
             <p className="text-[11px] text-muted mt-0.5">معاينة أولاً: لا يُحفظ شيء قبل أن تختار الصفوف وتؤكّد.</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-surface-alt text-muted hover:text-text flex items-center justify-center text-lg transition shrink-0">✕</button>
@@ -96,8 +112,19 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
         <div className="px-5 pb-5 space-y-4 overflow-y-auto">
           {!result && (
             <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-xs font-bold text-muted" htmlFor="import-lead-type">نوع الجهات بهذا الملف:</label>
+                <select id="import-lead-type" value={leadType} onChange={(e) => onLeadType(e.target.value)} disabled={busy} data-testid="import-lead-type"
+                  className="text-xs font-bold bg-surface-alt border border-border rounded-lg px-2 py-1.5 text-text">
+                  <option value="auto">حسب عمود «النوع» بالملف</option>
+                  <option value="online">كلها متاجر / منصات أونلاين</option>
+                  <option value="physical">كلها محلات (صيدليات، عيادات، مراكز…)</option>
+                </select>
+                <button type="button" onClick={() => downloadTemplate(country)} data-testid="import-template"
+                  className="mr-auto text-xs font-bold px-3 py-1.5 rounded-lg bg-surface-alt border border-border text-text">⬇️ ملف نموذج</button>
+              </div>
               <label className="block">
-                <span className="text-xs font-bold text-muted">ملف (JSON / CSV / Excel — حتى 500 صف)</span>
+                <span className="text-xs font-bold text-muted">ملف (Excel / CSV / JSON — حتى 500 صف)</span>
                 <input type="file" accept=".json,.csv,.xlsx,.xls" onChange={onPickFile} disabled={busy}
                   className="mt-1 block w-full text-xs text-text file:ml-2 file:rounded-lg file:border file:border-border file:bg-surface-alt file:px-3 file:py-1.5 file:text-xs file:font-bold" />
               </label>
@@ -108,7 +135,7 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
                 <button onClick={onPreviewPasted} disabled={busy || !pasted.trim()}
                   className="mt-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-teal text-navy disabled:opacity-50">معاينة النص</button>
               </details>
-              <p className="text-[11px] text-muted">الحقول المطلوبة بكل صف: <b>name</b> · <b>province</b> ({C.regionLabel}) · <b>lead_type</b> (physical/online) · <b>source_urls</b> (روابط مفصولة بـ|) · <b>last_verified_at</b>. أي حقل مجهول يُترك فارغاً.</p>
+              <p className="text-[11px] text-muted">المطلوب فقط: <b>الاسم</b> و<b>{C.regionLabel}</b> (للأونلاين اختياري). الأعمدة بالعربي أو الإنجليزي. بلا مصدر/تاريخ تحقق: تدخل الجهة «غير متحقق». أي معلومة مجهولة اتركها فارغة.</p>
             </div>
           )}
 
@@ -126,8 +153,15 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
                 ))}
               </div>
 
+              {mapInfo && (
+                <p className="text-[11px] text-muted bg-surface-alt border border-border rounded-xl px-3 py-2" data-testid="import-mapping">
+                  الأعمدة المفهومة: {mapInfo.mapped.length ? mapInfo.mapped.map((m) => m.from).join('، ') : '—'}
+                  {mapInfo.ignored.length > 0 && <span className="text-amber-700"> · <b>أعمدة لم تُفهم (تُهمل):</b> {mapInfo.ignored.join('، ')}</span>}
+                </p>
+              )}
+
               <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                ⚠️ بيانات بحثية، وأغلبها بمصدر واحد أو ثانوي. كل صف يدخل «غير متحقق» من وجود Lowe&apos;s، وبحالة «لم يُتَّصل». اختر فقط ما تريد إدخاله.
+                ⚠️ بيانات من خارج التطبيق: كل صف يدخل «غير متحقق»، ومعلومة تواجد Lowe&apos;s «غير متحقق»، وحالة «لم نتواصل». اختر فقط ما تريد إدخاله.
               </p>
 
               <Section title="جديد — يمكن إدخاله" tone="green" count={preview.newItems.length}>
@@ -157,7 +191,7 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
                                 </span>
                                 {r.reason && <span className="block text-[11px] text-muted mt-1 leading-relaxed">{r.reason}</span>}
                                 <span className="block text-[10px] text-muted mt-1 break-all">
-                                  تحقق: {fmtDate(r.last_verified_at)} · المصادر ({urls.length}):{' '}
+                                  تحقق: {fmtDate(r.last_verified_at)} · {urls.length === 0 ? 'بلا مصدر' : `المصادر (${urls.length}):`}{' '}
                                   {urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="underline ml-1">{u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 40)}</a>)}
                                 </span>
                               </span>
@@ -182,7 +216,7 @@ export default function ImportLeadsModal({ country, onClose, onSaved }) {
               )}
               {preview.invalid.length > 0 && (
                 <Section title="غير صالح (لن يُدخل — صحّحه بالملف)" tone="red" count={preview.invalid.length}>
-                  <ul className="text-[11px] text-red-600 space-y-0.5">{preview.invalid.map((d) => <li key={`i${d.line}`}>س{d.line}: {d.name || '—'} — {d.error}</li>)}</ul>
+                  <ul className="text-[11px] text-red-600 space-y-0.5">{preview.invalid.map((d) => <li key={`i${d.line}`}>س{d.line}: {d.name || '—'} — {arabicRowError(d.error)}</li>)}</ul>
                 </Section>
               )}
 

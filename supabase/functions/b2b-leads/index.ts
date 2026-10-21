@@ -11,7 +11,8 @@
 //   add             { country, row }                              — manual team entry (same rules as Syria createLead)
 //   update_status   { country, id, status, notes }                — team contact fields only
 //   update_presence { country, id, lowes_presence, lowes_listing_url }
-//   import          { country, rows, dry_run = true }             — research batch; ADMIN ONLY; insert-only, never overwrites
+//   import          { country, rows, dry_run = true, source_mode?, file_name? } — admin or the country's permission; insert-only, never overwrites.
+//                   Served for Syria too (import only). source_mode "file" = relaxed rules (no source/date needed; rows enter unconfirmed).
 // Every update first checks that the row belongs to the requested country (a UAE user cannot touch a Syria row by id).
 // Before the migration is applied the function answers 409 migration_required and writes nothing.
 
@@ -85,7 +86,10 @@ function contactBlock(src: Row, cc: string) {
 }
 
 // Validates one research row for import. Returns { row } or { error }.
-function researchRow(src: Row, code: string, idx: number, stamp: string): { row?: Row; error?: string } {
+// relaxed = rows from a user's file (source_mode "file"): a missing source/date is NOT an error — the row simply enters as
+// "unconfirmed" (verified forced to discovered_unconfirmed, priority capped at D unless 2 sources, last_verified_at stays NULL — never invented).
+function researchRow(src: Row, code: string, idx: number, stamp: string, opts: { relaxed?: boolean; fileName?: string | null } = {}): { row?: Row; error?: string } {
+  const relaxed = opts.relaxed === true;
   const c = COUNTRIES[code];
   const name = cleanText(src.name, 200);
   if (!name) return { error: "name required" };
@@ -98,16 +102,23 @@ function researchRow(src: Row, code: string, idx: number, stamp: string): { row?
   const contact = contactBlock(src, c.phoneCc);
   if (contact.website && !isUrl(contact.website)) return { error: "website must be an http(s) URL" };
   if (contact.email && !isEmail(contact.email)) return { error: "invalid email" };
-  const sources = parseSources(src.source_urls);
-  if (!sources.length) return { error: "source_urls required (every research row needs a public source)" };
-  if (sources.some((u) => !isUrl(u))) return { error: "every source must be an http(s) URL" };
-  const lastVerified = cleanText(src.last_verified_at, 40);
-  if (!lastVerified || Number.isNaN(Date.parse(lastVerified))) return { error: "last_verified_at required (date)" };
-  const priority = cleanText(src.priority, 2) || "D";
-  if (!PRIORITIES.includes(priority)) return { error: `unknown priority: ${priority}` };
-  if ((priority === "A" || priority === "A+") && sources.length < 2) return { error: "priority A needs 2 independent sources" };
-  const verified = cleanText(src.verified, 40) || "discovered_unconfirmed";
-  if (!VERIFIED.includes(verified) || verified === "manual_team_entry") return { error: `unknown verified: ${verified}` };
+  let sources = parseSources(src.source_urls);
+  let lastVerified = cleanText(src.last_verified_at, 40);
+  let priority = cleanText(src.priority, 2) || "D";
+  let verified = cleanText(src.verified, 40) || "discovered_unconfirmed";
+  if (relaxed) {
+    sources = sources.filter(isUrl);                                            // non-URL "sources" are dropped, not trusted
+    if (lastVerified && Number.isNaN(Date.parse(lastVerified))) lastVerified = null;
+    if (!PRIORITIES.includes(priority) || ((priority === "A" || priority === "A+") && sources.length < 2)) priority = "D";
+    verified = "discovered_unconfirmed";                                        // a loose file can never claim "verified"
+  } else {
+    if (!sources.length) return { error: "source_urls required (every research row needs a public source)" };
+    if (sources.some((u) => !isUrl(u))) return { error: "every source must be an http(s) URL" };
+    if (!lastVerified || Number.isNaN(Date.parse(lastVerified))) return { error: "last_verified_at required (date)" };
+    if (!PRIORITIES.includes(priority)) return { error: `unknown priority: ${priority}` };
+    if ((priority === "A" || priority === "A+") && sources.length < 2) return { error: "priority A needs 2 independent sources" };
+    if (!VERIFIED.includes(verified) || verified === "manual_team_entry") return { error: `unknown verified: ${verified}` };
+  }
   const presence = cleanText(src.lowes_presence, 20) || "unverified";
   if (!PRESENCE.includes(presence)) return { error: `unknown lowes_presence: ${presence}` };
   const listingUrl = cleanText(src.lowes_listing_url, 400);
@@ -121,15 +132,15 @@ function researchRow(src: Row, code: string, idx: number, stamp: string): { row?
       name, category: cleanText(src.category, 100), address: cleanText(src.address, 300), contact_person: null,
       ...contact,
       priority, score, verified,
-      reason: cleanText(src.reason, 2000), source_urls: sources.join(" | "),
+      reason: cleanText(src.reason, 2000), source_urls: sources.length ? sources.join(" | ") : null,
       status: "not_contacted", status_updated_at: null, status_updated_by: null,
       added_by: null, added_manually: false,
       lead_type, channel,
       sells_beauty: parseBool(src.sells_beauty), accepts_sellers: parseBool(src.accepts_sellers),
       delivery_coverage: cleanText(src.delivery_coverage, 200),
       lowes_presence: presence, lowes_listing_url: listingUrl,
-      discovery_source: cleanText(src.discovery_source, 100) || `research:${now.slice(0, 10)}`,
-      discovered_at: now, last_verified_at: new Date(lastVerified).toISOString(),
+      discovery_source: cleanText(src.discovery_source, 100) || (relaxed ? `file:${opts.fileName || "upload"}`.slice(0, 100) : `research:${now.slice(0, 10)}`),
+      discovered_at: now, last_verified_at: lastVerified ? new Date(lastVerified).toISOString() : null,
       created_at: now, updated_at: now,
     },
   };
@@ -157,14 +168,15 @@ serve(async (req) => {
     const action = String(body?.action || "");
     const code = String(body?.country || "").toUpperCase();
     const c = COUNTRIES[code];
-    if (!c || !c.enabled || c.legacyDirect || !c.leadsPermission) return json({ ok: false, error: "country_not_served" }, 400);
+    // Syria (legacyDirect) keeps its direct path for everything EXCEPT `import` (file import, inserts only — the old path has no bulk insert).
+    const served = !!c && c.enabled && !!c.leadsPermission && (!c.legacyDirect || action === "import");
+    if (!served) return json({ ok: false, error: "country_not_served" }, 400);
 
     const isAdmin = profile.role_type === "admin";
     const extra: string[] = Array.isArray(profile.extra_permissions) ? profile.extra_permissions : [];
     const denied: string[] = Array.isArray(profile.denied_permissions) ? profile.denied_permissions : [];
     const canView = isAdmin || (extra.includes(c.leadsPermission) && !denied.includes(c.leadsPermission));
     if (!canView) return json({ ok: false, error: "no permission", message: `ما عندك صلاحية ليدز ${c.ar}` }, 403);
-    if (action === "import" && !isAdmin) return json({ ok: false, error: "no permission", message: "الاستيراد للأدمن فقط" }, 403);
     const actor = String(profile.employee_name || auth.user.id).slice(0, 100);
 
     // Is migration 20261008 applied? (column "country" exists only after it)
@@ -277,6 +289,8 @@ serve(async (req) => {
       if (!rows.length) return json({ ok: false, error: "no rows" }, 400);
       if (rows.length > MAX_IMPORT) return json({ ok: false, error: `max ${MAX_IMPORT} rows per import` }, 400);
       const dryRun = body?.dry_run !== false;
+      const relaxed = body?.source_mode === "file";          // file import: no source/date required, rows enter unconfirmed
+      const fileName = relaxed ? cleanText(body?.file_name, 80) : null;
       const keys = await loadKeys();
       if (!keys) return json({ ok: false, error: "read failed" }, 500);
       const stamp = Date.now().toString(36).toUpperCase();
@@ -286,7 +300,7 @@ serve(async (req) => {
         const line = i + 1;
         if (!src || typeof src !== "object" || Array.isArray(src)) { invalid.push({ line, error: "row must be an object" }); return; }
         if (src.country && String(src.country).toUpperCase() !== code) { invalid.push({ line, name: src.name, error: `row country ${src.country} ≠ ${code}` }); return; }
-        const { row, error } = researchRow(src, code, i, stamp);
+        const { row, error } = researchRow(src, code, i, stamp, { relaxed, fileName });
         if (!row) { invalid.push({ line, name: src.name, error }); return; }
         const w = websiteKey(row.website), n = nameKey(code, row.province, row.name) as string;
         const existing = (w && keys.web.get(w)) || keys.names.get(n);

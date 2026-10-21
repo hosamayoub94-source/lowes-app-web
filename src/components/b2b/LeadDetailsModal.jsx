@@ -20,7 +20,7 @@ const Sec = ({ title, children }) => (
 const Row = ({ k, v }) => <div className="flex gap-2 text-xs"><span className="w-28 shrink-0 text-muted">{k}</span><span className="text-text break-words min-w-0">{v || '—'}</span></div>;
 const Missing = ({ children }) => <p className="text-[11px] text-muted border border-dashed border-border rounded-lg px-2.5 py-1.5">{children}</p>;
 
-export default function LeadDetailsModal({ lead, leads, country, onClose }) {
+export default function LeadDetailsModal({ lead, leads, country, onClose, children }) {
   const C = COUNTRIES[country];
   const a = useMemo(() => assess(lead), [lead]);
   const [msg, setMsg] = useState(null);
@@ -44,13 +44,15 @@ export default function LeadDetailsModal({ lead, leads, country, onClose }) {
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs" data-testid="assessments">
-          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة (مشتقّة، غير محفوظة):</b> {STAGE_AR[a.stage]}</div>
+          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة:</b> {STAGE_AR[a.stage]} <span className="text-muted">· حالة تقديرية — لم تُحفظ بعد</span></div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>أولوية التنفيذ:</b> {EXEC_AR[a.exec.key]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>جودة المصدر:</b> {SOURCE_QUALITY_AR[a.source.level]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>الفرصة:</b> {a.opportunity.value}/100</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>سهولة الدخول:</b> {LEVEL_AR[a.ease.level]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>جاهزية Lowe&apos;s:</b> {LEVEL_AR[a.readiness.level]}</div>
         </div>
+
+        {children}
 
         <Sec title="لماذا هذه الأولوية؟">
           <ul className="list-disc pr-4 text-xs text-text space-y-0.5">

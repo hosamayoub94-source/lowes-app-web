@@ -88,7 +88,7 @@ class Q {
       if (fault) return res({ data: null, error: STATE === '401' ? { message: 'JWT expired', code: 'PGRST301', status: 401 } : { message: STATE === 'network' || STATE === 'flaky' ? 'Failed to fetch' : 'error', status: STATE === 'network' || STATE === 'flaky' ? undefined : Number(STATE) || 500 } });
     }
     if (this.op === 'select' && STATE === 'empty') return res(ok([]));
-    if (this.op === 'select') return res(ok(visible.filter((r) => this.f.every((fn) => fn(r))).sort((a, b) => b.score - a.score)));
+    if (this.op === 'select') return res(ok(visible.filter((r) => this.f.every((fn) => fn(r))).sort((a, b) => b.score - a.score).map((r) => ({ ...r })))); // fresh copies, like a real DB read (React memo depends on it)
     if (this.op === 'update') { const hit = visible.filter((r) => this.f.every((fn) => fn(r))); hit.forEach((r) => Object.assign(r, this.p)); log('SY update', this.p); return res(ok(hit.map((r) => ({ id: r.id })))); }
     rows.unshift({ country: 'SY', ...this.p }); log('SY insert', this.p.id); return res(ok(null));
   }
@@ -105,7 +105,7 @@ const invoke = async (_name, { body }) => {
   if (!allowed) return refused;
   const own = (id) => rows.find((r) => r.id === id && r.country === 'AE');
   const stamp = new Date().toISOString();
-  if (body.action === 'list') return ok({ ok: true, rows: rows.filter((r) => r.country === 'AE').sort((a, b) => b.score - a.score) });
+  if (body.action === 'list') return ok({ ok: true, rows: rows.filter((r) => r.country === 'AE').sort((a, b) => b.score - a.score).map((r) => ({ ...r })) });
   if (body.action === 'update_status') { const r = own(body.id); Object.assign(r, { status: body.status, notes: body.notes || null, status_updated_at: stamp, status_updated_by: me.name }); log('AE status', body); return ok({ ok: true, row: r }); }
   if (body.action === 'update_presence') { const r = own(body.id); Object.assign(r, { lowes_presence: body.lowes_presence, lowes_listing_url: body.lowes_listing_url || null, presence_updated_at: stamp, presence_updated_by: me.name }); log('AE presence', body); return ok({ ok: true, row: r }); }
   if (body.action === 'add') {

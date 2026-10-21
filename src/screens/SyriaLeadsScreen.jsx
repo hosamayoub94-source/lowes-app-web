@@ -21,8 +21,8 @@ import { usePermissions } from '@hooks/usePermissions';
 import { COUNTRY_ROUTE, allowedLeadCountries, saveLastCountry } from '@data/b2bLeadsNav';
 import {
   STATUS_LABELS, tierGroup,
-  CATEGORIES, ONLINE_CATEGORIES, CHANNEL_LABELS, PRESENCE_LABELS, PRESENCE_LABELS_WITH_UNVERIFIED,
-  computeInsights, isNewLead, isStale,
+  CATEGORIES, ONLINE_CATEGORIES, PRESENCE_LABELS, PRESENCE_LABELS_WITH_UNVERIFIED,
+  computeInsights, isNewLead,
 } from '@services/syriaLeadsService';
 import { leadsApiFor } from '@services/b2bLeadsApi';
 import { canImportLeads } from '@services/b2bImport';
@@ -31,7 +31,10 @@ import ImportLeadsModal from '@components/b2b/ImportLeadsModal';
 import LoadStatePanel, { SlowLoadHint } from '@components/b2b/LoadStatePanel';
 import MarketDashboard from '@components/b2b/MarketDashboard';
 import LeadDetailsModal from '@components/b2b/LeadDetailsModal';
-import { assess, trackOf, READY_VIEWS, viewByKey, ORG_TYPES, STAGE_AR, SOURCE_QUALITY_AR, PIPELINE, ownerOf as modelOwnerOf } from '@services/b2bModel';
+import { assess, trackOf, READY_VIEWS, viewByKey, ORG_TYPES, STAGE_AR, PIPELINE, ownerOf as modelOwnerOf } from '@services/b2bModel';
+import {
+  cardStatusOf, stepOf, blockerOf, primaryActionOf, queueFilterByKey, queueBar, topPick, ORG_ACCENT,
+} from '@services/b2bQueue';
 import { toB2bError, logB2bError } from '@services/b2bErrors';
 import {
   COUNTRIES, NATIONWIDE, regionLabelAr, cityLabelAr, waLinkFor,
@@ -67,24 +70,6 @@ const TIER_LABEL = {
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('ar', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
-function StatusBadge({ status }) {
-  return (
-    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[status] || STATUS_COLOR.not_contacted}`}>
-      {STATUS_LABELS[status] || STATUS_LABELS.not_contacted}
-    </span>
-  );
-}
-
-function PresenceBadge({ presence }) {
-  const { country } = useLeadsCtx();
-  const k = presence || 'not_listed';
-  return (
-    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${PRESENCE_COLOR[k] || PRESENCE_COLOR.not_listed}`}>
-      {"Lowe's: "}{presenceLabelsOf(country)[k] || k}
-    </span>
-  );
-}
-
 const btnCls = 'text-[11px] font-bold px-2.5 py-1 rounded-lg bg-surface-alt border border-border text-text';
 
 function ContactActions({ lead }) {
@@ -109,21 +94,6 @@ function ContactActions({ lead }) {
       {tg && <a href={tg} target="_blank" rel="noreferrer" className={btnCls}>✈️ تيليغرام</a>}
       {!any && <span className="text-[11px] text-muted">لا وسيلة تواصل منشورة بعد</span>}
     </div>
-  );
-}
-
-function Sources({ lead }) {
-  const urls = (lead.source_urls || '').split('|').map(s => s.trim()).filter(Boolean);
-  if (!urls.length) return null;
-  return (
-    <details className="text-[11px] text-muted">
-      <summary className="cursor-pointer select-none font-bold">
-        🔎 المصادر ({urls.length}) · آخر تحقّق {fmtDate(lead.last_verified_at || lead.created_at)}
-      </summary>
-      <ul className="mt-1 space-y-0.5 break-all">
-        {urls.map(u => <li key={u}><a href={u} target="_blank" rel="noreferrer" className="underline">{u}</a></li>)}
-      </ul>
-    </details>
   );
 }
 
@@ -257,65 +227,115 @@ function NextStepRow({ lead }) {
   );
 }
 
-const EXEC_TONE = {
-  follow_up: 'text-amber-800 bg-amber-50 border-amber-300', today: 'text-green-700 bg-green-50 border-green-300', verify_first: 'text-blue-700 bg-blue-50 border-blue-200',
-  find_contact: 'text-amber-700 bg-amber-50 border-amber-200', later: 'text-muted bg-surface-alt border-border', waiting: 'text-blue-600 bg-blue-50 border-blue-200',
-  done: 'text-purple-700 bg-purple-50 border-purple-200', blocked: 'text-red-600 bg-red-50 border-red-200',
+const TONE_PILL = {
+  green: 'bg-green-50 text-green-700 border-green-200',
+  amber: 'bg-amber-50 text-amber-800 border-amber-200',
+  blue: 'bg-blue-50 text-blue-700 border-blue-200',
+  red: 'bg-red-50 text-red-600 border-red-200',
+  gray: 'bg-surface-alt text-muted border-border',
 };
-const SQ_TONE = { strong: 'text-green-700 bg-green-50 border-green-200', medium: 'text-blue-700 bg-blue-50 border-blue-200', weak: 'text-amber-700 bg-amber-50 border-amber-200', unknown: 'text-muted bg-surface-alt border-dashed border-border' };
 
-// صف التقييم: نوع الجهة + المرحلة + جودة المصدر + أولوية التنفيذ (مع سببها) — كل واحد مستقل، لا رقم غامض واحد.
-function AssessRow({ a, onOpen }) {
-  const pill = 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border';
+// تسجيل النتيجة بنقرة واحدة من البطاقة (نفس نداء StatusEditor، تحفظ الملاحظة الحالية كما هي).
+const QUICK_RESULTS = [
+  { status: 'contacted', label: '✓ تواصلنا' },
+  { status: 'interested', label: '👍 مهتم' },
+  { status: 'not_interested', label: '👎 غير مهتم' },
+];
+function QuickResult({ lead, myName, onSaved }) {
+  const { api } = useLeadsCtx();
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState(null);
+  const current = lead.status || 'not_contacted';
+  if (!['not_contacted', 'contacted', 'interested'].includes(current)) return null;   // عميل/مغلق: لا تسجيل سريع
+  const save = async (status) => {
+    setBusy(status); setErr(null);
+    try {
+      await api.updateStatus(lead.id, { status, notes: lead.notes || '', assigned_to: ownerForSave(lead, status, myName) }, myName);
+      await onSaved?.();
+    } catch (e) { setErr(e?.message || 'تعذّر الحفظ'); }
+    finally { setBusy(null); }
+  };
   return (
-    <div className="flex flex-wrap items-center gap-1.5" data-testid="assess-row">
-      <span className={`${pill} bg-surface-alt border-border text-text`} title={`طريقة التعامل: ${a.approach}`}>{a.org.icon} {a.org.ar}</span>
-      <span className={`${pill} bg-surface-alt border-dashed border-border text-text`} title="مرحلة مشتقّة من حالة التواصل وتواجد Lowe's — ليست «حالة حساب» محفوظة ولا يمكن متابعتها كمرحلة تسجيل بعد" data-testid="stage-pill">المرحلة (مشتقّة): {STAGE_AR[a.stage]}</span>
-      <span className={`${pill} ${SQ_TONE[a.source.level]}`} title={a.source.reasons.join(' · ')}>{SOURCE_QUALITY_AR[a.source.level]} · {a.source.freshness.ar}</span>
-      <span className={`${pill} ${EXEC_TONE[a.exec.key]}`} title={a.exec.why.join(' · ')} data-testid="exec-pill">{a.exec.ar}</span>
-      <button type="button" onClick={onOpen} data-testid="open-details" className="mr-auto text-[11px] font-bold underline text-teal">التفاصيل ←</button>
+    <div className="space-y-1" data-testid="quick-result">
+      <div className="flex gap-1.5">
+        {QUICK_RESULTS.filter(r => r.status !== current).map(r => (
+          <button key={r.status} type="button" disabled={!!busy} onClick={() => save(r.status)} data-quick={r.status}
+            className="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-surface-alt border border-border text-text disabled:opacity-50">
+            {busy === r.status ? '…' : r.label}
+          </button>
+        ))}
+      </div>
+      {err && <p className="text-[10px] text-red-500">{err}</p>}
     </div>
   );
 }
 
-function LeadCard({ lead, myName, onSaved, onOpen }) {
+// بطاقة مختصرة: الجهة ← الحالة ← الخطوة التالية (بارزة) ← المسؤول/العائق ← زر رئيسي واحد ← تسجيل النتيجة بنقرة.
+// كل ما عداه (المصادر، سبب التقييم، الملاحظات، التحديث والحفظ) داخل «التفاصيل».
+function LeadCard({ lead, onOpen, myName, onSaved }) {
   const { country } = useLeadsCtx();
   const a = useMemo(() => assess(lead), [lead]);
-  const online = a.track === 'channel';
+  const step = useMemo(() => stepOf(lead, a), [lead, a]);
+  const st = cardStatusOf(lead, a);
+  const wa = lead.whatsapp_link || waLinkFor(lead.whatsapp, COUNTRIES[country].phoneCc);
+  const act = primaryActionOf(lead, step, wa);
+  const blocker = blockerOf(lead, a);
+  const place = [regionLabelAr(country, lead.province), cityLabelAr(country, lead.city), lead.district].filter(Boolean).join(' · ');
+  const hot = ['today', 'follow_up'].includes(a.exec.key);
+  const pill = 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap';
   return (
-    <div className={`bg-surface border rounded-2xl p-4 space-y-2 ${a.exec.key === 'today' || a.exec.key === 'follow_up' ? 'border-green-300' : 'border-border'}`} dir="rtl">
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="font-extrabold text-sm text-text">{lead.name}</p>
-          {isNewLead(lead) && <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">جديد</span>}
+    <article data-testid="lead-card" data-org={a.orgType}
+      className={`bg-surface border border-border border-r-4 ${ORG_ACCENT[a.orgType]} rounded-2xl p-3 flex flex-col gap-2.5 ${hot ? 'shadow-sm' : ''}`} dir="rtl">
+      <header className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-extrabold text-sm text-text leading-snug break-words">{lead.name}</h3>
+          <p className="text-[11px] text-muted mt-0.5" data-testid="org-line">{a.org.icon} {a.org.ar}{place ? ` · ${place}` : ''}</p>
         </div>
-        <div className="flex gap-1.5 items-center flex-wrap">
-          {lead.added_manually && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-teal bg-teal/10 border-teal/30">✋ أضافه {lead.added_by || 'الفريق'}</span>
-          )}
-          {online ? <PresenceBadge presence={lead.lowes_presence} /> : <StatusBadge status={lead.status} />}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`${pill} ${TONE_PILL[st.tone]}`} data-testid="card-status">{st.ar}</span>
+          {isNewLead(lead) && <span className={`${pill} bg-amber-100 text-amber-700 border-amber-200`}>جديد</span>}
         </div>
+      </header>
+
+      <div className={`rounded-xl border px-2.5 py-2 ${TONE_PILL[step.tone]}`} data-testid="next-step">
+        <p className="text-[10px] font-bold opacity-70">الخطوة التالية</p>
+        <p className="text-xs font-extrabold leading-snug">{step.ar}</p>
       </div>
-      <p className="text-xs text-muted">
-        {[regionLabelAr(country, lead.province), cityLabelAr(country, lead.city), lead.category, online && CHANNEL_LABELS[lead.channel], lead.district, lead.contact_person]
-          .filter(Boolean).join(' · ')}
+
+      <p className="text-[11px] text-muted flex flex-wrap gap-x-3 gap-y-0.5" data-testid="owner-line">
+        <span>المسؤول: <b className={a.owner ? 'text-text' : ''}>{a.owner || 'غير محدد'}</b></span>
+        {blocker && <span className="text-amber-700">العائق: {blocker}</span>}
       </p>
-      {online && (
-        <div className="flex flex-wrap gap-1.5">
-          {lead.accepts_sellers && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">🏬 يقبل بائعين — نقدر نعرض منتجاتنا</span>}
-          {lead.sells_beauty && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200">💄 يبيع تجميل/عناية</span>}
-          {lead.delivery_coverage && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-alt text-muted border border-border">🚚 {lead.delivery_coverage}</span>}
-        </div>
-      )}
-      <AssessRow a={a} onOpen={onOpen} />
+
+      <footer className="flex items-center gap-2 mt-auto pt-0.5">
+        {act.kind === 'link' ? (
+          <a href={act.href} target={act.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" data-testid="primary-action"
+            className="flex-1 text-center text-xs font-extrabold px-3 py-2 rounded-xl bg-teal text-navy">{act.label}</a>
+        ) : (
+          <button type="button" onClick={onOpen} data-testid="primary-action"
+            className="flex-1 text-xs font-extrabold px-3 py-2 rounded-xl bg-teal text-navy">{act.label}</button>
+        )}
+        {act.kind === 'link' && (
+          <button type="button" onClick={onOpen} data-testid="open-details"
+            className="text-xs font-bold px-3 py-2 rounded-xl bg-surface-alt border border-border text-text">التفاصيل</button>
+        )}
+      </footer>
+      <QuickResult lead={lead} myName={myName} onSaved={onSaved} />
+    </article>
+  );
+}
+
+// داخل نافذة التفاصيل: كل ما كان مبعثراً أسفل البطاقة — رسالة جاهزة، وسائل التواصل، التواجد، التحديث والحفظ.
+function LeadManage({ lead, myName, onSaved }) {
+  const a = useMemo(() => assess(lead), [lead]);
+  return (
+    <section className="space-y-2.5 border-t border-border pt-3" data-testid="lead-manage">
+      <h4 className="text-xs font-extrabold text-text">تحديث الجهة والتواصل</h4>
       <NextStepRow lead={lead} />
       <ContactActions lead={lead} />
-      {lead.reason && <p className="text-[11px] text-muted leading-relaxed">{lead.reason}</p>}
-      <Sources lead={lead} />
-      {isStale(lead) && <p className="text-[10px] font-bold text-amber-600">⚠️ لم يُتحقق منه منذ أكثر من 90 يوماً — أكّد البيانات قبل الاعتماد عليها.</p>}
-      {online && <PresenceEditor lead={lead} myName={myName} onSaved={onSaved} />}
+      {a.track === 'channel' && <PresenceEditor lead={lead} myName={myName} onSaved={onSaved} />}
       <StatusEditor lead={lead} myName={myName} onSaved={onSaved} />
-    </div>
+    </section>
   );
 }
 
@@ -615,19 +635,35 @@ function CountryTabs({ country }) {
   );
 }
 
+// شريط «ماذا أفعل الآن؟» — أرقام قابلة للضغط بدل صفوف الفلاتر. الضغط مرة ثانية يلغي التصفية.
+function QueueBar({ items, active, onPick }) {
+  return (
+    <div className="flex flex-wrap gap-1.5" data-testid="queue-bar" role="group" aria-label="ماذا أفعل الآن">
+      {items.map((it) => (
+        <button key={it.key} type="button" onClick={() => onPick(active === it.key ? 'all' : it.key)} data-queue={it.key} aria-pressed={active === it.key}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition ${active === it.key ? 'bg-teal/10 border-teal text-teal' : 'bg-surface border-border text-muted hover:text-text'}`}>
+          <span>{it.ar}</span>
+          <b className={`text-sm ${it.count > 0 && it.tone === 'amber' ? 'text-amber-700' : 'text-text'}`}>{it.count}</b>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SyriaLeadsScreen({ country = 'SY' }) {
   const C = COUNTRIES[country] || COUNTRIES.SY;
   const api = useMemo(() => leadsApiFor(C.code), [C.code]);
   const ctx = useMemo(() => ({ country: C.code, api }), [C.code, api]);
   const provLabel = (p) => regionLabelAr(C.code, p);
   const { name, role } = useAuth();
-  const canImport = canImportLeads(role, C.code);   // أدمن + دولة غير سوريا — الخادم يفحص مرة ثانية
+  const { can } = usePermissions();
+  const canImport = canImportLeads(role, C.code, can);   // أدمن أو صاحب صلاحية ليدز الدولة (سوريا والإمارات) — الخادم يفحص مرة ثانية
   const [importOpen, setImportOpen] = useState(false);
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
   const [slow, setSlow] = useState(false);
-  const [view, setView]       = useState(C.legacyDirect ? 'physical' : 'online'); // physical = جهات محلية | online = فرص القنوات | insights = لوحة السوق (الإمارات تبدأ بالقنوات)
+  const [view, setView]       = useState(C.legacyDirect ? 'physical' : 'online'); // online = قنوات البيع | physical = الجهات المحلية | insights = لوحة السوق (الإمارات تبدأ بالقنوات)
   const [q, setQ]             = useState('');
   const [province, setProvince] = useState('all');
   const [tier, setTier]       = useState('all');
@@ -641,6 +677,8 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
   const [orgFilter, setOrgFilter] = useState('all');
   const [stageFilter, setStageFilter] = useState('all');
   const [ownerFilter, setOwnerFilter] = useState('all');
+  const [queueKey, setQueueKey] = useState('all');
+  const [advOpen, setAdvOpen] = useState(false);
   const [detailId, setDetailId] = useState(null);
 
   useEffect(() => { saveLastCountry(C.code); }, [C.code]);   // «ليدز B2B» بالقائمة يرجع لآخر دولة
@@ -652,20 +690,28 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     catch (e) { const err = toB2bError(e, 'list'); logB2bError(err, 'list'); setLeads([]); setLoadErr(err); }
     finally { clearTimeout(slowTimer); setSlow(false); setLoading(false); }
   }, [api]);
+  // تحديث صامت بعد تسجيل سريع: بلا هياكل تحميل ولا فقدان موضع التمرير؛ فشله يُبقي القائمة الحالية (الحفظ نفسه نجح).
+  const refresh = useCallback(async () => {
+    try { setLeads(await api.list()); }
+    catch (e) { logB2bError(toB2bError(e, 'list'), 'list'); }
+  }, [api]);
 
   useEffect(() => { load(); }, [load]);
 
+  const assessed = useMemo(() => new Map(leads.map(l => [l.id, assess(l)])), [leads]);
   const typeLeads = useMemo(
     () => leads.filter(l => trackOf(l) === (view === 'online' ? 'channel' : 'local')),   // قنوات (منصات/سلاسل/متاجر أونلاين) مقابل جهات محلية
     [leads, view],
   );
+  const channelTotal = useMemo(() => leads.filter(l => trackOf(l) === 'channel').length, [leads]);
+  const localTotal = leads.length - channelTotal;
   const provinces = useMemo(() => Array.from(new Set(typeLeads.map(l => l.province).filter(Boolean))).sort(), [typeLeads]);
   const categories = useMemo(() => Array.from(new Set(typeLeads.map(l => l.category).filter(Boolean))), [typeLeads]);
-
-  const assessed = useMemo(() => new Map(leads.map(l => [l.id, assess(l)])), [leads]);
   const owners = useMemo(() => Array.from(new Set(typeLeads.map(l => modelOwnerOf(l)).filter(Boolean))).sort(), [typeLeads]);
   const ready = readyKey === 'all' ? null : viewByKey(readyKey);
+  const queue = queueKey === 'all' ? null : queueFilterByKey(queueKey);
   const readyCounts = useMemo(() => Object.fromEntries(READY_VIEWS.map(v => [v.key, v.needsFields ? null : typeLeads.filter(l => v.test(l, Date.now())).length])), [typeLeads]);
+  const bar = useMemo(() => queueBar(typeLeads, assessed), [typeLeads, assessed]);
 
   const filtered = useMemo(() => typeLeads.filter(l => {
     if (q) {
@@ -682,12 +728,13 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
     if (onlyFollow && !needsFollowUp(l)) return false;
     if (ready && !ready.test(l, Date.now())) return false;
     const as = assessed.get(l.id);
+    if (queue && !queue.test(l, as)) return false;
     if (orgFilter !== 'all' && as?.orgType !== orgFilter) return false;
     if (stageFilter !== 'all' && as?.stage !== stageFilter) return false;
     if (ownerFilter === '__none' && modelOwnerOf(l)) return false;
     if (ownerFilter !== 'all' && ownerFilter !== '__none' && modelOwnerOf(l) !== ownerFilter) return false;
     return true;
-  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, onlyFollow, view, ready, assessed, orgFilter, stageFilter, ownerFilter]);
+  }), [typeLeads, q, province, tier, status, category, presence, onlyNew, onlyFollow, view, ready, queue, assessed, orgFilter, stageFilter, ownerFilter]);
 
   const sorted = useMemo(() => {
     const order = { ready: 0, check: 1, raw: 2 };
@@ -696,57 +743,56 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
       || order[tierGroup(a.priority)] - order[tierGroup(b.priority)] || (b.score || 0) - (a.score || 0));
   }, [filtered, assessed]);
 
-  const readyCount = filtered.filter(l => tierGroup(l.priority) === 'ready').length;
-  const checkCount = filtered.filter(l => tierGroup(l.priority) === 'check').length;
-  const contactedCount = filtered.filter(l => (l.status || 'not_contacted') !== 'not_contacted').length;
-  const listedCount = filtered.filter(l => l.lowes_presence === 'listed').length;
   const newCount = typeLeads.filter(l => isNewLead(l)).length;
   const followCount = typeLeads.filter(l => needsFollowUp(l)).length;
+  const pick = useMemo(() => (queueKey === 'all' && !q ? topPick(sorted, assessed) : null), [sorted, assessed, queueKey, q]);
+  const pickStep = pick ? stepOf(pick, assessed.get(pick.id)) : null;
+  // عدد الفلاتر المتقدمة المفعّلة (يظهر على الزر حتى لا تُنسى فلاتر مخفية)
+  const advActive = [province, category, presence, tier, status, readyKey, orgFilter, stageFilter, ownerFilter].filter(v => v !== 'all').length + (onlyNew ? 1 : 0) + (onlyFollow ? 1 : 0);
 
-  const switchView = (v) => {
-    setView(v); setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false); setOnlyFollow(false); setReadyKey('all'); setOrgFilter('all'); setStageFilter('all'); setOwnerFilter('all');
+  const resetFilters = () => {
+    setProvince('all'); setCategory('all'); setPresence('all'); setTier('all'); setStatus('all'); setOnlyNew(false); setOnlyFollow(false);
+    setReadyKey('all'); setOrgFilter('all'); setStageFilter('all'); setOwnerFilter('all'); setQueueKey('all'); setQ('');
   };
+  const switchView = (v) => { setView(v); resetFilters(); setAdvOpen(false); };
   const jumpTo = (lead) => {
-    switchView(lead.lead_type === 'online' ? 'online' : 'physical');
+    switchView(trackOf(lead) === 'channel' ? 'online' : 'physical');
     setQ(lead.name);
   };
 
   const presenceLabels = presenceLabelsOf(C.code);
+  const detail = detailId ? leads.find(l => l.id === detailId) : null;
+  const tabs = [['online', '🎯 قنوات البيع', channelTotal], ['physical', '🏪 الجهات المحلية', localTotal], ['insights', '📊 لوحة السوق', null]];
 
   return (
     <LeadsCtx.Provider value={ctx}>
-    <div className="space-y-5 pb-6" dir="rtl">
-      <div className="flex items-start justify-between gap-3 pt-1">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-extrabold text-text">ليدز B2B</h1>
+    <div className="space-y-3 pb-6" dir="rtl">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <h1 className="text-xl font-extrabold text-text">ليدز B2B</h1>
           <CountryTabs country={C.code} />
-          <p className="text-xs text-muted">
-            {C.legacyDirect
-              ? 'محلات ومتاجر أونلاين حقيقية بمصادر موثّقة — لا بيانات مُختلَقة. تتحدّث أسبوعياً بالجديد.'
-              : 'منصات وصيدليات ومتاجر تجميل وموزعون — كل جهة بمصدر عام وتاريخ تحقق. «غير متحقق» يعني لم نجد دليلاً بعد، لا أننا غير موجودين.'}
-          </p>
         </div>
-        <div className="shrink-0 flex flex-col items-stretch gap-1.5">
-          {view !== 'insights' && !loadErr && (
-            <button onClick={() => setAddOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm">
-              + إضافة
-            </button>
-          )}
+        <div className="flex items-center gap-1.5">
           {canImport && (
             <button onClick={() => setImportOpen(true)} data-testid="import-open"
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal transition">
-              ⬆️ استيراد (أدمن)
+              className="px-3 py-2 rounded-xl bg-surface-alt border border-border text-text text-xs font-bold hover:border-teal transition">
+              ⬆️ استيراد من ملف
+            </button>
+          )}
+          {view !== 'insights' && !loadErr && (
+            <button onClick={() => setAddOpen(true)}
+              className="px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm">
+              + إضافة
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-1.5 bg-surface-alt border border-border rounded-2xl p-1">
-        {[['online', '🎯 فرص القنوات'], ['physical', '🏪 جهات محلية'], ['insights', '📊 لوحة السوق']].map(([k, l]) => (
-          <button key={k} onClick={() => switchView(k)}
-            className={`py-2 rounded-xl text-xs font-extrabold transition ${view === k ? 'bg-surface text-teal shadow-sm' : 'text-muted'}`}>
-            {l}
+      <div className="grid grid-cols-3 gap-1.5 bg-surface-alt border border-border rounded-2xl p-1" role="tablist" aria-label="أقسام ليدز B2B" data-testid="view-tabs">
+        {tabs.map(([k, l, n]) => (
+          <button key={k} role="tab" aria-selected={view === k} onClick={() => switchView(k)}
+            className={`py-2 rounded-xl text-xs sm:text-sm font-extrabold transition ${view === k ? 'bg-surface text-teal shadow-sm' : 'text-muted'}`}>
+            {l}{n != null && !loading ? <span className="font-bold opacity-70"> · {n}</span> : null}
           </button>
         ))}
       </div>
@@ -755,107 +801,127 @@ export default function SyriaLeadsScreen({ country = 'SY' }) {
       {loading && slow && <SlowLoadHint />}
 
       {loadErr ? null : view === 'insights' ? (
-        loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" /> : <div className="space-y-4"><MarketDashboard leads={leads} country={C.code} onView={(k) => { switchView('physical'); setReadyKey(k); }} /><InsightsView leads={leads} onJump={jumpTo} /></div>
+        loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" /> : <div className="space-y-4"><MarketDashboard leads={leads} country={C.code} onView={(k) => { switchView('physical'); setReadyKey(k); setAdvOpen(true); }} /><InsightsView leads={leads} onJump={jumpTo} /></div>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-2.5">
-            <Stat label="بالعرض الحالي" val={filtered.length} />
-            <Stat label="جاهز الآن" val={readyCount} />
-            {view === 'online'
-              ? <Stat label="موجودين عندهم" val={listedCount} />
-              : <Stat label="يحتاج تأكيد" val={checkCount} />}
-            <Stat label="تواصلنا معهم" val={contactedCount} />
+          {!loading && leads.length > 0 && (
+            <>
+              <QueueBar items={bar} active={queueKey} onPick={setQueueKey} />
+              {pick && (
+                <button type="button" onClick={() => setDetailId(pick.id)} data-testid="top-pick"
+                  className="w-full text-right flex items-center justify-between gap-3 rounded-2xl border border-teal/40 bg-teal/5 px-3 py-2.5">
+                  <span className="min-w-0 text-xs">
+                    <span className="font-extrabold text-teal">ابدأ من هنا: </span>
+                    <b className="text-text">{pick.name}</b>
+                    <span className="text-muted"> — {pickStep.ar}</span>
+                  </span>
+                  <span className="text-xs font-extrabold text-teal shrink-0">فتح ←</span>
+                </button>
+              )}
+            </>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input type="search" value={q} onChange={e => setQ(e.target.value)}
+              placeholder={view === 'online' ? 'دوّر باسم المنصة أو المتجر…' : 'دوّر باسم الجهة أو المنطقة…'}
+              className="flex-1 min-w-0 bg-surface border border-border rounded-xl px-3.5 py-2 text-sm text-text focus:outline-none focus:border-teal" />
+            <button type="button" onClick={() => setAdvOpen(o => !o)} aria-expanded={advOpen} data-testid="adv-toggle"
+              className={`shrink-0 text-xs font-bold px-3 py-2.5 rounded-xl border transition ${advOpen || advActive ? 'border-teal text-teal bg-teal/5' : 'border-border text-muted'}`}>
+              فلاتر متقدمة{advActive ? ` (${advActive})` : ''}
+            </button>
           </div>
 
-          <div className="flex flex-wrap gap-1.5" data-testid="ready-views" aria-label="عروض جاهزة">
-            <Chip active={readyKey === 'all'} onClick={() => setReadyKey('all')}>كل الجهات</Chip>
-            {READY_VIEWS.map(v => (
-              <button key={v.key} type="button" disabled={!!v.needsFields} data-view={v.key} onClick={() => setReadyKey(readyKey === v.key ? 'all' : v.key)}
-                title={v.needsFields ? 'يحتاج حقلاً غير موجود بعد (migration مقترحة)' : undefined}
-                className={`text-xs font-bold px-3 py-1.5 rounded-full border transition disabled:opacity-40 disabled:cursor-not-allowed ${readyKey === v.key ? 'bg-teal/10 border-teal text-teal' : 'border-border text-muted hover:text-text'}`}>
-                {v.ar}{readyCounts[v.key] != null ? ` (${readyCounts[v.key]})` : ''}
-              </button>
-            ))}
-          </div>
-
-          <input type="search" value={q} onChange={e => setQ(e.target.value)}
-            placeholder={view === 'online' ? 'دوّر باسم المتجر أو الموقع أو الحساب…' : 'دوّر باسم المحل أو المنطقة…'}
-            className="w-full bg-surface border border-border rounded-2xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-teal" />
-
-          <div className="flex flex-wrap gap-1.5">
-            <Chip active={province === 'all'} onClick={() => setProvince('all')}>{C.allRegionsLabel}</Chip>
-            {provinces.map(p => <Chip key={p} active={province === p} onClick={() => setProvince(p)}>{provLabel(p)}</Chip>)}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <Chip active={category === 'all'} onClick={() => setCategory('all')}>كل الفئات</Chip>
-            {categories.map(c => <Chip key={c} active={category === c} onClick={() => setCategory(c)}>{c}</Chip>)}
-            {newCount > 0 && <Chip active={onlyNew} onClick={() => setOnlyNew(v => !v)}>🆕 جديد ({newCount})</Chip>}
-            {followCount > 0 && <Chip active={onlyFollow} onClick={() => setOnlyFollow(v => !v)}>⏰ تحتاج متابعة ({followCount})</Chip>}
-          </div>
-          {view === 'online' ? (
-            <div className="flex flex-wrap gap-1.5">
-              <Chip active={presence === 'all'} onClick={() => setPresence('all')}>كل حالات التواجد</Chip>
-              {Object.entries(presenceLabels).map(([k, l]) => (
-                <Chip key={k} active={presence === k} onClick={() => setPresence(k)}>{l}</Chip>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {['all', 'ready', 'check', 'raw'].map(t => (
-                <Chip key={t} active={tier === t} onClick={() => setTier(t)}>
-                  {t === 'all' ? 'كل المستويات' : TIER_LABEL[t].label}
-                </Chip>
-              ))}
+          {advOpen && (
+            <div className="space-y-3 bg-surface border border-border rounded-2xl p-3" data-testid="adv-panel">
+              <div className="flex flex-wrap gap-1.5" data-testid="ready-views" aria-label="عروض جاهزة">
+                <Chip active={readyKey === 'all'} onClick={() => setReadyKey('all')}>كل الجهات</Chip>
+                {READY_VIEWS.map(v => (
+                  <button key={v.key} type="button" disabled={!!v.needsFields} data-view={v.key} onClick={() => setReadyKey(readyKey === v.key ? 'all' : v.key)}
+                    title={v.needsFields ? 'يحتاج حقلاً غير موجود بعد (migration مقترحة)' : undefined}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-full border transition disabled:opacity-40 disabled:cursor-not-allowed ${readyKey === v.key ? 'bg-teal/10 border-teal text-teal' : 'border-border text-muted hover:text-text'}`}>
+                    {v.ar}{readyCounts[v.key] != null ? ` (${readyCounts[v.key]})` : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={province === 'all'} onClick={() => setProvince('all')}>{C.allRegionsLabel}</Chip>
+                {provinces.map(p => <Chip key={p} active={province === p} onClick={() => setProvince(p)}>{provLabel(p)}</Chip>)}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={category === 'all'} onClick={() => setCategory('all')}>كل الفئات</Chip>
+                {categories.map(c => <Chip key={c} active={category === c} onClick={() => setCategory(c)}>{c}</Chip>)}
+                {newCount > 0 && <Chip active={onlyNew} onClick={() => setOnlyNew(v => !v)}>🆕 جديد ({newCount})</Chip>}
+                {followCount > 0 && <Chip active={onlyFollow} onClick={() => setOnlyFollow(v => !v)}>⏰ تحتاج متابعة ({followCount})</Chip>}
+              </div>
+              {view === 'online' ? (
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip active={presence === 'all'} onClick={() => setPresence('all')}>كل حالات التواجد</Chip>
+                  {Object.entries(presenceLabels).map(([k, l]) => (
+                    <Chip key={k} active={presence === k} onClick={() => setPresence(k)}>{l}</Chip>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {['all', 'ready', 'check', 'raw'].map(t => (
+                    <Chip key={t} active={tier === t} onClick={() => setTier(t)}>
+                      {t === 'all' ? 'كل المستويات' : TIER_LABEL[t].label}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={status === 'all'} onClick={() => setStatus('all')}>كل حالات التواصل</Chip>
+                {Object.entries(STATUS_LABELS).map(([k, l]) => (
+                  <Chip key={k} active={status === k} onClick={() => setStatus(k)}>{l}</Chip>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="extra-filters">
+                <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} aria-label="نوع الجهة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+                  <option value="all">كل أنواع الجهات</option>
+                  {Object.entries(ORG_TYPES).filter(([, o]) => o.track === (view === 'online' ? 'channel' : 'local')).map(([k, o]) => <option key={k} value={k}>{o.ar}</option>)}
+                </select>
+                <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} aria-label="المرحلة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+                  <option value="all">كل المراحل (تقديرية)</option>
+                  {PIPELINE.filter(s => !['documents_requested', 'application_started', 'submitted', 'pending_approval', 'approved', 'paused'].includes(s)).map(s => <option key={s} value={s}>{STAGE_AR[s]}</option>)}
+                </select>
+                <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="المسؤول" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
+                  <option value="all">كل المسؤولين</option>
+                  <option value="__none">بلا مسؤول</option>
+                  {owners.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                {advActive > 0 && <button type="button" onClick={resetFilters} className="font-bold text-teal underline mr-auto">مسح الفلاتر</button>}
+              </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-1.5">
-            <Chip active={status === 'all'} onClick={() => setStatus('all')}>كل حالات التواصل</Chip>
-            {Object.entries(STATUS_LABELS).map(([k, l]) => (
-              <Chip key={k} active={status === k} onClick={() => setStatus(k)}>{l}</Chip>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2 text-xs" data-testid="extra-filters">
-            <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} aria-label="نوع الجهة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
-              <option value="all">كل أنواع الجهات</option>
-              {Object.entries(ORG_TYPES).filter(([, o]) => o.track === (view === 'online' ? 'channel' : 'local')).map(([k, o]) => <option key={k} value={k}>{o.ar}</option>)}
-            </select>
-            <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} aria-label="المرحلة" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
-              <option value="all">كل المراحل</option>
-              {PIPELINE.filter(s => !['documents_requested', 'application_started', 'submitted', 'pending_approval', 'approved', 'paused'].includes(s)).map(s => <option key={s} value={s}>{STAGE_AR[s]}</option>)}
-            </select>
-            <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="المسؤول" className="bg-surface-alt border border-border rounded-lg px-2 py-1.5 font-bold text-text">
-              <option value="all">كل المسؤولين</option>
-              <option value="__none">بلا مسؤول</option>
-              {owners.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
 
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-20 bg-surface-alt animate-pulse rounded-2xl" />)}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-32 bg-surface-alt animate-pulse rounded-2xl" />)}
             </div>
           ) : leads.length === 0 ? (
             <div className="text-center py-16 text-muted" data-testid="empty-data">
               <p className="text-4xl mb-3">🗂️</p>
               <p className="text-sm font-semibold">لا توجد جهات لهذه الدولة بعد</p>
-              <p className="text-xs mt-1">{canImport ? 'استورد دفعة بحث (زر الاستيراد) أو أضف جهة يدوياً.' : 'تُضاف الجهات بعد اعتماد دفعات البحث، أو يدوياً من زر «إضافة».'}</p>
+              <p className="text-xs mt-1">{canImport ? 'استورد ملف Excel (زر الاستيراد) أو أضف جهة يدوياً.' : 'تُضاف الجهات بعد اعتماد دفعات البحث، أو يدوياً من زر «إضافة».'}</p>
             </div>
           ) : sorted.length === 0 ? (
-            <div className="text-center py-16 text-muted">
+            <div className="text-center py-14 text-muted">
               <p className="text-4xl mb-3">📭</p>
               <p className="text-sm font-semibold">ولا نتيجة مطابقة</p>
+              {(advActive > 0 || queueKey !== 'all' || q) && <button type="button" onClick={resetFilters} className="mt-2 text-xs font-bold text-teal underline">مسح الفلاتر</button>}
             </div>
           ) : (
-            <div className="space-y-3">
-              {sorted.map(l => <LeadCard key={l.id} lead={l} myName={name} onSaved={load} onOpen={() => setDetailId(l.id)} />)}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" data-testid="lead-grid">
+              {sorted.map(l => <LeadCard key={l.id} lead={l} onOpen={() => setDetailId(l.id)} myName={name} onSaved={refresh} />)}
             </div>
           )}
         </>
       )}
 
-      {detailId && leads.find(l => l.id === detailId) && (
-        <LeadDetailsModal lead={leads.find(l => l.id === detailId)} leads={leads} country={C.code} onClose={() => setDetailId(null)} />
+      {detail && (
+        <LeadDetailsModal lead={detail} leads={leads} country={C.code} onClose={() => setDetailId(null)}>
+          <LeadManage lead={detail} myName={name} onSaved={load} />
+        </LeadDetailsModal>
       )}
       {addOpen && (
         <AddLeadModal myName={name} defaultType={view === 'online' ? 'online' : 'physical'}

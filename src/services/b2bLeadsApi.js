@@ -44,8 +44,10 @@ const unwrap = (res) => {
  * استيراد دفعة بحث (أدمن فقط، الخادم يفحص). dryRun=true = معاينة بلا أي حفظ (الافتراضي).
  * يرجّع الرد كاملاً { ok, dry_run, inserted, summary, new, duplicate_existing, duplicate_in_file, invalid } أو يرمي B2bError.
  */
-export async function importLeads(code, rows, dryRun = true) {
-  return unwrap(await callB2b('import', { country: code, rows, dry_run: dryRun !== false }));
+export async function importLeads(code, rows, dryRun = true, { sourceMode = null, fileName = null } = {}) {
+  // sourceMode 'file' = ملف من الفريق: بلا إلزام مصدر/تاريخ، تدخل الصفوف «غير متحقق» (الخادم يفرض ذلك).
+  const extra = sourceMode === 'file' ? { source_mode: 'file', file_name: fileName } : {};
+  return unwrap(await callB2b('import', { country: code, rows, dry_run: dryRun !== false, ...extra }));
 }
 
 // Syria's direct path: bounded wait; load failures become friendly classified errors, write errors keep their own text.
