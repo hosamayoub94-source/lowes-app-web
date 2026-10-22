@@ -9,10 +9,8 @@
 import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
 import { printPayslip } from '../utils/printPayslip.js';
 
-// بدل باقة الإنترنت — قيمة ثابتة معتمدة من المالك للعرض فقط (السياسة
-// الحالية)، لا تُحسب هنا ولا تُضاف للصافي: هي أصلاً جزء من "البدلات"
-// المحتسبة بالمحرك (internet_allowance ضمن employee_salary_settings).
-const INTERNET_ALLOWANCE_USD = 10;
+// البدلات تُعرض بقيمتها الفعلية من القيد (allowances_usd = إنترنت + طعام + بدلات
+// payroll_allowances) — كانت تُعرض 10$ ثابتة حتى لو البدل الفعلي صفر (22/10/2026).
 
 /** مكان العمل — مُشتق من فريق الموظف الفعلي، ليس حقلاً مستقلاً. */
 function workplaceLabel(entry) {
@@ -134,8 +132,8 @@ export function EmployeePayrollCard({ entry, run, canEdit, onEdit, onDelete, onS
           ) : '—'}
         </Field>
 
-        <Field label="بدل باقة الإنترنت">
-          {formatCurrency(INTERNET_ALLOWANCE_USD, 'USD')}
+        <Field label="البدلات (إنترنت / طعام)">
+          {formatCurrency(Number(entry.allowances_usd) || 0, 'USD')}
         </Field>
 
         <Field label="صافي الراتب النهائي" tone="teal">

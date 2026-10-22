@@ -21,6 +21,7 @@ import {
 import { PayrollRunCard } from '../components/PayrollRunCard.jsx';
 import { EmployeePayrollCard } from '../components/EmployeePayrollCard.jsx';
 import { PayrollBatchModal } from '../components/PayrollBatchModal.jsx';
+import { AllowancesModal } from '../components/AllowancesModal.jsx';
 import {
   PAYROLL_STATUS,
   isNewPayrollPeriod,
@@ -196,6 +197,7 @@ export function PayrollDashboard() {
 
   // ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) — طبقة عرض بحتة
   const [showBatch, setShowBatch] = useState(false);
+  const [showAllowances, setShowAllowances] = useState(false);
 
   const openMonthSetup = useCallback(async () => {
     if (!run) return;
@@ -446,13 +448,21 @@ export function PayrollDashboard() {
           <p className="text-sm text-muted mt-0.5">إدارة الرواتب والمستحقات الشهرية</p>
         </div>
         {canManagePayroll && (
-          <button
-            onClick={() => setShowNewRun(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
-            دورة جديدة
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAllowances(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface border border-border text-text text-sm font-bold hover:bg-surface-alt active:scale-95 transition"
+            >
+              🍽️ البدلات
+            </button>
+            <button
+              onClick={() => setShowNewRun(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
+              دورة جديدة
+            </button>
+          </div>
         )}
       </div>
 
@@ -990,6 +1000,11 @@ export function PayrollDashboard() {
             )}
           </div>
         </Modal>
+      )}
+
+      {/* ── البدلات الدورية بعملتها (🍽️ بدل طعام) ───────── */}
+      {showAllowances && (
+        <AllowancesModal run={run} onClose={() => setShowAllowances(false)} />
       )}
 
       {/* ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) ───────── */}

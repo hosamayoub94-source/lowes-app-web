@@ -459,10 +459,25 @@ function resolveSalary(emp, settings) {
  * @param {object} opts.run        payroll_runs row — its frozen target/pct/rate snapshot is
  *                                 authoritative once month_setup_confirmed_at is set.
  */
-export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run }) {
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run, allowanceRows = [] }) {
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
-  const { usd: allowances, missing: allowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
+  const { usd: settingsAllowancesUsd, missing: settingsAllowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
+
+  // بدلات مستقلة تُحفَظ بعملتها الأصلية (مثلاً بدل طعام 7500 ل.س جديد لموظفي الصالة —
+  // جدول payroll_allowances، قابلة للتعديل/الإضافة/الإلغاء). تُحوَّل لدولار بسعر الدورة المثبَّت،
+  // فلا تتغيّر دورة قديمة بتغيّر سعر الصرف. سعر ناقص ⇒ تنبيه يمنع الاعتماد.
+  const CUR_SYMBOL = { SYP: 'ل.س', USD: '$', TRY: '₺' };
+  let extraAllowancesUsd = 0, extraAllowancesMissing = false;
+  const extraAllowanceNotes = [];
+  for (const a of allowanceRows) {
+    if (!a || a.is_active === false) continue;
+    const { usd, missing } = toUsd(a.amount, a.currency || 'USD', rateMap);
+    if (missing) { extraAllowancesMissing = true; continue; }
+    extraAllowancesUsd += usd;
+    extraAllowanceNotes.push(`${a.kind === 'food' ? '🍽️ بدل طعام' : '➕ بدل'} ${Number(a.amount).toLocaleString('en-US')} ${CUR_SYMBOL[a.currency] || a.currency} ≈ $${usd.toFixed(2)}`);
+  }
+  const allowances = Math.round((settingsAllowancesUsd + extraAllowancesUsd) * 100) / 100;
 
   // ── Pro-rate base salary for a partial-month join/close-out (spec §6-7).
   //    Divides by the FULL calendar month (holidays included), counts only
@@ -497,10 +512,11 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (emp.payroll_commission_exempt) {
     const notes = [
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
-      ((salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing))
+      ((salary.rawBase > 0 && baseMissing) || ((salary.rawAllowances > 0 && settingsAllowancesMissing) || extraAllowancesMissing))
         ? '⚠️ سعر صرف ناقص' : null,
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
+      ...extraAllowanceNotes,
     ];
     let workingDays = 26, attRef = null, approvedAbsentDays = 0;
     try {
@@ -543,6 +559,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (salary.source === null) notes.push('⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي');
   if (!team) notes.push(`⚠️ فريق الموظف غير محدد أو غير معروف (سوريا/تركيا) — لا يمكن حساب التارجت/العمولة تلقائياً`);
   if (prorateNote) notes.push(prorateNote);
+  notes.push(...extraAllowanceNotes);
 
   let commissionUsd = 0, shortfallDeductionUsd = 0;
   let teamFields = {
@@ -694,7 +711,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
   if (absentDays) notes.push(`⛔ غياب معتمد للخصم: ${absentDays} يوم`);
   notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
-  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
+  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || ((salary.rawAllowances > 0 && settingsAllowancesMissing) || extraAllowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
 
   return {
     run_id: runId,
@@ -802,6 +819,21 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     throw new Error('تعذّر جلب المبيعات: ' + (e?.message || e) + ' — أُوقفت الحسبة قبل حفظ أي قيد لتجنّب عمولات أو حسميات خاطئة.');
   }
 
+  // 3b. Recurring allowances kept in their own currency (payroll_allowances). A failed
+  //     lookup must stop the run: silently skipping them would underpay.
+  const allowancesById = new Map();
+  {
+    const { data: allowRows, error: aErr } = await supabase
+      .from('payroll_allowances')
+      .select('employee_id, kind, amount, currency, is_active')
+      .eq('is_active', true);
+    if (aErr) throw new Error('تعذّر جلب البدلات: ' + aErr.message + ' — أُوقفت الحسبة قبل حفظ أي قيد.');
+    for (const a of (allowRows || [])) {
+      if (!allowancesById.has(a.employee_id)) allowancesById.set(a.employee_id, []);
+      allowancesById.get(a.employee_id).push(a);
+    }
+  }
+
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
@@ -813,6 +845,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
       emp,
       settings: settingsById.get(emp.id) || null,
       runId, year, month, salesIndex, rateMap, run,
+      allowanceRows: allowancesById.get(emp.id) || [],
     }),
     persistEntry: upsertPayrollEntry,
   });
