@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS } from '../types/payroll.types.js';
+import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS, isNewPayrollPeriod } from '../types/payroll.types.js';
 
 const INITIAL_STATE = {
   runs: [],
@@ -99,7 +99,41 @@ const usePayrollStore = create()(
       }
     },
 
+    /**
+     * دورات أيلول 2026+: الاعتماد/الدفع/إعادة الفتح عبر دوال القاعدة
+     * (payroll_approve_run / payroll_mark_paid / payroll_reopen_run) لأن trigger
+     * يرفض تغيير status مباشرة (D-090). بعد النداء نعيد جلب الدورة من القاعدة
+     * (الدالة تُرجع jsonb فقط وتملأ total_net_usd/finalized_at).
+     */
+    async _transitionViaRpc(id, fn, extraParams = {}) {
+      get()._setLoading('action', true);
+      try {
+        const { callPayrollRpc, fetchPayrollRun } = await import('../services/payrollService.js');
+        await callPayrollRpc(fn, { p_run_id: id, ...extraParams });
+        const fresh = await fetchPayrollRun(id);
+        set(s => ({ runs: s.runs.map(r => (r.id === id ? fresh : r)), error: null }));
+        return fresh;
+      } catch (err) {
+        set({ error: err.message });
+        throw err;
+      } finally {
+        get()._setLoading('action', false);
+      }
+    },
+
+    async reopenRun(id, reason) {
+      const run = get().runs.find(r => r.id === id);
+      if (!isNewPayrollPeriod(run)) {
+        throw new Error('إعادة الفتح لدورات أيلول 2026 وما بعد فقط.');
+      }
+      return get()._transitionViaRpc(id, 'payroll_reopen_run', { p_reason: reason });
+    },
+
     async approveRun(id) {
+      if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
+        return get()._transitionViaRpc(id, 'payroll_approve_run');
+      }
+      // الدورات القديمة (< أيلول 2026) — المسار المباشر كما كان.
       // finalized_by/finalized_at هما الأعمدة المطابقة لحالة 'finalized'
       // بقيد CHECK؛ approved_by يُملأ أيضاً لأنه موجود بالجدول فعلياً
       // ومستخدَم بالعرض، لكنه ليس هو ما يحكم صلاحية قيمة status.
@@ -155,6 +189,9 @@ const usePayrollStore = create()(
     },
 
     async markRunPaid(id) {
+      if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
+        return get()._transitionViaRpc(id, 'payroll_mark_paid');
+      }
       return get().updateRun(id, { status: PAYROLL_STATUS.PAID, paid_at: new Date().toISOString() });
     },
 

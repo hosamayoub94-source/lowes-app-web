@@ -13,10 +13,9 @@ import { supabase } from '@services/supabase';
 import { ROLE_LABELS } from '@data/teams';
 import { Hero }    from '@components/ui/Hero';
 import { Card }    from '@components/ui/Card';
+import AbsenceReviewPanel from '@components/payroll/AbsenceReviewPanel';
 
 // ── Helpers ────────────────────────────────────────────────────
-
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
 
 function slashMonth(ym) {
   // "2026-05" → "2026/05"
@@ -56,7 +55,7 @@ function monthOpts() {
 }
 
 // ── Employee Detail Drawer ─────────────────────────────────────
-function EmpDrawer({ emp, month, onClose }) {
+function EmpDrawer({ emp, onClose }) {
   if (!emp) return null;
 
   const lv = scoreLabel(emp.score ?? 0);
@@ -470,6 +469,8 @@ export default function HRDashboard() {
         </div>
       </Card>
 
+      <AbsenceReviewPanel month={month} />
+
       {/* ── Employee Grid ─────────────────────────────────────── */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -491,7 +492,7 @@ export default function HRDashboard() {
       )}
 
       {/* ── Drawer ───────────────────────────────────────────── */}
-      <EmpDrawer emp={selected} month={month} onClose={() => setSelected(null)} />
+      <EmpDrawer emp={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

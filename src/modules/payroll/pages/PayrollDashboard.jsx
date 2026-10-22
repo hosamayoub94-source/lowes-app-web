@@ -3,7 +3,9 @@
 // =============================================================
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@hooks/useAuth';
-import { fetchMonthlyAttendanceSummary, calcAbsenceDeduction } from '../services/attendanceLink.js';
+import { usePermissions } from '@hooks/usePermissions';
+import { PERMISSIONS } from '@data/permissions';
+import { fetchMonthlyAttendanceSummary } from '../services/attendanceLink.js';
 import {
   runPayrollForMonth, fetchEmployeeSalesStatement,
   fetchCommissionRules, fetchExchangeRateMap, DEFAULT_RULES,
@@ -21,13 +23,13 @@ import { EmployeePayrollCard } from '../components/EmployeePayrollCard.jsx';
 import { PayrollBatchModal } from '../components/PayrollBatchModal.jsx';
 import {
   PAYROLL_STATUS,
+  isNewPayrollPeriod,
   MONTHS_AR,
   formatCurrency,
   calcRunTotal,
   calcNetSalary,
   periodLabel,
 } from '../types/payroll.types.js';
-import { ROLES } from '@data/teams';
 import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues } from '../services/payrollValidation.js';
 
@@ -95,16 +97,20 @@ function Modal({ title, onClose, children, footer }) {
 
 // ─── Main component ───────────────────────────────────────────
 export function PayrollDashboard() {
-  const { id, role, name } = useAuth();
+  const { id, name } = useAuth();
+  const { can } = usePermissions();
   usePayrollBootstrap(id);
 
   const { runs, kpis, isLoading } = usePayrollDashboard();
-  const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid } = useRunDetail();
+  const { run, entries, isLoading: loadingEntries, isSubmitting, approveAndCloseRun, confirmMonthSetup, markRunPaid, reopenRun } = useRunDetail();
   const selectedRunId = useSelectedRunId();
   const { selectRun, createRun, deleteRun, deleteEntry, upsertEntry, loadEntries } = usePayrollActions();
   const loading = usePayrollLoading();
 
-  const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  // The route and navigation both grant payroll through MANAGE_PAYROLL too.
+  // Keep the page on the same capability check so accountant/HR-manager users
+  // are not technically authorized yet silently denied every payroll action.
+  const canManagePayroll = can(PERMISSIONS.MANAGE_PAYROLL);
   // حذف دورة/مسودة رواتب — صلاحية مقصورة على هذين الاسمين فقط (طلب المالك
   // 2026-08-30)، وليست تابعة لدور "أدمن" العام — أي أدمن آخر لا يرى الزر.
   const DELETE_RUN_ALLOWED = new Set(['hosam ayoub', 'amany alkshki']);
@@ -112,6 +118,11 @@ export function PayrollDashboard() {
   // كشف حركة المبيعات دايماً ظاهر (حتى لو عمولة=0) — نفس التقييد الاسمي
   // فوق بالضبط، طلب صريح من حسام 2026-09-01 (لا علاقة بدور "أدمن" العام).
   const canAlwaysViewStatement = canDeleteRun;
+  // دورات أيلول 2026+: الاعتماد/الدفع/إعادة الفتح عبر دوال القاعدة وهي تشترط
+  // payroll_access.can_finalize (حسام وأماني حالياً — D-090). payroll_access غير
+  // مقروء من العميل، فنقصر الأزرار على نفس الاسمين والقاعدة هي الحكم النهائي.
+  const isNewPeriodRun = isNewPayrollPeriod(run);
+  const canFinalizeRun = canManagePayroll && (!isNewPeriodRun || canDeleteRun);
 
   // ── New Run form
   const [showNewRun, setShowNewRun] = useState(false);
@@ -296,6 +307,31 @@ export function PayrollDashboard() {
     }
   }, [run, approveAndCloseRun]);
 
+  const handleMarkPaid = useCallback(async () => {
+    if (!run) return;
+    if (!window.confirm(`تسجيل دفع رواتب ${periodLabel(run.period_year, run.period_month)}؟ لا يمكن إعادة فتح دورة مدفوعة.`)) return;
+    setCommMsg(null);
+    try {
+      await markRunPaid();
+      setCommMsg('✅ سُجِّل دفع الدورة.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  }, [run, markRunPaid]);
+
+  const handleReopen = useCallback(async () => {
+    if (!run) return;
+    const reason = window.prompt(`سبب إعادة فتح ${periodLabel(run.period_year, run.period_month)} (5 أحرف على الأقل — يُسجَّل بسجل الدورة):`);
+    if (reason === null) return;
+    setCommMsg(null);
+    try {
+      await reopenRun(reason);
+      setCommMsg('✅ أُعيد فتح الدورة كمسودة — أعد تشغيل الحسبة قبل الاعتماد.');
+    } catch (e) {
+      setCommMsg('⚠️ ' + (e?.message || e));
+    }
+  }, [run, reopenRun]);
+
   const openStatement = useCallback(async (entry) => {
     setStatementFor(entry);
     setStatementData(null);
@@ -327,22 +363,14 @@ export function PayrollDashboard() {
       );
       setAttResult(summary);
       if (!summary.error) {
-        const deduction = calcAbsenceDeduction(
-          entryForm.base_salary_usd,
-          summary.workingDays,
-          summary.absentDays,
-        );
-        setEntryForm((f) => ({
-          ...f,
-          absent_days:   summary.absentDays,
-          working_days:  summary.workingDays,
-          absence_deduction_usd: deduction,
-        }));
+        // Attendance import is evidence only. Daily absence approval happens
+        // in HR; never let a raw missing check-in become a payroll deduction.
+        setEntryForm((f) => ({ ...f, working_days: summary.workingDays, absence_deduction_usd: 0, absent_days: 0 }));
       }
     } finally {
       setAttLoading(false);
     }
-  }, [run, entryForm.employee_id, entryForm.base_salary_usd]);
+  }, [run, entryForm.employee_id, entryForm.employee_name]);
 
   const handleCreateRun = async () => {
     try {
@@ -417,7 +445,7 @@ export function PayrollDashboard() {
           <h1 className="text-2xl font-extrabold text-text tracking-tight">الرواتب</h1>
           <p className="text-sm text-muted mt-0.5">إدارة الرواتب والمستحقات الشهرية</p>
         </div>
-        {isAdmin && (
+        {canManagePayroll && (
           <button
             onClick={() => setShowNewRun(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 active:scale-95 transition shadow-sm"
@@ -455,7 +483,7 @@ export function PayrollDashboard() {
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-muted text-sm bg-surface border border-border rounded-xl">
               <div className="text-3xl">💰</div>
               <p>لا توجد دورات بعد</p>
-              {isAdmin && (
+              {canManagePayroll && (
                 <button onClick={() => setShowNewRun(true)}
                   className="mt-1 text-teal text-xs font-semibold hover:underline">
                   + إنشاء أول دورة
@@ -506,12 +534,12 @@ export function PayrollDashboard() {
                   {commMsg && <p className={`text-xs mt-1 font-semibold ${commMsg.startsWith('✅') ? 'text-green-fg' : 'text-amber-fg'}`}>{commMsg}</p>}
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={openMonthSetup} disabled={engineRunning} variant="blue">
                       ⚙️ إعداد الشهر
                     </ActionBtn>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={handleRunEngine} disabled={engineRunning} variant="green">
                       {engineRunning
                         ? `⏳ ${engineProgress ? `${engineProgress.done}/${engineProgress.total}` : '…'}`
@@ -528,14 +556,19 @@ export function PayrollDashboard() {
                       💵 دفعة الرواتب
                     </ActionBtn>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canFinalizeRun && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={handleApproveAndClose} disabled={isSubmitting || !canApprove} variant="blue">
                       ✅ اعتماد وإغلاق الرواتب
                     </ActionBtn>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.APPROVED && (
-                    <ActionBtn onClick={markRunPaid} disabled={isSubmitting} variant="green">
+                  {canFinalizeRun && run.status === PAYROLL_STATUS.APPROVED && (
+                    <ActionBtn onClick={handleMarkPaid} disabled={isSubmitting} variant="green">
                       💳 تسجيل دفع
+                    </ActionBtn>
+                  )}
+                  {canFinalizeRun && isNewPeriodRun && run.status === PAYROLL_STATUS.APPROVED && (
+                    <ActionBtn onClick={handleReopen} disabled={isSubmitting} variant="red">
+                      🔓 إعادة فتح
                     </ActionBtn>
                   )}
                   {/* حذف المسودة — صلاحية مقصورة على hosam ayoub / Amany alkshki فقط */}
@@ -607,7 +640,7 @@ export function PayrollDashboard() {
                 <div className="flex flex-col items-center justify-center py-14 gap-2 text-muted text-sm">
                   <div className="text-3xl">👤</div>
                   <p>لا توجد إدخالات في هذه الدورة</p>
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
                     <button onClick={handleRunEngine} disabled={engineRunning}
                       className="mt-2 px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
                       {engineRunning
@@ -615,7 +648,7 @@ export function PayrollDashboard() {
                         : '⚡ تشغيل الدورة — حساب كل الموظفين تلقائياً'}
                     </button>
                   )}
-                  {isAdmin && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
                     <p className="text-[11px] text-muted mt-1">
                       يحسب لكل موظف حسب <b>فريقه</b> (سوريا $ / تركيا ₺): الأساسي + البدلات + عمولة <b>فوق التارجت</b> بعد خصم الرواجع الزائدة عن 3% − حسم عدم تحقيق التارجت (10% من النقص) − السلف.
                       الغياب <b>يدوي</b> — عدّله لكل موظف من ✏️. تحتاج تأكيد «⚙️ إعداد الشهر» أولاً.
@@ -635,7 +668,7 @@ export function PayrollDashboard() {
                       key={e.id}
                       entry={e}
                       run={run}
-                      canEdit={isAdmin && run.status === PAYROLL_STATUS.DRAFT}
+                      canEdit={canManagePayroll && run.status === PAYROLL_STATUS.DRAFT}
                       onEdit={openEditEntry}
                       onDelete={deleteEntry}
                       onStatement={openStatement}
@@ -737,7 +770,7 @@ export function PayrollDashboard() {
               <div>
                 <p className="text-xs font-bold text-text">استيراد من الحضور</p>
                 <p className="text-[11px] text-muted">
-                  يملأ أيام الغياب والعمل تلقائياً من سجلات الحضور لـ
+                  يعرض أيام الغياب المكتشفة من سجلات الحضور للمراجعة فقط لـ
                   <span className="font-semibold text-teal"> {run ? `${MONTHS_AR[run.period_month - 1]} ${run.period_year}` : '—'}</span>
                 </p>
               </div>
@@ -801,7 +834,7 @@ export function PayrollDashboard() {
               { key: 'allowances_usd',         label: 'البدلات' },
               { key: 'commission_usd',         label: 'عمولة المبيعات' },
               { key: 'bonus_usd',              label: 'مكافأة يدوية' },
-              { key: 'absence_deduction_usd',  label: 'خصم الغياب' },
+                { key: 'absence_deduction_usd',  label: 'خصم الغياب المعتمد' },
               { key: 'shortfall_deduction_usd', label: 'حسم عدم تحقيق التارجت' },
               { key: 'deductions_usd',         label: 'خصومات أخرى' },
               { key: 'advance_deduction_usd',  label: 'خصم السلفة' },
@@ -813,6 +846,7 @@ export function PayrollDashboard() {
                 <input
                   type="number"
                   value={entryForm[key] ?? 0}
+                  disabled={key === 'absence_deduction_usd' || key === 'absent_days'}
                   onChange={e => setEntryForm(f => ({ ...f, [key]: Number(e.target.value) }))}
                   className={INP}
                 />

@@ -24,6 +24,15 @@ export const PAYROLL_STATUS_LABELS = {
   [PAYROLL_STATUS.CANCELLED]:  'ملغي',
 };
 
+/**
+ * دورات أيلول 2026 وما بعد: تغيير الحالة (اعتماد/دفع/إعادة فتح) يمرّ حصراً عبر
+ * دوال قاعدة البيانات (D-090) — الـtrigger يرفض التحديث المباشر. مطابقة لدالة
+ * payroll_is_new_period في القاعدة. الدورات الأقدم تبقى على المسار القديم.
+ */
+export function isNewPayrollPeriod(run) {
+  return ((Number(run?.period_year) || 0) * 100 + (Number(run?.period_month) || 0)) >= 202609;
+}
+
 export const SALARY_TYPE = {
   FIXED:      'fixed',
   COMMISSION: 'commission',

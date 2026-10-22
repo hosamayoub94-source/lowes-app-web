@@ -41,7 +41,8 @@ export const usePayrollActions = () =>
     approveAndCloseRun: s.approveAndCloseRun,
     confirmMonthSetup: s.confirmMonthSetup,
     markRunPaid:      s.markRunPaid,
-    deleteRun:        s.deleteRun,
+    reopenRun:        s.reopenRun,
+    deleteRun:       s.deleteRun,
     selectRun:        s.selectRun,
     loadEntries:      s.loadEntries,
     upsertEntry:      s.upsertEntry,
@@ -87,7 +88,7 @@ export function useRunDetail() {
   const run     = useSelectedRun();
   const entries = usePayrollEntries();
   const loading = usePayrollLoading();
-  const { upsertEntry, deleteEntry, approveRun, approveAndCloseRun, confirmMonthSetup, markRunPaid } = usePayrollActions();
+  const { upsertEntry, deleteEntry, approveRun, approveAndCloseRun, confirmMonthSetup, markRunPaid, reopenRun } = usePayrollActions();
 
   return {
     run,
@@ -100,5 +101,6 @@ export function useRunDetail() {
     approveAndCloseRun: run ? () => approveAndCloseRun(run.id) : null,
     confirmMonthSetup: run ? (setup) => confirmMonthSetup(run.id, setup) : null,
     markRunPaid: run ? () => markRunPaid(run.id) : null,
+    reopenRun: run ? (reason) => reopenRun(run.id, reason) : null,
   };
 }

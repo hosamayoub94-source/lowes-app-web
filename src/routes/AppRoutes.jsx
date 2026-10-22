@@ -99,6 +99,7 @@ const PublicTrackScreen        = lazy(() => import(/* webpackChunkName: "public-
 const ALL_ROLES     = Object.values(ROLES);
 const MANAGEMENT    = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER];
 const FINANCE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
+const PAYROLL_ROLES = [ROLES.ADMIN, ROLES.MANAGER, ROLES.ACCOUNTANT, ROLES.HR_MANAGER];
 const SALES_ROLES   = [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER];
 // المناصب الإدارية (محاسب/موارد بشرية/مخزن/تسويق). تُمنح وصولها عبر الصلاحية
 // (perm) على كل route — مطابقةً لإظهار navigation.js — فلا تظهر شاشة بالقائمة
@@ -208,7 +209,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PAYROLL}
             element={
-              <ProtectedRoute roles={FINANCE_ROLES} perm={P.MANAGE_PAYROLL}>
+              <ProtectedRoute roles={PAYROLL_ROLES} perm={P.MANAGE_PAYROLL}>
                 <PayrollDashboard />
               </ProtectedRoute>
             }

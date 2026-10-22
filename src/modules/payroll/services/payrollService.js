@@ -144,6 +144,21 @@ export async function deletePayrollRun(id) {
   if (error) throw new Error(error.message);
 }
 
+// تحويل حالة دورة أيلول 2026+ — عبر دوال القاعدة فقط (D-090). تُرجع jsonb؛
+// رسالة الخطأ عربية من RAISE EXCEPTION بالدالة (مثلاً «الاعتماد لحسام وأماني فقط»).
+const MOCK_RPC_STATUS = { payroll_approve_run: 'finalized', payroll_mark_paid: 'paid', payroll_reopen_run: 'draft' };
+export async function callPayrollRpc(fn, params) {
+  if (USE_MOCK) {
+    const status = MOCK_RPC_STATUS[fn];
+    if (!status) throw new Error('دالة غير معروفة: ' + fn);
+    return updatePayrollRun(params.p_run_id, { status });
+  }
+  const { supabase } = await import('@services/supabase');
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // Payroll Entries
 export async function fetchPayrollEntries(runId) {
   if (USE_MOCK) {

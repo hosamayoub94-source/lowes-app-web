@@ -76,7 +76,7 @@ export const NAV_ITEMS = [
   { id: 'warehouses', label: 'المخازن',  icon: '🏬', path: '/warehouses', roles: [A, M, SM], group: 'inventory', perm: P.VIEW_INVENTORY },
 
   // ── HR / managers
-  { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M], group: 'hr', perm: P.MANAGE_PAYROLL },
+  { id: 'payroll',           label: 'الرواتب',       icon: '💵', path: '/payroll',           roles: [A, M, ACC, HR], group: 'hr', perm: P.MANAGE_PAYROLL },
   { id: 'hr',                label: 'الموارد البشرية', icon: '🧑‍💼', path: '/hr',              roles: [A, M], group: 'hr', perm: P.APPROVE_LEAVES },
   { id: 'attendance-report', label: 'تقرير الحضور',  icon: '📅', path: '/attendance-report', roles: [A, M], group: 'hr', perm: P.VIEW_ALL_ATTENDANCE },
   { id: 'holidays',          label: 'العطل الرسمية', icon: '🏖️', path: '/holidays',          roles: [A, M], group: 'hr' },

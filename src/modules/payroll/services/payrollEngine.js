@@ -39,6 +39,7 @@ import { supabase, supabaseAnon } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 import { runPayrollBatch } from './payrollBatch.js';
+import { listApprovedAbsenceReviews } from './absenceReviewService.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -501,7 +502,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
     ];
-    let workingDays = 26, attRef = null;
+    let workingDays = 26, attRef = null, approvedAbsentDays = 0;
     try {
       const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
       workingDays = att.workingDays || workingDays;
@@ -510,19 +511,23 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
         attRef = `حضور مسجّل ${att.presentDays}/${att.workingDays} يوم${leaveNote}` + (att.absentDays ? ` · غياب ${att.absentDays}` : '');
       }
     } catch { /* مرجع فقط */ }
+    // Approved absence drives a deduction → a failed lookup must fail this employee, not silently pay in full.
+    approvedAbsentDays = (await listApprovedAbsenceReviews(emp.id, year, month)).length;
     notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
 
     const { usd: advance, missingRate: advMissing } = await fetchAdvanceRepaymentUsd(emp.id, year, month, rateMap);
     if (advMissing) notes.push('⚠️ سعر صرف ناقص');
-    const net = base + allowances - advance;
+    const absenceDeduction = Math.round((base / (workingDays || 1)) * approvedAbsentDays * 100) / 100;
+    if (approvedAbsentDays) notes.push(`⛔ غياب معتمد للخصم: ${approvedAbsentDays} يوم`);
+    const net = base + allowances - advance - absenceDeduction;
 
     return {
       run_id: runId, employee_id: emp.id, employee_name: emp.employee_name, role_type: emp.role_type,
       currency: PAYROLL_CURRENCY, salary_source: salary.source, commission_exempt: true,
       base_salary_usd: base, allowances_usd: allowances, bonus_usd: 0,
       commission_usd: 0, commission_pct: 0, sales_total_usd: 0, sales_orders_count: 0,
-      deductions_usd: 0, absence_deduction_usd: 0, advance_deduction_usd: advance,
-      shortfall_deduction_usd: 0, working_days: workingDays, absent_days: 0,
+      deductions_usd: 0, absence_deduction_usd: absenceDeduction, advance_deduction_usd: advance,
+      shortfall_deduction_usd: 0, working_days: workingDays, absent_days: approvedAbsentDays,
       net_salary_usd: Math.round(net * 100) / 100, source: 'auto', computed_at: new Date().toISOString(),
       notes: notes.filter(Boolean).join(' · ') || null,
       team: null, target_currency: null, target_local: 0, sales_local: 0, sales_avg_local: 0,
@@ -554,16 +559,21 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   // مصدرا الإجازة: تعليم الحضور اليومي اليدوي (attendance) + شاشة «الطلبات»
   // المعتمدة (employee_requests, leave) — الاتحاد بينهما بلا ازدواج بالعدّ.
   let workingDays = 26, attRef = null, leaveDaysThisMonth = 0;
-  const [attResult, leaveResult] = await Promise.allSettled([
+  const [attResult, leaveResult, absenceResult] = await Promise.allSettled([
     fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
     fetchApprovedPaidLeaveDatesInMonth(emp.id, year, month),
+    listApprovedAbsenceReviews(emp.id, year, month),
   ]);
   // Attendance is a display-only reference by owner decision; preserve the
   // prior fallback on attendance failure. Approved-leave lookup affects the
   // payroll record and therefore must fail this employee's calculation.
   if (leaveResult.status === 'rejected') throw leaveResult.reason;
   const att = attResult.status === 'fulfilled' ? attResult.value : null;
+  // Approved absence days drive a salary deduction: if the lookup fails we must
+  // fail this employee's calculation (a silent [] would overpay), same as leave.
+  if (absenceResult.status === 'rejected') throw absenceResult.reason;
   const requestLeaveDates = leaveResult.value;
+  const approvedAbsenceRows = absenceResult.value;
   if (att) {
     workingDays = att.workingDays || workingDays;
     const leaveDatesUnion = new Set([...(att.leaveDates || []), ...requestLeaveDates]);
@@ -671,9 +681,10 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     commissionUsd = Math.round((s.usd * commPct) / 100 * 100) / 100;
   }
 
-  // الحضور جُلب مسبقاً فوق (قبل حسبة التارجت) — مرجع فقط، بلا خصم تلقائي
-  // (قرار المالك 2026-07-02)، عدا تخفيض التارجت عند وجود إجازة مدفوعة.
-  const absentDays = 0, absenceDeduction = 0;
+  // الحضور جُلب مسبقاً فوق — الغياب المكتشف لا يخصم تلقائياً؛ الإدارة
+  // تعتمد كل يوم من payroll_absence_reviews قبل إدخاله في الراتب.
+  const absentDays = approvedAbsenceRows.length;
+  const absenceDeduction = Math.round((base / (workingDays || 1)) * absentDays * 100) / 100;
 
   // Approved advances due this month (→ USD)
   const { usd: advance, missingRate: advMissing } =
@@ -681,6 +692,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
   const net = base + allowances + commissionUsd - shortfallDeductionUsd - absenceDeduction - advance;
 
+  if (absentDays) notes.push(`⛔ غياب معتمد للخصم: ${absentDays} يوم`);
   notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
   if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || (salary.rawAllowances > 0 && allowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
 
@@ -739,12 +751,20 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   //    gets computed; is_active=false with no resignation this month (any
   //    other/older reason) stays excluded, same as before.
   const { from: monthFrom, to: monthTo } = monthBounds(year, month);
-  const { data: emps, error: empErr } = await supabase
+  // payroll_excluded: موظفون رواتبهم خارج هذا النظام (مثلاً أروى/ريم — راتبهما من شغل الإمارات).
+  // العمود من migration 20261022؛ إن لم تُطبَّق بعد نعيد المحاولة بدونه بدل أن تفشل الحسبة كلها.
+  const PROFILE_COLS = 'id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt, join_date, resigned_at';
+  const fetchProfiles = (cols) => supabase
     .from('profiles')
-    .select('id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt, join_date, resigned_at')
+    .select(cols)
     .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom},resigned_at.lt.${monthTo})`)
     .order('employee_name');
+  let { data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS + ', payroll_excluded');
+  if (empErr && /payroll_excluded/.test(empErr.message || '')) {
+    ({ data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS));
+  }
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);
+  const emps = (allEmps || []).filter(e => !e.payroll_excluded);
 
   // 2. Salary settings for those employees → keyed by employee_id
   const settingsById = new Map();
