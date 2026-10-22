@@ -81,6 +81,8 @@ export function useAutoAttendanceReminder() {
 
   useEffect(() => {
     if (!session?.id || !session?.name || firedRef.current) return;
+    // الأدمن غير ملزَم بتسجيل الحضور — لا تذكير ولا إشعار (قرار حسام 22/10/2026).
+    if (session.role === 'admin') return;
     firedRef.current = true;
     // Wait 90s so user has time to check in naturally on arrival
     const t = setTimeout(() => checkAttendance(session), 90_000);

@@ -32,9 +32,9 @@ export default function AbsenceReviewPanel({ month }) {
       const to = `${month}-${String(new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate()).padStart(2, '0')}`;
       const loadProfiles = async () => {
         // payroll_excluded من migration 20261022 — إن لم تُطبَّق نعيد المحاولة بدونه.
-        const r = await supabase.from('profiles').select('id,employee_name,team,payroll_excluded').eq('is_active', true).order('employee_name');
+        const r = await supabase.from('profiles').select('id,employee_name,team,role_type,payroll_excluded').eq('is_active', true).order('employee_name');
         if (r.error && /payroll_excluded/.test(r.error.message || '')) {
-          return supabase.from('profiles').select('id,employee_name,team').eq('is_active', true).order('employee_name');
+          return supabase.from('profiles').select('id,employee_name,team,role_type').eq('is_active', true).order('employee_name');
         }
         return r;
       };
@@ -54,7 +54,7 @@ export default function AbsenceReviewPanel({ month }) {
         if (status.match(/إجازة|اجازة|عطلة|leave|off/i)) excused.add(key);
       }
       const candidates = [];
-      for (const employee of (profilesResult.data || []).filter(p => !p.payroll_excluded)) {
+      for (const employee of (profilesResult.data || []).filter(p => !p.payroll_excluded && p.role_type !== 'admin')) { // الأدمن غير ملزَم بتسجيل الحضور (قرار حسام 22/10/2026)
         for (const date of dates) {
           const key = `${employee.employee_name}::${date}`;
           if (!present.has(key) && !excused.has(key)) candidates.push({ ...employee, absence_date: date });

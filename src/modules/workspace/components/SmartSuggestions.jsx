@@ -8,6 +8,7 @@ import { useNavigate }              from 'react-router-dom';
 import { useTaskStore }             from '@modules/tasks/store/useTaskStore';
 import { useNotificationStore }     from '@modules/notifications/store/useNotificationStore';
 import { useMyAttendanceToday }     from '@hooks/useMyAttendanceToday';
+import { useAuthStore }             from '@stores/authStore';
 import useCRMStore                  from '@modules/crm/store/useCRMStore';
 import { ROUTES }                   from '@routes/paths';
 
@@ -41,6 +42,7 @@ export function SmartSuggestions() {
   const tasks       = useTaskStore((s) => s.tasks);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const followups   = useCRMStore((s) => s.followups ?? []);
+  const isAdmin     = useAuthStore((s) => s.session?.role === 'admin');
 
   // Real attendance from DB (not broken useAttendanceStore)
   const { checkedIn, checkedOut } = useMyAttendanceToday();
@@ -52,7 +54,8 @@ export function SmartSuggestions() {
     const hour = now.getHours();
 
     // ── 1. Missing attendance ──────────────────────────────────
-    if (!checkedIn && hour >= 8 && hour < 17) {
+    // الأدمن غير ملزَم بتسجيل الحضور — لا اقتراح «لم تسجل حضورك» له (قرار حسام 22/10/2026).
+    if (!isAdmin && !checkedIn && hour >= 8 && hour < 17) {
       list.push({
         id:          'missing-attendance',
         icon:        '🕒',
@@ -147,7 +150,7 @@ export function SmartSuggestions() {
 
     // Sort by priority desc, take top 4
     return list.sort((a, b) => b.priority - a.priority).slice(0, 4);
-  }, [tasks, unreadCount, checkedIn, checkedOut, followups]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks, unreadCount, checkedIn, checkedOut, followups, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (suggestions.length === 0) return null;
 
