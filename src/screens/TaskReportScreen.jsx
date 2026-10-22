@@ -10,6 +10,7 @@ import { EmptyState }              from '@components/ui/EmptyState';
 import { useAuth }                 from '@hooks/useAuth';
 import { supabase }                from '@services/supabase';
 import { fetchAllRows }            from '@utils/fetchAllRows';
+import { localMonthKey }           from '@utils/monthKey.js';
 
 // ── Helpers ────────────────────────────────────────────────────
 function monthOptions() {
@@ -17,7 +18,7 @@ function monthOptions() {
   const now = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = d.toISOString().slice(0, 7);
+    const val = localMonthKey(d);
     const label = d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'long' });
     opts.push({ val, label });
   }

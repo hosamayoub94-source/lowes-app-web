@@ -14,6 +14,7 @@ import { ROLE_LABELS } from '@data/teams';
 import { Hero }    from '@components/ui/Hero';
 import { Card }    from '@components/ui/Card';
 import AbsenceReviewPanel from '@components/payroll/AbsenceReviewPanel';
+import { recentMonthKeys } from '@utils/monthKey.js';
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -47,11 +48,10 @@ function Bar({ value, color = 'bg-teal' }) {
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
 function monthOpts() {
-  const now = new Date();
-  return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    return { val: d.toISOString().slice(0, 7), label: MONTHS_AR[d.getMonth()] + ' ' + d.getFullYear() };
-  });
+  // مفتاح الشهر من الحقول المحلية — toISOString() كان يُرجع الشهر السابق بتوقيت +03
+  return recentMonthKeys(new Date(), 6).map(({ val, year, monthIndex }) => (
+    { val, label: MONTHS_AR[monthIndex] + ' ' + year }
+  ));
 }
 
 // ── Employee Detail Drawer ─────────────────────────────────────
