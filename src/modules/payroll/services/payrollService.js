@@ -193,7 +193,7 @@ export async function upsertPayrollEntry(entry) {
   }
   const { supabase } = await import('@services/supabase');
   // Strip join-computed fields — they are not stored columns in payroll_entries
-  const { employee_name, role_type, profiles, ...dbEntry } = entry;
+  const { employee_name, role_type, profiles: _profiles, ...dbEntry } = entry;
   // Upsert on the (run_id, employee_id) unique key so re-running the engine
   // updates the existing row instead of failing on the unique constraint.
   const { data, error } = await supabase

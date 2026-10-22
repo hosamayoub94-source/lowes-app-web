@@ -7,9 +7,8 @@
 // =============================================================
 import { useState, useEffect, useMemo } from 'react';
 import { calcNetSalary, formatCurrency, periodLabel } from '../types/payroll.types.js';
-import { fetchEntries } from '@modules/accounting/services/accountingService.js';
-import { WALLETS, walletDelta } from '@modules/accounting/types/accounting.types.js';
-import { buildRateToUsd } from '../services/payrollEngine.js';
+import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
+import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
 import {
   loadOfficeIds, saveOfficeIds,
   loadHalfSalaryIds, saveHalfSalaryIds,
@@ -56,8 +55,7 @@ function SummaryBox({ title, icon, count, byCurrency }) {
 export function PayrollBatchModal({ run, entries, onClose }) {
   const [officeIds, setOfficeIds] = useState(() => loadOfficeIds());
   const [halfIds, setHalfIds] = useState(() => loadHalfSalaryIds(run.id));
-  const [cashBalances, setCashBalances] = useState({ USD: 0, TRY: 0, SYP: 0 });
-  const [rates, setRates] = useState({ USD: 1 });
+  const [snapshot, setSnapshot] = useState({ balances: { USD: 0, TRY: 0, SYP: 0 }, rates: { USD: 1 }, ledgerError: null, rateError: null });
   const [cashLoading, setCashLoading] = useState(true);
   const [payCurrency, setPayCurrency] = useState('USD');
 
@@ -65,20 +63,11 @@ export function PayrollBatchModal({ run, entries, onClose }) {
     let active = true;
     (async () => {
       try {
-        const [ledger, rateRows] = await Promise.all([
-          fetchEntries(),
-          (await import('@services/supabase')).supabase.from('exchange_rates').select('from_cur,to_cur,rate').order('created_at', { ascending: false }),
-        ]);
-        const balances = { USD: 0, TRY: 0, SYP: 0 };
-        for (const wallet of WALLETS.filter(w => w.type === 'cash')) {
-          balances[wallet.currency] += (ledger || []).filter(e => (e.book ?? 'central') === 'central').reduce((sum, e) => sum + walletDelta(e, wallet), 0);
-        }
-        if (active) {
-          setCashBalances(balances);
-          setRates(buildRateToUsd(rateRows?.data || []));
-        }
+        const snap = await loadPayrollCashSnapshot();
+        if (active) setSnapshot(snap);
       } catch (e) {
         console.error('[PayrollBatchCash]', e);
+        if (active) setSnapshot(s => ({ ...s, ledgerError: e?.message || String(e) }));
       } finally {
         if (active) setCashLoading(false);
       }
@@ -115,9 +104,9 @@ export function PayrollBatchModal({ run, entries, onClose }) {
   );
   const dueUsd = useMemo(() => entries.reduce((sum, e) => sum + calcNetSalary(e), 0), [entries]);
   const paidUsd = useMemo(() => entries.reduce((sum, e) => sum + calcPaidAmount(calcNetSalary(e), halfIds.has(e.employee_id)), 0), [entries, halfIds]);
-  const cashUsd = Object.entries(cashBalances).reduce((sum, [cur, amount]) => sum + (amount * (rates[cur] || 0)), 0);
-  const paymentRate = payCurrency === 'USD' ? 1 : rates[payCurrency];
-  const paidInSelectedCurrency = paymentRate > 0 ? paidUsd / paymentRate : null;
+  const cashBalances = snapshot.balances;
+  const coverage = useMemo(() => computeCashCoverage({ ...snapshot, paidUsd, payCurrency }), [snapshot, paidUsd, payCurrency]);
+  const coverageOk = coverage.status === COVERAGE.OK;
 
   return (
     <div
@@ -151,14 +140,16 @@ export function PayrollBatchModal({ run, entries, onClose }) {
               </label>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-              <div><b className="block text-text">{cashLoading ? '…' : formatCurrency(cashBalances.USD, 'USD')}</b><span className="text-muted">كاش $</span></div>
-              <div><b className="block text-text">{cashLoading ? '…' : formatCurrency(cashBalances.TRY, 'TRY')}</b><span className="text-muted">كاش ₺</span></div>
-              <div><b className="block text-text">{cashLoading ? '…' : formatCurrency(cashBalances.SYP, 'SYP')}</b><span className="text-muted">كاش ل.س</span></div>
-              <div><b className="block text-text">{cashLoading ? '…' : formatCurrency(cashUsd, 'USD')}</b><span className="text-muted">يعادل بالدولار</span></div>
+              {['USD', 'TRY', 'SYP'].map(cur => (
+                <div key={cur}><b className="block text-text">{cashLoading ? '…' : snapshot.ledgerError ? '—' : formatCurrency(cashBalances[cur], cur)}</b><span className="text-muted">كاش {cur === 'USD' ? '$' : cur === 'TRY' ? '₺' : 'ل.س'}</span></div>
+              ))}
+              <div><b className="block text-text">{cashLoading ? '…' : coverage.cashUsd == null ? '—' : formatCurrency(coverage.cashUsd, 'USD')}</b><span className="text-muted">يعادل بالدولار</span></div>
             </div>
-            <p className={`text-xs font-semibold ${cashUsd >= paidUsd ? 'text-green-fg' : 'text-red-600'}`}>
-              {cashUsd >= paidUsd ? '✅ الكاش يغطي الدفعة المحددة' : '⚠️ الكاش الحالي لا يغطي كامل الدفعة المحددة'} · المدفوع: {paymentRate > 0 && paidInSelectedCurrency != null ? formatCurrency(paidInSelectedCurrency, payCurrency) : 'لا يوجد سعر صرف'} · المستحق الكلي بالدولار: {formatCurrency(dueUsd, 'USD')}
-            </p>
+            {cashLoading ? <p className="text-xs text-muted">جارٍ فحص الكاش…</p> : (
+              <p className={`text-xs font-semibold ${coverageOk ? 'text-green-fg' : 'text-red-600'}`}>
+                {coverageOk ? '✅' : '⛔'} {coverage.message} · المدفوع: {coverage.paidInCurrency != null ? formatCurrency(coverage.paidInCurrency, payCurrency) : 'غير محسوب'} · المستحق الكلي بالدولار (لا يتغيّر بنصف الراتب أو العملة): {formatCurrency(dueUsd, 'USD')}
+              </p>
+            )}
           </div>
           {/* ── جدول الموظفين: مكتب + نصف الراتب ───────────────── */}
           <div className="border border-border/40 rounded-xl overflow-hidden">

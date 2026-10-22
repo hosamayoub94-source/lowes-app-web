@@ -32,7 +32,10 @@ import {
   periodLabel,
 } from '../types/payroll.types.js';
 import { printRunReport } from '../utils/printPayslip.js';
-import { getPayrollBlockingEntryIssues } from '../services/payrollValidation.js';
+import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
+import { fetchPayrollInputsUpdatedAt } from '../services/payrollInputs.js';
+import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
+import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
 
 // ─── Input class ─────────────────────────────────────────────
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-cream text-text outline-none focus:border-teal transition';
@@ -199,6 +202,21 @@ export function PayrollDashboard() {
   const [showBatch, setShowBatch] = useState(false);
   const [showAllowances, setShowAllowances] = useState(false);
 
+  // ── بوابة «الحسبة قديمة»: آخر تعديل لمدخلات الرواتب مقابل وقت آخر حسبة
+  const [inputsUpdatedAt, setInputsUpdatedAt] = useState(null);
+  const [inputsChecked, setInputsChecked] = useState(false);
+  useEffect(() => {
+    if (!run?.id || run.status !== PAYROLL_STATUS.DRAFT || showAllowances) return undefined;
+    let active = true;
+    setInputsChecked(false);
+    fetchPayrollInputsUpdatedAt(run.period_year, run.period_month).then((value) => {
+      if (!active) return;
+      setInputsUpdatedAt(value);
+      setInputsChecked(true);
+    });
+    return () => { active = false; };
+  }, [run?.id, run?.status, run?.period_year, run?.period_month, entries, showAllowances]);
+
   const openMonthSetup = useCallback(async () => {
     if (!run) return;
     setSetupLoading(true);
@@ -311,6 +329,22 @@ export function PayrollDashboard() {
 
   const handleMarkPaid = useCallback(async () => {
     if (!run) return;
+    // فحص الكاش قبل تسجيل الدفع: فشل الدفتر/سعر الصرف أو نقص الكاش يتطلب
+    // تأكيداً إدارياً صريحاً مكتوباً — لا يمر بنقرة «موافق» عادية.
+    const dueUsd = entries.reduce((sum, e) => sum + calcNetSalary(e), 0);
+    let warning = null;
+    try {
+      const coverage = computeCashCoverage({ ...(await loadPayrollCashSnapshot()), paidUsd: dueUsd, payCurrency: 'USD' });
+      if (coverage.status === COVERAGE.LEDGER_ERROR || coverage.status === COVERAGE.RATE_MISSING) warning = coverage.message;
+      else if (coverage.cashUsd + 1e-9 < dueUsd) warning = `الكاش بكل العملات (≈ ${formatCurrency(coverage.cashUsd, 'USD')}) أقل من صافي الرواتب (${formatCurrency(dueUsd, 'USD')}).`;
+    } catch (e) {
+      warning = 'تعذّر فحص الكاش: ' + (e?.message || e);
+    }
+    if (warning) {
+      const typed = window.prompt(`⛔ ${warning}\nلتسجيل الدفع رغم ذلك اكتب: أؤكد الدفع`);
+      if (typed === null) return;
+      if (typed.trim() !== 'أؤكد الدفع') { setCommMsg('⚠️ لم يُسجَّل الدفع — التأكيد غير مطابق.'); return; }
+    }
     if (!window.confirm(`تسجيل دفع رواتب ${periodLabel(run.period_year, run.period_month)}؟ لا يمكن إعادة فتح دورة مدفوعة.`)) return;
     setCommMsg(null);
     try {
@@ -319,7 +353,7 @@ export function PayrollDashboard() {
     } catch (e) {
       setCommMsg('⚠️ ' + (e?.message || e));
     }
-  }, [run, markRunPaid]);
+  }, [run, entries, markRunPaid]);
 
   const handleReopen = useCallback(async () => {
     if (!run) return;
@@ -436,7 +470,9 @@ export function PayrollDashboard() {
     missingRateEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
-  const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0;
+  const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt });
+  const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0
+    && inputsChecked && !staleness.stale;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -630,6 +666,14 @@ export function PayrollDashboard() {
                   <p className="text-sm font-bold text-blue-700">
                     ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
                   </p>
+                </div>
+              )}
+              {!loadingEntries && run.status === PAYROLL_STATUS.DRAFT && entries.length > 0 && inputsChecked && staleness.stale && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ الحسبة الحالية قديمة — <b>الاعتماد معطَّل</b> حتى تضغط «⚡ تشغيل الدورة» من جديد.
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">{staleness.reasons.join(' · ')} القيود اليدوية لا تتغيّر بإعادة الحسبة.</p>
                 </div>
               )}
               {!loadingEntries && engineBlockedRunIds.includes(run.id) && (

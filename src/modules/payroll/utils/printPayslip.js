@@ -4,7 +4,7 @@
 // Produces a professional Arabic RTL payslip saveable as PDF
 // =============================================================
 
-import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
+import { BRAND, COMPANY, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
 import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
 
 const MONTHS_AR = [
