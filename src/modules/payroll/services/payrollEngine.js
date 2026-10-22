@@ -748,16 +748,19 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   // 1. Employees active THIS month (id, name, alias, role, team, flat salary
   //    cols, + join/resign dates for pro-ration — spec §6-7). Includes an
   //    employee resigned mid-month so THIS month's partial payslip still
-  //    gets computed; is_active=false with no resignation this month (any
-  //    other/older reason) stays excluded, same as before.
-  const { from: monthFrom, to: monthTo } = monthBounds(year, month);
+  //    gets computed, AND one who resigned AFTER this month ended (payroll is
+  //    prepared the following month — e.g. September run, resignation 1 Oct —
+  //    they worked all of it and must still be paid; computeMonthProration
+  //    gives them a full month). is_active=false with a resignation BEFORE this
+  //    month (or none) stays excluded.
+  const { from: monthFrom } = monthBounds(year, month);
   // payroll_excluded: موظفون رواتبهم خارج هذا النظام (مثلاً أروى/ريم — راتبهما من شغل الإمارات).
   // العمود من migration 20261022؛ إن لم تُطبَّق بعد نعيد المحاولة بدونه بدل أن تفشل الحسبة كلها.
   const PROFILE_COLS = 'id, employee_name, role_type, is_active, seller_alias, team, base_salary_usd, housing_allowance_usd, transport_allowance_usd, commission_pct, payroll_commission_exempt, join_date, resigned_at';
   const fetchProfiles = (cols) => supabase
     .from('profiles')
     .select(cols)
-    .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom},resigned_at.lt.${monthTo})`)
+    .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom})`)
     .order('employee_name');
   let { data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS + ', payroll_excluded');
   if (empErr && /payroll_excluded/.test(empErr.message || '')) {
