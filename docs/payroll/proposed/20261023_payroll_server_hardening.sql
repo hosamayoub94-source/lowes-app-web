@@ -26,7 +26,9 @@ $$ select coalesce(p_year * 100 + p_month, 0) < 202610 $$;
 create or replace function public.payroll_historical_runs_lock() returns trigger
 language plpgsql as $$
 begin
-  if current_setting('payroll.historical_unlock', true) = 'on' then
+  -- controlled correction path: only for non-API roles (same rule as payroll_s2_authorized_path)
+  if current_setting('payroll.historical_unlock', true) = 'on'
+     and current_user not in ('anon', 'authenticated', 'service_role') then
     return case when tg_op = 'DELETE' then old else new end;
   end if;
   if (tg_op <> 'INSERT' and public.payroll_period_is_historical(old.period_year, old.period_month))
@@ -41,7 +43,8 @@ create or replace function public.payroll_historical_entries_lock() returns trig
 language plpgsql as $$
 declare v_run uuid; v_y int; v_m int;
 begin
-  if current_setting('payroll.historical_unlock', true) = 'on' then
+  if current_setting('payroll.historical_unlock', true) = 'on'
+     and current_user not in ('anon', 'authenticated', 'service_role') then
     return case when tg_op = 'DELETE' then old else new end;
   end if;
   v_run := case when tg_op = 'DELETE' then old.run_id else new.run_id end;
