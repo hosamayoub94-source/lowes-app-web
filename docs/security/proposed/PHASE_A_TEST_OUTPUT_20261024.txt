@@ -1,0 +1,166 @@
+=== ROLE MATRIX after phase A  (SELECT INSERT UPDATE DELETE ; ok=allowed --=denied BLK=trigger-blocked ..=n/a) ===
+
+[ANON]
+   system_settings                    -- -- -- --
+   user_sessions                      -- -- -- --
+   monthly_payroll                    -- -- -- --
+   employees                          -- -- -- --
+   finance_ledger_migrated_20260607   -- -- -- --
+   expenses                           -- -- -- --
+   audit_log                          -- -- -- --
+   orders                             ok ok ok ok
+   tasks                              ok ok ok ok
+   accounting_entries                 ok ok ok ok
+   payroll_runs                       -- -- -- --
+   sales_value_summary                -- .. .. ..
+   customer_stats                     ok .. .. ..
+
+[EMPLOYEE]
+   system_settings                    ok ok ok ok
+   user_sessions                      ok ok ok ok
+   monthly_payroll                    ok ok ok ok
+   employees                          ok ok ok ok
+   finance_ledger_migrated_20260607   ok ok ok ok
+   expenses                           ok ok ok ok
+   audit_log                          ok -- -- --
+   orders                             ok ok ok ok
+   tasks                              ok ok ok ok
+   accounting_entries                 ok ok ok ok
+   payroll_runs                       ok ok ok ok
+   sales_value_summary                ok .. .. ..
+   customer_stats                     ok .. .. ..
+
+[HR]
+   system_settings                    ok ok ok ok
+   user_sessions                      ok ok ok ok
+   monthly_payroll                    ok ok ok ok
+   employees                          ok ok ok ok
+   finance_ledger_migrated_20260607   ok ok ok ok
+   expenses                           ok ok ok ok
+   audit_log                          ok -- -- --
+   orders                             ok ok ok ok
+   tasks                              ok ok ok ok
+   accounting_entries                 ok ok ok ok
+   payroll_runs                       ok ok ok ok
+   sales_value_summary                ok .. .. ..
+   customer_stats                     ok .. .. ..
+
+[ADMIN]
+   system_settings                    ok ok ok ok
+   user_sessions                      ok ok ok ok
+   monthly_payroll                    ok ok ok ok
+   employees                          ok ok ok ok
+   finance_ledger_migrated_20260607   ok ok ok ok
+   expenses                           ok ok ok ok
+   audit_log                          ok -- -- --
+   orders                             ok ok ok ok
+   tasks                              ok ok ok ok
+   accounting_entries                 ok ok ok ok
+   payroll_runs                       ok ok ok ok
+   sales_value_summary                ok .. .. ..
+   customer_stats                     ok .. .. ..
+
+[SERVICE_ROLE]
+   system_settings                    ok ok ok ok
+   user_sessions                      ok ok ok ok
+   monthly_payroll                    ok ok ok ok
+   employees                          ok ok ok ok
+   finance_ledger_migrated_20260607   ok ok ok ok
+   expenses                           ok ok ok ok
+   audit_log                          ok ok BLK BLK
+   orders                             ok ok ok ok
+   tasks                              ok ok ok ok
+   accounting_entries                 ok ok ok ok
+   payroll_runs                       ok ok ok ok
+   sales_value_summary                ok .. .. ..
+   customer_stats                     ok .. .. ..
+
+=== BEFORE (exposures reproduced in the clone) ===
+   anon SELECT system_settings (admin_pass/manager_pass rows)   OK
+   anon SELECT user_sessions                                    OK
+   anon SELECT monthly_payroll                                  OK
+   anon DELETE finance_ledger_migrated_20260607                 OK
+   anon SELECT audit_log                                        OK
+   anon INSERT audit_log (forge)                                OK
+   anon UPDATE profiles.role_type                               OK
+   anon UPDATE profiles.base_salary_usd                         OK
+
+=== CHECKS ===
+PASS clone has the same 194 tables as production — 194
+PASS BEFORE: all these exposures reproduce in the clone — {"anon SELECT system_settings (admin_pass/manager_pass rows)":"OK","anon SELECT user_sessions":"OK","anon SELE
+PASS BEFORE tests rolled back: all 194 tables unchanged
+PASS phase A sensitive list = 52 real tables/views (parsed from the file) — 52
+PASS phase A applies on the test database (1st)
+PASS phase A applies again (idempotent, 2nd)
+PASS ACL/policy fingerprint identical after the 2nd application
+PASS phase A changed NO row in ANY of the 194 tables (payroll, finance, orders, audit - content hash identical)
+PASS snapshot taken
+PASS anon has NO privilege left on the 52 sensitive tables or audit_log
+PASS anon is unchanged on every other table (only TRUNCATE/REFERENCES/TRIGGER removed)
+PASS authenticated is unchanged on every table except audit_log
+PASS service_role is unchanged everywhere (bridges / edge functions unaffected)
+PASS strictly reductive: no privilege was granted that did not exist before
+PASS anon has no TRUNCATE/REFERENCES/TRIGGER anywhere
+PASS authenticated TRUNCATE/REFERENCES/TRIGGER untouched on every table except audit_log (phase A is anon-only)
+PASS after the whole role matrix (rolled-back transactions) every table is unchanged
+PASS anon: no read/insert/update/delete on system_settings — -- -- -- --
+PASS anon: no read/insert/update/delete on user_sessions — -- -- -- --
+PASS anon: no read/insert/update/delete on monthly_payroll — -- -- -- --
+PASS anon: no read/insert/update/delete on employees — -- -- -- --
+PASS anon: no read/insert/update/delete on finance_ledger_migrated_20260607 — -- -- -- --
+PASS anon: no read/insert/update/delete on expenses — -- -- -- --
+PASS anon: no read/insert/update/delete on audit_log — -- -- -- --
+PASS anon orders: unchanged in phase A (the app still works; closing orders is a later phase needing app changes) — ok ok ok ok
+PASS anon tasks / accounting_entries unchanged in phase A — ok ok ok ok / ok ok ok ok
+PASS anon: sales_value_summary closed, customer_stats (used by the app) kept
+PASS EMPLOYEE (authenticated) unchanged on system_settings - phase A does not touch authenticated — ok ok ok ok
+PASS EMPLOYEE (authenticated) unchanged on user_sessions - phase A does not touch authenticated — ok ok ok ok
+PASS EMPLOYEE (authenticated) unchanged on monthly_payroll - phase A does not touch authenticated — ok ok ok ok
+PASS EMPLOYEE (authenticated) unchanged on finance_ledger_migrated_20260607 - phase A does not touch authenticated — ok ok ok ok
+PASS EMPLOYEE (authenticated) unchanged on expenses - phase A does not touch authenticated — ok ok ok ok
+PASS ADMIN (authenticated) unchanged on system_settings - phase A does not touch authenticated — ok ok ok ok
+PASS ADMIN (authenticated) unchanged on user_sessions - phase A does not touch authenticated — ok ok ok ok
+PASS ADMIN (authenticated) unchanged on monthly_payroll - phase A does not touch authenticated — ok ok ok ok
+PASS ADMIN (authenticated) unchanged on finance_ledger_migrated_20260607 - phase A does not touch authenticated — ok ok ok ok
+PASS ADMIN (authenticated) unchanged on expenses - phase A does not touch authenticated — ok ok ok ok
+PASS audit_log: admin & HR read, nobody can forge/update/delete; employee cannot write — ok -- -- -- | ok -- -- -- | ok -- -- --
+PASS employee reads 0 audit rows (RLS)
+PASS service_role keeps full access to sensitive tables
+PASS service_role: audit_log append-only (insert ok, update/delete blocked) — ok ok BLK BLK
+PASS log_audit_event: actor = auth.uid(), no actor/ip parameter, payload "actor" is only data
+PASS anon can not call log_audit_event
+PASS trigger still creates correct audit rows (actor = auth.uid(), before=1 after=2) from a user with NO privilege on audit_log
+PASS user can not call the trigger function directly
+PASS audit_log append-only: OWNER update blocked
+PASS audit_log append-only: OWNER delete blocked
+PASS audit_log append-only: SERVICE_ROLE delete blocked
+PASS audit_log append-only: OWNER truncate blocked
+PASS the 22 original audit rows are byte-identical after everything — da868c5fe56a9791c8e53d12fbbb42ff
+PASS before A2: anon can still change profiles.role_type (the open finding)
+PASS phase A2 applies (profiles anon columns)
+PASS phase A2 idempotent (2nd)
+PASS A2: anon can NOT update profiles.role_type
+PASS A2: anon can NOT update profiles.base_salary_usd
+PASS A2: anon can NOT update profiles.is_active
+PASS A2: anon can NOT update profiles.password
+PASS A2: anon can NOT update profiles.team
+PASS A2: anon can NOT update profiles.seller_alias
+PASS A2: anon can NOT update profiles.join_date
+PASS A2: anon can NOT insert profiles
+PASS A2: anon still updates self-service columns
+PASS A2: anon reads the app columns, still not password
+PASS A2: authenticated profile updates unchanged
+PASS A2 rollback applies
+PASS A2 rollback restores profiles ACLs exactly
+PASS after A2 rollback the old exposure is back - as documented
+PASS phase A rollback applies
+PASS rollback restores ALL ACLs, column grants and policies exactly (fingerprint == pre-migration)
+PASS rollback: every privilege cell identical to the original — 4116
+PASS rollback changed no row
+PASS snapshot table removed
+PASS original audit rows untouched by rollback
+PASS after rollback the old exposure is back - as documented
+PASS re-apply after rollback works
+PASS second lock reaches the same fingerprint as the first
+
+SUMMARY: 76 passed, 0 failed
