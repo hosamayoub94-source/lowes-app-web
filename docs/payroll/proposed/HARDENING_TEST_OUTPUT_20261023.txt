@@ -1,0 +1,172 @@
+clone pg_get_functiondef md5 before hardening: 39c2095f49bcb07f627999967820c7b7 (production md5: 39c2095f49bcb07f627999967820c7b7)
+
+=== MATRIX (what each role could do) ===
+
+[VISITOR] reads: {"runs":"denied","entries":"denied","settings":"denied","absence":"denied","allowances":"denied","events":"denied","audit":"denied","access_tbl":"denied"}
+   edit historical run (Jun)                      denied(privilege)
+   delete historical draft run                    denied(privilege)
+   edit entries of PAID Jul run                   denied(privilege)
+   edit entries of historical Sept                denied(privilege)
+   edit PAID Nov run                              denied(privilege)
+   edit Oct draft entry                           denied(privilege)
+   SET payroll.s2_path=rpc then edit PAID Nov     denied(privilege)
+   approve Oct                                    rejected: permission denied for function payroll_approve_run
+
+[EMPLOYEE] reads: {"runs":0,"entries":2,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+   edit historical run (Jun)                      0 rows (RLS)
+   delete historical draft run                    0 rows (RLS)
+   edit entries of PAID Jul run                   0 rows (RLS)
+   edit entries of historical Sept                0 rows (RLS)
+   edit PAID Nov run                              0 rows (RLS)
+   edit Oct draft entry                           0 rows (RLS)
+   SET payroll.s2_path=rpc then edit PAID Nov     0 rows (RLS)
+   approve Oct                                    rejected: الاعتماد لحسام وأماني فقط (D-090).
+
+[MANAGER] reads: {"runs":0,"entries":0,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+   edit historical run (Jun)                      0 rows (RLS)
+   delete historical draft run                    0 rows (RLS)
+   edit entries of PAID Jul run                   0 rows (RLS)
+   edit entries of historical Sept                0 rows (RLS)
+   edit PAID Nov run                              0 rows (RLS)
+   edit Oct draft entry                           0 rows (RLS)
+   SET payroll.s2_path=rpc then edit PAID Nov     0 rows (RLS)
+   approve Oct                                    rejected: الاعتماد لحسام وأماني فقط (D-090).
+
+[ADMIN_NO_ACCESS] reads: {"runs":0,"entries":0,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+   edit historical run (Jun)                      0 rows (RLS)
+   delete historical draft run                    0 rows (RLS)
+   edit entries of PAID Jul run                   0 rows (RLS)
+   edit entries of historical Sept                0 rows (RLS)
+   edit PAID Nov run                              0 rows (RLS)
+   edit Oct draft entry                           0 rows (RLS)
+   SET payroll.s2_path=rpc then edit PAID Nov     0 rows (RLS)
+   approve Oct                                    rejected: الاعتماد لحسام وأماني فقط (D-090).
+
+[HR] reads: {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+   edit historical run (Jun)                      blocked(historical lock)
+   delete historical draft run                    blocked(historical lock)
+   edit entries of PAID Jul run                   blocked(historical lock)
+   edit entries of historical Sept                blocked(historical lock)
+   edit PAID Nov run                              blocked(s2 guard)
+   edit Oct draft entry                           ALLOWED(1 rows)
+   SET payroll.s2_path=rpc then edit PAID Nov     blocked(s2 guard)
+   approve Oct                                    rejected: الاعتماد لحسام وأماني فقط (D-090).
+
+[ACCOUNTANT] reads: {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":1,"access_tbl":"denied"}
+   edit historical run (Jun)                      blocked(historical lock)
+   delete historical draft run                    blocked(historical lock)
+   edit entries of PAID Jul run                   blocked(historical lock)
+   edit entries of historical Sept                blocked(historical lock)
+   edit PAID Nov run                              blocked(s2 guard)
+   edit Oct draft entry                           ALLOWED(1 rows)
+   SET payroll.s2_path=rpc then edit PAID Nov     blocked(s2 guard)
+   approve Oct                                    rejected: الاعتماد لحسام وأماني فقط (D-090).
+
+[FINALIZER] reads: {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":2,"access_tbl":"denied"}
+   edit historical run (Jun)                      blocked(historical lock)
+   delete historical draft run                    blocked(historical lock)
+   edit entries of PAID Jul run                   blocked(historical lock)
+   edit entries of historical Sept                blocked(historical lock)
+   edit PAID Nov run                              blocked(s2 guard)
+   edit Oct draft entry                           ALLOWED(1 rows)
+   SET payroll.s2_path=rpc then edit PAID Nov     blocked(s2 guard)
+   approve Oct                                    (see gates below)
+
+=== CHECKS ===
+PASS clone has the production approve definition (file == installed text) — 39c2095f49bcb07f627999967820c7b7
+PASS BASELINE: finalizer CAN edit a historical run today (the gap) — ALLOWED(1 rows)
+PASS BASELINE: finalizer CAN edit entries of the PAID July run today — ALLOWED(1 rows)
+PASS BASELINE: anonymous visitor can FORGE rows in public.audit_log (why it cannot be the payroll audit trail) — ALLOWED(1 rows)
+PASS hardening SQL applies (1st time)
+PASS hardening SQL applies again (idempotent, 2nd time)
+PASS state after 2nd application is identical (triggers, policies, function)
+PASS approve function ACL unchanged by create or replace — {postgres=X/postgres,authenticated=X/postgres}
+PASS NO role changed any historical/paid data (runs & entries fingerprints identical to before)
+PASS VISITOR: edit historical run (Jun) — denied(privilege)
+PASS VISITOR: delete historical draft run — denied(privilege)
+PASS VISITOR: edit entries of PAID Jul run — denied(privilege)
+PASS VISITOR: edit entries of historical Sept — denied(privilege)
+PASS VISITOR: edit PAID Nov run — denied(privilege)
+PASS VISITOR: cannot bypass via SET payroll.s2_path — denied(privilege)
+PASS EMPLOYEE: edit historical run (Jun) — 0 rows (RLS)
+PASS EMPLOYEE: delete historical draft run — 0 rows (RLS)
+PASS EMPLOYEE: edit entries of PAID Jul run — 0 rows (RLS)
+PASS EMPLOYEE: edit entries of historical Sept — 0 rows (RLS)
+PASS EMPLOYEE: edit PAID Nov run — 0 rows (RLS)
+PASS EMPLOYEE: cannot bypass via SET payroll.s2_path — 0 rows (RLS)
+PASS MANAGER: edit historical run (Jun) — 0 rows (RLS)
+PASS MANAGER: delete historical draft run — 0 rows (RLS)
+PASS MANAGER: edit entries of PAID Jul run — 0 rows (RLS)
+PASS MANAGER: edit entries of historical Sept — 0 rows (RLS)
+PASS MANAGER: edit PAID Nov run — 0 rows (RLS)
+PASS MANAGER: cannot bypass via SET payroll.s2_path — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: edit historical run (Jun) — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: delete historical draft run — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: edit entries of PAID Jul run — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: edit entries of historical Sept — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: edit PAID Nov run — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS: cannot bypass via SET payroll.s2_path — 0 rows (RLS)
+PASS HR: edit historical run (Jun) — blocked(historical lock)
+PASS HR: delete historical draft run — blocked(historical lock)
+PASS HR: edit entries of PAID Jul run — blocked(historical lock)
+PASS HR: edit entries of historical Sept — blocked(historical lock)
+PASS HR: edit PAID Nov run — blocked(s2 guard)
+PASS HR: cannot bypass via SET payroll.s2_path — blocked(s2 guard)
+PASS ACCOUNTANT: edit historical run (Jun) — blocked(historical lock)
+PASS ACCOUNTANT: delete historical draft run — blocked(historical lock)
+PASS ACCOUNTANT: edit entries of PAID Jul run — blocked(historical lock)
+PASS ACCOUNTANT: edit entries of historical Sept — blocked(historical lock)
+PASS ACCOUNTANT: edit PAID Nov run — blocked(s2 guard)
+PASS ACCOUNTANT: cannot bypass via SET payroll.s2_path — blocked(s2 guard)
+PASS FINALIZER: edit historical run (Jun) — blocked(historical lock)
+PASS FINALIZER: delete historical draft run — blocked(historical lock)
+PASS FINALIZER: edit entries of PAID Jul run — blocked(historical lock)
+PASS FINALIZER: edit entries of historical Sept — blocked(historical lock)
+PASS FINALIZER: edit PAID Nov run — blocked(s2 guard)
+PASS FINALIZER: cannot bypass via SET payroll.s2_path — blocked(s2 guard)
+PASS HR (payroll_access) can edit an October draft entry — ALLOWED(1 rows)
+PASS ACCOUNTANT (payroll_access) can edit an October draft entry — ALLOWED(1 rows)
+PASS FINALIZER (payroll_access) can edit an October draft entry — ALLOWED(1 rows)
+PASS EMPLOYEE (no payroll_access) cannot edit October entries — 0 rows (RLS)
+PASS MANAGER (no payroll_access) cannot edit October entries — 0 rows (RLS)
+PASS ADMIN_NO_ACCESS (no payroll_access) cannot edit October entries — 0 rows (RLS)
+PASS VISITOR (no payroll_access) cannot edit October entries — denied(privilege)
+PASS VISITOR cannot approve (no can_finalize) — rejected: permission denied for function payroll_approve_run
+PASS EMPLOYEE cannot approve (no can_finalize) — rejected: الاعتماد لحسام وأماني فقط (D-090).
+PASS MANAGER cannot approve (no can_finalize) — rejected: الاعتماد لحسام وأماني فقط (D-090).
+PASS ADMIN_NO_ACCESS cannot approve (no can_finalize) — rejected: الاعتماد لحسام وأماني فقط (D-090).
+PASS HR cannot approve (no can_finalize) — rejected: الاعتماد لحسام وأماني فقط (D-090).
+PASS ACCOUNTANT cannot approve (no can_finalize) — rejected: الاعتماد لحسام وأماني فقط (D-090).
+PASS VISITOR cannot read payroll tables — {"runs":"denied","entries":"denied","settings":"denied","absence":"denied","allowances":"denied","events":"den
+PASS EMPLOYEE sees no runs / audit / events and cannot read payroll_access — {"runs":0,"entries":2,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+PASS MANAGER sees no runs / audit / events and cannot read payroll_access — {"runs":0,"entries":0,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+PASS ADMIN_NO_ACCESS sees no runs / audit / events and cannot read payroll_access — {"runs":0,"entries":0,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+PASS HR reads payroll data but not payroll_access — {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":0,"access_tbl":"denied"}
+PASS ACCOUNTANT reads payroll data but not payroll_access — {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":1,"access_tbl":"denied"}
+PASS FINALIZER reads payroll data but not payroll_access — {"runs":6,"entries":6,"settings":0,"absence":0,"allowances":0,"events":0,"audit":2,"access_tbl":"denied"}
+PASS entry edit audited: actor + before/after (150→140)
+PASS HR absence decision audited with actor
+PASS HR cannot UPDATE the audit trail
+PASS HR cannot DELETE audit rows — permission denied for table payroll_audit_log
+PASS HR cannot INSERT/forge audit rows — permission denied for table payroll_audit_log
+PASS HR cannot call the audit function directly — permission denied for function payroll_audit_fn
+PASS ordinary employee sees 0 audit rows
+PASS visitor cannot read the audit trail — permission denied for table payroll_audit_log
+PASS FINALIZER cannot approve historical Sept — rejected: دورة تاريخية (قبل تشرين الأول 2026) — لا تُعتمد.
+PASS salary setting edited after calculation → approval blocked (updated_at advanced by DB trigger)
+PASS allowance edited after calculation → approval blocked
+PASS absence decision (by HR) after calculation → approval blocked
+PASS zero-salary entry → approval blocked
+PASS mark_paid RPC cannot touch a historical (Sept) finalized run — rejected: دورة تاريخية (قبل تشرين الأول 2026) أُغلقت خارج التطبيق — للعرض فقط.
+PASS reopen RPC cannot touch a historical (Sept) finalized run — rejected: دورة تاريخية (قبل تشرين الأول 2026) أُغلقت خارج التطبيق — للعرض فقط.
+PASS FINALIZER approves a fresh October run — OK {"run_id":"11111111-0000-0000-0000-000000000010","status":"finalized","changes":null,"total_net_usd":440,"e
+PASS approve event recorded with actor
+PASS approved October entries are locked again (existing guard intact)
+PASS rollback applies
+PASS rollback restores payroll_approve_run character-for-character (md5 equal to pre-hardening) — 39c2095f49bcb07f627999967820c7b7 vs 39c2095f49bcb07f627999967820c7b7
+PASS rollback keeps the function ACL — {postgres=X/postgres,authenticated=X/postgres}
+PASS rollback removed all added triggers, functions and the audit table — {"trg":0,"fn":0,"tbl":null}
+PASS after rollback the old behaviour is back (historical editable again)
+PASS re-applying after rollback works (apply → rollback → apply cycle)
+
+SUMMARY: 95 passed, 0 failed
