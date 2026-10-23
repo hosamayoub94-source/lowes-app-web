@@ -40,6 +40,7 @@ import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 import { runPayrollBatch } from './payrollBatch.js';
 import { listApprovedAbsenceReviews } from './absenceReviewService.js';
+import { pickSalarySettings, resolveSalary, describeSalarySource } from '../utils/salaryResolution.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -425,28 +426,7 @@ export async function fetchApprovedPaidLeaveDatesInMonth(employeeId, year, month
  * the owner edits them from their respective screens (owner decision
  * 2026-08-30: "كلاهما مُستخدم فعلياً — بدون دمج قسري").
  */
-function resolveSalary(emp, settings) {
-  if (settings && (Number(settings.base_salary) || 0) > 0) {
-    return {
-      source: 'employee_salary_settings',
-      currency: settings.currency || 'USD',
-      rawBase: Number(settings.base_salary) || 0,
-      rawAllowances: (Number(settings.internet_allowance) || 0) + (Number(settings.food_allowance) || 0),
-      commissionPctFallback: Number(settings.sales_commission_pct) || 0,
-    };
-  }
-  const rawBase = Number(emp.base_salary_usd) || 0;
-  if (rawBase > 0) {
-    return {
-      source: 'profiles',
-      currency: 'USD',
-      rawBase,
-      rawAllowances: (Number(emp.housing_allowance_usd) || 0) + (Number(emp.transport_allowance_usd) || 0),
-      commissionPctFallback: Number(emp.commission_pct) || 0,
-    };
-  }
-  return { source: null, currency: 'USD', rawBase: 0, rawAllowances: 0, commissionPctFallback: 0 };
-}
+// (resolveSalary / pickSalarySettings live in ../utils/salaryResolution.js — pure, unit-tested)
 
 // ── Per-employee computation ──────────────────────────────────
 
@@ -514,6 +494,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
       ((salary.rawBase > 0 && baseMissing) || ((salary.rawAllowances > 0 && settingsAllowancesMissing) || extraAllowancesMissing))
         ? '⚠️ سعر صرف ناقص' : null,
+      describeSalarySource(salary, allowances),
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
       ...extraAllowanceNotes,
@@ -557,6 +538,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   const team = resolveTeam(emp.team);
   const notes = [];
   if (salary.source === null) notes.push('⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي');
+  notes.push(describeSalarySource(salary, allowances));
   if (!team) notes.push(`⚠️ فريق الموظف غير محدد أو غير معروف (سوريا/تركيا) — لا يمكن حساب التارجت/العمولة تلقائياً`);
   if (prorateNote) notes.push(prorateNote);
   notes.push(...extraAllowanceNotes);
@@ -787,16 +769,14 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   const emps = (allEmps || []).filter(e => !e.payroll_excluded);
 
   // 2. Salary settings for those employees → keyed by employee_id
-  const settingsById = new Map();
+  let settingsById;
   {
     const { data: settings, error: sErr } = await supabase
       .from('employee_salary_settings')
-      .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active');
+      .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active, effective_from');
     if (sErr) throw new Error('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
-    for (const s of (settings || [])) {
-      // keep the active/most-relevant row per employee
-      if (!settingsById.has(s.employee_id) || s.is_active) settingsById.set(s.employee_id, s);
-    }
+    // Active rows only (latest effective_from wins): an inactive row's old allowances must not return on re-run.
+    settingsById = pickSalarySettings(settings);
   }
 
   // 3. Exchange rates (live, for salary/advance currency conversion only —
@@ -837,7 +817,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   const { upsertPayrollEntry } = await import('./payrollService.js');
   const skip = skipEmployeeIds || new Set();
 
-  return runPayrollBatch({
+  const result = await runPayrollBatch({
     employees: emps || [],
     skipEmployeeIds: skip,
     onProgress,
@@ -849,4 +829,15 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     }),
     persistEntry: upsertPayrollEntry,
   });
+
+  // Re-run hygiene: an employee flagged payroll_excluded AFTER an earlier run must not keep a
+  // stale auto-computed line in this draft (manual lines are never touched).
+  const excludedIds = (allEmps || []).filter(e => e.payroll_excluded).map(e => e.id);
+  if (!result.errors.length && excludedIds.length && (!run?.status || run.status === 'draft')) {
+    const { error: delErr } = await supabase
+      .from('payroll_entries').delete()
+      .eq('run_id', runId).in('employee_id', excludedIds).neq('source', 'manual');
+    if (delErr) result.errors.push('تعذّر حذف قيود الموظفين المستبعدين من الرواتب: ' + delErr.message);
+  }
+  return result;
 }

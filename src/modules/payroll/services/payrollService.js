@@ -2,6 +2,8 @@
 // Payroll Service — mock + real branches
 // =============================================================
 
+import { arabicPayrollRpcError } from '../utils/rpcErrors.js';
+
 export const USE_MOCK =
   String(import.meta.env.VITE_USE_MOCK_PAYROLL ?? '').toLowerCase() === 'true';
 
@@ -155,7 +157,7 @@ export async function callPayrollRpc(fn, params) {
   }
   const { supabase } = await import('@services/supabase');
   const { data, error } = await supabase.rpc(fn, params);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(arabicPayrollRpcError(error));
   return data;
 }
 
