@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS, isNewPayrollPeriod } from '../types/payroll.types.js';
+import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 
 const INITIAL_STATE = {
   runs: [],
@@ -106,6 +107,11 @@ const usePayrollStore = create()(
      * (الدالة تُرجع jsonb فقط وتملأ total_net_usd/finalized_at).
      */
     async _transitionViaRpc(id, fn, extraParams = {}) {
+      const target = get().runs.find(r => r.id === id);
+      if (target && isHistoricalPayrollPeriod(target.period_year, target.period_month)) {
+        set({ error: HISTORICAL_PERIOD_MESSAGE });
+        throw new Error(HISTORICAL_PERIOD_MESSAGE);
+      }
       get()._setLoading('action', true);
       try {
         const { callPayrollRpc, fetchPayrollRun } = await import('../services/payrollService.js');
@@ -130,6 +136,8 @@ const usePayrollStore = create()(
     },
 
     async approveRun(id) {
+      const hist = get().runs.find(r => r.id === id);
+      if (hist && isHistoricalPayrollPeriod(hist.period_year, hist.period_month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
       if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
         return get()._transitionViaRpc(id, 'payroll_approve_run');
       }
@@ -189,6 +197,8 @@ const usePayrollStore = create()(
     },
 
     async markRunPaid(id) {
+      const hist = get().runs.find(r => r.id === id);
+      if (hist && isHistoricalPayrollPeriod(hist.period_year, hist.period_month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
       if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
         return get()._transitionViaRpc(id, 'payroll_mark_paid');
       }

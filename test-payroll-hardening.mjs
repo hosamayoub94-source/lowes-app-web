@@ -114,5 +114,20 @@ const read = (p) => readFileSync(p, 'utf8');
   ok(/PROPOSED — NOT APPLIED/.test(grant), 'grant SQL is labelled not applied');
 }
 
+// ── Historical periods are read-only (code + proposed DB lock)
+{
+  const { isHistoricalPayrollPeriod } = await import('./src/modules/payroll/utils/historicalPeriod.js');
+  ok(isHistoricalPayrollPeriod(2026, 9) && isHistoricalPayrollPeriod(2026, 7) && isHistoricalPayrollPeriod(2025, 12), 'Sept 2026 and earlier are historical');
+  ok(!isHistoricalPayrollPeriod(2026, 10) && !isHistoricalPayrollPeriod(2027, 1), 'Oct 2026 onward is operational');
+  ok(!isHistoricalPayrollPeriod(undefined, undefined) && !isHistoricalPayrollPeriod(null, 5), 'unknown period is not misclassified');
+  const store = read('./src/modules/payroll/store/usePayrollStore.js');
+  ok((store.match(/isHistoricalPayrollPeriod\(/g) || []).length >= 3, 'store blocks approve / pay / reopen on historical runs');
+  const dash = read('./src/modules/payroll/pages/PayrollDashboard.jsx');
+  ok(/canRunEngine = canManagePayroll && !isHistoricalRun/.test(dash) && /canFinalizeRun = canRunEngine/.test(dash), 'dashboard hides run/approve/pay/reopen for historical runs');
+  ok(/canEdit=\{canRunEngine/.test(dash), 'entries are not editable on historical runs');
+  const hard = read('./docs/payroll/proposed/20261023_payroll_server_hardening.sql');
+  ok(/PROPOSED — NOT APPLIED/.test(hard) && /payroll_runs_historical_lock/.test(hard) && /payroll_entries_audit/.test(hard) && /updated_at > oldest/.test(hard), 'server-hardening SQL (lock + audit + approve gates) is present and labelled not applied');
+}
+
 console.log(`payroll hardening: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

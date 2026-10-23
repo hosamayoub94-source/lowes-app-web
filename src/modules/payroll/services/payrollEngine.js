@@ -40,6 +40,7 @@ import { fetchAllRows } from '@utils/fetchAllRows';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 import { runPayrollBatch } from './payrollBatch.js';
 import { listApprovedAbsenceReviews } from './absenceReviewService.js';
+import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { pickSalarySettings, resolveSalary, describeSalarySource } from '../utils/salaryResolution.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
@@ -738,6 +739,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
+  if (isHistoricalPayrollPeriod(year, month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
   // This guard is intentionally enforced here as well as in the UI. Payroll
   // must never be computed from defaults when the month snapshot is unconfirmed.
   if (!run?.month_setup_confirmed_at) {

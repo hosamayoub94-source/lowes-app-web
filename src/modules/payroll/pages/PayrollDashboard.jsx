@@ -33,6 +33,7 @@ import {
 } from '../types/payroll.types.js';
 import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
+import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { fetchPayrollInputsUpdatedAt } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
@@ -126,7 +127,10 @@ export function PayrollDashboard() {
   // payroll_access.can_finalize (حسام وأماني حالياً — D-090). payroll_access غير
   // مقروء من العميل، فنقصر الأزرار على نفس الاسمين والقاعدة هي الحكم النهائي.
   const isNewPeriodRun = isNewPayrollPeriod(run);
-  const canFinalizeRun = canManagePayroll && (!isNewPeriodRun || canDeleteRun);
+  // دورات قبل تشرين الأول 2026 أُغلقت خارج التطبيق: سجل تاريخي للعرض فقط.
+  const isHistoricalRun = !!run && isHistoricalPayrollPeriod(run.period_year, run.period_month);
+  const canRunEngine = canManagePayroll && !isHistoricalRun;
+  const canFinalizeRun = canRunEngine && (!isNewPeriodRun || canDeleteRun);
 
   // ── New Run form
   const [showNewRun, setShowNewRun] = useState(false);
@@ -577,15 +581,16 @@ export function PayrollDashboard() {
                       ? <span className="text-green-fg font-semibold mr-2"> · ⚙️ الشهر مُعَدّ</span>
                       : <span className="text-amber-fg font-semibold mr-2"> · ⚙️ إعداد الشهر غير مؤكَّد</span>}
                   </p>
+                  {isHistoricalRun && <p className="text-xs mt-1 font-semibold text-amber-fg">🔒 {HISTORICAL_PERIOD_MESSAGE}</p>}
                   {commMsg && <p className={`text-xs mt-1 font-semibold ${commMsg.startsWith('✅') ? 'text-green-fg' : 'text-amber-fg'}`}>{commMsg}</p>}
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canRunEngine && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={openMonthSetup} disabled={engineRunning} variant="blue">
                       ⚙️ إعداد الشهر
                     </ActionBtn>
                   )}
-                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canRunEngine && run.status === PAYROLL_STATUS.DRAFT && (
                     <ActionBtn onClick={handleRunEngine} disabled={engineRunning} variant="green">
                       {engineRunning
                         ? `⏳ ${engineProgress ? `${engineProgress.done}/${engineProgress.total}` : '…'}`
@@ -694,7 +699,7 @@ export function PayrollDashboard() {
                 <div className="flex flex-col items-center justify-center py-14 gap-2 text-muted text-sm">
                   <div className="text-3xl">👤</div>
                   <p>لا توجد إدخالات في هذه الدورة</p>
-                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canRunEngine && run.status === PAYROLL_STATUS.DRAFT && (
                     <button onClick={handleRunEngine} disabled={engineRunning}
                       className="mt-2 px-4 py-2 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 disabled:opacity-50 transition">
                       {engineRunning
@@ -702,7 +707,7 @@ export function PayrollDashboard() {
                         : '⚡ تشغيل الدورة — حساب كل الموظفين تلقائياً'}
                     </button>
                   )}
-                  {canManagePayroll && run.status === PAYROLL_STATUS.DRAFT && (
+                  {canRunEngine && run.status === PAYROLL_STATUS.DRAFT && (
                     <p className="text-[11px] text-muted mt-1">
                       يحسب لكل موظف حسب <b>فريقه</b> (سوريا $ / تركيا ₺): الأساسي + البدلات + عمولة <b>فوق التارجت</b> بعد خصم الرواجع الزائدة عن 3% − حسم عدم تحقيق التارجت (10% من النقص) − السلف.
                       الغياب <b>يدوي</b> — عدّله لكل موظف من ✏️. تحتاج تأكيد «⚙️ إعداد الشهر» أولاً.
@@ -722,7 +727,7 @@ export function PayrollDashboard() {
                       key={e.id}
                       entry={e}
                       run={run}
-                      canEdit={canManagePayroll && run.status === PAYROLL_STATUS.DRAFT}
+                      canEdit={canRunEngine && run.status === PAYROLL_STATUS.DRAFT}
                       onEdit={openEditEntry}
                       onDelete={deleteEntry}
                       onStatement={openStatement}
