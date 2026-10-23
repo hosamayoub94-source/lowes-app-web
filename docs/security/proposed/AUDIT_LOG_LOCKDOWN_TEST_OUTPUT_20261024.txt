@@ -1,0 +1,136 @@
+=== MATRIX (each attempt ran inside a transaction that was rolled back) ===
+
+[ANON]
+   SELECT                   denied(privilege)
+   INSERT (forge actor)     denied(privilege)
+   UPDATE                   denied(privilege)
+   DELETE                   denied(privilege)
+   TRUNCATE                 denied(privilege)
+   RPC log_audit_event      denied(privilege)
+
+[EMPLOYEE]
+   SELECT                   0 rows (RLS filter)
+   INSERT (forge actor)     denied(privilege)
+   UPDATE                   denied(privilege)
+   DELETE                   denied(privilege)
+   TRUNCATE                 denied(privilege)
+   RPC log_audit_event      ALLOWED(1 rows returned)
+
+[HR_PAYROLL]
+   SELECT                   ALLOWED(22 rows returned)
+   INSERT (forge actor)     denied(privilege)
+   UPDATE                   denied(privilege)
+   DELETE                   denied(privilege)
+   TRUNCATE                 denied(privilege)
+   RPC log_audit_event      ALLOWED(1 rows returned)
+
+[ADMIN]
+   SELECT                   ALLOWED(22 rows returned)
+   INSERT (forge actor)     denied(privilege)
+   UPDATE                   denied(privilege)
+   DELETE                   denied(privilege)
+   TRUNCATE                 denied(privilege)
+   RPC log_audit_event      ALLOWED(1 rows returned)
+
+[SERVICE_ROLE]
+   SELECT                   ALLOWED(22 rows returned)
+   INSERT (forge actor)     ALLOWED(1 rows)
+   UPDATE                   blocked(append-only trigger)
+   DELETE                   blocked(append-only trigger)
+   TRUNCATE                 blocked(append-only trigger)
+   RPC log_audit_event      denied(privilege)
+
+[OWNER_POSTGRES]
+   SELECT                   ALLOWED(22 rows returned)
+   INSERT (forge actor)     ALLOWED(1 rows)
+   UPDATE                   blocked(append-only trigger)
+   DELETE                   blocked(append-only trigger)
+   TRUNCATE                 blocked(append-only trigger)
+   RPC log_audit_event      rejected(not logged in)
+
+=== BEFORE (vulnerability) ===
+   anon SELECT                        ALLOWED(22 rows returned)
+   anon INSERT (forge)                ALLOWED(1 rows)
+   anon UPDATE                        ALLOWED(22 rows)
+   anon DELETE                        ALLOWED(22 rows)
+   authenticated(employee) DELETE     ALLOWED(22 rows)
+
+=== AFTER: pg_policies for audit_log ===
+[
+ {
+  "policyname": "audit_log_read_authorised",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "qual": "(is_admin_user() OR payroll_has_access())",
+  "with_check": null
+ }
+]
+
+=== AFTER: table grants ===
+   authenticated: SELECT
+   service_role: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+=== AFTER: function ACL / security / search_path ===
+   audit_log_append_only: acl={postgres=X/postgres} secdef=false config={"search_path=public, pg_temp"}
+   audit_row_change: acl={postgres=X/postgres} secdef=true config={"search_path=public, pg_temp"}
+   log_audit_event: acl={postgres=X/postgres,authenticated=X/postgres} secdef=true config={"search_path=public, pg_temp"}
+
+=== CHECKS ===
+PASS fixture: 22 rows like production — 22
+PASS BEFORE: anon/authenticated can read, forge, modify and delete (vulnerability reproduced) — {"anon SELECT":"ALLOWED(22 rows returned)","anon INSERT (forge)":"ALLOWED(1 rows)","anon UPDATE":"ALLOWED(22 rows)","ano
+PASS BEFORE tests rolled back: table identical to start
+PASS migration applies (1st)
+PASS migration applies again (idempotent, 2nd)
+PASS state identical after 2nd application
+PASS migration did not touch any row (count+hash identical)
+PASS ANON cannot SELECT — denied(privilege)
+PASS ANON cannot INSERT (forge actor) — denied(privilege)
+PASS ANON cannot UPDATE — denied(privilege)
+PASS ANON cannot DELETE — denied(privilege)
+PASS ANON cannot TRUNCATE — denied(privilege)
+PASS ANON cannot RPC log_audit_event — denied(privilege)
+PASS EMPLOYEE (authenticated, not admin) reads 0 rows — 0 rows (RLS filter)
+PASS HR with payroll_access can read the audit trail — ALLOWED(22 rows returned)
+PASS ADMIN can read the audit trail — ALLOWED(22 rows returned)
+PASS EMPLOYEE cannot INSERT (forge actor) directly — denied(privilege)
+PASS EMPLOYEE cannot UPDATE directly — denied(privilege)
+PASS EMPLOYEE cannot DELETE directly — denied(privilege)
+PASS EMPLOYEE cannot TRUNCATE directly — denied(privilege)
+PASS HR_PAYROLL cannot INSERT (forge actor) directly — denied(privilege)
+PASS HR_PAYROLL cannot UPDATE directly — denied(privilege)
+PASS HR_PAYROLL cannot DELETE directly — denied(privilege)
+PASS HR_PAYROLL cannot TRUNCATE directly — denied(privilege)
+PASS ADMIN cannot INSERT (forge actor) directly — denied(privilege)
+PASS ADMIN cannot UPDATE directly — denied(privilege)
+PASS ADMIN cannot DELETE directly — denied(privilege)
+PASS ADMIN cannot TRUNCATE directly — denied(privilege)
+PASS OWNER/superuser path: UPDATE blocked by append-only trigger — blocked(append-only trigger)
+PASS SERVICE_ROLE: UPDATE blocked by append-only trigger — blocked(append-only trigger)
+PASS OWNER/superuser path: DELETE blocked by append-only trigger — blocked(append-only trigger)
+PASS SERVICE_ROLE: DELETE blocked by append-only trigger — blocked(append-only trigger)
+PASS OWNER/superuser path: TRUNCATE blocked by append-only trigger — blocked(append-only trigger)
+PASS SERVICE_ROLE: TRUNCATE blocked by append-only trigger — blocked(append-only trigger)
+PASS SERVICE_ROLE (server key) can still INSERT — ALLOWED(1 rows)
+PASS after the whole matrix (all in rolled-back transactions) table is identical (count+hash)
+PASS RPC stores actor = auth.uid() (there is no actor parameter to forge) — 00000000-0000-0000-0000-00000000e006
+PASS RPC marks client-asserted events with the app: prefix — app:probe
+PASS ip/user-agent come from request headers, not parameters — 203.0.113.9 | Probe/1.0
+PASS before/after saved
+PASS the new row is invisible to a non-admin employee
+PASS search_path hijack with a temp table named audit_log fails (row went to public.audit_log)
+PASS empty action rejected
+PASS row trigger audits insert/update/delete with actor = auth.uid() — ["delete","insert","update"]
+PASS trigger captured before=1 / after=2 from OLD/NEW
+PASS user cannot call the trigger function directly
+PASS user cannot disable the audit trigger
+PASS the original 22 audit rows are byte-identical (count + md5 of every column) — b523a702ecd853f2099c6a042e6ccc05
+PASS rollback applies
+PASS rollback restores the exact original ACL — anon=arwdDxt/postgres,authenticated=arwdDxt/postgres,postgres=arwdDxt/postgres,service_role=arwdDxt/postgres
+PASS rollback restores the exact original policy
+PASS rollback removed the triggers and functions — {"t":0,"f":0}
+PASS after rollback the old (insecure) behaviour is back — as documented
+PASS rollback left the 22 original rows untouched
+PASS re-apply after rollback works
+PASS locked again after re-apply
+
+SUMMARY: 56 passed, 0 failed
