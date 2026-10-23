@@ -1,0 +1,156 @@
+=== MATRIX  (columns: SELECT INSERT UPDATE DELETE TRUNCATE; ok = allowed, -- = denied, BLK = trigger-blocked) ===
+
+[ANON]
+   orders                   ok ok ok -- --
+   tasks                    ok ok ok ok --
+   accounting_entries       ok -- -- -- --
+   customer_stats           ok .. .. .. ..
+   sales_value_summary      -- .. .. .. ..
+   mlm_join_requests        -- ok -- -- --
+   alerts                   -- -- -- -- --
+   system_settings          -- -- -- -- --
+   user_sessions            -- -- -- -- --
+   monthly_payroll          -- -- -- -- --
+   employees                -- -- -- -- ..
+   audit_log                -- -- -- -- --
+   payroll_runs             -- -- -- -- --
+   products                 ok -- -- -- --
+
+[EMPLOYEE]
+   orders                   ok ok ok ok --
+   tasks                    ok ok ok ok --
+   accounting_entries       ok ok ok ok --
+   customer_stats           ok .. .. .. ..
+   sales_value_summary      ok .. .. .. ..
+   mlm_join_requests        ok ok ok ok --
+   alerts                   ok ok ok ok --
+   system_settings          -- -- -- -- --
+   user_sessions            -- -- -- -- --
+   monthly_payroll          -- -- -- -- --
+   employees                -- -- -- -- ..
+   audit_log                ok -- -- -- --
+   payroll_runs             ok ok ok ok --
+   products                 ok ok ok ok --
+
+[ADMIN]
+   orders                   ok ok ok ok --
+   tasks                    ok ok ok ok --
+   accounting_entries       ok ok ok ok --
+   customer_stats           ok .. .. .. ..
+   sales_value_summary      ok .. .. .. ..
+   mlm_join_requests        ok ok ok ok --
+   alerts                   ok ok ok ok --
+   system_settings          -- -- -- -- --
+   user_sessions            -- -- -- -- --
+   monthly_payroll          -- -- -- -- --
+   employees                -- -- -- -- ..
+   audit_log                ok -- -- -- --
+   payroll_runs             ok ok ok ok --
+   products                 ok ok ok ok --
+
+[SERVICE_ROLE]
+   orders                   ok ok ok ok ok
+   tasks                    ok ok ok ok ok
+   accounting_entries       ok ok ok ok ok
+   customer_stats           ok .. .. .. ..
+   sales_value_summary      ok .. .. .. ..
+   mlm_join_requests        ok ok ok ok ok
+   alerts                   ok ok ok ok ok
+   system_settings          ok ok ok ok ok
+   user_sessions            ok ok ok ok ok
+   monthly_payroll          ok ok ok ok ok
+   employees                ok ok ok ok ..
+   audit_log                ok ok BLK BLK BLK
+   payroll_runs             ok ok ok ok ok
+   products                 ok ok ok ok ok
+
+=== BEFORE (exposures reproduced in the clone) ===
+   anon SELECT system_settings (admin_pass/manager_pass rows)   OK
+   anon SELECT user_sessions                                    OK
+   anon SELECT monthly_payroll                                  OK
+   anon DELETE orders                                           OK
+   anon UPDATE profiles.role_type                               OK
+   anon UPDATE profiles.base_salary_usd                         OK
+   anon INSERT profiles (role_type admin)                       OK
+   authenticated SELECT system_settings                         OK
+
+=== CHECKS ===
+PASS clone has the same 194 tables as production — 194
+PASS BEFORE: all of these exposures are reproducible in the clone — {"anon SELECT system_settings (admin_pass/manager_pass rows)":"OK","anon SELECT user_sessions":"OK","anon SELECT monthly_payroll":
+PASS BEFORE tests rolled back: all table contents identical
+PASS migration applies (1st)
+PASS migration applies again (idempotent, 2nd)
+PASS ACL/policy fingerprint identical after the 2nd application
+PASS migration changed NO row in ANY of the 194 tables (content hash identical)
+PASS snapshot taken — 5569
+PASS allow list has 50 tables (parsed from the migration file) — 50
+PASS every allow-list name is a real table/view
+PASS EVERY table/view: anon = allow-list ops only; authenticated unchanged except dead set + audit_log; no TRUNCATE/REFERENCES/TRIGGER anywhere
+PASS service_role keeps full access to every table (bridges / edge functions unaffected)
+PASS migration is strictly reductive for anon (no privilege that was not already held) — 0
+PASS anon can still update self-service column (job_title)
+PASS anon can still update avatar_url
+PASS anon can NOT update profiles.role_type
+PASS anon can NOT update profiles.base_salary_usd
+PASS anon can NOT update profiles.is_active
+PASS anon can NOT update profiles.password
+PASS anon can NOT update profiles.team
+PASS anon can NOT update profiles.seller_alias
+PASS anon can NOT update profiles.join_date
+PASS anon can NOT insert profiles
+PASS anon can still read the profile columns the app uses
+PASS anon still cannot read profiles.password
+PASS authenticated profile updates unchanged (admin screen with JWT keeps working)
+PASS after the whole matrix (all inside rolled-back transactions) every table is unchanged
+PASS ANON has no access to system_settings — -- -- -- -- --
+PASS ANON has no access to user_sessions — -- -- -- -- --
+PASS ANON has no access to monthly_payroll — -- -- -- -- --
+PASS ANON has no access to employees — -- -- -- -- ..
+PASS ANON has no access to audit_log — -- -- -- -- --
+PASS ANON has no access to alerts — -- -- -- -- --
+PASS ANON has no access to payroll_runs — -- -- -- -- --
+PASS ANON has no access to sales_value_summary — -- .. .. .. ..
+PASS ANON orders: read/insert/update kept (app depends on it), DELETE and TRUNCATE removed — ok ok ok -- --
+PASS ANON tasks: CRUD kept (observed), TRUNCATE removed — ok ok ok ok --
+PASS ANON accounting_entries: read only — ok -- -- -- --
+PASS ANON mlm_join_requests: public form INSERT kept, no read/update/delete — -- ok -- -- --
+PASS ANON customer_stats view: read kept
+PASS authenticated (employee AND admin) cannot touch system_settings — -- -- -- -- --
+PASS service_role still can use system_settings — ok ok ok ok ok
+PASS authenticated (employee AND admin) cannot touch user_sessions — -- -- -- -- --
+PASS service_role still can use user_sessions — ok ok ok ok ok
+PASS authenticated (employee AND admin) cannot touch monthly_payroll — -- -- -- -- --
+PASS service_role still can use monthly_payroll — ok ok ok ok ok
+PASS authenticated (employee AND admin) cannot touch employees — -- -- -- -- ..
+PASS service_role still can use employees — ok ok ok ok ..
+PASS authenticated keeps normal CRUD on live tables (alerts, orders); TRUNCATE gone — ok ok ok ok -- / ok ok ok ok --
+PASS authenticated keeps the sales_value_summary view
+PASS audit_log matrix captured
+PASS ADMIN reads audit_log but cannot write/forge — ok -- -- -- --
+PASS EMPLOYEE cannot forge audit_log — ok -- -- -- --
+PASS HR with payroll_access can read the audit trail
+PASS HR can not forge audit rows
+PASS HR can not delete audit rows
+PASS ordinary employee reads 0 audit rows (RLS)
+PASS authenticated can still insert attendance although employees is closed (FK check runs as owner)
+PASS anon can not call wh_transfer_stock
+PASS authenticated still can call wh_transfer_stock
+PASS RPC stores actor = auth.uid() (no actor parameter), app: prefix, header-derived UA; payload "actor" is just data
+PASS anon can not call log_audit_event
+PASS row trigger audits insert/update/delete: actor = auth.uid(), before=1 after=2 — ["insert","update","delete"]
+PASS user can not call the trigger function directly
+PASS audit_log append-only: OWNER update blocked
+PASS audit_log append-only: OWNER delete blocked
+PASS audit_log append-only: SERVICE_ROLE delete blocked
+PASS audit_log append-only: OWNER truncate blocked
+PASS the 22 original audit rows are byte-identical after everything — da868c5fe56a9791c8e53d12fbbb42ff
+PASS rollback applies
+PASS rollback restores the ACLs, column grants, function ACL and policies EXACTLY (fingerprint equals the pre-migration one)
+PASS rollback changed no row
+PASS snapshot schema removed
+PASS original audit rows untouched by rollback
+PASS after rollback the old exposure is back — as documented
+PASS re-apply after rollback works
+PASS second lock reaches the same fingerprint as the first
+
+SUMMARY: 77 passed, 0 failed
