@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS, isNewPayrollPeriod } from '../types/payroll.types.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
+import { checkRunDeletable } from '../utils/runDeletePolicy.js';
 
 const INITIAL_STATE = {
   runs: [],
@@ -129,6 +130,10 @@ const usePayrollStore = create()(
 
     async reopenRun(id, reason) {
       const run = get().runs.find(r => r.id === id);
+      if (run && isHistoricalPayrollPeriod(run.period_year, run.period_month)) {
+        set({ error: HISTORICAL_PERIOD_MESSAGE });
+        throw new Error(HISTORICAL_PERIOD_MESSAGE);
+      }
       if (!isNewPayrollPeriod(run)) {
         throw new Error('إعادة الفتح لدورات أيلول 2026 وما بعد فقط.');
       }
@@ -206,6 +211,12 @@ const usePayrollStore = create()(
     },
 
     async deleteRun(id) {
+      // Same verdict as the dashboard and the service: historical (< Oct 2026) and non-draft runs are never deleted.
+      const verdict = checkRunDeletable(get().runs.find(r => r.id === id));
+      if (!verdict.allowed) {
+        set({ error: verdict.message });
+        throw new Error(verdict.message);
+      }
       get()._setLoading('action', true);
       try {
         const { deletePayrollRun } = await import('../services/payrollService.js');

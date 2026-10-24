@@ -3,6 +3,7 @@
 // =============================================================
 
 import { arabicPayrollRpcError } from '../utils/rpcErrors.js';
+import { checkRunDeletable } from '../utils/runDeletePolicy.js';
 
 export const USE_MOCK =
   String(import.meta.env.VITE_USE_MOCK_PAYROLL ?? '').toLowerCase() === 'true';
@@ -137,13 +138,26 @@ export async function updatePayrollRun(id, data) {
 
 export async function deletePayrollRun(id) {
   if (USE_MOCK) {
+    const mockVerdict = checkRunDeletable(_mockRuns.find(r => r.id === id));
+    if (!mockVerdict.allowed) throw new Error(mockVerdict.message);
     _mockRuns = _mockRuns.filter(r => r.id !== id);
     _mockEntries = _mockEntries.filter(e => e.run_id !== id);
     return;
   }
   const { supabase } = await import('@services/supabase');
-  const { error } = await supabase.from('payroll_runs').delete().eq('id', id);
+  // Re-read the run and apply the SAME policy as the UI and the store: a historical or non-draft run is never
+  // deleted, even if a caller skipped the store. The database BEFORE DELETE trigger is the final guard.
+  const { data: run, error: readErr } = await supabase
+    .from('payroll_runs').select('id, period_year, period_month, status').eq('id', id).single();
+  if (readErr) throw new Error(readErr.message);
+  const verdict = checkRunDeletable(run);
+  if (!verdict.allowed) throw new Error(verdict.message);
+  // `.eq('status','draft')` makes the delete itself conditional; RLS can remove 0 rows without any error,
+  // so success is only reported when exactly one row really went away.
+  const { data: removed, error } = await supabase
+    .from('payroll_runs').delete().eq('id', id).eq('status', 'draft').select('id');
   if (error) throw new Error(error.message);
+  if (!removed || removed.length !== 1) throw new Error('لم تُحذف الدورة (لا صلاحية أو تغيّرت حالتها) — لم يتغيّر شيء.');
 }
 
 // تحويل حالة دورة أيلول 2026+ — عبر دوال القاعدة فقط (D-090). تُرجع jsonb؛

@@ -34,6 +34,7 @@ import {
 import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
+import { checkRunDeletable } from '../utils/runDeletePolicy.js';
 import { fetchPayrollInputsUpdatedAt } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
@@ -178,6 +179,8 @@ export function PayrollDashboard() {
 
   const handleDeleteRun = useCallback(async () => {
     if (!run) return;
+    const verdict = checkRunDeletable(run, name);
+    if (!verdict.allowed) { setCommMsg('⛔ ' + verdict.message); return; }
     if (!window.confirm(`حذف مسودة رواتب ${periodLabel(run.period_year, run.period_month)} نهائياً؟ سيُحذف معها كل إدخالات الموظفين بهذه الدورة — لا يمكن التراجع.`)) return;
     try {
       await deleteRun(run.id);
@@ -185,7 +188,7 @@ export function PayrollDashboard() {
     } catch (e) {
       setCommMsg('⚠️ ' + (e?.message || e));
     }
-  }, [run, deleteRun]);
+  }, [run, deleteRun, name]);
 
   // ── One-click payroll engine
   const [engineRunning, setEngineRunning] = useState(false);
@@ -623,7 +626,7 @@ export function PayrollDashboard() {
                     </ActionBtn>
                   )}
                   {/* حذف المسودة — صلاحية مقصورة على hosam ayoub / Amany alkshki فقط */}
-                  {canDeleteRun && run.status === PAYROLL_STATUS.DRAFT && (
+                  {checkRunDeletable(run, name).allowed && (
                     <ActionBtn onClick={handleDeleteRun} disabled={isSubmitting} variant="red">
                       🗑️ حذف المسودة
                     </ActionBtn>
