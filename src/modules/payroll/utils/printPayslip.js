@@ -1,371 +1,69 @@
 // =============================================================
-// printPayslip — Opens a styled print window for one employee
-// Zero dependencies: uses window.open + window.print()
-// Produces a professional Arabic RTL payslip saveable as PDF
+// printPayslip — payslip and payment receipt printing (window.open + window.print, zero dependencies).
+// The figures come from payslipModel.js (pure, tested); the HTML from payslipHtml.js (escaped, brand injected).
+// The payslip is a CALCULATION statement (provisional while the month is open); the payment receipt is a
+// separate document that exists only after the payment was really recorded.
 // =============================================================
 
-import { BRAND, COMPANY, BRAND_ASSETS, AUTHORIZED_BY } from '@data/brand';
-import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
+import * as brand from '@data/brand';
+import { BRAND_ASSETS } from '@data/brand';
+import { calcNetSalary, calcTotalDeductions, formatCurrency } from '../types/payroll.types.js';
+import { buildPayslipModel, buildPaymentReceipt, escapeHtml, MONTHS_AR } from './payslipModel.js';
+import { renderPayslipHtml, renderReceiptHtml } from './payslipHtml.js';
+import { isOpenPeriod, PROVISIONAL_BANNER } from './payrollPeriod.js';
 
-const MONTHS_AR = [
-  'يناير','فبراير','مارس','أبريل','مايو','يونيو',
-  'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر',
-];
-const sealSrc = () => (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
+const logoSrc = () => (typeof location !== 'undefined' ? location.origin : '') + (BRAND_ASSETS.logoUrl || '');
+const brandPack = { BRAND: brand.BRAND, COMPANY: brand.COMPANY };
 
 function fmt(n, cur = 'USD') {
   return formatCurrency(n, cur);
 }
 
+// Attendance + absence decisions as of the issue date — fetched lazily so the printer stays usable offline.
+async function loadStatementContext(entry, run, now) {
+  const ctx = {};
+  try {
+    const { asOfDateFor } = await import('./payrollPeriod.js');
+    const asOf = asOfDateFor(Number(run.period_year), Number(run.period_month), now);
+    const [{ fetchMonthlyAttendanceSummary }, { listAbsenceReviewsForMonth, summarizeAbsenceReviews }] = await Promise.all([
+      import('../services/attendanceLink.js'),
+      import('../services/absenceReviewService.js'),
+    ]);
+    const [att, reviews] = await Promise.allSettled([
+      fetchMonthlyAttendanceSummary(entry.employee_id, Number(run.period_year), Number(run.period_month), entry.employee_name, asOf),
+      listAbsenceReviewsForMonth(entry.employee_id, Number(run.period_year), Number(run.period_month), asOf),
+    ]);
+    if (att.status === 'fulfilled' && att.value && !att.value.error) ctx.attendance = att.value;
+    if (reviews.status === 'fulfilled') ctx.absence = summarizeAbsenceReviews(reviews.value);
+  } catch { /* the statement still prints; the attendance block says it is unavailable */ }
+  return ctx;
+}
+
 /**
- * Print a single employee payslip.
+ * Print a single employee payslip (provisional while the month is open, final after it closes).
  * @param {object} entry  — payroll entry row
  * @param {object} run    — payroll run (period_year, period_month, status)
  */
-export function printPayslip(entry, run) {
-  const cur = entry.currency || run?.currency || 'USD';
-  const net = calcNetSalary(entry);
-  const month = MONTHS_AR[(run?.period_month ?? 1) - 1];
-  const year  = run?.period_year ?? new Date().getFullYear();
-  const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory');
-  const isPaid = run?.status === 'paid';
-
-  const html = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width">
-<title>كشف راتب — ${entry.employee_name} — ${month} ${year}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family:'Tajawal',sans-serif;
-    background:#fff;
-    color:#111827;
-    direction:rtl;
-    padding:40px;
-    max-width:720px;
-    margin:0 auto;
-    font-size:14px;
-  }
-
-  /* Header */
-  .header {
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    border-bottom:3px solid #111827;
-    padding-bottom:20px;
-    margin-bottom:24px;
-  }
-  .company-name {
-    font-size:26px;
-    font-weight:800;
-    color:#111827;
-    letter-spacing:-0.5px;
-  }
-  .company-sub {
-    font-size:12px;
-    color:#6b7280;
-    margin-top:3px;
-  }
-  .slip-title {
-    text-align:left;
-  }
-  .slip-title h2 {
-    font-size:18px;
-    font-weight:700;
-    color:#C9A646;
-  }
-  .slip-title p {
-    font-size:12px;
-    color:#6b7280;
-    margin-top:2px;
-  }
-
-  /* Employee info */
-  .emp-block {
-    background:#f8f7f4;
-    border-radius:12px;
-    padding:16px 20px;
-    margin-bottom:20px;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px 24px;
-  }
-  .emp-field label {
-    font-size:10px;
-    font-weight:700;
-    color:#9ca3af;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-    display:block;
-    margin-bottom:2px;
-  }
-  .emp-field span {
-    font-size:14px;
-    font-weight:600;
-    color:#111827;
-  }
-
-  /* Table */
-  table {
-    width:100%;
-    border-collapse:collapse;
-    margin-bottom:20px;
-  }
-  thead th {
-    background:#111827;
-    color:#fff;
-    font-size:11px;
-    font-weight:700;
-    padding:10px 14px;
-    text-align:right;
-  }
-  thead th:last-child { text-align:left; }
-  tbody tr:nth-child(even) { background:#f9fafb; }
-  tbody td {
-    padding:10px 14px;
-    font-size:13px;
-    border-bottom:1px solid #e5e7eb;
-  }
-  tbody td:last-child {
-    text-align:left;
-    font-weight:600;
-    font-variant-numeric:tabular-nums;
-  }
-  .positive { color:#059669; }
-  .negative { color:#dc2626; }
-  .muted    { color:#9ca3af; }
-
-  /* Net total */
-  .net-row {
-    background:#111827;
-    color:#fff;
-    border-radius:10px;
-    padding:14px 20px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:24px;
-    border:1.5px solid #C9A646;
-  }
-  .net-row .label { font-size:15px; font-weight:700; }
-  .net-row .amount { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:#E5C97A; }
-
-  /* Attendance */
-  .att-grid {
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:10px;
-    margin-bottom:24px;
-  }
-  .att-card {
-    border:1px solid #e5e7eb;
-    border-radius:10px;
-    padding:12px;
-    text-align:center;
-  }
-  .att-card .num { font-size:20px; font-weight:800; }
-  .att-card .lbl { font-size:11px; color:#6b7280; margin-top:2px; }
-
-  /* Status badge */
-  .status-badge {
-    display:inline-block;
-    padding:3px 10px;
-    border-radius:6px;
-    font-size:11px;
-    font-weight:700;
-    ${isPaid
-      ? 'background:#d1fae5;color:#065f46;'
-      : 'background:#fef3c7;color:#92400e;'
-    }
-  }
-
-  /* Footer */
-  .footer {
-    border-top:1px solid #e5e7eb;
-    padding-top:20px;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px;
-    margin-top:10px;
-  }
-  .sig-line {
-    border-top:1px solid #111827;
-    margin-top:40px;
-    padding-top:6px;
-    font-size:11px;
-    color:#6b7280;
-    text-align:center;
-  }
-  .print-date {
-    font-size:11px;
-    color:#9ca3af;
-    text-align:center;
-    margin-top:16px;
-  }
-
-  @media print {
-    body { padding:20px; }
-    @page { size:A4; margin:1.5cm; }
-  }
-</style>
-</head>
-<body>
-
-<!-- Header -->
-<div class="header" style="border-bottom-color:#C9A646;">
-  <div style="display:flex; align-items:center; gap:12px;">
-    <img src="${sealSrc()}" alt="LOWE'S" style="height:74px; width:auto;" onerror="this.style.display='none'">
-    <div>
-      <div class="company-name">LOWE'S <span style="color:#C9A646">${BRAND.heart}</span></div>
-      <div class="company-sub" style="font-style:italic; color:#C9A646;">profesyonel</div>
-      <div class="company-sub">${BRAND.sloganAr}</div>
-    </div>
-  </div>
-  <div class="slip-title">
-    <h2>كشف الراتب</h2>
-    <p>${month} ${year}</p>
-    <p style="margin-top:6px"><span class="status-badge">${isPaid ? '✓ مدفوع' : '⏳ معلق'}</span></p>
-  </div>
-</div>
-
-<!-- Employee info -->
-<div class="emp-block">
-  <div class="emp-field"><label>اسم الموظف</label><span>${entry.employee_name ?? '—'}</span></div>
-  <div class="emp-field"><label>المسمى الوظيفي</label><span>${entry.role_label ?? entry.role ?? '—'}</span></div>
-  <div class="emp-field"><label>الفترة</label><span>${month} ${year}</span></div>
-  <div class="emp-field"><label>تاريخ الإصدار</label><span>${today}</span></div>
-</div>
-
-<!-- Salary breakdown table -->
-<table>
-  <thead>
-    <tr>
-      <th>البند</th>
-      <th>النوع</th>
-      <th>المبلغ</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>الراتب الأساسي</td>
-      <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">${fmt(entry.base_salary_usd, cur)}</span></td>
-    </tr>
-    ${Number(entry.allowances_usd ?? 0) > 0 ? `
-    <tr>
-      <td>البدلات (سكن + مواصلات)</td>
-      <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">+${fmt(entry.allowances_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${Number(entry.commission_usd ?? 0) > 0 ? `
-    <tr>
-      <td>عمولة المبيعات (${Number(entry.commission_pct ?? 0)}% على الزيادة المعدّلة${entry.returns_excess ? ` بعد خصم ${entry.returns_excess} راجع زائد` : ''})</td>
-      <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">+${fmt(entry.commission_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${entry.team ? `
-    <tr>
-      <td colspan="3" style="font-size:11px;color:#6b7280">
-        📊 الفريق: ${entry.team === 'syria' ? 'سوريا ($)' : 'تركيا (₺)'} ·
-        التارجت: ${Number(entry.target_local ?? 0).toLocaleString('en-US')} ·
-        المبيعات: ${Number(entry.sales_local ?? 0).toLocaleString('en-US')} ·
-        الطلبات: ${entry.sales_orders_count ?? 0} ·
-        الرواجع: ${entry.returns_count ?? 0} (مسموح ${entry.returns_allowed ?? 0})
-      </td>
-    </tr>` : ''}
-    ${Number(entry.shortfall_deduction_usd ?? 0) > 0 ? `
-    <tr>
-      <td>حسم عدم تحقيق التارجت (نقص ${Number(entry.shortfall_local ?? 0).toLocaleString('en-US')} × 10%)</td>
-      <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.shortfall_deduction_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${Number(entry.bonus_usd ?? 0) > 0 ? `
-    <tr>
-      <td>مكافأة</td>
-      <td><span class="positive">إضافة</span></td>
-      <td><span class="positive">+${fmt(entry.bonus_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${Number(entry.absence_deduction_usd ?? 0) > 0 ? `
-    <tr>
-      <td>خصم الغياب (${entry.absent_days ?? 0} يوم)</td>
-      <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.absence_deduction_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${Number(entry.deductions_usd ?? 0) > 0 ? `
-    <tr>
-      <td>خصومات أخرى</td>
-      <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.deductions_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${Number(entry.advance_deduction_usd ?? 0) > 0 ? `
-    <tr>
-      <td>خصم السلفة</td>
-      <td><span class="negative">خصم</span></td>
-      <td><span class="negative">-${fmt(entry.advance_deduction_usd, cur)}</span></td>
-    </tr>` : ''}
-    ${entry.notes ? `
-    <tr>
-      <td colspan="3" style="font-size:12px;color:#6b7280">📝 ${entry.notes}</td>
-    </tr>` : ''}
-  </tbody>
-</table>
-
-<!-- Net salary -->
-<div class="net-row">
-  <span class="label">💰 الراتب الصافي</span>
-  <span class="amount">${fmt(net, cur)}</span>
-</div>
-
-<!-- Attendance summary -->
-<div class="att-grid">
-  <div class="att-card">
-    <div class="num">${entry.working_days ?? '—'}</div>
-    <div class="lbl">أيام الدوام</div>
-  </div>
-  <div class="att-card">
-    <div class="num" style="color:#059669">${(entry.working_days ?? 0) - (entry.absent_days ?? 0)}</div>
-    <div class="lbl">أيام الحضور</div>
-  </div>
-  <div class="att-card">
-    <div class="num" style="color:${(entry.absent_days ?? 0) > 0 ? '#dc2626' : '#9ca3af'}">${entry.absent_days ?? 0}</div>
-    <div class="lbl">أيام الغياب</div>
-  </div>
-</div>
-
-<!-- Signatures -->
-<div class="footer">
-  <div>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:6px">توقيع المفوّض</p>
-    <div class="sig-line">${AUTHORIZED_BY}</div>
-  </div>
-  <div>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:6px">استلام الموظف</p>
-    <div class="sig-line">${entry.employee_name ?? ''}</div>
-  </div>
-</div>
-
-<div class="print-date" style="border-top:1.5px solid #C9A646; padding-top:8px; margin-top:18px; line-height:1.6;">
-  <div style="font-weight:700;color:#111827">${COMPANY.legalName}</div>
-  <div>📧 ${COMPANY.email} · 🌐 ${COMPANY.website} · 📱 ${COMPANY.whatsapp}</div>
-  <div style="margin-top:2px">صدر بتاريخ ${today} — وثيقة سرية للاستخدام الداخلي</div>
-</div>
-
-<script>
-  // Auto-print on load
-  window.addEventListener('load', () => {
-    setTimeout(() => { window.print(); }, 400);
-  });
-</script>
-</body>
-</html>`;
-
-  const w = window.open('', '_blank', 'width=800,height=900');
+export async function printPayslip(entry, run) {
+  // Open the window synchronously (popup blockers), then fill it once the attendance context is loaded.
+  const w = window.open('', '_blank', 'width=860,height=1000');
   if (!w) { alert('يرجى السماح بالنوافذ المنبثقة لطباعة الكشف'); return; }
-  w.document.write(html);
+  w.document.write('<!DOCTYPE html><html dir="rtl"><body style="font-family:sans-serif;padding:40px">⏳ جارٍ تجهيز الكشف…</body></html>');
+  const now = new Date();
+  const ctx = await loadStatementContext(entry, run, now);
+  const model = buildPayslipModel({ entry, run, ctx, now });
+  w.document.open();
+  w.document.write(renderPayslipHtml(model, brandPack, { logoSrc: logoSrc() }));
+  w.document.close();
+}
+
+/** Print the payment receipt — only for a run whose payment is recorded (otherwise nothing is printed). */
+export function printPaymentReceipt(entry, run, payment = {}) {
+  const receipt = buildPaymentReceipt({ entry, run, payment });
+  if (!receipt) { alert('لا يوجد إيصال دفع: لم يُسجَّل دفع هذه الدورة بعد.'); return; }
+  const w = window.open('', '_blank', 'width=860,height=900');
+  if (!w) { alert('يرجى السماح بالنوافذ المنبثقة لطباعة الإيصال'); return; }
+  w.document.write(renderReceiptHtml(receipt, brandPack, { logoSrc: logoSrc() }));
   w.document.close();
 }
 
@@ -379,6 +77,7 @@ export function printRunReport(entries, run) {
   const month = MONTHS_AR[(run?.period_month ?? 1) - 1];
   const year  = run?.period_year ?? new Date().getFullYear();
   const today = new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory');
+  const provisional = isOpenPeriod(Number(year), Number(run?.period_month ?? 1));
   // Net totals grouped by currency (employees may be paid in TRY/SYP/USD)
   const totalsByCur = entries.reduce((acc, e) => {
     const c = e.currency || run?.currency || 'USD';
@@ -393,7 +92,7 @@ export function printRunReport(entries, run) {
     const additions = Number(e.allowances_usd ?? 0) + Number(e.commission_usd ?? 0) + Number(e.bonus_usd ?? 0);
     const deductions = calcTotalDeductions(e);
     return `<tr>
-      <td>${e.employee_name ?? '—'}</td>
+      <td>${escapeHtml(e.employee_name ?? '—')}</td>
       <td class="center">${e.working_days ?? '—'}</td>
       <td class="center" style="color:${(e.absent_days ?? 0) > 0 ? '#dc2626' : '#9ca3af'}">${e.absent_days ?? 0}</td>
       <td class="right">${fmt(e.base_salary_usd, c)}</td>
@@ -413,6 +112,7 @@ export function printRunReport(entries, run) {
   body{font-family:Tajawal,sans-serif;padding:32px;color:#111;direction:rtl;font-size:13px}
   h1{font-size:22px;font-weight:800;color:#111827}
   .sub{font-size:12px;color:#6b7280;margin-top:2px;margin-bottom:24px}
+  .banner{border:2px dashed #d97706;background:#fffbeb;color:#92400e;font-weight:800;text-align:center;padding:10px;border-radius:10px;margin-bottom:16px}
   table{width:100%;border-collapse:collapse}
   th{background:#111827;color:#fff;padding:9px 12px;text-align:right;font-size:11px;font-weight:700}
   th.center,td.center{text-align:center}
@@ -423,8 +123,9 @@ export function printRunReport(entries, run) {
   .footer{margin-top:20px;font-size:11px;color:#9ca3af;text-align:center}
   @media print{body{padding:16px}@page{size:A4 landscape;margin:1cm}}
 </style></head><body>
-<h1 style="color:#111827">LOWE'S <span style="color:#C9A646">${BRAND.heart}</span> — تقرير الرواتب</h1>
+<h1 style="color:#111827">LOWE'S <span style="color:#C9A646">${brand.BRAND.heart}</span> — تقرير الرواتب ${provisional ? '(مؤقت)' : ''}</h1>
 <div class="sub">${month} ${year} · ${entries.length} موظف · صدر ${today}</div>
+${provisional ? `<div class="banner">${PROVISIONAL_BANNER}</div>` : ''}
 <table>
   <thead><tr>
     <th>الموظف</th>
@@ -441,7 +142,7 @@ export function printRunReport(entries, run) {
     <td class="right">${totalStr}</td>
   </tr></tfoot>
 </table>
-<div class="footer">${COMPANY.legalName} — وثيقة سرية للاستخدام الداخلي فقط</div>
+<div class="footer">${brand.COMPANY.legalName} — وثيقة سرية للاستخدام الداخلي فقط</div>
 <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),400))</script>
 </body></html>`;
 

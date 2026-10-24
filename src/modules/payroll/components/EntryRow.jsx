@@ -2,7 +2,7 @@
 // EntryRow — single payroll entry row (theme-aware, native currency)
 // =============================================================
 import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
-import { printPayslip } from '../utils/printPayslip.js';
+import { printPayslip, printPaymentReceipt } from '../utils/printPayslip.js';
 
 export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit }) {
   const cur = entry.currency || run?.currency || 'USD';
@@ -79,6 +79,15 @@ export function EntryRow({ entry, run, onEdit, onDelete, onStatement, canEdit })
           >
             🖨️
           </button>
+          {run?.status === 'paid' && (
+            <button
+              onClick={() => printPaymentReceipt(entry, run)}
+              title="طباعة إيصال الدفع"
+              className="text-xs px-2.5 py-1 rounded-lg bg-surface-alt text-muted border border-border hover:text-text hover:border-navy/30 transition font-semibold"
+            >
+              🧾
+            </button>
+          )}
           {canEdit && (
             <>
               <button

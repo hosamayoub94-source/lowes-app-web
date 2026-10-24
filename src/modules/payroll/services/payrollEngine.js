@@ -45,6 +45,7 @@ import { pickSalarySettings, resolveSalary, describeSalarySource } from '../util
 import { buildAllowanceBreakdown, describeAllowanceItem } from '../utils/allowances.js';
 import { checkRunSummary } from './payrollValidation.js';
 import { resolveCostCenter, summarizeByCostCenter } from '../utils/costCenter.js';
+import { isOpenPeriod, asOfDateFor, PROVISIONAL_MARK, FINAL_MARK } from '../utils/payrollPeriod.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -443,7 +444,14 @@ export async function fetchApprovedPaidLeaveDatesInMonth(employeeId, year, month
  * @param {object} opts.run        payroll_runs row — its frozen target/pct/rate snapshot is
  *                                 authoritative once month_setup_confirmed_at is set.
  */
-export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run, allowanceRows = [] }) {
+export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run, allowanceRows = [], now = new Date() }) {
+  // الشهر الجاري (لم ينتهِ): حسبة مؤقتة. الأساسي كامل، حسم نقص التارجت صفر، العمولة مؤقتة وخارج الصافي،
+  // ولا يُحتسب من الغياب إلا ما مضى فعلاً وأقرّته الإدارة كخصم (قرار مالك 24/10/2026).
+  const provisional = isOpenPeriod(year, month, now);
+  const asOf = asOfDateFor(year, month, now);
+  const kindNote = provisional
+    ? `${PROVISIONAL_MARK} — الشهر لم يُغلق بعد (حتى ${asOf}) — غير صالحة للاعتماد أو الدفع`
+    : FINAL_MARK;
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
 
@@ -497,10 +505,11 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
       prorateNote,
       ...extraAllowanceNotes,
+      kindNote,
     ];
     let workingDays = 26, attRef = null, approvedAbsentDays = 0;
     try {
-      const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name);
+      const att = await fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name, asOf);
       workingDays = att.workingDays || workingDays;
       if ((att.presentDays || 0) > 0) {
         const leaveNote = att.leaveDays ? ` (+${att.leaveDays} إجازة)` : '';
@@ -508,7 +517,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       }
     } catch { /* مرجع فقط */ }
     // Approved absence drives a deduction → a failed lookup must fail this employee, not silently pay in full.
-    approvedAbsentDays = (await listApprovedAbsenceReviews(emp.id, year, month)).length;
+    approvedAbsentDays = (await listApprovedAbsenceReviews(emp.id, year, month, asOf)).length;
     notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
 
     const { usd: advance, missingRate: advMissing } = await fetchAdvanceRepaymentUsd(emp.id, year, month, rateMap);
@@ -524,7 +533,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       commission_usd: 0, commission_pct: 0, sales_total_usd: 0, sales_orders_count: 0,
       deductions_usd: 0, absence_deduction_usd: absenceDeduction, advance_deduction_usd: advance,
       shortfall_deduction_usd: 0, working_days: workingDays, absent_days: approvedAbsentDays,
-      net_salary_usd: Math.round(net * 100) / 100, source: 'auto', computed_at: new Date().toISOString(),
+      net_salary_usd: Math.round(net * 100) / 100, source: 'auto', computed_at: now.toISOString(),
       notes: notes.filter(Boolean).join(' · ') || null,
       team: null, target_currency: null, target_local: 0, sales_local: 0, sales_avg_local: 0,
       returns_count: 0, returns_allowed: 0, returns_excess: 0, return_deduction_local: 0,
@@ -541,6 +550,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (!team) notes.push(`⚠️ فريق الموظف غير محدد أو غير معروف (سوريا/تركيا) — لا يمكن حساب التارجت/العمولة تلقائياً`);
   if (prorateNote) notes.push(prorateNote);
   notes.push(...extraAllowanceNotes);
+  notes.push(kindNote);
 
   let commissionUsd = 0, shortfallDeductionUsd = 0;
   let teamFields = {
@@ -558,9 +568,9 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   // المعتمدة (employee_requests, leave) — الاتحاد بينهما بلا ازدواج بالعدّ.
   let workingDays = 26, attRef = null, leaveDaysThisMonth = 0;
   const [attResult, leaveResult, absenceResult] = await Promise.allSettled([
-    fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name),
+    fetchMonthlyAttendanceSummary(emp.id, year, month, emp.employee_name, asOf),
     fetchApprovedPaidLeaveDatesInMonth(emp.id, year, month),
-    listApprovedAbsenceReviews(emp.id, year, month),
+    listApprovedAbsenceReviews(emp.id, year, month, asOf),
   ]);
   // Attendance is a display-only reference by owner decision; preserve the
   // prior fallback on attendance failure. Approved-leave lookup affects the
@@ -630,7 +640,9 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
       const adjustedIncreaseLocal = Math.max(0, increaseLocal - returnDeductionLocal);
       const commissionLocal = adjustedIncreaseLocal * commPct / 100;
       const { value: commUsd, missing: cMiss } = convert(commissionLocal, team.currency, 'USD', rateMap);
-      commissionUsd = Math.round(commUsd * 100) / 100;
+      const commissionFinalUsd = Math.round(commUsd * 100) / 100;
+      // مؤقت: تظهر العمولة بالملاحظة فقط ولا تدخل الصافي — تُحسب نهائياً عند إغلاق الشهر.
+      commissionUsd = provisional ? 0 : commissionFinalUsd;
       if (cMiss) salesMissing = true;
 
       teamFields = {
@@ -647,11 +659,14 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
         (returnsExcess > 0
           ? ` − رواجع زائدة (${returnsExcess}×${sym}${avgLocal.toFixed(0)}=${sym}${returnDeductionLocal.toFixed(0)}) = ${sym}${adjustedIncreaseLocal.toFixed(0)} × ${commPct}% = ${sym}${commissionLocal.toFixed(2)}`
           : ` × ${commPct}% = ${sym}${commissionLocal.toFixed(2)}`));
+      if (provisional) notes.push(`🟡 عمولة مؤقتة غير نهائية ≈ $${commissionFinalUsd.toFixed(2)} — لا تدخل الصافي قبل إغلاق الشهر`);
     } else {
       const shortfallLocal = target - salesLocal;
       const shortfallDeductionLocal = shortfallLocal * 0.10;
       const { value: dUsd, missing: dMiss } = convert(shortfallDeductionLocal, team.currency, 'USD', rateMap);
-      shortfallDeductionUsd = Math.round(dUsd * 100) / 100;
+      const shortfallFinalUsd = Math.round(dUsd * 100) / 100;
+      // مؤقت: لا حسم قبل نهاية الشهر — النقص الحالي ليس فشلاً نهائياً.
+      shortfallDeductionUsd = provisional ? 0 : shortfallFinalUsd;
       if (dMiss) salesMissing = true;
 
       // Returns are still surfaced for reference even when target isn't
@@ -667,7 +682,9 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
         shortfall_local: Math.round(shortfallLocal * 100) / 100,
       };
       const sym = team.currency === 'USD' ? '$' : '₺';
-      notes.push(`❌ غير محقق للتارجت — نقص ${sym}${Math.round(shortfallLocal).toLocaleString('en-US')} × 10% = حسم ${sym}${shortfallDeductionLocal.toFixed(2)}`);
+      notes.push(provisional
+        ? `⏳ التارجت غير نهائي — المبيعات الحالية ${sym}${Math.round(salesLocal).toLocaleString('en-US')} من ${sym}${Math.round(target).toLocaleString('en-US')} (لا حسم قبل إغلاق الشهر)`
+        : `❌ غير محقق للتارجت — نقص ${sym}${Math.round(shortfallLocal).toLocaleString('en-US')} × 10% = حسم ${sym}${shortfallDeductionLocal.toFixed(2)}`);
     }
   } else if (settings) {
     // No team resolvable → cannot run the target/returns pipeline at all.
@@ -676,7 +693,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     const s = salesUsdFromIndex(salesIndex, emp, rateMap);
     salesUsdDisplay = s.usd; salesCountDisplay = s.count; salesMissing = s.missingRate;
     commPct = salary.commissionPctFallback;
-    commissionUsd = Math.round((s.usd * commPct) / 100 * 100) / 100;
+    commissionUsd = provisional ? 0 : Math.round((s.usd * commPct) / 100 * 100) / 100;
   }
 
   // الحضور جُلب مسبقاً فوق — الغياب المكتشف لا يخصم تلقائياً؛ الإدارة
@@ -718,7 +735,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     absent_days: absentDays,
     net_salary_usd: Math.round(net * 100) / 100,
     source: 'auto',
-    computed_at: new Date().toISOString(),
+    computed_at: now.toISOString(),
     notes: notes.filter(Boolean).join(' · ') || null,
     ...teamFields,
   };
@@ -737,7 +754,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  *
  * @returns {Promise<{count:number, totalNet:number, entries:object[], errors:string[]}>}
  */
-export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run }) {
+export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run, now = new Date() }) {
   if (isHistoricalPayrollPeriod(year, month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
   // This guard is intentionally enforced here as well as in the UI. Payroll
   // must never be computed from defaults when the month snapshot is unconfirmed.
@@ -832,7 +849,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     calculateEntry: (emp) => computeEmployeeEntry({
       emp,
       settings: settingsById.get(emp.id) || null,
-      runId, year, month, salesIndex, rateMap, run,
+      runId, year, month, salesIndex, rateMap, run, now,
       allowanceRows: allowancesById.get(emp.id) || [],
     }),
     persistEntry: upsertPayrollEntry,
@@ -849,6 +866,8 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   }
 
   result.excluded = excluded;
+  result.kind = isOpenPeriod(year, month, now) ? 'provisional' : 'final';
+  result.asOf = asOfDateFor(year, month, now);
   // Per-center totals of THIS run (derived from the team, nothing stored; UAE/Reem is not an active center).
   const centerOf = new Map(emps.map(e => [e.id, resolveCostCenter(e)]));
   result.costCenters = summarizeByCostCenter((result.entries || []).map(e => ({ cost_center: centerOf.get(e.employee_id), net: e.net_salary_usd })));

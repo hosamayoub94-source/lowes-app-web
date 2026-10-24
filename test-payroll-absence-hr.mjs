@@ -83,7 +83,7 @@ ok(!isDeductibleReview(undefined), 'no decision does not deduct');
 {
   // The engine reads only status=approved reviews.
   const svc = readFileSync('./src/modules/payroll/services/absenceReviewService.js', 'utf8');
-  ok(/listApprovedAbsenceReviews[\s\S]*\.eq\('status', 'approved'\)/.test(svc), 'engine fetch filters status=approved');
+  ok(/listApprovedAbsenceReviews[\s\S]*r\.status === 'approved'/.test(svc), 'engine fetch keeps only status=approved');
 }
 
 console.log(`payroll absence/HR: ${pass} passed, ${fail} failed`);

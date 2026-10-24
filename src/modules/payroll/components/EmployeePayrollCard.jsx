@@ -7,7 +7,7 @@
 // existing approved formulas from payroll.types.js / payrollEngine.js.
 // =============================================================
 import { formatCurrency, calcNetSalary, calcTotalDeductions } from '../types/payroll.types.js';
-import { printPayslip } from '../utils/printPayslip.js';
+import { printPayslip, printPaymentReceipt } from '../utils/printPayslip.js';
 
 // البدلات تُعرض بقيمتها الفعلية من القيد (allowances_usd = إنترنت + طعام + بدلات
 // payroll_allowances) — كانت تُعرض 10$ ثابتة حتى لو البدل الفعلي صفر (22/10/2026).
@@ -149,6 +149,14 @@ export function EmployeePayrollCard({ entry, run, canEdit, onEdit, onDelete, onS
         >
           🖨️ طباعة
         </button>
+        {run?.status === 'paid' && (
+          <button
+            onClick={() => printPaymentReceipt(entry, run)}
+            className="text-xs px-3 py-1.5 rounded-lg bg-surface-alt text-muted border border-border hover:text-text hover:border-navy/30 transition font-semibold"
+          >
+            🧾 إيصال الدفع
+          </button>
+        )}
         {canEdit && (
           <>
             <button

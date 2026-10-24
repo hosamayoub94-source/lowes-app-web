@@ -31,7 +31,27 @@ const dayKey = (d) => String(d ?? '').replace(/-/g, '/').slice(0, 10); // «YYYY
  * ملخّص الحضور من الجدول الحيّ `attendance` (بالاسم). يعدّ التواريخ الفريدة
  * (قد يوجد صفّا «حاضر»+«خروج» لليوم نفسه). الإجازة يوم مُبرّر (لا غياب).
  */
-async function summaryFromLiveAttendance(employeeName, year, month, workingDays) {
+// asOf (YYYY-MM-DD): عدّ الأيام حتى هذا التاريخ فقط — اليوم المستقبلي ليس غياباً.
+function tallyRows(rows, workingDates, asOf) {
+  const elapsed = asOf ? workingDates.filter((d) => d <= asOf) : workingDates;
+  const present = new Set(), leave = new Set(), late = new Set();
+  for (const r of rows) {
+    const k = dayKey(r.date);
+    if (asOf && k.replace(/\//g, '-') > asOf) continue;
+    if (isPresentStatus(r.status)) { present.add(k); if (r.was_late || isLateStatus(r.status)) late.add(k); }
+    else if (isLeaveStatus(r.status)) leave.add(k);
+  }
+  // leaveDates بصيغة "YYYY-MM-DD" (dayKey يخزّنها بـ"/") — تُدمج مع طلبات الإجازة المعتمدة بلا ازدواج.
+  const leaveDates = [...leave].map((k) => k.replace(/\//g, '-'));
+  return {
+    workingDays: workingDates.length, elapsedWorkingDays: elapsed.length,
+    presentDays: present.size,
+    absentDays: Math.max(0, elapsed.length - present.size - leave.size),
+    lateDays: late.size, leaveDays: leave.size, leaveDates, source: 'attendance', asOf: asOf || null,
+  };
+}
+
+async function summaryFromLiveAttendance(employeeName, year, month, workingDates, asOf = null) {
   const mm = String(month).padStart(2, '0');
   const { data, error } = await supabase
     .from('attendance')
@@ -41,19 +61,7 @@ async function summaryFromLiveAttendance(employeeName, year, month, workingDays)
   if (error) throw error;
   if (!data || data.length === 0) return null; // لا سجلّ بالاسم → دع المتصل يقرّر
 
-  const present = new Set(), leave = new Set(), late = new Set();
-  for (const r of data) {
-    const k = dayKey(r.date);
-    if (isPresentStatus(r.status)) { present.add(k); if (r.was_late || isLateStatus(r.status)) late.add(k); }
-    else if (isLeaveStatus(r.status)) leave.add(k);
-  }
-  const presentDays = present.size;
-  const leaveDays   = leave.size;
-  const absentDays  = Math.max(0, workingDays - presentDays - leaveDays);
-  // leaveDates بصيغة "YYYY-MM-DD" (dayKey يخزّنها بـ"/") — تُستخدم لدمجها مع
-  // تواريخ طلبات الإجازة المعتمدة (employee_requests) بدون ازدواج بالعدّ.
-  const leaveDates = [...leave].map(k => k.replace(/\//g, '-'));
-  return { workingDays, presentDays, absentDays, lateDays: late.size, leaveDays, leaveDates, source: 'attendance' };
+  return tallyRows(data, workingDates, asOf);
 }
 
 // Read mock-mode flag lazily to avoid circular imports at module load.
@@ -101,12 +109,13 @@ function getWorkingDates(year, month) {
  *   error?:      string    — set if something went wrong (partial data returned)
  * }>}
  */
-export async function fetchMonthlyAttendanceSummary(userId, year, month, employeeName = null) {
+export async function fetchMonthlyAttendanceSummary(userId, year, month, employeeName = null, asOf = null) {
   const workingDates = getWorkingDates(year, month);
   const workingDays  = workingDates.length;
+  const elapsedDays  = asOf ? workingDates.filter((d) => d <= asOf).length : workingDays;
 
   const empty = (extra = {}) => ({
-    workingDays, presentDays: 0, absentDays: workingDays, lateDays: 0, leaveDates: [], ...extra,
+    workingDays, elapsedWorkingDays: elapsedDays, presentDays: 0, absentDays: elapsedDays, lateDays: 0, leaveDates: [], ...extra,
   });
 
   try {
@@ -130,7 +139,7 @@ export async function fetchMonthlyAttendanceSummary(userId, year, month, employe
 
     // ── المصدر الأساسي: الجدول الحيّ `attendance` (بالاسم) ──
     if (employeeName && String(employeeName).trim()) {
-      const live = await summaryFromLiveAttendance(String(employeeName).trim(), year, month, workingDays);
+      const live = await summaryFromLiveAttendance(String(employeeName).trim(), year, month, workingDates, asOf);
       if (live) return live;
       // اسم غير مطابق (قد يكون بديلاً/تهجئة) — جرّب مطابقة مطبّعة موسّعة
       const mm = String(month).padStart(2, '0');
@@ -140,16 +149,7 @@ export async function fetchMonthlyAttendanceSummary(userId, year, month, employe
       if (all && all.length) {
         const target = norm(employeeName);
         const rows = all.filter(r => norm(r.employee_name) === target);
-        if (rows.length) {
-          const present = new Set(), leave = new Set(), late = new Set();
-          for (const r of rows) {
-            const k = dayKey(r.date);
-            if (isPresentStatus(r.status)) { present.add(k); if (r.was_late || isLateStatus(r.status)) late.add(k); }
-            else if (isLeaveStatus(r.status)) leave.add(k);
-          }
-          const leaveDates = [...leave].map(k => k.replace(/\//g, '-'));
-          return { workingDays, presentDays: present.size, absentDays: Math.max(0, workingDays - present.size - leave.size), lateDays: late.size, leaveDays: leave.size, leaveDates, source: 'attendance' };
-        }
+        if (rows.length) return tallyRows(rows, workingDates, asOf);
       }
       // لا سجلّ حضور لهذا الموظف هذا الشهر
       return { ...empty(), source: 'attendance', noData: true };

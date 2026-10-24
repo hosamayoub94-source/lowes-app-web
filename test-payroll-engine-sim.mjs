@@ -89,7 +89,7 @@ try {
   const entry = (id) => db.tables.payroll_entries.find((e) => e.employee_id === id && e.source !== 'manual');
 
   // ── run 1: before management decides pending/rejected
-  const r1 = await runPayrollForMonth({ runId: 'sim-run', year: 2026, month: 10, run: RUN });
+  const r1 = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'sim-run', year: 2026, month: 10, run: RUN });
   ok(r1.errors.length === 0, 'run 1 has no errors: ' + r1.errors.join('|'));
 
   const ali = entry('ali');
@@ -133,7 +133,7 @@ try {
   // ── management decides: pending → approved; recalculate
   const countBefore = db.tables.payroll_entries.length;
   db.tables.payroll_absence_reviews.find((r) => r.absence_date === '2026-10-06').status = 'approved';
-  const r2 = await runPayrollForMonth({ runId: 'sim-run', year: 2026, month: 10, run: RUN });
+  const r2 = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'sim-run', year: 2026, month: 10, run: RUN });
   ok(r2.errors.length === 0, 'run 2 has no errors');
   const ali2 = entry('ali');
   ok(ali2.absent_days === 2, 'after approval the second absence counts');
@@ -143,24 +143,24 @@ try {
 
   // ── FX frozen on the run: a live rate change must not move this run
   db.tables.exchange_rates.unshift({ from_cur: 'SYP', to_cur: 'USD', rate: 1 / 500, created_at: '2026-10-30' });
-  await runPayrollForMonth({ runId: 'sim-run', year: 2026, month: 10, run: RUN });
+  await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'sim-run', year: 2026, month: 10, run: RUN });
   near(entry('ali').allowances_usd, 10 + 7500 / 131, 'live FX change does not affect a run with a frozen rate');
 
   // ── missing rate: no frozen rate and no live rate → flagged, not silently zero-priced
   db.tables.exchange_rates.length = 0;
   const noRateRun = { ...RUN, rate_usd_syp: null, rate_usd_try: null };
-  await runPayrollForMonth({ runId: 'sim-run', year: 2026, month: 10, run: noRateRun });
+  await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'sim-run', year: 2026, month: 10, run: noRateRun });
   ok(/سعر صرف ناقص/.test(entry('ali').notes), 'missing FX rate is flagged (blocks approval)');
 
   // ── unconfirmed month setup refuses to run
   let refused = false;
-  try { await runPayrollForMonth({ runId: 'sim-run', year: 2026, month: 10, run: { ...RUN, month_setup_confirmed_at: null } }); } catch { refused = true; }
+  try { await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'sim-run', year: 2026, month: 10, run: { ...RUN, month_setup_confirmed_at: null } }); } catch { refused = true; }
   ok(refused, 'engine refuses an unconfirmed month setup');
 
   // ── historical periods are never recalculated (September 2026 and earlier closed outside the app)
   const before = JSON.stringify(db.tables.payroll_entries);
   let histRefused = '';
-  try { await runPayrollForMonth({ runId: 'hist-run', year: 2026, month: 9, run: { ...RUN, period_month: 9 } }); } catch (e) { histRefused = e.message; }
+  try { await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'hist-run', year: 2026, month: 9, run: { ...RUN, period_month: 9 } }); } catch (e) { histRefused = e.message; }
   ok(/تاريخية/.test(histRefused), 'engine refuses a historical period (Sept 2026)');
   ok(JSON.stringify(db.tables.payroll_entries) === before, 'refusal wrote nothing');
 } finally {

@@ -99,7 +99,7 @@ try {
   // ── main run ───────────────────────────────────────────────
   let db = use(makeDb(seedFor(), { syncRunSummary: true }));
   // The UI passes manual entries as "skip" (handleRunEngine): Petra must stay manual and untouched.
-  const res = await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
+  const res = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
   const e = (id) => db.tables.payroll_entries.find((x) => x.employee_id === id && x.source !== 'manual');
   const detail = (id) => e(id).allowances_detail;
 
@@ -169,7 +169,7 @@ try {
   // 9) missing rate is flagged and blocks approval; it is never silently priced at zero
   const noRate = use(makeDb(seedFor(), { syncRunSummary: true }));
   noRate.tables.exchange_rates.length = 0;
-  await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: { ...RUN, rate_usd_syp: null, rate_usd_try: null }, skipEmployeeIds: new Set(['petra']) });
+  await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: { ...RUN, rate_usd_syp: null, rate_usd_try: null }, skipEmployeeIds: new Set(['petra']) });
   const nf = noRate.tables.payroll_entries.find((x) => x.employee_id === 'nofx' && x.source !== 'manual');
   ok(nf.allowances_detail[0].missing_rate === true && nf.allowances_detail[0].usd === 0 && nf.allowances_detail[0].rate_to_usd === null, 'missing SYP rate: item flagged, usd 0, no invented rate');
   ok(/سعر صرف ناقص/.test(nf.notes) && getPayrollBlockingEntryIssues([nf]).missingRateEntries.length === 1, 'missing rate blocks approval');
@@ -177,19 +177,19 @@ try {
   // 10) frozen run rate beats a later live rate
   db = use(makeDb(seedFor(), { syncRunSummary: true }));
   db.tables.exchange_rates.unshift({ from_cur: 'SYP', to_cur: 'USD', rate: 1 / 500, created_at: '2026-10-30' });
-  await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
+  await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
   near(db.tables.payroll_entries.find((x) => x.employee_id === 'food').allowances_usd, 7500 / 131, 'live SYP rate change does not move a run with a frozen rate');
 
   // 11) a header that disagrees with its entries is detected (no trigger = mismatch)
   use(makeDb(seedFor(), { syncRunSummary: false }));
-  const r3 = await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
+  const r3 = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
   ok(r3.summary?.ok === false && r3.errors.some((m) => /ملخص الدورة لا يطابق القيود/.test(m)), 'header ≠ entries is reported as an error that blocks approval');
 
   // 12) an exclusion without a reason is rejected
   const noReason = seedFor();
   noReason.profiles.find((p) => p.id === 'reem').payroll_excluded_reason = null;
   use(makeDb(noReason, { syncRunSummary: true }));
-  const r4 = await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
+  const r4 = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
   ok(r4.errors.some((m) => /مستبعدون بلا سبب مكتوب: Reem alkshki/.test(m)), 'excluded without a written reason is flagged');
 
   // ── deploying the code BEFORE migration 20261024 is safe: the run is loud and writes nothing
@@ -200,7 +200,7 @@ try {
     const a = use(makeDb(seedA, { syncRunSummary: true }));
     const from = a.client.from;
     a.client.from = (t) => { const q = from(t); if (t === 'profiles') { const sel = q.select; q.select = (cols) => (/payroll_excluded_reason/.test(cols || '') ? errChain({ message: 'column profiles.payroll_excluded_reason does not exist' }) : sel(cols)); } return q; };
-    const rA = await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
+    const rA = await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) });
     ok(rA.count > 0 && !rA.errors.some((m) => /مستبعدون بلا سبب/.test(m)), 'pre-migration: missing reason column does not break the run nor raise a false "no reason" error');
     ok(!a.tables.payroll_entries.some((x) => ['hosam', 'reem', 'arwa'].includes(x.employee_id) && x.source !== 'manual'), 'pre-migration: owner / Reem / Arwa are still excluded');
     ok(rA.excluded.length === 3 && rA.excluded.every((x) => x.reason === null), 'pre-migration: exclusions are reported with an unknown (null) reason');
@@ -210,7 +210,7 @@ try {
     const fromB = b.client.from;
     b.client.from = (t) => { const q = fromB(t); if (t === 'payroll_entries') q.upsert = () => errChain({ message: "Could not find the 'allowances_detail' column of 'payroll_entries' in the schema cache" }); return q; };
     const before = JSON.stringify(b.tables.payroll_entries);
-    let msg = ''; try { await runPayrollForMonth({ runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) }); } catch (e) { msg = e.message; }
+    let msg = ''; try { await runPayrollForMonth({ now: new Date(2026, 10, 2, 12), runId: 'oct-run', year: 2026, month: 10, run: RUN, skipEmployeeIds: new Set(['petra']) }); } catch (e) { msg = e.message; }
     ok(/allowances_detail/.test(msg) && /20261024_payroll_oct_rules/.test(msg), 'pre-migration: the run stops with a clear message naming the migration: ' + msg.slice(0, 70));
     ok(JSON.stringify(b.tables.payroll_entries) === before, 'pre-migration: nothing was saved (no partial run)');
   }

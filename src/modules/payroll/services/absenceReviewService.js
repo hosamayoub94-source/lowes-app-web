@@ -30,18 +30,33 @@ export async function saveAbsenceReview({ employeeId, employeeName, absenceDate,
   return data;
 }
 
-export async function listApprovedAbsenceReviews(employeeId, year, month) {
+// Absence decisions for one employee-month, split the way the payslip shows them. Only an `approved`
+// decision deducts; `rejected` (excused / no deduction) and `pending` never do. `asOf` (YYYY-MM-DD)
+// drops anything after that date — a day that has not happened yet is never an absence.
+export async function listAbsenceReviewsForMonth(employeeId, year, month, asOf = null) {
   const from = `${year}-${String(month).padStart(2, '0')}-01`;
   const nextYear = month === 12 ? year + 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
   const to = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
   const { data, error } = await supabase
     .from('payroll_absence_reviews')
-    .select('absence_date')
+    .select('absence_date, status')
     .eq('employee_id', employeeId)
-    .eq('status', 'approved')
     .gte('absence_date', from)
     .lt('absence_date', to);
   if (error) throw error;
-  return data || [];
+  return (data || []).filter((r) => !asOf || String(r.absence_date).slice(0, 10) <= asOf);
+}
+
+export async function listApprovedAbsenceReviews(employeeId, year, month, asOf = null) {
+  const rows = await listAbsenceReviewsForMonth(employeeId, year, month, asOf);
+  return rows.filter((r) => r.status === 'approved').map((r) => ({ absence_date: r.absence_date }));
+}
+
+/** Pure: absence counts for the payslip. */
+export function summarizeAbsenceReviews(rows = []) {
+  const approved = rows.filter((r) => r.status === 'approved').length;
+  const excused = rows.filter((r) => r.status === 'rejected').length;
+  const pending = rows.filter((r) => r.status !== 'approved' && r.status !== 'rejected').length;
+  return { registered: rows.length, approved, excused, pending, unexcused: approved };
 }

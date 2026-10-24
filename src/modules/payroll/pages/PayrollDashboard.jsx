@@ -35,6 +35,7 @@ import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { checkRunDeletable } from '../utils/runDeletePolicy.js';
+import { provisionalBlockReason, isOpenPeriod, PROVISIONAL_BANNER } from '../utils/payrollPeriod.js';
 import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
@@ -346,6 +347,8 @@ export function PayrollDashboard() {
 
   const handleMarkPaid = useCallback(async () => {
     if (!run) return;
+    const blocked = provisionalBlockReason({ run, entries });
+    if (blocked) { setCommMsg('⛔ ' + blocked); return; }
     // فحص الكاش قبل تسجيل الدفع: فشل الدفتر/سعر الصرف أو نقص الكاش يتطلب
     // تأكيداً إدارياً صريحاً مكتوباً — لا يمر بنقرة «موافق» عادية.
     const dueUsd = entries.reduce((sum, e) => sum + calcNetSalary(e), 0);
@@ -489,8 +492,11 @@ export function PayrollDashboard() {
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
   const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt });
+  // الشهر الجاري = حسبة مؤقتة: لا اعتماد ولا دفع قبل إغلاقه ثم إعادة التشغيل (قرار مالك 24/10/2026).
+  const provisionalReason = run ? provisionalBlockReason({ run, entries }) : null;
+  const isOpenMonthRun = run ? isOpenPeriod(Number(run.period_year), Number(run.period_month)) : false;
   const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0
-    && inputsChecked && !staleness.stale && summaryCheck?.ok === true;
+    && inputsChecked && !staleness.stale && summaryCheck?.ok === true && !provisionalReason;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -627,7 +633,7 @@ export function PayrollDashboard() {
                     </ActionBtn>
                   )}
                   {canFinalizeRun && run.status === PAYROLL_STATUS.APPROVED && (
-                    <ActionBtn onClick={handleMarkPaid} disabled={isSubmitting} variant="green">
+                    <ActionBtn onClick={handleMarkPaid} disabled={isSubmitting || !!provisionalReason} variant="green">
                       💳 تسجيل دفع
                     </ActionBtn>
                   )}
@@ -645,6 +651,15 @@ export function PayrollDashboard() {
                 </div>
               </div>
 
+              {/* 🟡 الشهر الجاري: حسبة مؤقتة — لا اعتماد ولا دفع */}
+              {!loadingEntries && provisionalReason && run.status === PAYROLL_STATUS.DRAFT && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-400/50 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-bold text-amber-800">🟡 {isOpenMonthRun ? PROVISIONAL_BANNER : 'حسبة مؤقتة تحتاج إعادة تشغيل'}</p>
+                  <p className="text-[11px] text-amber-800/90 mt-0.5">
+                    {provisionalReason} حسم نقص التارجت = صفر، والعمولة تظهر بالملاحظات فقط، والغياب لا يُخصم إلا للأيام الماضية المعتمدة كخصم.
+                  </p>
+                </div>
+              )}
               {/* ⚠️ بوابة حاسمة: موظفون بلا راتب أساسي — تمنع الاعتماد فعلياً */}
               {!loadingEntries && zeroSalaryEntries.length > 0 && (
                 <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">

@@ -7,6 +7,13 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { PAYROLL_REALTIME_INTERVAL_MS, calcRunTotal, PAYROLL_STATUS, isNewPayrollPeriod } from '../types/payroll.types.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { checkRunDeletable } from '../utils/runDeletePolicy.js';
+import { provisionalBlockReason } from '../utils/payrollPeriod.js';
+
+// Provisional (open-month) calculations can be neither approved nor paid. Enforced here, not only on the buttons.
+function assertNotProvisional(run, entries) {
+  const reason = provisionalBlockReason({ run, entries });
+  if (reason) throw new Error('⛔ ' + reason);
+}
 
 const INITIAL_STATE = {
   runs: [],
@@ -143,6 +150,10 @@ const usePayrollStore = create()(
     async approveRun(id) {
       const hist = get().runs.find(r => r.id === id);
       if (hist && isHistoricalPayrollPeriod(hist.period_year, hist.period_month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
+      if (hist) {
+        try { assertNotProvisional(hist, get().selectedRunId === id ? get().entries : []); }
+        catch (e) { set({ error: e.message }); throw e; }
+      }
       if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
         return get()._transitionViaRpc(id, 'payroll_approve_run');
       }
@@ -204,6 +215,10 @@ const usePayrollStore = create()(
     async markRunPaid(id) {
       const hist = get().runs.find(r => r.id === id);
       if (hist && isHistoricalPayrollPeriod(hist.period_year, hist.period_month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
+      if (hist) {
+        try { assertNotProvisional(hist, get().selectedRunId === id ? get().entries : []); }
+        catch (e) { set({ error: e.message }); throw e; }
+      }
       if (isNewPayrollPeriod(get().runs.find(r => r.id === id))) {
         return get()._transitionViaRpc(id, 'payroll_mark_paid');
       }
