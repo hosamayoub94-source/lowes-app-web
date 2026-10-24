@@ -3,10 +3,13 @@
 // One settings row per employee: ignore inactive rows (they carry old
 // allowances that must not come back when the run is re-computed) and, when
 // several active rows exist, take the latest effective_from deterministically.
-export function pickSalarySettings(rows = []) {
+// `asOf` ('YYYY-MM-DD', normally the LAST day of the payroll month): a row whose effective_from
+// is later than that belongs to a future month and must not leak back into this one.
+export function pickSalarySettings(rows = [], asOf = null) {
   const byEmployee = new Map();
   for (const row of rows || []) {
     if (!row || row.is_active === false) continue;
+    if (asOf && row.effective_from && String(row.effective_from).slice(0, 10) > asOf) continue;
     const current = byEmployee.get(row.employee_id);
     if (!current || String(row.effective_from || '') > String(current.effective_from || '')) {
       byEmployee.set(row.employee_id, row);

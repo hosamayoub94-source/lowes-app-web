@@ -2,6 +2,22 @@
 // Returns null when any lookup fails so the approval gate treats the run as
 // unverifiable (stale) instead of silently trusting it.
 import { supabase } from '@services/supabase';
+import { checkRunSummary } from './payrollValidation.js';
+
+// Fresh read of the run header vs its entries (the store's run object may be stale after a run).
+export async function fetchRunSummaryCheck(runId) {
+  try {
+    const [{ data: run, error: rErr }, { data: lines, error: lErr }] = await Promise.all([
+      supabase.from('payroll_runs').select('employee_count, total_net_usd').eq('id', runId).single(),
+      supabase.from('payroll_entries').select('net_salary_usd').eq('run_id', runId),
+    ]);
+    if (rErr || lErr) throw new Error((rErr || lErr).message);
+    return checkRunSummary({ runCount: run?.employee_count, runNet: run?.total_net_usd, entries: lines || [] });
+  } catch (error) {
+    console.error('[PayrollSummary]', error);
+    return { ok: false, message: 'تعذّر التحقق من ملخص الدورة: ' + (error?.message || error) };
+  }
+}
 
 async function latest(table, column, filter) {
   let q = supabase.from(table).select(column).order(column, { ascending: false, nullsFirst: false }).limit(1);

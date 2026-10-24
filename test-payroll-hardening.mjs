@@ -67,7 +67,7 @@ const read = (p) => readFileSync(p, 'utf8');
   const eng = read('./src/modules/payroll/services/payrollEngine.js');
   ok(/filter\(e => !e\.payroll_excluded\)/.test(eng), 'engine filters payroll_excluded employees');
   ok(/\.neq\('source', 'manual'\)/.test(eng) && /payroll_excluded/.test(eng.slice(eng.indexOf('Re-run hygiene'))), 'engine removes stale auto entries of excluded employees, never manual ones');
-  ok(/pickSalarySettings\(settings\)/.test(eng), 'engine picks active settings only');
+  ok(/pickSalarySettings\(settings, `\$\{year\}-/.test(eng), 'engine picks active settings effective on/before the last day of the payroll month');
   const cands = buildAbsenceCandidates({
     month: '2026-10', today: '2026-10-31',
     profiles: [{ id: 'x', employee_name: 'X', payroll_excluded: true, role_type: 'employee' }, { id: 'y', employee_name: 'Y', role_type: 'employee' }],

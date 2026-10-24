@@ -35,7 +35,7 @@ import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { checkRunDeletable } from '../utils/runDeletePolicy.js';
-import { fetchPayrollInputsUpdatedAt } from '../services/payrollInputs.js';
+import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
 
@@ -212,13 +212,20 @@ export function PayrollDashboard() {
   // ── بوابة «الحسبة قديمة»: آخر تعديل لمدخلات الرواتب مقابل وقت آخر حسبة
   const [inputsUpdatedAt, setInputsUpdatedAt] = useState(null);
   const [inputsChecked, setInputsChecked] = useState(false);
+  // ملخص الدورة (عدد/صافي) يجب أن يطابق القيود فعلاً — يُقرأ طازجاً من القاعدة لا من ذاكرة الواجهة
+  const [summaryCheck, setSummaryCheck] = useState(null);
   useEffect(() => {
     if (!run?.id || run.status !== PAYROLL_STATUS.DRAFT || showAllowances) return undefined;
     let active = true;
     setInputsChecked(false);
-    fetchPayrollInputsUpdatedAt(run.period_year, run.period_month).then((value) => {
+    setSummaryCheck(null);
+    Promise.all([
+      fetchPayrollInputsUpdatedAt(run.period_year, run.period_month),
+      fetchRunSummaryCheck(run.id),
+    ]).then(([value, summary]) => {
       if (!active) return;
       setInputsUpdatedAt(value);
+      setSummaryCheck(summary);
       setInputsChecked(true);
     });
     return () => { active = false; };
@@ -306,7 +313,10 @@ export function PayrollDashboard() {
       }
       markEngineBlockedRun(run.id, false);
       const errNote = res.errors.length ? ` · ⚠️ ${res.errors.length} تنبيه` : '';
-      setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${errNote}`);
+      const exclNote = res.excluded?.length ? ` · مستبعد ${res.excluded.length}: ${res.excluded.map(e => `${e.name}${e.reason ? ` (${e.reason})` : ''}`).join('، ')}` : '';
+      const ccNote = res.costCenters && Object.keys(res.costCenters).length > 1
+        ? ` · حسب المركز: ${Object.entries(res.costCenters).map(([code, v]) => `${code} ${v.count}/$${v.netUsd.toFixed(2)}`).join('، ')}` : '';
+      setCommMsg(`✅ تم حساب ${res.count} موظف تلقائياً${skip.size ? ` (${skip.size} يدوي محفوظ)` : ''}${exclNote}${ccNote}${errNote}`);
       if (res.errors.length) console.warn('Payroll engine notes:', res.errors);
     } catch (e) {
       // A database error during the final upsert phase can happen after earlier
@@ -475,11 +485,12 @@ export function PayrollDashboard() {
     zeroSalaryEntries,
     noTeamEntries,
     missingRateEntries,
+    negativeNetEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
   const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt });
   const canApprove = blockingEntries === 0 && !engineBlockedRunIds.includes(run?.id) && !!run?.month_setup_confirmed_at && entries.length > 0
-    && inputsChecked && !staleness.stale;
+    && inputsChecked && !staleness.stale && summaryCheck?.ok === true;
 
   return (
     <div className="min-h-screen bg-cream p-4 md:p-6" dir="rtl">
@@ -658,6 +669,17 @@ export function PayrollDashboard() {
                   </p>
                 </div>
               )}
+              {!loadingEntries && negativeNetEntries.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-bold text-amber-700">
+                    ⚠️ {negativeNetEntries.length} قيد بصافٍ سالب — راجعها قبل الاعتماد (الاعتماد غير معطَّل بسببها)
+                  </p>
+                  <p className="text-[11px] text-amber-700/80 mt-0.5">
+                    <span className="font-semibold">{negativeNetEntries.slice(0, 6).map(e => `${e.employee_name} ($${Number(e.net_salary_usd).toFixed(2)})`).join('، ')}{negativeNetEntries.length > 6 ? ' …' : ''}</span>
+                    — غالباً راتب جزئي مع حسم تارجت كامل (قرار المالك 1/9/2026). عدّل القيد يدوياً أو استبعد الموظف بسبب مكتوب إن لزم.
+                  </p>
+                </div>
+              )}
               {!loadingEntries && missingRateEntries.length > 0 && (
                 <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
                   <p className="text-sm font-bold text-red-700">
@@ -682,6 +704,14 @@ export function PayrollDashboard() {
                     ⛔ الحسبة الحالية قديمة — <b>الاعتماد معطَّل</b> حتى تضغط «⚡ تشغيل الدورة» من جديد.
                   </p>
                   <p className="text-[11px] text-red-700/80 mt-0.5">{staleness.reasons.join(' · ')} القيود اليدوية لا تتغيّر بإعادة الحسبة.</p>
+                </div>
+              )}
+              {!loadingEntries && run.status === PAYROLL_STATUS.DRAFT && entries.length > 0 && inputsChecked && summaryCheck && !summaryCheck.ok && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ ملخص الدورة لا يطابق القيود — <b>الاعتماد معطَّل</b>.
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">{summaryCheck.message}. أعد تشغيل الدورة؛ وإن استمر فمعناه أن migration 20261024 لم تُطبَّق بعد.</p>
                 </div>
               )}
               {!loadingEntries && engineBlockedRunIds.includes(run.id) && (

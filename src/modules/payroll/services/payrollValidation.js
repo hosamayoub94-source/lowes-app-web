@@ -1,5 +1,23 @@
 // Pure payroll-entry validation used by the approval gate and Node regression tests.
 
+// The run header (payroll_runs.employee_count / total_net_usd) must describe exactly the entries
+// it holds. Compared in whole cents so float noise never blocks a correct run.
+export function checkRunSummary({ runCount, runNet, entries = [] } = {}) {
+  const lines = (entries || []).length;
+  const cents = (entries || []).reduce((s, e) => s + Math.round((Number(e.net_salary_usd) || 0) * 100), 0);
+  const headerCount = Number(runCount);
+  const headerCents = Math.round((Number(runNet) || 0) * 100);
+  const countOk = Number.isFinite(headerCount) && headerCount === lines;
+  const netOk = headerCents === cents;
+  return {
+    ok: countOk && netOk,
+    entries: { count: lines, net: cents / 100 },
+    header: { count: Number.isFinite(headerCount) ? headerCount : null, net: headerCents / 100 },
+    message: countOk && netOk ? 'مطابق'
+      : `الملخص يقول ${Number.isFinite(headerCount) ? headerCount : '؟'} موظف / $${(headerCents / 100).toFixed(2)} بينما القيود ${lines} موظف / $${(cents / 100).toFixed(2)}`,
+  };
+}
+
 // A run is stale when any payroll input changed after the OLDEST auto-computed
 // entry: salary settings, recurring allowances, approved/rejected absence
 // decisions, or the month setup itself. Manual entries are frozen by design and
@@ -47,10 +65,15 @@ export function getPayrollBlockingEntryIssues(entries = []) {
     [...blockingRows].map((entry) => entry.employee_id || entry),
   );
 
+  // A negative payslip is allowed by an earlier owner decision (full target is never pro-rated), but it
+  // must never pass silently: surfaced as a WARNING, not counted in blockingEntries.
+  const negativeNetEntries = entries.filter((entry) => (Number(entry.net_salary_usd) || 0) < 0);
+
   return {
     zeroSalaryEntries,
     noTeamEntries,
     missingRateEntries,
+    negativeNetEntries,
     blockingEntries: blockingEmployeeIds.size,
   };
 }

@@ -217,7 +217,14 @@ export async function upsertPayrollEntry(entry) {
     .upsert(dbEntry, { onConflict: 'run_id,employee_id' })
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The allowance breakdown (amount, currency, rate used) is part of the payslip record. Never drop it
+    // silently: a missing column means the 20261024 migration has not been applied yet.
+    if (/allowances_detail/.test(error.message || '')) {
+      throw new Error('عمود تفصيل البدلات (allowances_detail) غير موجود — طبّق migration 20261024_payroll_oct_rules أولاً. لم يُحفَظ أي قيد.');
+    }
+    throw new Error(error.message);
+  }
   // Re-attach display fields so the store/UI keeps the employee name after save
   return { ...data, employee_name: employee_name ?? '', role_type: role_type ?? '' };
 }

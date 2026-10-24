@@ -42,6 +42,9 @@ import { runPayrollBatch } from './payrollBatch.js';
 import { listApprovedAbsenceReviews } from './absenceReviewService.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { pickSalarySettings, resolveSalary, describeSalarySource } from '../utils/salaryResolution.js';
+import { buildAllowanceBreakdown, describeAllowanceItem } from '../utils/allowances.js';
+import { checkRunSummary } from './payrollValidation.js';
+import { resolveCostCenter, summarizeByCostCenter } from '../utils/costCenter.js';
 
 // Orders that count as REALIZED sales for commission. Accounting rule:
 // commission is earned on collected/delivered sales, never on returns.
@@ -443,22 +446,17 @@ export async function fetchApprovedPaidLeaveDatesInMonth(employeeId, year, month
 export async function computeEmployeeEntry({ emp, settings, runId, year, month, salesIndex, rateMap, run, allowanceRows = [] }) {
   const salary = resolveSalary(emp, settings);
   const { usd: rawBaseUsd, missing: baseMissing }      = toUsd(salary.rawBase, salary.currency, rateMap);
-  const { usd: settingsAllowancesUsd, missing: settingsAllowancesMissing } = toUsd(salary.rawAllowances, salary.currency, rateMap);
 
-  // بدلات مستقلة تُحفَظ بعملتها الأصلية (مثلاً بدل طعام 7500 ل.س جديد لموظفي الصالة —
-  // جدول payroll_allowances، قابلة للتعديل/الإضافة/الإلغاء). تُحوَّل لدولار بسعر الدورة المثبَّت،
-  // فلا تتغيّر دورة قديمة بتغيّر سعر الصرف. سعر ناقص ⇒ تنبيه يمنع الاعتماد.
-  const CUR_SYMBOL = { SYP: 'ل.س', USD: '$', TRY: '₺' };
-  let extraAllowancesUsd = 0, extraAllowancesMissing = false;
-  const extraAllowanceNotes = [];
-  for (const a of allowanceRows) {
-    if (!a || a.is_active === false) continue;
-    const { usd, missing } = toUsd(a.amount, a.currency || 'USD', rateMap);
-    if (missing) { extraAllowancesMissing = true; continue; }
-    extraAllowancesUsd += usd;
-    extraAllowanceNotes.push(`${a.kind === 'food' ? '🍽️ بدل طعام' : '➕ بدل'} ${Number(a.amount).toLocaleString('en-US')} ${CUR_SYMBOL[a.currency] || a.currency} ≈ $${usd.toFixed(2)}`);
-  }
-  const allowances = Math.round((settingsAllowancesUsd + extraAllowancesUsd) * 100) / 100;
+  // البدلات فردية (قرار مالك 24/10/2026): لا شيء يُضاف تلقائياً. كل بدل له مصدر واحد
+  // ومبلغ وعملة وسعر صرف مستعمل يُحفَظ بالقيد (allowances_detail) — بدل الطعام من
+  // payroll_allowances يتقدّم على عمود الإعدادات فلا يُحسب مرتين. سعر ناقص ⇒ تنبيه يمنع الاعتماد.
+  const allowanceBreakdown = buildAllowanceBreakdown({
+    settings, salarySource: salary.source, emp, extraRows: allowanceRows, rateMap,
+  });
+  const allowances = allowanceBreakdown.totalUsd;
+  const allowanceMissingRate = allowanceBreakdown.missingRate;
+  const extraAllowanceNotes = allowanceBreakdown.items.map(describeAllowanceItem);
+  const allowancesDetail = allowanceBreakdown.items;
 
   // ── Pro-rate base salary for a partial-month join/close-out (spec §6-7).
   //    Divides by the FULL calendar month (holidays included), counts only
@@ -493,7 +491,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
   if (emp.payroll_commission_exempt) {
     const notes = [
       salary.source === null ? '⚠️ الراتب الأساسي غير محدد لهذا الموظف — لا يُعتمَد بلا تدخّل يدوي' : null,
-      ((salary.rawBase > 0 && baseMissing) || ((salary.rawAllowances > 0 && settingsAllowancesMissing) || extraAllowancesMissing))
+      ((salary.rawBase > 0 && baseMissing) || allowanceMissingRate)
         ? '⚠️ سعر صرف ناقص' : null,
       describeSalarySource(salary, allowances),
       '💼 معفى من عمولة/تارجت الرواتب — أساسي + بدلات فقط (ليس بائعاً)',
@@ -522,7 +520,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     return {
       run_id: runId, employee_id: emp.id, employee_name: emp.employee_name, role_type: emp.role_type,
       currency: PAYROLL_CURRENCY, salary_source: salary.source, commission_exempt: true,
-      base_salary_usd: base, allowances_usd: allowances, bonus_usd: 0,
+      base_salary_usd: base, allowances_usd: allowances, allowances_detail: allowancesDetail, bonus_usd: 0,
       commission_usd: 0, commission_pct: 0, sales_total_usd: 0, sales_orders_count: 0,
       deductions_usd: 0, absence_deduction_usd: absenceDeduction, advance_deduction_usd: advance,
       shortfall_deduction_usd: 0, working_days: workingDays, absent_days: approvedAbsentDays,
@@ -694,7 +692,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
 
   if (absentDays) notes.push(`⛔ غياب معتمد للخصم: ${absentDays} يوم`);
   notes.push(attRef ? `ℹ️ ${attRef} (الغياب يدوي)` : 'ℹ️ الغياب يدوي — عدّله من ✏️');
-  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || ((salary.rawAllowances > 0 && settingsAllowancesMissing) || extraAllowancesMissing)) notes.push('⚠️ سعر صرف ناقص');
+  if (salesMissing || advMissing || (salary.rawBase > 0 && baseMissing) || allowanceMissingRate) notes.push('⚠️ سعر صرف ناقص');
 
   return {
     run_id: runId,
@@ -706,6 +704,7 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
     commission_exempt: false,
     base_salary_usd: base,
     allowances_usd: allowances,
+    allowances_detail: allowancesDetail,
     bonus_usd: 0,
     commission_usd: commissionUsd,
     commission_pct: commPct,
@@ -763,12 +762,18 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
     .select(cols)
     .or(`is_active.eq.true,and(is_active.eq.false,resigned_at.gte.${monthFrom})`)
     .order('employee_name');
-  let { data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS + ', payroll_excluded');
+  // payroll_excluded_reason: سبب الاستثناء (مالك/كفيل…) — عمود migration 20261024؛ إن غاب نعيد بدونه.
+  let { data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS + ', payroll_excluded, payroll_excluded_reason');
+  if (empErr && /payroll_excluded_reason/.test(empErr.message || '')) {
+    ({ data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS + ', payroll_excluded'));
+  }
   if (empErr && /payroll_excluded/.test(empErr.message || '')) {
     ({ data: allEmps, error: empErr } = await fetchProfiles(PROFILE_COLS));
   }
   if (empErr) throw new Error('تعذّر جلب الموظفين: ' + empErr.message);
   const emps = (allEmps || []).filter(e => !e.payroll_excluded);
+  const excluded = (allEmps || []).filter(e => e.payroll_excluded)
+    .map(e => ({ id: e.id, name: e.employee_name, reason: (e.payroll_excluded_reason || '').trim() || null }));
 
   // 2. Salary settings for those employees → keyed by employee_id
   let settingsById;
@@ -777,8 +782,9 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
       .from('employee_salary_settings')
       .select('employee_id, base_salary, currency, internet_allowance, food_allowance, sales_commission_pct, is_active, effective_from');
     if (sErr) throw new Error('تعذّر جلب إعدادات الرواتب: ' + sErr.message);
-    // Active rows only (latest effective_from wins): an inactive row's old allowances must not return on re-run.
-    settingsById = pickSalarySettings(settings);
+    // Active rows only, effective on/before the LAST day of this payroll month (latest effective_from wins):
+    // an inactive row's old allowances — or a row dated for a later month — must not leak into this run.
+    settingsById = pickSalarySettings(settings, `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth(year, month)).padStart(2, '0')}`);
   }
 
   // 3. Exchange rates (live, for salary/advance currency conversion only —
@@ -840,6 +846,34 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
       .from('payroll_entries').delete()
       .eq('run_id', runId).in('employee_id', excludedIds).neq('source', 'manual');
     if (delErr) result.errors.push('تعذّر حذف قيود الموظفين المستبعدين من الرواتب: ' + delErr.message);
+  }
+
+  result.excluded = excluded;
+  // Per-center totals of THIS run (derived from the team, nothing stored; UAE/Reem is not an active center).
+  const centerOf = new Map(emps.map(e => [e.id, resolveCostCenter(e)]));
+  result.costCenters = summarizeByCostCenter((result.entries || []).map(e => ({ cost_center: centerOf.get(e.employee_id), net: e.net_salary_usd })));
+  const noReason = excluded.filter(e => !e.reason);
+  // Only meaningful once the reason column exists (migration 20261024): then every exclusion needs a stated reason.
+  if (allEmps?.some(e => 'payroll_excluded_reason' in e) && noReason.length) {
+    result.errors.push(`مستبعدون بلا سبب مكتوب: ${noReason.map(e => e.name).join('، ')} — سجّل سبب الاستثناء (مالك/كفيل…).`);
+  }
+
+  // The run header (employee_count / total_net_usd) must equal the entries just written. The database
+  // trigger keeps it in step atomically with each entry write; this read-back proves it and reports a
+  // mismatch loudly instead of leaving a header that disagrees with its lines.
+  if (!result.errors.length && result.count > 0) {
+    try {
+      const [{ data: runRow, error: rErr }, { data: lines, error: lErr }] = await Promise.all([
+        supabase.from('payroll_runs').select('employee_count, total_net_usd').eq('id', runId).single(),
+        supabase.from('payroll_entries').select('net_salary_usd').eq('run_id', runId),
+      ]);
+      if (rErr || lErr) throw new Error((rErr || lErr).message);
+      result.summary = checkRunSummary({ runCount: runRow?.employee_count, runNet: runRow?.total_net_usd, entries: lines || [] });
+      if (!result.summary.ok) result.errors.push('⛔ ملخص الدورة لا يطابق القيود: ' + result.summary.message);
+    } catch (e) {
+      result.summary = { ok: false, message: 'تعذّر قراءة ملخص الدورة: ' + (e?.message || e) };
+      result.errors.push('⛔ ' + result.summary.message);
+    }
   }
   return result;
 }
