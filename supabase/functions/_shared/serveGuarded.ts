@@ -18,7 +18,7 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-export function serveGuarded(policy: GuardPolicy, handler: (req: Request, caller?: unknown) => Response | Promise<Response>) {
+export function serveGuarded(policy: GuardPolicy, handler: (req: Request, caller?: any) => Response | Promise<Response>) {
   const kinds = policy.kinds ?? ['service', 'user'];
   Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return handler(req); // CORS preflight carries no credentials

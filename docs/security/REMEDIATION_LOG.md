@@ -132,3 +132,50 @@ Stopped before step 3 on purpose:
 1. **A real login must be checked first** (runbook 2a). Nobody logged in between the deploy and this note (`activity_logs` empty for the last 30 min), and I must not enter a PIN myself.
 2. Step 3 (web release) changes how every employee signs in; the branch `audit/roles-permissions` is pushed (https://github.com/hosamayoub94-source/lowes-app-web/pull/new/audit/roles-permissions) but **not merged** (merging triggers the production deploy; `gh` is not installed here).
 3. Step 2c (guarded functions) must come after step 3; step 4 (anon lockdown) needs 7 days with zero manual-session logins — the last one was 19 Oct, so the gate opens on **26 Oct**.
+
+---
+
+# Round 4 (2026-10-25, ~13:30–14:10 UTC): web release live, guarded functions (step 2c phase A)
+
+Authorised by the owner in chat ("بعد الدمج تابع الخطوة 3 ثم 2c مع التحقق"). The owner merged `audit/roles-permissions` (PR #79) and confirmed a real login worked after the deploy.
+
+## R4.1 Step 3 — web release
+PR #79 merged (main `368cbf9`), Vercel production deployment READY and promoted to the production alias. Owner-confirmed: a real login works after the deploy (this closes the "real login not yet verified" caveat of Round 3 / 2a). Manual-session fallback is now off in the served bundle.
+
+## R4.2 Step 2c phase A — functions guarded with `serveGuarded` (production)
+Each was fetched from production first (repo and production had drifted, see R4.4), re-emitted with the same logic plus the guard, deployed, then probed with the **public key** (expect HTTP 401). All probes returned 401.
+
+| Function | Version | Who may call | Public key → | Notes |
+|---|---|---|---|---|
+| manage-employee | v60 | (Round 3) | 401 | |
+| send-push | v57 | service key or any active signed-in user | 401 | |
+| create-yurtici-shipment | v50 | order operators | 401 | |
+| create-babel-shipment | v20 | order operators | 401 | |
+| import-yurtici-report | v33 | order operators | 401 | fallback sheet token kept as in source |
+| import-yurtici-labels | v28 | order operators | 401 | |
+| track-babel | v44 | service key or any active signed-in user | 401 | sellers poll it from the app, so no role limit |
+| track-ptt | v43 | same | 401 | |
+| track-karam | v48 | same | 401 | |
+| track-yurtici | v76 | same | 401 | cron job 1 sends a `service_role` JWT (decoded role only) → accepted via the key probe |
+| shift-report-reminder | v10 | **service key only** | 401 | cron-only; before: no check at all, anyone could spam notifications |
+| daily-analytics-snapshot | v27 | **service key only** | 401 | cron-only |
+| lozy-kpi-coach | v29 | **service key only** | 401 | cron-only |
+| retry-failed-syncs | v24 | service key, or admin/manager/sales_manager/fulfillment/manage_orders | 401 | no cron job points at it today |
+
+**M3 (cron after guarding):** `shift-report-reminder` tick 13:55:00 (after the 13:51:50 deploy) → gateway responses all 200, zero 401/403 in the window. `track-yurtici-30min` tick 14:00:00 → see R4.3.
+
+## R4.3 Result of the first cron ticks after guarding
+(filled in below when verified)
+
+## R4.4 Findings / drift discovered
+| ID | Sev | Finding |
+|---|---|---|
+| F-22 | P2 | `sync-prices` (v40, verify_jwt=true) is **not** wrapped: it already authenticates callers with its own sheet token list and is called by token, not by session; wrapping it would break the sheet. It still contains **hard-coded token strings in its source** (two literals besides `SHEET_SYNC_TOKEN`). Rotate them and move them to env vars; then it can drop the literals. Public key → 401 (verified). |
+| F-23 | P3 | `track-*`, `daily-analytics-snapshot`, `lozy-kpi-coach`, `shift-report-reminder`, `retry-failed-syncs` source in production differs from the repo copy (added `_shared/*` helpers, batch limits, history recorder). The repo copies for these functions were **not** updated in this round — pull them from production before editing. |
+| F-24 | P3 | `notifyWhatsAppStatus.ts` and `yurticiAccounts.ts` in production had the type `undefined` mangled by the secret-redaction layer during fetch; I re-wrote them with the literal `undefined`. Behaviour is identical (types only). I also shortened long comments in the shared files I re-emitted. |
+| F-25 | P3 | `retry-failed-syncs` has no cron job in this database (its header says "cron every 10 minutes"): either it is scheduled elsewhere or the failed-sync auto-retry is not running. Not changed. |
+
+## R4.5 Still to do
+* Phase B of 2c (`sync-order-to-sheet`, `social-content`, `generate-quiz`) after stale web bundles have aged out (≥ 26 Oct); `import-babel-shipments` needs a replacement credential for the external caller first.
+* Step 4 (anon lockdown, one batch at a time) after the 7-day zero-manual-login gate (opens 26 Oct 2026): `u1 → b4 → b1 → b2 → b3 → b0 → wh_functions_authz`.
+* Step 5 (`auth_mode='derived'`) only when every client is new; step 6 (Apps Script tracker RPC).
