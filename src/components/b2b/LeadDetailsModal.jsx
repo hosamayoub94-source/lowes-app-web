@@ -85,7 +85,25 @@ export default function LeadDetailsModal({ lead, leads, country, onClose, childr
           <Row k="تواجد Lowe's" v={lead.lowes_presence} />
           {lead.lowes_listing_url && <Row k="صفحتنا عندهم" v={<a className="underline text-teal" href={lead.lowes_listing_url} target="_blank" rel="noreferrer">فتح ↗</a>} />}
           {chain && <Row k="سلسلة محتملة" v={`${chain.members.length} فروع مسجّلة عندنا (تجميع مشتق — غير مؤكَّد)`} />}
-          <Missing>رابط التسجيل وشروطه والمستندات تُحفظ عند توفر دليل. لم تُسجّل الشروط أو المستندات بعد؟ تبقى «غير معروفة» ولا تُفترض.</Missing>
+          {(!lead.seller_registration_url && !lead.supplier_contact_url && !(lead.registration_requirements || []).length && !(lead.required_documents || []).length) && <Missing>روابط التسجيل والشروط والمستندات غير مسجلة بعد؛ تبقى غير معروفة ولا تُفترض.</Missing>}
+          {(lead.registration_requirements || []).length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold text-muted">شروط التسجيل المسجلة</p>
+              <ul className="list-disc pr-4 space-y-1">
+                {lead.registration_requirements.map((r, i) => (
+                  <li key={r.item || i} className="text-[11px] text-text">
+                    <span className="font-bold">{r.item || 'شرط بلا اسم'}</span>
+                    {r.answer ? ` — ${r.answer}` : ''}
+                    {r.evidence ? ` · الدليل: ${r.evidence}` : ' · الدليل غير محدد'}
+                    {r.checked_at ? ` · تحقق: ${fmt(r.checked_at)}` : ' · تاريخ التحقق غير مسجل'}
+                    {r.source && <a className="underline text-teal mr-1" href={r.source} target="_blank" rel="noreferrer">المصدر ↗</a>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(lead.required_documents || []).length > 0 && <Row k="المستندات المطلوبة" v={lead.required_documents.map(d => typeof d === 'string' ? d : d.item || d.name || JSON.stringify(d)).join('، ')} />}
+          {(lead.missing_documents || []).length > 0 && <Row k="المستندات الناقصة" v={lead.missing_documents.map(d => typeof d === 'string' ? d : d.item || d.name || JSON.stringify(d)).join('، ')} />}
         </Sec>
 
         <Sec title="بيانات الاتصال">
