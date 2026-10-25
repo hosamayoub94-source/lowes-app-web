@@ -10,6 +10,7 @@
 // Deploy: supabase functions deploy sync-order-to-sheet --no-verify-jwt
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -32,7 +33,7 @@ async function parseSheetResponse(res: Response): Promise<any> {
   return { ok: false, error: 'bad_response: ' + (msg ? msg.slice(0, 220) : `HTTP ${res.status}`) };
 }
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

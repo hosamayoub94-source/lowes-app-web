@@ -7,6 +7,8 @@
 // Deploy: supabase functions deploy social-content --no-verify-jwt
 // =============================================================
 
+import { serveGuarded } from '../_shared/serveGuarded.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -105,7 +107,7 @@ ${product ? `ركّزي على: ${product}. ` : ''}${extra ? `ملاحظات: ${
   }
 }
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

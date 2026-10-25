@@ -10,6 +10,7 @@
 // Cron: مجدولة يومياً 05:00 UTC (راجع migrations/20260610_generate_quiz_cron.sql)
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -64,7 +65,7 @@ async function buildCatalog(supabase: any): Promise<string> {
   }
 }
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

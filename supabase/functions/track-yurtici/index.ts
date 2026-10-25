@@ -8,6 +8,7 @@ import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
 import { syncOrderInventory } from '../_shared/syncOrderInventory.ts';
 import { getAccount, type YkAccount } from '../_shared/yurticiAccounts.ts';
 import { recordStatusHistory } from '../_shared/orderHistory.ts';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;   // SB_SECRET_KEY أولاً، وإلا الـservice_role المُحقَن
@@ -192,7 +193,7 @@ function mapPublic(shipmentStatus: string, isDelivered: unknown, receiver?: stri
   return null; // NOP / işlem görmemiş / غير معروف
 }
 
-Deno.serve(async (req) => {
+serveGuarded({ kinds: ['service','user'] }, async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   if (!getAccount(null)) return json({ ok: false, error: 'secrets_missing' }, 200);

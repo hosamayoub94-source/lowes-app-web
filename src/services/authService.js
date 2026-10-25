@@ -15,6 +15,8 @@ import { ACTION_TYPE, ENTITY_TYPE } from '@modules/audit/types/audit.types';
 
 const AUTH_DOMAIN = 'auth.lowes-pro.local';
 export const MANUAL_SESSION_KEY = 'lowes_manual_session';
+// Audit F-01/F-09: manual (unauthenticated) sessions are off. Stored ones are discarded at boot (see AuthBoot.jsx).
+export const ALLOW_MANUAL_SESSION_FALLBACK = false;
 
 const synthEmail = (profileId) => `${profileId}@${AUTH_DOMAIN}`;
 const derivePass  = (pin)       => `lp:${String(pin).trim()}`;
@@ -81,6 +83,10 @@ export function getManualSession() {
   try {
     const raw = localStorage.getItem(MANUAL_SESSION_KEY);
     if (!raw) return null;
+    if (!ALLOW_MANUAL_SESSION_FALLBACK) {   // discard any leftover unauthenticated session: the user signs in again and gets a real one
+      localStorage.removeItem(MANUAL_SESSION_KEY);
+      return null;
+    }
     const ms = JSON.parse(raw);
     if (Date.now() - ms.createdAt > 7 * 24 * 60 * 60 * 1000) {
       localStorage.removeItem(MANUAL_SESSION_KEY);
@@ -133,27 +139,44 @@ export async function signInWithPin(employeeName, pin) {
 
   const profile = result.profile; // already stripped of pin server-side
 
-  // ── Step 3: Try Supabase Auth ─────────────────────────────────
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email:    synthEmail(profile.id),
-      password: derivePass(pin),
-    });
-    if (!error && data?.session) {
-      logActivityImmediate({
-        actionType:  ACTION_TYPE.LOGIN,
-        entityType:  ENTITY_TYPE.AUTH,
-        entityLabel: employeeName,
-        userId:      profile.id,
-        userName:    profile.employee_name,
-      }).catch(() => {});
-      return { user: data.user, session: data.session, profile };
-    }
-  } catch { /* fall through */ }
+  // ── Step 3: Supabase Auth ─────────────────────────────────────
+  // verify-pin has just proven the PIN and (audit F-09) repaired/created the Auth identity if it had drifted, so this normally
+  // succeeds first time. In auth_mode='derived' the server hands out the Auth credential; otherwise it is derived from the PIN.
+  if (result.authIdentity === 'banned') throw new Error('هذا الحساب موقوف — تواصل مع المدير');
+  const authSecret = result.authPassword || derivePass(pin);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email:    synthEmail(profile.id),
+        password: authSecret,
+      });
+      if (!error && data?.session) {
+        logActivityImmediate({
+          actionType:  ACTION_TYPE.LOGIN,
+          entityType:  ENTITY_TYPE.AUTH,
+          entityLabel: employeeName,
+          userId:      profile.id,
+          userName:    profile.employee_name,
+        }).catch(() => {});
+        return { user: data.user, session: data.session, profile };
+      }
+    } catch { /* retry once, then fall through */ }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+  }
 
-  // ── Step 4: Manual session fallback ──────────────────────────
-  // Supabase Auth account doesn't exist yet.
-  // Since all RLS is USING(true), the anon JWT covers all DB ops.
+  // ── Step 4: no real session ───────────────────────────────────
+  // The old "manual session" (an unauthenticated browser flag that ran as the public key) is switched off: the database no longer
+  // trusts the public key. Re-enabling it needs ALLOW_MANUAL_SESSION_FALLBACK = true AND the anon lockdown rolled back.
+  if (!ALLOW_MANUAL_SESSION_FALLBACK) {
+    logActivityImmediate({
+      actionType:  ACTION_TYPE.LOGIN_FAILED,
+      entityType:  ENTITY_TYPE.AUTH,
+      entityLabel: employeeName,
+      userName:    employeeName || null,
+      metadata:    { reason: 'auth_session_unavailable', identity: result.authIdentity || null },
+    }).catch(() => {});
+    throw new Error('تعذّر فتح جلسة آمنة الآن — أعد المحاولة بعد لحظات، وإن تكرر تواصل مع المدير');
+  }
   _storeManualSession(profile);
 
   logActivityImmediate({

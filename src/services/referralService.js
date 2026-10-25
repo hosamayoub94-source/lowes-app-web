@@ -8,9 +8,9 @@
 // طلبه الفعلي. هذا يبقي المخاطرة محصورة بملفات هذا السبرنت فقط.
 // =============================================================
 import { supabase } from './supabase';
+import { functionAuthHeaders } from './functionHeaders';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // كود قصير قابل للنطق شفهياً بين صديقتين: LOWES-XXXX (أرقام+حروف، بلا 0/O/1/I ملتبسة).
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -111,7 +111,7 @@ export async function aiReferralMessage({ customerName, code, sellerName }) {
       + ` نص الرسالة جاهز للإرسال مباشرة، بلا عناوين ولا شرح إضافي.`;
     const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      headers: await functionAuthHeaders(),
       body: JSON.stringify({ mode: 'followup', product: '', extra: ctx }),
     });
     if (!res.ok) return null;

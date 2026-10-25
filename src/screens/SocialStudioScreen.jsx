@@ -5,10 +5,10 @@
 // =============================================================
 import { useState, useEffect } from 'react';
 import { supabase } from '@services/supabase';
+import { functionAuthHeaders } from '@services/functionHeaders';
 import { useToast } from '@hooks/useToast';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const MODES = [
   { key: 'caption',  label: 'كابشن منشور',   icon: '✍️', desc: 'كابشن جاهز لإنستغرام/فيسبوك', needsProduct: true,  placeholder: '' },
@@ -44,7 +44,7 @@ export default function SocialStudioScreen() {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+        headers: await functionAuthHeaders(),
         body: JSON.stringify({ mode, product, extra }),
       });
       const data = await res.json();

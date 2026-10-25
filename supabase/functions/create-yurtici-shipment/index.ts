@@ -11,6 +11,7 @@
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { getAccount, pickAccountId, contract2Ready, presence, ACCOUNT_IDS } from '../_shared/yurticiAccounts.ts';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -50,7 +51,7 @@ async function soap(inner: string): Promise<string> {
   throw lastErr;
 }
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager','sales_manager'], orderRoles: ['fulfillment'], permissions: ['manage_orders'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });
 

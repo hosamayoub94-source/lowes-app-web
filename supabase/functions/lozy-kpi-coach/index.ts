@@ -15,6 +15,7 @@
 // =============================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -53,7 +54,7 @@ function buildCoachMessage(name: string, thisCount: number, thisSalesTxt: string
   return `${greeting}\n\n📊 **مقارنة أدائك بأول ${daysPassed} يوم من الشهر:**\nعندك **${thisCount} طلب** هالشهر (${thisSalesTxt}).\n\n${statusLine}\n\nباقي **${daysLeft} يوم** بالشهر. محتاجة مساعدة بخطة اليوم؟ اسأليني أي وقت 🌟`;
 }
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

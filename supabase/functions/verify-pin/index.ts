@@ -1,13 +1,16 @@
 // =============================================================
-// Supabase Edge Function — verify-pin
-// Server-side PIN verification so the client never receives the
-// stored PIN. The `pin` column is REVOKEd from the anon role, so
-// only this function (service role) can read it.
-//
-// Deploy: supabase functions deploy verify-pin --no-verify-jwt
+// Supabase Edge Function -- verify-pin (login gateway)
+// Server-side PIN verification so the client never receives the stored PIN. The `pin` column is REVOKEd from anon,
+// so only this function (service role) can read it. Audit 2026-10 additions (logic in handler.ts, testable without network):
+//   * attempt limiter: DB-backed (public.consume_pin_attempt_rate_limit), keys HMAC-hashed with a DB-held pepper.
+//     Active as soon as migration 20261027_login_gateway.sql is applied; before that the function behaves as before.
+//   * Auth identity self-repair (F-09): a password that drifted from what login expects is re-aligned after the PIN is proven.
+//   * optional auth_mode='derived': the Auth password stops being "lp:<pin>" (closes the direct Auth-endpoint brute force).
+// Deploy: supabase functions deploy verify-pin --no-verify-jwt --project-ref fghdumrgimoeqsafdhhh
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { checkPinRateLimit } from '../_shared/pinRateLimit.js';
+import { handleVerifyPin } from './handler.ts';
+import { checkPinRateLimit, hmacSha256Hex } from '../_shared/pinRateLimit.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -16,106 +19,49 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ ok: false, error: 'method_not_allowed' }), {
-      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'POST, OPTIONS' },
-    });
-  }
+  const json = (body: unknown, status: number, extra: Record<string, string> = {}) =>
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extra } });
+  if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405, { Allow: 'POST, OPTIONS' });
 
   try {
-    const { employeeName, pin } = await req.json();
-
-    if (!employeeName || pin == null) {
-      return new Response(JSON.stringify({ ok: false, error: 'employeeName and pin required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    const supabase = createClient(
+    const body = await req.json().catch(() => ({}));
+    const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    // Opt-in only: enable after the matching SQL candidate is reviewed and applied.
-    // Missing/invalid limiter configuration or RPC failure blocks login when enabled.
-    const rateLimitDecision = await checkPinRateLimit({
-      request: req,
-      employeeName,
-      client: supabase,
-      env: { get: (name: string) => Deno.env.get(name) },
-    });
-    if (!rateLimitDecision.allowed) {
-      if (rateLimitDecision.reason === 'unavailable') {
-        console.error('[verify-pin] rate limiter unavailable');
-        return json({ ok: false, error: 'server_error' }, 503);
-      }
-      // Keep throttling indistinguishable from a wrong PIN to unauthenticated clients.
-      return json({ ok: false, error: 'wrong_pin' }, 200);
-    }
+    const limiter = async (employeeName: string) => {
+      const { data } = await admin.from('internal_secrets').select('name, secret')
+        .in('name', ['pin_rate_pepper', 'pin_rl_window_s', 'pin_rl_account_max', 'pin_rl_source_max']);
+      const s: Record<string, string> = {};
+      for (const r of data ?? []) s[r.name] = r.secret;
+      if (!s.pin_rate_pepper) return { allowed: true, reason: 'disabled' }; // migration not applied yet
+      const env = {
+        get: (k: string) => ({
+          PIN_RATE_LIMIT_ENABLED: 'true',
+          PIN_RATE_LIMIT_PEPPER: s.pin_rate_pepper,
+          PIN_RATE_LIMIT_WINDOW_SECONDS: s.pin_rl_window_s,
+          PIN_RATE_LIMIT_ACCOUNT_MAX: s.pin_rl_account_max,
+          PIN_RATE_LIMIT_SOURCE_MAX: s.pin_rl_source_max,
+        } as Record<string, string | undefined>)[k],
+      };
+      // If the gateway ever stops sending cf-connecting-ip, do not lock the company out: limit per ACCOUNT as before and put every
+      // address-less request in one shared source bucket (200 / 10 min by default) instead of failing closed on the missing header.
+      const request = req.headers.get('cf-connecting-ip')
+        ? req
+        : new Request(req.url, { method: 'POST', headers: { 'cf-connecting-ip': 'unknown-source' } });
+      return await checkPinRateLimit({ request, employeeName, client: admin, env });
+    };
 
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, employee_name, role_type, team, manager_scope, avatar_url, is_active, order_role, order_market, extra_permissions, denied_permissions, pin')
-      .eq('employee_name', employeeName)
-      .limit(1)
-      .maybeSingle();
-
-    if (error)    return json({ ok: false, error: 'server_error' }, 500);
-    if (!profile) return json({ ok: false, error: 'not_found' }, 200);
-    // Block deactivated accounts before checking the PIN — a former employee
-    // must not be able to sign in even with a still-valid PIN.
-    if (profile.is_active === false) return json({ ok: false, error: 'inactive' }, 200);
-
-    const storedPin  = String(profile.pin ?? '').trim();
-    const enteredPin = String(pin ?? '').trim();
-
-    if (!storedPin)                  return json({ ok: false, error: 'no_pin_set' }, 200);
-    if (storedPin !== enteredPin)    return json({ ok: false, error: 'wrong_pin' }, 200);
-
-    // ── Real Supabase Auth identity (3 Oct 2026) ───────────────────────────
-    // Accounts without an auth.users row fall back to a "manual session" on the
-    // client (no JWT). The hardened functions (ai-assistant = R-22,
-    // whatsapp-send-proxy / upload / delete = R-13/R-15, manage-employee, pin-change)
-    // require a real session, so those accounts got 401 → "Edge Function returned a
-    // non-2xx status code" / "Louzy unavailable" (Haya Almarouf, 3 Oct 2026; 6 of 49
-    // profiles had no auth user). The PIN has just been verified, so this is the one
-    // place that may create the identity — with the exact convention the other 43
-    // accounts already use and the client already signs in with
-    // (email <profileId>@auth.lowes-pro.local, password "lp:<pin>"). Existing identities
-    // are never touched. Best-effort: a failure here must never block the login.
-    let authIdentity: 'exists' | 'created' | 'failed' = 'failed';
-    try {
-      const { data: existing } = await supabase.auth.admin.getUserById(profile.id);
-      if (existing?.user) {
-        authIdentity = 'exists';
-      } else {
-        const { error: createErr } = await supabase.auth.admin.createUser({
-          id: profile.id,
-          email: `${profile.id}@auth.lowes-pro.local`,
-          password: `lp:${enteredPin}`,
-          email_confirm: true,
-          user_metadata: { name: profile.employee_name, team: profile.team ?? null, role_type: profile.role_type ?? null },
-        });
-        if (createErr) console.error('[verify-pin] auth provision failed', profile.employee_name, createErr.message);
-        authIdentity = createErr ? 'failed' : 'created';
-      }
-    } catch (e) {
-      console.error('[verify-pin] auth provision error', profile.employee_name, String(e));
-    }
-
-    // Strip pin before returning the profile to the client
-    const { pin: _omit, ...safeProfile } = profile;
-    return json({ ok: true, profile: safeProfile, authIdentity }, 200);
-
+    const { status, body: out } = await handleVerifyPin(
+      { admin, limiter, hmacHex: hmacSha256Hex, log: (m: string) => console.error('[verify-pin]', m) },
+      body,
+    );
+    return json(out, status);
   } catch (err) {
-    // Avoid returning raw database/runtime exception text to unauthenticated callers.
-    // Keep server logs useful without logging request bodies, PINs, or credentials.
+    // never return raw runtime/database text to an unauthenticated caller; never log bodies, PINs or credentials
     console.error('[verify-pin] request failed', err instanceof Error ? err.name : 'unknown_error');
     return json({ ok: false, error: 'server_error' }, 500);
-  }
-
-  function json(body: unknown, status: number) {
-    return new Response(JSON.stringify(body), {
-      status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
   }
 });

@@ -4,6 +4,7 @@
 // Powers: repeat-customer detection, cross-seller history, VIP tiers.
 // =============================================================
 import { supabase } from './supabase';
+import { functionAuthHeaders } from './functionHeaders';
 
 // Turkey archive used short / differently-spelled seller names before the app
 // introduced full profile names. Map full profile name (lowercase) → archive variants.
@@ -402,7 +403,6 @@ export function boughtProductNames(orders) {
 // AI follow-up message via the deployed social-content edge function
 // (reuses the brand-tone "reply" mode). Returns text or null.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // يرجع مصفوفة من 3 اقتراحات رسائل مختلفة (مو رسالة وحدة) — الموظف يختار
 // اللي تناسبه بدل ما يضطر يعدّل نص واحد مفروض عليه.
 export async function aiFollowupMessage({ customerName, products, idleDays, sellerName }) {
@@ -413,7 +413,7 @@ export async function aiFollowupMessage({ customerName, products, idleDays, sell
       + ` افصل بين كل رسالة والتانية بسطر فيه بس ثلاث شرطات (---) ولا شي غيرها. بلا ترقيم ولا عناوين، بس نص الرسالة الجاهز للإرسال مباشرة بكل جزء.`;
     const res = await fetch(`${SUPABASE_URL}/functions/v1/social-content`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      headers: await functionAuthHeaders(),
       body: JSON.stringify({ mode: 'followup', product: products?.length ? products.slice(0, 4).join('، ') : '', extra: ctx }),
     });
     if (!res.ok) return null;

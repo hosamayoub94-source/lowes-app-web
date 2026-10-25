@@ -8,6 +8,7 @@
 // =============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
 // Prefer new secret API key (SB_SECRET_KEY); fall back to the auto-injected legacy service_role during migration.
@@ -38,7 +39,7 @@ async function gviz(sheetId: string, gid: string): Promise<any[][]> {
   return data.table.rows.map((r: any) => r.c.map((c: any) => (c ? c.v : null)));
 }
 
-Deno.serve(async (req) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager','sales_manager'], permissions: ['manage_products'] }, async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const body = await req.json().catch(() => ({}));
