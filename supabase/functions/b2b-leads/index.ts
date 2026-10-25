@@ -273,23 +273,21 @@ serve(async (req) => {
       if (patch.account_status === "first_order" && !("first_order_at" in patch) && !existing.first_order_at) {
         patch.first_order_at = new Date().toISOString();
       }
-      const now = new Date().toISOString();
-      patch.updated_at = now;
-      const { data, error } = await admin.from(TABLE).update(patch).eq("id", id).eq("country", code).is("deleted_at", null).select("*").maybeSingle();
-      if (error || !data) return json({ ok: false, error: "market_entry_update_failed" }, 500);
-      const events = keys.filter((key) => JSON.stringify(existing[key] ?? null) !== JSON.stringify(data[key] ?? null)).map((key) => ({
-        lead_id: id, actor, kind: "market_entry_update", field_name: key,
-        from_value: existing[key] == null ? null : (typeof existing[key] === "string" ? existing[key] : JSON.stringify(existing[key])),
-        to_value: data[key] == null ? null : (typeof data[key] === "string" ? data[key] : JSON.stringify(data[key])),
-      }));
-      if (events.length) {
-        const { error: eventError } = await admin.from("b2b_lead_events").insert(events);
-        if (eventError) {
-          console.error("b2b market entry event insert failed", { leadId: id, code: eventError.code });
-          return json({ ok: true, row: data, audit_warning: true });
-        }
+      const { data: result, error: atomicError } = await admin.rpc("b2b_update_market_entry_atomic", {
+        p_lead_id: id,
+        p_country: code,
+        p_patch: patch,
+        p_actor: actor,
+      });
+      if (atomicError || !result?.row) {
+        console.error("b2b atomic market entry update failed", {
+          leadId: id,
+          code: atomicError?.code || "empty_result",
+        });
+        if (atomicError?.message?.includes("not_found")) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: false, error: "market_entry_update_failed" }, 500);
       }
-      return json({ ok: true, row: data });
+      return json({ ok: true, row: result.row, audit_warning: false });
     }
 
     if (action === "update_presence") {
