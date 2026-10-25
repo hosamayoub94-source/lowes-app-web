@@ -55,5 +55,11 @@ jobs:
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 
+      - name: Check B2B marketplace classification
+        run: npm run test:b2b-marketplace
+
+      - name: Check B2B atomic audit contract
+        run: npm run test:b2b-atomic-audit
+
       - name: Build production bundle
         run: npm run build
