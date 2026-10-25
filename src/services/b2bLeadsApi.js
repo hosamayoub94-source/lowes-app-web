@@ -83,14 +83,16 @@ export function leadsApiFor(code) {
       list: direct(listWithSessionCheck, 'list', { friendly: true }),
       updateStatus: direct((id, fields, by) => updateLeadStatus(id, fields, by), 'update_status'),
       updatePresence: direct((id, fields, by) => updateLeadPresence(id, fields, by), 'update_presence'),
+      updateMarketEntry: async (id, patch) => unwrap(await callB2b('update_market_entry', { country: code, id, patch })).row,
       create: direct((form, by) => createLead(form, by), 'add'),
     };
   }
   return {
     list: async () => unwrap(await callB2b('list', { country: code })).rows,
-    updateStatus: async (id, { status, notes }) => unwrap(await callB2b('update_status', { country: code, id, status, notes })).row,
+    updateStatus: async (id, { status, notes, assigned_to }) => unwrap(await callB2b('update_status', { country: code, id, status, notes, assigned_to })).row,
     updatePresence: async (id, { lowes_presence, lowes_listing_url }) =>
       unwrap(await callB2b('update_presence', { country: code, id, lowes_presence, lowes_listing_url })).row,
+    updateMarketEntry: async (id, patch) => unwrap(await callB2b('update_market_entry', { country: code, id, patch })).row,
     create: async (form) => unwrap(await callB2b('add', { country: code, row: form })).row,
   };
 }
