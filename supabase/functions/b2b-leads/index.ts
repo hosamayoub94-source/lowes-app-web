@@ -187,7 +187,7 @@ serve(async (req) => {
     const ownRow = async (id: unknown) => {
       const sid = cleanText(id, 100);
       if (!sid) return null;
-      const { data } = await admin.from(TABLE).select("id,country").eq("id", sid).maybeSingle();
+      const { data } = await admin.from(TABLE).select("id,country,assigned_to").eq("id", sid).maybeSingle();
       return data && data.country === code ? data : null;
     };
 
@@ -200,9 +200,17 @@ serve(async (req) => {
     if (action === "update_status") {
       const status = String(body?.status || "");
       if (!STATUSES.includes(status)) return json({ ok: false, error: "invalid status" }, 400);
-      if (!(await ownRow(body?.id))) return json({ ok: false, error: "not_found" }, 404);
+      const existing = await ownRow(body?.id);
+      if (!existing) return json({ ok: false, error: "not_found" }, 404);
+      // The UI sends the current owner or the acting employee. Preserve an existing owner
+      // when older clients omit assigned_to; do not allow arbitrary owner-name spoofing.
+      const requestedOwner = cleanText(body?.assigned_to, 100);
+      if (requestedOwner && requestedOwner !== actor && requestedOwner !== existing.assigned_to) {
+        return json({ ok: false, error: "invalid_assignee" }, 403);
+      }
+      const assigned_to = requestedOwner ?? cleanText(existing.assigned_to, 100);
       const now = new Date().toISOString();
-      const patch = { status, notes: cleanText(body?.notes, 1000), status_updated_at: now, status_updated_by: actor, updated_at: now };
+      const patch = { status, notes: cleanText(body?.notes, 1000), assigned_to, status_updated_at: now, status_updated_by: actor, updated_at: now };
       const { data, error } = await admin.from(TABLE).update(patch).eq("id", body.id).eq("country", code).select("*").maybeSingle();
       if (error || !data) return json({ ok: false, error: "update failed" }, 500);
       return json({ ok: true, row: data });
