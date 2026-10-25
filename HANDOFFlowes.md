@@ -3,6 +3,14 @@
 
 ---
 
+### 🗓️ جلسة 25 تشرين الأول 2026 (3) — 🚀 الإصدار على الإنتاج + حماية 14 دالة (المرحلة 2c-أ)
+
+**ما صار حيّاً:** دُمج PR #79 (الخطوة 3: الجلسات اليدوية مقفولة، الدخول بلا بديل)، وحسام جرّب دخولاً حقيقياً ونجح. الدوال المحميّة بالإنتاج الآن: manage-employee v60 · verify-pin v55 · pin-change v7 · send-push v57 · create-yurtici-shipment v50 · create-babel-shipment v20 · import-yurtici-report v33 · import-yurtici-labels v28 · track-babel v44 · track-ptt v43 · track-karam v48 · track-yurtici v76 · shift-report-reminder v10 · daily-analytics-snapshot v27 · lozy-kpi-coach v29 · retry-failed-syncs v24. كل واحدة جُرّبت بالمفتاح العام فرجّعت 401.
+**التحقق من الـcron:** shift-report-reminder اشتغل بعد التحصين (200). track-yurtici يعمل بمفتاح service_role مكتوب داخل أمر الـcron — جُرّب نفس المفتاح من داخل القاعدة على قراءة آمنة فمرّ من الحماية. daily-analytics (23:55) و lozy (06:00) لم يحن موعدهما بعد → **افحصهما بعد الموعد** (تحقق M3 + صف جديد في analytics_snapshots / lozy_chats).
+**لم يُلمس عمداً:** sync-prices (له توكن خاص ويُستدعى من الجدول) — لكن فيه توكنات مكتوبة بالكود (F-22) يجب تدويرها. sync-order-to-sheet / social-content / generate-quiz (المرحلة ب) بعد 26 تشرين الأول؛ import-babel-shipments يحتاج بديلاً لمفتاح الاستدعاء الخارجي أولاً.
+**الخطوة التالية:** بوابة الأسبوع (صفر جلسات يدوية 7 أيام) تُفتح 26/10/2026 ثم إغلاق anon على دفعات: u1 → b4 → b1 → b2 → b3 → b0 → wh_functions_authz، دفعة واحدة كل مرة مع مراقبة M1–M4. التفاصيل الكاملة: docs/security/REMEDIATION_LOG.md (الجولة 4).
+**فخاخ:** (1) مصدر الدوال بالمستودع قديم مقارنة بالإنتاج — اجلب النسخة المنشورة قبل أي تعديل (F-23). (2) طبقة إخفاء الأسرار تبدّل النص `undefined` داخل الأنواع عند الجلب — أعد كتابته. (3) عمود الاستجابة في pg_net لا يثبت شيئاً لـtrack-yurtici (مهلة 5 ثوانٍ كل مرة).
+
 ### 🗓️ جلسة 25 تشرين الأول 2026 (2) — 🔐 الجولة الثانية: المصادقة + حماية الجداول والدوال (فرع `audit/roles-permissions`)
 
 **سبب الجلسات اليدوية للخمسة:** الدخول = (PIN صحيح) ثم تسجيل دخول Auth بكلمة `lp:<PIN>`؛ إذا فشل الثاني كان التطبيق يُكمل بصمت كمستخدم مجهول. كلمات Auth لهؤلاء لم تكن تطابق الـPIN وقتها، وهي الآن تطابق (37/37 حساب نشط، فحص boolean داخل SQL). السبب الجذري: كلمة Auth مشتقّة من الـPIN ولا شيء يُبقيهما متساويين. التفاصيل: `docs/security/AUTH_SESSION_ROOT_CAUSE.md`.
