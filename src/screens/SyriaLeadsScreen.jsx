@@ -325,7 +325,84 @@ function LeadCard({ lead, onOpen, myName, onSaved }) {
   );
 }
 
-// داخل نافذة التفاصيل: كل ما كان مبعثراً أسفل البطاقة — رسالة جاهزة، وسائل التواصل، التواجد، التحديث والحفظ.
+function MarketEntryEditor({ lead, onSaved }) {
+  const { api } = useLeadsCtx();
+  const [stage, setStage] = useState(lead.account_status || '');
+  const [nextAction, setNextAction] = useState(lead.next_action || '');
+  const [dueAt, setDueAt] = useState(lead.next_action_due_at ? new Date(lead.next_action_due_at).toISOString().slice(0,16) : '');
+  const [blocker, setBlocker] = useState(lead.blocker || '');
+  const [newBrands, setNewBrands] = useState(lead.accepts_new_brands == null ? '' : String(lead.accepts_new_brands));
+  const [beauty, setBeauty] = useState(lead.accepts_beauty_products == null ? '' : String(lead.accepts_beauty_products));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setErr(null); setSaved(false);
+    try {
+      const patch = {
+        account_status: stage || null,
+        next_action: nextAction.trim() || null,
+        next_action_due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        blocker: blocker.trim() || null,
+        accepts_new_brands: newBrands === '' ? null : newBrands === 'true',
+        accepts_beauty_products: beauty === '' ? null : beauty === 'true',
+      };
+      await api.updateMarketEntry(lead.id, patch);
+      setSaved(true);
+      onSaved?.();
+      setTimeout(() => setSaved(false), 1800);
+    } catch (e) {
+      setErr(e?.message || 'تعذّر حفظ بيانات دخول السوق');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectCls = "w-full text-xs bg-surface-alt border border-border rounded-lg px-2 py-2 text-text";
+  const inputCls = "w-full text-xs bg-surface-alt border border-border rounded-lg px-2.5 py-2 text-text";
+  return (
+    <section className="space-y-2 border-t border-border pt-3" data-testid="market-entry-editor">
+      <h4 className="text-xs font-extrabold text-text">دخول السوق والمتابعة</h4>
+      <label className="block text-[11px] font-bold text-muted">مرحلة الحساب
+        <select className={selectCls} value={stage} onChange={e => setStage(e.target.value)}>
+          <option value="">غير مسجلة — استخدم التقدير الحالي</option>
+          {PIPELINE.map(s => <option key={s} value={s}>{STAGE_AR[s]}</option>)}
+        </select>
+      </label>
+      <label className="block text-[11px] font-bold text-muted">الخطوة التالية
+        <input className={inputCls} value={nextAction} maxLength={1000} onChange={e => setNextAction(e.target.value)} placeholder="مثال: التواصل مع فريق الموردين" />
+      </label>
+      <label className="block text-[11px] font-bold text-muted">موعد المتابعة
+        <input className={inputCls} type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} />
+      </label>
+      <label className="block text-[11px] font-bold text-muted">العائق الحالي
+        <input className={inputCls} value={blocker} maxLength={1000} onChange={e => setBlocker(e.target.value)} placeholder="مثال: بانتظار مستند الترخيص" />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-[11px] font-bold text-muted">تقبل علامة جديدة
+          <select className={selectCls} value={newBrands} onChange={e => setNewBrands(e.target.value)}>
+            <option value="">غير معروف</option><option value="true">نعم</option><option value="false">لا</option>
+          </select>
+        </label>
+        <label className="block text-[11px] font-bold text-muted">تقبل منتجات التجميل
+          <select className={selectCls} value={beauty} onChange={e => setBeauty(e.target.value)}>
+            <option value="">غير معروف</option><option value="true">نعم</option><option value="false">لا</option>
+          </select>
+        </label>
+      </div>
+      {err && <p role="alert" className="text-[11px] text-red-600">{err}</p>}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={save} disabled={saving} className="text-xs font-bold px-3 py-2 rounded-lg bg-teal text-navy disabled:opacity-50">
+          {saving ? 'جارٍ الحفظ…' : 'حفظ بيانات دخول السوق'}
+        </button>
+        {saved && <span className="text-[11px] text-green-700">✓ تم الحفظ</span>}
+      </div>
+    </section>
+  );
+}
+
+// داخل نافذة التفاصيل: إدارة التواصل مع مسار مستقل لفتح الحساب والمتابعة.
 function LeadManage({ lead, myName, onSaved }) {
   const a = useMemo(() => assess(lead), [lead]);
   return (
@@ -333,6 +410,7 @@ function LeadManage({ lead, myName, onSaved }) {
       <h4 className="text-xs font-extrabold text-text">تحديث الجهة والتواصل</h4>
       <NextStepRow lead={lead} />
       <ContactActions lead={lead} />
+      <MarketEntryEditor key={lead.id} lead={lead} onSaved={onSaved} />
       {a.track === 'channel' && <PresenceEditor lead={lead} myName={myName} onSaved={onSaved} />}
       <StatusEditor lead={lead} myName={myName} onSaved={onSaved} />
     </section>
