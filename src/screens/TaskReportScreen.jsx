@@ -1,248 +1,237 @@
 ﻿// =============================================================
-// TaskReportScreen — Task performance report by employee.
-// Tables: tasks, profiles
+// TaskReportScreen — outcome report (not just "% completed").
+// Tables: tasks, profiles, projects
+//
+// Two reads:
+//  • cohort   — tasks CREATED in the chosen month (completion / on-time /
+//               per-project / per-team). Month bounds are LOCAL calendar
+//               months (utils/taskDates.js) — never toISOString().
+//  • snapshot — everything still ACTIVE today (overdue age, stuck, no owner,
+//               no due date), independent of the month filter.
+// Sensitive tasks are excluded unless the viewer is an admin.
 // =============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Hero }                    from '@components/ui/Hero';
 import { Card, CardTitle, CardSubtitle } from '@components/ui/Card';
 import { StatCard }                from '@components/ui/StatCard';
 import { EmptyState }              from '@components/ui/EmptyState';
-import { useAuth }                 from '@hooks/useAuth';
+import { useAuthStore }            from '@stores/authStore';
 import { supabase }                from '@services/supabase';
 import { fetchAllRows }            from '@utils/fetchAllRows';
-import { localMonthKey }           from '@utils/monthKey.js';
+import { monthOptions, monthRange, daysOverdue, todayKey, AGE_BUCKETS } from '@modules/tasks/utils/taskDates';
+import { computeMetrics, ownerRows, visibleForReport } from '@modules/tasks/utils/taskMetrics';
+import { isOverdue, normalizeStatus, ownerId, STATUS_META_V3 } from '@modules/tasks/utils/taskWorkflow';
+import { TASKS_V3_STATUSES } from '@modules/tasks/utils/taskFlags';
 
-// ── Helpers ────────────────────────────────────────────────────
-function monthOptions() {
-  const opts = [];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = localMonthKey(d);
-    const label = d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { year: 'numeric', month: 'long' });
-    opts.push({ val, label });
-  }
-  return opts;
-}
+const BASE_COLS = 'id, title, status, assigned_to, assignee_id, due_date, created_at, completed_at, completion_note, team, project_id, is_sensitive, updated_at';
+const COLS = TASKS_V3_STATUSES ? `${BASE_COLS}, evidence, blocker, blocker_since` : BASE_COLS;
+const CLOSED = '(completed,done,cancelled,archived)';
 
-function pct(done, total) {
-  if (!total) return 0;
-  return Math.round((done / total) * 100);
-}
+const AGE_LABEL = { '1-3': '1–3 أيام', '4-7': '4–7 أيام', '8-14': '8–14 يوماً', '15+': 'أكثر من 15 يوماً' };
 
-function ProgressBar({ value, color = 'green' }) {
+function Bar({ value, tone = 'green' }) {
   const colors = { green: 'bg-green-500', amber: 'bg-amber-500', red: 'bg-red-500', blue: 'bg-blue-500' };
   return (
     <div className="h-2 bg-surface-alt rounded-full overflow-hidden mt-1.5">
-      <div className={colors[color] + ' h-full rounded-full transition-all'} style={{ width: value + '%' }} />
+      <div className={colors[tone] + ' h-full rounded-full transition-all'} style={{ width: Math.min(100, value) + '%' }} />
     </div>
   );
 }
 
-// ── Employee Row ───────────────────────────────────────────────
-function EmpRow({ emp }) {
-  const completionPct = pct(emp.done, emp.total);
-  const color = completionPct >= 80 ? 'green' : completionPct >= 50 ? 'amber' : 'red';
+const toneFor = (p) => (p >= 80 ? 'green' : p >= 50 ? 'amber' : 'red');
+
+function BreakdownRow({ row }) {
   return (
     <div className="py-3 border-b border-border last:border-0">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <p className="text-sm font-semibold text-text">{emp.name}</p>
-          <p className="text-xs text-muted">{emp.team || '—'}</p>
-        </div>
-        <span className={'text-sm font-bold ' + (color === 'green' ? 'text-green-600' : color === 'amber' ? 'text-amber-600' : 'text-red-600')}>
-          {completionPct}%
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-text truncate">{row.name}</p>
+        <span className="text-xs text-muted shrink-0">
+          {row.onTimeOf ? <>في الموعد <b className="text-text">{row.onTimePct}%</b></> : 'لا مهام مكتملة بموعد'}
         </span>
       </div>
-      <ProgressBar value={completionPct} color={color} />
-      <div className="flex gap-4 mt-2 text-xs text-muted">
-        <span>الكل: <b className="text-text">{emp.total}</b></span>
-        <span>✅ منجزة: <b className="text-green-600">{emp.done}</b></span>
-        <span>⏳ جارية: <b className="text-amber-600">{emp.inProgress}</b></span>
-        <span>⚠️ متأخرة: <b className="text-red-600">{emp.late}</b></span>
+      {row.onTimeOf > 0 && <Bar value={row.onTimePct} tone={toneFor(row.onTimePct)} />}
+      <div className="flex gap-4 mt-2 text-xs text-muted flex-wrap">
+        <span>الكل: <b className="text-text">{row.total}</b></span>
+        <span>مكتملة: <b className="text-green-600">{row.completed}</b></span>
+        <span>متأخرة: <b className="text-red-600">{row.overdue}</b></span>
       </div>
     </div>
   );
 }
 
-// ── Overdue task row ───────────────────────────────────────────
-function OverdueRow({ task }) {
-  const daysLate = task.due_date
-    ? Math.max(0, Math.floor((new Date() - new Date(task.due_date)) / 86400000))
-    : 0;
+function OwnerRow({ row }) {
+  return (
+    <div className="py-3 border-b border-border last:border-0 flex items-center justify-between gap-3">
+      <p className={'text-sm font-semibold truncate ' + (row.id === 'none' ? 'text-red-600' : 'text-text')}>{row.name}</p>
+      <div className="flex gap-3 text-xs text-muted shrink-0">
+        <span>نشطة <b className="text-text">{row.active}</b></span>
+        <span>متأخرة <b className="text-red-600">{row.overdue}</b></span>
+        <span>عالقة <b className="text-amber-600">{row.blocked}</b></span>
+      </div>
+    </div>
+  );
+}
+
+function OverdueRow({ task, ownerName, today }) {
+  const days = daysOverdue(task.due_date, today);
+  const st = STATUS_META_V3[normalizeStatus(task.status)];
   return (
     <div className="py-3 border-b border-border last:border-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text truncate">{task.title}</p>
-          <p className="text-xs text-muted mt-0.5">{task.employee_name || task.assigned_to || '—'}</p>
+          <p className="text-xs text-muted mt-0.5">{ownerName(ownerId(task))} · {st?.label}{task.blocker ? ` · ${task.blocker}` : ''}</p>
         </div>
-        <span className="text-xs font-bold text-red-600 shrink-0">+{daysLate} يوم</span>
+        <span className="text-xs font-bold text-red-600 shrink-0">+{days} يوم</span>
       </div>
     </div>
   );
 }
 
-// ── Main screen ────────────────────────────────────────────────
 export default function TaskReportScreen() {
-  const months = monthOptions();
-  const [month, setMonth]         = useState(months[0].val);
-  const [stats, setStats]         = useState({ total: 0, done: 0, late: 0, cancelled: 0 });
-  const [empRows, setEmpRows]     = useState([]);
-  const [overdue, setOverdue]     = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const months = useMemo(() => monthOptions(), []);
+  const [month, setMonth]       = useState(months[0].val);
+  const [cohort, setCohort]     = useState([]);
+  const [snapshot, setSnapshot] = useState([]);
+  const [profs, setProfs]       = useState({});
+  const [projects, setProjects] = useState({});
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
+  const isAdmin = useAuthStore((s) => (s.session?.role || s.session?.role_type) === 'admin');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const from = month + '-01';
-      const to   = new Date(new Date(from).getFullYear(), new Date(from).getMonth() + 1, 0)
-                     .toISOString().slice(0, 10);
-
-      const [taskRes, profRes] = await Promise.allSettled([
-        fetchAllRows(() => supabase
-          .from('tasks')
-          .select('id, title, status, assigned_to, due_date, created_at')
-          .gte('created_at', from + 'T00:00:00')
-          .lte('created_at', to + 'T23:59:59')),
+      const { fromIso, toIso } = monthRange(month);
+      const [cRes, sRes, pRes, prRes] = await Promise.allSettled([
+        fetchAllRows(() => supabase.from('tasks').select(COLS).gte('created_at', fromIso).lt('created_at', toIso)),
+        fetchAllRows(() => supabase.from('tasks').select(COLS).not('status', 'in', CLOSED)),
         fetchAllRows(() => supabase.from('profiles').select('id, employee_name, team')),
+        fetchAllRows(() => supabase.from('projects').select('id, name')),
       ]);
-
-      let tasks = [];
-      let profs = {};
-      if (taskRes.status === 'fulfilled') tasks = taskRes.value || [];
-      if (profRes.status === 'fulfilled') {
-        (profRes.value || []).forEach(p => { profs[p.id] = p; });
-      }
-
-      const now = new Date();
-      const isDone = (s) => s === 'done' || s === 'completed';
-      const enriched = tasks.map(t => ({
-        ...t,
-        isLate: !isDone(t.status) && t.status !== 'cancelled' && t.due_date && new Date(t.due_date) < now,
-        employee_name: profs[t.assigned_to]?.employee_name || t.assigned_to || '—',
-        team: profs[t.assigned_to]?.team || '—',
-      }));
-
-      // Overall stats
-      const total     = enriched.length;
-      const done      = enriched.filter(t => isDone(t.status)).length;
-      const late      = enriched.filter(t => t.isLate).length;
-      const cancelled = enriched.filter(t => t.status === 'cancelled').length;
-      setStats({ total, done, late, cancelled });
-
-      // Per-employee breakdown
-      const byEmp = {};
-      enriched.forEach(t => {
-        const key = t.assigned_to || 'unknown';
-        if (!byEmp[key]) byEmp[key] = {
-          id: key,
-          name: t.employee_name,
-          team: t.team,
-          total: 0, done: 0, inProgress: 0, late: 0,
-        };
-        byEmp[key].total++;
-        if (isDone(t.status)) byEmp[key].done++;
-        else if (t.status === 'in_progress') byEmp[key].inProgress++;
-        if (t.isLate) byEmp[key].late++;
-      });
-      const empList = Object.values(byEmp).sort((a, b) => {
-        const pa = pct(a.done, a.total);
-        const pb = pct(b.done, b.total);
-        return pb - pa;
-      });
-      setEmpRows(empList);
-
-      // Overdue tasks
-      setOverdue(enriched.filter(t => t.isLate).slice(0, 20));
+      if (cRes.status === 'rejected' && sRes.status === 'rejected') throw cRes.reason;
+      setCohort(visibleForReport(cRes.status === 'fulfilled' ? cRes.value : [], isAdmin));
+      setSnapshot(visibleForReport(sRes.status === 'fulfilled' ? sRes.value : [], isAdmin));
+      const pm = {}; (pRes.status === 'fulfilled' ? pRes.value : []).forEach((p) => { pm[p.id] = p; }); setProfs(pm);
+      const prm = {}; (prRes.status === 'fulfilled' ? prRes.value : []).forEach((p) => { prm[p.id] = p; }); setProjects(prm);
     } catch (e) {
       setError(e?.message || 'تعذّر تحميل البيانات');
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
-  const completionPct = pct(stats.done, stats.total);
+  const today = todayKey();
+  const nameOf = useCallback((id) => profs[id]?.employee_name || (id ? 'مستخدم غير معروف' : 'بلا مالك'), [profs]);
+  const projectName = useCallback((id) => (id ? projects[id]?.name || 'مشروع محذوف' : 'بلا مشروع'), [projects]);
+  const teamOf = useCallback((t) => t.team || profs[ownerId(t)]?.team || 'بلا فريق', [profs]);
+
+  const cohortM = useMemo(() => computeMetrics(cohort, { today, projectName, ownerTeam: teamOf }), [cohort, today, projectName, teamOf]);
+  const snapM   = useMemo(() => computeMetrics(snapshot, { today, projectName, ownerTeam: teamOf }), [snapshot, today, projectName, teamOf]);
+  const owners  = useMemo(() => ownerRows(snapshot, nameOf, today), [snapshot, nameOf, today]);
+  const overdueList = useMemo(
+    () => snapshot.filter((t) => isOverdue(t, today)).sort((a, b) => daysOverdue(b.due_date, today) - daysOverdue(a.due_date, today)).slice(0, 20),
+    [snapshot, today],
+  );
+
+  const v = (x) => (loading ? '—' : x);
 
   return (
     <div className="space-y-5">
-      <Hero
-        eyebrow="المهام"
-        title="تقرير المهام"
-        subtitle="تحليل أداء الفريق وإنجاز المهام."
-      />
+      <Hero eyebrow="المهام" title="تقرير المهام" subtitle="النتائج والالتزام بالمواعيد — لا نسبة الإكمال وحدها." />
 
-      {/* Month filter */}
       <div className="flex gap-3 items-center">
         <label className="text-xs font-semibold text-muted shrink-0">الفترة</label>
         <select
           value={month}
-          onChange={e => setMonth(e.target.value)}
+          onChange={(e) => setMonth(e.target.value)}
           className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-teal/40"
           dir="rtl"
         >
-          {months.map(m => (
-            <option key={m.val} value={m.val}>{m.label}</option>
-          ))}
+          {months.map((m) => <option key={m.val} value={m.val}>{m.label}</option>)}
         </select>
+        <span className="text-xs text-muted">الفترة تخص الإنجاز؛ بطاقات «الوضع الآن» لا تتأثر بها</span>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="إجمالي المهام"  value={loading ? '—' : stats.total}     tone="blue"  />
-        <StatCard label="✅ مكتملة"      value={loading ? '—' : stats.done}      tone="green" />
-        <StatCard label="⚠️ متأخرة"     value={loading ? '—' : stats.late}      tone="red"   />
-        <StatCard label="❌ ملغاة"       value={loading ? '—' : stats.cancelled} tone="amber" />
+      {error && <p className="text-sm text-red-500">⚠️ {error}</p>}
+
+      {/* الوضع الآن (لقطة المهام النشطة) */}
+      <p className="text-xs font-bold text-muted">الوضع الآن</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <StatCard label="⚠️ متأخرة"     value={v(snapM.overdueTotal)} tone={snapM.overdueTotal ? 'red' : 'default'} />
+        <StatCard label="⛔ عالقة"       value={v(snapM.blocked)}      tone={snapM.blocked ? 'amber' : 'default'} />
+        <StatCard label="💬 بانتظار رد"  value={v(snapM.waiting)}      tone="blue" />
+        <StatCard label="👤 بلا مالك"    value={v(snapM.noOwner)}      tone={snapM.noOwner ? 'red' : 'default'} />
+        <StatCard label="📅 بلا موعد"    value={v(snapM.noDue)}        tone={snapM.noDue ? 'amber' : 'default'} />
       </div>
 
-      {/* Overall completion */}
       <Card>
-        <CardTitle>نسبة الإنجاز الكلية</CardTitle>
+        <CardTitle>المتأخرة حسب العمر</CardTitle>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {AGE_BUCKETS.map((b) => (
+            <div key={b} className="rounded-xl bg-surface-alt p-3 text-center">
+              <div className={'text-xl font-extrabold tabular-nums ' + (snapM.overdueByAge[b] ? 'text-red-600' : 'text-muted')}>{v(snapM.overdueByAge[b])}</div>
+              <div className="text-[11px] text-muted mt-1">{AGE_LABEL[b]}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* إنجاز الفترة */}
+      <p className="text-xs font-bold text-muted">إنجاز الفترة (مهام أُنشئت في الشهر المختار)</p>
+      <Card>
+        <CardTitle>الإنجاز في الموعد</CardTitle>
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-2xl font-bold text-text">{loading ? '—' : completionPct + '%'}</span>
-            <span className="text-xs text-muted">{stats.done} من {stats.total} مهمة</span>
+            <span className="text-2xl font-bold text-text">{loading ? '—' : cohortM.onTime.ofWhich ? cohortM.onTime.pct + '%' : 'لا بيانات'}</span>
+            <span className="text-xs text-muted">{cohortM.onTime.done} من {cohortM.onTime.ofWhich} مهمة مكتملة بموعد</span>
           </div>
-          <ProgressBar
-            value={completionPct}
-            color={completionPct >= 80 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}
-          />
+          <Bar value={cohortM.onTime.pct} tone={toneFor(cohortM.onTime.pct)} />
+          <p className="text-xs text-muted mt-3">
+            أُغلقت بنتيجة موثقة: <b className="text-text">{v(cohortM.documentedClosed)}</b> من {v(cohortM.completed)} مكتملة
+            {' · '}إكمال خام (ثانوي): {v(cohortM.rawCompletionPct + '%')}
+          </p>
         </div>
       </Card>
 
-      {/* Employee performance */}
       <Card>
-        <CardTitle>أداء الموظفين</CardTitle>
-        <CardSubtitle>مرتّبون حسب نسبة الإنجاز</CardSubtitle>
-        <div className="mt-4">
-          {loading ? (
-            <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
-          ) : error ? (
-            <p className="text-sm text-red-500 py-2">⚠️ {error}</p>
-          ) : empRows.length === 0 ? (
-            <EmptyState description="لا توجد مهام مسجّلة في هذه الفترة" />
-          ) : (
-            empRows.map(emp => <EmpRow key={emp.id} emp={emp} />)
-          )}
+        <CardTitle>حسب المشروع</CardTitle>
+        <div className="mt-2">
+          {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
+            : cohortM.byProject.length === 0 ? <EmptyState description="لا توجد مهام في هذه الفترة" />
+            : cohortM.byProject.map((r) => <BreakdownRow key={r.name} row={r} />)}
         </div>
       </Card>
 
-      {/* Overdue tasks */}
+      <Card>
+        <CardTitle>حسب الفريق</CardTitle>
+        <div className="mt-2">
+          {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
+            : cohortM.byTeam.length === 0 ? <EmptyState description="لا توجد مهام في هذه الفترة" />
+            : cohortM.byTeam.map((r) => <BreakdownRow key={r.name} row={r} />)}
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>العبء والتعثّر لكل مالك</CardTitle>
+        <CardSubtitle>الأكثر تعثراً أولاً — وليس الأعلى إكمالاً</CardSubtitle>
+        <div className="mt-2">
+          {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
+            : owners.length === 0 ? <EmptyState description="لا مهام نشطة" />
+            : owners.map((r) => <OwnerRow key={r.id} row={r} />)}
+        </div>
+      </Card>
+
       <Card>
         <CardTitle>⚠️ المهام المتأخرة</CardTitle>
-        <CardSubtitle>مهام تجاوزت تاريخ الاستحقاق</CardSubtitle>
-        <div className="mt-4">
-          {loading ? (
-            <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
-          ) : overdue.length === 0 ? (
-            <EmptyState icon="🎉" description="لا توجد مهام متأخرة — عمل رائع!" />
-          ) : (
-            overdue.map(t => <OverdueRow key={t.id} task={t} />)
-          )}
+        <CardSubtitle>الأقدم أولاً</CardSubtitle>
+        <div className="mt-2">
+          {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
+            : overdueList.length === 0 ? <EmptyState icon="🎉" description="لا توجد مهام متأخرة" />
+            : overdueList.map((t) => <OverdueRow key={t.id} task={t} ownerName={nameOf} today={today} />)}
         </div>
       </Card>
     </div>

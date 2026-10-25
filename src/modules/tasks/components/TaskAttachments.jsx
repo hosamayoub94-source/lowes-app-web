@@ -18,7 +18,7 @@ const ALLOWED_TYPES = [
 ];
 
 // ── File type helpers ─────────────────────────────────────────
-function getFileMeta(filename, mimeType = '') {
+function getFileMeta(filename) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   if (['jpg','jpeg','png','gif','webp','svg','avif'].includes(ext)) return { icon: '🖼️', label: 'صورة', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/30' };
   if (['mp4','mov','avi','mkv','webm'].includes(ext)) return { icon: '🎬', label: 'فيديو', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/30' };

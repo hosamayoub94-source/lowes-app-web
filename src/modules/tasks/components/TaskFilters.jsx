@@ -14,7 +14,7 @@ import { STATUS_META, PRIORITY_META } from '../types/task.types';
 import { countActiveFilters } from '../utils/taskUtils';
 
 // ── Filter chip ───────────────────────────────────────────────
-function QuickChip({ active, onClick, children, tone = 'neutral' }) {
+function QuickChip({ active, onClick, children }) {
   return (
     <button
       type="button"

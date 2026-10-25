@@ -46,9 +46,4 @@ export async function addComment(taskId, author, comment) {
   return data;
 }
 
-export async function awardPoints(taskId, employeeName, points, reason) {
-  const { error } = await supabase
-    .from('task_points')
-    .insert({ task_id: taskId, employee_name: employeeName, points, reason });
-  if (error) throw error;
-}
+// awardPoints أُزيلت (D-158): النقاط تُمنح من trigger القاعدة فقط.

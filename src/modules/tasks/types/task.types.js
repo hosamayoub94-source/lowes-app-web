@@ -71,7 +71,8 @@ export function progressTone(pct) {
 }
 
 // ── Status options for select UI ─────────────────────────────
-export const STATUS_OPTIONS = Object.entries(STATUS_META).map(([value, meta]) => ({
+// «overdue» حالة مشتقة من الموعد (taskUtils.isOverdue) وليست حالة تُخزَّن — لا تُعرض للاختيار.
+export const STATUS_OPTIONS = Object.entries(STATUS_META).filter(([value]) => value !== 'overdue').map(([value, meta]) => ({
   value,
   label: `${meta.icon} ${meta.label}`,
 }));
@@ -120,17 +121,15 @@ export function getEmployeeLevel(points = 0) {
   return EMPLOYEE_LEVELS.find((l) => points >= l.min && points <= l.max) || EMPLOYEE_LEVELS[0];
 }
 
-/** Preview how many points a task would earn if completed now. */
+/**
+ * Preview of the points the DATABASE trigger (award_task_points) would give if the
+ * task were completed now: 15 when completed on/before its due day, otherwise 8.
+ * (No bonuses — the old client-side formula no longer exists.)
+ */
 export function calcTaskPointsPreview(task) {
-  if (!task) return 15;
-  const base = (() => {
-    if (!task.due_date) return 15;
-    const due = new Date(task.due_date + 'T23:59:59');
-    const hoursLeft = (due - new Date()) / 3_600_000;
-    if (hoursLeft >= 24) return 20;
-    if (hoursLeft >= 0)  return 15;
-    return 5;
-  })();
-  const bonus = { urgent: 5, high: 3, medium: 1, low: 0 };
-  return base + (bonus[task.priority] || 0);
+  const k = task?.due_date ? String(task.due_date).slice(0, 10) : null;
+  if (!k) return 8;
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return today <= k ? 15 : 8;
 }

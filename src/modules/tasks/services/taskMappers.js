@@ -13,6 +13,8 @@
 //   activity:task_activity(...)
 // =============================================================
 
+import { TASKS_V3_STATUSES } from '../utils/taskFlags';
+
 // -------------------------------------------------------------
 // Profile
 // -------------------------------------------------------------
@@ -97,6 +99,17 @@ export function mapTask(row) {
     project_id: row.project_id || null,
     is_sensitive: !!row.is_sensitive,
     tagged_ids: Array.isArray(row.tagged_ids) ? row.tagged_ids : [],
+    // مركز العمل — أعمدة الـmigration (null إلى أن تُطبَّق)
+    outcome: row.outcome || null,
+    next_step: row.next_step || null,
+    blocker: row.blocker || null,
+    blocker_since: row.blocker_since || null,
+    evidence: row.evidence || null,
+    review_requested_by: row.review_requested_by || null,
+    project_code: row.project_code || null,
+    decision_ref: row.decision_ref || null,
+    kpi_key: row.kpi_key || null,
+    status_changed_at: row.status_changed_at || null,
     assigned_to: mapProfile(row.assignee) || (row.assignee_id ? { id: row.assignee_id } : null) || (row.assigned_to ? { id: row.assigned_to, name: row.assigned_to } : null),
     created_by: mapProfile(row.creator) || (row.created_by ? { id: row.created_by } : null),
     seen: Array.isArray(row.seen_by) ? row.seen_by.length > 0 : !!row.seen,
@@ -113,6 +126,13 @@ export function mapTask(row) {
 // Reverse — UI patch → DB writable columns. Strips joins, counts,
 // derived state. Use before insert/update.
 // -------------------------------------------------------------
+// أعمدة supabase/tasks_ops_center_v1.sql — لا تُكتب قبل تطبيق الـmigration (ترفضها القاعدة).
+const V3_COLUMNS = [
+  'outcome', 'next_step', 'blocker', 'blocker_since', 'evidence',
+  'review_requested_by', 'project_code', 'decision_ref', 'kpi_key',
+  'status_changed_by', // ادّعاء العميل بمن غيّر الحالة (يقرؤه trigger التاريخ)
+];
+
 const WRITABLE = [
   'title', 'description', 'status', 'priority', 'progress',
   'due_date', 'due_time', 'completed_at',
@@ -121,6 +141,7 @@ const WRITABLE = [
   'link', 'team',
   'project_id', 'is_sensitive', 'tagged_ids',
   'assignee_id',
+  ...(TASKS_V3_STATUSES ? V3_COLUMNS : []),
 ];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -5,6 +5,7 @@
 // =============================================================
 
 import { TASK_STATUS } from '../types/task.types';
+import { dueKey, diffDays, todayKey } from './taskDates';
 
 // ── Date helpers ──────────────────────────────────────────────
 
@@ -15,7 +16,9 @@ const isFinishedStatus = (s) => s === TASK_STATUS.COMPLETED || s === 'done';
 export function isOverdue(task) {
   if (!task.due_date) return false;
   if (isFinishedStatus(task.status) || task.status === TASK_STATUS.CANCELLED) return false;
-  return new Date(task.due_date) < new Date();
+  // مقارنة بالتقويم المحلي (لا بلحظة UTC): موعد اليوم ليس متأخراً حتى ينتهي اليوم.
+  const k = dueKey(task.due_date);
+  return !!k && k < todayKey();
 }
 
 /** Compute effective status — auto-promotes to overdue when past due */
@@ -29,8 +32,7 @@ export function effectiveStatus(task) {
 /** Days remaining until due_date. Negative = overdue. */
 export function daysUntilDue(due_date) {
   if (!due_date) return null;
-  const diff = new Date(due_date).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return diffDays(todayKey(), dueKey(due_date));
 }
 
 /** Human-readable countdown label (Arabic) */
