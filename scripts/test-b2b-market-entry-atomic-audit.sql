@@ -47,7 +47,10 @@ begin
   if has_function_privilege('authenticated', 'public.b2b_update_market_entry_atomic(text,text,jsonb,text)', 'EXECUTE') then
     raise exception 'ASSERTION FAILED: authenticated can execute atomic RPC';
   end if;
-end $$;
+  if not has_function_privilege('service_role', 'public.b2b_update_market_entry_atomic(text,text,jsonb,text)', 'EXECUTE') then
+    raise exception 'ASSERTION FAILED: service_role cannot execute atomic RPC';
+  end if;
+end $;
 
 -- First-order timestamp is set once when entering first_order.
 set role service_role;
@@ -63,7 +66,10 @@ begin
   if v_first_order_at is null then
     raise exception 'ASSERTION FAILED: first_order_at was not populated';
   end if;
-end $$;
+  if (select count(*) from public.b2b_lead_events where lead_id = 'test-lead-1' and field_name = 'first_order_at') <> 1 then
+    raise exception 'ASSERTION FAILED: implicit first_order_at change was not audited';
+  end if;
+end $;
 
 -- Failure case: if event insertion fails, the lead update must roll back.
 create or replace function public.test_reject_b2b_event_insert()
@@ -75,7 +81,8 @@ create trigger test_reject_b2b_event_insert
 before insert on public.b2b_lead_events
 for each row execute function public.test_reject_b2b_event_insert();
 
-do $$
+set role service_role;
+do $
 begin
   begin
     perform public.b2b_update_market_entry_atomic(
@@ -91,9 +98,10 @@ begin
         raise;
       end if;
   end;
-end $$;
+end $;
+reset role;
 
-do $$
+do $
 begin
   if (select account_status from public.syria_b2b_leads where id = 'test-lead-1') <> 'first_order' then
     raise exception 'ASSERTION FAILED: row update was not rolled back after audit failure';
