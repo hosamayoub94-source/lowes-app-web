@@ -347,9 +347,10 @@ function MarketEntryEditor({ lead, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [auditWarning, setAuditWarning] = useState(false);
 
   const save = async () => {
-    setSaving(true); setErr(null); setSaved(false);
+    setSaving(true); setErr(null); setSaved(false); setAuditWarning(false);
     try {
       let requirements, requiredDocs, missingDocs;
       try {
@@ -373,8 +374,9 @@ function MarketEntryEditor({ lead, onSaved }) {
         required_documents: requiredDocs,
         missing_documents: missingDocs,
       };
-      await api.updateMarketEntry(lead.id, patch);
+      const result = await api.updateMarketEntry(lead.id, patch);
       setSaved(true);
+      setAuditWarning(result?.auditWarning === true);
       onSaved?.();
       setTimeout(() => setSaved(false), 1800);
     } catch (e) {
@@ -436,6 +438,7 @@ function MarketEntryEditor({ lead, onSaved }) {
         <textarea className={inputCls + " font-mono"} rows={3} value={missingDocsJson} onChange={e => setMissingDocsJson(e.target.value)} aria-label="المستندات الناقصة بصيغة JSON" />
       </details>
       {err && <p role="alert" className="text-[11px] text-red-600">{err}</p>}
+      {auditWarning && <p role="alert" className="text-[11px] text-amber-700">تم حفظ البيانات، لكن تعذّر تسجيل سجل التدقيق. لا تكرر الحفظ؛ يحتاج سجل التدقيق إلى إصلاح.</p>}
       <div className="flex items-center gap-2">
         <button type="button" onClick={save} disabled={saving} className="text-xs font-bold px-3 py-2 rounded-lg bg-teal text-navy disabled:opacity-50">
           {saving ? 'جارٍ الحفظ…' : 'حفظ بيانات دخول السوق'}
