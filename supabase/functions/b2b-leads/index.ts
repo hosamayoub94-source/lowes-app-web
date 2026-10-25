@@ -201,7 +201,7 @@ serve(async (req) => {
       const status = String(body?.status || "");
       if (!STATUSES.includes(status)) return json({ ok: false, error: "invalid status" }, 400);
       const existing = await ownRow(body?.id);
-      if (!existing) return json({ ok: false, error: "not_found" }, 404);
+      if (!existing || existing.deleted_at) return json({ ok: false, error: "not_found" }, 404);
       // The UI sends the current owner or the acting employee. Preserve an existing owner
       // when older clients omit assigned_to; do not allow arbitrary owner-name spoofing.
       const requestedOwner = cleanText(body?.assigned_to, 100);
@@ -242,6 +242,14 @@ serve(async (req) => {
         } else if (["registration_requirements","required_documents","missing_documents"].includes(key)) {
           if (!Array.isArray(value) || value.length > 100) return json({ ok: false, error: `invalid_${key}` }, 400);
           if (value.some((item) => !item || typeof item !== "object" || Array.isArray(item))) return json({ ok: false, error: `invalid_${key}_item` }, 400);
+          if (key === "registration_requirements") {
+            for (const item of value) {
+              if (item.item != null && typeof item.item !== "string") return json({ ok: false, error: "invalid_requirement_item" }, 400);
+              if (item.evidence != null && !["official", "secondary", "not_stated", "unconfirmed"].includes(String(item.evidence))) return json({ ok: false, error: "invalid_requirement_evidence" }, 400);
+              if (item.source != null && item.source !== "" && (typeof item.source !== "string" || !isUrl(item.source))) return json({ ok: false, error: "invalid_requirement_source" }, 400);
+              if (item.checked_at != null && item.checked_at !== "" && (typeof item.checked_at !== "string" || Number.isNaN(Date.parse(item.checked_at)))) return json({ ok: false, error: "invalid_requirement_checked_at" }, 400);
+            }
+          }
           patch[key] = value;
         } else if (key === "first_order_at" || key === "next_action_due_at") {
           if (value !== null && (typeof value !== "string" || Number.isNaN(Date.parse(value)))) return json({ ok: false, error: `invalid_${key}` }, 400);
@@ -289,7 +297,8 @@ serve(async (req) => {
       if (!PRESENCE.includes(presence)) return json({ ok: false, error: "invalid lowes_presence" }, 400);
       const url = cleanText(body?.lowes_listing_url, 400);
       if (url && !isUrl(url)) return json({ ok: false, error: "invalid lowes_listing_url", message: "الرابط لازم يبدأ بـhttp" }, 400);
-      if (!(await ownRow(body?.id))) return json({ ok: false, error: "not_found" }, 404);
+      const existing = await ownRow(body?.id);
+      if (!existing || existing.deleted_at) return json({ ok: false, error: "not_found" }, 404);
       const now = new Date().toISOString();
       const patch = { lowes_presence: presence, lowes_listing_url: url, presence_updated_at: now, presence_updated_by: actor, updated_at: now };
       const { data, error } = await admin.from(TABLE).update(patch).eq("id", body.id).eq("country", code).select("*").maybeSingle();
