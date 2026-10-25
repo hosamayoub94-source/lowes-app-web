@@ -44,7 +44,7 @@ export default function LeadDetailsModal({ lead, leads, country, onClose, childr
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs" data-testid="assessments">
-          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة:</b> {STAGE_AR[a.stage]} <span className="text-muted">· حالة تقديرية — لم تُحفظ بعد</span></div>
+          <div className="rounded-xl bg-surface-alt border border-border p-2"><b>المرحلة:</b> {STAGE_AR[a.stage]} <span className="text-muted">· {lead.account_status ? 'مرحلة محفوظة' : 'تقدير مؤقت — احفظها من قسم دخول السوق'}</span></div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>أولوية التنفيذ:</b> {EXEC_AR[a.exec.key]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>جودة المصدر:</b> {SOURCE_QUALITY_AR[a.source.level]}</div>
           <div className="rounded-xl bg-surface-alt border border-border p-2"><b>الفرصة:</b> {a.opportunity.value}/100</div>
@@ -66,8 +66,9 @@ export default function LeadDetailsModal({ lead, leads, country, onClose, childr
         <Sec title="الخطوة التالية والمسؤول">
           <Row k="المسؤول الداخلي" v={a.owner || 'لا مسؤول بعد'} />
           <Row k="حالة التواصل" v={STATUS_LABELS[lead.status || 'not_contacted']} />
-          <Row k="موعد المتابعة" v="غير مسجّل (يحتاج حقل next_action_due_at)" />
-          <Row k="العائق الحالي" v={a.exec.key === 'blocked' ? a.exec.why.join(' · ') : 'غير مسجّل (يحتاج حقل blocker)'} />
+          <Row k="الخطوة التالية" v={lead.next_action || 'غير مسجلة'} />
+          <Row k="موعد المتابعة" v={lead.next_action_due_at ? fmt(lead.next_action_due_at) : 'غير مسجل'} />
+          <Row k="العائق الحالي" v={lead.blocker || (a.exec.key === 'blocked' ? a.exec.why.join(' · ') : 'غير مسجل')} />
         </Sec>
 
         <Sec title="الجهة وقنوات البيع">
@@ -75,12 +76,34 @@ export default function LeadDetailsModal({ lead, leads, country, onClose, childr
           {lead.address && <Row k="العنوان" v={lead.address} />}
           <Row k="الشخص المسؤول عندهم" v={lead.contact_person || 'غير مسجّل'} />
           <Row k="تقبل بائعين" v={yn(lead.accepts_sellers)} />
+          <Row k="تقبل علامة جديدة" v={yn(lead.accepts_new_brands)} />
+          <Row k="تقبل منتجات التجميل" v={yn(lead.accepts_beauty_products)} />
           <Row k="تبيع تجميل/عناية" v={yn(lead.sells_beauty)} />
+          {lead.seller_registration_url && <Row k="رابط تسجيل البائع" v={<a className="underline text-teal" href={lead.seller_registration_url} target="_blank" rel="noreferrer">فتح ↗</a>} />}
+          {lead.supplier_contact_url && <Row k="تواصل الموردين" v={<a className="underline text-teal" href={lead.supplier_contact_url} target="_blank" rel="noreferrer">فتح ↗</a>} />}
           <Row k="تغطية التوصيل" v={lead.delivery_coverage} />
           <Row k="تواجد Lowe's" v={lead.lowes_presence} />
           {lead.lowes_listing_url && <Row k="صفحتنا عندهم" v={<a className="underline text-teal" href={lead.lowes_listing_url} target="_blank" rel="noreferrer">فتح ↗</a>} />}
           {chain && <Row k="سلسلة محتملة" v={`${chain.members.length} فروع مسجّلة عندنا (تجميع مشتق — غير مؤكَّد)`} />}
-          <Missing>رابط تسجيل البائع/المورّد، شروط التسجيل، المستندات المطلوبة والناقصة: غير مسجّلة بالنظام بعد (تحتاج حقولاً جديدة — migration مقترحة).</Missing>
+          {(!lead.seller_registration_url && !lead.supplier_contact_url && !(lead.registration_requirements || []).length && !(lead.required_documents || []).length) && <Missing>روابط التسجيل والشروط والمستندات غير مسجلة بعد؛ تبقى غير معروفة ولا تُفترض.</Missing>}
+          {(lead.registration_requirements || []).length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold text-muted">شروط التسجيل المسجلة</p>
+              <ul className="list-disc pr-4 space-y-1">
+                {lead.registration_requirements.map((r, i) => (
+                  <li key={r.item || i} className="text-[11px] text-text">
+                    <span className="font-bold">{r.item || 'شرط بلا اسم'}</span>
+                    {r.answer ? ` — ${r.answer}` : ''}
+                    {r.evidence ? ` · الدليل: ${r.evidence}` : ' · الدليل غير محدد'}
+                    {r.checked_at ? ` · تحقق: ${fmt(r.checked_at)}` : ' · تاريخ التحقق غير مسجل'}
+                    {r.source && <a className="underline text-teal mr-1" href={r.source} target="_blank" rel="noreferrer">المصدر ↗</a>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(lead.required_documents || []).length > 0 && <Row k="المستندات المطلوبة" v={lead.required_documents.map(d => typeof d === 'string' ? d : d.item || d.name || JSON.stringify(d)).join('، ')} />}
+          {(lead.missing_documents || []).length > 0 && <Row k="المستندات الناقصة" v={lead.missing_documents.map(d => typeof d === 'string' ? d : d.item || d.name || JSON.stringify(d)).join('، ')} />}
         </Sec>
 
         <Sec title="بيانات الاتصال">
