@@ -12,14 +12,21 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { resolvePermissions } from '@data/permissions';
+import { hidesSalesScreens } from '@data/salesAccess';
 import { ROUTES } from './paths';
 
-export function ProtectedRoute({ children, roles, perm }) {
-  const { isAuthenticated, role, session } = useAuth();
+// `blockMediaStaff` — شاشات المبيعات (طلبات/عملاء) مقفولة عن موظفي فريق
+// الميديا حتى لو فُتح الرابط مباشرة؛ نفس شرط إخفائها بالقائمة (salesAccess.js).
+export function ProtectedRoute({ children, roles, perm, blockMediaStaff = false }) {
+  const { isAuthenticated, role, team, session } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
+  }
+
+  if (blockMediaStaff && hidesSalesScreens(role, team, resolvePermissions(session))) {
+    return <Navigate to={ROUTES.HOME} replace />;
   }
 
   const roleOk = !roles || roles.length === 0 || roles.includes(role);

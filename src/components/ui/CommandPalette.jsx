@@ -22,7 +22,7 @@ function norm(s) {
 
 export default function CommandPalette({ open, onClose }) {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, team } = useAuth();
   const { permissions } = usePermissions();
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
   const [query, setQuery] = useState('');
@@ -30,7 +30,7 @@ export default function CommandPalette({ open, onClose }) {
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
-  const allItems = useMemo(() => navItemsForRole(role, permissions), [role, permissions]);
+  const allItems = useMemo(() => navItemsForRole(role, permissions, team), [role, permissions, team]);
 
   const results = useMemo(() => {
     const q = norm(query);

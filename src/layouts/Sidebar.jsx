@@ -16,10 +16,10 @@ import { ROLE_LABELS } from '@data/teams';
 export function Sidebar() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const closeSidebar = useUiStore((s) => s.closeSidebar);
-  const { role, name, avatar_url, logout } = useAuth();
+  const { role, team, name, avatar_url, logout } = useAuth();
   const { permissions } = usePermissions();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const groups = groupedNavForRole(role, permissions);
+  const groups = groupedNavForRole(role, permissions, team);
   const { pathname } = useLocation();
   const roleLabel = ROLE_LABELS[role] || role || '';
 

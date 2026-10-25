@@ -8,6 +8,7 @@
 // =============================================================
 import { ROLES } from './teams';
 import { PERMISSIONS as P } from './permissions';
+import { hidesSalesScreens, MEDIA_HIDDEN_NAV_IDS } from './salesAccess';
 
 const E   = ROLES.EMPLOYEE;
 const M   = ROLES.MANAGER;
@@ -138,15 +139,17 @@ export function navItemMatches(item, pathname) {
   return (item.match || []).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export function navItemsForRole(role, permSet = null) {
+export function navItemsForRole(role, permSet = null, team = null) {
   if (!role) return [];
-  return NAV_ITEMS.filter((item) => _visible(item, role, permSet));
+  const hideSales = hidesSalesScreens(role, team, permSet);
+  return NAV_ITEMS.filter((item) =>
+    _visible(item, role, permSet) && !(hideSales && MEDIA_HIDDEN_NAV_IDS.has(item.id)));
 }
 
 // Grouped view for the sidebar: [{ key, label, items }] in GROUP_ORDER,
 // skipping empty groups. Pass the user's permission set to reveal granted tools.
-export function groupedNavForRole(role, permSet = null) {
-  const items = navItemsForRole(role, permSet);
+export function groupedNavForRole(role, permSet = null, team = null) {
+  const items = navItemsForRole(role, permSet, team);
   return GROUP_ORDER
     .map((key) => ({ key, label: NAV_GROUPS[key], items: items.filter((i) => i.group === key) }))
     .filter((g) => g.items.length > 0);
@@ -168,11 +171,11 @@ const ROLE_BOTTOM_TABS = {
   [ROLES.MARKETING_MANAGER]: ['workspace', 'social-calendar', 'prompt-studio', 'media-buyer', 'tasks'],
 };
 
-export function bottomTabsForRole(role, permSet = null, userMarket = null) {
+export function bottomTabsForRole(role, permSet = null, userMarket = null, team = null) {
   if (!role) return [];
   // «orders» في الشريط السفلي = ماكنة سوق المستخدم (سوريا/تركيا).
   const ordersId = `orders-${userMarket === 'syria' || userMarket === 'uae' ? userMarket : 'turkey'}`;
-  const all = navItemsForRole(role, permSet);
+  const all = navItemsForRole(role, permSet, team);
   const byId = Object.fromEntries(all.map(i => [i.id, i]));
   const curated = ROLE_BOTTOM_TABS[role];
   if (curated) {

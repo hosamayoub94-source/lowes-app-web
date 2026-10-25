@@ -10,13 +10,13 @@ import { useFavorites } from '@hooks/useFavorites';
 import { navItemsForRole } from '@data/navigation';
 
 export default function FavoritesQuickAccess() {
-  const { role } = useAuth();
+  const { role, team } = useAuth();
   const { permissions } = usePermissions();
   const { favorites } = useFavorites();
 
   if (!favorites.length) return null;
 
-  const items = navItemsForRole(role, permissions);
+  const items = navItemsForRole(role, permissions, team);
   const byId = Object.fromEntries(items.map(i => [i.id, i]));
   const fav = favorites.map(id => byId[id]).filter(Boolean);
   if (!fav.length) return null;

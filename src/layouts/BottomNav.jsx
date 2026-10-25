@@ -11,7 +11,7 @@ export function BottomNav() {
   const { role, order_market, team } = useAuth();
   const { permissions } = usePermissions();
   const userMarket = order_market ?? (team && String(team).includes('سوريا') ? 'syria' : null);
-  const tabs = bottomTabsForRole(role, permissions, userMarket);
+  const tabs = bottomTabsForRole(role, permissions, userMarket, team);
   if (!tabs.length) return null;
 
   return (

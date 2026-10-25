@@ -251,7 +251,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.CUSTOMERS}
             element={
-              <ProtectedRoute roles={ALL_ROLES.filter(r => r !== ROLES.SOCIAL_MANAGER)}>
+              <ProtectedRoute roles={ALL_ROLES.filter(r => r !== ROLES.SOCIAL_MANAGER)} blockMediaStaff>
                 <CustomersScreen />
               </ProtectedRoute>
             }
@@ -445,10 +445,10 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path={ROUTES.ORDERS}         element={<OrdersRedirect />} />
-          <Route path={ROUTES.ORDERS_SYRIA}   element={<OrdersScreen forcedMarket="syria" />} />
-          <Route path={ROUTES.ORDERS_TURKEY}  element={<OrdersScreen forcedMarket="turkey" />} />
-          <Route path={ROUTES.ORDERS_UAE}     element={<OrdersScreen forcedMarket="uae" />} />
+          <Route path={ROUTES.ORDERS}         element={<ProtectedRoute blockMediaStaff><OrdersRedirect /></ProtectedRoute>} />
+          <Route path={ROUTES.ORDERS_SYRIA}   element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="syria" /></ProtectedRoute>} />
+          <Route path={ROUTES.ORDERS_TURKEY}  element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="turkey" /></ProtectedRoute>} />
+          <Route path={ROUTES.ORDERS_UAE}     element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="uae" /></ProtectedRoute>} />
           <Route path="/mystery-shopper" element={
             <ProtectedRoute roles={MANAGEMENT}>
               <MysteryShopperScreen />
