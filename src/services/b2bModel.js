@@ -109,8 +109,8 @@ export const STAGE_AR = {
   documents_requested: 'طُلبت مستندات', application_started: 'بدأ التقديم', submitted: 'قُدّم الطلب', pending_approval: 'بانتظار الموافقة',
   approved: 'حساب موافَق عليه', live: 'حساب مفتوح/نشط', first_order: 'أول طلب', rejected: 'مرفوضة / غير مهتمة', paused: 'موقوفة',
 };
-// المراحل التي لا يمكن اشتقاقها من الأعمدة الحالية (تحتاج حقل account_status — migration مقترحة، لم تُطبَّق).
-export const UNTRACKED_STAGES = ['documents_requested', 'application_started', 'submitted', 'pending_approval', 'approved', 'paused'];
+// All pipeline stages are persistable through update_market_entry once migration 20261025140000 is applied.
+export const UNTRACKED_STAGES = [];
 
 /**
  * طبقة التوافق: المرحلة المشتقّة من (status القديم + lowes_presence + جودة المصدر + الاتصال).
@@ -135,7 +135,7 @@ const STAGE_TO_LEGACY = {
 };
 /** القيمة المسموحة بالدالة/الجدول لمرحلة معيّنة، أو null إن كانت المرحلة تحتاج migration (لا تُكتب). */
 export const toLegacyStatus = (stage) => STAGE_TO_LEGACY[stage] ?? null;
-export const isPersistableStage = (stage) => toLegacyStatus(stage) !== null;
+export const isPersistableStage = (stage) => PIPELINE.includes(stage);
 
 // ───────────────────────────── التقييمات الخمسة ─────────────────────────────
 const OPP_BASE = { marketplace: 30, chain: 30, quick_commerce: 25, distributor: 25, online_store: 20, pharmacy: 20, beauty_center: 20, retail_store: 20, other: 5 };
