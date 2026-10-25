@@ -169,7 +169,7 @@ serve(async (req) => {
     const code = String(body?.country || "").toUpperCase();
     const c = COUNTRIES[code];
     // Syria (legacyDirect) keeps its direct path for everything EXCEPT `import` (file import, inserts only — the old path has no bulk insert).
-    const served = !!c && c.enabled && !!c.leadsPermission && (!c.legacyDirect || action === "import");
+    const served = !!c && c.enabled && !!c.leadsPermission && (!c.legacyDirect || action === "import" || action === "update_market_entry");
     if (!served) return json({ ok: false, error: "country_not_served" }, 400);
 
     const isAdmin = profile.role_type === "admin";
@@ -187,12 +187,12 @@ serve(async (req) => {
     const ownRow = async (id: unknown) => {
       const sid = cleanText(id, 100);
       if (!sid) return null;
-      const { data } = await admin.from(TABLE).select("id,country,assigned_to").eq("id", sid).maybeSingle();
+      const { data } = await admin.from(TABLE).select("*").eq("id", sid).maybeSingle();
       return data && data.country === code ? data : null;
     };
 
     if (action === "list") {
-      const { data, error } = await admin.from(TABLE).select("*").eq("country", code).order("score", { ascending: false });
+      const { data, error } = await admin.from(TABLE).select("*").eq("country", code).is("deleted_at", null).order("score", { ascending: false });
       if (error) return json({ ok: false, error: "read failed" }, 500);
       return json({ ok: true, country: code, rows: data ?? [] });
     }
@@ -213,6 +213,74 @@ serve(async (req) => {
       const patch = { status, notes: cleanText(body?.notes, 1000), assigned_to, status_updated_at: now, status_updated_by: actor, updated_at: now };
       const { data, error } = await admin.from(TABLE).update(patch).eq("id", body.id).eq("country", code).select("*").maybeSingle();
       if (error || !data) return json({ ok: false, error: "update failed" }, 500);
+      return json({ ok: true, row: data });
+    }
+
+    if (action === "update_market_entry") {
+      const id = cleanText(body?.id, 100);
+      const existing = await ownRow(id);
+      if (!existing || existing.deleted_at) return json({ ok: false, error: "not_found" }, 404);
+      const input = body?.patch;
+      if (!input || typeof input !== "object" || Array.isArray(input)) return json({ ok: false, error: "invalid_patch" }, 400);
+      const allowed = new Set([
+        "account_status","first_order_at","next_action","next_action_due_at","blocker","parent_organization_id",
+        "accepts_new_brands","accepts_beauty_products","seller_registration_url","supplier_contact_url",
+        "registration_requirements","required_documents","missing_documents","contact_role","contact_source",
+      ]);
+      const keys = Object.keys(input);
+      if (!keys.length || keys.some((key) => !allowed.has(key))) return json({ ok: false, error: "invalid_patch_field" }, 400);
+      const stages = ["discovered","qualified","contact_needed","contacted","replied","documents_requested","application_started","submitted","pending_approval","approved","live","first_order","rejected","paused"];
+      const patch: Row = {};
+      for (const key of keys) {
+        const value = input[key];
+        if (key === "account_status") {
+          if (value !== null && !stages.includes(String(value))) return json({ ok: false, error: "invalid_account_status" }, 400);
+          patch[key] = value;
+        } else if (key === "accepts_new_brands" || key === "accepts_beauty_products") {
+          if (value !== null && typeof value !== "boolean") return json({ ok: false, error: `invalid_${key}` }, 400);
+          patch[key] = value;
+        } else if (["registration_requirements","required_documents","missing_documents"].includes(key)) {
+          if (!Array.isArray(value) || value.length > 100) return json({ ok: false, error: `invalid_${key}` }, 400);
+          if (value.some((item) => !item || typeof item !== "object" || Array.isArray(item))) return json({ ok: false, error: `invalid_${key}_item` }, 400);
+          patch[key] = value;
+        } else if (key === "first_order_at" || key === "next_action_due_at") {
+          if (value !== null && (typeof value !== "string" || Number.isNaN(Date.parse(value)))) return json({ ok: false, error: `invalid_${key}` }, 400);
+          patch[key] = value;
+        } else if (key === "seller_registration_url" || key === "supplier_contact_url") {
+          const v = cleanText(value, 500);
+          if (v && !isUrl(v)) return json({ ok: false, error: `invalid_${key}` }, 400);
+          patch[key] = v;
+        } else if (key === "parent_organization_id") {
+          const parentId = cleanText(value, 100);
+          if (parentId) {
+            if (parentId === id) return json({ ok: false, error: "parent_cannot_be_self" }, 400);
+            const parent = await ownRow(parentId);
+            if (!parent || parent.deleted_at) return json({ ok: false, error: "invalid_parent_organization" }, 400);
+          }
+          patch[key] = parentId;
+        } else {
+          patch[key] = cleanText(value, key === "next_action" || key === "blocker" ? 1000 : 300);
+        }
+      }
+      if (patch.account_status === "first_order" && !("first_order_at" in patch) && !existing.first_order_at) {
+        patch.first_order_at = new Date().toISOString();
+      }
+      const now = new Date().toISOString();
+      patch.updated_at = now;
+      const { data, error } = await admin.from(TABLE).update(patch).eq("id", id).eq("country", code).is("deleted_at", null).select("*").maybeSingle();
+      if (error || !data) return json({ ok: false, error: "market_entry_update_failed" }, 500);
+      const events = keys.filter((key) => JSON.stringify(existing[key] ?? null) !== JSON.stringify(data[key] ?? null)).map((key) => ({
+        lead_id: id, actor, kind: "market_entry_update", field_name: key,
+        from_value: existing[key] == null ? null : (typeof existing[key] === "string" ? existing[key] : JSON.stringify(existing[key])),
+        to_value: data[key] == null ? null : (typeof data[key] === "string" ? data[key] : JSON.stringify(data[key])),
+      }));
+      if (events.length) {
+        const { error: eventError } = await admin.from("b2b_lead_events").insert(events);
+        if (eventError) {
+          console.error("b2b market entry event insert failed", { leadId: id, code: eventError.code });
+          return json({ ok: true, row: data, audit_warning: true });
+        }
+      }
       return json({ ok: true, row: data });
     }
 
