@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { approachOf, isSellerGate, orgTypeOf } from '../src/services/b2bModel.js';
+import { approachOf, isPersistableStage, isSellerGate, orgTypeOf, stageOf } from '../src/services/b2bModel.js';
 
 const cases = [
   {
@@ -38,4 +38,9 @@ for (const c of cases) {
   assert.equal(isSellerGate(c.lead), c.sellerGate, c.name + ': seller gate');
 }
 
-console.log(`B2B marketplace classification: ${cases.length} cases passed`);
+const persistedLead = { lead_type: 'online', channel: 'marketplace', category: 'منصة', account_status: 'pending_approval', status: 'contacted' };
+assert.equal(stageOf(persistedLead), 'pending_approval', 'persisted account_status must take precedence over derived legacy status');
+assert.equal(isPersistableStage('pending_approval'), true, 'all market-entry stages should be persistable');
+assert.equal(isPersistableStage('not_a_stage'), false, 'unknown stages must be rejected');
+
+console.log(`B2B marketplace classification: ${cases.length} cases + persisted-stage checks passed`);
