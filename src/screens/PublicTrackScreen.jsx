@@ -23,16 +23,23 @@ export default function PublicTrackScreen() {
   useEffect(() => {
     let cancelled = false;
     setOrder(undefined);
-    supabase
-      .from('orders')
-      .select('order_id, status, shipping_company, tracking_number, customer_name, market, updated_at')
-      .eq('order_id', orderCode)
-      .maybeSingle()
-      .then(({ data, error: err }) => {
-        if (cancelled) return;
-        if (err) { setError('صار خطأ بتحميل بيانات الطلب — حاولي كمان شوي.'); setOrder(null); return; }
-        setOrder(data || null);
-      });
+    // One order by its code, only the 7 customer-facing fields (RPC public_track_order, migration 20261027). Until that migration is
+    // live the RPC does not exist (PGRST202) and we fall back to the old direct read, so deploy order does not matter.
+    (async () => {
+      let { data, error: err } = await supabase.rpc('public_track_order', { p_code: String(orderCode ?? '') });
+      if (err && (err.code === 'PGRST202' || err.code === '42883')) {
+        ({ data, error: err } = await supabase
+          .from('orders')
+          .select('order_id, status, shipping_company, tracking_number, customer_name, market, updated_at')
+          .eq('order_id', orderCode)
+          .maybeSingle());
+      } else if (!err) {
+        data = Array.isArray(data) ? (data[0] ?? null) : data;
+      }
+      if (cancelled) return;
+      if (err) { setError('صار خطأ بتحميل بيانات الطلب — حاولي كمان شوي.'); setOrder(null); return; }
+      setOrder(data || null);
+    })();
     return () => { cancelled = true; };
   }, [orderCode]);
 

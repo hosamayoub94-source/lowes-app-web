@@ -5,6 +5,7 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@services/supabase';
+import { functionAuthHeaders } from '@services/functionHeaders';
 import { useAuth }  from '@hooks/useAuth';
 import { Link }     from 'react-router-dom';
 
@@ -33,12 +34,11 @@ function triggerQuizGeneration() {
   if (_quizGenFired) return;
   _quizGenFired = true;
   const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  fetch(`${url}/functions/v1/generate-quiz`, {
+  functionAuthHeaders().then((headers) => fetch(`${url}/functions/v1/generate-quiz`, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({}),
-  }).catch(() => {});
+  })).catch(() => {});
 }
 
 function formatDate(iso) {

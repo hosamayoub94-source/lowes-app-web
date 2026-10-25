@@ -15,6 +15,7 @@
 // المُخرَج: { ok, total, tracked, unchanged, matched, unmatched: [...], results }
 // ════════════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -28,7 +29,7 @@ const TERMINAL = ['delivered', 'returned', 'cancelled', 'settled'];
 const cleanId  = (s: unknown) => String(s ?? '').trim().replace(/-+$/, '').toUpperCase();
 const cleanTrk = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager','sales_manager'], orderRoles: ['fulfillment'], permissions: ['manage_orders'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (b: unknown, s = 200) =>
     new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });

@@ -35,6 +35,7 @@
 // instead of a manual fetch with the anon key.
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { canGrantRole, canManageTargetAccount } from '../_shared/employeeAdminPolicy.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -119,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
       // الدور النهائي + بوابة الهرمية
       const role = isSocial ? 'employee' : (role_type || 'employee');
-      if (allowed !== '*' && !allowed.includes(role)) {
+      if (!canGrantRole(requesterRole, role, allowed)) {
         return json({ ok: false, error: 'forbidden_role',
           message: `لا تملك صلاحية إنشاء حساب بدور «${role}»` }, 200);
       }
@@ -219,17 +220,11 @@ Deno.serve(async (req: Request) => {
     }
 
     // ───────────────────────── reset_pin ───────────────────────────
+    // D-090 · step 2: PIN changes moved to the pin-change Edge Function (the
+    // single path that keeps profiles.pin and the Auth password in sync).
+    // This action had no UI caller; it now refuses instead of writing the PIN.
     if (action === 'reset_pin') {
-      if (!target_id) return json({ ok: false, error: 'target_required' }, 200);
-      const guard = await assertCanManageTarget(supabase, requesterRole, requesterId, target_id, isSocial, allowed);
-      if (!guard.ok) return json(guard, 200);
-
-      const newPin = (pin && /^\d{4,6}$/.test(String(pin))) ? String(pin) : randomPin();
-      const { data, error } = await supabase.from('profiles')
-        .update({ pin: newPin }).eq('id', target_id).select('id,employee_name').single();
-      if (error) return json({ ok: false, error: 'db', message: error.message }, 200);
-      await audit('reset_pin', target_id, data.employee_name, {});
-      return json({ ok: true, action, profile: data, pin: newPin }, 200);
+      return json({ ok: false, error: 'moved', message: 'PIN changes use the pin-change function' }, 410);
     }
 
     // ───────────────────────── move_group ──────────────────────────
@@ -254,7 +249,7 @@ Deno.serve(async (req: Request) => {
       const patch: Record<string, unknown> = {};
       if (employee_name?.trim()) patch.employee_name = employee_name.trim();
       if (role_type) {
-        if (allowed !== '*' && !allowed.includes(role_type))
+        if (!canGrantRole(requesterRole, role_type, allowed))
           return json({ ok: false, error: 'forbidden_role', message: `لا تملك صلاحية تعيين دور «${role_type}»` }, 200);
         patch.role_type = role_type;
         const st = MLM_ROLES.includes(role_type) ? 'marketer' : FIELD_ROLES.includes(role_type) ? 'field_rep' : 'online';
@@ -277,6 +272,8 @@ Deno.serve(async (req: Request) => {
       // الحذف النهائي للأدمن/المدير فقط (إجراء خطير)
       if (!['admin', 'manager'].includes(requesterRole))
         return json({ ok: false, error: 'forbidden', message: 'الحذف النهائي للأدمن/المدير فقط' }, 200);
+      const delGuard = await assertCanManageTarget(supabase, requesterRole, requesterId, target_id, isSocial, allowed);
+      if (!delGuard.ok) return json(delGuard, 200);
       const { data: t } = await supabase.from('profiles').select('employee_name').eq('id', target_id).maybeSingle();
       const { error } = await supabase.from('profiles').delete().eq('id', target_id);
       if (error) return json({ ok: false, error: 'db', message: 'تعذّر الحذف (قد يكون مرتبطاً بطلبات). ' + error.message }, 200);
@@ -299,16 +296,7 @@ async function assertCanManageTarget(
 ): Promise<{ ok: boolean; error?: string; message?: string }> {
   const { data: t } = await supabase.from('profiles')
     .select('role_type,team').eq('id', targetId).maybeSingle();
-  if (!t) return { ok: false, error: 'not_found', message: 'الحساب غير موجود' };
-
-  if (isSocial) {
-    if (t.team !== 'ميديا' || t.role_type !== 'employee')
-      return { ok: false, error: 'forbidden', message: 'يمكنك إدارة موظفي السوشال فقط' };
-    return { ok: true };
-  }
-  if (allowed !== '*' && !allowed.includes(t.role_type))
-    return { ok: false, error: 'forbidden', message: `لا تملك صلاحية إدارة دور «${t.role_type}»` };
-  return { ok: true };
+  return canManageTargetAccount(requesterRole, t, allowed, isSocial);
 }
 
 function json(b: unknown, status: number) {

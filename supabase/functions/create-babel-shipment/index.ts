@@ -9,6 +9,7 @@
 //   BABEL_API_USER / BABEL_API_PASS — نفس بيانات دخول لوحة تحكم بابل (Lowes Profesyonel)
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -190,4 +191,4 @@ export async function handler(req: Request): Promise<Response> {
   }
 }
 
-Deno.serve(handler);
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager','sales_manager'], orderRoles: ['fulfillment'], permissions: ['manage_orders'] }, handler);

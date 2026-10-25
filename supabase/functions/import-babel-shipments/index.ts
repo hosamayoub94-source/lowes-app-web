@@ -6,6 +6,7 @@
 // الجسم: { shipments: [{awb, name, dest?, date?, status?}] }
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
@@ -36,7 +37,7 @@ function parseDate(d: string): number {
   return new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00Z`).getTime();
 }
 
-Deno.serve(async (req) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager','sales_manager'], orderRoles: ['fulfillment'], permissions: ['manage_orders'] }, async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 

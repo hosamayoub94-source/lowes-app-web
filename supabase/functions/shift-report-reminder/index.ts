@@ -21,6 +21,7 @@
 // =============================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serveGuarded } from '../_shared/serveGuarded.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -46,7 +47,7 @@ const toMin = (hhmm: string | null | undefined): number | null => {
   return (isNaN(h) || isNaN(m)) ? null : h * 60 + m;
 };
 
-Deno.serve(async (req: Request) => {
+serveGuarded({ kinds: ['service','user'], roles: ['admin','manager'] }, async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

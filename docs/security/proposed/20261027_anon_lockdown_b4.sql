@@ -1,0 +1,4 @@
+-- 20261027_anon_lockdown_b4.sql -- anon (public app key, no login) loses ALL access to: backup / archive / counter tables (RLS-on-no-policy today; grants removed so they cannot become exposed by one policy).
+-- 9 tables. Authenticated users are unaffected. Exact rollback: select public.security_restore_anon('b4');
+-- Prerequisites: 20261027_anon_lockdown_toolkit.sql; the client release that purges manual sessions is live and the last 7 days show 0 manual-session logins.
+select public.security_revoke_anon('b4', array['accounting_entries_bak_0006', 'activity_logs_archive', 'ad_campaigns_backup_20260607', 'attribution_record', 'handler_name_backup_20260607', 'order_code_counters', 'zz_bak_product_economics_20261018', 'zz_bak_product_economics_history_20261018', 'zz_bak_product_name_map_20261018']);

@@ -1,0 +1,9 @@
+-- Rollback note for 20261026_cron_service_key_calls.sql
+-- The new jobs authenticate with the service key; that is accepted by guarded AND unguarded versions of the functions, so the cron
+-- change itself never needs to be undone to roll the functions back. If you really want the old (public-key / no-credential) calls:
+-- take the key from your environment, never from this file, and run for each job:
+--   select cron.alter_job(job_id := <jobid>, command := $$select net.http_post(url := 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/<slug>',
+--           headers := jsonb_build_object('Authorization','Bearer <PUBLIC_KEY>','Content-Type','application/json'), body := '{}'::jsonb)$$);
+-- (shift-report-reminder originally sent only 'Content-Type'.)
+-- Cleanup of the helper, only after no job references it:
+--   drop function if exists public.run_cron_function(text, integer);

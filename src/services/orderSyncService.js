@@ -6,9 +6,9 @@
 // بيانات العميل + الأصناف تفوز من التطبيق. هذه الخدمة تكتب من جهة التطبيق فقط.
 // =============================================================
 import { supabase, supabaseAnon } from './supabase';
+import { functionAuthHeaders } from './functionHeaders';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const SYNCABLE_MARKETS = ['syria', 'turkey', 'uae'];
 export const isSyncable = (o) => o && SYNCABLE_MARKETS.includes(o.market) && o.archived !== true && !o.deleted_at;
@@ -21,7 +21,7 @@ async function callSyncFn(orderId) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/sync-order-to-sheet`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+      headers: await functionAuthHeaders(),
       body: JSON.stringify({ orderId }),
     });
     let body = null;

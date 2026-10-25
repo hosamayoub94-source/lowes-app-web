@@ -5,6 +5,8 @@ import fs from 'node:fs';
 
 const authService = fs.readFileSync('src/services/authService.js', 'utf8');
 const verifyPin = fs.readFileSync('supabase/functions/verify-pin/index.ts', 'utf8');
+// The credential logic moved to handler.ts (audit 2026-10) so it can be tested without a network; index.ts is the HTTP shell.
+const handler = fs.readFileSync('supabase/functions/verify-pin/handler.ts', 'utf8');
 const limiter = fs.readFileSync('supabase/functions/_shared/pinRateLimit.js', 'utf8');
 
 const checks = [
@@ -15,11 +17,11 @@ const checks = [
   [
     'PIN endpoint rejects non-POST methods before processing credentials',
     verifyPin.indexOf("if (req.method !== 'POST')") > verifyPin.indexOf("if (req.method === 'OPTIONS')") &&
-      verifyPin.indexOf("if (req.method !== 'POST')") < verifyPin.indexOf('const { employeeName, pin } = await req.json();'),
+      verifyPin.indexOf("if (req.method !== 'POST')") < verifyPin.indexOf('await req.json()'),
   ],
   [
     'Non-POST response uses stable method_not_allowed code and HTTP 405',
-    verifyPin.includes("error: 'method_not_allowed'") && verifyPin.includes('status: 405'),
+    verifyPin.includes("error: 'method_not_allowed'") && /method_not_allowed'\s*\},\s*405/.test(verifyPin),
   ],
   [
     'Unexpected PIN endpoint errors use a stable server_error response',
@@ -32,8 +34,8 @@ const checks = [
   ],
   [
     'Successful PIN response strips the stored PIN before returning profile data',
-    verifyPin.includes('const { pin: _omit, ...safeProfile } = profile;') &&
-      verifyPin.includes('return json({ ok: true, profile: safeProfile, authIdentity }, 200);'),
+    handler.includes('const { pin: _omit, ...safeProfile } = profile;') &&
+      /res\(200,\s*\{\s*ok:\s*true,\s*profile:\s*safeProfile,\s*authIdentity/.test(handler),
   ],
   [
     'PIN limiter is opt-in unless explicitly enabled',
@@ -41,13 +43,13 @@ const checks = [
   ],
   [
     'Enabled limiter runs before the profile lookup',
-    verifyPin.indexOf('checkPinRateLimit({') >= 0 &&
-      verifyPin.indexOf('checkPinRateLimit({') < verifyPin.indexOf(".from('profiles')"),
+    verifyPin.includes('checkPinRateLimit({') && handler.indexOf('deps.limiter(') >= 0 &&
+      handler.indexOf('deps.limiter(') < handler.indexOf(".from('profiles')"),
   ],
   [
     'Limiter infrastructure failure fails closed without exposing details',
-    verifyPin.includes("rateLimitDecision.reason === 'unavailable'") &&
-      verifyPin.includes("return json({ ok: false, error: 'server_error' }, 503);"),
+    handler.includes("lim.reason === 'unavailable'") &&
+      handler.includes("res(503, { ok: false, error: 'server_error' })"),
   ],
   [
     'Source limiter trusts only cf-connecting-ip, not X-Forwarded-For',
