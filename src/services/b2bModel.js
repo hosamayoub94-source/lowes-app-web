@@ -31,7 +31,9 @@ export function orgTypeOf(lead) {
   const cat = String(lead?.category || '');
   const ch = String(lead?.channel || '');
   if (/سريع|توصيل/.test(cat)) return 'quick_commerce';
-  if (/منصة/.test(cat) || ch === 'marketplace' || ch === 'app') return 'marketplace';
+  // An app is only a delivery surface, not proof of a multi-seller marketplace.
+  // Require an explicit marketplace channel/category; otherwise online apps remain direct stores.
+  if (/منصة/.test(cat) || ch === 'marketplace') return 'marketplace';
   if (/سلسلة/.test(cat)) return 'chain';
   if (lead?.lead_type === 'online') return 'online_store';
   if (/موزّع|موزع|مورد/.test(cat) && !/مستحضرات/.test(cat)) return 'distributor';
@@ -107,14 +109,15 @@ export const STAGE_AR = {
   documents_requested: 'طُلبت مستندات', application_started: 'بدأ التقديم', submitted: 'قُدّم الطلب', pending_approval: 'بانتظار الموافقة',
   approved: 'حساب موافَق عليه', live: 'حساب مفتوح/نشط', first_order: 'أول طلب', rejected: 'مرفوضة / غير مهتمة', paused: 'موقوفة',
 };
-// المراحل التي لا يمكن اشتقاقها من الأعمدة الحالية (تحتاج حقل account_status — migration مقترحة، لم تُطبَّق).
-export const UNTRACKED_STAGES = ['documents_requested', 'application_started', 'submitted', 'pending_approval', 'approved', 'paused'];
+// All pipeline stages are persistable through update_market_entry once migration 20261025140000 is applied.
+export const UNTRACKED_STAGES = [];
 
 /**
  * طبقة التوافق: المرحلة المشتقّة من (status القديم + lowes_presence + جودة المصدر + الاتصال).
  * لا تُكتب للقاعدة — القراءة فقط. التحويل العكسي toLegacyStatus يضمن أن أي حفظ يبقى ضمن القيم الخمس المقبولة بالدالة.
  */
 export function stageOf(lead, now = Date.now()) {
+  if (PIPELINE.includes(lead?.account_status)) return lead.account_status;
   const status = lead?.status || 'not_contacted';
   const presence = lead?.lowes_presence || null;
   if (presence === 'listed') return 'live';
@@ -132,7 +135,7 @@ const STAGE_TO_LEGACY = {
 };
 /** القيمة المسموحة بالدالة/الجدول لمرحلة معيّنة، أو null إن كانت المرحلة تحتاج migration (لا تُكتب). */
 export const toLegacyStatus = (stage) => STAGE_TO_LEGACY[stage] ?? null;
-export const isPersistableStage = (stage) => toLegacyStatus(stage) !== null;
+export const isPersistableStage = (stage) => PIPELINE.includes(stage);
 
 // ───────────────────────────── التقييمات الخمسة ─────────────────────────────
 const OPP_BASE = { marketplace: 30, chain: 30, quick_commerce: 25, distributor: 25, online_store: 20, pharmacy: 20, beauty_center: 20, retail_store: 20, other: 5 };
