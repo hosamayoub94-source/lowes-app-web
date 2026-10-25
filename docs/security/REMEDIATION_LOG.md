@@ -165,7 +165,9 @@ Each was fetched from production first (repo and production had drifted, see R4.
 **M3 (cron after guarding):** `shift-report-reminder` tick 13:55:00 (after the 13:51:50 deploy) → gateway responses all 200, zero 401/403 in the window. `track-yurtici-30min` tick 14:00:00 → see R4.3.
 
 ## R4.3 Result of the first cron ticks after guarding
-(filled in below when verified)
+* `shift-report-reminder` (service key only): tick 13:55:00 UTC, after the deploy → 200, no 401/403 anywhere in the gateway-response window (0 of 12 responses ≥ 400).
+* `track-yurtici-30min` (cron job 1, sends a hard-coded `service_role` JWT, not the Vault key): the 14:00:00 tick shows `timed_out` in `net._http_response`, but **every tick for the last 6 h does** (pg_net default 5 s; the poll runs longer) — so that column cannot prove anything for this job. **Proof instead:** the same cron bearer, replayed from inside the database (never printed) against `track-karam` in its read-only single-lookup mode, returned HTTP 200 `{"ok":false,"error":"not_found"}` — the handler ran, i.e. the guard accepted that credential through the service-key probe. A public key on the same function returns 401.
+* `daily-analytics-snapshot` (daily 23:55 UTC) and `lozy-kpi-coach` (daily 06:00 UTC) have not ticked since being guarded — **re-check after 23:55 tonight and 06:00 tomorrow**: expect gateway 200 and a new row in `analytics_snapshots` / `lozy_chats`. Rollback if either fails: redeploy the previous version (v26 / v28).
 
 ## R4.4 Findings / drift discovered
 | ID | Sev | Finding |
