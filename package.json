@@ -12,7 +12,8 @@
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "auth:provision": "node scripts/provision-auth-users.mjs",
     "auth:provision:dry": "node scripts/provision-auth-users.mjs --dry-run",
-    "auth:provision:reset": "node scripts/provision-auth-users.mjs --reset-password"
+    "auth:provision:reset": "node scripts/provision-auth-users.mjs --reset-password",
+    "test:b2b-atomic-audit": "node scripts/test-b2b-market-entry-atomic-audit.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
