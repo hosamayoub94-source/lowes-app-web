@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:b2b-marketplace": "node scripts/test-b2b-marketplace-classification.mjs",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "auth:provision": "node scripts/provision-auth-users.mjs",
