@@ -76,7 +76,15 @@ begin
     raise exception 'not_found' using errcode = 'P0002';
   end if;
 
-  for v_key in select jsonb_object_keys(p_patch)
+  -- Include first_order_at when it is set implicitly by the account_status transition.
+  for v_key in
+    select audit_keys.key
+    from (
+      select jsonb_object_keys(p_patch) as key
+      union
+      select 'first_order_at'
+      where v_existing.first_order_at is distinct from v_updated.first_order_at
+    ) as audit_keys
   loop
     v_old := to_jsonb(v_existing) -> v_key;
     v_new := to_jsonb(v_updated) -> v_key;
