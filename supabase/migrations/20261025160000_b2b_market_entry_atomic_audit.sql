@@ -50,7 +50,11 @@ begin
   update public.syria_b2b_leads as l
   set
     account_status = case when p_patch ? 'account_status' then p_patch->>'account_status' else l.account_status end,
-    first_order_at = case when p_patch ? 'first_order_at' then nullif(p_patch->>'first_order_at','')::timestamptz else l.first_order_at end,
+    first_order_at = case
+      when p_patch ? 'first_order_at' then nullif(p_patch->>'first_order_at','')::timestamptz
+      when p_patch->>'account_status' = 'first_order' and l.first_order_at is null then now()
+      else l.first_order_at
+    end,
     next_action = case when p_patch ? 'next_action' then p_patch->>'next_action' else l.next_action end,
     next_action_due_at = case when p_patch ? 'next_action_due_at' then nullif(p_patch->>'next_action_due_at','')::timestamptz else l.next_action_due_at end,
     blocker = case when p_patch ? 'blocker' then p_patch->>'blocker' else l.blocker end,
