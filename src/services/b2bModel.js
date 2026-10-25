@@ -117,6 +117,7 @@ export const UNTRACKED_STAGES = ['documents_requested', 'application_started', '
  * لا تُكتب للقاعدة — القراءة فقط. التحويل العكسي toLegacyStatus يضمن أن أي حفظ يبقى ضمن القيم الخمس المقبولة بالدالة.
  */
 export function stageOf(lead, now = Date.now()) {
+  if (PIPELINE.includes(lead?.account_status)) return lead.account_status;
   const status = lead?.status || 'not_contacted';
   const presence = lead?.lowes_presence || null;
   if (presence === 'listed') return 'live';
