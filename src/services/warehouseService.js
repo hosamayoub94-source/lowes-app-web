@@ -1,10 +1,26 @@
 // =============================================================
-// warehouseService — Phase 1 data layer for the warehouse system.
-// Tables: wh_warehouses, wh_stock, wh_movements (PIN-auth, open RLS).
-// All stock mutations also write a wh_movements audit row.
+// warehouseService — single write path for warehouse stock.
+// Tables: wh_warehouses, wh_stock, wh_movements.
+// Every mutation must be atomic, auditable, and idempotent.
 // =============================================================
-// أنواع الحركات: receive | allocate | adjust | reserve | release | reverse | waste (D-076)
+// أنواع الحركات: receive | allocate | adjust | reserve | release | reverse | waste | return
 import { supabase } from './supabase';
+import { planOrderStock, matchOrderLines } from '../utils/orderStockPlan';
+
+// Return cases that still hold the original reservation (not yet restocked/cancelled).
+const OPEN_RETURN_STATUSES = ['in_transit', 'received', 'inspected', 'quarantine', 'damaged'];
+
+// PostgREST caps a response at 1000 rows; the movement ledger is far larger, so
+// page through it (ordered by id) instead of silently truncating the totals.
+async function _fetchAll(makeQuery, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    out.push(...(data ?? []));
+    if (!data || data.length < pageSize) return { data: out, error: null };
+  }
+}
 
 // List active warehouses (central first, then sales, then others).
 export async function listWarehouses() {
@@ -21,18 +37,24 @@ export async function listWarehouses() {
 // Build the visibility matrix: one row per active product with a
 // { [warehouseId]: quantity } map + total. Returns { warehouses, rows }.
 export async function getStockMatrix() {
-  const [whRes, prodRes, stockRes] = await Promise.all([
+  const [whRes, prodRes, stockRes, reservedRes, returnsRes] = await Promise.all([
     supabase.from('wh_warehouses').select('*').eq('is_active', true).order('type').order('name'),
     supabase.from('products').select('id, name, sku, min_stock').eq('is_active', true).order('name'),
     supabase.from('wh_stock').select('warehouse_id, product_id, quantity'),
+    _fetchAll(() => supabase.from('wh_movements').select('id, from_warehouse_id, to_warehouse_id, product_id, type, quantity').in('type', ['reserve', 'release']).order('id')),
+    supabase.from('wh_return_cases').select('warehouse_id, status, items').in('status', OPEN_RETURN_STATUSES),
   ]);
   if (whRes.error)    throw whRes.error;
   if (prodRes.error)  throw prodRes.error;
   if (stockRes.error) throw stockRes.error;
+  if (reservedRes.error) throw reservedRes.error;
+  if (returnsRes.error) throw returnsRes.error;
 
   const warehouses = whRes.data ?? [];
   const products   = prodRes.data ?? [];
   const stock      = stockRes.data ?? [];
+  const reservedMovements = reservedRes.data ?? [];
+  const openReturns = returnsRes.data ?? [];
 
   // index stock by product → warehouse → qty
   const byProduct = {};
@@ -40,10 +62,42 @@ export async function getStockMatrix() {
     (byProduct[s.product_id] ??= {})[s.warehouse_id] = s.quantity;
   }
 
+  // wh_stock is available stock after reservations; derive reserved stock from
+  // the immutable ledger so the UI explains the difference.
+  const reservedByProduct = {};
+  for (const m of reservedMovements) {
+    const whId = m.type === 'reserve' ? m.from_warehouse_id : m.to_warehouse_id;
+    if (!whId) continue;
+    const byWarehouse = (reservedByProduct[m.product_id] ??= {});
+    const sign = m.type === 'reserve' ? 1 : -1;
+    byWarehouse[whId] = Number(byWarehouse[whId] || 0) + sign * Number(m.quantity || 0);
+  }
+  // Goods tied to an open return case are no longer "reserved for a customer": show
+  // them as a separate returns bucket per status so the three never overlap.
+  const returnsByProduct = {};   // product → warehouse → { pending, quarantine, damaged }
+  for (const rc of openReturns) {
+    const bucket = rc.status === 'quarantine' ? 'quarantine' : rc.status === 'damaged' ? 'damaged' : 'pending';
+    for (const it of (Array.isArray(rc.items) ? rc.items : [])) {
+      if (!it?.productId) continue;
+      const q = Number(it.qty || 0);
+      const w = ((returnsByProduct[it.productId] ??= {})[rc.warehouse_id] ??= { pending: 0, quarantine: 0, damaged: 0 });
+      w[bucket] += q;
+      const rbw = (reservedByProduct[it.productId] ??= {});
+      rbw[rc.warehouse_id] = Number(rbw[rc.warehouse_id] || 0) - q;
+    }
+  }
+  for (const byWarehouse of Object.values(reservedByProduct)) {
+    for (const k of Object.keys(byWarehouse)) byWarehouse[k] = Math.max(0, byWarehouse[k]);
+  }
+
   const rows = products.map(p => {
     const perWh = byProduct[p.id] ?? {};
+    const reservedPerWh = reservedByProduct[p.id] ?? {};
     const total = Object.values(perWh).reduce((a, q) => a + Number(q || 0), 0);
-    return { ...p, perWh, total };
+    const reserved = Object.values(reservedPerWh).reduce((a, q) => a + Number(q || 0), 0);
+    const returnsPerWh = returnsByProduct[p.id] ?? {};
+    const returned = Object.values(returnsPerWh).reduce((a, w) => a + w.pending + w.quarantine + w.damaged, 0);
+    return { ...p, perWh, reservedPerWh, returnsPerWh, total, reserved, returned, physicalTotal: total + reserved };
   });
 
   return { warehouses, rows };
@@ -60,20 +114,14 @@ async function _currentQty(warehouseId, productId) {
   return Number(data?.quantity ?? 0);
 }
 
-// Internal: set qty for (warehouse, product) via upsert.
-async function _setQty(warehouseId, productId, qty) {
-  const { error } = await supabase
-    .from('wh_stock')
-    .upsert(
-      { warehouse_id: warehouseId, product_id: productId, quantity: qty, updated_at: new Date().toISOString() },
-      { onConflict: 'warehouse_id,product_id' },
-    );
-  if (error) throw error;
-}
-
 async function _logMovement(row) {
   const { error } = await supabase.from('wh_movements').insert(row);
   if (error) throw error;
+}
+
+function _movementError(error, context) {
+  const message = error?.message || String(error || 'unknown error');
+  throw new Error(`فشلت حركة المخزون (${context}): ${message}`);
 }
 
 // Atomic stock delta via SECURITY DEFINER RPC (race-free — see migration 0007).
@@ -90,11 +138,11 @@ async function _applyDelta(warehouseId, productId, delta) {
 export async function receiveStock({ productId, warehouseId, quantity, performedBy, reason }) {
   const qty = Number(quantity);
   if (!qty || qty <= 0) throw new Error('أدخل كمية صحيحة');
-  await _applyDelta(warehouseId, productId, qty);
-  await _logMovement({
+  try { await _applyDelta(warehouseId, productId, qty); } catch (e) { _movementError(e, 'استلام'); }
+  try { await _logMovement({
     product_id: productId, from_warehouse_id: null, to_warehouse_id: warehouseId,
     quantity: qty, type: 'receive', reason: reason || null, performed_by: performedBy || null,
-  });
+  }); } catch (e) { _movementError(e, 'تسجيل الاستلام'); }
 }
 
 // Allocate (transfer) stock from one warehouse to another.
@@ -113,21 +161,24 @@ export async function allocateStock({ productId, fromWarehouseId, toWarehouseId,
     }
     throw trErr;
   }
-  await _logMovement({
+  try { await _logMovement({
     product_id: productId, from_warehouse_id: fromWarehouseId, to_warehouse_id: toWarehouseId,
     quantity: qty, type: 'allocate', reason: null, performed_by: performedBy || null,
-  });
+  }); } catch (e) { _movementError(e, 'تسجيل التحويل'); }
 }
 
 // Manually set the exact quantity (stocktake / correction).
 export async function adjustStock({ productId, warehouseId, newQuantity, performedBy, reason }) {
   const qty = Number(newQuantity);
   if (qty < 0 || Number.isNaN(qty)) throw new Error('أدخل كمية صحيحة');
-  await _setQty(warehouseId, productId, qty);
-  await _logMovement({
+  const before = await _currentQty(warehouseId, productId);
+  const delta = qty - before;
+  if (delta === 0) return;
+  try { await _applyDelta(warehouseId, productId, delta); } catch (e) { _movementError(e, 'الجرد'); }
+  try { await _logMovement({
     product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: warehouseId,
-    quantity: qty, type: 'adjust', reason: reason || 'جرد/تصحيح', performed_by: performedBy || null,
-  });
+    quantity: Math.abs(delta), type: 'adjust', reason: reason || `جرد/تصحيح (الفرق: ${delta > 0 ? '+' : ''}${delta})`, performed_by: performedBy || null,
+  }); } catch (e) { _movementError(e, 'تسجيل الجرد'); }
 }
 
 // ── إتلاف (D-076) ────────────────────────────────────────────
@@ -190,19 +241,8 @@ async function _resolveSourceWarehouse(order) {
   return wh?.id ?? null;
 }
 
-// تطبيع اسم المنتج للمطابقة: lowercase + طيّ الحروف التركية (İ/ı/Ş/Ğ/Ç/Ö/Ü)
-// + إزالة بادئة العلامة LOWE'S/LOWES + إزالة المسافات والترقيم (يُبقي العربي
-// واللاتيني والأرقام). يُطبَّق على الطرفين (الطلب + الكتالوج) فلا مطابقات خاطئة.
-// يعالج: «LOWE'S VİTAMİN C SERUM» / «LOWE'SVİTAMİNCSERUM» → vitamincserum.
-function _normName(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/i̇/g, 'i').replace(/[ıİ]/g, 'i')
-    .replace(/[şŞ]/g, 's').replace(/[ğĞ]/g, 'g').replace(/[çÇ]/g, 'c')
-    .replace(/[öÖ]/g, 'o').replace(/[üÜ]/g, 'u')
-    .replace(/[^a-z0-9؀-ۿ]/g, '')
-    .replace(/^lowes/, '');
-}
+// تطبيع اسم المنتج والمطابقة نفسها صارا في src/utils/orderStockPlan.js
+// (دوال نقية مغطّاة بالاختبارات). يُبقي العربي واللاتيني والأرقام ويطوي التركية.
 
 // مرادفات يدوية مؤكَّدة من المالك (14 يونيو 2026): اسم كما يظهر بالطلب →
 // اسم المنتج بالكتالوج (name_en، كلاهما يُطبَّع). للأسماء المختلفة لغوياً
@@ -217,101 +257,20 @@ const PRODUCT_ALIASES = {
   // Hair Removal Cream, كريم سوبر فيغا الأزرق.
 };
 
-// Map order items ({name, qty}) to catalog product ids via normalized name
-// (Arabic name or name_en) + confirmed aliases. Unmatched items are skipped
-// silently — only catalog products are stock-tracked.
+// Map order items to catalog products. Returns { lines, missing }: an item that
+// cannot be linked is reported in `missing` — never dropped silently.
 async function _matchItemsToProducts(items) {
-  if (!Array.isArray(items) || items.length === 0) return [];
-  const { data: products } = await supabase
+  if (!Array.isArray(items) || items.length === 0) return { lines: [], missing: [] };
+  const { data: products, error } = await supabase
     .from('products')
     .select('id, name, name_en');
-  const byNorm = {};
-  for (const p of (products ?? [])) {
-    if (p.name)    byNorm[_normName(p.name)]    = p.id;
-    if (p.name_en) byNorm[_normName(p.name_en)] = p.id;
-  }
-  // اربط المرادفات المؤكَّدة بمعرّف المنتج (فقط إن وُجد المنتج بالكتالوج).
-  const aliasToId = {};
-  for (const [alias, canon] of Object.entries(PRODUCT_ALIASES)) {
-    const pid = byNorm[_normName(canon)];
-    if (pid) aliasToId[_normName(alias)] = pid;
-  }
-  const matched = [];
-  for (const it of items) {
-    const key = _normName(it.name);
-    if (!key) continue;
-    const pid = byNorm[key] || aliasToId[key];
-    if (pid) matched.push({ productId: pid, qty: Number(it.qty || 1) });
-  }
-  return matched;
+  if (error) throw error;
+  return matchOrderLines(items, products, PRODUCT_ALIASES);
 }
 
-// الحالات التي يكون فيها مخزون الطلب «خارج المخزن» (مخصوم): من «في التجهيز»
-// فما فوق حتى التسليم/التسوية. أي حالة أخرى (وارد جديد/بالانتظار/راجع/ملغي/لم
-// يُستلم) تعني أن البضاعة موجودة بالمخزن — فيُسترد ما كان مخصوماً.
-// قرار المالك (يونيو 2026): الخصم يبدأ عند «📦 في التجهيز» لا عند الإنشاء.
-const DEDUCTED_STATUSES = new Set([
-  'preparing', 'ready', 'motor_prep', 'at_center', 'shipped',
-  'on_way', 'special_delivery', 'motor', 'prepaid', 'delivered', 'settled',
-]);
-
-// هل الطلب مخصوم فعلاً الآن؟ (صافي الحركات: Σحجز − Σإرجاع > 0).
-async function _isCurrentlyReserved(orderId) {
-  const { data: moves } = await supabase
-    .from('wh_movements')
-    .select('type, quantity')
-    .eq('order_id', orderId)
-    .in('type', ['reserve', 'release']);
-  let reserved = 0, released = 0;
-  for (const m of (moves || [])) {
-    if (m.type === 'reserve') reserved += Number(m.quantity || 0);
-    else                      released += Number(m.quantity || 0);
-  }
-  return reserved > released;
-}
-
-// داخلي: اخصم أصناف الطلب من مخزن المصدر + سجّل حركة 'reserve'.
-async function _reserveOrder(order, performedBy) {
-  const warehouseId = await _resolveSourceWarehouse(order);
-  if (!warehouseId) return;
-  const matched = await _matchItemsToProducts(order.items);
-  for (const { productId, qty } of matched) {
-    if (!qty || qty <= 0) continue;
-    await _applyDelta(warehouseId, productId, -qty);
-    await _logMovement({
-      product_id: productId, from_warehouse_id: warehouseId, to_warehouse_id: null,
-      quantity: qty, type: 'reserve', reason: 'حجز طلب (في التجهيز)', performed_by: performedBy || null,
-      order_id: order.id,
-    });
-  }
-}
-
-// داخلي: أعد الصافي المخصوم المتبقّي لكل (مخزن، منتج) إلى المخزن + سجّل 'release'.
-// net-aware: يدعم دورات تجهيز↔انتظار متكررة دون ازدواج (يرجّع الفرق فقط).
-async function _releaseOrder(order, performedBy) {
-  const { data: moves } = await supabase
-    .from('wh_movements')
-    .select('product_id, quantity, type, from_warehouse_id, to_warehouse_id')
-    .eq('order_id', order.id)
-    .in('type', ['reserve', 'release']);
-  const net = {}; // "whId|productId" → { whId, productId, qty }
-  for (const m of (moves || [])) {
-    const whId = m.type === 'reserve' ? m.from_warehouse_id : m.to_warehouse_id;
-    if (!whId) continue;
-    const k = whId + '|' + m.product_id;
-    (net[k] ??= { whId, productId: m.product_id, qty: 0 });
-    net[k].qty += (m.type === 'reserve' ? 1 : -1) * Number(m.quantity || 0);
-  }
-  for (const { whId, productId, qty } of Object.values(net)) {
-    if (qty <= 0) continue; // لا شيء مخصوم متبقٍّ
-    await _applyDelta(whId, productId, qty);
-    await _logMovement({
-      product_id: productId, from_warehouse_id: null, to_warehouse_id: whId,
-      quantity: qty, type: 'release', reason: 'استرداد للمخزون', performed_by: performedBy || null,
-      order_id: order.id,
-    });
-  }
-}
+// الحالات المخصومة (DEDUCTED_STATUSES) وحالات المرتجع (returning/returned) تُحدَّد
+// في src/utils/orderStockPlan.js. قرار المالك (يونيو 2026): الخصم يبدأ عند
+// «📦 في التجهيز» لا عند الإنشاء. المرتجع لا يعيد البضاعة للبيع تلقائياً.
 
 // مصادر خارجية تملك مخزونها بنفسها — طلباتها لا تُخصَم هنا إطلاقاً.
 // شبكة النجوم (lowes-classic) تخصم مخزون تركيا عند اعتماد المشرفة على نفس
@@ -335,17 +294,45 @@ async function _isExternallyStocked(order) {
 
 // مُصلِّح الحالة الموحّد: يضمن أن مخزون الطلب يطابق حالته الحالية.
 // يُستدعى عند كل إنشاء/تغيير حالة (فردي/جماعي) + الحذف/الإلغاء.
-// idempotent + net-aware. no-op للعلامات غير lowes. best-effort (لا يرمي).
+// idempotent + net-aware. no-op للعلامات غير lowes. يرمي عند أي فشل (لا إخفاء صامت).
+// returning/returned لا تُعيد البضاعة للبيع: تفتح/تحدّث حالة مرتجع فقط.
 export async function syncOrderStock(order, performedBy) {
   try {
     if (!order?.id) return;
     if ((order.brand || 'lowes') !== 'lowes') return;
     if (await _isExternallyStocked(order)) return;
-    const desiredOut   = DEDUCTED_STATUSES.has(order.status);
-    const currentlyOut = await _isCurrentlyReserved(order.id);
-    if (desiredOut && !currentlyOut)      await _reserveOrder(order, performedBy);
-    else if (!desiredOut && currentlyOut) await _releaseOrder(order, performedBy);
-  } catch { /* best-effort */ }
+    const plan = planOrderStock(order.status);
+    const warehouseId = await _resolveSourceWarehouse(order);
+    if (!warehouseId) throw new Error(`لا يوجد مخزن مصدر للسوق ${order.market || 'غير محدد'}`);
+    const { lines, missing } = await _matchItemsToProducts(order.items);
+    if (missing.length) {
+      throw new Error(`أصناف الطلب غير مربوطة بالكتالوج: ${missing.join('، ')}`);
+    }
+    if (plan.kind === 'return') {
+      const { error } = await supabase.rpc('wh_register_order_return', {
+        p_order_id: order.id,
+        p_warehouse: warehouseId,
+        p_items: lines,
+        p_stage: plan.stage,
+        p_performed_by: performedBy || null,
+        p_reason: `حالة مرتجع: ${order.status}`,
+      });
+      if (error) throw error;
+      return;
+    }
+    const { error } = await supabase.rpc('wh_sync_order_stock', {
+      p_order_id: order.id,
+      p_warehouse: warehouseId,
+      p_lines: lines,
+      p_should_be_out: plan.shouldBeOut,
+      p_performed_by: performedBy || null,
+      p_release_reason: plan.shouldBeOut ? null : `استرداد بسبب حالة الطلب: ${order.status}`,
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('[warehouse] syncOrderStock failed', { orderId: order?.id, status: order?.status, error: e });
+    throw e;
+  }
 }
 
 // تراجع عن حركة استلام/تخصيص أُدخلت خطأً: يعكس أثرها على المخزون + يسجّل
@@ -432,4 +419,100 @@ export async function assignSellerWarehouse(profileId, warehouseId) {
     .update({ warehouse_id: warehouseId || null })
     .eq('id', profileId);
   if (error) throw error;
+}
+
+// ── المرتجعات (D-157) ─────────────────────────────────────────
+// كل تغيير رصيد يمرّ عبر RPC ذري (wh_restock_return) ويسجّل wh_movements؛ لا كتابة
+// مباشرة على wh_stock/wh_return_cases من الواجهة.
+export const RETURN_STATUS_LABEL = {
+  in_transit: 'في الطريق', received: 'مستلم بالمخزن', inspected: 'تم الفحص',
+  restocked: 'أُعيد للمخزون', quarantine: 'حجر', damaged: 'تالف', cancelled: 'ملغى',
+};
+
+// الإجراءات المسموحة لكل حالة (مرآة لآلة الحالات في قاعدة البيانات).
+export const RETURN_ACTIONS = {
+  in_transit: ['receive'],
+  received:   ['inspect'],
+  inspected:  ['restock', 'quarantine', 'damaged'],
+  quarantine: ['restock', 'damaged'],
+};
+
+// رسائل خطأ عربية واضحة لأخطاء قاعدة البيانات.
+function _returnError(e) {
+  const m = String(e?.message || e || '');
+  if (/انتقال غير مسموح/.test(m)) return new Error('هذا الإجراء غير مسموح لحالة المرتجع الحالية. حدّث الصفحة وراجع الحالة.');
+  if (/قبل الفحص/.test(m)) return new Error('لا يمكن الإرجاع للمخزون قبل فحص المرتجع.');
+  if (/ليست سليمة/.test(m)) return new Error('نتيجة الفحص ليست «سليم»؛ استخدم الحجر أو التالف.');
+  if (/الحجز المسجّل/.test(m)) return new Error('كمية المرتجع أكبر من الكمية المحجوزة لهذا الطلب؛ راجع الطلب قبل الإرجاع.');
+  if (/stock cannot become negative|insufficient stock/i.test(m)) return new Error('الرصيد لا يسمح بهذه العملية.');
+  if (/لا توجد أصناف|غير مربوط/.test(m)) return new Error('أصناف المرتجع غير مربوطة بالكتالوج؛ لا يمكن تعديل الرصيد.');
+  if (/permission denied|row-level security|not authorized/i.test(m)) return new Error('ليست لديك صلاحية لهذا الإجراء.');
+  if (/المسؤول|سبب|نتيجة الفحص|لا توجد حالة/.test(m)) return new Error(m);
+  return new Error('تعذّر تنفيذ الإجراء: ' + m);
+}
+
+async function _returnRpc(fn, args) {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) throw _returnError(error);
+  return data;
+}
+
+function _need(v, msg) { if (!String(v ?? '').trim()) throw new Error(msg); }
+
+// قائمة حالات المرتجع مع الطلب والعميل والمنتج. `status` اختياري (مصفوفة أو نص).
+export async function listReturnCases({ status = null, limit = 300 } = {}) {
+  let q = supabase
+    .from('wh_return_cases')
+    .select('id, order_id, warehouse_id, status, items, reason, notes, received_at, received_by, inspected_at, inspected_by, inspection_condition, resolved_at, resolved_by, resolution_notes, created_at, updated_at, orders(order_id, customer_name, market, amount, currency)')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (status) q = Array.isArray(status) ? q.in('status', status) : q.eq('status', status);
+  const { data, error } = await q;
+  if (error) throw _returnError(error);
+  const cases = data ?? [];
+  const ids = [...new Set(cases.flatMap(c => (Array.isArray(c.items) ? c.items : []).map(i => i?.productId).filter(Boolean)))];
+  let names = {};
+  if (ids.length) {
+    const { data: prods, error: pe } = await supabase.from('products').select('id, name').in('id', ids);
+    if (pe) throw _returnError(pe);
+    names = Object.fromEntries((prods ?? []).map(p => [p.id, p.name]));
+  }
+  return cases.map(c => ({
+    ...c,
+    orderCode: c.orders?.order_id ?? null,
+    customerName: c.orders?.customer_name ?? '',
+    market: c.orders?.market ?? null,
+    lines: (Array.isArray(c.items) ? c.items : []).map(i => ({
+      productId: i.productId, qty: Number(i.qty || 0), name: names[i.productId] || 'صنف غير معروف',
+    })),
+  }));
+}
+
+export async function receiveReturn({ orderId, performedBy, notes = null }) {
+  _need(performedBy, 'اسم المستخدم غير معروف؛ أعد تسجيل الدخول');
+  return _returnRpc('wh_receive_return', { p_order_id: orderId, p_performed_by: performedBy, p_notes: notes });
+}
+
+// condition: good | suspect | damaged
+export async function inspectReturn({ orderId, condition, performedBy, notes = null }) {
+  _need(performedBy, 'اسم المستخدم غير معروف؛ أعد تسجيل الدخول');
+  if (!['good', 'suspect', 'damaged'].includes(condition)) throw new Error('اختر نتيجة الفحص');
+  return _returnRpc('wh_inspect_return', { p_order_id: orderId, p_condition: condition, p_performed_by: performedBy, p_notes: notes });
+}
+
+export async function restockReturn({ orderId, performedBy, notes = null }) {
+  _need(performedBy, 'اسم المستخدم غير معروف؛ أعد تسجيل الدخول');
+  return _returnRpc('wh_restock_return', { p_order_id: orderId, p_performed_by: performedBy, p_notes: notes });
+}
+
+export async function quarantineReturn({ orderId, performedBy, notes }) {
+  _need(performedBy, 'اسم المستخدم غير معروف؛ أعد تسجيل الدخول');
+  _need(notes, 'اكتب سبب الحجر');
+  return _returnRpc('wh_quarantine_return', { p_order_id: orderId, p_performed_by: performedBy, p_notes: notes });
+}
+
+export async function markReturnDamaged({ orderId, performedBy, notes }) {
+  _need(performedBy, 'اسم المستخدم غير معروف؛ أعد تسجيل الدخول');
+  _need(notes, 'اكتب سبب التلف');
+  return _returnRpc('wh_mark_return_damaged', { p_order_id: orderId, p_performed_by: performedBy, p_notes: notes });
 }

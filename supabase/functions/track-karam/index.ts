@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { syncOrderInventory } from '../_shared/syncOrderInventory.ts';
 import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -212,10 +213,6 @@ Deno.serve(async (req) => {
     .or('archived.is.null,archived.eq.false')
     .is('deleted_at', null);
 
-  if (body?.debugCount) {
-    return json({ ok: true, unlinkedCount: unlinked?.length ?? 0, unlinkedErr: unlinkedErr?.message ?? null, sample: (unlinked ?? []).slice(0, 5) });
-  }
-
   if (unlinked && unlinked.length > 0) {
     const cookie = await karamLogin();
     if (cookie) {
@@ -265,6 +262,8 @@ Deno.serve(async (req) => {
         .update({ status: newStatus, updated_by: 'الكرم-تلقائي', updated_at: new Date().toISOString() })
         .eq('id', o.id).is('deleted_at', null);
       if (upErr) continue;
+      try { await syncOrderInventory(supabase, { ...o, status: newStatus }, 'الكرم-تلقائي'); }
+      catch (inventoryError) { results.push({ order: o.order_id, note: 'inventory_sync_failed', error: String(inventoryError?.message || inventoryError) }); continue; }
       updated++;
       await recordStatusHistory(supabase, {
         order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'شركة الكرم', source: 'karam',
@@ -279,3 +278,4 @@ Deno.serve(async (req) => {
 
   return json({ ok: true, linked, linkResults, checked: orders?.length ?? 0, updated, results });
 });
+

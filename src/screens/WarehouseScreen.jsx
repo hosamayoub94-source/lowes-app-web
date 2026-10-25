@@ -13,6 +13,8 @@ import {
   listMovements, createWarehouse, updateWarehouse,
   listSellersWithWarehouse, assignSellerWarehouse, reverseMovement,
   WASTE_REASONS,
+  listReturnCases, receiveReturn, inspectReturn, restockReturn, quarantineReturn, markReturnDamaged,
+  RETURN_STATUS_LABEL, RETURN_ACTIONS,
 } from '@services/warehouseService';
 
 const TYPE_LABEL = { central: '🏛️ مستودع', sales: '📦 مبيعات', wholesale: '🏪 جملة', distributor: '🚙 مناديب', returns: '↩️ مرتجعات' };
@@ -240,7 +242,7 @@ function WarehouseCard({ wh, stats, hasCentral, canManage, onReplenish, onDetail
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-alt text-muted shrink-0">{typeName}</span>
       </div>
       <div className="grid grid-cols-3 gap-1.5 text-center">
-        <div><p className="text-base font-black text-text tabular-nums">{stats.total}</p><p className="text-[9px] text-muted">قطعة</p></div>
+        <div><p className="text-base font-black text-text tabular-nums">{stats.total}</p><p className="text-[9px] text-muted">متاح</p><p className="text-[9px] text-amber-500 tabular-nums">{stats.reserved || 0} محجوز</p></div>
         <div><p className="text-base font-black text-teal tabular-nums">{stats.products}</p><p className="text-[9px] text-muted">صنف</p></div>
         <div><p className={'text-base font-black tabular-nums ' + (stats.neg > 0 ? 'text-red-fg' : 'text-muted')}>{stats.neg}</p><p className="text-[9px] text-muted">سالب</p></div>
       </div>
@@ -279,6 +281,204 @@ function WarehouseDetailModal({ wh, rows, onClose }) {
   );
 }
 
+// ── المرتجعات (D-157) ───────────────────────────────────────────
+const RETURN_BADGE = {
+  in_transit: 'bg-amber-500/15 text-amber-500', received: 'bg-teal/15 text-teal',
+  inspected: 'bg-blue-500/15 text-blue-500', restocked: 'bg-green-bg text-green-fg',
+  quarantine: 'bg-purple-500/15 text-purple-500', damaged: 'bg-red-bg text-red-fg',
+  cancelled: 'bg-surface-alt text-muted',
+};
+const ACTION_META = {
+  receive:    { label: '📥 استلام المرتجع', effect: 'يُسجَّل وصول الطرد للمخزن فقط. لا يتغيّر الرصيد المتاح.' },
+  inspect:    { label: '🔍 فحص',            effect: 'يُسجَّل حال البضاعة. لا يتغيّر الرصيد المتاح.' },
+  restock:    { label: '↩️ إعادة للمخزون',  effect: 'ستُضاف الكميات إلى الرصيد المتاح للبيع وتُسجَّل حركة مرتبطة بالطلب. لا يمكن التراجع من هنا.' },
+  quarantine: { label: '🧪 حجر',            effect: 'تبقى البضاعة خارج الرصيد المتاح، بانتظار قرار لاحق.', needNotes: 'سبب الحجر' },
+  damaged:    { label: '🗑️ تالف',           effect: 'تُعتبر البضاعة تالفة ولن تعود للبيع. القرار نهائي.', needNotes: 'سبب التلف' },
+};
+const COND_LABEL = { good: 'سليم (يصلح للبيع)', suspect: 'مشكوك فيه', damaged: 'تالف' };
+const fmtDT = (d) => d ? new Date(d).toLocaleString('ar', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
+function ReturnActionModal({ kase, action, onClose, onDone, userName }) {
+  const meta = ACTION_META[action];
+  const [notes, setNotes] = useState('');
+  const [condition, setCondition] = useState('good');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const submit = async () => {
+    setSaving(true); setErr(null);
+    try {
+      const base = { orderId: kase.order_id, performedBy: userName, notes: notes.trim() || null };
+      if (action === 'receive')    await receiveReturn(base);
+      if (action === 'inspect')    await inspectReturn({ ...base, condition });
+      if (action === 'restock')    await restockReturn(base);
+      if (action === 'quarantine') await quarantineReturn(base);
+      if (action === 'damaged')    await markReturnDamaged(base);
+      await onDone();
+      onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+  const blocked = saving || (meta.needNotes && !notes.trim());
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+      <div className="bg-surface rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <h3 className="font-bold text-base text-text">{meta.label} — {kase.orderCode || 'طلب'}</h3>
+        <div className="text-xs text-muted bg-surface-alt rounded-xl px-3 py-2 space-y-0.5">
+          {kase.lines.map((l, i) => <p key={i}>{l.name} × <b className="text-text">{l.qty}</b></p>)}
+        </div>
+        <p className="text-xs text-amber-500 bg-amber-500/10 rounded-xl px-3 py-2">⚠️ {meta.effect}</p>
+        {action === 'inspect' && (
+          <div>
+            <label className="text-xs font-bold text-muted block mb-1.5">نتيجة الفحص</label>
+            <select value={condition} onChange={e => setCondition(e.target.value)} className={INP}>
+              {Object.entries(COND_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="text-xs font-bold text-muted block mb-1.5">
+            {meta.needNotes ? `${meta.needNotes} (مطلوب)` : 'ملاحظات (اختياري)'}
+          </label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={INP} />
+        </div>
+        {err && <p className="text-xs text-red-fg bg-red-bg rounded-xl px-3 py-2">⚠️ {err}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted hover:text-text transition">إلغاء</button>
+          <button onClick={submit} disabled={blocked}
+            className="flex-1 py-2.5 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40 hover:bg-teal/90 transition">
+            {saving ? '…' : 'تأكيد القرار'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReturnsPanel({ rows, warehouses, userName, canAct, onChanged }) {
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('open');   // open | all | <status>
+  const [search, setSearch] = useState('');
+  const [pending, setPending] = useState(null);   // { kase, action }
+
+  const reload = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setCases(await listReturnCases()); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
+  const afterAction = useCallback(async () => { await reload(); await onChanged?.(); }, [reload, onChanged]);
+
+  // الأرصدة الثلاثة منفصلة: المتاح (wh_stock) · المحجوز للعملاء · مخزون المرتجع.
+  const totals = useMemo(() => {
+    const t = { available: 0, reserved: 0, pending: 0, quarantine: 0, damaged: 0 };
+    for (const r of rows) {
+      t.available += Number(r.total || 0);
+      t.reserved += Number(r.reserved || 0);
+      for (const w of Object.values(r.returnsPerWh || {})) {
+        t.pending += w.pending; t.quarantine += w.quarantine; t.damaged += w.damaged;
+      }
+    }
+    return t;
+  }, [rows]);
+
+  const whName = (id) => warehouses.find(w => w.id === id)?.name ?? '—';
+  const shown = useMemo(() => cases.filter(c =>
+    (filter === 'all' || (filter === 'open' ? ['in_transit', 'received', 'inspected', 'quarantine'].includes(c.status) : c.status === filter))
+    && (!search || (c.orderCode || '').toLowerCase().includes(search.toLowerCase())
+      || (c.customerName || '').toLowerCase().includes(search.toLowerCase()))
+  ), [cases, filter, search]);
+
+  const cards = [
+    ['متاح للبيع', totals.available, 'text-text'], ['محجوز لطلبات', totals.reserved, 'text-amber-500'],
+    ['مرتجع بانتظار القرار', totals.pending, 'text-teal'], ['حجر', totals.quarantine, 'text-purple-500'],
+    ['تالف', totals.damaged, 'text-red-fg'],
+  ];
+  const filters = [['open', 'المفتوحة'], ['all', 'الكل'], ...Object.entries(RETURN_STATUS_LABEL)];
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {cards.map(([l, v, c]) => (
+          <div key={l} className="bg-surface border border-border rounded-2xl p-3 text-center">
+            <p className={'text-lg font-black tabular-nums ' + c}>{v}</p>
+            <p className="text-[10px] text-muted">{l}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 رقم الطلب أو العميل…"
+          className="flex-1 border border-border rounded-xl px-3 py-2.5 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+        <button onClick={reload} className="px-3 py-2.5 rounded-xl bg-surface-alt border border-border text-xs font-bold text-muted hover:text-text">↻ تحديث</button>
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {filters.map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k)}
+            className={'px-3 py-1.5 rounded-xl text-xs font-bold transition border ' +
+              (filter === k ? 'bg-teal text-navy border-teal' : 'bg-surface-alt text-muted hover:text-text border-border')}>{l}</button>
+        ))}
+      </div>
+
+      {loading ? <div className="h-40 bg-surface-alt animate-pulse rounded-2xl" />
+        : error ? (
+          <div className="bg-red-bg border border-red/20 text-red-fg rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+            <span>{error}</span><button onClick={reload} className="underline text-xs">إعادة</button>
+          </div>
+        ) : shown.length === 0 ? (
+          <p className="text-sm text-muted text-center py-10">لا توجد مرتجعات بهذا الفلتر</p>
+        ) : (
+          <div className="space-y-2">
+            {shown.map(c => {
+              const actions = canAct ? (RETURN_ACTIONS[c.status] || []) : [];
+              const actor = c.resolved_by || c.inspected_by || c.received_by || '—';
+              return (
+                <div key={c.id} className="bg-surface border border-border rounded-2xl p-3.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-text text-sm truncate">{c.orderCode || 'طلب'} · {c.customerName || '—'}</p>
+                      <p className="text-[10px] text-muted mt-0.5">{MARKET_LABEL[c.market] || c.market || '—'} · {whName(c.warehouse_id)}</p>
+                    </div>
+                    <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ' + (RETURN_BADGE[c.status] || '')}>
+                      {RETURN_STATUS_LABEL[c.status] || c.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-text bg-surface-alt rounded-xl px-3 py-2 space-y-0.5">
+                    {c.lines.length === 0
+                      ? <p className="text-red-fg">⚠️ لا أصناف مسجّلة لهذا المرتجع — لا يمكن إرجاعه للمخزون</p>
+                      : c.lines.map((l, i) => <p key={i}>{l.name} × <b className="tabular-nums">{l.qty}</b></p>)}
+                  </div>
+                  <p className="text-[10px] text-muted">
+                    آخر تحديث {fmtDT(c.updated_at)} · المسؤول: {actor}
+                    {c.inspection_condition ? ` · الفحص: ${COND_LABEL[c.inspection_condition]}` : ''}
+                    {(c.resolution_notes || c.notes || c.reason) ? ` · ${c.resolution_notes || c.notes || c.reason}` : ''}
+                  </p>
+                  {actions.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      {actions.map(a => (
+                        <button key={a} onClick={() => setPending({ kase: c, action: a })}
+                          disabled={a === 'restock' && (c.lines.length === 0 || (c.status === 'inspected' && c.inspection_condition !== 'good'))}
+                          className={'px-3 py-1.5 rounded-lg text-[11px] font-bold transition disabled:opacity-30 ' +
+                            (a === 'damaged' ? 'bg-red-bg text-red-fg' : a === 'restock' ? 'bg-green-bg text-green-fg' : 'bg-teal/15 text-teal hover:bg-teal/25')}>
+                          {ACTION_META[a].label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      {pending && <ReturnActionModal kase={pending.kase} action={pending.action} userName={userName}
+        onClose={() => setPending(null)} onDone={afterAction} />}
+    </div>
+  );
+}
+
 export default function WarehouseScreen() {
   const navigate = useNavigate();
   const { name: userName } = useAuth();
@@ -298,6 +498,7 @@ export default function WarehouseScreen() {
   const [showMatrix, setShowMatrix] = useState(false);     // الجدول التفصيلي مطويّ افتراضياً
   const [detailWh, setDetailWh] = useState(null);          // نافذة أصناف مخزن
   const [replenishWh, setReplenishWh] = useState(null);    // تزويد مخزن من المستودع
+  const [view, setView] = useState('stock');                // stock | returns
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -326,7 +527,7 @@ export default function WarehouseScreen() {
   const visTotal = useCallback((r) =>
     visibleWarehouses.reduce((s, w) => s + Number(r.perWh[w.id] || 0), 0), [visibleWarehouses]);
 
-  const isLow = (r) => r.min_stock != null && r.total <= r.min_stock;
+  const isLow = (r) => r.min_stock != null && r.physicalTotal <= r.min_stock;
   const lowCount = useMemo(() => rows.filter(isLow).length, [rows]);
 
   const filtered = useMemo(() => rows.filter(r =>
@@ -354,10 +555,11 @@ export default function WarehouseScreen() {
   // إحصائيات كل مخزن (إجمالي القطع · عدد الأصناف الموجبة · عدد السوالب).
   const whStats = useMemo(() => {
     const m = {};
-    for (const w of warehouses) m[w.id] = { total: 0, products: 0, neg: 0 };
+    for (const w of warehouses) m[w.id] = { total: 0, reserved: 0, products: 0, neg: 0 };
     for (const r of rows) {
       for (const w of warehouses) {
         const q = Number(r.perWh[w.id] || 0);
+        m[w.id].reserved += Number(r.reservedPerWh?.[w.id] || 0);
         if (q === 0) continue;
         m[w.id].total += q;
         if (q > 0) m[w.id].products++; else m[w.id].neg++;
@@ -375,7 +577,7 @@ export default function WarehouseScreen() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-text">📦 المخازن</h1>
-          <p className="text-xs text-muted mt-0.5">شو عنا بضاعة — وأين · {grandTotals.all} قطعة إجمالاً</p>
+          <p className="text-xs text-muted mt-0.5">شو عنا بضاعة — وأين · {grandTotals.all} قطعة متاحة</p>
         </div>
         <div className="flex gap-2 shrink-0">
           {canCentral && (
@@ -397,6 +599,18 @@ export default function WarehouseScreen() {
         </div>
       </div>
 
+      <div className="flex gap-1.5">
+        {[['stock', '📦 المخزون'], ['returns', '↩️ المرتجعات']].map(([k, l]) => (
+          <button key={k} onClick={() => setView(k)}
+            className={'px-4 py-2 rounded-xl text-sm font-bold transition border ' +
+              (view === k ? 'bg-navy text-white border-navy' : 'bg-surface-alt text-muted hover:text-text border-border')}>{l}</button>
+        ))}
+      </div>
+
+      {view === 'returns' ? (
+        <ReturnsPanel rows={rows} warehouses={warehouses} userName={userName}
+          canAct={canCentral || canSales} onChanged={load} />
+      ) : (<>
       {canCentral && showManage && <ManagePanel warehouses={warehouses} onChanged={load} userName={userName} canReverse={canCentral} />}
 
       {markets.length > 1 && (
@@ -471,7 +685,7 @@ export default function WarehouseScreen() {
             </thead>
             <tbody>
               {filtered.map(r => {
-                const low = r.min_stock != null && r.total <= r.min_stock;
+                const low = r.min_stock != null && r.physicalTotal <= r.min_stock;
                 return (
                   <tr key={r.id} className="border-t border-border/40">
                     <td className="text-right px-3 py-2 text-text truncate max-w-[10rem] sticky right-0 bg-surface">{r.name}</td>
@@ -511,6 +725,7 @@ export default function WarehouseScreen() {
 
       {/* نافذة أصناف مخزن واحد */}
       {detailWh && <WarehouseDetailModal wh={detailWh} rows={rows} onClose={() => setDetailWh(null)} />}
+      </>)}
     </div>
   );
 }

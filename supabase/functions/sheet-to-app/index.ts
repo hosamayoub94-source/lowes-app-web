@@ -8,25 +8,35 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { syncOrderInventory } from '../_shared/syncOrderInventory.ts';
 import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
-// SECURITY: the service-role key is auto-injected by the Supabase Edge runtime —
-// never hardcode it (the previous literal is in git history and MUST be rotated).
-const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')  ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
-// Prefer new secret API key (SB_SECRET_KEY); fall back to the auto-injected legacy service_role during migration.
-const SERVICE_KEY   = (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
-// Accept either the Turkey or Syria sheet token (both sheets call this fn).
-// ⚠️ SECURITY TODO (owner-coordinated deploy): remove the plaintext literals below
-// and rely solely on the env secrets — but first set SHEET_SYNC_TOKEN /
-// TURKEY_SHEET_SYNC_TOKEN to rotated values AND update the Google Apps Script side,
-// otherwise inbound order sync breaks. Literals kept temporarily to avoid an outage.
-const VALID_TOKENS = [
+// SECURITY: no secret lives in this file. The key and the sheet tokens come only
+// from Supabase environment secrets (the previous literals are in git history, so
+// the token VALUES should still be rotated together with the Apps Script side).
+const SUPABASE_URL  = Deno.env.get('SUPABASE_URL') ?? 'https://fghdumrgimoeqsafdhhh.supabase.co';
+const SERVICE_KEY   = Deno.env.get('SB_SECRET_KEY') ?? '';
+// Syria / Turkey / UAE sheets each send their own token (Google Apps Script cannot
+// send a JWT, so verify_jwt stays off and this token is the only gate).
+const VALID_TOKENS: string[] = [
   Deno.env.get('SHEET_SYNC_TOKEN'),
   Deno.env.get('TURKEY_SHEET_SYNC_TOKEN'),
   Deno.env.get('UAE_SHEET_SYNC_TOKEN'),
-  'LOWES-TURKEY-2026',
-  'LOWES-SYRIA-2026',
-].filter(Boolean);
+].filter((t): t is string => !!t && t.length >= 8);
+
+// Constant-time comparison; checks every configured token without early exit.
+function tokenOk(given: unknown): boolean {
+  if (typeof given !== 'string' || !given) return false;
+  const a = new TextEncoder().encode(given);
+  let ok = 0;
+  for (const t of VALID_TOKENS) {
+    const b = new TextEncoder().encode(t);
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+    if (diff === 0) ok = 1;
+  }
+  return ok === 1;
+}
 
 const cors = {
   'Access-Control-Allow-Origin':  '*',
@@ -149,10 +159,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   try {
-    const body = await req.json();
+    // Fail closed: a missing key or no configured token must never open the door.
+    if (!SERVICE_KEY || VALID_TOKENS.length === 0) {
+      console.error('[sheet-to-app] misconfigured: missing SB_SECRET_KEY or sheet tokens');
+      return json({ ok: false, error: 'server misconfigured' }, 500);
+    }
+    let body: any;
+    try { body = await req.json(); }
+    catch { return json({ ok: false, error: 'invalid json' }, 400); }
 
-    // Token check (accepts Turkey or Syria token)
-    if (!VALID_TOKENS.includes(body.token)) {
+    // Token check (Syria, Turkey or UAE sheet token, from environment secrets only)
+    if (!tokenOk(body?.token)) {
       return json({ ok: false, error: 'invalid token' }, 403);
     }
 
@@ -167,7 +184,7 @@ Deno.serve(async (req) => {
       // اقرأ الحالة الحالية أولاً (للخط الزمني + إشعار البائع + تجنّب كتابة نفس القيمة)
       const { data: cur } = await supabase
         .from('orders')
-        .select('id, order_id, status, handler_name, customer_name, deleted_at, phone_1, market')
+        .select('id, order_id, status, handler_name, customer_name, deleted_at, phone_1, market, items, brand, source')
         .eq('order_id', order_id)
         .maybeSingle();
 
@@ -192,8 +209,10 @@ Deno.serve(async (req) => {
           return json({ ok: false, error: insErr.message }, 200);
         }
         const { data: nu } = await supabase.from('orders')
-          .select('id, handler_name, customer_name').eq('order_id', record.order_id).maybeSingle();
+          .select('*').eq('order_id', record.order_id).maybeSingle();
         if (nu?.id) {
+          try { await syncOrderInventory(supabase, nu, 'جدول-تلقائي'); }
+          catch (inventoryError) { return json({ ok: false, error: 'inventory_sync_failed', detail: String(inventoryError?.message || inventoryError) }, 500); }
           await recordStatusHistory(supabase, {
             order_id: nu.id, from_status: null, to_status: record.status,
             changed_by: 'الجدول', source: 'sheet',
@@ -216,6 +235,13 @@ Deno.serve(async (req) => {
       }
 
       if (Object.keys(patch).length <= 2) return json({ ok: false, error: 'nothing to update' }, 400);
+
+      // المخزون أولاً: إن فشل الحجز لا تتغيّر الحالة، وإن فشل التحديث بعده تُعيد المحاولة نفس الحالة بأمان
+      // (المزامنة idempotent) فلا يبقى طلب بحالة جديدة ومخزون قديم.
+      if (cur?.id && newStatus && newStatus !== cur.status) {
+        try { await syncOrderInventory(supabase, { ...cur, status: newStatus }, 'جدول-تلقائي'); }
+        catch (inventoryError) { return json({ ok: false, error: 'inventory_sync_failed', detail: String(inventoryError?.message || inventoryError) }, 500); }
+      }
 
       const { error } = await supabase
         .from('orders')

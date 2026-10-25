@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyWhatsAppStatus } from '../_shared/notifyWhatsAppStatus.ts';
+import { syncOrderInventory } from '../_shared/syncOrderInventory.ts';
 import { getAccount, type YkAccount } from '../_shared/yurticiAccounts.ts';
 import { recordStatusHistory } from '../_shared/orderHistory.ts';
 
@@ -247,6 +248,8 @@ Deno.serve(async (req) => {
       if (upErr) continue;
 
       if (patch.status) {
+        try { await syncOrderInventory(supabase, { ...o, ...patch, status: patch.status }, 'يورتيتشي-تلقائي'); }
+        catch (inventoryError) { results.push({ order: o.order_id, note: 'inventory_sync_failed', error: String(inventoryError?.message || inventoryError) }); continue; }
         updated++;
         await recordStatusHistory(supabase, {
           order_id: o.id, from_status: o.status, to_status: newStatus, changed_by: 'يورتيتشي', source: 'yurtici',
@@ -286,6 +289,8 @@ Deno.serve(async (req) => {
         .update({ status: newStatus, updated_by: 'يورتيتشي-تلقائي', updated_at: new Date().toISOString() })
         .eq('id', o.id).is('deleted_at', null);
       if (e2) continue;
+      try { await syncOrderInventory(supabase, { ...o, status: newStatus }, 'يورتيتشي-تلقائي'); }
+      catch (inventoryError) { results.push({ order: o.order_id, note: 'inventory_sync_failed', error: String(inventoryError?.message || inventoryError) }); continue; }
       updated++;
       results.push({ order: o.order_id, public: j.ShipmentStatus, mapped: newStatus });
       await recordStatusHistory(supabase, {
@@ -299,3 +304,4 @@ Deno.serve(async (req) => {
 
   return json({ ok: true, checked: soapOrders.length + (pub?.length ?? 0), updated, results });
 });
+
