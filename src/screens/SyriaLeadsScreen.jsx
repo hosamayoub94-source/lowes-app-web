@@ -333,6 +333,11 @@ function MarketEntryEditor({ lead, onSaved }) {
   const [blocker, setBlocker] = useState(lead.blocker || '');
   const [newBrands, setNewBrands] = useState(lead.accepts_new_brands == null ? '' : String(lead.accepts_new_brands));
   const [beauty, setBeauty] = useState(lead.accepts_beauty_products == null ? '' : String(lead.accepts_beauty_products));
+  const [sellerUrl, setSellerUrl] = useState(lead.seller_registration_url || '');
+  const [supplierUrl, setSupplierUrl] = useState(lead.supplier_contact_url || '');
+  const [requirementsJson, setRequirementsJson] = useState(JSON.stringify(lead.registration_requirements || [], null, 2));
+  const [requiredDocsJson, setRequiredDocsJson] = useState(JSON.stringify(lead.required_documents || [], null, 2));
+  const [missingDocsJson, setMissingDocsJson] = useState(JSON.stringify(lead.missing_documents || [], null, 2));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -340,6 +345,15 @@ function MarketEntryEditor({ lead, onSaved }) {
   const save = async () => {
     setSaving(true); setErr(null); setSaved(false);
     try {
+      let requirements, requiredDocs, missingDocs;
+      try {
+        requirements = JSON.parse(requirementsJson || '[]');
+        requiredDocs = JSON.parse(requiredDocsJson || '[]');
+        missingDocs = JSON.parse(missingDocsJson || '[]');
+      } catch {
+        throw new Error('حقول الشروط والمستندات لازم تكون JSON صحيح');
+      }
+      if (![requirements, requiredDocs, missingDocs].every(Array.isArray)) throw new Error('الشروط والمستندات لازم تكون قوائم JSON');
       const patch = {
         account_status: stage || null,
         next_action: nextAction.trim() || null,
@@ -347,6 +361,11 @@ function MarketEntryEditor({ lead, onSaved }) {
         blocker: blocker.trim() || null,
         accepts_new_brands: newBrands === '' ? null : newBrands === 'true',
         accepts_beauty_products: beauty === '' ? null : beauty === 'true',
+        seller_registration_url: sellerUrl.trim() || null,
+        supplier_contact_url: supplierUrl.trim() || null,
+        registration_requirements: requirements,
+        required_documents: requiredDocs,
+        missing_documents: missingDocs,
       };
       await api.updateMarketEntry(lead.id, patch);
       setSaved(true);
@@ -391,6 +410,25 @@ function MarketEntryEditor({ lead, onSaved }) {
           </select>
         </label>
       </div>
+      <label className="block text-[11px] font-bold text-muted">رابط تسجيل البائع
+        <input className={inputCls} type="url" value={sellerUrl} onChange={e => setSellerUrl(e.target.value)} placeholder="https://..." />
+      </label>
+      <label className="block text-[11px] font-bold text-muted">رابط التواصل مع الموردين
+        <input className={inputCls} type="url" value={supplierUrl} onChange={e => setSupplierUrl(e.target.value)} placeholder="https://..." />
+      </label>
+      <details className="rounded-lg border border-border p-2">
+        <summary className="cursor-pointer text-[11px] font-bold text-muted">شروط التسجيل والأدلة (JSON)</summary>
+        <p className="my-1 text-[10px] text-muted">لكل شرط: item وanswer وevidence وsource وchecked_at. لا تضع شرطاً بلا مصدر؛ استخدم evidence=not_stated عند عدم وجود بيان رسمي.</p>
+        <textarea className={inputCls + " font-mono"} rows={5} value={requirementsJson} onChange={e => setRequirementsJson(e.target.value)} aria-label="شروط التسجيل بصيغة JSON" />
+      </details>
+      <details className="rounded-lg border border-border p-2">
+        <summary className="cursor-pointer text-[11px] font-bold text-muted">المستندات المطلوبة (JSON)</summary>
+        <textarea className={inputCls + " font-mono"} rows={3} value={requiredDocsJson} onChange={e => setRequiredDocsJson(e.target.value)} aria-label="المستندات المطلوبة بصيغة JSON" />
+      </details>
+      <details className="rounded-lg border border-border p-2">
+        <summary className="cursor-pointer text-[11px] font-bold text-muted">المستندات الناقصة (JSON)</summary>
+        <textarea className={inputCls + " font-mono"} rows={3} value={missingDocsJson} onChange={e => setMissingDocsJson(e.target.value)} aria-label="المستندات الناقصة بصيغة JSON" />
+      </details>
       {err && <p role="alert" className="text-[11px] text-red-600">{err}</p>}
       <div className="flex items-center gap-2">
         <button type="button" onClick={save} disabled={saving} className="text-xs font-bold px-3 py-2 rounded-lg bg-teal text-navy disabled:opacity-50">
