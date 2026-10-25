@@ -69,6 +69,12 @@ const TIER_LABEL = {
 };
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('ar', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const toLocalDateTimeValue = (value) => {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 const btnCls = 'text-[11px] font-bold px-2.5 py-1 rounded-lg bg-surface-alt border border-border text-text';
 
@@ -329,7 +335,7 @@ function MarketEntryEditor({ lead, onSaved }) {
   const { api } = useLeadsCtx();
   const [stage, setStage] = useState(lead.account_status || '');
   const [nextAction, setNextAction] = useState(lead.next_action || '');
-  const [dueAt, setDueAt] = useState(lead.next_action_due_at ? new Date(lead.next_action_due_at).toISOString().slice(0,16) : '');
+  const [dueAt, setDueAt] = useState(toLocalDateTimeValue(lead.next_action_due_at));
   const [blocker, setBlocker] = useState(lead.blocker || '');
   const [newBrands, setNewBrands] = useState(lead.accepts_new_brands == null ? '' : String(lead.accepts_new_brands));
   const [beauty, setBeauty] = useState(lead.accepts_beauty_products == null ? '' : String(lead.accepts_beauty_products));
