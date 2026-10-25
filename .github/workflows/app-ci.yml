@@ -16,6 +16,22 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: b2b_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d b2b_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/b2b_test
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +76,9 @@ jobs:
 
       - name: Check B2B atomic audit contract
         run: npm run test:b2b-atomic-audit
+
+      - name: Check B2B atomic audit in PostgreSQL
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/test-b2b-market-entry-atomic-audit.sql
 
       - name: Build production bundle
         run: npm run build
