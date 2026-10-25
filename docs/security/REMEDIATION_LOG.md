@@ -111,3 +111,24 @@ To continue, the owner can allow the tool for this repository (permission rule f
 * No synthetic account was created in production Auth and no sign-in was attempted with any PIN or password: the safety rules forbid entering credentials outside a test environment, and no staging project exists (a paid one needs the owner's approval; the previous one was deleted on 2026-10-10).
 * No PIN, password, role, `is_active` flag or session of the five employees was touched. Verification of their credentials was a boolean `crypt()` comparison inside SQL.
 * No broad `REVOKE`, no policy deletion, no `DROP`.
+
+---
+
+# Round 3 (2026-10-25, ~13:00 UTC): runbook steps applied to production, with verification
+
+Authorised by the owner in chat (apply_migration + deploy_edge_function allowed; step by step; stop on error). No error occurred.
+
+| Step | Applied | Verification (production, read-only or rolled back) |
+|---|---|---|
+| 1a | migration `public_track_rpc_20261027` | `public_track_order(<real code>)` as role anon → 1 row; unknown / empty / null code → 0 rows |
+| 1b | migration `login_gateway_20261027` | 6 secret rows; anon/authenticated have no table or function privilege, service_role has; `auth_password_matches` over the 37 active profiles → 37/37 true; limiter inside a rolled-back transaction with limit 2 → true, true, false |
+| 1c | migration `cron_service_key_calls_20261026` | lozy / analytics / shift-report jobs now `run_cron_function(...)`; shift-report-reminder tick at 12:50 UTC `succeeded`, 0 gateway responses ≥ 400 in the previous 10 min (the first tick that uses the new command is the one at 12:55 or later → **re-check M3 after it**) |
+| 2a | `verify-pin` **v55** (verify_jwt=false) | GET → 405, OPTIONS → 200, POST {} → 400, POST unknown name → `not_found` (so the function boots, reads the DB and calls the limiter RPC); the limiter table shows 1 account + 1 source bucket, hashes only. **Not yet verified: a real successful login** |
+| 2b | `pin-change` **v7** (verify_jwt=true) | invalid pin → 400, unknown user → `wrong_pin`, admin mode without session → 401; no real account touched |
+
+Rollbacks used if needed: verify-pin → redeploy `git show f31fda0:supabase/functions/verify-pin/index.ts` (limiter off by default there) ; pin-change → v6 source is in this repo history of `supabase/functions/pin-change` first version ; migrations → the `_rollback.sql` files in `docs/security/proposed/`.
+
+Stopped before step 3 on purpose:
+1. **A real login must be checked first** (runbook 2a). Nobody logged in between the deploy and this note (`activity_logs` empty for the last 30 min), and I must not enter a PIN myself.
+2. Step 3 (web release) changes how every employee signs in; the branch `audit/roles-permissions` is pushed (https://github.com/hosamayoub94-source/lowes-app-web/pull/new/audit/roles-permissions) but **not merged** (merging triggers the production deploy; `gh` is not installed here).
+3. Step 2c (guarded functions) must come after step 3; step 4 (anon lockdown) needs 7 days with zero manual-session logins — the last one was 19 Oct, so the gate opens on **26 Oct**.
