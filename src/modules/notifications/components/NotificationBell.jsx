@@ -92,10 +92,12 @@ export function NotificationBell() {
       {open && (
         <div
           className={cn(
-            'absolute z-50 top-full mt-2',
-            // RTL: align panel to the right edge of the bell on mobile
-            'left-0 sm:right-0 sm:left-auto',
-            'w-80 sm:w-96',
+            // الجرس بالطرف اليساري للهيدر (RTL)، فالقائمة لازم تمتد يميناً
+            // نحو الصفحة — `right-0` كان يدفعها برّا حافة الشاشة اليسرى.
+            // موبايل: عرض الشاشة كامل تحت الهيدر (h-14) بلا أي قص.
+            'fixed z-50 inset-x-2 top-16',
+            'sm:absolute sm:inset-x-auto sm:top-full sm:left-0 sm:mt-2',
+            'sm:w-96 sm:max-w-[calc(100vw-1rem)]',
             'max-h-[80vh]',
             'bg-surface border border-border rounded-2xl shadow-lg',
             'overflow-hidden flex flex-col',
