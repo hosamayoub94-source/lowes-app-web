@@ -31,7 +31,9 @@ export function orgTypeOf(lead) {
   const cat = String(lead?.category || '');
   const ch = String(lead?.channel || '');
   if (/سريع|توصيل/.test(cat)) return 'quick_commerce';
-  if (/منصة/.test(cat) || ch === 'marketplace' || ch === 'app') return 'marketplace';
+  // An app is only a delivery surface, not proof of a multi-seller marketplace.
+  // Require an explicit marketplace channel/category; otherwise online apps remain direct stores.
+  if (/منصة/.test(cat) || ch === 'marketplace') return 'marketplace';
   if (/سلسلة/.test(cat)) return 'chain';
   if (lead?.lead_type === 'online') return 'online_store';
   if (/موزّع|موزع|مورد/.test(cat) && !/مستحضرات/.test(cat)) return 'distributor';
