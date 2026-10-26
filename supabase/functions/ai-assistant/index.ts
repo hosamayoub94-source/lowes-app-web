@@ -10,6 +10,8 @@
 // =============================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { buildOrFilter, NOT_FOUND_HINT, looksLikeCustomerLookup } from '../_shared/customerSearch.ts';
+import { decideLearn, conflictCategory } from '../_shared/lozyKnowledge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -246,6 +248,16 @@ ${ctx.learnedFacts.map(f => `- ${f.fact}${f.taught_by ? ` (علّمني إياه
 ` : ''}
 ---
 
+## 🧱 طبقات المعرفة (لا تستبدلي القديم بالجديد)
+1. **المرجع الأول (دائم):** الكتالوج، دليل الاستخدام، العمولات، هوية البراند، أسلوب الاستشارة. عند سؤال عن منتج أو مكوّن أو تحذير → أجيبي منها أولاً.
+2. **معرفة الفريق:** المعلومات المكتسبة أدناه إضافة فوق المرجع، وليست بديلاً عنه.
+3. **تعارض:** إذا معلومة جديدة من موظف تناقض الكتالوج أو الأدلة أو معلومة محفوظة → **لا تعتمديها بصمت ولا تعدّلي القديمة**. اذكري التعارض بجملة واضحة (القديم كذا، الجديد كذا) واطلبي مراجعة الأدمن من شاشة «معرفة لوزي». التزمي بالقديم لحين المراجعة.
+4. **ما لا يُحفظ كمعرفة عامة:** معلومات شخصية، تفضيلات فردية، أشياء مؤقتة، بيانات عميلات، كلمات سر أو أرقام بطاقات.
+5. بيانات الموظف الحية (مهام، حضور، طلبات) تُقرأ لحظياً ولا تُحفظ كمعرفة.
+
+## 🩺 حدود النصيحة الطبية
+لا تقدّمي نصيحة طبية قطعية. للحمل والرضاعة والأمراض الجلدية (أكزيما، صدفية، التهاب، حساسية شديدة) والأدوية: اذكري تحذير المنتج من الكتالوج وانصحي باستشارة الطبيبة/الطبيب قبل الاستخدام. لا تخترعي مكوّنات أو فوائد أو أسعاراً.
+
 ## ✍️ مراجعة رسائل قبل الإرسال للعميل (مهم — فعّليها تلقائياً)
 لو موظف/ة لصق/ت أو كتب/ت نص رسالة **جاهزة أو مسوّدة يريد/تريد إرسالها لعميل/ة** (مو سؤال عادي — الفرق: فيه نص جاهز شبه رسالة، غالباً بصيغة المخاطَب/ة "حبيبتي/أختي..." أو فيه عرض منتج مباشر)، **راجعيها فوراً بدون ما يُطلَب منك صراحة** بهالشكل:
 1. **افحصي مخالفات نبرة البراند** (القسم أعلاه "هوية البراند ونبرته" — الممنوعات: "الأفضل بالعالم"، "سحري/معجزة"، "حصري جداً"، "ضمان 100%"، وعود بنتيجة سريعة غير واقعية، تخويف من المنافس، أخطاء إملائية، إيموجي أكتر من 1-2).
@@ -272,7 +284,15 @@ ${ctx.learnedFacts.map(f => `- ${f.fact}${f.taught_by ? ` (علّمني إياه
 - أسئلة "كيف بدي أعمل كذا" → اشرحي الخطوات من دليل الاستخدام أعلاه.
 - أسئلة المهام/الحضور/الإجازة → استخدمي البيانات الحية أعلاه.
 - أسئلة المنتجات → من الكتالوج بدقة. أسئلة العمولات → احسبي من SALES_RULES.
-- لا تختلقي أرقاماً غير موجودة، لكن لا تردّي "ما بعرف" لأي شيء مشروح هنا.
+- لا تختلقي أرقاماً غير موجودة، لكن لا تردّي "ما بعرف" أو "ما عندي معلومات" كجواب نهائي. إذا كانت المعلومة غير موجودة فعلاً: قولي ما الذي تعرفينه، اذكري ما ينقص بجملة واحدة، وقدّمي خطوة عملية بديلة (سؤال تشخيصي، طريقة بحث داخل التطبيق، أو صياغة جاهزة). لا تتوقفي عن المساعدة لمجرد أن السؤال ليس عن البراند.
+
+## 🧭 وضع العمل العملي
+لوزي ليست موسوعة فقط؛ هي شريكة عمل للفريق. حسب الطلب، ساعدي في:
+- خدمة العميلة: فهم الحالة، اختيار الخطوة التالية، كتابة رسالة واتساب، واقتراح متابعة بعد البيع.
+- المبيعات: اكتشاف الاحتياج، معالجة الاعتراض بدون ضغط، تلخيص عميلة/طلب، وتحديد next step واضح.
+- التشغيل: ترتيب الأولويات، تحويل الخطة إلى مهام، شرح الشاشات، وصياغة تعميم للفريق.
+- الإدارة: تلخيص المؤشرات والطلبات عندما تكون البيانات الحية متاحة، مع ذكر الفترة والمصدر.
+كل رد عملي يجب أن ينتهي بخطوة تالية قابلة للتنفيذ، حتى لو كانت الخطوة سؤالاً واحداً للعميلة.
 `;
 }
 
@@ -327,6 +347,8 @@ const TOOLS = [
     input_schema:{ type:'object', properties:{ period:{type:'string', enum:['today','month'], description:'افتراضي month'}, team:{type:'string'} }, required:[] } },
   { perm: PERMS.MANAGE_ORDERS, name:'get_orders', description:'كشف الطلبات: فلترة حسب السوق والحالة. عدد وقيمة وأعلى منتجات.',
     input_schema:{ type:'object', properties:{ market:{type:'string', enum:['syria','turkey']}, status:{type:'string'} }, required:[] } },
+  { perm: PERMS.MANAGE_ORDERS, name:'get_customer_history', description:'قراءة سياق عميلة أو طلب للمساعدة في البيع والمتابعة. استخدميها فقط عندما يذكر المستخدم رقم طلب أو هاتفاً أو اسماً محدداً، وليس لسؤال عام عن منتج.',
+    input_schema:{ type:'object', properties:{ query:{type:'string', description:'رقم الطلب أو رقم الهاتف أو اسم العميلة'}, limit:{type:'number', description:'عدد النتائج، افتراضي 10'} }, required:['query'] } },
   { perm: PERMS.ASSIGN_TASKS, name:'get_tasks', description:'قائمة مهام الفريق (لغير صاحبها) مع الحالة والمسؤول والموعد.',
     input_schema:{ type:'object', properties:{ status:{type:'string'}, assignee:{type:'string', description:'اسم الموظف'} }, required:[] } },
   { perm: PERMS.ASSIGN_TASKS, name:'create_task', description:'إنشاء مهمة واحدة وإسنادها لموظف (مع موعد كتذكير).',
@@ -373,6 +395,7 @@ const TOOL_KEYWORDS: Record<string, string[]> = {
   get_attendance_report: ['حضور', 'غياب', 'غايب', 'تأخر', 'تأخير', 'دوام', 'حضر', 'غاب'],
   get_sales_report: ['مبيعات', 'كم بعنا', 'الايراد', 'الإيراد', 'تأكيدات', 'كم بعت'],
   get_orders: ['الطلبات', 'كشف طلبات', 'طلبيات'],
+  get_customer_history: ['سجل عميلة', 'سجل العميلة', 'طلبات عميلة', 'طلبات العميلة', 'سياق عميلة', 'تابعي مع عميلة', 'رقم الطلب', 'رقم العميلة'],
   get_tasks: ['مهام الفريق', 'مهام الموظف', 'شو مهام'],
   create_task: ['اضف مهمة', 'أضف مهمة', 'انشئ مهمة', 'أنشئ مهمة', 'سوي مهمة', 'أسند مهمة', 'اسند مهمة'],
   create_tasks_bulk: ['خطة عمل', 'قسم مهام', 'قسّم مهام', 'وزع مهام', 'وزّع مهام', 'جدول مهام', 'خطط لي'],
@@ -388,7 +411,10 @@ const TOOL_KEYWORDS: Record<string, string[]> = {
 
 function toolsMatchingMessage(allTools: { name: string }[], text: string) {
   const t = (text || '').toLowerCase();
-  return allTools.filter(tool => (TOOL_KEYWORDS[tool.name] || []).some(kw => t.includes(kw.toLowerCase())));
+  const lookup = looksLikeCustomerLookup(text);
+  return allTools.filter(tool =>
+    (TOOL_KEYWORDS[tool.name] || []).some(kw => t.includes(kw.toLowerCase()))
+    || (lookup && tool.name === 'get_customer_history'));
 }
 
 // Execute one tool with permission enforcement. Returns a string result.
@@ -435,6 +461,22 @@ async function runTool(supabase: any, name: string, input: any, ctx: { userId:st
         const { data } = await q;
         const byStatus:any = {}; (data??[]).forEach((o:any)=>byStatus[o.status]=(byStatus[o.status]||0)+1);
         return JSON.stringify({ total:(data??[]).length, byStatus });
+      }
+      case 'get_customer_history': {
+        const limit = Math.min(Math.max(Number(input.limit) || 10, 1), 20);
+        // Pure helper (_shared/customerSearch.ts, covered by test-lozy.mjs):
+        // strips every character that could alter the PostgREST .or()
+        // expression and builds the filter per kind (order id / phone / name).
+        const built = buildOrFilter(input.query);
+        if (!built) return 'أحتاج رقم الطلب أو رقم الهاتف (7 أرقام على الأقل) أو اسم العميلة لأبحث. ' + NOT_FOUND_HINT;
+        const q = supabase.from('orders')
+          .select('order_id,order_date,status,amount,currency,market,brand,customer_name,wa_number,phone_1,handler_name,tracking_number,items')
+          .or(built.filter)
+          .order('order_date', { ascending:false }).limit(limit);
+        const { data, error } = await q;
+        if (error) return 'تعذّر جلب سياق العميلة حالياً: ' + error.message;
+        if (!(data ?? []).length) return NOT_FOUND_HINT;
+        return JSON.stringify({ query: built.term, kind: built.kind, count: data.length, orders: data });
       }
       case 'get_tasks': {
         let q = supabase.from('tasks').select('id,title,status,priority,due_date,assigned_to').order('created_at',{ascending:false}).limit(30);
@@ -662,7 +704,7 @@ Deno.serve(async (req: Request) => {
         .eq('year', today.getFullYear()).eq('month', today.getMonth() + 1).maybeSingle(),
 
       // Team-taught knowledge — keeps Lozy learning over time
-      supabase.from('lozy_knowledge').select('fact,taught_by')
+      supabase.from('lozy_knowledge').select('id,fact,taught_by')
         .eq('is_active', true).order('created_at', { ascending: false }).limit(60),
 
       // App usage guides — single source feeding Lozy's how-to knowledge
@@ -769,15 +811,33 @@ Deno.serve(async (req: Request) => {
     // ── Capture [[LEARN: ...]] tags → persist as shared knowledge ──
     const learnMatches = [...reply.matchAll(/\[\[LEARN:\s*([^\]]+?)\s*\]\]/gi)];
     if (learnMatches.length > 0) {
-      const rows = learnMatches
-        .map(m => m[1].trim())
-        .filter(Boolean)
-        .map(fact => ({ fact, taught_by: userName ?? null, taught_by_id: userId ?? null }));
-      if (rows.length > 0) {
-        supabase.from('lozy_knowledge').insert(rows).then(() => {}); // fire-and-forget
-      }
+      const facts = learnMatches.map(m => m[1].trim()).filter(Boolean);
+      // Additive guard (see _shared/lozyKnowledge.ts): never edits or deletes
+      // existing rows. Duplicates / personal / secret facts are skipped; a fact
+      // that contradicts an existing one is saved INACTIVE for admin review.
+      const notes: string[] = [];
+      try {
+        const { data: existingRows } = await supabase.from('lozy_knowledge')
+          .select('id,fact,category').limit(500);
+        const known: { id?: string; fact: string; category?: string | null }[] = [...(existingRows ?? [])];
+        const toInsert: any[] = [];
+        for (const fact of facts) {
+          const d = decideLearn(fact, known);
+          const base = { fact, taught_by: userName ?? null, taught_by_id: userId ?? null };
+          if (d.action === 'add') {
+            toInsert.push({ ...base, is_active: true, category: 'team' });
+            known.push({ fact });
+          } else if (d.action === 'pending_conflict') {
+            toInsert.push({ ...base, is_active: false, category: conflictCategory(d.with) });
+            known.push({ fact });
+            notes.push('⚠️ هذه المعلومة تتعارض مع معلومة محفوظة عندي، لذلك لم أعتمدها بعد. سأبقى على المعلومة القديمة لحين مراجعة الأدمن من شاشة «معرفة لوزي».');
+          }
+        }
+        if (toInsert.length) await supabase.from('lozy_knowledge').insert(toInsert);
+      } catch (e) { console.error('[ai-assistant] learn guard', e); }
       // Strip the tags from what the user sees
       reply = reply.replace(/\[\[LEARN:\s*[^\]]+?\s*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+      if (notes.length) reply += '\n\n' + [...new Set(notes)].join('\n');
     }
 
     return new Response(JSON.stringify({ reply }), {

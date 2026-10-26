@@ -61,17 +61,25 @@ function RenderText({ text }) {
 }
 
 // ── Suggestions ───────────────────────────────────────────────
+// Job-to-be-done prompts: Lozy should be useful for sales, support, and
+// operations too, not only as a product/brand encyclopedia.
 const SUGGESTIONS_EMPLOYEE = [
-  'شو مهامي اليوم؟',
-  'كيف أستخدم سيروم الريتينول؟',
-  'كم ضل لي من إجازة؟',
-  'ما مكونات واقي الشمس الزهري؟',
+  'ساعديني أرتّب يومي وأولوياتي',
+  'اكتبي رد دافئ لعميلة مترددة بالسعر',
+  'حلّلي حالة عميلة: بشرة حساسة وبقع',
+  'شو أفضل متابعة بعد البيع؟',
 ];
 const SUGGESTIONS_MANAGER = [
-  'من غاب اليوم من الفريق؟',
-  'شو رصيد الحسابات الشهر؟',
-  'اجيبلي مصاريف هالشهر',
-  'سجّل مصروف 100$ نقداً',
+  'اعطيني ملخص العمل اليوم وخطوة المتابعة',
+  'حلّلي مبيعات الشهر واقترحي 3 إجراءات',
+  'جهّزي خطة متابعة للعميلات غير النشيطات',
+  'اكتبي تعميم قصير للفريق عن أولوية اليوم',
+];
+const QUICK_MODES = [
+  { label: 'خدمة عميلة', prompt: 'ساعديني بخدمة عميلة: اسأليني الأسئلة الضرورية ثم اقترحي الرد والخطوة التالية.' },
+  { label: 'مبيعات ومتابعة', prompt: 'ساعديني أزيد فرص البيع بطريقة استشارية: رتّبي لي أسئلة المتابعة والخطوة التالية.' },
+  { label: 'مهام وتنظيم', prompt: 'ساعديني أرتّب شغلي اليوم إلى أولويات واضحة ومهام قابلة للتنفيذ.' },
+  { label: 'استخدام التطبيق', prompt: 'اشرحي لي خطوة بخطوة كيف أنفّذ المهمة المطلوبة داخل تطبيق لويز.' },
 ];
 
 // ── Chat Bubble ───────────────────────────────────────────────
@@ -443,6 +451,16 @@ export function AIAssistantWidget() {
                 <button key={s} onClick={() => send(s)} disabled={loading}
                   className="text-[11px] px-2.5 py-1.5 rounded-xl bg-surface-alt border border-border text-muted hover:border-teal/50 hover:text-teal hover:bg-teal/5 transition disabled:opacity-50">
                   {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {showSuggestions && (
+            <div className="px-3 pb-3 flex flex-wrap gap-1.5 shrink-0" dir="rtl">
+              {QUICK_MODES.map(mode => (
+                <button key={mode.label} onClick={() => send(mode.prompt)} disabled={loading}
+                  className="px-2.5 py-1 rounded-full border border-teal/30 bg-teal/5 text-[11px] text-teal hover:bg-teal/10 transition disabled:opacity-50">
+                  {mode.label}
                 </button>
               ))}
             </div>
