@@ -44,8 +44,8 @@ export const NAV_ITEMS = [
   { id: 'attendance',   label: 'الحضور',     icon: '🕒', path: '/attendance',  roles: ALL,                 group: 'core' },
   { id: 'partner-groups', label: 'شركاء الدوام', icon: '👥', path: '/partner-groups', roles: ALL,          group: 'core' },
   { id: 'tasks',        label: 'المهام',     icon: '📋', path: '/tasks',       roles: ALL,                 group: 'core' },
-  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales' },
-  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales' },
+  { id: 'orders-syria',  label: 'طلبات سوريا', icon: '🇸🇾', path: '/orders/syria',  roles: [E, M, A, SM, MB], group: 'sales', perm: P.CREATE_SYRIA_ORDERS },
+  { id: 'orders-turkey', label: 'طلبات تركيا', icon: '🇹🇷', path: '/orders/turkey', roles: [E, M, A, SM, MB], group: 'sales', perm: P.CREATE_TURKEY_ORDERS },
   { id: 'orders-uae',    label: 'طلبات الإمارات', icon: '🇦🇪', path: '/orders/uae', roles: [E, M, A, SM, MB], group: 'sales' },
   { id: 'customers',    label: 'العملاء والأرشيف', icon: '⭐', path: '/customers', roles: ALL.filter(r => r !== SOC), group: 'sales' },
   // ليدز B2B — بند واحد لكل الدول (D-119): roles: [A] افتراضياً، ويظهر لأي موظف
