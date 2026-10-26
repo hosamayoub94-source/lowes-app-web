@@ -84,7 +84,7 @@ const sepR = run([dr], {}, '2026-09'), octR = run([dr], {}, '2026-10');
 eq(tr(sepR).revenue, 20, '9: إيراد التسليم يبقى بأيلول'); eq(tr(sepR).productCost, 8, '9: تكلفة التسليم بأيلول'); eq(tr(sepR).returns.revenueReduction, 0, '9: لا خصم مرتجع بأيلول');
 eq(tr(octR).revenue, 0, '9: تشرين الأول بلا إيراد جديد'); eq(tr(octR).returns.revenueReduction, 20, '9: تخفيض الإيراد بشهر الإرجاع بسعر شهر التسليم (10) لا سعر تشرين الأول (12)');
 eq(tr(octR).returns.restockedCost, 8, '9: التكلفة المستردة بسعر شهر التسليم (4×2)'); eq(tr(octR).productProfit, -20 + 8, '9: أثر تشرين الأول = −20 + 8');
-eq(tr(sepR).productProfit + tr(octR).productProfit, -12, '9: الإجمالي لا يعود للصفر بلا إثبات استرداد المخزون (8$ غير محسومة)');
+eq(tr(sepR).productProfit + tr(octR).productProfit, 0, '9: الإجمالي يعود للصفر بعد إثبات استرداد كامل المخزون (8$ مستردة)');
 ok(!!dr.order_code, '9: مرجع الطلب الأصلي (رمز الطلب) محفوظ بالصف');
 const o2 = run([R({ ...dr, restock_qty: 0 })], {}, '2026-10');
 eq(tr(o2).productProfit, -20, '9: بلا إثبات: يُخصم الإيراد ولا تُضاف تكلفة مستردة مفترضة'); eq(tr(o2).returns.assumedRestockCost, 0, '9: لا تكلفة مستردة مفترضة'); eq(tr(o2).returns.unresolvedCost, 8, '9: تكلفة غير محسومة');
