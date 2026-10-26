@@ -446,8 +446,8 @@ export function AppRoutes() {
             }
           />
           <Route path={ROUTES.ORDERS}         element={<ProtectedRoute blockMediaStaff><OrdersRedirect /></ProtectedRoute>} />
-          <Route path={ROUTES.ORDERS_SYRIA}   element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="syria" /></ProtectedRoute>} />
-          <Route path={ROUTES.ORDERS_TURKEY}  element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="turkey" /></ProtectedRoute>} />
+          <Route path={ROUTES.ORDERS_SYRIA}   element={<ProtectedRoute roles={[ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER]} perm={P.CREATE_SYRIA_ORDERS}><OrdersScreen forcedMarket="syria" /></ProtectedRoute>} />
+          <Route path={ROUTES.ORDERS_TURKEY}  element={<ProtectedRoute roles={[ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.MEDIA_BUYER]} perm={P.CREATE_TURKEY_ORDERS}><OrdersScreen forcedMarket="turkey" /></ProtectedRoute>} />
           <Route path={ROUTES.ORDERS_UAE}     element={<ProtectedRoute blockMediaStaff><OrdersScreen forcedMarket="uae" /></ProtectedRoute>} />
           <Route path="/mystery-shopper" element={
             <ProtectedRoute roles={MANAGEMENT}>

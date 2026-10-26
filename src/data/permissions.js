@@ -18,6 +18,8 @@ export const PERMISSIONS = {
   EDIT_TASK:           'edit_task',            // edit task title/description/priority/date
   DELETE_TASK:         'delete_task',          // delete tasks permanently
   MANAGE_ORDERS:       'manage_orders',        // advance status, edit orders
+  CREATE_SYRIA_ORDERS: 'create_syria_orders',
+  CREATE_TURKEY_ORDERS:'create_turkey_orders',
   VIEW_ALL_ATTENDANCE: 'view_all_attendance',  // see everyone's attendance + reports
   MANAGE_ATTENDANCE:   'manage_attendance',    // edit attendance records
   APPROVE_LEAVES:      'approve_leaves',        // HR leave approval
@@ -52,6 +54,8 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.EDIT_TASK]:           'تعديل تفاصيل المهام',
   [PERMISSIONS.DELETE_TASK]:         'حذف المهام',
   [PERMISSIONS.MANAGE_ORDERS]:       'إدارة الطلبات (تغيير الحالة/التعديل)',
+  [PERMISSIONS.CREATE_SYRIA_ORDERS]: 'إدخال طلبات سوريا',
+  [PERMISSIONS.CREATE_TURKEY_ORDERS]:'إدخال طلبات تركيا',
   [PERMISSIONS.VIEW_ALL_ATTENDANCE]: 'عرض حضور كل الفريق',
   [PERMISSIONS.MANAGE_ATTENDANCE]:   'تعديل سجلات الحضور',
   [PERMISSIONS.APPROVE_LEAVES]:      'الموافقة على الإجازات',
@@ -91,6 +95,8 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.EDIT_TASK]:           'تعديل عنوان/وصف/أولوية/تاريخ أي مهمة.',
   [PERMISSIONS.DELETE_TASK]:         'حذف المهام نهائياً — صلاحية حسّاسة.',
   [PERMISSIONS.MANAGE_ORDERS]:       'تغيير حالة الطلبات وتعديل بياناتها.',
+  [PERMISSIONS.CREATE_SYRIA_ORDERS]: 'فتح شاشة طلبات سوريا وإضافة طلبات جديدة فيها.',
+  [PERMISSIONS.CREATE_TURKEY_ORDERS]:'فتح شاشة طلبات تركيا وإضافة طلبات جديدة فيها.',
   [PERMISSIONS.VIEW_ALL_ATTENDANCE]: 'رؤية حضور وانصراف كل الموظفين وتقاريرهم.',
   [PERMISSIONS.MANAGE_ATTENDANCE]:   'تعديل/تصحيح سجلات الحضور يدوياً.',
   [PERMISSIONS.APPROVE_LEAVES]:      'الموافقة على طلبات الإجازة أو رفضها.',
@@ -118,7 +124,7 @@ export const PERMISSION_GROUPS = [
   { key: 'tasks',      icon: '✅', label: 'المهام',
     permissions: [PERMISSIONS.ASSIGN_TASKS, PERMISSIONS.VIEW_ALL_TASKS, PERMISSIONS.EDIT_TASK, PERMISSIONS.DELETE_TASK] },
   { key: 'orders',     icon: '📦', label: 'الطلبات والمخزون',
-    permissions: [PERMISSIONS.MANAGE_ORDERS, PERMISSIONS.MANAGE_PRODUCTS, PERMISSIONS.VIEW_INVENTORY, PERMISSIONS.MANAGE_CENTRAL_STOCK, PERMISSIONS.MANAGE_SALES_STOCK] },
+    permissions: [PERMISSIONS.MANAGE_ORDERS, PERMISSIONS.CREATE_SYRIA_ORDERS, PERMISSIONS.CREATE_TURKEY_ORDERS, PERMISSIONS.MANAGE_PRODUCTS, PERMISSIONS.VIEW_INVENTORY, PERMISSIONS.MANAGE_CENTRAL_STOCK, PERMISSIONS.MANAGE_SALES_STOCK] },
   { key: 'attendance', icon: '🕐', label: 'الحضور والإجازات',
     permissions: [PERMISSIONS.VIEW_ALL_ATTENDANCE, PERMISSIONS.MANAGE_ATTENDANCE, PERMISSIONS.APPROVE_LEAVES] },
   { key: 'finance',    icon: '💰', label: 'المالية والأداء',
