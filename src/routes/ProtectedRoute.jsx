@@ -30,7 +30,10 @@ export function ProtectedRoute({ children, roles, perm, blockMediaStaff = false 
   }
 
   const roleOk = !roles || roles.length === 0 || roles.includes(role);
-  const permOk = perm ? resolvePermissions(session).has(perm) : false;
+  // perm: مفتاح واحد أو قائمة (أيٌّ منها يكفي) — نفس دلالة navigation.js `_visible`
+  const perms = Array.isArray(perm) ? perm : perm ? [perm] : [];
+  const held = perms.length ? resolvePermissions(session) : null;
+  const permOk = perms.some((p) => held.has(p));
   if (!roleOk && !permOk) {
     return <Navigate to={ROUTES.HOME} replace />;
   }

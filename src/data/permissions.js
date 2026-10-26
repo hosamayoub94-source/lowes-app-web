@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   MANAGE_SALES_STOCK:   'manage_sales_stock',   // adjust sales/distributor warehouse stock
   VIEW_INVENTORY:       'view_inventory',       // see the warehouse dashboard
   MANAGE_CAMPAIGNS:     'manage_campaigns',     // create/edit campaigns + ads + assignments
+  USE_PROMPT_STUDIO:    'use_prompt_studio',    // استوديو البرومبت فقط — لا يفتح السوشال ولا الحملات
   VIEW_CAMPAIGN_COST:   'view_campaign_cost',   // see campaign spend/cost (hidden from staff)
   VIEW_MEDIA_BUYER_BOARD: 'view_media_buyer_board', // media-buyer analytics dashboard
   MANAGE_GUIDES:        'manage_guides',         // add/edit app usage guides (feeds /guide + Lozy)
@@ -65,6 +66,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.MANAGE_SALES_STOCK]:   'إدارة مخازن المبيعات',
   [PERMISSIONS.VIEW_INVENTORY]:       'عرض لوحة المخازن',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:     'إنشاء/إدارة الحملات والإعلانات والإسناد',
+  [PERMISSIONS.USE_PROMPT_STUDIO]:    'استخدام استوديو البرومبت',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:   'عرض تكلفة الحملات (مخفية عن الموظفين)',
   [PERMISSIONS.VIEW_MEDIA_BUYER_BOARD]: 'لوحة الميديا باير (تحليل أداء الحملات)',
   [PERMISSIONS.MANAGE_GUIDES]:        'إدارة أدلة استخدام التطبيق',
@@ -103,6 +105,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.MANAGE_SALES_STOCK]:  'تعديل مخزون مخازن المبيعات والمناديب.',
   [PERMISSIONS.VIEW_INVENTORY]:      'عرض لوحة المخازن والأرصدة.',
   [PERMISSIONS.MANAGE_CAMPAIGNS]:    'إنشاء الحملات وإضافة الإعلانات وإسناد الموظفين للتسجيل.',
+  [PERMISSIONS.USE_PROMPT_STUDIO]:   'فتح استوديو البرومبت فقط. لا يعطي الوصول لاستوديو السوشال ولا تقويم المحتوى ولا الحملات.',
   [PERMISSIONS.VIEW_CAMPAIGN_COST]:  'رؤية تكلفة/إنفاق الحملة — تُخفى عن الموظفين العاديين.',
   [PERMISSIONS.MANAGE_GUIDES]:       'إضافة وتعديل أدلة استخدام التطبيق (تظهر في الدليل ولوزي تعرفها).',
   [PERMISSIONS.SEND_WHATSAPP]:       'فتح محادثة والرد على العملاء عبر رقم واتساب الرسمي — الموظف بدون هالصلاحية ما يشوف الشاشة إطلاقاً، ومع الصلاحية يشوف بس محادثاته هو (الأدمن/المدير يشوفوا الكل).',
@@ -122,6 +125,8 @@ export const PERMISSION_GROUPS = [
     permissions: [PERMISSIONS.VIEW_FINANCE, PERMISSIONS.MANAGE_PAYROLL, PERMISSIONS.MANAGE_KPI, PERMISSIONS.VIEW_ANALYTICS] },
   { key: 'campaigns',  icon: '📣', label: 'الحملات الإعلانية',
     permissions: [PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_CAMPAIGN_COST, PERMISSIONS.VIEW_MEDIA_BUYER_BOARD] },
+  { key: 'prompt_studio', icon: '✨', label: 'استوديو البرومبت',
+    permissions: [PERMISSIONS.USE_PROMPT_STUDIO] },
   { key: 'whatsapp',   icon: '💬', label: 'واتساب العملاء',
     permissions: [PERMISSIONS.SEND_WHATSAPP] },
   { key: 'syria_leads', icon: '📇', label: 'ليدز سوريا B2B',

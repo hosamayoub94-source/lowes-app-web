@@ -299,7 +299,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.PROMPT_STUDIO}
             element={
-              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]} perm={P.MANAGE_CAMPAIGNS}>
+              <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]} perm={[P.USE_PROMPT_STUDIO, P.MANAGE_CAMPAIGNS]}>
                 <PromptStudioScreen />
               </ProtectedRoute>
             }
