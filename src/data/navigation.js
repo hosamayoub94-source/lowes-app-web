@@ -99,7 +99,8 @@ export const NAV_ITEMS = [
   { id: 'social-team',     label: 'إدارة فريق السوشال', icon: '🧑‍🤝‍🧑', path: '/social-team',     roles: [A, M, SOC],          group: 'social' },
   { id: 'social-studio',   label: 'استوديو السوشال',   icon: '🌸', path: '/social-studio',   roles: [A, M, SOC, MB],      group: 'social', perm: P.MANAGE_CAMPAIGNS },
   { id: 'social-calendar', label: 'تقويم المحتوى',     icon: '📅', path: '/social-calendar', roles: [A, M, SOC, MB, MKT], group: 'social', perm: P.MANAGE_CAMPAIGNS },
-  { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social', perm: P.MANAGE_CAMPAIGNS },
+  // صلاحية مستقلة use_prompt_studio تفتح هذا العنصر فقط. manage_campaigns تبقى مقبولة كمفتاح ثانٍ حتى لا يفقد الوصولَ من يملكها اليوم.
+  { id: 'prompt-studio',   label: 'استوديو البرومبت',  icon: '✨', path: '/prompt-studio',   roles: [A, M, SOC, MB, MKT], group: 'social', perm: [P.USE_PROMPT_STUDIO, P.MANAGE_CAMPAIGNS] },
 
   // ── Finance (فصل المالية عن إدارة النظام)
   { id: 'accounting',     label: 'المصاريف والشحن', icon: '🚚', path: '/accounting', roles: [M, A, SM, ACC], group: 'finance', perm: P.VIEW_FINANCE },
