@@ -23,7 +23,7 @@ export function useCountdown(dueDate, status) {
 
   return useMemo(
     () => ({
-      label:      countdownLabel(dueDate),
+      label:      countdownLabel(dueDate, status),
       colorClass: dueDateColorClass(dueDate, status),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

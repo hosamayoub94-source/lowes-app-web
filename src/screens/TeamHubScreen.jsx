@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@hooks/useAuth';
 import { fetchTasks } from '@modules/tasks/services/taskService';
 import { sortTasks, effectiveStatus, shortDate } from '@modules/tasks/utils/taskUtils';
-import { STATUS_META } from '@modules/tasks/types/task.types';
+import { STATUS_META, STATUS_DISPLAY_META } from '@modules/tasks/types/task.types';
 import { ROUTES } from '@routes/paths';
 
 const CONFIGS = {
@@ -46,7 +46,7 @@ const CONFIGS = {
 
 function TaskPreviewRow({ task }) {
   const eff = effectiveStatus(task);
-  const meta = STATUS_META[eff] || STATUS_META.pending;
+  const meta = STATUS_DISPLAY_META[eff] || STATUS_META.pending;
   return (
     <Link to={ROUTES.TASKS} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-surface-alt hover:bg-surface-alt/70 transition">
       <span className="text-sm shrink-0" aria-hidden>{meta.icon}</span>

@@ -9,13 +9,14 @@ import { dueKey, diffDays, todayKey } from './taskDates';
 
 // ── Date helpers ──────────────────────────────────────────────
 
-/** Returns true if a task status counts as finished (done OR completed) */
-const isFinishedStatus = (s) => s === TASK_STATUS.COMPLETED || s === 'done';
+/** Closed work can never be "late": completed (or legacy done), cancelled, archived. */
+const CLOSED_STATUSES = new Set([TASK_STATUS.COMPLETED, 'done', TASK_STATUS.CANCELLED, 'archived']);
+export const isClosedStatus = (s) => CLOSED_STATUSES.has(s);
 
-/** Returns true if task is past its due_date and not completed/cancelled */
+/** Returns true if task is ACTIVE and past its due day (closed tasks are never overdue) */
 export function isOverdue(task) {
   if (!task.due_date) return false;
-  if (isFinishedStatus(task.status) || task.status === TASK_STATUS.CANCELLED) return false;
+  if (isClosedStatus(task.status)) return false;
   // مقارنة بالتقويم المحلي (لا بلحظة UTC): موعد اليوم ليس متأخراً حتى ينتهي اليوم.
   const k = dueKey(task.due_date);
   return !!k && k < todayKey();
@@ -23,7 +24,11 @@ export function isOverdue(task) {
 
 /** Compute effective status — auto-promotes to overdue when past due */
 export function effectiveStatus(task) {
-  if (isOverdue(task)) return TASK_STATUS.OVERDUE;
+  if (isOverdue(task)) {
+    // عالقة / بانتظار رد تبقيان بحالتهما (الشارة)، والتأخر يظهر في نص الموعد والإحصاء — لا تُبتلعان بـ«متأخرة».
+    if (task.status === 'blocked' || task.status === 'waiting_reply') return task.status;
+    return TASK_STATUS.OVERDUE;
+  }
   // Normalise legacy 'done' → 'completed' so the rest of the tasks module sees one value
   if (task.status === 'done') return TASK_STATUS.COMPLETED;
   return task.status;
@@ -35,9 +40,13 @@ export function daysUntilDue(due_date) {
   return diffDays(todayKey(), dueKey(due_date));
 }
 
-/** Human-readable countdown label (Arabic) */
-export function countdownLabel(due_date) {
-  if (!due_date) return null;
+/**
+ * Human-readable countdown label (Arabic).
+ * ROOT CAUSE of «ملغاة — متأخر بـ113 يوماً»: this used to ignore the task status, so every task with an
+ * old due date got a "متأخر بـ N" text. Closed statuses now return null (the card falls back to the plain date).
+ */
+export function countdownLabel(due_date, status) {
+  if (!due_date || isClosedStatus(status)) return null;
   const days = daysUntilDue(due_date);
   if (days === null) return null;
   if (days < 0)  return `متأخر بـ ${Math.abs(days)} ${Math.abs(days) === 1 ? 'يوم' : 'أيام'}`;
@@ -50,7 +59,7 @@ export function countdownLabel(due_date) {
 
 /** Tailwind text-color class for due date label */
 export function dueDateColorClass(due_date, status) {
-  if (!due_date || isFinishedStatus(status) || status === TASK_STATUS.CANCELLED) {
+  if (!due_date || isClosedStatus(status)) {
     return 'text-muted';
   }
   const days = daysUntilDue(due_date);
@@ -99,11 +108,12 @@ export function filterTasks(tasks, filters) {
     const effStatus = effectiveStatus(task);
 
     // Quick filters take priority
-    if (overdueOnly  && effStatus !== TASK_STATUS.OVERDUE)    return false;
+    if (overdueOnly  && !isOverdue(task))                      return false;
     if (completedOnly && effStatus !== TASK_STATUS.COMPLETED)  return false;
 
     // Status filter
-    if (status && effStatus !== status) return false;
+    if (status === TASK_STATUS.OVERDUE) { if (!isOverdue(task)) return false; }
+    else if (status && effStatus !== status) return false;
 
     // Priority filter
     if (priority && task.priority !== priority) return false;
@@ -139,8 +149,8 @@ export function sortTasks(tasks) {
   if (!tasks?.length) return [];
   return [...tasks].sort((a, b) => {
     // Overdue tasks always rise to top
-    const aOver = effectiveStatus(a) === TASK_STATUS.OVERDUE ? 1 : 0;
-    const bOver = effectiveStatus(b) === TASK_STATUS.OVERDUE ? 1 : 0;
+    const aOver = isOverdue(a) ? 1 : 0;
+    const bOver = isOverdue(b) ? 1 : 0;
     if (aOver !== bOver) return bOver - aOver;
 
     // Then by priority weight
@@ -172,7 +182,7 @@ function getPriorityWeight(priority) {
  */
 export function computeStats(tasks) {
   if (!tasks?.length) {
-    return { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, overdue: 0, completionPct: 0 };
+    return { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, overdue: 0, blocked: 0, waiting: 0, completionPct: 0 };
   }
 
   const counts = {
@@ -182,15 +192,19 @@ export function computeStats(tasks) {
     completed:  0,
     cancelled:  0,
     overdue:    0,
+    blocked:    0,
+    waiting:    0,
   };
 
   for (const task of tasks) {
     const eff = effectiveStatus(task);
+    if (isOverdue(task)) counts.overdue++; // نشطة فقط (تشمل عالقة/بانتظار رد المتأخرة)
     if (eff === TASK_STATUS.PENDING)     counts.pending++;
     else if (eff === TASK_STATUS.IN_PROGRESS) counts.inProgress++;
     else if (eff === TASK_STATUS.COMPLETED)   counts.completed++;
     else if (eff === TASK_STATUS.CANCELLED)   counts.cancelled++;
-    else if (eff === TASK_STATUS.OVERDUE)     counts.overdue++;
+    else if (eff === 'blocked')               counts.blocked++;
+    else if (eff === 'waiting_reply')         counts.waiting++;
   }
 
   const completionPct = counts.total > 0

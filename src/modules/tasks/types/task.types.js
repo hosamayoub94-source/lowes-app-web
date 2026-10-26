@@ -41,6 +41,16 @@ export const STATUS_META = {
   overdue:     { label: 'متأخرة',        tone: 'red',     icon: '🔥', colorClass: 'text-red-fg'   },
 };
 
+// ── Display-only status labels for the LEGACY page ────────────
+// عالقة / بانتظار رد / مؤرشفة تُعرَض بشارتها الصحيحة (القاعدة تقبلها منذ migration Rev 2) دون أن تدخل
+// قائمة اختيار الدرج القديم (STATUS_OPTIONS ثابتة) — الصفحة القديمة لا تدير هذه الحالات.
+export const STATUS_DISPLAY_META = {
+  ...STATUS_META,
+  blocked:       { label: 'عالقة',       tone: 'red',     icon: '⛔', colorClass: 'text-red-fg'   },
+  waiting_reply: { label: 'بانتظار رد',  tone: 'amber',   icon: '💬', colorClass: 'text-amber-fg' },
+  archived:      { label: 'مؤرشفة',      tone: 'neutral', icon: '🗄️', colorClass: 'text-muted'    },
+};
+
 // ── Priority metadata ─────────────────────────────────────────
 /** @type {Record<string, { label: string, tone: string, icon: string, weight: number }>} */
 export const PRIORITY_META = {
