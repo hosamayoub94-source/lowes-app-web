@@ -224,5 +224,11 @@ eq(F.toStatusExtra('completed', { evidence: 'د' }, false), { completion_note: '
 eq(F.toStatusExtra('review', { evidence: 'د', review_requested_by: U(2) }, true), { evidence: 'د', review_requested_by: U(2) }, 'extra مراجعة');
 ok(W.validateTransition({}, 'review', { evidence: 'د' }, { reviewerOptional: true }).ok, 'reviewerOptional قبل الـmigration');
 
+// ── 9) وضوح نطاق أرقام التقرير ──
+const reportSrc = fs.readFileSync('src/screens/TaskReportScreen.jsx', 'utf8');
+ok(reportSrc.includes('كل المهام النشطة حالياً') && reportSrc.includes('بغض النظر عن الشهر المحدد'), 'التقرير: «الوضع الآن» موصوف بأنه كل المهام النشطة وليس الشهر');
+ok(reportSrc.includes('مهام أُنشئت في هذا الشهر فقط') && reportSrc.includes('وليست كل المهام'), 'التقرير: إنجاز الشهر موصوف بأنه مهام الشهر فقط');
+ok(reportSrc.includes('(من مهام {monthLabel} فقط)'), 'التقرير: نسبة في الموعد موصوفة بنطاق الشهر');
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

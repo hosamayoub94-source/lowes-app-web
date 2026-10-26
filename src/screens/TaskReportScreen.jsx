@@ -138,6 +138,8 @@ export default function TaskReportScreen() {
   );
 
   const v = (x) => (loading ? '—' : x);
+  // نطاق كل قسم صريح: «الوضع الآن» = كل المهام النشطة حالياً (لا يتأثر بالشهر)، «إنجاز الشهر» = مهام أُنشئت بالشهر المحدد فقط.
+  const monthLabel = months.find((m) => m.val === month)?.label || month;
 
   return (
     <div className="space-y-5">
@@ -153,13 +155,13 @@ export default function TaskReportScreen() {
         >
           {months.map((m) => <option key={m.val} value={m.val}>{m.label}</option>)}
         </select>
-        <span className="text-xs text-muted">الفترة تخص الإنجاز؛ بطاقات «الوضع الآن» لا تتأثر بها</span>
+        <span className="text-xs text-muted">الشهر يؤثر على قسم «إنجاز الشهر» فقط (مهام أُنشئت فيه). قسم «الوضع الآن» وجدول المالكين والمتأخرات تخص كل المهام النشطة حالياً.</span>
       </div>
 
       {error && <p className="text-sm text-red-500">⚠️ {error}</p>}
 
       {/* الوضع الآن (لقطة المهام النشطة) */}
-      <p className="text-xs font-bold text-muted">الوضع الآن</p>
+      <p className="text-xs font-bold text-muted">الوضع الآن — كل المهام النشطة حالياً ({v(snapM.total)} مهمة)، بغض النظر عن الشهر المحدد</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard label="⚠️ متأخرة"     value={v(snapM.overdueTotal)} tone={snapM.overdueTotal ? 'red' : 'default'} />
         <StatCard label="⛔ عالقة"       value={v(snapM.blocked)}      tone={snapM.blocked ? 'amber' : 'default'} />
@@ -181,13 +183,13 @@ export default function TaskReportScreen() {
       </Card>
 
       {/* إنجاز الفترة */}
-      <p className="text-xs font-bold text-muted">إنجاز الفترة (مهام أُنشئت في الشهر المختار)</p>
+      <p className="text-xs font-bold text-muted">إنجاز {monthLabel} — مهام أُنشئت في هذا الشهر فقط ({v(cohortM.total)} مهمة)، وليست كل المهام</p>
       <Card>
         <CardTitle>الإنجاز في الموعد</CardTitle>
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-2xl font-bold text-text">{loading ? '—' : cohortM.onTime.ofWhich ? cohortM.onTime.pct + '%' : 'لا بيانات'}</span>
-            <span className="text-xs text-muted">{cohortM.onTime.done} من {cohortM.onTime.ofWhich} مهمة مكتملة بموعد</span>
+            <span className="text-xs text-muted">{cohortM.onTime.done} من {cohortM.onTime.ofWhich} مكتملة لها موعد (من مهام {monthLabel} فقط)</span>
           </div>
           <Bar value={cohortM.onTime.pct} tone={toneFor(cohortM.onTime.pct)} />
           <p className="text-xs text-muted mt-3">
@@ -199,6 +201,7 @@ export default function TaskReportScreen() {
 
       <Card>
         <CardTitle>حسب المشروع</CardTitle>
+        <CardSubtitle>مهام {monthLabel} فقط</CardSubtitle>
         <div className="mt-2">
           {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
             : cohortM.byProject.length === 0 ? <EmptyState description="لا توجد مهام في هذه الفترة" />
@@ -208,6 +211,7 @@ export default function TaskReportScreen() {
 
       <Card>
         <CardTitle>حسب الفريق</CardTitle>
+        <CardSubtitle>مهام {monthLabel} فقط</CardSubtitle>
         <div className="mt-2">
           {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
             : cohortM.byTeam.length === 0 ? <EmptyState description="لا توجد مهام في هذه الفترة" />
@@ -217,7 +221,7 @@ export default function TaskReportScreen() {
 
       <Card>
         <CardTitle>العبء والتعثّر لكل مالك</CardTitle>
-        <CardSubtitle>الأكثر تعثراً أولاً — وليس الأعلى إكمالاً</CardSubtitle>
+        <CardSubtitle>كل المهام النشطة حالياً — الأكثر تعثراً أولاً، وليس الأعلى إكمالاً</CardSubtitle>
         <div className="mt-2">
           {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
             : owners.length === 0 ? <EmptyState description="لا مهام نشطة" />
@@ -227,7 +231,7 @@ export default function TaskReportScreen() {
 
       <Card>
         <CardTitle>⚠️ المهام المتأخرة</CardTitle>
-        <CardSubtitle>الأقدم أولاً</CardSubtitle>
+        <CardSubtitle>كل المهام النشطة حالياً — الأقدم أولاً</CardSubtitle>
         <div className="mt-2">
           {loading ? <p className="text-sm text-muted animate-pulse py-4">جاري التحميل…</p>
             : overdueList.length === 0 ? <EmptyState icon="🎉" description="لا توجد مهام متأخرة" />
