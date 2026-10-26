@@ -102,6 +102,15 @@ export default function AdminLozyScreen() {
             <div key={f.id} className={`bg-surface border rounded-2xl p-3.5 flex items-start gap-3 ${f.is_active ? 'border-border' : 'border-border/40 opacity-60'}`}>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-text leading-relaxed">{f.fact}</p>
+                {String(f.category || '').startsWith('pending_conflict') && (() => {
+                  const refId = String(f.category).split(':')[1];
+                  const old = refId ? facts.find(x => x.id === refId) : null;
+                  return (
+                    <p className="text-[11px] mt-1.5 rounded-lg bg-amber-500/10 text-amber-600 px-2 py-1 leading-relaxed">
+                      ⚠️ تتعارض مع معلومة محفوظة{old ? `: «${old.fact}»` : ''} — لم تُعتمد. فعّليها (🔔) فقط بعد المراجعة، أو احذفيها.
+                    </p>
+                  );
+                })()}
                 <p className="text-[10px] text-muted mt-1">
                   {f.taught_by ? `علّمها: ${f.taught_by}` : 'مصدر غير معروف'}
                   {f.created_at && ` · ${new Date(f.created_at).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day:'numeric', month:'short' })}`}
