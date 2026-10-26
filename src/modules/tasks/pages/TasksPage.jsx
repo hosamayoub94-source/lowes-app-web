@@ -21,7 +21,9 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskStatsBar } from '../components/TaskStatsBar';
 import { TaskFilters } from '../components/TaskFilters';
 import { TaskDetailsDrawer } from '../components/TaskDetailsDrawer';
-import { countActiveFilters, effectiveStatus } from '../utils/taskUtils';
+import { countActiveFilters, effectiveStatus, isOverdue as taskIsOverdue } from '../utils/taskUtils';
+import { TASKS_OPS_CENTER } from '../utils/taskFlags';
+import OpsCenterPage from './OpsCenterPage';
 
 // ── Create task modal ─────────────────────────────────────────────
 
@@ -447,7 +449,7 @@ const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو
 function fmtDueDateShort(iso) { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS_AR[d.getMonth()]}`; }
 
 function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
-  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !['done','completed','in_review','cancelled'].includes(task.status);
+  const isOverdue = !!task.due_date && taskIsOverdue(task) && task.status !== 'in_review';
   return (
     <div
       draggable
@@ -513,7 +515,6 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }) {
 function KanbanView({ tasks, onOpen, onStatusChange }) {
   const [draggingTask, setDraggingTask]   = useState(null);
   const [dragOverCol, setDragOverCol]     = useState(null);
-  const [dragOverTask, setDragOverTask]   = useState(null);
 
   const byCol = useMemo(() => {
     const m = {};
@@ -532,7 +533,6 @@ function KanbanView({ tasks, onOpen, onStatusChange }) {
   const handleDragEnd = useCallback(() => {
     setDraggingTask(null);
     setDragOverCol(null);
-    setDragOverTask(null);
   }, []);
 
   const handleColDragOver = useCallback((e, colKey) => {
@@ -718,7 +718,7 @@ function PageHeader({ unseenCount, onRefresh, loading, onAdd, viewMode, onViewCh
   );
 }
 
-function TasksPage() {
+function LegacyTasksPage() {
   const {
     tasks, filteredTasks, loading, error, actionLoading, filters, stats,
     selectedTask, employees, unseenCount, drawerOpen,
@@ -934,6 +934,11 @@ function TasksPage() {
       />
     </div>
   );
+}
+
+// مركز العمل خلف علم البناء VITE_TASKS_OPS_CENTER — خارجه الصفحة القديمة كما هي حرفياً.
+function TasksPage() {
+  return TASKS_OPS_CENTER ? <OpsCenterPage /> : <LegacyTasksPage />;
 }
 
 export default TasksPage;

@@ -1,0 +1,116 @@
+-- =============================================================
+-- tasks_ops_center_v1 REV 2 — ROLLBACK — lowes-app-web ONLY.
+--
+-- GUARDED: it refuses (and changes nothing) when
+--   * the migration manifest is missing (not applied by this version), or
+--   * the new columns / status history / project codes / v3-only statuses hold data
+--     and a CURRENT export (tasks_ops_center_v1_export.sql) does not cover them.
+-- It drops ONLY objects recorded in tasks_ops_v1_manifest (never a same-named
+-- object that existed before), restores the previous status CHECK exactly as it
+-- was captured, and never drops the export snapshots.
+-- v3-only statuses are mapped back (draft/ready→pending, waiting_reply/blocked→in_progress,
+-- review→in_review, archived→completed) ONLY after the export proves they are saved.
+-- =============================================================
+begin;
+
+do $rb$
+declare
+  n_cols int; n_hist int; n_v3 int; n_proj int; mism int;
+  data_exists boolean;
+  r record;
+  prev_def text;
+begin
+  if to_regclass('public.tasks_ops_v1_manifest') is null then
+    raise exception 'rollback refused: tasks_ops_v1_manifest missing (migration not applied by this version) - nothing changed';
+  end if;
+
+  select count(*) into n_cols from public.tasks
+   where outcome is not null or next_step is not null or blocker is not null or blocker_since is not null
+      or evidence is not null or review_requested_by is not null or project_code is not null
+      or decision_ref is not null or kpi_key is not null or status_changed_at is not null
+      or status_changed_by is not null;
+  select count(*) into n_hist from public.task_status_history;
+  select count(*) into n_v3 from public.tasks
+   where status in ('draft','ready','waiting_reply','blocked','review','archived');
+  select count(*) into n_proj from public.projects where abos_code is not null;
+
+  data_exists := (n_cols + n_hist + n_v3 + n_proj) > 0;
+
+  if data_exists then
+    if to_regclass('public.tasks_ops_v1_backup_tasks') is null
+       or to_regclass('public.tasks_ops_v1_backup_history') is null
+       or to_regclass('public.tasks_ops_v1_backup_projects') is null then
+      raise exception 'rollback refused: data exists (task rows with new data/statuses: %, history rows: %, projects with abos_code: %). Run supabase/rollbacks/tasks_ops_center_v1_export.sql first - nothing changed',
+        greatest(n_cols, n_v3), n_hist, n_proj;
+    end if;
+
+    select count(*) into mism from public.tasks t
+     where (t.outcome is not null or t.next_step is not null or t.blocker is not null or t.blocker_since is not null
+         or t.evidence is not null or t.review_requested_by is not null or t.project_code is not null
+         or t.decision_ref is not null or t.kpi_key is not null or t.status_changed_at is not null
+         or t.status_changed_by is not null
+         or t.status in ('draft','ready','waiting_reply','blocked','review','archived'))
+       and not exists (select 1 from public.tasks_ops_v1_backup_tasks b
+                        where b.id = t.id
+                          and (b.status, b.outcome, b.next_step, b.blocker, b.blocker_since, b.evidence, b.review_requested_by,
+                               b.project_code, b.decision_ref, b.kpi_key, b.status_changed_at, b.status_changed_by)
+                              is not distinct from
+                              (t.status, t.outcome, t.next_step, t.blocker, t.blocker_since, t.evidence, t.review_requested_by,
+                               t.project_code, t.decision_ref, t.kpi_key, t.status_changed_at, t.status_changed_by));
+    if mism > 0 then
+      raise exception 'rollback refused: export is stale or incomplete for % task rows (data changed after exporting). Drop the old snapshots and re-run the export - nothing changed', mism;
+    end if;
+
+    select count(*) into mism from public.task_status_history h
+     where not exists (select 1 from public.tasks_ops_v1_backup_history b where b.id = h.id);
+    if mism > 0 then
+      raise exception 'rollback refused: % history rows are not in the export - nothing changed', mism;
+    end if;
+
+    select count(*) into mism from public.projects p
+     where p.abos_code is not null
+       and not exists (select 1 from public.tasks_ops_v1_backup_projects b where b.id = p.id and b.abos_code is not distinct from p.abos_code);
+    if mism > 0 then
+      raise exception 'rollback refused: % project codes are not in the export - nothing changed', mism;
+    end if;
+  end if;
+
+  -- map v3-only statuses back (safe now: saved in the export)
+  update public.tasks set status = case status
+      when 'draft' then 'pending' when 'ready' then 'pending'
+      when 'waiting_reply' then 'in_progress' when 'blocked' then 'in_progress'
+      when 'review' then 'in_review' when 'archived' then 'completed' end
+   where status in ('draft','ready','waiting_reply','blocked','review','archived');
+
+  -- drop ONLY what the migration created, newest first
+  for r in select object_type, object_name from public.tasks_ops_v1_manifest
+            where object_type in ('trigger','function','index','table','constraint','column')
+            order by seq desc loop
+    if r.object_type = 'trigger' then
+      execute format('drop trigger if exists %I on public.%I', split_part(r.object_name, '.', 2), split_part(r.object_name, '.', 1));
+    elsif r.object_type = 'function' then
+      execute format('drop function if exists %s', r.object_name);
+    elsif r.object_type = 'index' then
+      execute format('drop index if exists %s', r.object_name);
+    elsif r.object_type = 'table' then
+      execute format('drop table if exists %s', r.object_name);
+    elsif r.object_type = 'constraint' then
+      execute format('alter table public.%I drop constraint if exists %I', split_part(r.object_name, '.', 1), split_part(r.object_name, '.', 2));
+    elsif r.object_type = 'column' then
+      execute format('alter table public.%I drop column if exists %I', split_part(r.object_name, '.', 1), split_part(r.object_name, '.', 2));
+    end if;
+  end loop;
+
+  -- restore the previous status CHECK exactly as captured
+  select detail into prev_def from public.tasks_ops_v1_manifest where object_type = 'constraint_replaced' and object_name = 'tasks.tasks_status_check';
+  if prev_def is null then
+    raise exception 'rollback aborted: previous tasks_status_check definition missing from the manifest';
+  end if;
+  alter table public.tasks drop constraint if exists tasks_status_check;
+  execute format('alter table public.tasks add constraint tasks_status_check %s', prev_def);
+
+  drop table public.tasks_ops_v1_manifest;
+end
+$rb$;
+
+commit;

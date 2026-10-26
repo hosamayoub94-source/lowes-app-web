@@ -24,16 +24,13 @@ import {
 } from '../services/taskService';
 import { filterTasks, sortTasks, computeStats, extractEmployees } from '../utils/taskUtils';
 import { resolvePermissions, PERMISSIONS } from '@data/permissions';
-import { ROLES } from '@data/teams';
+import { resolveTaskScope } from '../utils/taskScope';
+import { toDbStatus } from '../utils/taskWorkflow';
+import { TASKS_OPS_CENTER, TASKS_V3_STATUSES } from '../utils/taskFlags';
 import { listMyProjects } from '../services/projectService';
 
-// أدوار الإدارة العليا فقط تشوف كل الفرق مخلوطة معاً (تدقيق/إشراف عام).
-// مدراء الفرق (مبيعات/سوشال/ميديا باير) صار عندهم VIEW_ALL_TASKS بمعنى
-// "كل مهام فريقهم" لا "كل مهام كل الفرق" — فصل صارم بين تيم السوشال
-// وتيم المبيعات (طلب المالك 2026-07-26). لو حساب مدير فريق بلا team
-// مضبوط بالـprofile (بيانات ناقصة) نرجع للسلوك القديم الآمن (يشوف الكل)
-// بدل ما يفضى له كل شي فجأة.
-const ORG_WIDE_ROLES = [ROLES.ADMIN, ROLES.MANAGER];
+// منطق النطاق (أدوار الإدارة العليا تشوف كل الفرق، مدراء الفرق فريقهم فقط، وبلا team مضبوط
+// نرجع للسلوك القديم الآمن) انتقل حرفياً إلى utils/taskScope.js كي يُختبر — طلب المالك 2026-07-26.
 
 /**
  * Resolve the current viewer's visibility scope for tasks.
@@ -49,19 +46,10 @@ async function resolveViewer() {
     const { useAuthStore } = await import('@stores/authStore');
     const session = useAuthStore.getState().session ?? null;
     if (!session?.id) return { viewerId: null, viewAll: true, isAdmin: false, team: null, projectIds: [], projects: [] };
-    const hasViewAllPerm = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
-    const isOrgWideRole = ORG_WIDE_ROLES.includes(session.role);
-    const viewAll = hasViewAllPerm && (isOrgWideRole || !session.team);
-    const isAdmin = session.role === ROLES.ADMIN;
+    const hasViewAll = resolvePermissions(session).has(PERMISSIONS.VIEW_ALL_TASKS);
     const projects = await listMyProjects(session.id).catch(() => []);
-    return {
-      viewerId: session.id,
-      viewAll,
-      isAdmin,
-      team: session.team || null,
-      projectIds: projects.map((p) => p.id),
-      projects,
-    };
+    const scope = resolveTaskScope(session, { hasViewAll, projectIds: projects.map((p) => p.id) });
+    return { ...scope, projects };
   } catch {
     return { viewerId: null, viewAll: true, isAdmin: false, team: null, projectIds: [], projects: [] };
   }
@@ -88,6 +76,8 @@ export const useTaskStore = create()(
     viewerTeam:     null,
     viewerIsAdmin:  false,
     viewerCanSeeAll:false,
+    viewerId:       null,
+    viewerRole:     '',
     loading:        false,
     error:          null,
     selectedTaskId: null,
@@ -116,6 +106,8 @@ export const useTaskStore = create()(
           viewerTeam:      viewer.team || null,
           viewerIsAdmin:   !!viewer.isAdmin,
           viewerCanSeeAll: !!viewer.viewAll,
+          viewerId:        viewer.viewerId || null,
+          viewerRole:      viewer.role || '',
         });
       } catch (err) {
         set({ error: err?.message || 'حدث خطأ أثناء تحميل المهام', loading: false });
@@ -143,19 +135,29 @@ export const useTaskStore = create()(
     },
 
     /** Change task status with optimistic update + rollback */
-    changeStatus: async (taskId, newStatus) => {
+    changeStatus: async (taskId, rawStatus, extraIn = {}) => {
+      let extra = extraIn;
       const prev = get().tasks;
+      // مركز العمل: الحالة الجديدة تُحوَّل لما تقبله القاعدة الآن (ready→pending قبل الـmigration)
+      // وما لا تقبله يُرفض بوضوح بدل فشل صامت. خارج العلم: السلوك القديم حرفياً.
+      const newStatus = TASKS_OPS_CENTER ? toDbStatus(rawStatus, TASKS_V3_STATUSES) : rawStatus;
+      // بعد الـmigration: من غيّر الحالة (يدخل سجل التاريخ كـclient_claim عندما لا يوجد auth.uid()).
+      if (TASKS_V3_STATUSES && get().viewerId && !('status_changed_by' in extra)) extra = { ...extra, status_changed_by: get().viewerId };
+      if (!newStatus) {
+        set({ error: 'هذه الحالة غير متاحة بعد (تحتاج تحديث قاعدة البيانات)' });
+        return;
+      }
 
       // Optimistic
       set((s) => ({
         tasks: s.tasks.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t,
+          t.id === taskId ? { ...t, ...extra, status: newStatus, updated_at: new Date().toISOString() } : t,
         ),
         actionLoading: true,
       }));
 
       try {
-        const updated = await updateTaskStatus(taskId, newStatus);
+        const updated = await updateTaskStatus(taskId, newStatus, undefined, extra);
         // Sync with server response
         set((s) => ({
           tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),

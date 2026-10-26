@@ -12,6 +12,8 @@
 import { supabase } from '@services/supabase';
 import { MOCK_TASKS, MOCK_EMPLOYEES } from '../data/mockTasks';
 import { effectiveStatus } from '../utils/taskUtils';
+import { TASKS_OPS_CENTER, TASKS_V3_STATUSES } from '../utils/taskFlags';
+import { safeUuids, isUuid } from '../utils/taskScope';
 import { ACTIVITY_TYPE } from '../types/task.types';
 import { mapTask, mapComment, mapActivity, toTaskInsert, toTaskUpdate } from './taskMappers';
 
@@ -28,12 +30,14 @@ export const USE_MOCK_DATA = explicit === 'true';
 // Supabase select strings — kept here so the wire payload is
 // controllable in one place.
 // -------------------------------------------------------------
+const V3_SELECT = ', outcome, next_step, blocker, blocker_since, evidence, review_requested_by, project_code, decision_ref, kpi_key, status_changed_at';
+
 const TASK_SELECT = `
   id, title, description, status, priority, progress,
   due_date, due_time, completed_at, created_at, updated_at,
   seen_by, attachments, tags, assigned_to, assignee_id, created_by,
   platform, task_type, attachments_note, completion_note, link, team,
-  project_id, is_sensitive, tagged_ids,
+  project_id, is_sensitive, tagged_ids${TASKS_V3_STATUSES ? V3_SELECT : ''},
   assignee:profiles!tasks_assignee_id_fkey ( id, employee_name, avatar_url, role_type, team ),
   creator:profiles!tasks_created_by_fkey   ( id, employee_name, avatar_url, role_type, team ),
   comments_count:task_comments(count)
@@ -55,8 +59,11 @@ const ACTIVITY_SELECT = `
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let _mockStore = MOCK_TASKS.map((t) => ({ ...t }));
 const refreshMock = () => {
-  _mockStore = _mockStore.map((t) => ({ ...t, status: effectiveStatus(t) }));
+  _mockStore = _mockStore.map(present);
 };
+// مركز العمل: نُبقي الحالة المخزَّنة كما هي (overdue مشتقّة من الموعد لا حالة) فلا نفقد الحالة الحقيقية.
+// خارج العلم: السلوك القديم حرفياً.
+const present = (t) => (TASKS_OPS_CENTER ? t : { ...t, status: effectiveStatus(t) });
 const newId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const findEmp = (id) => MOCK_EMPLOYEES.find((e) => e.id === id) || null;
 
@@ -111,17 +118,20 @@ export async function fetchTasks(params = {}) {
 
   if (restrict) {
     // Any match → visible. assigned_to/assignee_id both hold the profile UUID.
-    const clauses = [
-      `assignee_id.eq.${viewerId}`,
-      `assigned_to.eq.${viewerId}`,
-      `created_by.eq.${viewerId}`,
-      `tagged_ids.cs.{${viewerId}}`, // مشارك مُشار إليه (tag) على المهمة
-    ];
-    if (Array.isArray(projectIds) && projectIds.length) {
-      clauses.push(`project_id.in.(${projectIds.join(',')})`);
+    // المعرّفات تُدمج نصياً في .or() — لا يُسمح إلا بـUUID سليم (والفريق يُقتصّ من فواصل PostgREST).
+    const clauses = [];
+    if (isUuid(viewerId)) {
+      clauses.push(
+        `assignee_id.eq.${viewerId}`,
+        `assigned_to.eq.${viewerId}`,
+        `created_by.eq.${viewerId}`,
+        `tagged_ids.cs.{${viewerId}}`, // مشارك مُشار إليه (tag) على المهمة
+      );
     }
-    if (team) clauses.push(`team.eq.${team}`);
-    q = q.or(clauses.join(','));
+    const projIds = safeUuids(projectIds);
+    if (projIds.length) clauses.push(`project_id.in.(${projIds.join(',')})`);
+    if (team) clauses.push(`team.eq.${String(team).replace(/[,()]/g, '')}`);
+    if (clauses.length) q = q.or(clauses.join(','));
   }
   // Sensitive tasks are admin-only — hide from everyone else.
   if (!isAdmin) q = q.eq('is_sensitive', false);
@@ -132,7 +142,7 @@ export async function fetchTasks(params = {}) {
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []).map(mapTask).map((t) => ({ ...t, status: effectiveStatus(t) }));
+  return (data || []).map(mapTask).map(present);
 }
 
 /** Get a single task with its comments and activity loaded. */
@@ -141,7 +151,7 @@ export async function fetchTask(id) {
     await sleep(120);
     const task = _mockStore.find((t) => t.id === id);
     if (!task) throw new Error('Task not found');
-    return { ...task, status: effectiveStatus(task) };
+    return present(task);
   }
 
   const [{ data: taskRow, error: tErr }, { data: comments }, { data: activity }] = await Promise.all([
@@ -154,7 +164,7 @@ export async function fetchTask(id) {
   task.comments = (comments || []).map(mapComment);
   task.comments_count = task.comments.length;
   task.activity = (activity || []).map(mapActivity);
-  task.status = effectiveStatus(task);
+  task.status = present(task).status;
   return task;
 }
 
@@ -228,63 +238,22 @@ export async function updateTask(id, patch, { actorId } = {}) {
   return after;
 }
 
-export async function updateTaskStatus(id, status, opts) {
+/**
+ * extra: حقول تُحفظ مع الحالة (blocker / next_step / evidence / review_requested_by …).
+ * النقاط: لا تُمنح من هنا إطلاقاً. المصدر الوحيد هو trigger القاعدة `trg_task_points`
+ * (award_task_points) — كان الكود يمنحها أيضاً فتتكرر (قرار D-158).
+ */
+export async function updateTaskStatus(id, status, opts, extra = {}) {
   const isDone = status === 'completed' || status === 'done';
   if (isDone) {
-    const completedAt = new Date().toISOString();
-    const task = await fetchTask(id).catch(() => null);
-    const points = calcTaskPoints(task, completedAt);
-    const patch = { status, completed_at: completedAt };
-    const result = await updateTask(id, patch, opts);
-    // Award points — best-effort, never blocks UI
-    if (!USE_MOCK_DATA && task?.assigned_to?.name) {
-      awardPoints(task.assigned_to.name, id, points).catch(() => {});
-    }
-    return result;
+    return updateTask(id, { status, completed_at: new Date().toISOString(), ...extra }, opts);
   }
-  return updateTask(id, { status }, opts);
+  return updateTask(id, { status, ...extra }, opts);
 }
 export const updateTaskProgress = (id, progress, opts) => updateTask(id, { progress }, opts);
 export const updateTaskPriority = (id, priority, opts) => updateTask(id, { priority }, opts);
 export const reassignTask       = (id, userId,   opts) => updateTask(id, { assigned_to: userId }, opts);
 export const updateTaskDueDate  = (id, due_date, opts) => updateTask(id, { due_date }, opts);
-
-// ── Points helpers ────────────────────────────────────────────
-function calcTaskPoints(task, completedAt) {
-  const base = (() => {
-    if (!task?.due_date) return 15;
-    const due = new Date(task.due_date + 'T23:59:59');
-    const hoursLeft = (due - new Date(completedAt)) / 3_600_000;
-    if (hoursLeft >= 24) return 20; // early
-    if (hoursLeft >= 0)  return 15; // on time
-    return 5;                        // late
-  })();
-  const bonus = { urgent: 5, high: 3, medium: 1, low: 0 };
-  return base + (bonus[task?.priority] || 0);
-}
-
-async function awardPoints(employeeName, taskId, points) {
-  if (!employeeName || points <= 0) return;
-  const [{ error: insertErr }] = await Promise.all([
-    supabase.from('task_points').insert({
-      employee_name: employeeName,
-      task_id: taskId,
-      points,
-      reason: 'إتمام المهمة',
-    }),
-  ]);
-  if (insertErr) return; // task_points insert failed — still try profile update
-  const { data } = await supabase
-    .from('profiles')
-    .select('total_points')
-    .eq('employee_name', employeeName)
-    .single();
-  const current = typeof data?.total_points === 'number' ? data.total_points : 0;
-  await supabase
-    .from('profiles')
-    .update({ total_points: current + points })
-    .eq('employee_name', employeeName);
-}
 
 /** Delete a task — admin-only at the RLS level. */
 export async function deleteTask(id) {

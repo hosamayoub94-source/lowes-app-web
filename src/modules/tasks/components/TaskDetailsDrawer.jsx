@@ -5,7 +5,7 @@
 // activity timeline, attachments placeholder.
 // =============================================================
 
-import { memo, useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useEffect } from 'react';
 import { cn } from '@utils/classNames';
@@ -23,6 +23,42 @@ import { PERMISSIONS } from '@data/permissions';
 import { CommentThread } from './CommentThread';
 import { ActivityTimeline } from './ActivityTimeline';
 import { TaskAttachments } from './TaskAttachments';
+import { OpsStatusPanel } from './OpsStatusPanel';
+import { TASKS_OPS_CENTER } from '../utils/taskFlags';
+import { STATUS_META_V3, normalizeStatus } from '../utils/taskWorkflow';
+import { readLinks, projectLabel, kpiLabel, plainTags } from '../utils/taskLinks';
+
+// ── مركز العمل: النتيجة · الخطوة التالية · العائق · الدليل · الربط ──────────
+function OpsFields({ task, employees = [] }) {
+  const links = readLinks(task);
+  const reviewer = task.review_requested_by ? employees.find((e) => e.id === task.review_requested_by)?.name || '—' : null;
+  const evidence = task.evidence || task.completion_note;
+  const rows = [
+    task.outcome && ['النتيجة المطلوبة', task.outcome],
+    task.next_step && ['الخطوة التالية', task.next_step],
+    task.blocker && ['العائق', `${task.blocker}${task.blocker_since ? ` · منذ ${timeAgo(task.blocker_since).replace('منذ ', '')}` : ''}`],
+    evidence && ['دليل الإنجاز', evidence],
+    reviewer && ['طُلبت المراجعة من', reviewer],
+  ].filter(Boolean);
+  const hasLinks = links.project_code || links.kpi_key || links.decision_ref;
+  if (!rows.length && !hasLinks) return null;
+  return (
+    <Section title='العمل والنتيجة' icon='🎯'>
+      {rows.map(([label, value]) => (
+        <InfoRow key={label} label={label}><span className={cn('text-sm text-text whitespace-pre-wrap', label === 'العائق' && 'text-red-fg font-semibold')}>{value}</span></InfoRow>
+      ))}
+      {hasLinks && (
+        <InfoRow label='الربط'>
+          <div className='flex flex-wrap gap-1.5 justify-end'>
+            {links.project_code && <Badge tone='teal' className='text-[11px]'>{links.project_code} · {projectLabel(links.project_code)}</Badge>}
+            {links.kpi_key && <Badge tone='blue' className='text-[11px]'>KPI · {kpiLabel(links.kpi_key)}</Badge>}
+            {links.decision_ref && <Badge tone='purple' className='text-[11px]'>{links.decision_ref}</Badge>}
+          </div>
+        </InfoRow>
+      )}
+    </Section>
+  );
+}
 
 // ── Section wrapper ───────────────────────────────────────────
 function Section({ title, icon, children, className = '' }) {
@@ -211,7 +247,9 @@ function ParticipantsRow({ task, employees = [], canTag, onTag, onUntag, actionL
 
 function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment, onRemoveAttachment, actionLoading, employees = [], canTag = false, onTag, onUntag }) {
   const effStatus = effectiveStatus(task);
-  const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
+  const statusMeta   = TASKS_OPS_CENTER
+    ? (STATUS_META_V3[normalizeStatus(task.status)] || STATUS_META_V3.ready)
+    : (STATUS_META[effStatus]  || STATUS_META.pending);
   const priorityMeta = PRIORITY_META[task.priority] || null;
   const platformMeta = task.platform ? PLATFORM_META[task.platform] : null;
   const taskTypeMeta = task.task_type ? TASK_TYPE_META[task.task_type] : null;
@@ -234,14 +272,16 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
             <span className="font-semibold">📎 ملاحظة مرفق: </span>{task.attachments_note}
           </div>
         )}
-        {task.tags?.length > 0 && (
+        {(TASKS_OPS_CENTER ? plainTags(task.tags) : task.tags || []).length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {task.tags.map((tag) => (
+            {(TASKS_OPS_CENTER ? plainTags(task.tags) : task.tags).map((tag) => (
               <Badge key={tag} tone="teal" className="text-[10px]">{tag}</Badge>
             ))}
           </div>
         )}
       </Section>
+
+      {TASKS_OPS_CENTER && <OpsFields task={task} employees={employees} />}
 
       {/* Social media info */}
       {(platformMeta || taskTypeMeta || task.due_time) && (
@@ -333,7 +373,7 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
             </div>
           </InfoRow>
         )}
-        {!isCompleted && (
+        {!TASKS_OPS_CENTER && !isCompleted && (
           <InfoRow label="نقاط متوقعة">
             <span className="text-sm font-bold text-teal">+{pointsPreview} نقطة</span>
           </InfoRow>
@@ -352,6 +392,9 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
 
       {/* Change status */}
       <Section title="تغيير الحالة" icon="↻">
+        {TASKS_OPS_CENTER ? (
+          <OpsStatusPanel task={task} employees={employees} onChange={onStatusChange} loading={actionLoading} />
+        ) : (<>
         <Select
           value={effStatus}
           onChange={handleStatusChange}
@@ -365,10 +408,11 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
         {effStatus === 'cancelled' && (
           <p className="text-xs text-muted">المهام الملغاة لا يمكن تغيير حالتها.</p>
         )}
+        </>)}
       </Section>
 
       {/* Progress slider */}
-      {effStatus !== 'cancelled' && (
+      {!TASKS_OPS_CENTER && effStatus !== 'cancelled' && (
         <Section title="تحديث نسبة الإنجاز" icon="▶">
           <ProgressEditor
             value={task.progress}
@@ -578,7 +622,7 @@ export const TaskDetailsDrawer = memo(function TaskDetailsDrawer({
   }, [onDeleteTask, task?.id, onClose]);
 
   const handleStatusChange = useCallback(
-    (status) => onStatusChange?.(task.id, status),
+    (status, extra) => onStatusChange?.(task.id, status, extra),
     [onStatusChange, task?.id],
   );
 
