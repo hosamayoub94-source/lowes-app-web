@@ -176,14 +176,13 @@ export const DATE_RANGE_LABELS = {
 // Default widget configs per dashboard (fallback for first load)
 export const DEFAULT_WIDGETS = {
   [DASHBOARD_ID.EXECUTIVE]: [
-    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'معدل الحضور',      config: { metric: KPI.ATTENDANCE_RATE },      position_x: 0, position_y: 0, width: 1, height: 1 },
-    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'نقاط الإنتاجية',   config: { metric: KPI.PRODUCTIVITY_SCORE },   position_x: 1, position_y: 0, width: 1, height: 1 },
-    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'المهام المنجزة',    config: { metric: KPI.COMPLETED_TASKS },      position_x: 2, position_y: 0, width: 1, height: 1 },
-    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'المستخدمون النشطون', config: { metric: KPI.ACTIVE_USERS },        position_x: 3, position_y: 0, width: 1, height: 1 },
-    { widget_type: WIDGET_TYPE.TREND_CHART,   title: 'اتجاه الحضور',     config: { metric: KPI.ATTENDANCE_RATE, period: 'weekly' }, position_x: 0, position_y: 1, width: 2, height: 2 },
-    { widget_type: WIDGET_TYPE.BAR_CHART,     title: 'إنجاز المهام اليومي', config: { metric: KPI.COMPLETED_TASKS, period: 'daily' }, position_x: 2, position_y: 1, width: 2, height: 2 },
-    { widget_type: WIDGET_TYPE.ACTIVITY_FEED, title: 'النشاط الأخير',    config: { limit: 8 },                         position_x: 0, position_y: 3, width: 2, height: 2 },
-    { widget_type: WIDGET_TYPE.KPI_ALERT,     title: 'تنبيهات KPI',      config: {},                                   position_x: 2, position_y: 3, width: 2, height: 2 },
+    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'معدل الحضور',        config: { metric: KPI.ATTENDANCE_RATE },  position_x: 0, position_y: 0, width: 1, height: 1 },
+    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'المهام المنجزة',      config: { metric: KPI.COMPLETED_TASKS },  position_x: 1, position_y: 0, width: 1, height: 1 },
+    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'المهام المتأخرة',     config: { metric: KPI.OVERDUE_TASKS },    position_x: 2, position_y: 0, width: 1, height: 1 },
+    { widget_type: WIDGET_TYPE.STAT_CARD,     title: 'المستخدمون النشطون',  config: { metric: KPI.ACTIVE_USERS },     position_x: 3, position_y: 0, width: 1, height: 1 },
+    { widget_type: WIDGET_TYPE.TREND_CHART,   title: 'اتجاه معدل الحضور',   config: { metric: KPI.ATTENDANCE_RATE },  position_x: 0, position_y: 1, width: 2, height: 2 },
+    { widget_type: WIDGET_TYPE.BAR_CHART,     title: 'المهام المنجزة يومياً', config: { metric: KPI.COMPLETED_TASKS },  position_x: 2, position_y: 1, width: 2, height: 2 },
+    { widget_type: WIDGET_TYPE.ACTIVITY_FEED, title: 'آخر النشاطات',        config: { limit: 8 },                     position_x: 0, position_y: 3, width: 4, height: 2 },
   ],
   [DASHBOARD_ID.ATTENDANCE]: [
     { widget_type: WIDGET_TYPE.STAT_CARD,   title: 'معدل الحضور',    config: { metric: KPI.ATTENDANCE_RATE },     position_x: 0, position_y: 0, width: 1, height: 1 },
@@ -203,48 +202,15 @@ export const CHART_MAX_DATA_POINTS    = 90;           // max x-axis points
 export const EXPORT_MAX_ROWS          = 50_000;
 export const KPI_REFRESH_INTERVAL_MS  = 30_000;       // 30 s realtime refresh
 
-// ── Mock data helpers ─────────────────────────────────────────
-
-/** Generate a sequence of daily data points for a metric */
-export function generateMockTimeSeries(metric, days = 30) {
-  const now    = new Date();
-  const result = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const base = _mockBase(metric);
-    result.push({
-      date:  d.toISOString().slice(0, 10),
-      value: Math.max(0, base + (Math.random() - 0.4) * base * 0.2),
-    });
-  }
-  return result;
-}
-
-function _mockBase(metric) {
-  const bases = {
-    [KPI.ATTENDANCE_RATE]:        85,
-    [KPI.LATE_EMPLOYEES]:         4,
-    [KPI.ABSENT_EMPLOYEES]:       2,
-    [KPI.PRODUCTIVITY_SCORE]:     72,
-    [KPI.COMPLETED_TASKS]:        18,
-    [KPI.OVERDUE_TASKS]:          3,
-    [KPI.TASK_COMPLETION_RATE]:   78,
-    [KPI.ACTIVE_USERS]:           12,
-    [KPI.NOTIFICATION_ENGAGEMENT]:65,
-    [KPI.QUEUE_JOB_SUCCESS_RATE]: 96,
-    [KPI.SYSTEM_ERROR_COUNT]:     1,
-    [KPI.WORKED_HOURS_TOTAL]:     96,
-    [KPI.OVERTIME_HOURS_TOTAL]:   8,
-  };
-  return bases[metric] ?? 50;
-}
-
-/** Resolve a DATE_RANGE_PRESET to { from, to } ISO strings */
-export function resolveDateRange(preset, custom = {}) {
-  const now  = new Date();
-  const iso  = (d) => d.toISOString().slice(0, 10);
-  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+/**
+ * Resolve a DATE_RANGE_PRESET to { from, to } as LOCAL calendar days ('YYYY-MM-DD').
+ * Never uses toISOString(): it converts to UTC and shifts the day/month
+ * for any timezone ahead of UTC (e.g. 1st of month 00:30 in Dubai → previous month).
+ */
+export function resolveDateRange(preset, custom = {}, now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
   switch (preset) {
     case DATE_RANGE_PRESET.TODAY:
@@ -255,19 +221,16 @@ export function resolveDateRange(preset, custom = {}) {
       return { from: iso(addDays(now, -6)), to: iso(now) };
     case DATE_RANGE_PRESET.LAST_30_DAYS:
       return { from: iso(addDays(now, -29)), to: iso(now) };
-    case DATE_RANGE_PRESET.THIS_MONTH: {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: iso(start), to: iso(now) };
-    }
-    case DATE_RANGE_PRESET.LAST_MONTH: {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end   = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { from: iso(start), to: iso(end) };
-    }
+    case DATE_RANGE_PRESET.THIS_MONTH:
+      return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now) };
+    case DATE_RANGE_PRESET.LAST_MONTH:
+      return {
+        from: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        to:   iso(new Date(now.getFullYear(), now.getMonth(), 0)),
+      };
     case DATE_RANGE_PRESET.THIS_QUARTER: {
-      const q     = Math.floor(now.getMonth() / 3);
-      const start = new Date(now.getFullYear(), q * 3, 1);
-      return { from: iso(start), to: iso(now) };
+      const q = Math.floor(now.getMonth() / 3);
+      return { from: iso(new Date(now.getFullYear(), q * 3, 1)), to: iso(now) };
     }
     case DATE_RANGE_PRESET.CUSTOM:
       return { from: custom.from ?? iso(addDays(now, -29)), to: custom.to ?? iso(now) };
@@ -293,10 +256,11 @@ export function formatKPI(metric, value) {
   return `${Math.round(value)}${unit ? ' ' + unit : ''}`;
 }
 
-/** Evaluate KPI status: 'good' | 'warn' | 'critical' */
+/** Evaluate KPI status: 'good' | 'warn' | 'critical' | 'unknown' (no value) */
 export function getKPIStatus(metric, value) {
   const thresh = KPI_THRESHOLDS[metric];
-  if (!thresh || value === null || value === undefined) return 'good';
+  if (value === null || value === undefined) return 'unknown';
+  if (!thresh) return 'good';
   const { warn, critical, lower_is_better } = thresh;
 
   if (lower_is_better) {
@@ -311,22 +275,11 @@ export function getKPIStatus(metric, value) {
 }
 
 export const KPI_STATUS_COLORS = {
+  unknown:  '#64748b',
   good:     '#22c55e',
   warn:     '#f59e0b',
   critical: '#ef4444',
 };
-
-// ── Mock activity feed ────────────────────────────────────────
-export const MOCK_ACTIVITY = [
-  { id: '1', type: 'check_in',       user: 'أحمد محمد',     message: 'سجّل حضوره',              time: new Date(Date.now() - 5  * 60_000).toISOString() },
-  { id: '2', type: 'task_completed', user: 'سارة علي',      message: 'أنجزت مهمة: تقرير المبيعات', time: new Date(Date.now() - 12 * 60_000).toISOString() },
-  { id: '3', type: 'file_upload',    user: 'محمد خالد',     message: 'رفع ملف: بيانات Q3.xlsx',  time: new Date(Date.now() - 22 * 60_000).toISOString() },
-  { id: '4', type: 'check_late',     user: 'لينا حسن',      message: 'تأخرت 15 دقيقة',           time: new Date(Date.now() - 35 * 60_000).toISOString() },
-  { id: '5', type: 'task_overdue',   user: 'النظام',        message: 'مهمة: مراجعة العقود — متأخرة', time: new Date(Date.now() - 60 * 60_000).toISOString() },
-  { id: '6', type: 'check_out',      user: 'يوسف إبراهيم',  message: 'سجّل انصرافه (8.5 ساعة)',  time: new Date(Date.now() - 90 * 60_000).toISOString() },
-  { id: '7', type: 'export',         user: 'المدير',        message: 'صدّر تقرير الحضور - PDF',   time: new Date(Date.now() - 120 * 60_000).toISOString() },
-  { id: '8', type: 'check_in',       user: 'نورة السعد',    message: 'سجّلت حضورها',             time: new Date(Date.now() - 145 * 60_000).toISOString() },
-];
 
 export const ACTIVITY_ICONS = {
   check_in:       '✅',
@@ -340,3 +293,75 @@ export const ACTIVITY_ICONS = {
   error:          '❌',
   default:        '•',
 };
+
+// ── Report tabs (one hub page, tabs instead of extra menu items) ──
+export const ANALYTICS_TAB = Object.freeze({
+  EXECUTIVE:    'executive',
+  ATTENDANCE:   'attendance',
+  PRODUCTIVITY: 'productivity',
+  TEAM:         'team',
+  SYSTEM:       'system',
+});
+
+export const ANALYTICS_TABS = [
+  { id: ANALYTICS_TAB.EXECUTIVE,    dashboard: DASHBOARD_ID.EXECUTIVE,    label: 'ملخص تنفيذي',        icon: '📊', hint: 'صورة سريعة للإدارة: الحضور والمهام والتنبيهات.' },
+  { id: ANALYTICS_TAB.ATTENDANCE,   dashboard: DASHBOARD_ID.ATTENDANCE,   label: 'الحضور',              icon: '🕘', hint: 'معدل الحضور والتأخير والغياب وساعات العمل.' },
+  { id: ANALYTICS_TAB.PRODUCTIVITY, dashboard: DASHBOARD_ID.PRODUCTIVITY, label: 'المهام والإنتاجية',   icon: '✅', hint: 'المهام المنجزة والمتأخرة ومعدل الإنجاز.' },
+  { id: ANALYTICS_TAB.TEAM,         dashboard: DASHBOARD_ID.TEAM,         label: 'أداء الفريق',         icon: '👥', hint: 'جدول لكل موظف: حضور، تأخير، ساعات، مهام.' },
+  { id: ANALYTICS_TAB.SYSTEM,       dashboard: DASHBOARD_ID.SYSTEM,       label: 'صحة النظام',          icon: '🩺', hint: 'حالة قائمة العمليات على هذا الجهاز (للمدير العام فقط).', adminOnly: true },
+];
+
+/** Where clicking a KPI card leads: another tab or an existing screen. */
+export const KPI_DRILLDOWN = {
+  [KPI.ATTENDANCE_RATE]:       { tab: ANALYTICS_TAB.ATTENDANCE },
+  [KPI.LATE_EMPLOYEES]:        { tab: ANALYTICS_TAB.ATTENDANCE },
+  [KPI.ABSENT_EMPLOYEES]:      { tab: ANALYTICS_TAB.ATTENDANCE },
+  [KPI.WORKED_HOURS_TOTAL]:    { tab: ANALYTICS_TAB.ATTENDANCE },
+  [KPI.ACTIVE_USERS]:          { tab: ANALYTICS_TAB.TEAM },
+  [KPI.COMPLETED_TASKS]:       { tab: ANALYTICS_TAB.PRODUCTIVITY },
+  [KPI.TASK_COMPLETION_RATE]:  { tab: ANALYTICS_TAB.PRODUCTIVITY },
+  [KPI.PRODUCTIVITY_SCORE]:    { tab: ANALYTICS_TAB.PRODUCTIVITY },
+  [KPI.OVERDUE_TASKS]:         { path: '/tasks-report' },
+  [KPI.QUEUE_JOB_SUCCESS_RATE]:{ tab: ANALYTICS_TAB.SYSTEM },
+  [KPI.SYSTEM_ERROR_COUNT]:    { tab: ANALYTICS_TAB.SYSTEM },
+};
+
+/** KPIs where a LOWER value is the good direction (trend colouring). */
+export const LOWER_IS_BETTER_KPIS = Object.freeze([
+  KPI.LATE_EMPLOYEES, KPI.ABSENT_EMPLOYEES, KPI.OVERDUE_TASKS, KPI.SYSTEM_ERROR_COUNT, KPI.AVG_RESPONSE_TIME_MS,
+]);
+
+/**
+ * What each tab shows. `kpis` = cards (also the rows of the KPI export);
+ * `series` = charts that need a daily series.
+ */
+export const DASHBOARD_METRICS = {
+  [DASHBOARD_ID.EXECUTIVE]: {
+    name: 'ملخص تنفيذي',
+    kpis: [KPI.ATTENDANCE_RATE, KPI.PRODUCTIVITY_SCORE, KPI.COMPLETED_TASKS, KPI.OVERDUE_TASKS, KPI.ACTIVE_USERS, KPI.TASK_COMPLETION_RATE, KPI.LATE_EMPLOYEES],
+    series: [KPI.ATTENDANCE_RATE, KPI.COMPLETED_TASKS],
+  },
+  [DASHBOARD_ID.ATTENDANCE]: {
+    name: 'تقرير الحضور',
+    kpis: [KPI.ATTENDANCE_RATE, KPI.LATE_EMPLOYEES, KPI.ABSENT_EMPLOYEES, KPI.WORKED_HOURS_TOTAL, KPI.OVERTIME_HOURS_TOTAL],
+    series: [KPI.ATTENDANCE_RATE, KPI.LATE_EMPLOYEES],
+  },
+  [DASHBOARD_ID.PRODUCTIVITY]: {
+    name: 'تقرير المهام والإنتاجية',
+    kpis: [KPI.PRODUCTIVITY_SCORE, KPI.COMPLETED_TASKS, KPI.OVERDUE_TASKS, KPI.TASK_COMPLETION_RATE],
+    series: [KPI.COMPLETED_TASKS, KPI.PRODUCTIVITY_SCORE],
+  },
+  [DASHBOARD_ID.TEAM]: {
+    name: 'تقرير أداء الفريق',
+    kpis: [KPI.ACTIVE_USERS, KPI.ATTENDANCE_RATE, KPI.TASK_COMPLETION_RATE, KPI.NOTIFICATION_ENGAGEMENT, KPI.FILES_UPLOADED],
+    series: [KPI.ACTIVE_USERS],
+  },
+  [DASHBOARD_ID.SYSTEM]: {
+    name: 'تقرير صحة النظام',
+    kpis: [KPI.QUEUE_JOB_SUCCESS_RATE, KPI.SYSTEM_ERROR_COUNT, KPI.AVG_RESPONSE_TIME_MS, KPI.STORAGE_USED_BYTES],
+    series: [KPI.QUEUE_JOB_SUCCESS_RATE, KPI.SYSTEM_ERROR_COUNT],
+  },
+};
+
+/** Metrics that describe THIS device right now, not the selected period (no period comparison). */
+export const DEVICE_KPIS = Object.freeze([KPI.QUEUE_JOB_SUCCESS_RATE, KPI.SYSTEM_ERROR_COUNT]);

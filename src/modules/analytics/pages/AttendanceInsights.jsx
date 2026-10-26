@@ -1,53 +1,41 @@
 // =============================================================
-// Analytics — Attendance Insights
-// Deep-dive: attendance rate, late, absent, worked hours.
+// Analytics — Attendance tab
+// Rate, late, absent, worked hours (+ overtime when a source exists).
 // =============================================================
 import { memo } from 'react';
-import { useAnalyticsBootstrap, useKPI, useTrend, useIsAnalyticsLoading } from '../hooks/useAnalytics';
-import { DASHBOARD_ID, KPI, formatKPI } from '../types/analytics.types';
-import FilterBar      from '../components/FilterBar';
-import TrendChart     from '../components/TrendChart';
-import HeatmapWidget  from '../components/HeatmapWidget';
-import StatCard       from '../components/StatCard';
-import useAnalyticsStore from '../store/useAnalyticsStore';
-import { useEffect } from 'react';
+import { KPI } from '../types/analytics.types';
+import StatCard      from '../components/StatCard';
+import TrendChart    from '../components/TrendChart';
+import HeatmapWidget from '../components/HeatmapWidget';
 
-function AttendanceInsights({ userId }) {
-  useAnalyticsBootstrap(userId);
-  const setDashboard = useAnalyticsStore((s) => s.setDashboard);
-
-  useEffect(() => {
-    setDashboard(DASHBOARD_ID.ATTENDANCE);
-  }, [setDashboard]);
-
-  const isLoading = useIsAnalyticsLoading();
-
+function AttendanceInsights() {
   return (
-    <div style={{ padding: '20px 24px', minHeight: '100vh', background: 'var(--bg, #0f172a)', direction: 'rtl' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>تحليلات الحضور</h1>
-      <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>
-        نظرة شاملة على معدلات الحضور والتأخير والغياب
-      </p>
-
-      <FilterBar style={{ marginBottom: 20 }} />
-
-      {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
-        <StatCard metric={KPI.ATTENDANCE_RATE}    title="معدل الحضور" />
-        <StatCard metric={KPI.LATE_EMPLOYEES}     title="المتأخرون" />
-        <StatCard metric={KPI.ABSENT_EMPLOYEES}   title="الغائبون" />
-        <StatCard metric={KPI.WORKED_HOURS_TOTAL} title="ساعات العمل" />
-        <StatCard metric={KPI.OVERTIME_HOURS_TOTAL} title="الوقت الإضافي" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <StatCard metric={KPI.ATTENDANCE_RATE} />
+        <StatCard metric={KPI.LATE_EMPLOYEES} title="حالات التأخير" />
+        <StatCard metric={KPI.ABSENT_EMPLOYEES} title="حالات الغياب" />
+        <StatCard metric={KPI.WORKED_HOURS_TOTAL} />
+        <StatCard metric={KPI.OVERTIME_HOURS_TOTAL} />
       </div>
 
-      {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-        <TrendChart metric={KPI.ATTENDANCE_RATE}  title="اتجاه معدل الحضور" />
-        <TrendChart metric={KPI.LATE_EMPLOYEES}   title="اتجاه التأخير" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TrendChart metric={KPI.ATTENDANCE_RATE} title="معدل الحضور يومياً (%)" />
+        <TrendChart metric={KPI.LATE_EMPLOYEES} title="حالات التأخير يومياً" />
       </div>
 
-      {/* Heatmap */}
-      <HeatmapWidget metric={KPI.ATTENDANCE_RATE} title="خريطة حرارة الحضور الشهري" />
+      <HeatmapWidget metric={KPI.ATTENDANCE_RATE} title="خريطة حرارة معدل الحضور" />
+
+      <details className="bg-surface border border-border" style={{ borderRadius: 12, padding: '12px 16px' }}>
+        <summary className="text-text" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>كيف تُحسب هذه الأرقام؟</summary>
+        <ul className="text-muted" style={{ fontSize: 12, lineHeight: 1.9, margin: '8px 0 0', paddingInlineStart: 20 }}>
+          <li><strong>معدل الحضور</strong> = (أيام الحضور الفعلية) ÷ (عدد الموظفين النشطين × الأيام التي لها سجلات).</li>
+          <li><strong>حالات التأخير</strong> = عدد أيام الحضور التي سُجّل فيها تأخير.</li>
+          <li><strong>حالات الغياب</strong> = مجموع (عدد الموظفين النشطين − الحاضرين) لكل يوم له سجلات. أيام العطل بلا سجلات لا تُحتسب.</li>
+          <li><strong>ساعات العمل</strong> = مجموع ساعات سجلات الانصراف.</li>
+          <li><strong>الوقت الإضافي</strong> غير متوفر: لا يوجد عمود له في جدول الحضور.</li>
+        </ul>
+      </details>
     </div>
   );
 }

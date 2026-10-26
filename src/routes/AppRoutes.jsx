@@ -30,7 +30,7 @@ const ProfileScreen       = lazy(() => import(/* webpackChunkName: "profile"    
 const NotFoundScreen      = lazy(() => import(/* webpackChunkName: "404"            */ '@screens/NotFoundScreen'));
 const CRMDashboard        = lazy(() => import(/* webpackChunkName: "crm"            */ '@modules/crm/pages/CRMDashboard'));
 const FileManagerDashboard = lazy(() => import(/* webpackChunkName: "files"          */ '@modules/files/pages/FileManagerDashboard'));
-const ExecutiveDashboard   = lazy(() => import(/* webpackChunkName: "analytics"      */ '@modules/analytics/pages/ExecutiveDashboard'));
+const ExecutiveDashboard   = lazy(() => import(/* webpackChunkName: "analytics"      */ '@modules/analytics/pages/AnalyticsHub'));
 const DailyWorkspacePage   = lazy(() => import(/* webpackChunkName: "workspace"      */ '@modules/workspace/pages/DailyWorkspacePage'));
 const NotificationsScreen = lazy(() => import(/* webpackChunkName: "notifications"  */ '@screens/NotificationsScreen'));
 const AdminScreen         = lazy(() => import(/* webpackChunkName: "admin"          */ '@screens/AdminScreen'));
