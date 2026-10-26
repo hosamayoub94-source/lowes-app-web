@@ -40,7 +40,7 @@ ok(totals.in.amount_syp === 5000, `إجمالي الوارد SYP = 5000`);
 // الترتيب تنازلي حسب الحجم (يورتيتشي 1200 > الباقي)
 ok(rows[0].source === 'يورتيتشي', `الأعلى حركةً = يورتيتشي (كان ${rows[0].source})`);
 
-// ── الرصيد التشغيلي (استلامات − مصاريف، تجاهل الرواتب/التحويلات) ──
+// ── الرصيد التشغيلي التراكمي (يشمل الرواتب والسلف، ويتجاهل التحويلات) ──
 const opEntries = [
   { entry_type: 'income',   amount_try: 1000, amount_usd: 0,   amount_syp: 0 },
   { entry_type: 'expense',  amount_try: 200,  amount_usd: 0,   amount_syp: 0 },
@@ -52,7 +52,7 @@ const opEntries = [
 ok(filterOperational(opEntries).length === 3, `القيود التشغيلية = 3 (دخل+مصروفان) (كان ${filterOperational(opEntries).length})`);
 const opBal = computeOperationalBalance(opEntries);
 ok(opBal.amount_try === 800, `الرصيد TRY = 800 (1000-200) (كان ${opBal.amount_try})`);
-ok(opBal.amount_usd === -80, `الرصيد USD = -80 (الراتب والسلفة مُتجاهلان) (كان ${opBal.amount_usd})`);
+ok(opBal.amount_usd === -880, `الرصيد USD = -880 (مصروف 80 + راتب 500 + سلفة 300) (كان ${opBal.amount_usd})`);
 ok(opBal.amount_syp === 0,   `الرصيد SYP = 0`);
 
 console.log(`\n${fail === 0 ? '✅' : '⚠️'} نتيجة: ${pass}/${pass + fail} نجحت`);
