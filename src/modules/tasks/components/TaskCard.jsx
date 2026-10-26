@@ -9,9 +9,9 @@ import { Card } from '@components/ui/Card';
 import { Badge } from '@components/ui/Badge';
 import { Avatar } from '@components/ui/Avatar';
 import { ProgressBar } from '@components/ui/ProgressBar';
-import { STATUS_META, PRIORITY_META, PLATFORM_META, TASK_TYPE_META, progressTone } from '../types/task.types';
+import { STATUS_META, STATUS_DISPLAY_META, PRIORITY_META, PLATFORM_META, TASK_TYPE_META, progressTone } from '../types/task.types';
 import { useCountdown } from '../hooks/useCountdown';
-import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
+import { shortDate, timeAgo, effectiveStatus, isOverdue as isTaskOverdue, isClosedStatus } from '../utils/taskUtils';
 
 // ── Sub-components ────────────────────────────────────────────
 
@@ -68,12 +68,13 @@ export const TaskCard = memo(function TaskCard({
   if (!task) return null;
 
   const { title, description, priority, progress, due_date, created_at, assigned_to, comments_count, seen, tags, platform, task_type, link } = task;
-  const statusMeta   = STATUS_META[effStatus]  || STATUS_META.pending;
+  const statusMeta   = STATUS_DISPLAY_META[effStatus]  || STATUS_META.pending;
   const priorityMeta = PRIORITY_META[priority] || null;
   const platformMeta = platform ? PLATFORM_META[platform] : null;
   const taskTypeMeta = task_type ? TASK_TYPE_META[task_type] : null;
-  const isOverdue    = effStatus === 'overdue';
+  const isOverdue    = isTaskOverdue(task); // نشطة فقط — تشمل عالقة/بانتظار رد المتأخرة (الشارة تبقى عالقة/بانتظار رد)
   const isCompleted  = effStatus === 'completed';
+  const isClosed     = isClosedStatus(effStatus);
 
   return (
     <article className="relative">
@@ -89,7 +90,7 @@ export const TaskCard = memo(function TaskCard({
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40',
           'active:scale-[0.99] active:shadow-none',
           isOverdue  && 'border-red/40 bg-red-bg/20',
-          isCompleted && 'opacity-80',
+          isClosed && 'opacity-80',
           className,
         )}
       >

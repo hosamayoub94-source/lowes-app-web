@@ -14,7 +14,7 @@ import { Avatar } from '@components/ui/Avatar';
 import { Button } from '@components/ui/Button';
 import { ProgressBar } from '@components/ui/ProgressBar';
 import { Select } from '@components/ui/Input';
-import { STATUS_META, PRIORITY_META, STATUS_OPTIONS, PLATFORM_META, TASK_TYPE_META, progressTone, calcTaskPointsPreview } from '../types/task.types';
+import { STATUS_META, STATUS_DISPLAY_META, PRIORITY_META, STATUS_OPTIONS, PLATFORM_META, TASK_TYPE_META, progressTone, calcTaskPointsPreview } from '../types/task.types';
 import { shortDate, timeAgo, effectiveStatus } from '../utils/taskUtils';
 import { useCountdown } from '../hooks/useCountdown';
 import { usePermissions } from '@hooks/usePermissions';
@@ -249,7 +249,7 @@ function DetailsTab({ task, onStatusChange, onProgressChange, onUploadAttachment
   const effStatus = effectiveStatus(task);
   const statusMeta   = TASKS_OPS_CENTER
     ? (STATUS_META_V3[normalizeStatus(task.status)] || STATUS_META_V3.ready)
-    : (STATUS_META[effStatus]  || STATUS_META.pending);
+    : (STATUS_DISPLAY_META[effStatus]  || STATUS_META.pending);
   const priorityMeta = PRIORITY_META[task.priority] || null;
   const platformMeta = task.platform ? PLATFORM_META[task.platform] : null;
   const taskTypeMeta = task.task_type ? TASK_TYPE_META[task.task_type] : null;
