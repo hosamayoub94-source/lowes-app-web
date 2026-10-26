@@ -3,6 +3,7 @@
 // =============================================================
 import { useState, useMemo } from 'react';
 import { useAuth } from '@hooks/useAuth';
+import { sessionCan } from '@data/permissions';
 import { useToast } from '@hooks/useToast';
 import { Tabs } from '@components/ui/Tabs';
 import {
@@ -123,7 +124,7 @@ function CurrencyBlock({ currency, symbol, income, expense, net }) {
 // ── Main Screen ────────────────────────────────────────────────────────────
 
 export default function AccountingScreen() {
-  const { id, role } = useAuth();
+  const { id, role, session } = useAuth();
   useAccountingBootstrap(id);
 
   const { entries, isLoading } = useAccountingDashboard();
@@ -136,7 +137,8 @@ export default function AccountingScreen() {
 
   const isAdmin = role === 'admin' || role === 'manager';
   // المحاسبون (فادي ووسيم) ومدير المبيعات يقدرون يسجّلون قيوداً ومصادر — الحذف/التعديل للأدمن/المدير فقط.
-  const canEnter = isAdmin || role === 'accountant' || role === 'sales_manager';
+  const canEnter = isAdmin || role === 'accountant' || role === 'sales_manager'
+    || sessionCan(session, 'view_finance');
 
   const [tab, setTab]               = useState('all');
   const [monthFilter, setMonthFilter] = useState(currentMonth());
