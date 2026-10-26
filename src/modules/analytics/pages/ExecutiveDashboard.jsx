@@ -1,74 +1,35 @@
 // =============================================================
-// Analytics — Executive Dashboard
-// Top-level overview: attendance, productivity, tasks, alerts.
+// Analytics — Executive tab
+// Plain-language summary of the period + the customisable widget board.
+// (Header, filters, alerts, export and tabs live in AnalyticsHub.)
 // =============================================================
-import { memo } from 'react';
-import { useAnalyticsBootstrap, useLastUpdated, useIsAnalyticsLoading, useExportPanel } from '../hooks/useAnalytics';
-import { DASHBOARD_ID, EXPORT_FORMAT } from '../types/analytics.types';
+import { memo, useMemo } from 'react';
+import { useKPIs, useTrends, useKpiMetaMap, useAnalyticsStatus } from '../hooks/useAnalytics';
+import { buildExecutiveSummary } from '../services/reportMath';
 import DashboardBuilder from '../components/DashboardBuilder';
-import FilterBar        from '../components/FilterBar';
-import KPIAlertCard     from '../components/KPIAlertCard';
-import useAnalyticsStore from '../store/useAnalyticsStore';
-import { useAuth } from '@hooks/useAuth';
+import StateBox from '../components/StateBox';
 
-const BTN = ({ label, onClick, color = '#3b82f6', disabled }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={disabled ? 'bg-surface-alt text-muted' : ''}
-    style={{
-      padding: '6px 14px', borderRadius: 8, border: 'none',
-      background: disabled ? undefined : color, color: disabled ? undefined : '#fff',
-      fontSize: 12, fontWeight: 500, cursor: disabled ? 'not-allowed' : 'pointer',
-      opacity: disabled ? 0.7 : 1,
-    }}
-  >{label}</button>
-);
-
-function ExecutiveDashboard({ userId: userIdProp }) {
-  const { id: authId } = useAuth();
-  const userId = userIdProp ?? authId;
-  useAnalyticsBootstrap(userId);
-  const lastUpdated  = useLastUpdated();
-  const isLoading    = useIsAnalyticsLoading();
-  const { download, isExporting } = useExportPanel();
-  const loadDashboard = useAnalyticsStore((s) => s.loadDashboard);
+function ExecutiveDashboard() {
+  const kpis = useKPIs();
+  const trends = useTrends();
+  const meta = useKpiMetaMap();
+  const status = useAnalyticsStatus();
+  const lines = useMemo(() => buildExecutiveSummary(kpis, trends, meta), [kpis, trends, meta]);
 
   return (
-    <div style={{ padding: '20px 24px', minHeight: '100vh', direction: 'rtl' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 className="text-text" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📊 لوحة القيادة التنفيذية</h1>
-          {lastUpdated && (
-            <p className="text-muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
-              آخر تحديث: {new Date(lastUpdated).toLocaleTimeString('ar-SA')}
-            </p>
-          )}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <section className="bg-surface border border-border" aria-label="ملخص الفترة" style={{ borderRadius: 12, padding: '14px 16px' }}>
+        <h2 className="text-text" style={{ fontSize: 15, fontWeight: 700, margin: '0 0 8px' }}>ملخص الفترة للإدارة</h2>
+        {status === 'loading' && Object.keys(kpis).length === 0 ? (
+          <StateBox kind="loading" compact />
+        ) : (
+          <ul className="text-text" style={{ margin: 0, paddingInlineStart: 20, fontSize: 14, lineHeight: 1.9 }}>
+            {lines.map((l) => <li key={l}>{l}</li>)}
+          </ul>
+        )}
+      </section>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <BTN label="⟳ تحديث" onClick={loadDashboard} color="#334155" disabled={isLoading} />
-          <BTN label="CSV" onClick={() => download(EXPORT_FORMAT.CSV)} color="#22c55e" disabled={isExporting} />
-          <BTN label="XLSX" onClick={() => download(EXPORT_FORMAT.XLSX)} color="#3b82f6" disabled={isExporting} />
-          <BTN label="PDF" onClick={() => download(EXPORT_FORMAT.PDF)} color="#ef4444" disabled={isExporting} />
-        </div>
-      </div>
-
-      {/* Filter bar */}
-      <FilterBar style={{ marginBottom: 20 }} />
-
-      {/* Loading skeleton */}
-      {isLoading && (
-        <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
-          {[1,2,3,4].map((i) => (
-            <div key={i} className="bg-surface-alt" style={{ flex: 1, height: 120, borderRadius: 12, animation: 'pulse 1.5s infinite' }} />
-          ))}
-        </div>
-      )}
-
-      {/* Dashboard widgets */}
-      <DashboardBuilder editable style={{ marginBottom: 20 }} />
+      <DashboardBuilder editable />
     </div>
   );
 }

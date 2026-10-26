@@ -4,7 +4,7 @@
 // =============================================================
 import { memo, Suspense, lazy } from 'react';
 import { useKPIs } from '../hooks/useAnalytics';
-import { KPI_LABELS, KPI_COLORS, formatKPI } from '../types/analytics.types';
+import { KPI_LABELS, KPI_COLORS } from '../types/analytics.types';
 
 const LazyDonut = lazy(() =>
   import('recharts').then((m) => ({

@@ -1,24 +1,19 @@
 // =============================================================
 // Analytics Module — Zustand Store
 //
-// Single source of truth for all analytics state.
-// Never import directly from other module stores — all cross-
-// module data comes via lazy service imports.
+// Single source of truth for analytics state. Components read it ONLY
+// through hooks/useAnalytics.js. All data comes from services (real data;
+// each metric carries its own status/reason — see kpiEngine.js).
 //
-// State shape:
-//   kpis            — current KPI snapshot
-//   trends          — delta/direction vs previous period
-//   alerts          — threshold violations
-//   series          — time-series per metric
-//   activity        — recent activity feed
-//   widgets         — current dashboard widget configs
-//   savedReports    — user's saved report definitions
-//   filters         — active AnalyticsFilters
-//   dashboardId     — which dashboard is shown
-//   loading         — granular loading flags
-//   error           — last error message
-//   lastUpdated     — ISO string of last full refresh
-//   _realtimeTimer  — setInterval handle for polling
+// State:
+//   kpis / kpiMeta / prevKpis / trends   current values, per-metric status+source, previous period, comparison
+//   alerts                               "needs attention" items
+//   series / seriesMeta                  daily points per metric + status
+//   breakdown                            per-employee table (team report)
+//   activity / activityMeta              recent activity feed
+//   filters                              { preset, from, to, team, employeeId }  (local dates)
+//   directory                            { teams, employees } for the filter bar
+//   status                               'idle' | 'loading' | 'ok' | 'error'
 // =============================================================
 import { create }               from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
@@ -30,92 +25,122 @@ import {
   resolveDateRange,
 } from '../types/analytics.types';
 
-// ── Initial state factory ─────────────────────────────────────
+const DEFAULT_PRESET = DATE_RANGE_PRESET.LAST_7_DAYS;
+
+function _defaultFilters() {
+  return {
+    preset: DEFAULT_PRESET,
+    ...resolveDateRange(DEFAULT_PRESET),
+    team: null,
+    employeeId: null,
+  };
+}
+
 function _initState() {
   return {
     kpis:        {},
+    kpiMeta:     {},
+    prevKpis:    {},
     trends:      {},
     alerts:      [],
     series:      {},
+    seriesMeta:  {},
+    breakdown:   [],
     activity:    [],
+    activityMeta:null,
+    scope:       null,
+    range:       null,
+    previousRange: null,
     widgets:     DEFAULT_WIDGETS[DASHBOARD_ID.EXECUTIVE] ?? [],
     savedReports:[],
+    directory:   { teams: [], employees: [], status: 'idle', reason: null },
 
-    // Filters
-    filters: {
-      preset:       DATE_RANGE_PRESET.LAST_7_DAYS,
-      ...resolveDateRange(DATE_RANGE_PRESET.LAST_7_DAYS),
-      departmentId: null,
-      roleId:       null,
-      shiftId:      null,
-      employeeIds:  [],
-    },
-
+    filters: _defaultFilters(),
     dashboardId: DASHBOARD_ID.EXECUTIVE,
 
-    loading: {
-      kpis:     false,
-      series:   false,
-      widgets:  false,
-      reports:  false,
-      export:   false,
-    },
+    status: 'idle',
+    loading: { kpis: false, series: false, widgets: false, reports: false },
 
     error:        null,
     lastUpdated:  null,
 
-    // Internal
     _userId:        null,
+    _requestId:     0,
     _realtimeTimer: null,
   };
 }
 
-// ── Store ─────────────────────────────────────────────────────
 const useAnalyticsStore = create()(
   subscribeWithSelector((set, get) => ({
     ..._initState(),
 
     // ── Initialise for a user ─────────────────────────────
-    async init(userId) {
-      set({ _userId: userId });
-      await get().loadDashboard();
-      await get().loadWidgets(userId);
-      await get().loadSavedReports(userId);
-      get()._startPolling(userId);
+    async init(userId, initial = {}) {
+      set((s) => ({
+        _userId: userId,
+        ...(initial.dashboardId ? { dashboardId: initial.dashboardId } : {}),
+        ...(initial.filters ? { filters: { ...s.filters, ...initial.filters } } : {}),
+      }));
+      await Promise.all([get().loadDirectory(), get().loadDashboard(), get().loadWidgets(userId)]);
+      get()._startPolling();
     },
 
-    // ── Full dashboard refresh ────────────────────────────
-    async loadDashboard() {
+    async loadDirectory() {
+      try {
+        const { fetchDirectory } = await import('../services/kpiEngine');
+        const d = await fetchDirectory();
+        set({ directory: { teams: d.teams, employees: d.employees, status: d.status, reason: d.reason } });
+      } catch (err) {
+        set({ directory: { teams: [], employees: [], status: 'error', reason: err?.message ?? 'تعذّر تحميل قائمة الفرق والموظفين' } });
+      }
+    },
+
+    // ── Full dashboard refresh (stale responses are dropped) ──
+    async loadDashboard({ silent = false } = {}) {
       const { filters, dashboardId } = get();
-      set((s) => ({ loading: { ...s.loading, kpis: true, series: true }, error: null }));
+      const requestId = get()._requestId + 1;
+      set((s) => ({
+        _requestId: requestId,
+        error: null,
+        ...(silent ? {} : { status: 'loading', loading: { ...s.loading, kpis: true, series: true } }),
+      }));
       try {
         const { aggregateMetrics } = await import('../services/analyticsService');
         const result = await aggregateMetrics({ dashboardId, filters });
-        set({
-          kpis:        result.kpis,
-          trends:      result.trends,
-          alerts:      result.alerts,
-          series:      result.series,
-          activity:    result.activity,
-          lastUpdated: result.generatedAt,
-          loading:     { ...get().loading, kpis: false, series: false },
-        });
-      } catch (err) {
+        if (get()._requestId !== requestId) return;
         set((s) => ({
+          kpis:         result.kpis,
+          kpiMeta:      result.kpiMeta,
+          prevKpis:     result.prevKpis,
+          trends:       result.trends,
+          alerts:       result.alerts,
+          series:       result.series,
+          seriesMeta:   result.seriesMeta,
+          breakdown:    result.breakdown,
+          activity:     result.activity,
+          activityMeta: result.activityMeta,
+          scope:        result.scope,
+          range:        result.range,
+          previousRange:result.previousRange,
+          lastUpdated:  result.generatedAt,
+          status:       'ok',
+          loading:      { ...s.loading, kpis: false, series: false },
+        }));
+      } catch (err) {
+        if (get()._requestId !== requestId) return;
+        set((s) => ({
+          status: 'error',
           loading: { ...s.loading, kpis: false, series: false },
           error:   err?.message ?? 'خطأ في تحميل البيانات',
         }));
       }
     },
 
-    // ── Switch dashboard tab ──────────────────────────────
+    // ── Switch report tab ─────────────────────────────────
     async setDashboard(dashboardId) {
+      if (get().dashboardId === dashboardId) return;
       set({ dashboardId });
-      const userId = get()._userId;
-      await Promise.all([
-        get().loadDashboard(),
-        get().loadWidgets(userId),
-      ]);
+      await get().loadDashboard();
     },
 
     // ── Filter management ─────────────────────────────────
@@ -123,10 +148,15 @@ const useAnalyticsStore = create()(
       const current = get().filters;
       let next = { ...current, ...partial };
 
-      // If preset changed, re-resolve from/to
-      if (partial.preset && partial.preset !== current.preset) {
-        const range = resolveDateRange(partial.preset, next);
-        next = { ...next, ...range };
+      if (partial.preset && partial.preset !== DATE_RANGE_PRESET.CUSTOM) {
+        next = { ...next, ...resolveDateRange(partial.preset, next) };
+      } else if (('from' in partial || 'to' in partial) && !partial.preset) {
+        next = { ...next, preset: DATE_RANGE_PRESET.CUSTOM };
+      }
+      // changing team clears an employee that no longer belongs to it
+      if ('team' in partial && partial.team && next.employeeId) {
+        const emp = get().directory.employees.find((e) => e.id === next.employeeId);
+        if (emp && emp.team !== partial.team) next = { ...next, employeeId: null };
       }
 
       set({ filters: next });
@@ -134,18 +164,8 @@ const useAnalyticsStore = create()(
     },
 
     resetFilters() {
-      const preset = DATE_RANGE_PRESET.LAST_7_DAYS;
-      set({
-        filters: {
-          preset,
-          ...resolveDateRange(preset),
-          departmentId: null,
-          roleId:       null,
-          shiftId:      null,
-          employeeIds:  [],
-        },
-      });
-      get().loadDashboard();
+      set({ filters: _defaultFilters() });
+      return get().loadDashboard();
     },
 
     // ── Widget CRUD ───────────────────────────────────────
@@ -157,21 +177,23 @@ const useAnalyticsStore = create()(
         const { fetchWidgets } = await import('../services/analyticsService');
         const widgets = await fetchWidgets(userId, dashboardId);
         set((s) => ({ widgets, loading: { ...s.loading, widgets: false } }));
-      } catch (err) {
-        set((s) => ({ loading: { ...s.loading, widgets: false }, error: err?.message }));
+      } catch {
+        // a missing saved layout is not an error for the user — keep the default layout
+        set((s) => ({ widgets: DEFAULT_WIDGETS[dashboardId] ?? DEFAULT_WIDGETS[DASHBOARD_ID.EXECUTIVE] ?? [], loading: { ...s.loading, widgets: false } }));
       }
     },
 
     async saveWidgets(widgets) {
       const userId      = get()._userId;
       const dashboardId = get().dashboardId;
-      if (!userId) return;
+      if (!userId) return { ok: false };
       set({ widgets });
       try {
         const { saveWidgetLayout } = await import('../services/analyticsService');
         await saveWidgetLayout(userId, dashboardId, widgets);
+        return { ok: true };
       } catch (err) {
-        console.warn('[Analytics] Widget save failed:', err?.message);
+        return { ok: false, reason: err?.message ?? 'تعذّر حفظ التخطيط' };
       }
     },
 
@@ -191,82 +213,32 @@ const useAnalyticsStore = create()(
     async createReport(config) {
       const userId = get()._userId;
       if (!userId) return;
-      try {
-        const { createSavedReport } = await import('../services/analyticsService');
-        const report = await createSavedReport(userId, config);
-        set((s) => ({ savedReports: [report, ...s.savedReports] }));
-        return report;
-      } catch (err) {
-        set({ error: err?.message });
-        throw err;
-      }
+      const { createSavedReport } = await import('../services/analyticsService');
+      const report = await createSavedReport(userId, config);
+      set((s) => ({ savedReports: [report, ...s.savedReports] }));
+      return report;
     },
 
-    // ── Export ────────────────────────────────────────────
-    async exportCurrent(format) {
-      const { filters, dashboardId } = get();
-      set((s) => ({ loading: { ...s.loading, export: true } }));
-      try {
-        const { generateReport } = await import('../services/analyticsService');
-        const { exportReport }   = await import('../services/exportService');
-
-        // Determine metrics for this dashboard
-        const { getDefaultMetricsForDashboard } = await import('../services/analyticsService');
-        const metrics = getDefaultMetricsForDashboard?.(dashboardId) ?? Object.keys(get().kpis);
-
-        const { columns, rows } = await generateReport({
-          reportType: dashboardId,
-          filters,
-          metrics,
-          grouping: 'day',
-        });
-
-        await exportReport({
-          format,
-          columns,
-          rows,
-          title: `تقرير ${dashboardId}`,
-          filename: `${dashboardId}_${new Date().toISOString().slice(0, 10)}`,
-        });
-      } catch (err) {
-        set({ error: err?.message });
-      } finally {
-        set((s) => ({ loading: { ...s.loading, export: false } }));
-      }
+    // ── Refresh (user button + polling) ───────────────────
+    async refresh({ silent = false } = {}) {
+      get().invalidateCache();
+      await get().loadDashboard({ silent });
     },
 
-    // ── Refresh KPIs (light — no series) ─────────────────
-    async refreshKPIs() {
-      const { filters } = get();
-      try {
-        const { computeKPIs, evaluateAlerts, compareKPIs } = await import('../services/kpiEngine');
-        const [current, previous] = await Promise.all([
-          computeKPIs(filters),
-          computeKPIs({ ..._shiftPeriodBack(filters) }),
-        ]);
-        set({
-          kpis:        current,
-          trends:      compareKPIs(current, previous),
-          alerts:      evaluateAlerts(current),
-          lastUpdated: new Date().toISOString(),
-        });
-      } catch {
-        // Silent — polling should not break the UI
-      }
+    refreshKPIs() {
+      return get().loadDashboard({ silent: true });
     },
 
-    // ── Cache invalidation ────────────────────────────────
     invalidateCache() {
-      import('../services/analyticsService').then(({ invalidateAnalyticsCache }) => {
-        invalidateAnalyticsCache();
-      });
+      import('../services/analyticsService').then(({ invalidateAnalyticsCache }) => invalidateAnalyticsCache());
     },
 
-    // ── Realtime polling ──────────────────────────────────
-    _startPolling(userId) {
+    // ── Polling ───────────────────────────────────────────
+    _startPolling() {
       get()._stopPolling();
       const handle = setInterval(() => {
-        get().refreshKPIs();
+        if (typeof document !== 'undefined' && document.hidden) return;
+        get().loadDashboard({ silent: true });
       }, KPI_REFRESH_INTERVAL_MS);
       set({ _realtimeTimer: handle });
     },
@@ -282,21 +254,9 @@ const useAnalyticsStore = create()(
     // ── Teardown ──────────────────────────────────────────
     teardown() {
       get()._stopPolling();
-      set(_initState());
+      set({ ..._initState(), _requestId: get()._requestId + 1 });
     },
   })),
 );
 
 export default useAnalyticsStore;
-
-// ── Private helpers ───────────────────────────────────────────
-
-function _shiftPeriodBack(filters) {
-  if (!filters.from || !filters.to) return {};
-  const from = new Date(filters.from);
-  const to   = new Date(filters.to);
-  const diff = to - from;
-  const prevTo   = new Date(from.getTime() - 1);
-  const prevFrom = new Date(prevTo.getTime() - diff);
-  return { ...filters, from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
-}

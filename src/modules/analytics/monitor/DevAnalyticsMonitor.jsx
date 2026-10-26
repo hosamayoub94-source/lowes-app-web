@@ -4,10 +4,9 @@
 // cache controls. Visible only in mock mode or DEV environment.
 // =============================================================
 import { useState, memo } from 'react';
-import { USE_MOCK } from '../services/kpiEngine';
 import useAnalyticsStore from '../store/useAnalyticsStore';
 
-const isDevMode = USE_MOCK || import.meta.env.DEV;
+const isDevMode = import.meta.env.DEV;
 
 // ── Null component for prod builds ───────────────────────────
 function _Null() { return null; }

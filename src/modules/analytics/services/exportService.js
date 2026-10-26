@@ -1,142 +1,75 @@
 ﻿// =============================================================
 // Analytics Module — Export Service
 //
-// Browser-side export engine. Produces downloadable files from
-// report data without a server round-trip.
+// Browser-side export of EXACTLY the table the caller passes (the data on
+// screen after filters — building it is the hook's job, see useExportPanel).
 //
-// exportReport({ format, columns, rows, filename, title })
-//   → triggers browser download (CSV, XLSX, or PDF)
+//   exportReport({ format, columns:[{key,label}], rows, filename, title, meta })
+//     → { ok:true, filename } | { ok:false, reason }
 //
-// All heavy libs (xlsx) are dynamically imported to keep the
-// initial bundle lean.
+// CSV  : BOM + CRLF + formula-injection guard (reportMath.buildCSV)
+// XLSX : SheetJS, strings formula-guarded
+// PDF  : print dialog of a styled RTL table (browser "Save as PDF"); a blocked
+//        pop-up is REPORTED, never silently turned into a different format.
 // =============================================================
-import {
-  EXPORT_FORMAT,
-  EXPORT_MAX_ROWS,
-  KPI_LABELS,
-} from '../types/analytics.types';
+import { EXPORT_FORMAT, EXPORT_MAX_ROWS } from '../types/analytics.types';
+import { buildCSV, guardFormula } from './reportMath';
 
-// ── Public API ────────────────────────────────────────────────
+export async function exportReport({ format, columns, rows, filename, title = 'تقرير', meta = [] }) {
+  if (!Array.isArray(columns) || columns.length === 0) return { ok: false, reason: 'لا أعمدة للتصدير' };
+  const safeRows = (rows ?? []).slice(0, EXPORT_MAX_ROWS);
+  if (safeRows.length === 0) return { ok: false, reason: 'لا توجد بيانات لتصديرها ضمن الفلاتر الحالية' };
 
-/**
- * Generate and immediately download a report file.
- *
- * @param {object}   opts
- * @param {string}   opts.format      EXPORT_FORMAT constant
- * @param {string[]} opts.columns     Column keys (first = date)
- * @param {object[]} opts.rows        Data rows [{date, metric1, ...}]
- * @param {string}   [opts.filename]  Without extension
- * @param {string}   [opts.title]     Report title (used in PDF header)
- */
-export async function exportReport({ format, columns, rows, filename, title = 'Analytics Report' }) {
-  const safeRows  = (rows ?? []).slice(0, EXPORT_MAX_ROWS);
-  const safeCols  = columns ?? Object.keys(safeRows[0] ?? {});
-  const baseName  = filename ?? `analytics_${_dateStamp()}`;
-
-  switch (format) {
-    case EXPORT_FORMAT.CSV:
-      return _downloadBlob(_buildCSV(safeCols, safeRows), `${baseName}.csv`, 'text/csv;charset=utf-8;');
-
-    case EXPORT_FORMAT.XLSX:
-      return _exportXLSX(safeCols, safeRows, baseName, title);
-
-    case EXPORT_FORMAT.PDF:
-      return _exportPDF(safeCols, safeRows, baseName, title);
-
-    default:
-      throw new Error(`Unsupported export format: ${format}`);
+  try {
+    switch (format) {
+      case EXPORT_FORMAT.CSV:
+        _downloadBlob(buildCSV(columns, safeRows), `${filename}.csv`, 'text/csv;charset=utf-8;');
+        return { ok: true, filename: `${filename}.csv` };
+      case EXPORT_FORMAT.XLSX:
+        await _exportXLSX(columns, safeRows, filename);
+        return { ok: true, filename: `${filename}.xlsx` };
+      case EXPORT_FORMAT.PDF:
+        return _exportPDF(columns, safeRows, title, meta);
+      default:
+        return { ok: false, reason: `صيغة غير مدعومة: ${format}` };
+    }
+  } catch (e) {
+    return { ok: false, reason: e?.message || 'فشل التصدير' };
   }
-}
-
-/**
- * Build a raw CSV string from columns + rows (no download).
- * Useful for unit-testing or piping to another consumer.
- */
-export function buildCSVString(columns, rows) {
-  return _buildCSV(columns, rows);
-}
-
-// ── CSV ───────────────────────────────────────────────────────
-
-function _buildCSV(columns, rows) {
-  const header = columns.map(_csvCell).join(',');
-  const body   = rows.map((row) =>
-    columns.map((col) => _csvCell(row[col] ?? '')).join(','),
-  ).join('\r\n');
-  return `${header}\r\n${body}`;
-}
-
-function _csvCell(value) {
-  const s = String(value ?? '');
-  // Wrap in quotes if contains comma, quote, or newline
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
 }
 
 // ── XLSX ──────────────────────────────────────────────────────
 
-async function _exportXLSX(columns, rows, filename, title) {
-  try {
-    // Try SheetJS (xlsx) if available in the project
-    const XLSX = await import('xlsx').catch(() => null);
-
-    if (XLSX) {
-      const sheetData = [
-        columns.map((c) => KPI_LABELS[c] ?? c),  // Arabic header row
-        ...rows.map((row) => columns.map((c) => row[c] ?? '')),
-      ];
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-      // Style header row (basic column widths)
-      ws['!cols'] = columns.map(() => ({ wch: 18 }));
-
-      XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
-      XLSX.writeFile(wb, `${filename}.xlsx`);
-      return;
-    }
-  } catch {
-    // SheetJS not available — fall through to CSV-as-XLSX
-  }
-
-  // Fallback: download as CSV with .xlsx extension (Excel will open it)
-  _downloadBlob(
-    _buildCSV(columns, rows),
-    `${filename}.xlsx`,
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  );
+async function _exportXLSX(columns, rows, filename) {
+  const XLSX = await import('xlsx');
+  const sheetData = [
+    columns.map((c) => c.label),
+    ...rows.map((row) => columns.map((c) => guardFormula(row[c.key] ?? ''))),
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = columns.map(() => ({ wch: 18 }));
+  ws['!views'] = [{ RTL: true }];
+  XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
+  XLSX.writeFile(wb, `${filename}.xlsx`);
 }
 
-// ── PDF ───────────────────────────────────────────────────────
+// ── PDF (print) ───────────────────────────────────────────────
 
-async function _exportPDF(columns, rows, filename, title) {
-  // Open a styled print window; no jsPDF dependency required
-  const html = _buildPrintHTML(columns, rows, title);
-  const win  = window.open('', '_blank');
-  if (!win) {
-    // Popup blocked — fallback to CSV
-    console.warn('[Export] Popup blocked; falling back to CSV');
-    _downloadBlob(_buildCSV(columns, rows), `${filename}.csv`, 'text/csv;charset=utf-8;');
-    return;
-  }
-  win.document.write(html);
+function _exportPDF(columns, rows, title, meta) {
+  const win = window.open('', '_blank');
+  if (!win) return { ok: false, reason: 'المتصفح حجب نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة' };
+  win.document.write(_buildPrintHTML(columns, rows, title, meta));
   win.document.close();
   win.focus();
-  // Give styles time to apply before printing
   setTimeout(() => { win.print(); }, 400);
+  return { ok: true, filename: null };
 }
 
-function _buildPrintHTML(columns, rows, title) {
-  const headerCells = columns
-    .map((c) => `<th>${_esc(KPI_LABELS[c] ?? c)}</th>`)
-    .join('');
-  const bodyRows = rows.map((row) => {
-    const cells = columns.map((c) => `<td>${_esc(String(row[c] ?? ''))}</td>`).join('');
-    return `<tr>${cells}</tr>`;
-  }).join('');
-
+function _buildPrintHTML(columns, rows, title, meta) {
+  const head = columns.map((c) => `<th>${_esc(c.label)}</th>`).join('');
+  const body = rows.map((row) => `<tr>${columns.map((c) => `<td>${_esc(row[c.key] ?? '')}</td>`).join('')}</tr>`).join('');
+  const metaHtml = meta.map((m) => `<span>${_esc(m)}</span>`).join(' · ');
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -144,9 +77,9 @@ function _buildPrintHTML(columns, rows, title) {
 <title>${_esc(title)}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 20px; direction: rtl; }
-  h1 { font-size: 18px; margin-bottom: 4px; }
-  .meta { color: #666; font-size: 11px; margin-bottom: 16px; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 12px; padding: 20px; direction: rtl; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .meta { color: #555; font-size: 11px; margin-bottom: 14px; }
   table { width: 100%; border-collapse: collapse; }
   th { background: #1e40af; color: #fff; padding: 6px 8px; text-align: right; }
   td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; }
@@ -156,11 +89,8 @@ function _buildPrintHTML(columns, rows, title) {
 </head>
 <body>
 <h1>${_esc(title)}</h1>
-<p class="meta">تاريخ التصدير: ${new Date().toLocaleDateString('ar-SA-u-nu-latn-ca-gregory')} — ${rows.length} صف</p>
-<table>
-  <thead><tr>${headerCells}</tr></thead>
-  <tbody>${bodyRows}</tbody>
-</table>
+<p class="meta">${metaHtml}</p>
+<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
 </body>
 </html>`;
 }
@@ -168,22 +98,16 @@ function _buildPrintHTML(columns, rows, title) {
 // ── Helpers ───────────────────────────────────────────────────
 
 function _downloadBlob(content, filename, mimeType) {
-  const blob = content instanceof Blob
-    ? content
-    : new Blob([content], { type: mimeType });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
   a.download = filename;
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
-function _dateStamp() {
-  return new Date().toISOString().slice(0, 10).replace(/-/g, '');
 }
 
 function _esc(str) {
