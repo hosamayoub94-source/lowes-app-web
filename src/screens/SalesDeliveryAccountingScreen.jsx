@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { loadDeliveryData, loadStoredCommissions } from '@services/deliveryAccountingService';
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
-import { periodBounds, buildReport, buildProductLines, exportSheets, MARKET_LABELS } from '@utils/deliveryAccounting';
+import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
@@ -86,6 +86,10 @@ export default function SalesDeliveryAccountingScreen() {
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openSeller, setOpenSeller] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [retryTick, setRetryTick] = useState(0);
+  const abortRef = useRef(null);
+  const cacheRef = useRef(new Map()); // فترة محمّلة حديثاً لا تُعاد (التبديل للخلف فوري ولا يحمّل القاعدة)
   const reqId = useRef(0); // آخر طلب فقط يُعتمد: ردّ شهر قديم متأخر لا يكتب فوق الشهر الحالي
 
   const period = useMemo(() => {
@@ -97,10 +101,16 @@ export default function SalesDeliveryAccountingScreen() {
   const load = useCallback(async () => {
     if (!period) return;
     const id = ++reqId.current;
-    setLoading(true); setData(null); setCommissions([]); setOpenSeller(null); // لا أرقام شهر سابق تحت عنوان الشهر الجديد
+    abortRef.current?.abort(); // يلغي طلب الفترة السابقة فلا يتراكم حمل على القاعدة
+    const ac = new AbortController(); abortRef.current = ac;
+    setLoadError(null); setLoading(true); setData(null); setCommissions([]); setOpenSeller(null); // لا أرقام شهر سابق تحت عنوان الشهر الجديد
+    const key = `${period.from}|${period.to}|${includeLegacy}`;
     try {
-      const [d, rates] = await Promise.all([loadDeliveryData({ period, includeLegacy }), fetchExchangeRateMap().catch(() => ({ USD: 1 }))]);
+      const hit = cacheRef.current.get(key);
+      const fresh = hit && Date.now() - hit.at < 5 * 60 * 1000;
+      const [d, rates] = fresh ? [hit.d, hit.rates] : await Promise.all([loadDeliveryData({ period, includeLegacy, signal: ac.signal }), fetchExchangeRateMap().catch(() => ({ USD: 1 }))]);
       if (id !== reqId.current) return; // وصل ردّ متأخر لفترة لم تعد المختارة
+      if (!fresh) cacheRef.current.set(key, { d, rates, at: Date.now() });
       setData({ ...d, period }); setRateMap(rates);
       if (mode === 'month') {
         loadStoredCommissions(Number(month.slice(0, 4)), Number(month.slice(5, 7)))
@@ -109,11 +119,15 @@ export default function SalesDeliveryAccountingScreen() {
       }
     } catch (e) {
       if (id !== reqId.current) return;
-      toast?.error?.(e?.message || 'تعذّر تحميل التقرير');
-      setData(null);
+      const err = describeLoadError(e);
+      if (err.kind === 'aborted') return;
+      setLoadError(err.message); setData(null);
+      toast?.error?.(err.message);
     } finally { if (id === reqId.current) setLoading(false); }
   }, [period, includeLegacy, mode, month, toast]);
-  useEffect(() => { load(); }, [load]);
+  // تأخير قصير: تبديل الأشهر بسرعة لا يطلق جلباً لكل نقرة
+  useEffect(() => { const h = setTimeout(load, 350); return () => clearTimeout(h); }, [load, retryTick]);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const base = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs }) : null), [data, rateMap, includeLegacy]);
   const filters = useMemo(() => ({ ...f, product: f.product.trim() }), [f]);
@@ -190,7 +204,12 @@ export default function SalesDeliveryAccountingScreen() {
         </div>
       </section>
 
-      {!period ? <p className="text-sm text-muted">اختر فترة صحيحة.</p> : loading ? <p className="text-sm text-muted">جارٍ التحميل…</p> : !report ? <p className="text-sm text-red-600">لا بيانات (تحتاج جلسة مدير أو مدير مبيعات).</p> : (
+      {!period ? <p className="text-sm text-muted">اختر فترة صحيحة.</p> : loading ? <p className="text-sm text-muted">جارٍ التحميل…</p> : !report ? (
+        <div className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-xl p-3 space-y-2">
+          <p>{loadError || 'لا بيانات.'}</p>
+          <button onClick={() => { cacheRef.current.clear(); setRetryTick((t) => t + 1); }} className="px-3 py-1.5 rounded-xl bg-teal text-white font-bold">إعادة المحاولة</button>
+        </div>
+      ) : (
         <>
           <p className="text-xs text-muted">الفترة المعروضة: <b className="text-text">{report.period.label}</b></p>
           <section className="grid grid-cols-2 md:grid-cols-4 gap-2">

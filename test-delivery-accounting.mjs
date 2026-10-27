@@ -1,5 +1,5 @@
 // اختبار منطق الفترة بتاريخ التسليم — node test-delivery-accounting.mjs
-import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets } from './src/utils/deliveryAccounting.js';
+import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('❌', m); } };
@@ -110,6 +110,16 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(rep.delivered.length, 1, 'تقرير بالفلاتر الافتراضية: مسلَّم واحد'); eq(rep.undelivered.length, 1, 'وغير مسلَّم واحد');
   eq(applyFilters(r, { ...DEFAULTS, seller: 'Zina' }).length, 2, 'بائع محدد يطابق'); eq(applyFilters(r, { ...DEFAULTS, seller: 'Nobody' }).length, 0, 'بائع آخر يستبعد');
   eq(applyFilters(r, { ...DEFAULTS, product: 'all' }).length, 2, "product='all' ليس اسم منتج");
+}
+// 12) خطأ التحميل: انتهاء مهلة القاعدة لا يُعرض كأنه نقص صلاحية (عطل حي: 57014 بعد ~10 ثوانٍ ← «تحتاج جلسة مدير»)
+{
+  const t = describeLoadError({ code: '57014', message: 'canceling statement due to statement timeout' });
+  eq(t.kind, 'timeout', 'خطأ 57014 ← timeout'); ok(/مهلة/.test(t.message) && !/جلسة مدير أو مدير مبيعات\./.test(t.message), 'رسالة المهلة صريحة وليست رسالة الصلاحية');
+  eq(describeLoadError({ message: 'canceling statement due to statement timeout' }).kind, 'timeout', 'بالنص وحده أيضاً');
+  eq(describeLoadError({ code: '42501', message: 'permission denied for table x' }).kind, 'permission', 'نقص الصلاحية يبقى permission');
+  const ab = describeLoadError(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+  eq(ab.kind, 'aborted', 'الإلغاء المقصود لا يُعرض خطأ'); eq(ab.message, '', 'ولا رسالة له');
+  eq(describeLoadError(new Error('boom')).message, 'boom', 'خطأ آخر يُعرض كما هو');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);
