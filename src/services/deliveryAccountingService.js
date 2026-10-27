@@ -106,6 +106,33 @@ async function loadProductRefs(to) {
   };
 }
 
+/** تعرفة الشحن (كل الصفوف مع التاريخ). الجدول قد لا يكون مطبَّقاً بعد: يُعاد [] ولا يكسر اللوحة. */
+export async function loadCarrierRates(signal) {
+  const res = await withSignal(supabase.from('shipping_carrier_rates').select('*').order('effective_from', { ascending: false }), signal);
+  if (res.error) {
+    if (/does not exist|schema cache|Could not find/i.test(res.error.message || '')) return { rates: [], missingTable: true };
+    throw res.error;
+  }
+  return { rates: res.data || [], missingTable: false };
+}
+
+/** حفظ تعرفة (الدالة تفرض: دور محاسبة، ولا إعادة كتابة للتاريخ). */
+export async function saveCarrierRate({ carrier, market, currency, outbound, returnPolicy, returnFee, effectiveFrom, note, name }) {
+  const { data, error } = await supabase.rpc('shipping_rate_save', {
+    p_carrier: carrier, p_market: market, p_currency: currency, p_outbound: Number(outbound),
+    p_return_policy: returnPolicy || 'unknown', p_return_fee: returnPolicy === 'fixed' ? Number(returnFee) : null,
+    p_effective_from: effectiveFrom || null, p_note: note || null, p_name: name || null,
+  });
+  if (error) {
+    const m = error.message || '';
+    if (/history is never rewritten/.test(m)) throw new Error('لا يمكن إدخال تاريخ أقدم من آخر تعرفة لهذه الشركة — التاريخ لا يُعاد كتابته. اختر تاريخاً أحدث.');
+    if (/past rate is locked/.test(m)) throw new Error('هذه تعرفة من شهر سابق ومقفلة — أضف تعرفة جديدة بتاريخ أحدث.');
+    if (/not allowed/.test(m)) throw new Error('لا صلاحية: تعديل التعرفة لمدير الحسابات أو الأدمن فقط.');
+    throw error;
+  }
+  return data;
+}
+
 /** عمولات الشهر كما حُسبت فعلاً بمسيّر الرواتب (قراءة فقط) — اسم الموظف → عمولة $. */
 export async function loadStoredCommissions(year, month) {
   const { data: run } = await supabase.from('payroll_runs').select('id').eq('period_year', year).eq('period_month', month).maybeSingle();
@@ -120,13 +147,14 @@ export async function loadStoredCommissions(year, month) {
 
 /** كل بيانات الفترة الخام (بلا فلاتر) — الشاشة تُركّب التقرير والفلاتر محلياً بلا إعادة جلب. */
 export async function loadDeliveryData({ period, includeLegacy = true, signal }) {
-  const [{ rows }, open, refs, statusLedger] = await Promise.all([
+  const [{ rows }, open, refs, statusLedger, rateRes] = await Promise.all([
     loadDeliveredForPeriod({ from: period.from, to: period.to, includeLegacy, signal }),
     loadOpenOrders(period.from, period.to, signal),
     loadProductRefs(period.to),
     loadStatusLedger({ from: period.from, to: period.to, signal }),
+    loadCarrierRates(signal),
   ]);
   const seen = new Set(rows.map((r) => r.id));
   const settledPaths = await loadSettledPaths(rows.filter((r) => r.status === 'settled').map((r) => r.id), signal);
-  return { rows: [...rows, ...open.filter((r) => !seen.has(r.id))], refs: { ...refs, settledPaths, statusLedger } };
+  return { rows: [...rows, ...open.filter((r) => !seen.has(r.id))], refs: { ...refs, settledPaths, statusLedger, carrierRates: rateRes.rates, ratesMissingTable: rateRes.missingTable } };
 }
