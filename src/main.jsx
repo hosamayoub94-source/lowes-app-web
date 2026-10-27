@@ -4,23 +4,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { bootEventListeners }        from '@/core/events';
-import { bootQueue }                 from '@/core/queue';
-import { bootAutomation }            from '@/core/automation';
-import { bootAttendanceIntegration } from '@modules/attendance';
-import { bootFileIntegration }       from '@modules/files/integrations/fileEventBus';
-import { bootAnalyticsIntegration }  from '@modules/analytics/integrations/analyticsEventBus';
-import { bootCRMIntegration }        from '@modules/crm/integrations/crmEventBus';
-import {
-  wireWorkflowMetricsToEventBus,
-  loadPersistedMetrics,
-  loadPersistedProductivityMetrics,
-  loadPersistedHeatmap,
-} from '@/core/operations';
-import { patchTimerTracking, scheduleMaintenanceCleanup } from '@/core/maintenance';
-import { validateEnvironment } from '@/core/testing';
-import { bootProductionLayer } from '@/core/production';
-import { bootServiceWorkerAutoUpdate } from '@/core/swUpdate';
 import { supabase } from '@/services/supabase';
 
 import './styles/theme.css';
@@ -45,22 +28,8 @@ if (!import.meta.env.DEV) {
   }
 }
 
-// ── Boot sequence (each wrapped — one bad subsystem won't kill the app) ──
-// Production hardening first so error capture wraps the rest of the boot.
-safeBoot('Production',           () => bootProductionLayer(supabase));
-safeBoot('EventListeners',      () => bootEventListeners());
-safeBoot('Queue',               () => bootQueue());
-safeBoot('Automation',          () => bootAutomation());
-safeBoot('AttendanceInteg',     () => bootAttendanceIntegration());
-safeBoot('FileInteg',           () => bootFileIntegration());
-safeBoot('AnalyticsInteg',      () => bootAnalyticsIntegration());
-safeBoot('CRMInteg',            () => bootCRMIntegration());
-safeBoot('EnvValidation',       () => validateEnvironment());
-safeBoot('TimerTracking',       () => patchTimerTracking());
-safeBoot('WorkflowMetrics',     () => wireWorkflowMetricsToEventBus());
-safeBoot('PersistedMetrics',    () => { loadPersistedMetrics(); loadPersistedProductivityMetrics(); loadPersistedHeatmap(); });
-safeBoot('MaintenanceCleanup',  () => scheduleMaintenanceCleanup());
-safeBoot('SWAutoUpdate',        () => bootServiceWorkerAutoUpdate());
+// Non-visual integrations are started after the first paint below so they
+// cannot block React's initial screen.
 
 // ── Mount ──────────────────────────────────────────────────────
 const root = document.getElementById('root');
@@ -71,3 +40,36 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+// Keep all existing boot systems enabled, but start them after first paint.
+// Dynamic imports also keep heavy QA/analytics modules out of the initial JS.
+const idle = window.requestIdleCallback || ((cb) => window.setTimeout(cb, 0));
+idle(async () => {
+  const load = async (label, importer, run) => {
+    try {
+      const mod = await importer();
+      run(mod);
+    } catch (err) {
+      console.error(`[Boot] ${label} deferred start failed — continuing:`, err);
+    }
+  };
+
+  await load('Production', () => import('@/core/production'), (m) => safeBoot('Production', () => m.bootProductionLayer(supabase)));
+  await load('EventListeners', () => import('@/core/events'), (m) => safeBoot('EventListeners', () => m.bootEventListeners()));
+  await load('Queue', () => import('@/core/queue'), (m) => safeBoot('Queue', () => m.bootQueue()));
+  await load('Automation', () => import('@/core/automation'), (m) => safeBoot('Automation', () => m.bootAutomation()));
+  await load('AttendanceInteg', () => import('@modules/attendance'), (m) => safeBoot('AttendanceInteg', () => m.bootAttendanceIntegration()));
+  await load('FileInteg', () => import('@modules/files/integrations/fileEventBus'), (m) => safeBoot('FileInteg', () => m.bootFileIntegration()));
+  await load('AnalyticsInteg', () => import('@modules/analytics/integrations/analyticsEventBus'), (m) => safeBoot('AnalyticsInteg', () => m.bootAnalyticsIntegration()));
+  await load('CRMInteg', () => import('@modules/crm/integrations/crmEventBus'), (m) => safeBoot('CRMInteg', () => m.bootCRMIntegration()));
+  await load('EnvValidation', () => import('@/core/testing'), (m) => safeBoot('EnvValidation', () => m.validateEnvironment()));
+  await load('TimerTracking', () => import('@/core/maintenance'), (m) => safeBoot('TimerTracking', () => m.patchTimerTracking()));
+  await load('WorkflowMetrics', () => import('@/core/operations'), (m) => safeBoot('WorkflowMetrics', () => m.wireWorkflowMetricsToEventBus()));
+  await load('PersistedMetrics', () => import('@/core/operations'), (m) => safeBoot('PersistedMetrics', () => {
+    m.loadPersistedMetrics();
+    m.loadPersistedProductivityMetrics();
+    m.loadPersistedHeatmap();
+  }));
+  await load('MaintenanceCleanup', () => import('@/core/maintenance'), (m) => safeBoot('MaintenanceCleanup', () => m.scheduleMaintenanceCleanup()));
+  await load('SWAutoUpdate', () => import('@/core/swUpdate'), (m) => safeBoot('SWAutoUpdate', () => m.bootServiceWorkerAutoUpdate()));
+});
