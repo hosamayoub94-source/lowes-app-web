@@ -101,5 +101,15 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   ok(Object.keys(sheets).length === 6, 'ست أوراق تصدير'); eq(sheets['الفترة'][1][1], 'delivery transition date', 'معيار الإدخال بالتصدير');
   eq(rep.byMarket.length, 2, 'سوقان');
 }
+// 11) قيم الفلاتر الافتراضية بالشاشة لا تُسقط أي طلب (عطل: seller='all' كان يُعامَل اسم بائع فتظهر الشاشة 0)
+{
+  const DEFAULTS = { market: 'all', brand: 'all', seller: 'all', status: 'all', carrier: 'all', product: '', currency: 'all' };
+  const r = [o('F1', 'delivered', { delivered_at: '2026-10-02T10:00:00+03:00', delivery_basis: 'carrier' }), o('F2', 'shipped', { order_date: '2026-10-05T10:00:00+03:00' })];
+  eq(applyFilters(r, DEFAULTS).length, 2, 'الفلاتر الافتراضية تُبقي كل الصفوف');
+  const rep = buildReport({ rows: r, period: oct, filters: DEFAULTS });
+  eq(rep.delivered.length, 1, 'تقرير بالفلاتر الافتراضية: مسلَّم واحد'); eq(rep.undelivered.length, 1, 'وغير مسلَّم واحد');
+  eq(applyFilters(r, { ...DEFAULTS, seller: 'Zina' }).length, 2, 'بائع محدد يطابق'); eq(applyFilters(r, { ...DEFAULTS, seller: 'Nobody' }).length, 0, 'بائع آخر يستبعد');
+  eq(applyFilters(r, { ...DEFAULTS, product: 'all' }).length, 2, "product='all' ليس اسم منتج");
+}
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);
