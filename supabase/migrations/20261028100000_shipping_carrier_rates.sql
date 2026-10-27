@@ -9,8 +9,9 @@
 --  • لا إدراج بتاريخ أقدم من آخر تعرفة للشركة نفسها (يغيّر تقدير أشهر مضت بصمت). السطر الأول للشركة يجوز بتاريخ قديم
 --    ليغطي الأشهر السابقة بتقدير.
 --  • سياسة المرتجع: none (لا يأخذون) | fixed (مبلغ ثابت return_fee) | same_as_outbound (مثل الذهاب) | unknown.
---  • القراءة: admin/manager/sales_manager. الكتابة: admin/manager فقط (محاسبة) عبر الدالة shipping_rate_save.
--- إضافي وقابل لإعادة التشغيل. التراجع: DROP FUNCTION public.shipping_rate_save(...); DROP TABLE public.shipping_carrier_rates;
+--  • القراءة المباشرة: admin/manager/sales_manager (SELECT فقط). لا INSERT ولا UPDATE ولا DELETE مباشرة لأي دور؛ الكتابة الوحيدة
+--    عبر الدالة shipping_rate_save (SECURITY DEFINER) وهي لـadmin/manager فقط وتفرض قواعد التاريخ.
+-- إضافي وقابل لإعادة التشغيل. التراجع: docs/shipping/20261028100000_shipping_carrier_rates_rollback.sql (لا يلمس الطلبات ولا الرواتب).
 
 CREATE TABLE IF NOT EXISTS public.shipping_carrier_rates (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,26 +43,21 @@ DO $$ BEGIN
     CREATE POLICY scr_management_select ON public.shipping_carrier_rates FOR SELECT TO authenticated
       USING (public.current_role_type() IN ('admin','manager','sales_manager'));
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='shipping_carrier_rates' AND policyname='scr_finance_insert') THEN
-    CREATE POLICY scr_finance_insert ON public.shipping_carrier_rates FOR INSERT TO authenticated
-      WITH CHECK (public.current_role_type() IN ('admin','manager'));
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='shipping_carrier_rates' AND policyname='scr_finance_update') THEN
-    CREATE POLICY scr_finance_update ON public.shipping_carrier_rates FOR UPDATE TO authenticated
-      USING (public.current_role_type() IN ('admin','manager'))
-      WITH CHECK (public.current_role_type() IN ('admin','manager'));
-  END IF;
 END $$;
+-- لا سياسات INSERT/UPDATE/DELETE: لا طريق مباشر للكتابة. (تنظيف لأي نسخة سابقة من هذه الهجرة)
+DROP POLICY IF EXISTS scr_finance_insert ON public.shipping_carrier_rates;
+DROP POLICY IF EXISTS scr_finance_update ON public.shipping_carrier_rates;
 REVOKE ALL ON public.shipping_carrier_rates FROM PUBLIC, anon;
-GRANT SELECT, INSERT, UPDATE ON public.shipping_carrier_rates TO authenticated;
--- لا DELETE لأحد: تاريخ التعرفة لا يُمحى.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public.shipping_carrier_rates FROM authenticated;
+GRANT SELECT ON public.shipping_carrier_rates TO authenticated;
+-- كل كتابة عبر shipping_rate_save فقط؛ لا DELETE لأحد.
 
 -- حفظ ذرّي بالقواعد أعلاه.
 CREATE OR REPLACE FUNCTION public.shipping_rate_save(
   p_carrier text, p_market text, p_currency text, p_outbound numeric,
   p_return_policy text DEFAULT 'unknown', p_return_fee numeric DEFAULT NULL,
   p_effective_from date DEFAULT NULL, p_note text DEFAULT NULL, p_name text DEFAULT NULL)
-RETURNS date LANGUAGE plpgsql SET search_path TO 'public' AS $$
+RETURNS date LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_now_month date := date_trunc('month', (now() AT TIME ZONE 'Europe/Istanbul'))::date;
   v_today     date := (now() AT TIME ZONE 'Europe/Istanbul')::date;
@@ -69,7 +65,8 @@ DECLARE
   v_eff       date := COALESCE(p_effective_from, v_today);
   v_last      date;
 BEGIN
-  IF public.current_role_type() NOT IN ('admin','manager') THEN RAISE EXCEPTION 'not allowed'; END IF;
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'authentication required'; END IF;
+  IF public.current_role_type() IS NULL OR public.current_role_type() NOT IN ('admin','manager') THEN RAISE EXCEPTION 'not allowed'; END IF;
   IF v_carrier IS NULL OR v_carrier = '' THEN RAISE EXCEPTION 'carrier required'; END IF;
   IF p_market IS NULL OR p_market NOT IN ('syria','turkey','uae') THEN RAISE EXCEPTION 'market must be syria|turkey|uae'; END IF;
   IF p_currency IS NULL OR p_currency NOT IN ('SYP','TRY','AED','USD') THEN RAISE EXCEPTION 'currency must be SYP|TRY|AED|USD'; END IF;
