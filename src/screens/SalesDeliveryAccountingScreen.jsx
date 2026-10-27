@@ -3,7 +3,7 @@
 // الطلب يدخل الحساب بتاريخ انتقاله إلى delivered (لا order_date). غير المسلَّم يُعرض منفصلاً ولا يؤثر على أي رقم.
 // الحساب كله في @utils/deliveryAccounting (دوال صرفة مُختبَرة) — الشاشة عرض فقط.
 // =============================================================
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { loadDeliveryData, loadStoredCommissions } from '@services/deliveryAccountingService';
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, MARKET_LABELS } from '@utils/deliveryAccounting';
@@ -86,6 +86,7 @@ export default function SalesDeliveryAccountingScreen() {
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openSeller, setOpenSeller] = useState(null);
+  const reqId = useRef(0); // آخر طلب فقط يُعتمد: ردّ شهر قديم متأخر لا يكتب فوق الشهر الحالي
 
   const period = useMemo(() => {
     if (mode === 'range' && fromDate && toDate && fromDate <= toDate) return periodBounds({ fromDate, toDate });
@@ -95,22 +96,28 @@ export default function SalesDeliveryAccountingScreen() {
 
   const load = useCallback(async () => {
     if (!period) return;
-    setLoading(true);
+    const id = ++reqId.current;
+    setLoading(true); setData(null); setCommissions([]); setOpenSeller(null); // لا أرقام شهر سابق تحت عنوان الشهر الجديد
     try {
       const [d, rates] = await Promise.all([loadDeliveryData({ period, includeLegacy }), fetchExchangeRateMap().catch(() => ({ USD: 1 }))]);
-      setData(d); setRateMap(rates);
-      if (mode === 'month') loadStoredCommissions(Number(month.slice(0, 4)), Number(month.slice(5, 7))).then(setCommissions).catch(() => setCommissions([]));
-      else setCommissions([]);
+      if (id !== reqId.current) return; // وصل ردّ متأخر لفترة لم تعد المختارة
+      setData({ ...d, period }); setRateMap(rates);
+      if (mode === 'month') {
+        loadStoredCommissions(Number(month.slice(0, 4)), Number(month.slice(5, 7)))
+          .then((c) => { if (id === reqId.current) setCommissions(c); })
+          .catch(() => { if (id === reqId.current) setCommissions([]); });
+      }
     } catch (e) {
+      if (id !== reqId.current) return;
       toast?.error?.(e?.message || 'تعذّر تحميل التقرير');
       setData(null);
-    } finally { setLoading(false); }
+    } finally { if (id === reqId.current) setLoading(false); }
   }, [period, includeLegacy, mode, month, toast]);
   useEffect(() => { load(); }, [load]);
 
-  const base = useMemo(() => (data && period ? buildReport({ rows: data.rows, period, rateMap, includeLegacy, refs: data.refs }) : null), [data, period, rateMap, includeLegacy]);
+  const base = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs }) : null), [data, rateMap, includeLegacy]);
   const filters = useMemo(() => ({ ...f, product: f.product.trim() }), [f]);
-  const report = useMemo(() => (data && period ? buildReport({ rows: data.rows, period, rateMap, includeLegacy, refs: data.refs, filters }) : null), [data, period, rateMap, includeLegacy, filters]);
+  const report = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs, filters }) : null), [data, rateMap, includeLegacy, filters]);
 
   const opts = useMemo(() => {
     const all = [...(base?.delivered || []), ...(base?.undelivered || []), ...(base?.returns || [])];
@@ -122,9 +129,9 @@ export default function SalesDeliveryAccountingScreen() {
     if (!openSeller || !report) return null;
     const mine = (arr) => arr.filter((o) => normName(o.handler_name) === normName(openSeller));
     const delivered = mine(report.delivered), returns = mine(report.returns);
-    const monthStart = period?.monthStart || null;
+    const monthStart = data?.period?.monthStart || null;
     return { delivered, returns, products: buildProductLines(delivered, returns, { ...data.refs, monthStart }) };
-  }, [openSeller, report, data, period]);
+  }, [openSeller, report, data]);
 
   const exportExcel = async () => {
     if (!report) return;
@@ -185,6 +192,7 @@ export default function SalesDeliveryAccountingScreen() {
 
       {!period ? <p className="text-sm text-muted">اختر فترة صحيحة.</p> : loading ? <p className="text-sm text-muted">جارٍ التحميل…</p> : !report ? <p className="text-sm text-red-600">لا بيانات (تحتاج جلسة مدير أو مدير مبيعات).</p> : (
         <>
+          <p className="text-xs text-muted">الفترة المعروضة: <b className="text-text">{report.period.label}</b></p>
           <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <Stat label="طلبات مسلَّمة بالفترة" value={fmt(report.totals.count)} sub={report.legacyCount ? `منها ${report.legacyCount} بتاريخ تقديري` : null} tone="text-green-600" />
             <Stat label="القيمة الفعلية" value={curText(report.totals.byCurrency)} />
