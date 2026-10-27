@@ -114,8 +114,9 @@ export function toUsd(amount, currency, rateMap) {
 
 /** فلاتر اللوحة (كلها اختيارية). */
 export function applyFilters(rows, f = {}) {
-  const seller = f.seller ? normName(f.seller) : null;
-  const product = f.product ? normName(f.product) : null;
+  // 'all' = بلا فلتر (قيمة القوائم الافتراضية بالشاشة) — لا يجوز أن يُعامَل كاسم بائع أو منتج
+  const seller = f.seller && f.seller !== 'all' ? normName(f.seller) : null;
+  const product = f.product && f.product !== 'all' ? normName(f.product) : null;
   return (rows || []).filter((o) => {
     if (f.market && f.market !== 'all' && o.market !== f.market) return false;
     if (f.brand && f.brand !== 'all' && (o.brand || 'lowes') !== f.brand) return false;
