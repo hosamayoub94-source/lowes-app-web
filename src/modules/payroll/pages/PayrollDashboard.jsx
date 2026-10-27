@@ -1042,7 +1042,7 @@ export function PayrollDashboard() {
         >
           <div className="space-y-3">
             <p className="text-xs text-muted">
-              الطلبات المحصّلة لـ<span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> —
+              الطلبات <b>المسلَّمة فعلياً</b> خلال <span className="font-semibold text-teal"> {run ? periodLabel(run.period_year, run.period_month) : ''}</span> (بتاريخ انتقالها إلى «تم التسليم») —
               العمولة تُحسب حسب فريق الموظف ({statementFor.team === 'syria' ? 'سوريا $' : statementFor.team === 'turkey' ? 'تركيا ₺' : 'غير محدد'}) على <b>ما فوق التارجت بعد خصم الرواجع الزائدة</b>، بنسبة {Number(statementFor.commission_pct ?? 0)}%.
             </p>
 
@@ -1059,9 +1059,11 @@ export function PayrollDashboard() {
               <>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: 'عدد الطلبات', value: statementData.count },
+                    { label: 'عدد الطلبات المسلَّمة', value: statementData.count },
                     { label: 'المبيعات ($)', value: formatCurrency(statementData.totalUsd, 'USD') },
                     { label: 'العمولة ($)', value: formatCurrency(Number(statementFor.commission_usd) || 0, 'USD') },
+                    { label: 'المرتجعات', value: statementData.returnsCount ?? 0 },
+                    { label: 'قطع مباعة', value: (statementData.products || []).reduce((n, p) => n + p.qty, 0) },
                   ].map(({ label, value }) => (
                     <div key={label} className="text-center bg-surface-alt rounded-xl py-2">
                       <div className="text-sm font-extrabold text-text tabular-nums">{value}</div>
@@ -1069,6 +1071,12 @@ export function PayrollDashboard() {
                     </div>
                   ))}
                 </div>
+                {(statementData.products || []).length > 0 && (
+                  <p className="text-[11px] text-muted">المنتجات والكميات: {statementData.products.map((p) => `${p.name} ×${p.qty}`).join(' · ')}</p>
+                )}
+                {statementData.legacyCount > 0 && (
+                  <p className="text-[11px] text-amber-fg">⚠️ {statementData.legacyCount} طلب بتاريخ تسليم تقديري (بلا سجل تسليم — حُسب بتاريخ الطلب) — راجعها يدوياً.</p>
+                )}
                 <div className="overflow-x-auto max-h-64 overflow-y-auto border border-border/40 rounded-xl">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-surface-alt text-muted">

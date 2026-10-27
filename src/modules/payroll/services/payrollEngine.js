@@ -35,8 +35,10 @@
 // عمل جزئي. الراتب الأساسي وحده هو ما يُقسَّم بالتعيين/إغلاق الحساب.
 // =============================================================
 
-import { supabase, supabaseAnon } from '@services/supabase';
+import { supabase } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { loadDeliveredForPeriod } from '@services/deliveryAccountingService';
+import { buildPayrollIndex, periodBounds } from '@utils/deliveryAccounting';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 import { runPayrollBatch } from './payrollBatch.js';
 import { listApprovedAbsenceReviews } from './absenceReviewService.js';
@@ -208,23 +210,18 @@ function convert(amount, fromCur, toCur, rateMap) {
 // ── Sales + returns aggregation ────────────────────────────────
 
 /**
- * One query for the whole month's collected orders, grouped by
- * (normalized handler name → currency → totals+count). One `orders`
- * hit per run for sales, one for confirmed returns.
+ * مبيعات الشهر المحصّلة مجمَّعة (اسم البائع الموحّد → عملة → مجموع+عدد).
+ * الطلب يدخل بشهر انتقاله الفعلي إلى delivered (لا order_date) — نفس مصدر لوحة «محاسبة المبيعات والتسليمات»
+ * (@services/deliveryAccountingService → profitability_orders)، فلا يختلف تقرير التسليمات عن الرواتب.
+ * طلبات قيد التجهيز/الشحن/الوارد لا تدخل أبداً. settled لا يُحتسب إلا بتسليم فعلي سابق، وكل طلب مرة واحدة.
+ * المرتجعات المؤكدة (returned) تبقى كما كانت: عدّاد لكل بائع بحسب order_date (جزء عقوبة الرواجع، لم يتغيّر).
  */
 export async function fetchMonthlySalesIndex(year, month) {
   const { from, to } = monthBounds(year, month);
-  const index = new Map();
+  const period = periodBounds({ month: `${year}-${String(month).padStart(2, '0')}` });
 
-  // على دفعات — شهر بحجم >1000 طلب محصّل يُبتر صامتاً فتنقص العمولات/الرواتب.
-  const [salesData, returnsData] = await Promise.all([
-    fetchAllRows(() => supabase
-      .from('orders')
-      .select('handler_name, amount, currency, status, market, payment_method')
-      .gte('order_date', from)
-      .lt('order_date', to)
-      .neq('market', 'uae')   // الإمارات بلا عمولة حالياً (قرار 27 أيلول 2026)
-      .in('status', COMMISSIONABLE_STATUSES)),
+  const [{ delivered }, returnsData] = await Promise.all([
+    loadDeliveredForPeriod({ from: period.from, to: period.to }),
     fetchAllRows(() => supabase
       .from('orders')
       .select('handler_name')
@@ -234,36 +231,15 @@ export async function fetchMonthlySalesIndex(year, month) {
       .eq('status', RETURN_STATUS)),
   ]);
 
-  const isPrepaid = (pm) => {
-    const p = String(pm || '');
-    return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
-  };
-
-  const getBucket = (key) => {
-    let b = index.get(key);
-    if (!b) { b = { byCur: {}, prepaidTry: 0, returnsCount: 0 }; index.set(key, b); }
-    return b;
-  };
-
-  for (const o of (salesData || [])) {
-    const key = normalizeName(o.handler_name);
-    if (!key) continue;
-    const cur = o.currency || 'USD';
-    const bucket = getBucket(key);
-    const slot = bucket.byCur[cur] || { total: 0, count: 0 };
-    slot.total += Number(o.amount) || 0;
-    slot.count += 1;
-    bucket.byCur[cur] = slot;
-    // لشرائح مسبق الدفع التركية (نفس منطق محفظة البائع بشاشة الطلبات)
-    if (cur === 'TRY' && isPrepaid(o.payment_method)) bucket.prepaidTry += Number(o.amount) || 0;
-  }
-
+  // الإمارات بلا عمولة حالياً (قرار 27 أيلول 2026)
+  const index = buildPayrollIndex(delivered, { normalize: normalizeName, excludeMarkets: ['uae'] });
   for (const o of (returnsData || [])) {
     const key = normalizeName(o.handler_name);
     if (!key) continue;
-    getBucket(key).returnsCount += 1;
+    let b = index.get(key);
+    if (!b) { b = { byCur: {}, prepaidTry: 0, returnsCount: 0 }; index.set(key, b); }
+    b.returnsCount += 1;
   }
-
   return index;
 }
 
@@ -321,29 +297,39 @@ export async function fetchCommissionRules() {
 }
 
 /**
- * Detailed per-employee sales statement (for the "كشف حركة المبيعات" modal).
- * Returns the actual collected orders (all currencies) with USD value, so
- * the owner can verify what fed the commission.
+ * كشف حركة المبيعات لكل موظف: الطلبات المسلَّمة بالفترة (التي كوّنت العمولة) + المنتجات والكميات + المرتجعات.
+ * نفس المحدِّد المشترك مع فهرس الرواتب فلا يختلف الكشف عن المحسوب.
  */
 export async function fetchEmployeeSalesStatement(emp, year, month) {
-  const { from, to } = monthBounds(year, month);
   const names = employeeNames(emp);
-  if (names.length === 0) return { orders: [], totalUsd: 0, count: 0 };
+  if (names.length === 0) return { orders: [], totalUsd: 0, count: 0, products: [], returnsCount: 0, legacyCount: 0 };
+  const period = periodBounds({ month: `${year}-${String(month).padStart(2, '0')}` });
 
-  const [ordersData, rateMap] = await Promise.all([
-    fetchAllRows(() => supabaseAnon.from('orders')
-      .select('order_id, order_date, customer_name, amount, currency, status, handler_name, market')
-      .gte('order_date', from).lt('order_date', to)
-      .in('status', COMMISSIONABLE_STATUSES)
-      .order('order_date', { ascending: true })),
+  const [{ delivered, returns }, rateMap] = await Promise.all([
+    loadDeliveredForPeriod({ from: period.from, to: period.to }),
     fetchExchangeRateMap(),
   ]);
 
-  const orders = (ordersData || [])
-    .filter(o => names.includes(normalizeName(o.handler_name)))
-    .map(o => ({ ...o, usd_value: toUsd(o.amount, o.currency || 'USD', rateMap).usd }));
+  const mine = (o) => o.market !== 'uae' && names.includes(normalizeName(o.handler_name));
+  const orders = delivered.filter(mine)
+    .sort((x, y) => String(x.delivery_at).localeCompare(String(y.delivery_at)))
+    .map(o => ({
+      order_id: o.order_code, order_date: o.delivery_at, customer_name: o.customer_name, amount: o.amount, currency: o.currency,
+      status: o.status, handler_name: o.handler_name, market: o.market, date_source: o.delivery_source, items: o.items,
+      usd_value: toUsd(o.amount, o.currency || 'USD', rateMap).usd,
+    }));
   const totalUsd = Math.round(orders.reduce((s, o) => s + o.usd_value, 0) * 100) / 100;
-  return { orders, totalUsd, count: orders.length };
+  const qty = new Map();
+  for (const o of orders) for (const it of (Array.isArray(o.items) ? o.items : [])) {
+    const n = String(it?.name ?? '').trim(); if (!n) continue;
+    const q = Number(it.qty); qty.set(n, (qty.get(n) || 0) + (Number.isFinite(q) && q > 0 && q <= 500 ? q : 1));
+  }
+  const products = [...qty.entries()].map(([name, q]) => ({ name, qty: q })).sort((x, y) => y.qty - x.qty);
+  return {
+    orders, totalUsd, count: orders.length, products,
+    returnsCount: returns.filter(mine).length,
+    legacyCount: orders.filter(o => o.date_source === 'legacy_order_date').length,
+  };
 }
 
 // ── Advances ──────────────────────────────────────────────────
@@ -756,6 +742,8 @@ export async function computeEmployeeEntry({ emp, settings, runId, year, month, 
  */
 export async function runPayrollForMonth({ runId, year, month, onProgress, skipEmployeeIds, run, now = new Date() }) {
   if (isHistoricalPayrollPeriod(year, month)) throw new Error(HISTORICAL_PERIOD_MESSAGE);
+  // لا إعادة حساب لدورة معتمدة/مدفوعة حتى لو استُدعي المحرّك مباشرة (الحماية سابقاً كانت بالواجهة فقط).
+  if (run?.status && run.status !== 'draft') throw new Error('لا يمكن احتساب دورة غير مسودّة (' + run.status + ').');
   // This guard is intentionally enforced here as well as in the UI. Payroll
   // must never be computed from defaults when the month snapshot is unconfirmed.
   if (!run?.month_setup_confirmed_at) {

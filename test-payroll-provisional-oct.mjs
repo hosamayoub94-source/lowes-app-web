@@ -91,7 +91,7 @@ function seedFor() {
 }
 
 globalThis.__current = null; globalThis.__rpc = [];
-globalThis.__fakeSb = { from: (...a) => globalThis.__current.from(...a), rpc: (...a) => { globalThis.__rpc.push(a); return Promise.resolve({ data: null, error: null }); } };
+globalThis.__fakeSb = { from: (...a) => globalThis.__current.from(...a), rpc: (...a) => { if (a[0] === 'profitability_orders') return globalThis.__current.rpc(...a); globalThis.__rpc.push(a); return Promise.resolve({ data: null, error: null }); } };
 const use = (d) => { globalThis.__current = d.client; globalThis.__rpc = []; return d; };
 
 const server = await createServer({
@@ -99,7 +99,7 @@ const server = await createServer({
   resolve: { alias: { '@utils': path.resolve('src/utils'), '@': path.resolve('src') } },
   plugins: [{
     name: 'fake-supabase', enforce: 'pre',
-    resolveId(s) { return s === '@services/supabase' ? '\0fake-sb' : null; },
+    resolveId(s) { return s === '@services/supabase' ? '\0fake-sb' : s === '@services/deliveryAccountingService' ? path.resolve('src/services/deliveryAccountingService.js') : null; },
     load(id) { return id === '\0fake-sb' ? 'export const supabase = globalThis.__fakeSb; export const supabaseAnon = globalThis.__fakeSb;' : null; },
   }],
 });
