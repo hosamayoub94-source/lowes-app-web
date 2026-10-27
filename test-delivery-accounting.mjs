@@ -1,5 +1,7 @@
 // اختبار منطق الفترة بتاريخ التسليم — node test-delivery-accounting.mjs
+import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
+import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
 
 let pass = 0, fail = 0;
@@ -99,7 +101,7 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(applyFilters(r, { carrier: 'Yurtici' }).length, 1, 'فلتر شركة الشحن'); eq(applyFilters(r, { market: 'uae' }).length, 1, 'فلتر السوق'); eq(applyFilters(r, { currency: 'AED' }).length, 1, 'فلتر العملة'); eq(applyFilters(r, { seller: 'sara' }).length, 1, 'فلتر البائع');
   const rep = buildReport({ rows: r, period: oct, rateMap: { USD: 1, AED: 0.27 } });
   const sheets = exportSheets(rep);
-  ok(Object.keys(sheets).length === 9, 'تسع أوراق تصدير (ست + المرتجعات + الشحن + التسويات)'); eq(sheets['الفترة'][1][1], 'delivery transition date', 'معيار الإدخال بالتصدير');
+  ok(Object.keys(sheets).length === 10, 'عشر أوراق تصدير (ست + المرتجعات + الشحن + التسويات + الوضع الحالي)'); eq(sheets['الفترة'][1][1], 'delivery transition date', 'معيار الإدخال بالتصدير');
   eq(rep.byMarket.length, 2, 'سوقان');
 }
 // 11) قيم الفلاتر الافتراضية بالشاشة لا تُسقط أي طلب (عطل: seller='all' كان يُعامَل اسم بائع فتظهر الشاشة 0)
@@ -184,6 +186,75 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   { const x = o('U1', 'returned', { return_at: null, return_bulk_suspect: true, order_date: '2026-09-20T10:00:00+03:00', amount: 700, currency: 'TRY' });
     const a = buildReport({ rows: [x], period: sep }), b = buildReport({ rows: [x], period: oct });
     eq(a.returns.length, 0, 'لا يُسنَد لسبتمبر بتاريخ الطلب'); eq(a.returnsUnknown.length, 1, 'يظهر كتوقيت غير معروف'); eq(a.returnsInfo.byKind.unknown_timing.byCurrency.TRY, 700, 'قيمته الفعلية محفوظة'); eq(b.returns.length, 0, 'ولا يدخل أكتوبر'); }
+}
+// 14) الوضع الحالي بلا نافذة + أحداث الفترة + التسويات بتاريخ التسوية (قرار حسام: لا 60 ولا 120 يوماً)
+{
+  const ev = (order_id, to_status, changed_at, source = 'app') => ({ order_id, to_status, changed_at, source });
+  const ordr = (id, status, order_date, extra = {}) => o(id, status, { order_date, items: [{ name: 'A', qty: 2 }], market: 'turkey', currency: 'TRY', amount: 800, ...extra });
+  const bulkOrders = Array.from({ length: 30 }, (_, k) => ordr('B' + k, 'returning', '2026-08-20T10:00:00+03:00'));
+  const bulkEvents = bulkOrders.map((b) => ev(b.id, 'returning', '2026-09-12T10:30:' + String(k2(b)).padStart(2, '0') + '+03:00', 'sheet'));
+  function k2(b) { return Number(b.id.slice(1)) % 60; }
+  const ledger = {
+    orders: [
+      ordr('RT0', 'returning', '2025-01-01T10:00:00+03:00'), ordr('RT1', 'returning', '2026-01-10T10:00:00+03:00'),
+      ordr('NR1', 'not_received', '2026-02-02T10:00:00+03:00'), ordr('NR2', 'not_received', '2026-03-02T10:00:00+03:00'),
+      ordr('SE1', 'settled', '2026-05-10T10:00:00+03:00', { paid_amount: null }), ordr('SE2', 'settled', '2026-09-01T09:00:00+03:00', { paid_amount: 150 }), ordr('SE3', 'settled', '2026-09-03T09:00:00+03:00'),
+      ordr('PE1', 'delivered', '2026-09-02T10:00:00+03:00'), ...bulkOrders,
+    ],
+    events: [
+      ev('RT0', 'returning', '2025-02-01T10:00:00+03:00'), ev('RT1', 'returning', '2026-03-01T10:00:00+03:00'), ev('NR1', 'not_received', '2026-02-05T10:00:00+03:00'),
+      ev('SE1', 'not_received', '2026-05-12T10:00:00+03:00'), ev('SE1', 'settled', '2026-09-15T10:00:00+03:00'),
+      ev('SE2', 'settled', '2026-09-20T10:00:00+03:00'), ev('PE1', 'returning', '2026-09-10T10:00:00+03:00'), ...bulkEvents,
+    ],
+    paths: new Map([
+      ['SE1', [{ to_status: 'shipped', changed_at: '2026-05-11T10:00:00+03:00' }, { to_status: 'not_received', changed_at: '2026-05-12T10:00:00+03:00' }, { to_status: 'settled', changed_at: '2026-09-15T10:00:00+03:00' }]],
+      ['SE2', [{ to_status: 'shipped', changed_at: '2026-09-01T10:00:00+03:00' }, { to_status: 'delivered', changed_at: '2026-09-01T12:00:00+03:00' }, { to_status: 'settled', changed_at: '2026-09-20T10:00:00+03:00' }]],
+    ]),
+  };
+  const rows = [
+    o('D1', 'delivered', { delivered_at: '2026-09-05T10:00:00+03:00', delivery_basis: 'carrier', amount: 500 }),
+    o('SE2', 'settled', { delivered_at: '2026-09-01T12:00:00+03:00', delivery_basis: 'carrier', amount: 800, market: 'turkey', currency: 'TRY', paid_amount: 150 }),
+    o('SE1', 'settled', { order_date: '2026-05-10T10:00:00+03:00', amount: 800 }),
+    o('RT1', 'returning', { order_date: '2026-01-10T10:00:00+03:00' }), o('NR1', 'not_received', { order_date: '2026-02-02T10:00:00+03:00' }),
+  ];
+  const sepR = buildReport({ rows, period: sep, refs: { statusLedger: ledger } }), octR = buildReport({ rows, period: oct, refs: { statusLedger: ledger } });
+  const ids2 = (a) => a.map((x) => x.id).sort().join(',');
+  // الوضع الحالي بلا نافذة: returning/not_received قديمان (2025، كانون الثاني، شباط) ما زالا حالياً
+  ok(sepR.currentPending.returning.some((x) => x.id === 'RT0'), 'returning من 2025 ما زال في الوضع الحالي (لا نافذة 60/120)');
+  ok(sepR.currentPending.returning.some((x) => x.id === 'RT1'), 'returning من كانون الثاني ما زال حالياً');
+  ok(sepR.currentPending.not_received.some((x) => x.id === 'NR1') && sepR.currentPending.not_received.some((x) => x.id === 'NR2'), 'not_received قديم ما زال حالياً');
+  eq(ids2(octR.currentPending.returning.filter((x) => !x.id.startsWith('B'))), ids2(sepR.currentPending.returning.filter((x) => !x.id.startsWith('B'))), 'الوضع الحالي لا يتغيّر بتغيّر الشهر');
+  // لا تدخل المبيعات
+  eq(ids2(sepR.delivered), 'D1,SE2', 'المبيعات: D1 وSE2 (مسلَّم قبل التسوية) فقط');
+  ok(!sepR.delivered.some((x) => ['RT0', 'RT1', 'NR1', 'NR2', 'SE1', 'SE3'].includes(x.id)), 'لا returning/not_received/settled بلا تسليم بالمبيعات');
+  { const idx2 = buildPayrollIndex(sepR.delivered).get('zina'); eq(Object.values(idx2.byCur).reduce((n, c) => n + c.count, 0), 2, 'فهرس الرواتب: سطرا مبيعات فقط (D1 وSE2) بلا تكرار ولا أي معلّق'); }
+  // الوضع الحالي ≠ إحصائية الفترة
+  ok(sepR.periodPending.returning.some((x) => x.id === 'PE1') && !sepR.periodPending.returning.some((x) => x.id === 'RT1'), 'حدث الفترة (PE1 بسبتمبر) لا RT1 (آذار)');
+  ok(!sepR.currentPending.returning.some((x) => x.id === 'PE1'), 'PE1 لم يعد راجعاً الآن فلا يظهر بالوضع الحالي');
+  eq(sepR.periodPending.returning.find((x) => x.id === 'PE1').current_status, 'delivered', 'تُعرض حالته الآن بجانب حدث الفترة');
+  eq(octR.periodPending.returning.length, 0, 'أكتوبر بلا أحداث راجع للمركز غير جماعية');
+  // الجماعي: لا يُنسب لشهر؛ توقيت غير معروف
+  ok(bulkMinutes(ledger.events).size >= 0, 'bulkMinutes تعمل');
+  ok(!sepR.periodPending.returning.some((x) => x.id.startsWith('B')), '30 حدثاً بنفس الدقيقة ← جماعي لا يُنسب للفترة');
+  ok(sepR.unknownTiming.filter((x) => x.id.startsWith('B')).length === 30 && sepR.unknownTiming.find((x) => x.id === 'B0').unknown_reason === 'bulk_event', 'الجماعي ← توقيت غير معروف');
+  ok(sepR.unknownTiming.some((x) => x.id === 'NR2' && x.unknown_reason === 'no_history'), 'not_received بلا أي سجل ← غير معروف');
+  // التسويات بتاريخ التسوية
+  const se1 = sepR.settlements.find((x) => x.id === 'SE1');
+  ok(!!se1, 'طلب أيار تسويته أيلول يظهر بتسويات سبتمبر'); eq(String(se1.settled_at).slice(0, 10), '2026-09-15', 'تاريخ التسوية'); eq(String(se1.order_date).slice(0, 10), '2026-05-10', 'تاريخ الطلب محفوظ'); eq(se1.path, 'shipped › not_received › settled', 'مسار الحالات'); eq(se1.delivered_before, false, 'لم يسبقها تسليم'); eq(se1.settlement_kind, 'not_received_settled', 'لم يُستلم ثم سُوّي'); eq(se1.collected_known, false, 'المحصّل غير موثّق');
+  ok(!octR.settlements.some((x) => x.id === 'SE1'), 'ولا يظهر بتسويات أكتوبر');
+  const se2 = sepR.settlements.find((x) => x.id === 'SE2');
+  ok(!!se2 && se2.delivered_before === true && se2.settlement_kind === 'delivered_settled', 'delivered ثم settled يظهر كتسوية سبقها تسليم'); eq(se2.collected_known, true, 'المحصّل 150 معروف');
+  eq(sepR.delivered.filter((x) => x.id === 'SE2').length, 1, 'ويُحسب بيعاً مرة واحدة فقط');
+  ok(sepR.settlementsUnknown.some((x) => x.id === 'SE3'), 'settled بلا حدث تسوية ← توقيت غير معروف');
+  ok(!sepR.settlements.some((x) => x.id === 'SE3'), 'ولا يُنسب لشهر');
+  // إحصائية الفترة منفصلة عن الحالية (لا خلط في returnsInfo/currentInfo)
+  eq(sepR.currentInfo.byKind.returning.orders, sepR.currentPending.returning.length, 'currentInfo = الوضع الحالي فقط');
+  eq(sepR.returnsInfo.byKind.returning.orders, sepR.periodPending.returning.length, 'returnsInfo = أحداث الفترة فقط');
+  ok(sepR.returnsInfo.byKind.returning.orders !== sepR.currentInfo.byKind.returning.orders, 'الرقمان مستقلان (لا خلط)');
+  // فلتر البائع يمسّ الجميع بلا إسقاط الافتراضي
+  eq(buildReport({ rows, period: sep, refs: { statusLedger: ledger }, filters: { seller: 'all', market: 'all' } }).currentPending.returning.length, sepR.currentPending.returning.length, 'الفلاتر الافتراضية لا تُسقط الوضع الحالي');
+  // لا نافذة زمنية بالمنطق الصرف
+  { const src = fs.readFileSync('./src/utils/statusLedger.js', 'utf8'); ok(!/(\b60\b|\b120\b)\s*\*\s*(86400000|24)/.test(src) && !/subDays|days'/.test(src), 'لا نافذة 60/120 يوماً بمنطق الدفتر'); }
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

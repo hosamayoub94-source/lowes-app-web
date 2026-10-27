@@ -13,6 +13,7 @@
 //  • قيمة الطلب = orders.amount الفعلي بعملته؛ قيمة المنتجات تحليلية من product_economics (نسخة الشهر).
 // =============================================================
 import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
+import { buildStatusViews } from './statusLedger.js';
 import { carrierKey as carrierKeyLocal, carrierMatches, shippingPayerKind, returnKind, returnsAnalysis, shippingSummary, settlementRows } from './returnsShipping.js';
 
 export const MARKETS = ['syria', 'turkey', 'uae'];
@@ -215,27 +216,40 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
   const delivered = applyFilters(sel.delivered, filters);
   const returns = applyFilters(sel.returns, filters);
   const returnsUnknown = applyFilters(sel.returnsUnknown, filters);
-  const undelivered = applyFilters(selectUndelivered(rows), filters);
+  // الوضع الحالي/الأحداث/التوقيت المجهول/التسويات: من دفتر الحالات (بلا نافذة زمنية) إن توفّر، وإلا من الصفوف (سلوك سابق)
+  const views = refs.statusLedger ? buildStatusViews(refs.statusLedger, { from: period.from, to: period.to }) : null;
+  const F = (list) => applyFilters(list, filters);
+  const rowsNoPending = views ? (rows || []).filter((o) => o.status !== 'returning' && o.status !== 'not_received') : rows;
+  const currentPending = views
+    ? { returning: F(views.current.returning), not_received: F(views.current.not_received) }
+    : { returning: F(selectUndelivered(rows).filter((o) => o.status === 'returning')), not_received: F(selectUndelivered(rows).filter((o) => o.status === 'not_received')) };
+  const undelivered = applyFilters([...selectUndelivered(rowsNoPending), ...(views ? [...currentPending.returning, ...currentPending.not_received].map((o) => ({ ...o, group: 'not_received' })) : [])], filters);
+  const unknownTiming = views ? F(views.unknown) : returnsUnknown;
+  const periodPending = views ? { returning: F(views.period.returning), not_received: F(views.period.not_received) } : { returning: [], not_received: [] };
   const monthStart = period.monthStart || null; // مدى مخصص: سعر كل طلب من شهر تسليمه
   const totals = summarize(delivered, () => 'all', rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
-  // معلّقة: راجع للمركز/لم يُستلم (لا تقيّدها الفترة — حالتها الحالية)
-  const pending = undelivered.filter((o) => o.status === 'returning' || o.status === 'not_received');
-  const returnsInfo = returnsAnalysis([...returns, ...returnsUnknown, ...pending], rateMap);
-  const shipping = shippingSummary([...delivered, ...returns, ...returnsUnknown, ...pending], rateMap);
+  // إحصائية الفترة: مرتجع موثوق (return_at) + أحداث راجع/لم يُستلم بتاريخ الحدث + (دون الفترة) التوقيت المجهول
+  const pendingAsRows = views ? [...periodPending.returning, ...periodPending.not_received] : [...currentPending.returning, ...currentPending.not_received];
+  const returnsInfo = returnsAnalysis([...returns, ...unknownTiming, ...pendingAsRows], rateMap);
+  const currentInfo = returnsAnalysis([...currentPending.returning, ...currentPending.not_received], rateMap);
+  const shipping = shippingSummary([...delivered, ...returns, ...pendingAsRows], rateMap);
   const periodStart = ts(period.from), periodEnd = ts(period.to);
-  const settledAll = applyFilters((rows || []).filter((o) => o.status === 'settled' && ts(o.order_date) >= periodStart && ts(o.order_date) < periodEnd), filters);
-  const settlements = settlementRows(settledAll, refs.settledPaths);
+  const settlementsList = views
+    ? F(views.settlements)
+    : settlementRows(applyFilters((rows || []).filter((o) => o.status === 'settled' && ts(o.order_date) >= periodStart && ts(o.order_date) < periodEnd), filters), refs.settledPaths);
+  const settlementsUnknown = views ? F(views.settlementsUnknown) : [];
   return {
     period, criterion: 'delivery transition date', includeLegacy,
-    delivered, returns, returnsUnknown, undelivered,
+    delivered, returns, returnsUnknown: unknownTiming, undelivered,
+    currentPending, currentInfo, periodPending, unknownTiming, usesLedger: !!views,
     settledNoDelivery: sel.settledNoDelivery, legacyExcluded: sel.legacyExcluded,
     legacyCount: delivered.filter((o) => o.delivery_source === 'legacy_order_date').length,
     totals,
     byMarket: summarize(delivered, (o) => o.market, rateMap),
     bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap),
     undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
-    products: buildProductLines(delivered, [...returns, ...returnsUnknown], { ...refs, monthStart, nowMonth }),
-    returnsInfo, shipping, settlements,
+    products: buildProductLines(delivered, [...returns, ...unknownTiming], { ...refs, monthStart, nowMonth }),
+    returnsInfo, shipping, settlements: settlementsList, settlementsUnknown,
   };
 }
 
@@ -253,7 +267,8 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
     'الموظفون والعمولات': [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
     'المرتجعات': [['الطلب', 'السوق', 'الحالة', 'النوع', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع', 'تسليم سابق', 'استرداد مخزون موثّق', 'تكلفة شحن'], ...report.returnsInfo.rows.map((o) => [o.order_code || o.id, o.market, o.status, o.return_kind, o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces, o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'نعم' : 'غير موثّق', Number(o.delivery_cost) > 0 ? o.delivery_cost : 'غير موثّق'])],
     'الشحن': [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
-    'التسويات': [['الطلب', 'السوق', 'النوع', 'المسار', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...report.settlements.map((o) => [o.order_code || o.id, o.market, o.settlement_kind, o.path, o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
+    'التسويات': [['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'النوع', 'المسار', 'سبق التسوية تسليم', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...[...report.settlements, ...report.settlementsUnknown].map((o) => [o.order_code || o.order_id || o.id, o.market, o.settled_at ? String(o.settled_at).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.settlement_kind, o.path, o.delivered_before ? 'نعم' : 'لا', o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
+    'الوضع الحالي': [['الطلب', 'السوق', 'الحالة الآن', 'منذ', 'تاريخ الطلب', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع'], ...[...report.currentPending.returning, ...report.currentPending.not_received].map((o) => [o.order_code || o.order_id || o.id, o.market, o.status, o.status_since ? String(o.status_since).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces])],
     'الفترة': [['الفترة', report.period.label], ['معيار الإدخال', 'delivery transition date'], ['تواريخ تقديرية (legacy)', report.legacyCount], ['تضمين القديم', report.includeLegacy ? 'نعم' : 'لا']],
   };
 }

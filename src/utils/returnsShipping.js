@@ -123,8 +123,8 @@ export function returnsAnalysis(rows, rateMap) {
   const byKind = { reliable: emptyVal(), unknown_timing: emptyVal(), returning: emptyVal(), not_received: emptyVal() };
   const out = { byKind, total: emptyVal(), deliveredBeforeReturn: 0, historyConflict: 0, restockDocumented: 0, restockUndocumented: 0, costUndocumented: 0, rows: [] };
   for (const o of rows || []) {
-    const kind = returnKind(o);
-    if (!kind) continue;
+    const kind = o.return_kind || returnKind(o);
+    if (!kind || !byKind[kind]) continue;
     const pieces = piecesOf(o);
     for (const g of [byKind[kind], out.total]) {
       g.orders += 1; g.pieces += pieces;
@@ -132,7 +132,8 @@ export function returnsAnalysis(rows, rateMap) {
       const u = usdOf(o.amount, o.currency, rateMap);
       if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
     }
-    if (o.status === 'returned') {
+    // تسليم سابق/استرداد المخزون معلومتان من profitability_orders فقط: لا تُحسبان لصفوف لا تحملهما (سجل الحالات/orders)
+    if (o.status === 'returned' && 'restock_qty' in o) {
       if (o.delivered_before_return) out.deliveredBeforeReturn += 1;
       if (num(o.restock_qty) > 0) out.restockDocumented += 1; else out.restockUndocumented += 1;
     }
