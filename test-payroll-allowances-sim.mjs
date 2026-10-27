@@ -77,7 +77,7 @@ function seedFor() {
 
 // The engine captures the client once at import time, so it gets a proxy that always points at the current fake db.
 globalThis.__current = null;
-globalThis.__fakeSb = { from: (...a) => globalThis.__current.from(...a) };
+globalThis.__fakeSb = { from: (...a) => globalThis.__current.from(...a), rpc: (...a) => globalThis.__current.rpc(...a) };
 const use = (d) => { globalThis.__current = d.client; return d; };
 
 const server = await createServer({
@@ -85,7 +85,7 @@ const server = await createServer({
   resolve: { alias: { '@utils': path.resolve('src/utils'), '@': path.resolve('src') } },
   plugins: [{
     name: 'fake-supabase', enforce: 'pre',
-    resolveId(s) { return s === '@services/supabase' ? '\0fake-sb' : null; },
+    resolveId(s) { return s === '@services/supabase' ? '\0fake-sb' : s === '@services/deliveryAccountingService' ? path.resolve('src/services/deliveryAccountingService.js') : null; },
     load(id) { return id === '\0fake-sb' ? 'export const supabase = globalThis.__fakeSb; export const supabaseAnon = globalThis.__fakeSb;' : null; },
   }],
 });

@@ -86,6 +86,7 @@ const SalesHubScreen           = lazy(() => import(/* webpackChunkName: "sales-h
 const SocialCalendarScreen     = lazy(() => import(/* webpackChunkName: "social-calendar"  */ '@screens/SocialCalendarScreen'));
 const PromptStudioScreen       = lazy(() => import(/* webpackChunkName: "prompt-studio"    */ '@screens/PromptStudioScreen'));
 const ProfitabilityScreen      = lazy(() => import(/* webpackChunkName: "profitability"    */ '@screens/ProfitabilityScreen'));
+const SalesDeliveryAccountingScreen = lazy(() => import(/* webpackChunkName: "sales-delivery" */ '@screens/SalesDeliveryAccountingScreen'));
 const ManagementScreen         = lazy(() => import(/* webpackChunkName: "management"         */ '@screens/ManagementScreen'));
 const GuideScreen              = lazy(() => import(/* webpackChunkName: "guide"              */ '@screens/GuideScreen'));
 const BrandScreen              = lazy(() => import(/* webpackChunkName: "brand"              */ '@screens/BrandScreen'));
@@ -301,6 +302,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute roles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.SOCIAL_MANAGER, ROLES.MEDIA_BUYER, ROLES.MARKETING_MANAGER]} perm={[P.USE_PROMPT_STUDIO, P.MANAGE_CAMPAIGNS]}>
                 <PromptStudioScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.SALES_DELIVERY}
+            element={
+              <ProtectedRoute roles={MANAGEMENT} perm={P.VIEW_ANALYTICS}>
+                <SalesDeliveryAccountingScreen />
               </ProtectedRoute>
             }
           />

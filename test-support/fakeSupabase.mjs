@@ -4,6 +4,7 @@
 // payroll_runs.employee_count / total_net_usd for the affected run.
 export function makeDb(seed, opts = {}) {
   const tables = JSON.parse(JSON.stringify(seed));
+  (tables.orders || []).forEach((r, i) => { if (r.id == null) r.id = `o-${i + 1}`; }); // ids ثابتة (الإنتاج دائماً له id)
   const log = [];
   const syncSummary = (runIds) => {
     if (!opts.syncRunSummary) return;
@@ -25,6 +26,7 @@ export function makeDb(seed, opts = {}) {
     q.update = (p) => { st.op = 'update'; st.payload = p; return q; };
     q.delete = () => { st.op = 'delete'; return q; };
     q.eq = add((c, v) => (r) => r[c] === v);
+    q.is = add((c, v) => (r) => (v === null ? r[c] == null : r[c] === v));
     q.neq = add((c, v) => (r) => r[c] !== v);
     q.in = add((c, v) => (r) => v.includes(r[c]));
     q.gte = add((c, v) => (r) => String(r[c] ?? '') >= v);
@@ -72,6 +74,19 @@ export function makeDb(seed, opts = {}) {
     };
     return q;
   };
-  return { client: { from: builder }, tables, log };
+  // يحاكي الدالة profitability_orders: تسليم/تسوية ← delivered_at = order_date (أساس carrier)، مرتجع ← return_at = order_date.
+  const rpc = (name, args) => {
+    if (name !== 'profitability_orders') return Promise.resolve({ data: null, error: { message: 'unknown rpc ' + name } });
+    const t0 = Date.parse(args.p_from), t1 = Date.parse(args.p_to);
+    const data = (tables.orders || []).filter((o) => ['delivered', 'settled', 'returned'].includes(o.status)).map((o) => ({
+      id: o.id, order_code: o.order_id || o.id, market: o.market, status: o.status, order_date: o.order_date, items: o.items || [], amount: o.amount, currency: o.currency,
+      delivered_at: o.status === 'returned' ? null : (o.delivered_at ?? o.order_date), delivery_basis: o.status === 'returned' ? 'unknown' : 'carrier',
+      return_at: o.status === 'returned' ? o.order_date : null,
+    })).filter((r) => { const t = Date.parse(r.delivered_at || r.return_at); return t >= t0 && t < t1; });
+    const p = Promise.resolve({ data, error: null });
+    p.range = (x, y) => Promise.resolve({ data: data.slice(x, y + 1), error: null }); // مثل PostgREST: fetchAllRows يستدعي range
+    return p;
+  };
+  return { client: { from: builder, rpc }, tables, log };
 }
 

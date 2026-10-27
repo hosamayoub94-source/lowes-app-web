@@ -94,6 +94,7 @@ export const ROUTES = {
   SOCIAL_CALENDAR: '/social-calendar',
   PROMPT_STUDIO:   '/prompt-studio',
   PROFITABILITY:   '/profitability',
+  SALES_DELIVERY:  '/sales-delivery',
 
   // مساحات عمل مستقلة لكل تيم — أدواته + مهامه النشطة في مكان واحد
   SOCIAL_HUB: '/social-hub',
