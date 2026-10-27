@@ -13,6 +13,7 @@
 //  • قيمة الطلب = orders.amount الفعلي بعملته؛ قيمة المنتجات تحليلية من product_economics (نسخة الشهر).
 // =============================================================
 import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
+import { carrierKey as carrierKeyLocal, carrierMatches, shippingPayerKind, returnKind, returnsAnalysis, shippingSummary, settlementRows } from './returnsShipping.js';
 
 export const MARKETS = ['syria', 'turkey', 'uae'];
 export const MARKET_LABELS = { syria: 'سوريا', turkey: 'تركيا', uae: 'الإمارات' };
@@ -61,13 +62,14 @@ export function deliveryEntry(o, { includeLegacy = true } = {}) {
 export function selectDeliveredInPeriod(rows, { from, to, includeLegacy = true } = {}) {
   const t0 = ts(from), t1 = ts(to);
   const seen = new Set();
-  const out = { delivered: [], returns: [], settledNoDelivery: [], legacyExcluded: [] };
+  const out = { delivered: [], returns: [], returnsUnknown: [], settledNoDelivery: [], legacyExcluded: [] };
   for (const o of rows || []) {
     const key = o.id ?? o.order_code;
     if (key != null) { if (seen.has(key)) continue; seen.add(key); }
     if (o.status === 'returned') {
-      const at = ts(o.return_at) ?? ts(o.order_date);
-      if (at !== null && at >= t0 && at < t1) out.returns.push({ ...o, return_basis: o.return_at ? 'history' : 'legacy_order_date' });
+      const at = ts(o.return_at);
+      if (at === null) out.returnsUnknown.push({ ...o, return_basis: 'unknown', return_kind: 'unknown_timing' }); // توقيت غير معروف: لا يُسنَد لأي شهر
+      else if (at >= t0 && at < t1) out.returns.push({ ...o, return_basis: 'history', return_kind: returnKind(o) });
       continue;
     }
     if (o.status === 'settled' && !(o.delivered_at && o.delivery_basis && o.delivery_basis !== 'unknown')) {
@@ -122,7 +124,9 @@ export function applyFilters(rows, f = {}) {
     if (f.brand && f.brand !== 'all' && (o.brand || 'lowes') !== f.brand) return false;
     if (seller && normName(o.handler_name) !== seller) return false;
     if (f.status && f.status !== 'all' && o.status !== f.status) return false;
-    if (f.carrier && f.carrier !== 'all' && (o.shipping_company || '') !== f.carrier) return false;
+    if (f.carrier && f.carrier !== 'all' && !carrierMatches(o, f.carrier)) return false;
+    if (f.payer && f.payer !== 'all' && shippingPayerKind(o) !== f.payer) return false;
+    if (f.returnKind && f.returnKind !== 'all' && (o.return_kind || returnKind(o)) !== f.returnKind) return false;
     if (f.currency && f.currency !== 'all' && String(o.currency || '').toUpperCase() !== f.currency) return false;
     if (product && !(Array.isArray(o.items) ? o.items : []).some((it) => normName(it?.name).includes(product))) return false;
     return true;
@@ -156,7 +160,7 @@ export function buildProductLines(delivered, returns, { nameMapRows = [], histor
   const rows = new Map();
   const slot = (it, market) => {
     const id = `${market}|${it.key}`;
-    if (!rows.has(id)) rows.set(id, { market, name: it.name, key: it.key, qty: 0, returnedQty: 0, value: 0, cost: 0, profit: 0, unitPrice: 0, unitCost: 0, unitProfit: 0, warning: null, mapped: it.mapped });
+    if (!rows.has(id)) rows.set(id, { market, name: it.name, key: it.key, qty: 0, returnedQty: 0, returnedUnknownQty: 0, value: 0, cost: 0, profit: 0, unitPrice: 0, unitCost: 0, unitProfit: 0, warning: null, mapped: it.mapped });
     return rows.get(id);
   };
   const itemsOf = (o) => (Array.isArray(o.items) ? o.items : []).map((raw) => {
@@ -179,7 +183,10 @@ export function buildProductLines(delivered, returns, { nameMapRows = [], histor
       r.unitProfit = e.price > 0 && e.cost > 0 ? round2(e.price - e.cost) : 0;
     }
   }
-  for (const o of returns || []) for (const it of itemsOf(o)) slot(it, o.market).returnedQty += it.q;
+  for (const o of returns || []) {
+    const unknown = (o.return_kind || returnKind(o)) === 'unknown_timing'; // توقيت جماعي/بلا تاريخ: يُعرض منفصلاً ولا يُعدّ موثوقاً
+    for (const it of itemsOf(o)) slot(it, o.market)[unknown ? 'returnedUnknownQty' : 'returnedQty'] += it.q;
+  }
   return [...rows.values()].sort((a, b) => (a.market === b.market ? b.qty - a.qty : a.market < b.market ? -1 : 1));
 }
 
@@ -207,23 +214,33 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
   const sel = selectDeliveredInPeriod(rows, { from: period.from, to: period.to, includeLegacy });
   const delivered = applyFilters(sel.delivered, filters);
   const returns = applyFilters(sel.returns, filters);
+  const returnsUnknown = applyFilters(sel.returnsUnknown, filters);
   const undelivered = applyFilters(selectUndelivered(rows), filters);
   const monthStart = period.monthStart || null; // مدى مخصص: سعر كل طلب من شهر تسليمه
   const totals = summarize(delivered, () => 'all', rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
+  // معلّقة: راجع للمركز/لم يُستلم (لا تقيّدها الفترة — حالتها الحالية)
+  const pending = undelivered.filter((o) => o.status === 'returning' || o.status === 'not_received');
+  const returnsInfo = returnsAnalysis([...returns, ...returnsUnknown, ...pending], rateMap);
+  const shipping = shippingSummary([...delivered, ...returns, ...returnsUnknown, ...pending], rateMap);
+  const periodStart = ts(period.from), periodEnd = ts(period.to);
+  const settledAll = applyFilters((rows || []).filter((o) => o.status === 'settled' && ts(o.order_date) >= periodStart && ts(o.order_date) < periodEnd), filters);
+  const settlements = settlementRows(settledAll, refs.settledPaths);
   return {
     period, criterion: 'delivery transition date', includeLegacy,
-    delivered, returns, undelivered,
+    delivered, returns, returnsUnknown, undelivered,
     settledNoDelivery: sel.settledNoDelivery, legacyExcluded: sel.legacyExcluded,
     legacyCount: delivered.filter((o) => o.delivery_source === 'legacy_order_date').length,
     totals,
     byMarket: summarize(delivered, (o) => o.market, rateMap),
     bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap),
     undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
-    products: buildProductLines(delivered, returns, { ...refs, monthStart, nowMonth }),
+    products: buildProductLines(delivered, [...returns, ...returnsUnknown], { ...refs, monthStart, nowMonth }),
+    returnsInfo, shipping, settlements,
   };
 }
 
 /** أوراق التصدير (aoa) — الصفحة الأخيرة تثبّت الفترة ومعيار الإدخال. */
+const carrierKeyOf = (o) => carrierKeyLocal(o.shipping_company);
 export function exportSheets(report, { sellerCommissions = [] } = {}) {
   const cur = (o) => Object.entries(o.byCurrency || {}).map(([c, v]) => `${v} ${c}`).join(' + ');
   const orderRow = (o) => [o.order_code || o.id, o.market, o.status, o.handler_name || '', o.customer_name || '', o.shipping_company || '', o.amount, o.currency, o.delivery_at || o.order_date || '', o.delivery_source || ''];
@@ -234,6 +251,9 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
     'غير المسلّمة': [[...head.slice(0, 9), 'المجموعة'], ...report.undelivered.map((o) => [...orderRow(o).slice(0, 9), o.group])],
     'المنتجات المسلّمة': [['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع', 'تحذير'], ...report.products.map((p) => [p.market, p.name, p.qty, p.value, p.cost, p.unitProfit, p.profit, p.returnedQty, p.warning || ''])],
     'الموظفون والعمولات': [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
+    'المرتجعات': [['الطلب', 'السوق', 'الحالة', 'النوع', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع', 'تسليم سابق', 'استرداد مخزون موثّق', 'تكلفة شحن'], ...report.returnsInfo.rows.map((o) => [o.order_code || o.id, o.market, o.status, o.return_kind, o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces, o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'نعم' : 'غير موثّق', Number(o.delivery_cost) > 0 ? o.delivery_cost : 'غير موثّق'])],
+    'الشحن': [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
+    'التسويات': [['الطلب', 'السوق', 'النوع', 'المسار', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...report.settlements.map((o) => [o.order_code || o.id, o.market, o.settlement_kind, o.path, o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
     'الفترة': [['الفترة', report.period.label], ['معيار الإدخال', 'delivery transition date'], ['تواريخ تقديرية (legacy)', report.legacyCount], ['تضمين القديم', report.includeLegacy ? 'نعم' : 'لا']],
   };
 }

@@ -9,7 +9,7 @@ import { selectDeliveredInPeriod, UNDELIVERED_GROUPS } from '@utils/deliveryAcco
 
 const DAY = 86400000;
 const OPEN_STATUSES = Object.values(UNDELIVERED_GROUPS).flatMap((g) => g.statuses).filter((s) => s !== 'returned');
-const EXTRA_COLS = 'id, brand, handler_name, customer_name, shipping_company, payment_method';
+const EXTRA_COLS = 'id, brand, handler_name, customer_name, shipping_company, payment_method, tracking_number';
 // الإلغاء: طلب فترة سابقة لا يبقى يحمّل القاعدة بعد تبديل الشهر (الدالة الثقيلة تُلغى عند قطع الاتصال)
 const withSignal = (q, signal) => (signal ? q.abortSignal(signal) : q);
 
@@ -19,7 +19,7 @@ async function attachOrderFields(rpcRows, from, to, signal) {
   const winFrom = new Date(Date.parse(from) - 120 * DAY).toISOString();
   const extra = await fetchAllRows(() => withSignal(supabase.from('orders').select(EXTRA_COLS)
     .is('deleted_at', null).gte('order_date', winFrom).lt('order_date', to)
-    .in('status', ['delivered', 'settled', 'returned']).order('id'), signal));
+    .in('status', ['delivered', 'settled', 'returned', 'returning', 'not_received']).order('id'), signal));
   const byId = new Map((extra || []).map((r) => [r.id, r]));
   return rpcRows.map((r) => ({ ...r, ...(byId.get(r.id) || {}) }));
 }
@@ -35,9 +35,18 @@ export async function loadDeliveredForPeriod({ from, to, includeLegacy = true, s
 async function loadOpenOrders(from, to, signal) {
   const winFrom = new Date(Date.parse(from) - 120 * DAY).toISOString();
   const rows = await fetchAllRows(() => withSignal(supabase.from('orders')
-    .select('id, order_id, market, status, order_date, items, amount, currency, handler_name, customer_name, shipping_company, payment_method, brand, tracking_number')
+    .select('id, order_id, market, status, order_date, items, amount, currency, handler_name, customer_name, shipping_company, payment_method, brand, tracking_number, delivery_cost, shipping_payer, payment_status, paid_amount')
     .is('deleted_at', null).gte('order_date', winFrom).lt('order_date', to).in('status', OPEN_STATUSES).order('id'), signal));
   return (rows || []).map((r) => ({ ...r, order_code: r.order_id }));
+}
+
+/** مسار حالات كل طلب مُسوّى (id → [الحالات بالترتيب]) من order_status_history — قراءة فقط. */
+async function loadSettledPaths(ids, signal) {
+  const map = new Map();
+  if (!ids.length) return map;
+  const hist = await fetchAllRows(() => withSignal(supabase.from('order_status_history').select('order_id, to_status, changed_at').in('order_id', ids).order('order_id').order('changed_at'), signal));
+  for (const h of hist || []) { if (!map.has(h.order_id)) map.set(h.order_id, []); map.get(h.order_id).push(h.to_status); }
+  return map;
 }
 
 /** مراجع أسعار المنتجات (نسخ تاريخية + أسعار سوق + خريطة الأسماء). */
@@ -77,5 +86,6 @@ export async function loadDeliveryData({ period, includeLegacy = true, signal })
     loadProductRefs(period.to),
   ]);
   const seen = new Set(rows.map((r) => r.id));
-  return { rows: [...rows, ...open.filter((r) => !seen.has(r.id))], refs };
+  const settledPaths = await loadSettledPaths(rows.filter((r) => r.status === 'settled').map((r) => r.id), signal);
+  return { rows: [...rows, ...open.filter((r) => !seen.has(r.id))], refs: { ...refs, settledPaths } };
 }

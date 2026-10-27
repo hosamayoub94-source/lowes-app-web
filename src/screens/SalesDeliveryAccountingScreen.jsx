@@ -8,6 +8,7 @@ import { loadDeliveryData, loadStoredCommissions } from '@services/deliveryAccou
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
+import { carrierKey, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS, SETTLEMENT_KIND_LABELS } from '@utils/returnsShipping';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
 
@@ -70,7 +71,20 @@ function OrdersTable({ orders, showDelivery = true }) {
   );
 }
 
-const TABS = [['sales', '✅ المبيعات المسلَّمة'], ['undelivered', '🚚 غير المسلَّمة'], ['products', '📦 المنتجات'], ['sellers', '👤 الموظفون والعمولات']];
+function SimpleTable({ head, rows, empty = 'لا بيانات' }) {
+  if (!rows.length) return <p className="text-sm text-muted py-4 text-center">{empty}</p>;
+  return (
+    <div className="overflow-x-auto border border-border rounded-2xl">
+      <table className="w-full text-xs">
+        <thead className="bg-surface-alt text-muted"><tr>{head.map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
+        <tbody>{rows.slice(0, 500).map((r, i) => <tr key={i} className="border-t border-border">{r.map((c, j) => <td key={j} className={`p-2 ${c === 'غير موثّق' ? 'text-orange-600' : ''}`}>{c}</td>)}</tr>)}</tbody>
+      </table>
+      {rows.length > 500 ? <p className="text-[11px] text-muted p-2">يُعرض أول 500 من {rows.length} — التصدير يشمل الكل.</p> : null}
+    </div>
+  );
+}
+
+const TABS = [['sales', '✅ المبيعات المسلَّمة'], ['undelivered', '🚚 غير المسلَّمة'], ['returns', '↩️ المرتجعات'], ['shipping', '💳 الشحن والتسويات'], ['products', '📦 المنتجات'], ['sellers', '👤 الموظفون والعمولات']];
 
 export default function SalesDeliveryAccountingScreen() {
   const toast = useToast();
@@ -79,7 +93,7 @@ export default function SalesDeliveryAccountingScreen() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [includeLegacy, setIncludeLegacy] = useState(true);
-  const [f, setF] = useState({ market: 'all', brand: 'all', seller: 'all', status: 'all', carrier: 'all', product: '', currency: 'all' });
+  const [f, setF] = useState({ market: 'all', brand: 'all', seller: 'all', status: 'all', carrier: 'all', payer: 'all', returnKind: 'all', product: '', currency: 'all' });
   const [tab, setTab] = useState('sales');
   const [data, setData] = useState(null);
   const [rateMap, setRateMap] = useState({ USD: 1 });
@@ -136,7 +150,7 @@ export default function SalesDeliveryAccountingScreen() {
   const opts = useMemo(() => {
     const all = [...(base?.delivered || []), ...(base?.undelivered || []), ...(base?.returns || [])];
     const uniq = (k) => [...new Set(all.map((o) => o[k]).filter(Boolean))].sort();
-    return { sellers: uniq('handler_name'), carriers: uniq('shipping_company'), currencies: uniq('currency'), markets: uniq('market') };
+    return { sellers: uniq('handler_name'), carriers: [...new Set(all.map((o) => carrierKey(o.shipping_company)))].sort(), currencies: uniq('currency'), markets: uniq('market') };
   }, [base]);
 
   const sellerDetail = useMemo(() => {
@@ -195,6 +209,8 @@ export default function SalesDeliveryAccountingScreen() {
         <Sel label="الموظف / البائع" value={f.seller} onChange={set('seller')} options={opts.sellers.map((s) => [s, s])} />
         <Sel label="الحالة" value={f.status} onChange={set('status')} options={Object.entries(STATUSES).map(([k, v]) => [k, v.label])} />
         <Sel label="شركة الشحن" value={f.carrier} onChange={set('carrier')} options={opts.carriers.map((c) => [c, c])} />
+        <Sel label="دافع الشحن" value={f.payer} onChange={set('payer')} options={Object.entries(PAYER_LABELS)} />
+        <Sel label="نوع المرتجع / عدم الاستلام" value={f.returnKind} onChange={set('returnKind')} options={Object.entries(RETURN_KIND_LABELS)} />
         <Sel label="العملة" value={f.currency} onChange={set('currency')} options={opts.currencies.map((c) => [c, c])} />
         <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">المنتج<input value={f.product} onChange={(e) => set('product')(e.target.value)} placeholder="اسم المنتج" className="bg-surface border border-border rounded-xl px-2 py-1.5 text-sm text-text" /></label>
         <label className="text-[11px] text-muted font-semibold flex items-center gap-2 col-span-2"><input type="checkbox" checked={includeLegacy} onChange={(e) => setIncludeLegacy(e.target.checked)} />تضمين الطلبات القديمة بلا سجل تسليم (بتاريخ الطلب — تقديري)</label>
@@ -216,6 +232,7 @@ export default function SalesDeliveryAccountingScreen() {
             <Stat label="طلبات مسلَّمة بالفترة" value={fmt(report.totals.count)} sub={report.legacyCount ? `منها ${report.legacyCount} بتاريخ تقديري` : null} tone="text-green-600" />
             <Stat label="القيمة الفعلية" value={curText(report.totals.byCurrency)} />
             <Stat label="الموحّدة بالدولار" value={`$${fmt(report.totals.usd)}`} sub={missingFx ? `${missingFx} طلب بلا سعر صرف` : 'بأسعار الصرف المعتمدة الحالية'} tone={missingFx ? 'text-orange-600' : 'text-text'} />
+            <Stat label="مرتجعات وعدم استلام" value={`${fmt(report.returnsInfo.total.orders)} طلب`} sub={`${fmt(report.returnsInfo.total.pieces)} قطعة · موثوق ${fmt(report.returnsInfo.byKind.reliable.orders)} · توقيت غير موثوق ${fmt(report.returnsInfo.byKind.unknown_timing.orders)}`} tone="text-orange-600" />
             <Stat label="خارج الحساب (غير مسلَّمة)" value={fmt(report.undelivered.length)} sub={`مرتجعات بالفترة: ${report.returns.length}`} tone="text-orange-600" />
           </section>
           {(report.settledNoDelivery.length || report.legacyExcluded.length) ? (
@@ -249,16 +266,57 @@ export default function SalesDeliveryAccountingScreen() {
             </div>
           )}
 
+          {tab === 'returns' && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted">المرتجع «موثوق» فقط إن كان له تاريخ إرجاع غير جماعي. القيمة هي orders.amount الفعلية. ما لا تثبته البيانات يظهر «غير موثّق» لا صفراً.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Object.entries(RETURN_KIND_LABELS).map(([k, label]) => {
+                  const g = report.returnsInfo.byKind[k];
+                  return <Stat key={k} label={label} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} tone={k === 'unknown_timing' ? 'text-orange-600' : 'text-text'} />;
+                })}
+              </div>
+              <p className="text-xs text-muted">
+                خرجت ثم رجعت (بالسجل): <b>{fmt(report.returnsInfo.deliveredBeforeReturn)}</b> · استرداد للمخزون موثّق: <b>{fmt(report.returnsInfo.restockDocumented)}</b> / غير موثّق: <b>{fmt(report.returnsInfo.restockUndocumented)}</b> · بلا تكلفة شحن موثّقة: <b>{fmt(report.returnsInfo.costUndocumented)}</b> من {fmt(report.returnsInfo.total.orders)}
+                {report.returnsInfo.historyConflict ? <> · <span className="text-orange-600">سجل حالات متناقض: {fmt(report.returnsInfo.historyConflict)}</span></> : null}
+              </p>
+              <SimpleTable
+                head={['الطلب', 'السوق', 'النوع', 'البائع', 'الشحن', 'القيمة', 'القطع', 'تسليم سابق', 'استرداد مخزون', 'تكلفة الشحن']}
+                rows={report.returnsInfo.rows.map((o) => [o.order_code || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, RETURN_KIND_LABELS[o.return_kind], o.handler_name || '—', carrierKey(o.shipping_company), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces), o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'موثّق' : 'غير موثّق', hasDocumentedCost(o) ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
+              />
+            </div>
+          )}
+
+          {tab === 'shipping' && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted">تكلفة الشحن «موثّقة» فقط حين delivery_cost &gt; 0. الدافع الافتراضي «علينا» لا يُعدّ دليلاً. تكلفة العميل لا تدخل إيراداً ولا مصروفاً علينا ولا تُخلط بقيمة الطلب.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Stat label="تكلفة شحن على العميل (موثّقة)" value={curText(report.shipping.totals.customer.byCurrency)} sub={`${fmt(report.shipping.totals.customer.orders)} طلب${report.shipping.totals.customer.usd ? ` · $${fmt(report.shipping.totals.customer.usd)}` : ''}`} />
+                <Stat label="تكلفة شحن علينا (موثّقة)" value={curText(report.shipping.totals.company.byCurrency)} sub={`${fmt(report.shipping.totals.company.orders)} طلب${report.shipping.totals.company.usd ? ` · $${fmt(report.shipping.totals.company.usd)}` : ''}`} />
+                <Stat label="تكلفة شحن غير موثّقة" value={`${fmt(report.shipping.totals.unknownOrders)} طلب`} sub={`من ${fmt(report.shipping.totals.orders)} (مسلَّم + مرتجع + عدم استلام)`} tone="text-orange-600" />
+              </div>
+              <SimpleTable
+                head={['شركة الشحن', 'الدافع', 'الطلبات', 'التكلفة الموثّقة', 'بالدولار']}
+                rows={report.shipping.rows.map((g) => [g.carrier, PAYER_LABELS[g.payer], fmt(g.orders), g.payer === 'unknown' ? 'غير موثّق' : curText(g.byCurrency), g.payer === 'unknown' ? 'غير موثّق' : (g.usdMissing ? `$${fmt(g.usd)} (+ بلا سعر صرف)` : `$${fmt(g.usd)}`)])}
+              />
+              <h3 className="text-sm font-black">التسويات (settled) — لا تدخل المبيعات ولا تُثبت تحصيل أجرة الشحن</h3>
+              <SimpleTable
+                head={['الطلب', 'السوق', 'النوع', 'مسار الحالات', 'القيمة', 'المحصّل', 'تكلفة الشحن']}
+                rows={report.settlements.map((o) => [o.order_code || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, SETTLEMENT_KIND_LABELS[o.settlement_kind], o.path, `${fmt(o.amount)} ${o.currency}`, o.collected_known ? `${fmt(o.paid_amount)} ${o.currency}` : 'غير موثّق', o.shipping_documented ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
+                empty="لا تسويات بهذه الفترة"
+              />
+            </div>
+          )}
+
           {tab === 'products' && (
             <div className="overflow-x-auto border border-border rounded-2xl">
               <table className="w-full text-xs">
-                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع موثوق', 'مرتجع غير موثوق', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>
                   {report.products.map((p) => (
                     <tr key={`${p.market}|${p.key}`} className="border-t border-border">
                       <td className="p-2">{MARKET_LABELS[p.market] || p.market}</td><td className="p-2">{p.name}{p.mapped ? '' : ' •'}</td>
                       <td className="p-2 font-bold">{fmt(p.qty)}</td><td className="p-2">{fmt(p.value)}</td><td className="p-2">{fmt(p.cost)}</td>
-                      <td className="p-2">{fmt(p.unitProfit)}</td><td className="p-2">{fmt(p.profit)}</td><td className="p-2">{fmt(p.returnedQty)}</td>
+                      <td className="p-2">{fmt(p.unitProfit)}</td><td className="p-2">{fmt(p.profit)}</td><td className="p-2">{fmt(p.returnedQty)}</td><td className="p-2 text-orange-600">{p.returnedUnknownQty ? fmt(p.returnedUnknownQty) : '—'}</td>
                       <td className="p-2 text-orange-600">{WARN[p.warning] || ''}</td>
                     </tr>
                   ))}
