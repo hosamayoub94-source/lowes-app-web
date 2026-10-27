@@ -4,13 +4,15 @@
 // الحساب كله في @utils/deliveryAccounting (دوال صرفة مُختبَرة) — الشاشة عرض فقط.
 // =============================================================
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { loadDeliveryData, loadStoredCommissions } from '@services/deliveryAccountingService';
+import { loadDeliveryData, loadStoredCommissions, loadCarrierRates, saveCarrierRate } from '@services/deliveryAccountingService';
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
 import { carrierKey, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS } from '@utils/returnsShipping';
+import { rateOverview, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
+import { useAuth } from '@hooks/useAuth';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
 const curText = (by) => Object.entries(by || {}).map(([c, v]) => `${fmt(v)} ${c}`).join(' + ') || '—';
@@ -84,10 +86,79 @@ function SimpleTable({ head, rows, empty = 'لا بيانات' }) {
   );
 }
 
+const EMPTY_FORM = { carrier: '', market: 'syria', currency: 'SYP', outbound: '', returnPolicy: 'unknown', returnFee: '', effectiveFrom: '', note: '' };
+
+function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved }) {
+  const toast = useToast();
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const overview = useMemo(() => rateOverview(rates), [rates]);
+  const setF2 = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
+  const carriers = useMemo(() => [...new Set([...knownCarriers, ...rates.map((r) => carrierKey(r.carrier))])].sort(), [knownCarriers, rates]);
+  const submit = async () => {
+    if (!form.carrier.trim()) { toast?.error?.('اختر شركة الشحن'); return; }
+    if (!(Number(form.outbound) >= 0) || form.outbound === '') { toast?.error?.('أدخل أجرة الذهاب'); return; }
+    if (form.returnPolicy === 'fixed' && form.returnFee === '') { toast?.error?.('أدخل مبلغ المرتجع الثابت'); return; }
+    setSaving(true);
+    try {
+      await saveCarrierRate({ carrier: carrierKey(form.carrier), market: form.market, currency: form.currency, outbound: form.outbound, returnPolicy: form.returnPolicy, returnFee: form.returnFee, effectiveFrom: form.effectiveFrom || null, note: form.note, name });
+      toast?.success?.('حُفظت التعرفة');
+      setForm(EMPTY_FORM);
+      await onSaved();
+    } catch (e) { toast?.error?.(e?.message || 'تعذّر الحفظ'); } finally { setSaving(false); }
+  };
+  const inputCls = 'bg-surface border border-border rounded-xl px-2 py-1.5 text-sm text-text';
+  return (
+    <section className="space-y-3 border border-border rounded-2xl p-3">
+      <h3 className="text-sm font-black">⚙️ تعرفة الشحن التقديرية لكل شركة</h3>
+      <p className="text-xs text-muted">تُدخَل مرة لكل شركة. التعديل يُضاف بتاريخ سريان جديد ولا يغيّر الأشهر السابقة. هذه تقديرات منفصلة عن الفعلي (delivery_cost) ولا تدخل الرواتب ولا العمولات. الأول لشركة جديدة يجوز بتاريخ قديم ليغطي الأشهر السابقة.</p>
+      {missingTable ? <p className="text-xs text-orange-600 bg-orange-500/10 border border-orange-500/20 rounded-xl p-2">جدول التعرفة غير مُطبَّق على القاعدة بعد — لن تظهر تقديرات حتى تُطبَّق الهجرة.</p> : null}
+      <SimpleTable
+        head={['الشركة', 'السوق', 'أجرة الذهاب الحالية', 'المرتجع', 'يسري من', 'قادم', 'عدد الصفوف']}
+        rows={overview.map((g) => [g.carrier, RATE_MARKETS[g.market] || g.market, g.current ? `${fmt(g.current.outbound_fee)} ${g.current.currency}` : 'لا تعرفة سارية', g.current ? `${RETURN_POLICY_LABELS[g.current.return_policy]}${g.current.return_policy === 'fixed' ? ` ${fmt(g.current.return_fee)} ${g.current.currency}` : ''}` : '—', g.current ? String(g.current.effective_from).slice(0, 10) : '—', g.upcoming.length ? g.upcoming.map((r) => `${fmt(r.outbound_fee)} ${r.currency} من ${String(r.effective_from).slice(0, 10)}`).join(' · ') : '—', String(g.history.length)])}
+        empty="لا تعرفة مُدخلة بعد"
+      />
+      {canEdit ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">الشركة
+            <input list="carrier-list" value={form.carrier} onChange={(e) => setF2('carrier')(e.target.value)} placeholder="مثل: بابل" className={inputCls} />
+            <datalist id="carrier-list">{carriers.map((c) => <option key={c} value={c} />)}</datalist>
+          </label>
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">السوق
+            <select value={form.market} onChange={(e) => setF2('market')(e.target.value)} className={inputCls}>{Object.entries(RATE_MARKETS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          </label>
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">العملة
+            <select value={form.currency} onChange={(e) => setF2('currency')(e.target.value)} className={inputCls}>{RATE_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          </label>
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">أجرة الذهاب (للشحنة)
+            <input type="number" min="0" step="any" value={form.outbound} onChange={(e) => setF2('outbound')(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">سياسة المرتجع
+            <select value={form.returnPolicy} onChange={(e) => setF2('returnPolicy')(e.target.value)} className={inputCls}>{Object.entries(RETURN_POLICY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          </label>
+          {form.returnPolicy === 'fixed' ? (
+            <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">مبلغ المرتجع
+              <input type="number" min="0" step="any" value={form.returnFee} onChange={(e) => setF2('returnFee')(e.target.value)} className={inputCls} />
+            </label>
+          ) : null}
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">يسري من (اتركه فارغاً = اليوم)
+            <input type="date" value={form.effectiveFrom} onChange={(e) => setF2('effectiveFrom')(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">ملاحظة
+            <input value={form.note} onChange={(e) => setF2('note')(e.target.value)} className={inputCls} />
+          </label>
+          <button onClick={submit} disabled={saving} className="px-3 py-1.5 rounded-xl bg-teal text-white text-sm font-bold disabled:opacity-40">{saving ? 'جارٍ الحفظ…' : 'حفظ التعرفة'}</button>
+        </div>
+      ) : <p className="text-xs text-muted">تعديل التعرفة لمدير الحسابات أو الأدمن فقط.</p>}
+    </section>
+  );
+}
+
 const TABS = [['sales', '✅ المبيعات المسلَّمة'], ['undelivered', '🚚 غير المسلَّمة'], ['returns', '↩️ المرتجعات'], ['shipping', '💳 الشحن والتسويات'], ['products', '📦 المنتجات'], ['sellers', '👤 الموظفون والعمولات']];
 
 export default function SalesDeliveryAccountingScreen() {
   const toast = useToast();
+  const { role, name: actorName } = useAuth();
   const [mode, setMode] = useState('month');
   const [month, setMonth] = useState(thisMonth());
   const [fromDate, setFromDate] = useState('');
@@ -152,6 +223,13 @@ export default function SalesDeliveryAccountingScreen() {
     const uniq = (k) => [...new Set(all.map((o) => o[k]).filter(Boolean))].sort();
     return { sellers: uniq('handler_name'), carriers: [...new Set(all.map((o) => carrierKey(o.shipping_company)))].sort(), currencies: uniq('currency'), markets: uniq('market') };
   }, [base]);
+
+  const reloadRates = useCallback(async () => {
+    const { rates, missingTable } = await loadCarrierRates();
+    setData((d) => (d ? { ...d, refs: { ...d.refs, carrierRates: rates, ratesMissingTable: missingTable } } : d));
+    const k = Array.from(cacheRef.current.keys());
+    k.forEach((key) => { const hit = cacheRef.current.get(key); if (hit?.d) cacheRef.current.set(key, { ...hit, d: { ...hit.d, refs: { ...hit.d.refs, carrierRates: rates, ratesMissingTable: missingTable } } }); });
+  }, []);
 
   const sellerDetail = useMemo(() => {
     if (!openSeller || !report) return null;
@@ -329,6 +407,22 @@ export default function SalesDeliveryAccountingScreen() {
                 head={['شركة الشحن', 'الدافع', 'الطلبات', 'التكلفة الموثّقة', 'بالدولار']}
                 rows={report.shipping.rows.map((g) => [g.carrier, PAYER_LABELS[g.payer], fmt(g.orders), g.payer === 'unknown' ? 'غير موثّق' : curText(g.byCurrency), g.payer === 'unknown' ? 'غير موثّق' : (g.usdMissing ? `$${fmt(g.usd)} (+ بلا سعر صرف)` : `$${fmt(g.usd)}`)])}
               />
+              <section className="space-y-2 border border-border rounded-2xl p-3">
+                <h3 className="text-sm font-black">💡 تكلفة الشحن التقديرية (من تعرفة الشركات) — منفصلة عن الفعلي</h3>
+                <p className="text-xs text-muted">يُحسب: أجرة الذهاب لكل شحنة بلا تكلفة موثّقة دافعها «علينا» أو غير مؤكد، + أجرة المرتجع للمرتجع النهائي حسب سياسة الشركة. «على العميل» لا يُقدَّر. الفعلي الموثّق يغلب التقدير. طلب بلا تعرفة لشركته يظهر «بلا تعرفة» لا صفراً.</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Stat label="ذهاب تقديري علينا" value={curText(report.shippingEstimate.totals.outbound)} sub={`${fmt(report.shippingEstimate.totals.estimated)} شحنة${report.shippingEstimate.totals.usdOutbound ? ` · $${fmt(report.shippingEstimate.totals.usdOutbound)}` : ''} · منها الدافع غير مؤكد ${fmt(report.shippingEstimate.totals.payerUnconfirmed)}`} />
+                  <Stat label="مرتجع تقديري علينا" value={curText(report.shippingEstimate.totals.returnFee)} sub={`${report.shippingEstimate.totals.usdReturn ? `$${fmt(report.shippingEstimate.totals.usdReturn)} · ` : ''}سياسة غير معروفة: ${fmt(report.shippingEstimate.totals.returnUnknown)} · معلّق: ${fmt(report.shippingEstimate.totals.returnPending)}`} />
+                  <Stat label="فعلي موثّق (علينا)" value={curText(report.shippingEstimate.totals.actualByCurrency)} sub={`${fmt(report.shippingEstimate.totals.actual)} طلب`} />
+                  <Stat label="بلا تعرفة / على العميل" value={`${fmt(report.shippingEstimate.totals.noRate)} بلا تعرفة · ${fmt(report.shippingEstimate.totals.customerPaid)} على العميل`} sub="لا تدخل التقدير" tone={report.shippingEstimate.totals.noRate ? 'text-orange-600' : 'text-text'} />
+                </div>
+                <SimpleTable
+                  head={['الشركة', 'طلبات', 'مُقدَّرة', 'فعلية', 'على العميل', 'بلا تعرفة', 'ذهاب تقديري', 'مرتجع تقديري', 'مرتجع بسياسة مجهولة']}
+                  rows={report.shippingEstimate.rows.map((g) => [g.carrier, fmt(g.orders), fmt(g.estimated), fmt(g.actual), fmt(g.customerPaid), g.noRate ? `${fmt(g.noRate)}` : '0', g.estimated ? curText(g.outbound) : 'غير موثّق', g.estimated ? curText(g.returnFee) : 'غير موثّق', fmt(g.returnUnknown)])}
+                  empty="لا بيانات"
+                />
+              </section>
+              <RatesPanel rates={data.refs.carrierRates || []} knownCarriers={opts.carriers} canEdit={['admin', 'manager'].includes(role)} missingTable={!!data.refs.ratesMissingTable} name={actorName} onSaved={reloadRates} />
               <h3 className="text-sm font-black">التسويات (settled) — بتاريخ التسوية (order_status_history) داخل الفترة؛ لا تدخل المبيعات ولا العمولات ولا الرواتب</h3>
               <SimpleTable
                 head={['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'مسار الحالات', 'سبق التسوية تسليم؟', 'القيمة', 'المحصّل', 'تكلفة الشحن']}

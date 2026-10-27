@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
+import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
 
 let pass = 0, fail = 0;
@@ -101,7 +102,7 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(applyFilters(r, { carrier: 'Yurtici' }).length, 1, 'فلتر شركة الشحن'); eq(applyFilters(r, { market: 'uae' }).length, 1, 'فلتر السوق'); eq(applyFilters(r, { currency: 'AED' }).length, 1, 'فلتر العملة'); eq(applyFilters(r, { seller: 'sara' }).length, 1, 'فلتر البائع');
   const rep = buildReport({ rows: r, period: oct, rateMap: { USD: 1, AED: 0.27 } });
   const sheets = exportSheets(rep);
-  ok(Object.keys(sheets).length === 10, 'عشر أوراق تصدير (ست + المرتجعات + الشحن + التسويات + الوضع الحالي)'); eq(sheets['الفترة'][1][1], 'delivery transition date', 'معيار الإدخال بالتصدير');
+  ok(Object.keys(sheets).length === 11, 'إحدى عشرة ورقة تصدير (ست + المرتجعات + الشحن + التسويات + تقدير الشحن + الوضع الحالي)'); eq(sheets['الفترة'][1][1], 'delivery transition date', 'معيار الإدخال بالتصدير');
   eq(rep.byMarket.length, 2, 'سوقان');
 }
 // 11) قيم الفلاتر الافتراضية بالشاشة لا تُسقط أي طلب (عطل: seller='all' كان يُعامَل اسم بائع فتظهر الشاشة 0)
@@ -255,6 +256,50 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(buildReport({ rows, period: sep, refs: { statusLedger: ledger }, filters: { seller: 'all', market: 'all' } }).currentPending.returning.length, sepR.currentPending.returning.length, 'الفلاتر الافتراضية لا تُسقط الوضع الحالي');
   // لا نافذة زمنية بالمنطق الصرف
   { const src = fs.readFileSync('./src/utils/statusLedger.js', 'utf8'); ok(!/(\b60\b|\b120\b)\s*\*\s*(86400000|24)/.test(src) && !/subDays|days'/.test(src), 'لا نافذة 60/120 يوماً بمنطق الدفتر'); }
+}
+// 15) تعرفة الشحن التقديرية (D-161): بتواريخ سريان، الفعلي يغلب، العميل لا يُقدَّر، المجهول لا يصير صفراً
+{
+  const RATES = [
+    { carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 150, return_policy: 'fixed', return_fee: 40, effective_from: '2026-01-01' },
+    { carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 180, return_policy: 'fixed', return_fee: 40, effective_from: '2026-10-01' },
+    { carrier: 'بابل', market: 'syria', currency: 'SYP', outbound_fee: 30, return_policy: 'none', return_fee: null, effective_from: '2026-01-01' },
+    { carrier: 'الكرم', market: 'syria', currency: 'SYP', outbound_fee: 20, return_policy: 'same_as_outbound', return_fee: null, effective_from: '2026-01-01' },
+    { carrier: 'إيزلا', market: 'syria', currency: 'SYP', outbound_fee: 50, return_policy: 'unknown', return_fee: null, effective_from: '2026-01-01' },
+  ];
+  const sh = (id, status, co, extra = {}) => o(id, status, { shipping_company: co, market: 'syria', currency: 'SYP', shipping_payer: 'company', delivery_cost: 0, order_date: '2026-09-10T10:00:00+03:00', delivery_at: '2026-09-12T10:00:00+03:00', ...extra });
+  // pickRate: بتاريخ السريان، والماضي لا يتغيّر
+  eq(pickRate(RATES, 'قدموس', 'syria', '2026-09-30').outbound_fee, 150, 'سبتمبر بالتعرفة القديمة 150'); eq(pickRate(RATES, 'قدموس ', 'syria', '2026-10-01').outbound_fee, 180, 'من 1 أكتوبر 180 (اسم بمسافة زائدة يطابق)');
+  eq(pickRate(RATES, 'قدموس', 'syria', '2025-12-31'), null, 'قبل أول تعرفة ← لا تعرفة'); eq(pickRate(RATES, 'قدموس', 'turkey', '2026-09-30'), null, 'سوق آخر لا يستعير تعرفة'); eq(pickRate(RATES, 'بابل اكسبرس', 'syria', '2026-09-30').outbound_fee, 30, 'بابل اكسبرس = بابل');
+  // قواعد التقدير
+  let e = estimateOrderShipping(sh('E1', 'delivered', 'قدموس'), RATES);
+  eq(e.basis, 'estimated', 'مسلَّم بلا تكلفة موثّقة ← تقدير'); eq(e.outbound.amount, 150, 'بسعر سبتمبر'); eq(e.payerUnconfirmed, true, 'الدافع غير مؤكد موسوم');
+  eq(estimateOrderShipping(sh('E1b', 'delivered', 'قدموس', { delivery_at: '2026-10-05T10:00:00+03:00' }), RATES).outbound.amount, 180, 'نفس الشركة بأكتوبر 180 — تغيير السعر لا يمسّ سبتمبر');
+  e = estimateOrderShipping(sh('E2', 'delivered', 'بابل', { delivery_cost: 450, shipping_payer: 'company' }), RATES);
+  eq(e.basis, 'actual', 'تكلفة موثّقة علينا ← فعلي لا تقدير'); eq(e.outbound.amount, 450, 'المبلغ الفعلي');
+  eq(estimateOrderShipping(sh('E3', 'delivered', 'بابل', { shipping_payer: 'customer', delivery_cost: 300 }), RATES).basis, 'customer_paid', 'على العميل ← لا تقدير');
+  eq(estimateOrderShipping(sh('E3b', 'delivered', 'بابل', { shipping_payer: 'customer', delivery_cost: 0 }), RATES).basis, 'customer_paid', 'دافع العميل بلا مبلغ ← لا نقدّره علينا');
+  e = estimateOrderShipping(sh('E4', 'delivered', 'شركة بلا تعرفة'), RATES); eq(e.basis, 'no_rate', 'بلا تعرفة'); eq(e.outbound, null, 'لا صفر مُختلَق');
+  eq(estimateOrderShipping(sh('E5', 'preparing', 'بابل'), RATES).basis, 'none', 'لم يخرج بعد ← لا تقدير');
+  // المرتجع حسب سياسة الشركة
+  e = estimateOrderShipping(sh('R1', 'returned', 'بابل'), RATES); eq(e.returnState, 'free', 'سياسة none ← لا أجرة مرتجع'); eq(e.returnFee.amount, 0, 'صفر مقصود وموسوم free');
+  e = estimateOrderShipping(sh('R2', 'returned', 'قدموس'), RATES); eq(e.returnState, 'charged', 'fixed'); eq(e.returnFee.amount, 40, 'مرتجع ثابت 40');
+  e = estimateOrderShipping(sh('R3', 'returned', 'الكرم'), RATES); eq(e.returnFee.amount, 20, 'same_as_outbound = 20');
+  e = estimateOrderShipping(sh('R4', 'returned', 'إيزلا'), RATES); eq(e.returnState, 'unknown', 'سياسة غير معروفة'); eq(e.returnFee, null, 'لا مبلغ مُختلَق');
+  e = estimateOrderShipping(sh('R5', 'not_received', 'قدموس'), RATES); eq(e.returnState, 'pending', 'لم يُستلم: المرتجع لم يثبت'); eq(e.returnFee, null, 'ذهاب فقط'); eq(e.outbound.amount, 150, 'أجرة الذهاب');
+  // الملخص
+  const SUM = shippingEstimateSummary([sh('S1', 'delivered', 'قدموس'), sh('S2', 'delivered', 'قدموس'), sh('S3', 'returned', 'قدموس'), sh('S4', 'delivered', 'بابل', { delivery_cost: 450 }), sh('S5', 'delivered', 'بابل', { shipping_payer: 'customer', delivery_cost: 300 }), sh('S6', 'delivered', 'مجهولة'), sh('S7', 'returned', 'إيزلا')], RATES, { USD: 1, SYP: 0.01 });
+  eq(SUM.totals.outbound.SYP, 150 * 3 + 50, 'ذهاب تقديري: قدموس 3 + إيزلا'); eq(SUM.totals.returnFee.SYP, 40, 'مرتجع تقديري 40 فقط (إيزلا مجهولة)'); eq(SUM.totals.returnUnknown, 1, 'سياسة مجهولة معدودة لا صفر');
+  eq(SUM.totals.actual, 1, 'فعلي موثّق 1'); eq(SUM.totals.actualByCurrency.SYP, 450, 'الفعلي منفصل 450'); eq(SUM.totals.customerPaid, 1, 'على العميل 1 لا يدخل'); eq(SUM.totals.noRate, 1, 'بلا تعرفة 1'); eq(SUM.totals.estimated, 4, 'مُقدَّرة 4 (قدموس 3 + إيزلا)');
+  eq(SUM.totals.usdOutbound, 5, 'التحويل بالدولار 500 × 0.01'); eq(SUM.totals.payerUnconfirmed, 4, 'كل المُقدَّرة الدافع غير مؤكد');
+  // الدمج بالتقرير: كل طلب مرة واحدة (حدث راجع لطلب حالته الآن مسلَّم لا يُعدّ شحنة ثانية)
+  const ordX = (id, status, order_date, extra = {}) => o(id, status, { order_date, items: [{ name: 'A', qty: 1 }], market: 'syria', currency: 'SYP', shipping_company: 'قدموس', shipping_payer: 'company', delivery_cost: 0, ...extra });
+  const led = { orders: [ordX('X1', 'delivered', '2026-09-02T10:00:00+03:00', { delivered_at: '2026-09-06T10:00:00+03:00' })], events: [{ order_id: 'X1', to_status: 'not_received', changed_at: '2026-09-04T10:00:00+03:00', source: 'yurtici' }], paths: new Map() };
+  const rowsX = [o('X1', 'delivered', { delivered_at: '2026-09-06T10:00:00+03:00', delivery_basis: 'carrier', shipping_company: 'قدموس', market: 'syria', currency: 'SYP', shipping_payer: 'company', delivery_cost: 0 })];
+  const repX = buildReport({ rows: rowsX, period: sep, refs: { statusLedger: led, carrierRates: RATES } });
+  eq(repX.periodPending.not_received.length, 1, 'حدث not_received بالفترة لطلب مسلَّم لاحقاً'); eq(repX.shipping.totals.orders, 1, 'الشحن: شحنة واحدة لا اثنتان'); eq(repX.shippingEstimate.totals.outbound.SYP, 150, 'التقدير مرة واحدة 150 لا 300');
+  // نظرة التعرفة
+  const ov = rateOverview([...RATES, { carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 200, return_policy: 'none', effective_from: '2099-01-01' }], '2026-11-01');
+  const q = ov.find((g) => g.carrier === 'قدموس'); eq(q.current.outbound_fee, 180, 'الساري اليوم 180'); eq(q.upcoming.length, 1, 'قادمة 1'); eq(q.history.length, 3, 'السجل 3 صفوف');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

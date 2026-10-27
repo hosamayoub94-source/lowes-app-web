@@ -14,6 +14,7 @@
 // =============================================================
 import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
 import { buildStatusViews } from './statusLedger.js';
+import { shippingEstimateSummary } from './shippingRates.js';
 import { carrierKey as carrierKeyLocal, carrierMatches, shippingPayerKind, returnKind, returnsAnalysis, shippingSummary, settlementRows } from './returnsShipping.js';
 
 export const MARKETS = ['syria', 'turkey', 'uae'];
@@ -232,7 +233,11 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
   const pendingAsRows = views ? [...periodPending.returning, ...periodPending.not_received] : [...currentPending.returning, ...currentPending.not_received];
   const returnsInfo = returnsAnalysis([...returns, ...unknownTiming, ...pendingAsRows], rateMap);
   const currentInfo = returnsAnalysis([...currentPending.returning, ...currentPending.not_received], rateMap);
-  const shipping = shippingSummary([...delivered, ...returns, ...pendingAsRows], rateMap);
+  // نطاق الشحن: كل طلب مرة واحدة. حدث راجع/لم يُستلم لطلب حالته الآن مسلَّم لا يدخل (شحنته محسوبة بفترة تسليمه) — منعاً للعدّ المزدوج.
+  const seenShip = new Set();
+  const shipScope = [...delivered, ...returns, ...pendingAsRows.filter((o) => ['returning', 'not_received', 'returned'].includes(o.current_status || o.status))].filter((o) => { const k = o.id ?? o.order_code; if (k == null) return true; if (seenShip.has(k)) return false; seenShip.add(k); return true; });
+  const shipping = shippingSummary(shipScope, rateMap);
+  const shippingEstimate = shippingEstimateSummary(shipScope, refs.carrierRates, rateMap);
   const periodStart = ts(period.from), periodEnd = ts(period.to);
   const settlementsList = views
     ? F(views.settlements)
@@ -249,7 +254,7 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
     bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap),
     undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
     products: buildProductLines(delivered, [...returns, ...unknownTiming], { ...refs, monthStart, nowMonth }),
-    returnsInfo, shipping, settlements: settlementsList, settlementsUnknown,
+    returnsInfo, shipping, shippingEstimate, settlements: settlementsList, settlementsUnknown,
   };
 }
 
@@ -268,6 +273,7 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
     'المرتجعات': [['الطلب', 'السوق', 'الحالة', 'النوع', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع', 'تسليم سابق', 'استرداد مخزون موثّق', 'تكلفة شحن'], ...report.returnsInfo.rows.map((o) => [o.order_code || o.id, o.market, o.status, o.return_kind, o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces, o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'نعم' : 'غير موثّق', Number(o.delivery_cost) > 0 ? o.delivery_cost : 'غير موثّق'])],
     'الشحن': [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
     'التسويات': [['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'النوع', 'المسار', 'سبق التسوية تسليم', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...[...report.settlements, ...report.settlementsUnknown].map((o) => [o.order_code || o.order_id || o.id, o.market, o.settled_at ? String(o.settled_at).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.settlement_kind, o.path, o.delivered_before ? 'نعم' : 'لا', o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
+    'تقدير الشحن': [['الشركة', 'طلبات بالنطاق', 'مُقدَّرة', 'فعلية (موثّقة)', 'على العميل', 'بلا تعرفة', 'الدافع غير مؤكد', 'ذهاب تقديري', 'مرتجع تقديري', 'مرتجع بسياسة غير معروفة', 'معلّق (راجع/لم يُستلم)'], ...report.shippingEstimate.rows.map((g) => [g.carrier, g.orders, g.estimated, g.actual, g.customerPaid, g.noRate, g.payerUnconfirmed, cur({ byCurrency: g.outbound }), cur({ byCurrency: g.returnFee }), g.returnUnknown, g.returnPending])],
     'الوضع الحالي': [['الطلب', 'السوق', 'الحالة الآن', 'منذ', 'تاريخ الطلب', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع'], ...[...report.currentPending.returning, ...report.currentPending.not_received].map((o) => [o.order_code || o.order_id || o.id, o.market, o.status, o.status_since ? String(o.status_since).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces])],
     'الفترة': [['الفترة', report.period.label], ['معيار الإدخال', 'delivery transition date'], ['تواريخ تقديرية (legacy)', report.legacyCount], ['تضمين القديم', report.includeLegacy ? 'نعم' : 'لا']],
   };
