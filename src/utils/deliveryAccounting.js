@@ -237,3 +237,16 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
     'الفترة': [['الفترة', report.period.label], ['معيار الإدخال', 'delivery transition date'], ['تواريخ تقديرية (legacy)', report.legacyCount], ['تضمين القديم', report.includeLegacy ? 'نعم' : 'لا']],
   };
 }
+
+/**
+ * خطأ التحميل → نوع + رسالة عربية صريحة. (عطل: انتهاء مهلة الدالة كان يظهر كـ«تحتاج جلسة مدير» فيُضلِّل.)
+ * 57014 = canceling statement due to statement timeout (دور authenticated مهلته 8 ثوانٍ).
+ */
+export function describeLoadError(e) {
+  const code = String(e?.code || '');
+  const msg = String(e?.message || e || '');
+  if (e?.name === 'AbortError' || /\babort/i.test(msg)) return { kind: 'aborted', message: '' };
+  if (code === '57014' || /statement timeout/i.test(msg)) return { kind: 'timeout', message: 'انتهت مهلة قاعدة البيانات (8 ثوانٍ) أثناء جلب الطلبات — الدالة بطيئة الآن. أعد المحاولة بعد لحظات ولا تبدّل الأشهر بسرعة.' };
+  if (code === '42501' || /permission denied|not allowed|jwt/i.test(msg)) return { kind: 'permission', message: 'لا صلاحية لقراءة هذه البيانات — تحتاج جلسة مدير أو مدير مبيعات حقيقية (سجّل الخروج ثم ادخل بالـPIN).' };
+  return { kind: 'other', message: msg || 'تعذّر تحميل التقرير' };
+}
