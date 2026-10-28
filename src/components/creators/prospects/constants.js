@@ -5,11 +5,12 @@ export {
   CONTENT_TYPES, SKINCARE_FOCUS, CREATOR_TYPES, STATUSES, VERIFICATION, LOCATION_CONFIDENCE, PLATFORMS,
   CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, VERIFICATION_AR, CONFIDENCE_AR, CATEGORY_AR,
   COUNTRIES, GOVERNORATES, govOf, countryOf, statusOf, BADGES, SORTS, WEIGHTS, fmtNum, normalizeHandle, parseHandle, scoreCreator,
-  VIEWS, viewOf, COLLABS, COLLAB_AR, collabOf, freeTags, isGarbled, missingEssentials, summarizeCreators, searchCreators,
+  VIEWS, viewOf, COLLABS, COLLAB_AR, COLLAB_TYPES, COLLAB_TYPE_AR, RATE_CURRENCIES, RATE_CURRENCY_AR, RATE_TIER_AR, rateTier, collaborationLabel, collabOf, freeTags, isGarbled, missingEssentials, summarizeCreators, searchCreators,
 } from '../../../../supabase/functions/_shared/creatorMatch.js';
 
 export const MISSING_AR = { account: 'الحساب', name: 'اسم مقروء', followers: 'المتابعون', place: 'المكان', source: 'المصدر' };
 export const COLLAB_CLS = {
+  paid: 'bg-blue-100 text-blue-800', pr: 'bg-pink-100 text-pink-800', gift: 'bg-amber-100 text-amber-800', hybrid: 'bg-violet-100 text-violet-800', unknown: 'bg-gray-100 text-gray-700',
   ugc_ready: 'bg-violet-100 text-violet-800', pr_ready: 'bg-pink-100 text-pink-800', paid_inquiry: 'bg-blue-100 text-blue-800',
   expert: 'bg-teal-100 text-teal-800', needs_review: 'bg-amber-50 text-amber-800', not_relevant: 'bg-red-50 text-red-700',
 };
