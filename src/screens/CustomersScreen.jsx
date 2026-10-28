@@ -278,12 +278,35 @@ function CustomerModal({ c, sellerName, onClose }) {
   const waPlain = customerWaLink(c.phone, mkt);
   const waReferral = refCode ? customerWaLink(c.phone, mkt, refMsg) : null;
 
-  // واتساب الاستهلاكي (wa.me) بيفتح تطبيق واتساب الشخصي عالموبايل — ما عنا
-  // API ولا webhook نقرأ منه أي شي (رد العميل يضل غير مرئي كلياً)، بس أقل
-  // شي نوثّق إنه تواصل صار أصلاً + شو كان نص الرسالة، بدل ما يضيع بلا أثر.
+  // واتساب الشخصي لا يسمح لنا بالتحقق آلياً من الإرسال؛ فتح الرابط ليس إرسالاً.
+  // نسجّل محاولة الفتح محلياً، ولا نضيف سجل "تم الإرسال" إلا بعد تأكيد الموظف.
+  const [pendingWhatsApp, setPendingWhatsApp] = useState(null);
+  const [savingOutreach, setSavingOutreach] = useState(false);
   const logConsumerWaOutreach = (withMessage) => {
-    const note = withMessage ? `📱 واتساب: ${msg}` : '📱 فتح محادثة واتساب فارغة';
-    addNote(c.phone_key, note, sellerName).then(n => setNotes(p => [n, ...p])).catch(() => {});
+    setPendingWhatsApp({
+      note: withMessage ? String(msg || '').trim() : '',
+      openedAt: new Date().toISOString(),
+      withMessage,
+    });
+  };
+  const confirmConsumerWaSent = async () => {
+    if (!pendingWhatsApp || savingOutreach) return;
+    setSavingOutreach(true);
+    try {
+      const stamp = new Date().toISOString();
+      const note = [
+        '📱 تم تأكيد الإرسال يدوياً عبر واتساب الشخصي',
+        `وقت التأكيد: ${stamp}`,
+        pendingWhatsApp.withMessage ? `نص الرسالة: ${pendingWhatsApp.note}` : 'نوع التواصل: محادثة بدون رسالة جاهزة',
+      ].join(' — ');
+      const saved = await addNote(c.phone_key, note, sellerName);
+      setNotes(p => [saved, ...p]);
+      setPendingWhatsApp(null);
+    } catch {
+      alert('تعذّر حفظ سجل التواصل. لم يتم تسجيل الإرسال؛ جرّب مرة ثانية.');
+    } finally {
+      setSavingOutreach(false);
+    }
   };
 
   // زر "فتح شات واتساب الرسمي" — يفتح/يطالب بملكية المحادثة بشاشة
@@ -437,7 +460,7 @@ function CustomerModal({ c, sellerName, onClose }) {
                 <a href={waSend} target="_blank" rel="noreferrer" onClick={() => logConsumerWaOutreach(true)}
                   className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition"
                   style={{ background: '#25D366' }}>
-                  <WaIcon /> إرسال واتساب
+                  <WaIcon /> فتح واتساب
                 </a>
               )}
               {waPlain && (
@@ -446,6 +469,23 @@ function CustomerModal({ c, sellerName, onClose }) {
                   محادثة فارغة
                 </a>
               )}
+            </div>
+            {pendingWhatsApp && (
+              <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
+                <p className="text-xs font-bold text-amber-900">هل أرسلت الرسالة فعلاً داخل واتساب؟</p>
+                <p className="text-[11px] text-amber-800">فتح واتساب وحده لا يعني أن الرسالة أُرسلت. سجّل التأكيد بعد الضغط على «إرسال» في واتساب.</p>
+                <div className="flex gap-2">
+                  <button onClick={confirmConsumerWaSent} disabled={savingOutreach}
+                    className="flex-1 rounded-lg bg-teal px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                    {savingOutreach ? 'جارٍ الحفظ…' : '✅ تم الإرسال — سجّل'}
+                  </button>
+                  <button onClick={() => setPendingWhatsApp(null)} disabled={savingOutreach}
+                    className="rounded-lg border border-border px-3 py-2 text-xs font-bold text-muted disabled:opacity-50">
+                    ليس بعد
+                  </button>
+                </div>
+              </div>
+            )}
             </div>
             {canOfficialWa && (
               <button onClick={openOfficialWa}
@@ -862,9 +902,18 @@ export default function CustomersScreen() {
   // مش ضمن أعلى 400 بالترتيب الافتراضي.
   const campaignBaseList = (campaignMode && activeCampaign.audienceOf) ? responderCustomers : displayed;
 
+  // لا تسمح بإرسال عميل بقي محدداً بعد أن أصبح مستبعداً من القائمة النهائية.
+  // نعيد تطبيق الاستبعادات على مجموعة الإرسال نفسها، وليس على العرض فقط.
   const selectedCustomers = useMemo(
-    () => campaignBaseList.filter(c => selectedPhones.has(c.phone_key)),
-    [campaignBaseList, selectedPhones],
+    () => campaignBaseList.filter(c => {
+      if (!selectedPhones.has(c.phone_key)) return false;
+      const key = String(c.phone_key || '').replace(/\\D/g, '');
+      const tail = key.slice(-10);
+      if (undeliverablePhones.has(tail)) return false;
+      if (excludeSent && sentPhones.has(c.phone_key)) return false;
+      return true;
+    }),
+    [campaignBaseList, selectedPhones, undeliverablePhones, excludeSent, sentPhones],
   );
 
   // القائمة الفعلية بوضع الحملة — تستبعد المُرسَل لهم سابقاً افتراضياً (excludeSent،
