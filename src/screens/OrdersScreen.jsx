@@ -1561,7 +1561,8 @@ const EMPTY_FORM = {
   amount: '', currency: 'TRY',
   payment_method: 'دفع عند الباب 💵', payment_status: 'unpaid', paid_amount: '',
   shipping_company: 'Yurtiçi Kargo', pickup_type: 'استلام من المركز', tracking_number: '',
-  shipping_payer: 'company',
+  // الطلب الجديد: لا افتراضي — يختار الموظف صراحةً من يدفع أجور الشحن (الافتراضي «علينا» كان يُفسد دقة تكلفة الشحن بالمحاسبة)
+  shipping_payer: '',
   delivery_cost: '',
 };
 
@@ -2462,6 +2463,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
 
   const handleSave = async () => {
     if (!form.customer_name.trim()) return;
+    if (!isEdit && !form.shipping_payer) { window.alert('اختر من يدفع أجور الشحن (على الشركة أو على العميل) قبل إنشاء الطلب.'); return; }
     setSaving(true);
     // order_date من <input datetime-local> = توقيت محلي بلا منطقة. تحويله بـ
     // toISOString يعيد تفسيره بتوقيت المتصفّح ويزيحه لـUTC — فطلبٌ قرب منتصف الليل
@@ -2802,7 +2804,7 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
             </div>
             {/* أجور الشحن — من يدفع تكلفة الشحنة */}
             <div>
-              <label className={LBL}>أجور الشحن</label>
+              <label className={LBL}>أجور الشحن{!isEdit ? ' *' : ''}{!isEdit && !form.shipping_payer ? <span className="text-red-fg font-bold"> — اختر من يدفع</span> : null}</label>
               <div className="flex gap-2">
                 {[
                   { val: 'company',  label: '🏢 على الشركة' },
