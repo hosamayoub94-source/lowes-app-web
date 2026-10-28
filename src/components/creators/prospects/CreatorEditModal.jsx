@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { call, addProspect, updateProspect } from '@services/creatorProspectsApi';
 import {
   PLATFORMS, CREATOR_TYPES, TYPE_AR, CONTENT_TYPES, CONTENT_AR, SKINCARE_FOCUS, FOCUS_AR, STATUSES, STATUS_AR, VERIFICATION, VERIFICATION_AR,
-  LOCATION_CONFIDENCE, CONFIDENCE_AR, COUNTRIES, GOVERNORATES, SOURCES, statusOf, instagramUrl, profileUrl, isPending,
+  LOCATION_CONFIDENCE, CONFIDENCE_AR, COUNTRIES, GOVERNORATES, SOURCES, COLLAB_TYPES, COLLAB_TYPE_AR, RATE_CURRENCIES, RATE_CURRENCY_AR, statusOf, instagramUrl, profileUrl, isPending,
 } from './constants';
 
 const inputCls = 'border rounded-lg px-2 py-1.5 text-sm w-full disabled:bg-gray-50 disabled:text-gray-400';
 function Field({ label, children, hint }) { return <label className="block text-xs text-gray-600">{label}{hint && <span className="text-gray-400"> — {hint}</span>}{children}</label>; }
 const V1_KEYS = ['handle', 'platform', 'name', 'location', 'followers', 'engagement_pct', 'category', 'priority', 'status', 'owner', 'fit', 'evidence', 'source', 'notes'];
-const V2_KEYS = ['country', 'governorate', 'city', 'location_confidence', 'creator_type', 'content_types', 'skincare_focus', 'tags', 'bio', 'email', 'phone', 'preferred_contact', 'other_platforms', 'source_url', 'last_active_at', 'verification_status'];
+const V2_KEYS = ['country', 'governorate', 'city', 'location_confidence', 'creator_type', 'content_types', 'skincare_focus', 'tags', 'bio', 'email', 'phone', 'preferred_contact', 'other_platforms', 'source_url', 'last_active_at', 'verification_status', 'collaboration_type', 'rate_amount', 'rate_currency', 'rate_usd', 'rate_scope', 'rate_exchange_rate', 'rate_exchange_date'];
 const CONTACT_AR = { instagram_dm: 'رسالة Instagram', whatsapp: 'واتساب', email: 'بريد', phone: 'اتصال' };
 // Type chips in the order the team should think: what LOWE'S needs most first.
 const TYPE_ORDER = ['ugc', 'skincare', 'reviewer', 'unboxing', 'beauty', 'expert', 'general'];
@@ -165,6 +165,19 @@ export default function CreatorEditModal({ row, owners, schema, onClose, onSaved
         <button type="button" onClick={() => setMore((m) => !m)} className="w-full text-xs font-bold text-gray-500 border-t pt-3">{more ? '▴ إخفاء التفاصيل' : '▾ تفاصيل أكثر (متابعين، مصدر، تواصل، حالة…)'}</button>
         {more && (
           <div className="space-y-3">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+              <div className="font-black text-sm text-gray-800">طريقة التعاون والتكلفة</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <Field label="طريقة التعاون"><select disabled={!v2} className={inputCls} value={f.collaboration_type || 'unknown'} onChange={(e) => set('collaboration_type', e.target.value)}>{COLLAB_TYPES.map((t) => <option key={t} value={t}>{COLLAB_TYPE_AR[t]}</option>)}</select></Field>
+                <Field label="السعر الأصلي" hint="اتركه فارغاً إذا غير معروف"><input disabled={!v2} type="number" min="0" step="0.01" className={inputCls} value={f.rate_amount ?? ''} onChange={(e) => set('rate_amount', e.target.value)} placeholder="مثلاً 150" /></Field>
+                <Field label="العملة"><select disabled={!v2} className={inputCls} value={f.rate_currency || 'USD'} onChange={(e) => set('rate_currency', e.target.value)}>{RATE_CURRENCIES.map((c) => <option key={c} value={c}>{RATE_CURRENCY_AR[c]}</option>)}</select></Field>
+                <Field label="المعادل بالدولار" hint="لا يُحسب تلقائياً دون سعر صرف موثوق"><input disabled={!v2} type="number" min="0" step="0.01" className={inputCls} value={f.rate_usd ?? ''} onChange={(e) => set('rate_usd', e.target.value)} placeholder="USD" /></Field>
+                <Field label="ما الذي يشمله السعر؟" hint="ريلز / ستوري / UGC / باقة"><input disabled={!v2} className={inputCls} value={f.rate_scope || ''} onChange={(e) => set('rate_scope', e.target.value)} placeholder="ريلز واحد + 3 ستوري" /></Field>
+                <Field label="سعر الصرف المستخدم" hint="وحدات العملة الأصلية لكل دولار"><input disabled={!v2} type="number" min="0" step="0.000001" className={inputCls} value={f.rate_exchange_rate ?? ''} onChange={(e) => set('rate_exchange_rate', e.target.value)} placeholder="اختياري" /></Field>
+                <Field label="تاريخ سعر الصرف"><input disabled={!v2} type="date" className={inputCls} value={f.rate_exchange_date || ''} onChange={(e) => set('rate_exchange_date', e.target.value)} /></Field>
+              </div>
+              <div className="text-[11px] text-gray-500">المستويات بالدولار: Mini أقل من 100$، متوسط من 100$ إلى 500$، وPremium أعلى من 500$. المعادل بالدولار يُدخل فقط عند توفر تحويل موثوق.</div>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <Field label="المتابعون" hint="فارغ = غير معروف"><input className={inputCls} value={f.followers ?? ''} onChange={(e) => set('followers', e.target.value)} dir="ltr" placeholder="12500 أو 12.5K" /></Field>
               <Field label="التفاعل %"><input className={inputCls} value={f.engagement_pct ?? ''} onChange={(e) => set('engagement_pct', e.target.value)} dir="ltr" /></Field>
