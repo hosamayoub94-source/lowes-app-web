@@ -593,7 +593,7 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
   const [loadingMoreMonth, setLoadingMoreMonth] = useState(null);
 
   useEffect(() => {
-    setMonths(null); setError(null); setOpen(null); setCache({});
+    setMonths(null); setError(null); setOpen(null); setCache({}); setArchiveHasMore({});
     listCustomerMonths({ market, brand, sellerNames })
       .then(setMonths)
       .catch(e => setError(e.message));
@@ -627,7 +627,7 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
         market, brand, sellerNames, sort: 'recent', source: 'customer_delivery_stats',
         monthStart: start, monthEnd: end, limit: 200, offset: existing.length,
       });
-      setCache(p => ({ ...p, [mk]: [...(p[mk] || [], ...next] }));
+      setCache(p => ({ ...p, [mk]: [...(p[mk] || []), ...next] }));
       setArchiveHasMore(p => ({ ...p, [mk]: next.length === 200 }));
     } catch (e) {
       setError(e.message);
