@@ -1,7 +1,7 @@
 // بطاقة صانع محتوى — مين، وين، أرقامه (أو «غير متوفر»)، حالته وتحققه ونوع التعاون، وسطر «الخطوة التالية».
 // الرقم 0–100 «أولوية» لترتيب الشغل فقط — ليس حكماً على الجودة. الحساب اللي ما انفحص يظهر «⚪ ما انفحص» (محايد).
 import {
-  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, VERIFICATION_AR, VERIFY_CLS, COLLAB_AR, COLLAB_CLS, TONE_CLS, MISSING_AR,
+  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, VERIFICATION_AR, VERIFY_CLS, COLLAB_AR, COLLAB_CLS, COLLAB_TYPE_AR, COLLAB_TYPES, RATE_TIER_AR, RATE_CURRENCY_AR, rateTier, TONE_CLS, MISSING_AR,
   statusOf, fmtNum, instagramUrl, profileUrl, placeOf, shownHandle, isUnreviewed, collabOf, isGarbled, missingEssentials, displayName,
 } from './constants';
 import { nextStep } from '@services/creatorWorkqueue';
@@ -34,6 +34,8 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, o
   const place = placeOf(row);
   const unrev = isUnreviewed(row);
   const collab = collabOf(row);
+  const collabType = row.collaboration_type || (collab === 'pr_ready' ? 'pr' : collab === 'paid_inquiry' ? 'paid' : 'unknown');
+  const tier = rateTier(row);
   const garbled = isGarbled(row);
   const miss = missingEssentials(row);
   const step = nextStep(row);
@@ -62,7 +64,8 @@ export default function CreatorCard({ row, selected, onSelect, onOpen, onSave, o
         <ScoreBadge row={row} />
         {!unrev && <span className={`${chip} ${STATUS_CLS[st] || 'bg-gray-100'}`}>{STATUS_AR[st] || st}</span>}
         <span className={`${chip} bg-white border ${VERIFY_CLS[row.verification_status || 'unverified']}`}>{VERIFICATION_AR[row.verification_status || 'unverified']}</span>
-        {collab && <span className={`${chip} font-bold ${COLLAB_CLS[collab]}`}>{COLLAB_AR[collab]}</span>}
+        {(row.collaboration_type || collab) && <span className={`${chip} font-bold ${COLLAB_CLS[collabType] || COLLAB_CLS.unknown}`}>{(collabType === 'paid' || collabType === 'hybrid') ? RATE_TIER_AR[tier || 'unknown'] : (COLLAB_TYPE_AR[collabType] || COLLAB_AR[collab] || COLLAB_TYPE_AR.unknown)}</span>}
+        {(row.rate_amount != null || row.rate_usd != null) && <span className={`${chip} bg-blue-50 text-blue-800`}>{row.rate_amount != null ? `${row.rate_amount} ${row.rate_currency || ''}` : ''}{row.rate_usd != null ? ` · ≈ ${Number(row.rate_usd).toLocaleString()}` : ''}{row.rate_scope ? ` · ${row.rate_scope}` : ''}</span>}
         {row.creator_type && <span className={`${chip} bg-gray-900 text-white`}>{TYPE_AR[row.creator_type]}</span>}
         {!row.creator_type && row.category && <span className={`${chip} bg-gray-100 text-gray-600`} title="تصنيف المصدر — غير مؤكد">{CATEGORY_AR[row.category] || row.category}</span>}
         {tags.slice(0, 3).map((t) => <span key={t} className={`${chip} bg-emerald-50 text-emerald-800`}>{t}</span>)}
