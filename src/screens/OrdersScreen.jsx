@@ -3678,6 +3678,8 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if ((form.market === 'syria' || form.market === 'uae') && form.brand !== 'lowes') form.brand = 'lowes';
 
     let savedId = existingId;
+    // الحالة قبل الحفظ: حفظ نموذج التعديل كان يغيّر الحالة بلا أي سجل بـorder_status_history (سبب «توقيت غير معروف» بالمرتجعات) — نسجّل الآن.
+    const prevStatus = existingId ? (orders.find((o) => o.id === existingId)?.status ?? null) : null;
     if (existingId) {
       const { error } = await supabaseAnon.from('orders')
         .update({ ...form, updated_at: new Date().toISOString(), updated_by: userName })
@@ -3696,6 +3698,9 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (data?.order_id) form.order_id = data.order_id; // الكود المولّد (للعرض/المخزون/المزامنة)
       notifyNewOrderToFulfillment({ ...form, id: savedId });
       sendOrderReceivedMessage({ ...form, id: savedId }); // best-effort — راجع ORDER_RECEIVED_READY بـwhatsappService.js
+    }
+    if (savedId && form.status && form.status !== prevStatus) {
+      recordStatusChange({ orderId: savedId, from: prevStatus, to: form.status, by: userName, source: 'app' });
     }
     setModal(null);
     load();
