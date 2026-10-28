@@ -8,7 +8,7 @@ import { loadDeliveryData, loadStoredCommissions, loadCarrierRates, saveCarrierR
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
-import { carrierKey, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS } from '@utils/returnsShipping';
+import { carrierKey, carrierScorecard, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS } from '@utils/returnsShipping';
 import { rateOverview, carrierCostOverview, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
 import { SYRIA_SHIPPING_PRIORITY } from '@data/syriaCarriers';
 import { STATUSES } from '@data/orderStatus';
@@ -430,6 +430,18 @@ export default function SalesDeliveryAccountingScreen() {
 
           {tab === 'shipping' && (
             <div className="space-y-3">
+              <section className="space-y-2 border border-border rounded-2xl p-3">
+                <h3 className="text-sm font-black">🏁 أداء شركات الشحن بالفترة — أيها نعتمد؟</h3>
+                <p className="text-xs text-muted">نسبة الإرجاع = المرتجع النهائي ÷ (المسلَّم + المرتجع). متوسط الأيام من تاريخ الطلب إلى التسليم الموثّق (التسليم بتاريخ تقديري لا يدخل). «تكلفة الشحنة الناجحة» = ما ندفعه ÷ المسلَّم، وتظهر بعد إدخال التعرفة.</p>
+                <SimpleTable
+                  head={['الشركة', 'السوق', 'مسلَّم', 'مرتجع', 'لم يُستلم', 'نسبة الإرجاع', 'متوسط أيام التسليم', 'تكلفة الشحنة الناجحة']}
+                  rows={carrierScorecard({
+                    delivered: report.delivered, returns: report.returns, notReceived: report.periodPending.not_received,
+                    weBearByCarrier: new Map(carrierCostOverview(report.shippingEstimate.rows, report.shipping.rows).map((s) => [s.carrier, s.weBear])),
+                  }).map((g) => [g.carrier, MARKET_LABELS[g.market] || g.market, fmt(g.delivered), fmt(g.returned), fmt(g.notReceived), g.returnRate == null ? '—' : `${g.returnRate}%`, g.avgDays == null ? '—' : fmt(g.avgDays), g.costPerDelivered ? curText(g.costPerDelivered) : '—'])}
+                  empty="لا شحنات بالفترة"
+                />
+              </section>
               <section className="space-y-2 border border-teal/30 rounded-2xl p-3">
                 <h3 className="text-sm font-black">📊 شحن كل شركة — ما ندفعه نحن وما يدفعه العميل</h3>
                 <p className="text-xs text-muted">«علينا» = الفعلي الموثّق + تقدير الذهاب والإرجاع من أجور الشركات (تبويب 🚛). «على العميل» = أجور التوصيل المسجّلة بالطلب حين الدافع العميل. الطلب الذي لا تعرفة لشركته يظهر «بلا تعرفة» لا صفراً.</p>

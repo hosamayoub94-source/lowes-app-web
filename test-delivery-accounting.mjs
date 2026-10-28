@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur } from './src/utils/shippingRates.js';
-import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
+import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows, carrierScorecard } from './src/utils/returnsShipping.js';
 import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
 import { STATUSES } from './src/data/orderStatus.js';
 
@@ -354,6 +354,23 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(sumCur({ SYP: 1, USD: 2 }, { SYP: 3 }).SYP, 4, 'sumCur عملة بعملة');
   const none = carrierCostOverview(shippingEstimateSummary(list, [], { USD: 1 }).rows, shippingSummary(list, { USD: 1 }).rows)[0];
   eq(Object.keys(none.outbound).length, 0, 'بلا تعرفة: لا ذهاب مختلَق'); eq(none.noRate, 3, 'بلا تعرفة 3 (C1,C2,C4)');
+}
+// 19) بطاقة أداء الشركات: نسبة الإرجاع، أيام التسليم (بلا التقديري)، تكلفة الشحنة الناجحة
+{
+  const d = (id, co, ordered, delivered, extra = {}) => ({ id, market: 'syria', shipping_company: co, order_date: ordered, delivery_at: delivered, delivery_source: 'history', ...extra });
+  const rows = carrierScorecard({
+    delivered: [d('a1', 'قدموس', '2026-09-01T10:00:00Z', '2026-09-03T10:00:00Z'), d('a2', 'قدموس', '2026-09-01T10:00:00Z', '2026-09-05T10:00:00Z'), d('a3', 'قدموس', '2026-09-01T10:00:00Z', '2026-09-01T10:00:00Z', { delivery_source: 'legacy_order_date' }), d('b1', 'بابل', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z')],
+    returns: [d('r1', 'قدموس', '2026-09-01T10:00:00Z', null), d('r2', 'قدموس', '2026-09-01T10:00:00Z', null)],
+    notReceived: [d('n1', 'بابل', '2026-09-01T10:00:00Z', null)],
+    weBearByCarrier: new Map([['قدموس', { SYP: 600 }]]),
+  });
+  const q = rows.find((x) => x.carrier === 'قدموس'); const b = rows.find((x) => x.carrier === 'بابل');
+  eq(q.delivered, 3, 'قدموس مسلَّم 3'); eq(q.returned, 2, 'مرتجع 2'); eq(q.returnRate, 40, 'نسبة الإرجاع 2/(3+2)=40%');
+  eq(q.avgDays, 3, 'متوسط الأيام (2 و4) = 3 — التقديري لا يدخل'); eq(q.costPerDelivered.SYP, 200, 'تكلفة الشحنة الناجحة 600/3=200');
+  eq(b.returnRate, 0, 'بابل بلا مرتجع = 0%'); eq(b.notReceived, 1, 'لم يُستلم 1'); eq(b.costPerDelivered, null, 'بلا تعرفة: لا تكلفة مختلَقة'); eq(b.avgDays, 1, 'بابل يوم واحد');
+  const only = carrierScorecard({ delivered: [], returns: [d('x', 'الكرم', '2026-09-01T10:00:00Z', null)] })[0];
+  eq(only.returnRate, 100, 'مرتجع بلا مسلَّم = 100%'); eq(only.avgDays, null, 'بلا مسلَّم: لا متوسط');
+  eq(carrierScorecard({ delivered: [], returns: [], notReceived: [] }).length, 0, 'فارغ');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

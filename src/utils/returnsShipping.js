@@ -175,5 +175,45 @@ export function settlementRows(settled, paths) {
   });
 }
 
+/**
+ * بطاقة أداء شركات الشحن للفترة (لكل شركة × سوق): مسلَّم، مرتجع نهائي، لم يُستلم (أحداث الفترة)،
+ * نسبة الإرجاع = مرتجع/(مسلَّم+مرتجع)، متوسط أيام التسليم (من تاريخ الطلب إلى تسليمه الموثّق — يُستثنى التسليم بتاريخ تقديري legacy)،
+ * وتكلفة الشحنة الناجحة = «علينا» ÷ المسلَّم لكل عملة (إن وُجدت تعرفة/تكلفة موثّقة). لا أرقام مختلَقة: ما لا يُحسب يبقى null.
+ * @param {{delivered:Array, returns:Array, notReceived:Array, weBearByCarrier?:Map}} p  weBearByCarrier: اسم الشركة → خريطة عملة→مبلغ
+ */
+export function carrierScorecard({ delivered = [], returns = [], notReceived = [], weBearByCarrier = new Map() } = {}) {
+  const m = new Map();
+  const slot = (o) => {
+    const carrier = carrierKey(o.shipping_company, o.market);
+    const k = `${carrier}|${o.market}`;
+    if (!m.has(k)) m.set(k, { key: k, carrier, market: o.market, delivered: 0, returned: 0, notReceived: 0, daysSum: 0, daysN: 0, returnRate: null, avgDays: null, costPerDelivered: null });
+    return m.get(k);
+  };
+  for (const o of delivered) {
+    const g = slot(o); g.delivered += 1;
+    if (o.delivery_source !== 'legacy_order_date') {
+      const a = Date.parse(o.order_date), b = Date.parse(o.delivery_at);
+      if (Number.isFinite(a) && Number.isFinite(b) && b >= a) { g.daysSum += (b - a) / 86400000; g.daysN += 1; }
+    }
+  }
+  for (const o of returns) slot(o).returned += 1;
+  for (const o of notReceived) slot(o).notReceived += 1;
+  const rows = [...m.values()];
+  for (const g of rows) {
+    const total = g.delivered + g.returned;
+    g.returnRate = total > 0 ? round2((g.returned / total) * 100) : null;
+    g.avgDays = g.daysN > 0 ? round2(g.daysSum / g.daysN) : null;
+    // ما ندفعه مُجمَّع بالشركة (لا بالسوق) فيُقسم على مسلَّم الشركة كلها ليبقى الرقم متسقاً
+    const we = weBearByCarrier.get(g.carrier);
+    const carrierDelivered = rows.filter((x) => x.carrier === g.carrier).reduce((n, x) => n + x.delivered, 0);
+    if (we && carrierDelivered > 0 && Object.keys(we).length) {
+      g.costPerDelivered = {};
+      for (const [c, v] of Object.entries(we)) g.costPerDelivered[c] = round2(v / carrierDelivered);
+    }
+    delete g.daysSum; delete g.daysN;
+  }
+  return rows.sort((a, b) => (b.delivered + b.returned) - (a.delivered + a.returned));
+}
+
 /** مفتاح مقارنة لاسم الشركة بالفلاتر. */
 export const carrierMatches = (o, key) => !key || key === 'all' || carrierKey(o.shipping_company, o.market) === key || normName(o.shipping_company) === normName(key);
