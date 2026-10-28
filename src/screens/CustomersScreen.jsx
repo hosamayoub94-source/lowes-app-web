@@ -10,7 +10,7 @@ import {
   sellerMatches, daysSince, getNotes, addNote,
   getCustomerOrders, boughtProductNames, aiFollowupMessage,
   sellerVariants, canonicalSeller, exportMetaCSV, getSellerAliases,
-  listCustomerMonths, monthRange, phoneKey,
+  listCustomerMonths, monthRange, phoneKey, getLatestWhatsAppOutreach,
 } from '@services/customerService';
 import { suggestComplements, REORDER_DAYS } from '@data/crossSell';
 import { STATUSES } from '@data/orderStatus';
@@ -660,7 +660,7 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
   );
 }
 
-function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect, alreadySent }) {
+function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect, alreadySent, outreach }) {
   const mkt = custMarket(c);
   const totals = [];
   if (Number(c.total_syp) > 0) totals.push(`${fmt(c.total_syp)} SYP`);
@@ -706,6 +706,12 @@ function CustomerCard({ c, onOpen, campaignMode, selected, onToggleSelect, alrea
         </div>
       </div>
       {totals.length > 0 && <p className="text-xs font-bold text-text">{totals.join(' · ')}</p>}
+      {outreach && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-800" title={`آخر تواصل مؤكد: ${outreach.author || 'موظف غير محدد'}`}>
+          <span className="font-bold shrink-0">✅ آخر تواصل واتساب</span>
+          <span className="truncate text-left">{outreach.author || 'الموظف غير محدد'} · {outreach.created_at ? new Date(outreach.created_at).toLocaleString('ar', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+        </div>
+      )}
       <div className="flex items-center justify-between text-[10px] text-muted pt-1 border-t border-border/40">
         <span>{(c.sellers||[]).length > 1 ? `🔀 ${(c.sellers||[]).length} بائع` : `👤 ${(c.sellers||[])[0] || '—'}`}</span>
         {idle >= 90 ? <span className="text-red-fg font-bold">💔 استرجاع ({idle}ي)</span>
@@ -725,6 +731,7 @@ export default function CustomersScreen() {
 
   const [section, setSection]   = useState('syria');
   const [rows, setRows]         = useState([]);
+  const [outreachByPhone, setOutreachByPhone] = useState({}); // آخر تواصل مؤكد ظاهر على بطاقة العميل
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [search, setSearch]     = useState('');
@@ -828,6 +835,16 @@ export default function CustomersScreen() {
 
   // mineOnly is applied server-side; segment is a client-side refinement.
   const displayed = useMemo(() => rows.filter(c => inSegment(c, segment)), [rows, segment]);
+
+  // اعرض آخر تواصل واتساب مؤكّد على البطاقة مباشرة، دون فتح تفاصيل العميل.
+  useEffect(() => {
+    let cancelled = false;
+    const keys = displayed.map(c => c.phone_key).filter(Boolean);
+    getLatestWhatsAppOutreach(keys)
+      .then(map => { if (!cancelled) setOutreachByPhone(map); })
+      .catch(() => { if (!cancelled) setOutreachByPhone({}); });
+    return () => { cancelled = true; };
+  }, [displayed]);
 
   // الحملة الجماعية مسموحة فقط لقسم "لويز تركيا" — الاستبعاد الصريح لسوريا
   // (D-022) والحماية من خلط أسواق بقسمي "سترونغ"/"الكل".
@@ -1190,7 +1207,7 @@ export default function CustomersScreen() {
           {campaignVisible.map(c => (
             <CustomerCard key={c.phone_key} c={c} onOpen={setSelected}
               campaignMode={campaignMode} selected={selectedPhones.has(c.phone_key)} onToggleSelect={toggleSelect}
-              alreadySent={sentPhones.has(c.phone_key)} />
+              alreadySent={sentPhones.has(c.phone_key)} outreach={outreachByPhone[c.phone_key]} />
           ))}
         </div>
       )}
