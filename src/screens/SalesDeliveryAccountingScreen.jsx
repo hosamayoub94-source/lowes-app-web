@@ -104,7 +104,7 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
   const [saving, setSaving] = useState(false);
   const overview = useMemo(() => rateOverview(rates), [rates]);
   const setF2 = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
-  const carriers = useMemo(() => [...new Set([...SYRIA_SHIPPING_PRIORITY, ...knownCarriers, ...rates.map((r) => carrierKey(r.carrier, r.market))])].sort(), [knownCarriers, rates]);
+  const carriers = useMemo(() => [...new Set([...SYRIA_SHIPPING_PRIORITY, ...knownCarriers, ...rates.map((r) => carrierKey(r.carrier, r.market))])].filter((c) => c !== 'بلا شركة' && c !== 'أخرى').sort(), [knownCarriers, rates]);
   const submit = async () => {
     if (!form.carrier.trim()) { toast?.error?.('اختر شركة الشحن'); return; }
     if (!(Number(form.outbound) >= 0) || form.outbound === '') { toast?.error?.('أدخل أجرة الذهاب'); return; }
