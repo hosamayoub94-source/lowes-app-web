@@ -4,7 +4,7 @@
 // فلا تعريف ثالث لـ«شهر التسليم». تُستعمل أيضاً من محرّك الرواتب ليتطابق تقرير التسليمات مع العمولات.
 // =============================================================
 import { supabase } from '@services/supabase';
-import { fetchAllRows } from '@utils/fetchAllRows';
+import { fetchAllRows, fetchAllRowsConcurrent } from '@utils/fetchAllRows';
 import { selectDeliveredInPeriod, UNDELIVERED_GROUPS } from '@utils/deliveryAccounting';
 import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
@@ -15,21 +15,24 @@ const LEDGER_ORDER_COLS = 'id, order_id, market, status, order_date, items, amou
 // الإلغاء: طلب فترة سابقة لا يبقى يحمّل القاعدة بعد تبديل الشهر (الدالة الثقيلة تُلغى عند قطع الاتصال)
 const withSignal = (q, signal) => (signal ? q.abortSignal(signal) : q);
 
-/** يدمج حقول الطلب (بائع/عميل/شحن/دفع/براند) غير الموجودة بمخرجات الدالة. */
-async function attachOrderFields(rpcRows, from, to, signal) {
-  if (!rpcRows.length) return rpcRows;
+/** حقول الطلب (بائع/عميل/شحن/دفع/براند) غير الموجودة بمخرجات الدالة — لا تعتمد على نتيجة الدالة، فتُجلب معها بالتوازي. */
+async function fetchOrderExtras(from, to, signal) {
   const winFrom = new Date(Date.parse(from) - 120 * DAY).toISOString();
-  const extra = await fetchAllRows(() => withSignal(supabase.from('orders').select(EXTRA_COLS)
+  const extra = await fetchAllRowsConcurrent(() => withSignal(supabase.from('orders').select(EXTRA_COLS)
     .is('deleted_at', null).gte('order_date', winFrom).lt('order_date', to)
     .in('status', ['delivered', 'settled', 'returned', 'returning', 'not_received']).order('id'), signal));
-  const byId = new Map((extra || []).map((r) => [r.id, r]));
-  return rpcRows.map((r) => ({ ...r, ...(byId.get(r.id) || {}) }));
+  return new Map((extra || []).map((r) => [r.id, r]));
 }
+const attachExtras = (rpcRows, byId) => rpcRows.map((r) => ({ ...r, ...(byId.get(r.id) || {}) }));
 
 /** الطلبات المسلَّمة/المرتجعة ضمن الفترة (تدخل الحساب). نفس الدالة تستعملها الرواتب. */
 export async function loadDeliveredForPeriod({ from, to, includeLegacy = true, signal } = {}) {
-  const rows = await fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to }), signal));
-  const full = await attachOrderFields(rows || [], from, to, signal);
+  // الدالة وحقول الطلب بالتوازي (كانت الثانية تنتظر الأولى فتتراكم 8–14 ثانية بالتحميل الأول)
+  const [rows, byId] = await Promise.all([
+    fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to }), signal)),
+    fetchOrderExtras(from, to, signal),
+  ]);
+  const full = attachExtras(rows || [], byId);
   return { rows: full, ...selectDeliveredInPeriod(full, { from, to, includeLegacy }) };
 }
 

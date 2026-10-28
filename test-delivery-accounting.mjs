@@ -5,6 +5,7 @@ import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur, isRateLocked } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows, carrierScorecard } from './src/utils/returnsShipping.js';
 import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
+import { fetchAllRows, fetchAllRowsConcurrent } from './src/utils/fetchAllRows.js';
 import { STATUSES } from './src/data/orderStatus.js';
 
 let pass = 0, fail = 0;
@@ -379,6 +380,18 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(isRateLocked({ effective_from: '2026-10-28' }, '2026-10-28'), false, 'اليوم غير مقفلة');
   eq(isRateLocked({ effective_from: '2026-11-15' }, '2026-10-28'), false, 'قادمة غير مقفلة');
   eq(isRateLocked({ effective_from: '2025-12-31' }, '2026-01-02'), true, 'عبر حدّ السنة');
+}
+// 21) fetchAllRowsConcurrent: نفس نتيجة fetchAllRows بنفس الترتيب، وأخطاء الصفحات تُرمى
+{
+  const mkQuery = (total, calls = { n: 0 }, failAt = null) => () => ({ range: async (a, b) => { calls.n += 1; if (failAt !== null && a === failAt) return { data: null, error: new Error('boom') }; return { data: Array.from({ length: Math.max(0, Math.min(b + 1, total) - a) }, (_, k) => a + k), error: null }; } });
+  for (const total of [0, 1, 999, 1000, 1001, 2500, 4000, 4001, 9999]) {
+    const a = await fetchAllRows(mkQuery(total)); const c = await fetchAllRowsConcurrent(mkQuery(total));
+    ok(a.length === total && c.length === total && c.every((v, k) => v === k) && JSON.stringify(a) === JSON.stringify(c), `متوازية = تسلسلية عند ${total} صفاً`);
+  }
+  const calls = { n: 0 }; await fetchAllRowsConcurrent(mkQuery(2500, calls));
+  ok(calls.n === 4, 'دفعة واحدة (4 طلبات) تكفي لـ2500 صف');
+  let threw = false; try { await fetchAllRowsConcurrent(mkQuery(5000, { n: 0 }, 2000)); } catch (e) { threw = e.message === 'boom'; }
+  ok(threw, 'خطأ صفحة وسط الدفعة يُرمى لا يُبتلع');
 }
 // 20) تكلفة الشحن الفعلية بالطلب (carrier_cost_*) تغلب التقدير؛ NULL ≠ صفر
 {
