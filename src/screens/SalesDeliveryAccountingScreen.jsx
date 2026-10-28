@@ -4,12 +4,12 @@
 // الحساب كله في @utils/deliveryAccounting (دوال صرفة مُختبَرة) — الشاشة عرض فقط.
 // =============================================================
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { loadDeliveryData, loadStoredCommissions, loadCarrierRates, saveCarrierRate } from '@services/deliveryAccountingService';
+import { loadDeliveryData, loadStoredCommissions, loadCarrierRates, saveCarrierRate, deleteCarrierRate } from '@services/deliveryAccountingService';
 import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
 import { carrierKey, carrierScorecard, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS } from '@utils/returnsShipping';
-import { rateOverview, carrierCostOverview, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
+import { rateOverview, carrierCostOverview, isRateLocked, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
 import { SYRIA_SHIPPING_PRIORITY } from '@data/syriaCarriers';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
@@ -98,7 +98,7 @@ function SimpleTable({ head, rows, empty = 'لا بيانات' }) {
 
 const EMPTY_FORM = { carrier: '', market: 'syria', currency: 'SYP', outbound: '', returnPolicy: 'unknown', returnFee: '', effectiveFrom: '', note: '' };
 
-function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved }) {
+function RatesPanel({ rates, knownCarriers, canEdit, canDelete, missingTable, name, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -117,6 +117,16 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
       await onSaved();
     } catch (e) { toast?.error?.(e?.message || 'تعذّر الحفظ'); } finally { setSaving(false); }
   };
+  const fillFrom = (r) => {
+    const locked = isRateLocked(r);
+    setForm({ carrier: carrierKey(r.carrier, r.market), market: r.market, currency: r.currency, outbound: String(r.outbound_fee), returnPolicy: r.return_policy, returnFee: r.return_fee == null ? '' : String(r.return_fee), effectiveFrom: locked ? '' : String(r.effective_from).slice(0, 10), note: r.note || '' });
+    toast?.info?.(locked ? 'تعرفة شهر سابق مقفلة: عدّل الأرقام واحفظ — تُحفظ كتعرفة جديدة تسري من اليوم.' : 'عدّل الأرقام ثم «حفظ التعرفة» — تستبدل هذا الصف (نفس تاريخ السريان).');
+  };
+  const cancelRate = async (r) => {
+    if (!window.confirm(`إلغاء تعرفة «${carrierKey(r.carrier, r.market)}» (${RATE_MARKETS[r.market] || r.market}) التي تسري من ${String(r.effective_from).slice(0, 10)}؟ تُحفظ نسخة منها بسجل المحذوفات.`)) return;
+    try { await deleteCarrierRate({ id: r.id, name }); toast?.success?.('أُلغيت التعرفة'); await onSaved(); } catch (e) { toast?.error?.(e?.message || 'تعذّر الإلغاء'); }
+  };
+  const history = useMemo(() => [...(rates || [])].sort((a, b) => (carrierKey(a.carrier, a.market) === carrierKey(b.carrier, b.market) ? (String(a.effective_from) < String(b.effective_from) ? 1 : -1) : (carrierKey(a.carrier, a.market) < carrierKey(b.carrier, b.market) ? -1 : 1))), [rates]);
   const inputCls = 'bg-surface border border-border rounded-xl px-2 py-1.5 text-sm text-text';
   return (
     <section className="space-y-3 border border-border rounded-2xl p-3">
@@ -128,6 +138,33 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
         rows={overview.map((g) => [g.carrier, RATE_MARKETS[g.market] || g.market, g.current ? `${fmt(g.current.outbound_fee)} ${g.current.currency}` : 'لا تعرفة سارية', g.current ? `${RETURN_POLICY_LABELS[g.current.return_policy]}${g.current.return_policy === 'fixed' ? ` ${fmt(g.current.return_fee)} ${g.current.currency}` : ''}` : '—', g.current ? String(g.current.effective_from).slice(0, 10) : '—', g.upcoming.length ? g.upcoming.map((r) => `${fmt(r.outbound_fee)} ${r.currency} من ${String(r.effective_from).slice(0, 10)}`).join(' · ') : '—', String(g.history.length)])}
         empty="لا تعرفة مُدخلة بعد"
       />
+      {history.length ? (
+        <div className="overflow-x-auto border border-border rounded-2xl">
+          <table className="w-full text-xs">
+            <thead className="bg-surface-alt text-muted"><tr>{['الشركة', 'السوق', 'يسري من', 'الذهاب', 'المرتجع', 'أدخلها', ''].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
+            <tbody>
+              {history.map((r) => {
+                const locked = isRateLocked(r);
+                return (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="p-2 font-bold">{carrierKey(r.carrier, r.market)}</td>
+                    <td className="p-2">{RATE_MARKETS[r.market] || r.market}</td>
+                    <td className="p-2">{String(r.effective_from).slice(0, 10)}{locked ? ' 🔒' : ''}</td>
+                    <td className="p-2">{fmt(r.outbound_fee)} {r.currency}</td>
+                    <td className="p-2">{RETURN_POLICY_LABELS[r.return_policy] || r.return_policy}{r.return_policy === 'fixed' ? ` ${fmt(r.return_fee)} ${r.currency}` : ''}</td>
+                    <td className="p-2 text-muted">{r.entered_by_name || '—'}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      {canEdit ? <button onClick={() => fillFrom(r)} className="text-teal font-bold ml-3">تعديل</button> : null}
+                      {canDelete && !locked ? <button onClick={() => cancelRate(r)} className="text-red-600 font-bold">إلغاء</button> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="text-[11px] text-muted p-2">🔒 = تعرفة من شهر سابق: لا تُعدَّل ولا تُلغى (التعديل يُحفظ كتعرفة جديدة من اليوم). «إلغاء» للأدمن فقط ولتعرفة الشهر الحالي أو القادمة، وتُحفظ نسخة منها بسجل المحذوفات.</p>
+        </div>
+      ) : null}
       {canEdit ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
           <label className="text-[11px] text-muted font-semibold flex flex-col gap-1">الشركة
@@ -499,7 +536,7 @@ export default function SalesDeliveryAccountingScreen() {
           {tab === 'rates' && (
             <div className="space-y-3">
               <p className="text-xs text-muted">هنا تُدخل كم تأخذ كل شركة شحن على الذهاب وعلى الإرجاع. بعد الإدخال يحسب جدول «شحن كل شركة» (تبويب الشحن) ما ندفعه نحن بالتقدير، ويبقى ما يدفعه العميل من حقل «أجور التوصيل» بالطلب.</p>
-              <RatesPanel rates={data.refs.carrierRates || []} knownCarriers={opts.carriers} canEdit={['admin', 'manager'].includes(role)} missingTable={!!data.refs.ratesMissingTable} name={actorName} onSaved={reloadRates} />
+              <RatesPanel rates={data.refs.carrierRates || []} knownCarriers={opts.carriers} canEdit={['admin', 'manager'].includes(role)} canDelete={role === 'admin'} missingTable={!!data.refs.ratesMissingTable} name={actorName} onSaved={reloadRates} />
             </div>
           )}
 

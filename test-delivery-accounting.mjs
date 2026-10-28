@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
-import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur } from './src/utils/shippingRates.js';
+import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur, isRateLocked } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows, carrierScorecard } from './src/utils/returnsShipping.js';
 import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
 import { STATUSES } from './src/data/orderStatus.js';
@@ -371,6 +371,14 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   const only = carrierScorecard({ delivered: [], returns: [d('x', 'الكرم', '2026-09-01T10:00:00Z', null)] })[0];
   eq(only.returnRate, 100, 'مرتجع بلا مسلَّم = 100%'); eq(only.avgDays, null, 'بلا مسلَّم: لا متوسط');
   eq(carrierScorecard({ delivered: [], returns: [], notReceived: [] }).length, 0, 'فارغ');
+}
+// 18) قفل التعرفة: شهر سابق مقفل، الشهر الحالي والقادم لا
+{
+  eq(isRateLocked({ effective_from: '2026-09-30' }, '2026-10-28'), true, 'سبتمبر مقفلة بأكتوبر');
+  eq(isRateLocked({ effective_from: '2026-10-01' }, '2026-10-28'), false, 'بداية الشهر الحالي غير مقفلة');
+  eq(isRateLocked({ effective_from: '2026-10-28' }, '2026-10-28'), false, 'اليوم غير مقفلة');
+  eq(isRateLocked({ effective_from: '2026-11-15' }, '2026-10-28'), false, 'قادمة غير مقفلة');
+  eq(isRateLocked({ effective_from: '2025-12-31' }, '2026-01-02'), true, 'عبر حدّ السنة');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

@@ -127,6 +127,11 @@ export function carrierCostOverview(estimateRows, shippingRows) {
   return rows.sort((a, b) => b.orders - a.orders);
 }
 
+/** تعرفة من شهر سابق = مقفلة (لا تعديل ولا إلغاء). today بصيغة YYYY-MM-DD (إسطنبول). */
+export function isRateLocked(rate, today = istanbulDay(new Date().toISOString())) {
+  return String(rate?.effective_from || '').slice(0, 7) < String(today).slice(0, 7);
+}
+
 /** آخر تعرفة سارية اليوم لكل (شركة، سوق) + سجل كل الصفوف مرتّباً (للعرض بشاشة الإدخال). */
 export function rateOverview(rates, today = istanbulDay(new Date().toISOString())) {
   const groups = new Map();
