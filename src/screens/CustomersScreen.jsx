@@ -145,6 +145,7 @@ function CustomerModal({ c, sellerName, onClose }) {
   const [notes, setNotes]   = useState([]);
   const [text, setText]     = useState('');
   const [saving, setSaving] = useState(false);
+  const [followUpAt, setFollowUpAt] = useState('');
 
   const [bought, setBought] = useState([]);
   const [history, setHistory] = useState([]);
@@ -221,7 +222,7 @@ function CustomerModal({ c, sellerName, onClose }) {
   const save = async () => {
     if (!text.trim()) return;
     setSaving(true);
-    try { const n = await addNote(c.phone_key, text, sellerName); setNotes(p => [n, ...p]); setText(''); }
+    try { const n = await addNote(c.phone_key, text, sellerName, followUpAt || null); setNotes(p => [n, ...p]); setText(''); setFollowUpAt(''); }
     catch { /* تجاهل */ } finally { setSaving(false); }
   };
 
@@ -547,19 +548,28 @@ function CustomerModal({ c, sellerName, onClose }) {
           {/* Notes */}
           <div className="space-y-2">
             <p className="text-xs font-extrabold text-muted">📝 ملاحظات تذكّرنا بالعميل</p>
-            <div className="flex gap-2">
-              <input value={text} onChange={e => setText(e.target.value)}
-                placeholder="بشرة جافة · تحب الترطيب · اشترت لابنتها..."
-                className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-              <button onClick={save} disabled={saving || !text.trim()}
-                className="px-3 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">+</button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input value={text} onChange={e => setText(e.target.value)}
+                  placeholder="ملخص التواصل أو ملاحظة عن العميل..."
+                  className="flex-1 min-w-0 border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                <button onClick={save} disabled={saving || !text.trim()}
+                  className="px-3 py-2 rounded-xl bg-teal text-navy text-sm font-bold disabled:opacity-40">{saving ? '…' : '+'}</button>
+              </div>
+              <label className="flex flex-col gap-1 text-[11px] text-muted">
+                موعد المتابعة القادمة (اختياري)
+                <input type="datetime-local" value={followUpAt} onChange={e => setFollowUpAt(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="border border-border rounded-xl px-3 py-2 text-sm bg-surface-alt text-text" />
+              </label>
             </div>
             {notes.length === 0 ? (
               <p className="text-[11px] text-muted text-center py-1">لا ملاحظات بعد.</p>
             ) : notes.map(n => (
               <div key={n.id} className="bg-surface-alt rounded-xl px-3 py-2">
                 <p className="text-sm text-text">{n.note}</p>
-                <p className="text-[10px] text-muted mt-0.5">{n.author || '—'} · {n.created_at ? new Date(n.created_at).toLocaleDateString('ar', {day:'numeric',month:'short'}) : ''}</p>
+                <p className="text-[10px] text-muted mt-0.5">{n.author || '—'} · {n.created_at ? new Date(n.created_at).toLocaleString('ar', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</p>
+                {n.follow_up_at && <p className="text-[10px] font-bold text-teal-700 mt-1">⏰ متابعة: {new Date(n.follow_up_at).toLocaleString('ar', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>}
               </div>
             ))}
           </div>
