@@ -51,6 +51,24 @@ export function estimateOrderShipping(o, rates) {
   const base = { carrier, basis: 'none', outbound: null, returnFee: null, returnState: null, payerUnconfirmed: false, rate: null };
   if (!WENT_OUT.has(o?.status)) return base;
   if (o.shipping_payer === 'customer') return { ...base, basis: 'customer_paid' };
+  // ما دفعناه فعلاً للناقل (يُدخَل بنموذج الطلب): يغلب أي تقدير. NULL = غير موثّق (لا يُعامَل صفراً)؛ 0 = مجاني موثّق.
+  const known = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
+  if (known(o.carrier_cost_outbound)) {
+    const cur = String(o.carrier_cost_currency || o.currency || 'USD').toUpperCase();
+    const outbound = { amount: num(o.carrier_cost_outbound), currency: cur };
+    let returnFee = null, returnState = null, returnActual = false;
+    if (o.status === 'returned') {
+      if (known(o.carrier_cost_return)) { returnFee = { amount: num(o.carrier_cost_return), currency: cur }; returnState = num(o.carrier_cost_return) > 0 ? 'charged' : 'free'; returnActual = true; }
+      else {
+        const rt = pickRate(rates, o.shipping_company, o.market, istanbulDay(o.delivery_at || o.order_date));
+        if (rt?.return_policy === 'none') { returnFee = { amount: 0, currency: rt.currency }; returnState = 'free'; }
+        else if (rt?.return_policy === 'fixed') { returnFee = { amount: num(rt.return_fee), currency: rt.currency }; returnState = 'charged'; }
+        else if (rt?.return_policy === 'same_as_outbound') { returnFee = { amount: num(rt.outbound_fee), currency: rt.currency }; returnState = 'charged'; }
+        else returnState = 'unknown';
+      }
+    } else if (o.status === 'returning' || o.status === 'not_received') returnState = 'pending';
+    return { ...base, basis: 'actual', outbound, returnFee, returnState, returnActual };
+  }
   if (hasDocumentedCost(o)) return { ...base, basis: 'actual', outbound: { amount: num(o.delivery_cost), currency: String(o.currency || 'USD').toUpperCase() } };
   const at = istanbulDay(o.delivery_at || o.order_date);
   const rate = pickRate(rates, o.shipping_company, o.market, at);
@@ -81,7 +99,12 @@ export function shippingEstimateSummary(orders, rates, rateMap) {
       t.orders += 1;
       if (e.basis === 'customer_paid') t.customerPaid += 1;
       else if (e.basis === 'no_rate') t.noRate += 1;
-      else if (e.basis === 'actual') { t.actual += 1; addCur(t.actualByCurrency, e.outbound.currency, e.outbound.amount); }
+      else if (e.basis === 'actual') {
+        t.actual += 1; addCur(t.actualByCurrency, e.outbound.currency, e.outbound.amount);
+        if (e.returnFee) { if (e.returnActual) addCur(t.actualByCurrency, e.returnFee.currency, e.returnFee.amount); else addCur(t.returnFee, e.returnFee.currency, e.returnFee.amount); }
+        if (e.returnState === 'unknown') t.returnUnknown += 1;
+        if (e.returnState === 'pending') t.returnPending += 1;
+      }
       else {
         t.estimated += 1;
         if (e.payerUnconfirmed) t.payerUnconfirmed += 1;

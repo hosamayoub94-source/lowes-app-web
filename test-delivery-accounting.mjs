@@ -380,5 +380,27 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(isRateLocked({ effective_from: '2026-11-15' }, '2026-10-28'), false, 'قادمة غير مقفلة');
   eq(isRateLocked({ effective_from: '2025-12-31' }, '2026-01-02'), true, 'عبر حدّ السنة');
 }
+// 20) تكلفة الشحن الفعلية بالطلب (carrier_cost_*) تغلب التقدير؛ NULL ≠ صفر
+{
+  const RT = [{ carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 150, return_policy: 'fixed', return_fee: 40, effective_from: '2026-01-01' }];
+  const mk = (id, status, extra = {}) => o(id, status, { shipping_company: 'قدموس', market: 'syria', currency: 'SYP', shipping_payer: 'company', delivery_cost: 0, delivery_at: '2026-09-12T10:00:00+03:00', ...extra });
+  let e = estimateOrderShipping(mk('A1', 'delivered', { carrier_cost_outbound: 120 }), RT);
+  eq(e.basis, 'actual', 'الفعلي بالطلب = actual لا تقدير'); eq(e.outbound.amount, 120, 'المبلغ الفعلي 120 لا 150');
+  eq(estimateOrderShipping(mk('A2', 'delivered', { carrier_cost_outbound: 0 }), RT).outbound.amount, 0, 'الصفر موثّق (مجاني)');
+  eq(estimateOrderShipping(mk('A3', 'delivered', { carrier_cost_outbound: null }), RT).basis, 'estimated', 'NULL ← تقدير من التعرفة');
+  eq(estimateOrderShipping(mk('A3b', 'delivered', { carrier_cost_outbound: '' }), RT).basis, 'estimated', 'نص فارغ ← تقدير');
+  e = estimateOrderShipping(mk('A4', 'delivered', { carrier_cost_outbound: 90, carrier_cost_currency: 'USD' }), RT);
+  eq(e.outbound.currency, 'USD', 'عملة الناقل المحدّدة');
+  e = estimateOrderShipping(mk('A5', 'returned', { carrier_cost_outbound: 100, carrier_cost_return: 55 }), RT);
+  eq(e.returnActual, true, 'إرجاع فعلي موثّق'); eq(e.returnFee.amount, 55, 'إرجاع فعلي 55 لا 40');
+  e = estimateOrderShipping(mk('A6', 'returned', { carrier_cost_outbound: 100 }), RT);
+  eq(e.returnActual, false, 'ذهاب فعلي بلا إرجاع فعلي'); eq(e.returnFee.amount, 40, 'الإرجاع يُقدَّر بالتعرفة 40'); eq(e.returnState, 'charged', 'مُحمَّل');
+  eq(estimateOrderShipping(mk('A7', 'delivered', { shipping_payer: 'customer', carrier_cost_outbound: 100 }), RT).basis, 'customer_paid', 'دافع العميل يسبق (لا نحمّل الفعلي علينا)');
+  eq(estimateOrderShipping(mk('A8', 'preparing', { carrier_cost_outbound: 100 }), RT).basis, 'none', 'لم يخرج: لا حساب');
+  const SUM = shippingEstimateSummary([mk('S1', 'delivered', { carrier_cost_outbound: 120 }), mk('S2', 'delivered'), mk('S3', 'returned', { carrier_cost_outbound: 100, carrier_cost_return: 55 }), mk('S4', 'returned', { carrier_cost_outbound: 80 })], RT, { USD: 1 });
+  eq(SUM.totals.actualByCurrency.SYP, 120 + 100 + 55 + 80, 'مجموع الفعلي: ذهاب 120+100+80 وإرجاع فعلي 55');
+  eq(SUM.totals.outbound.SYP, 150, 'التقدير لطلب بلا فعلي فقط (S2)'); eq(SUM.totals.returnFee.SYP, 40, 'إرجاع مقدَّر لـS4 فقط');
+  eq(SUM.totals.actual, 3, 'ثلاثة طلبات فعلية'); eq(SUM.totals.estimated, 1, 'طلب واحد مقدَّر');
+}
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

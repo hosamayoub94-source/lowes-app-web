@@ -10,8 +10,8 @@ import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
 const DAY = 86400000;
 const OPEN_STATUSES = Object.values(UNDELIVERED_GROUPS).flatMap((g) => g.statuses).filter((s) => !['returned', 'returning', 'not_received'].includes(s));
-const EXTRA_COLS = 'id, brand, handler_name, customer_name, shipping_company, payment_method, tracking_number';
-const LEDGER_ORDER_COLS = 'id, order_id, market, status, order_date, items, amount, currency, handler_name, customer_name, shipping_company, payment_method, brand, tracking_number, delivery_cost, shipping_payer, payment_status, paid_amount, deleted_at';
+const EXTRA_COLS = 'id, brand, handler_name, customer_name, shipping_company, payment_method, tracking_number, carrier_cost_outbound, carrier_cost_return, carrier_cost_currency';
+const LEDGER_ORDER_COLS = 'id, order_id, market, status, order_date, items, amount, currency, handler_name, customer_name, shipping_company, payment_method, brand, tracking_number, delivery_cost, shipping_payer, payment_status, paid_amount, deleted_at, carrier_cost_outbound, carrier_cost_return, carrier_cost_currency';
 // الإلغاء: طلب فترة سابقة لا يبقى يحمّل القاعدة بعد تبديل الشهر (الدالة الثقيلة تُلغى عند قطع الاتصال)
 const withSignal = (q, signal) => (signal ? q.abortSignal(signal) : q);
 
