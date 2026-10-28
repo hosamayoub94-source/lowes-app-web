@@ -1,7 +1,7 @@
 // «صناع المحتوى» v2 — search / synonyms / score / filters (shared by the edge function and the screen).
 // Run: node test-creator-match.mjs
 import {
-  normalizeText, normalizeHandle, parseQuery, matchRow, scoreCreator, searchCreators, isUgc, isSkincare, skeleton, statusOf, V1_STATUS, STATUSES, rateTier,
+  normalizeText, normalizeHandle, parseQuery, matchRow, scoreCreator, searchCreators, isUgc, isSkincare, skeleton, statusOf, V1_STATUS, STATUSES, rateTier, VIEWS, summarizeCreators,
 } from './supabase/functions/_shared/creatorMatch.js';
 
 let pass = 0, fail = 0;
@@ -129,6 +129,17 @@ ok(searchCreators(priceRows, { filters: { rate_tier: 'mini' }, all: true }).rows
 ok(searchCreators(priceRows, { filters: { rate_tier: 'premium' }, all: true }).rows.map((r) => r.id).join() === 'p3', 'Premium tier filter');
 ok(searchCreators(priceRows, { filters: { rate_currency: 'TRY' }, all: true }).rows.map((r) => r.id).join() === 'p2', 'currency filter');
 ok(searchCreators(priceRows, { filters: { rate_tier: 'unknown' }, all: true }).rows.map((r) => r.id).join() === 'p6', 'unknown pricing filter');
+
+ 
+// Regression guards for duplicate filters/presets and pricing summary boundaries.
+const viewKeys = VIEWS.map((v) => v.key);
+ok(new Set(viewKeys).size === viewKeys.length, 'preset view keys are unique');
+ok(VIEWS.find((v) => v.key === 'paid_mini')?.filters?.collaboration_type === 'paid', 'Mini preset targets paid-only creators');
+ok(VIEWS.find((v) => v.key === 'paid_mid')?.filters?.collaboration_type === 'paid', 'Mid preset targets paid-only creators');
+ok(VIEWS.find((v) => v.key === 'paid_premium')?.filters?.collaboration_type === 'paid', 'Premium preset targets paid-only creators');
+const summary = summarizeCreators(priceRows);
+ok(summary.paid_mini === 1 && summary.paid_mid === 1 && summary.paid_premium === 1, 'pricing summary counts each paid tier once');
+ok(summary.pr === 1 && summary.gift === 1 && summary.hybrid === 0 && summary.rate_unknown === 1, 'collaboration summary counts are stable');
 
 console.log(`creator-match: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

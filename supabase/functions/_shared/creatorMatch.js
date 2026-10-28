@@ -436,9 +436,6 @@ function passFilters(r, f) {
   if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
   if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
   if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
-  if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
-  if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
-  if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
   if (f.rate_scope && r.rate_scope !== f.rate_scope) return false;
   if (f.ready && !isReady(r)) return false;
   if (f.statuses && arr(f.statuses).length && !arr(f.statuses).includes(statusOf(r.status))) return false;
@@ -499,13 +496,6 @@ export const VIEWS = [
   { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
   { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
   { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },
-  { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { rate_tier: 'mini' }, count: 'paid_mini' },
-  { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { rate_tier: 'mid' }, count: 'paid_mid' },
-  { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { rate_tier: 'premium' }, count: 'paid_premium' },
-  { key: 'pr', ar: 'PR / منتجات مجانية', filters: { collaboration_type: 'pr' }, count: 'pr' },
-  { key: 'gift', ar: 'هدايا فقط', filters: { collaboration_type: 'gift' }, count: 'gift' },
-  { key: 'hybrid', ar: 'مختلط / تفاوض', filters: { collaboration_type: 'hybrid' }, count: 'hybrid' },
-  { key: 'rate_unknown', ar: 'السعر غير معروف', filters: { rate_tier: 'unknown' }, count: 'rate_unknown' },
   { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { collaboration_type: 'paid', rate_tier: 'mini' }, count: 'paid_mini' },
   { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { collaboration_type: 'paid', rate_tier: 'mid' }, count: 'paid_mid' },
   { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { collaboration_type: 'paid', rate_tier: 'premium' }, count: 'paid_premium' },
