@@ -398,17 +398,6 @@ export function rateTier(row) {
   return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
 }
 export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
-export const COLLAB_TYPES = ['paid', 'pr', 'gift', 'hybrid', 'unknown'];
-export const COLLAB_TYPE_AR = { paid: 'مدفوع', pr: 'PR / منتجات مجانية', gift: 'هدايا فقط', hybrid: 'مختلط / قابل للتفاوض', unknown: 'نوع التعاون غير معروف' };
-export const RATE_CURRENCIES = ['USD', 'TRY', 'SYP', 'AED', 'SAR', 'EUR', 'GBP', 'OTHER'];
-export const RATE_CURRENCY_AR = { USD: 'دولار أمريكي', TRY: 'ليرة تركية', SYP: 'ليرة سورية', AED: 'درهم إماراتي', SAR: 'ريال سعودي', EUR: 'يورو', GBP: 'جنيه إسترليني', OTHER: 'أخرى' };
-export function rateTier(row) {
-  if (row.collaboration_type !== 'paid' && row.collaboration_type !== 'hybrid') return null;
-  const usd = row.rate_usd == null || row.rate_usd === '' ? null : Number(row.rate_usd);
-  if (usd == null || !Number.isFinite(usd) || usd < 0) return 'unknown';
-  return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
-}
-export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
 export function collaborationLabel(row) {
   const type = row.collaboration_type || (collabOf(row) === 'pr_ready' ? 'pr' : collabOf(row) === 'paid_inquiry' ? 'paid' : 'unknown');
   const tier = rateTier(row);
