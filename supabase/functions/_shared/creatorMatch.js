@@ -480,11 +480,6 @@ export function summarizeCreators(rows) {
     const tier = rateTier(r);
     if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
     else if (ct === 'unknown') s.rate_unknown++;
-    const ct = r.collaboration_type || (c === 'pr_ready' ? 'pr' : c === 'paid_inquiry' ? 'paid' : 'unknown');
-    if (ct === 'pr') s.pr++; else if (ct === 'gift') s.gift++; else if (ct === 'hybrid') s.hybrid++;
-    const tier = rateTier(r);
-    if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
-    else if (ct === 'unknown') s.rate_unknown++;
   }
   return s;
 }
