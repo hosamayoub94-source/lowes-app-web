@@ -391,6 +391,7 @@ export const COLLAB_TYPE_AR = { paid: 'مدفوع', pr: 'PR / منتجات مج�
 export const RATE_CURRENCIES = ['USD', 'TRY', 'SYP', 'AED', 'SAR', 'EUR', 'GBP', 'OTHER'];
 export const RATE_CURRENCY_AR = { USD: 'دولار أمريكي', TRY: 'ليرة تركية', SYP: 'ليرة سورية', AED: 'درهم إماراتي', SAR: 'ريال سعودي', EUR: 'يورو', GBP: 'جنيه إسترليني', OTHER: 'أخرى' };
 export function rateTier(row) {
+  if (row.collaboration_type === 'unknown' || !row.collaboration_type) return 'unknown';
   if (row.collaboration_type !== 'paid' && row.collaboration_type !== 'hybrid') return null;
   const usd = row.rate_usd == null || row.rate_usd === '' ? null : Number(row.rate_usd);
   if (usd == null || !Number.isFinite(usd) || usd < 0) return 'unknown';
