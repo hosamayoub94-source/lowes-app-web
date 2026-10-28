@@ -101,6 +101,32 @@ export function shippingEstimateSummary(orders, rates, rateMap) {
   return { rows: [...by.values()].sort((a, b) => b.orders - a.orders), totals };
 }
 
+const mergeCur = (into, from) => { for (const [c, v] of Object.entries(from || {})) addCur(into, c, v); };
+/** مجموع خرائط عملات (لا تحويل: عملة بعملة). */
+export function sumCur(...maps) { const out = {}; for (const m of maps) mergeCur(out, m); return out; }
+
+/**
+ * جدول «شحن كل شركة»: ما ندفعه نحن (فعلي موثّق + ذهاب تقديري + إرجاع تقديري) وما يدفعه العميل (موثّق فقط) — من ملخصَي التقدير والشحن.
+ * العميل: delivery_cost الموثّق بطلبات دافعها «العميل». لا يُخلط بما ندفعه ولا يدخل إيراداً.
+ */
+export function carrierCostOverview(estimateRows, shippingRows) {
+  const out = new Map();
+  const slot = (c) => { if (!out.has(c)) out.set(c, { carrier: c, orders: 0, actual: {}, outbound: {}, returnFee: {}, customerOrders: 0, customerAmount: {}, noRate: 0, returnUnknown: 0, weBear: {} }); return out.get(c); };
+  for (const g of estimateRows || []) {
+    const s = slot(g.carrier);
+    s.orders = g.orders; s.noRate = g.noRate; s.returnUnknown = g.returnUnknown;
+    mergeCur(s.actual, g.actualByCurrency); mergeCur(s.outbound, g.outbound); mergeCur(s.returnFee, g.returnFee);
+  }
+  for (const g of shippingRows || []) {
+    if (g.payer !== 'customer') continue;
+    const s = slot(g.carrier);
+    s.customerOrders += g.orders; mergeCur(s.customerAmount, g.byCurrency);
+  }
+  const rows = [...out.values()];
+  for (const s of rows) s.weBear = sumCur(s.actual, s.outbound, s.returnFee);
+  return rows.sort((a, b) => b.orders - a.orders);
+}
+
 /** آخر تعرفة سارية اليوم لكل (شركة، سوق) + سجل كل الصفوف مرتّباً (للعرض بشاشة الإدخال). */
 export function rateOverview(rates, today = istanbulDay(new Date().toISOString())) {
   const groups = new Map();
