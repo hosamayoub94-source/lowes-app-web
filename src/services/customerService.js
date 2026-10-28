@@ -360,6 +360,25 @@ export async function addNote(phoneKeyValue, note, author) {
   return data;
 }
 
+// Latest explicitly confirmed personal WhatsApp outreach for a visible customer batch.
+// Opening WhatsApp alone is not treated as contact; only confirmation notes qualify.
+export async function getLatestWhatsAppOutreach(phoneKeys = []) {
+  const keys = [...new Set((phoneKeys || []).map(phoneKey).filter(k => k.length >= 6))];
+  if (!keys.length) return {};
+  const { data, error } = await supabase
+    .from('customer_notes')
+    .select('phone_key, author, created_at, note')
+    .in('phone_key', keys)
+    .ilike('note', '%تم تأكيد الإرسال يدوياً عبر واتساب الشخصي%')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const latest = {};
+  for (const row of (data || [])) {
+    if (!latest[row.phone_key]) latest[row.phone_key] = row;
+  }
+  return latest;
+}
+
 // Days since the customer's last order (for follow-up surfacing).
 export function daysSince(dateStr) {
   if (!dateStr) return Infinity;
