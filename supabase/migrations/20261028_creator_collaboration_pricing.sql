@@ -21,5 +21,15 @@ ALTER TABLE public.creator_prospects DROP CONSTRAINT IF EXISTS creator_prospects
 ALTER TABLE public.creator_prospects ADD CONSTRAINT creator_prospects_rate_usd_nonnegative_check CHECK (rate_usd IS NULL OR rate_usd >= 0);
 ALTER TABLE public.creator_prospects DROP CONSTRAINT IF EXISTS creator_prospects_rate_exchange_nonnegative_check;
 ALTER TABLE public.creator_prospects ADD CONSTRAINT creator_prospects_rate_exchange_nonnegative_check CHECK (rate_exchange_rate IS NULL OR rate_exchange_rate > 0);
+-- Preserve known legacy collaboration labels instead of leaving them as unknown.
+UPDATE public.creator_prospects
+SET collaboration_type = CASE
+  WHEN tags @> ARRAY['collab:pr_ready']::text[] THEN 'pr'
+  WHEN tags @> ARRAY['collab:paid_inquiry']::text[] THEN 'paid'
+  ELSE collaboration_type
+END
+WHERE collaboration_type = 'unknown'
+  AND (tags @> ARRAY['collab:pr_ready']::text[] OR tags @> ARRAY['collab:paid_inquiry']::text[]);
+
 CREATE INDEX IF NOT EXISTS creator_prospects_collaboration_type_idx ON public.creator_prospects (collaboration_type) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS creator_prospects_rate_currency_idx ON public.creator_prospects (rate_currency) WHERE deleted_at IS NULL;
