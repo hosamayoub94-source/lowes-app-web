@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
-import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur } from './src/utils/shippingRates.js';
+import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur, isRateLocked } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
 import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
 import { STATUSES } from './src/data/orderStatus.js';
@@ -354,6 +354,14 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(sumCur({ SYP: 1, USD: 2 }, { SYP: 3 }).SYP, 4, 'sumCur عملة بعملة');
   const none = carrierCostOverview(shippingEstimateSummary(list, [], { USD: 1 }).rows, shippingSummary(list, { USD: 1 }).rows)[0];
   eq(Object.keys(none.outbound).length, 0, 'بلا تعرفة: لا ذهاب مختلَق'); eq(none.noRate, 3, 'بلا تعرفة 3 (C1,C2,C4)');
+}
+// 18) قفل التعرفة: شهر سابق مقفل، الشهر الحالي والقادم لا
+{
+  eq(isRateLocked({ effective_from: '2026-09-30' }, '2026-10-28'), true, 'سبتمبر مقفلة بأكتوبر');
+  eq(isRateLocked({ effective_from: '2026-10-01' }, '2026-10-28'), false, 'بداية الشهر الحالي غير مقفلة');
+  eq(isRateLocked({ effective_from: '2026-10-28' }, '2026-10-28'), false, 'اليوم غير مقفلة');
+  eq(isRateLocked({ effective_from: '2026-11-15' }, '2026-10-28'), false, 'قادمة غير مقفلة');
+  eq(isRateLocked({ effective_from: '2025-12-31' }, '2026-01-02'), true, 'عبر حدّ السنة');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

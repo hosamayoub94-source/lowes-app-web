@@ -143,6 +143,18 @@ export async function saveCarrierRate({ carrier, market, currency, outbound, ret
   return data;
 }
 
+/** إلغاء تعرفة أُدخلت بالخطأ (أدمن فقط، الشهر الحالي أو بعده فقط، والنسخة تُحفظ بسجل لا يُمحى). */
+export async function deleteCarrierRate({ id, name }) {
+  const { error } = await supabase.rpc('shipping_rate_delete', { p_id: id, p_name: name || null });
+  if (error) {
+    const m = error.message || '';
+    if (/past rate is locked/.test(m)) throw new Error('هذه تعرفة من شهر سابق ومقفلة — لا تُحذف. أضف تعرفة جديدة بتاريخ أحدث.');
+    if (/not allowed/.test(m)) throw new Error('لا صلاحية: إلغاء التعرفة للأدمن فقط.');
+    if (/not found/.test(m)) throw new Error('التعرفة غير موجودة (ربما أُلغيت). حدّث الصفحة.');
+    throw error;
+  }
+}
+
 /** عمولات الشهر كما حُسبت فعلاً بمسيّر الرواتب (قراءة فقط) — اسم الموظف → عمولة $. */
 export async function loadStoredCommissions(year, month) {
   const { data: run } = await supabase.from('payroll_runs').select('id').eq('period_year', year).eq('period_month', month).maybeSingle();
