@@ -115,6 +115,15 @@ function normalizeRow(raw: Row, opts: { requireHandle?: boolean } = { requireHan
   const lc = pick(raw.location_confidence, LOCATION_CONFIDENCE); if (lc) row.location_confidence = lc;
   const ct = pick(raw.creator_type, CREATOR_TYPES); if (ct) row.creator_type = ct;
   const vs = pick(raw.verification_status, VERIFICATION); if (vs) row.verification_status = vs;
+  const collaborationType = pick(raw.collaboration_type, ["paid", "pr", "gift", "hybrid", "unknown"]); if (collaborationType) row.collaboration_type = collaborationType;
+  const rateCurrency = pick(raw.rate_currency, ["USD", "TRY", "SYP", "AED", "SAR", "EUR", "GBP", "OTHER"]); if (rateCurrency) row.rate_currency = rateCurrency;
+  for (const f of ["rate_amount", "rate_usd", "rate_exchange_rate"] as const) {
+    if (!(f in raw)) continue;
+    if (raw[f] === null || raw[f] === "") { row[f] = null; continue; }
+    const n = parseNum(raw[f]); if (n === null || n < 0) return { error: `${f}: must be a non-negative number` }; row[f] = n;
+  }
+  if ("rate_scope" in raw) row.rate_scope = cleanText(raw.rate_scope, 300);
+  if ("rate_exchange_date" in raw) { const d = parseDate(raw.rate_exchange_date); if (d === undefined) return { error: "rate_exchange_date: تاريخ غير صالح" }; row.rate_exchange_date = d ? d.slice(0, 10) : null; }
   const collabType = pick(raw.collaboration_type, ["paid", "pr", "gift", "hybrid", "unknown"]); if (collabType) row.collaboration_type = collabType;
   const currency = pick(raw.rate_currency, ["USD", "TRY", "SYP", "AED", "SAR", "EUR", "GBP", "OTHER"]); if (currency) row.rate_currency = currency;
   for (const f of ["rate_amount", "rate_usd", "rate_exchange_rate"] as const) {
