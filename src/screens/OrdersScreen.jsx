@@ -1563,6 +1563,7 @@ const EMPTY_FORM = {
   shipping_company: 'Yurtiçi Kargo', pickup_type: 'استلام من المركز', tracking_number: '',
   shipping_payer: 'company',
   delivery_cost: '',
+  carrier_cost_outbound: '', carrier_cost_return: '', carrier_cost_currency: '',
 };
 
 const INP = 'w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-surface-alt text-text focus:outline-none focus:ring-2 focus:ring-teal/30 placeholder:text-muted/50';
@@ -2280,7 +2281,9 @@ function SyriaShippingPicker({ value, onChange, options }) {
 
 // ── Order Form Modal ──────────────────────────────────────────
 function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
-  const { name: userName, team, order_market } = useAuth();
+  const { name: userName, team, order_market, role: formRole } = useAuth();
+  // ما دفعناه للناقل فعلاً: للإدارة فقط (حقل حسّاس يغلب التقدير بلوحة المحاسبة)
+  const canSeeCarrierCost = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SALES_MANAGER].includes(formRole);
   // «ماكنة» السوق المخصّصة تقفل سوق الطلب الجديد. وإلا سوق البائع.
   const myMarket = forcedMarket ?? order_market ?? teamToMarket(team) ?? 'turkey';
   const isEdit = !!order?.id;
@@ -2312,6 +2315,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     pickup_type:      order.pickup_type      ?? 'استلام من المركز',
     tracking_number:  order.tracking_number  ?? '',
     shipping_payer:   order.shipping_payer   ?? 'company',
+    carrier_cost_outbound: order.carrier_cost_outbound ?? '',
+    carrier_cost_return:   order.carrier_cost_return   ?? '',
+    carrier_cost_currency: order.carrier_cost_currency ?? '',
     // Repopulate the structured address parts from the saved address string so
     // editing a Turkey order shows Mahalle/Sokak/No/Daire (was: always blanked).
     ...(order.market === 'turkey' ? parseTurkishAddress(order.address) : { mahalle: '', sokak: '', bno: '', daire: '' }),
@@ -2477,6 +2483,9 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
       amount:        form.amount        ? Number(form.amount)        : null,
       paid_amount:   form.paid_amount   ? Number(form.paid_amount)   : null,
       delivery_cost: form.delivery_cost ? Number(form.delivery_cost) : 0,
+      carrier_cost_outbound: form.carrier_cost_outbound === '' || form.carrier_cost_outbound == null ? null : Number(form.carrier_cost_outbound),
+      carrier_cost_return:   form.carrier_cost_return === '' || form.carrier_cost_return == null ? null : Number(form.carrier_cost_return),
+      carrier_cost_currency: form.carrier_cost_currency || null,
       order_date:    orderDateIso,
       // أسقط الصفوف بلا اسم، ثم ادمج المنتجات المكرّرة (اسم متطابق بعد التطبيع)
       // بجمع الكمية — صفّان «Cream ×1» يصيران «Cream ×2» (يحتفظ بأول تهجئة/ترتيب).
@@ -2498,6 +2507,8 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
     // Address parts are UI-only helpers (not DB columns) — strip before save.
     delete payload.mahalle; delete payload.sokak; delete payload.bno; delete payload.daire;
     delete payload.sy_neighborhood; // UI-only for Syria address
+    // غير الإدارة لا ترى حقول تكلفة الناقل: لا نُرسلها كي لا يمسح حفظٌ عاديّ قيماً أدخلتها الإدارة (NULL)
+    if (!canSeeCarrierCost) { delete payload.carrier_cost_outbound; delete payload.carrier_cost_return; delete payload.carrier_cost_currency; }
     try {
       await onSave(payload, order?.id);
     } catch (err) {
@@ -2775,6 +2786,21 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
               </p>
             )}
           </div>
+
+          {canSeeCarrierCost && (
+            <div className="bg-surface-alt border border-border rounded-xl p-3 space-y-2">
+              <label className={LBL}>💸 ما دفعناه فعلياً لشركة الشحن (اتركه فارغاً إن لم يُوثَّق بعد — الفارغ ≠ صفر)</label>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="number" inputMode="decimal" min="0" value={form.carrier_cost_outbound} onChange={e => set('carrier_cost_outbound', e.target.value)} className={INP} placeholder="ذهاب" style={{ direction: 'ltr', textAlign: 'right' }} />
+                <input type="number" inputMode="decimal" min="0" value={form.carrier_cost_return} onChange={e => set('carrier_cost_return', e.target.value)} className={INP} placeholder="إرجاع" style={{ direction: 'ltr', textAlign: 'right' }} />
+                <select value={form.carrier_cost_currency} onChange={e => set('carrier_cost_currency', e.target.value)} className={INP}>
+                  <option value="">عملة الطلب</option>
+                  {['TRY', 'SYP', 'USD', 'AED'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <p className="text-[11px] text-muted">يغلب تقدير التعرفة بلوحة المحاسبة. أجور التوصيل أعلاه = ما يدفعه العميل؛ هذا الحقل = ما ندفعه نحن للناقل.</p>
+            </div>
+          )}
 
           {/* Shipping */}
           <div className="space-y-3">
