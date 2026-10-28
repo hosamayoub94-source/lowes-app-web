@@ -397,6 +397,17 @@ export function rateTier(row) {
   return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
 }
 export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
+export const COLLAB_TYPES = ['paid', 'pr', 'gift', 'hybrid', 'unknown'];
+export const COLLAB_TYPE_AR = { paid: 'مدفوع', pr: 'PR / منتجات مجانية', gift: 'هدايا فقط', hybrid: 'مختلط / قابل للتفاوض', unknown: 'نوع التعاون غير معروف' };
+export const RATE_CURRENCIES = ['USD', 'TRY', 'SYP', 'AED', 'SAR', 'EUR', 'GBP', 'OTHER'];
+export const RATE_CURRENCY_AR = { USD: 'دولار أمريكي', TRY: 'ليرة تركية', SYP: 'ليرة سورية', AED: 'درهم إماراتي', SAR: 'ريال سعودي', EUR: 'يورو', GBP: 'جنيه إسترليني', OTHER: 'أخرى' };
+export function rateTier(row) {
+  if (row.collaboration_type !== 'paid' && row.collaboration_type !== 'hybrid') return null;
+  const usd = row.rate_usd == null || row.rate_usd === '' ? null : Number(row.rate_usd);
+  if (usd == null || !Number.isFinite(usd) || usd < 0) return 'unknown';
+  return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
+}
+export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
 export function collaborationLabel(row) {
   const type = row.collaboration_type || (collabOf(row) === 'pr_ready' ? 'pr' : collabOf(row) === 'paid_inquiry' ? 'paid' : 'unknown');
   const tier = rateTier(row);
@@ -432,6 +443,9 @@ function passFilters(r, f) {
   if (f.incomplete && !missingEssentials(r).length) return false;
   if (f.garbled && !isGarbled(r)) return false;
   if (f.collab && collabOf(r) !== f.collab) return false;
+  if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
+  if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
+  if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
   if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
   if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
   if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
@@ -476,6 +490,11 @@ export function summarizeCreators(rows) {
     const tier = rateTier(r);
     if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
     else if (ct === 'unknown') s.rate_unknown++;
+    const ct = r.collaboration_type || (c === 'pr_ready' ? 'pr' : c === 'paid_inquiry' ? 'paid' : 'unknown');
+    if (ct === 'pr') s.pr++; else if (ct === 'gift') s.gift++; else if (ct === 'hybrid') s.hybrid++;
+    const tier = rateTier(r);
+    if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
+    else if (ct === 'unknown') s.rate_unknown++;
   }
   return s;
 }
@@ -495,6 +514,13 @@ export const VIEWS = [
   { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
   { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
   { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },
+  { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { collaboration_type: 'paid', rate_tier: 'mini' }, count: 'paid_mini' },
+  { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { collaboration_type: 'paid', rate_tier: 'mid' }, count: 'paid_mid' },
+  { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { collaboration_type: 'paid', rate_tier: 'premium' }, count: 'paid_premium' },
+  { key: 'pr', ar: 'PR / منتجات مجانية', filters: { collaboration_type: 'pr' }, count: 'pr' },
+  { key: 'gift', ar: 'هدايا فقط', filters: { collaboration_type: 'gift' }, count: 'gift' },
+  { key: 'hybrid', ar: 'مختلط / تفاوض', filters: { collaboration_type: 'hybrid' }, count: 'hybrid' },
+  { key: 'rate_unknown', ar: 'السعر غير معروف', filters: { rate_tier: 'unknown' }, count: 'rate_unknown' },
   { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { collaboration_type: 'paid', rate_tier: 'mini' }, count: 'paid_mini' },
   { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { collaboration_type: 'paid', rate_tier: 'mid' }, count: 'paid_mid' },
   { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { collaboration_type: 'paid', rate_tier: 'premium' }, count: 'paid_premium' },
