@@ -33,3 +33,12 @@ group by regexp_replace(coalesce(phone_1, ''), '\D', '', 'g');
 
 revoke all on public.customer_delivery_stats from anon, public;
 grant select on public.customer_delivery_stats to authenticated;
+
+-- Optional follow-up scheduling is stored on the existing customer note timeline.
+alter table public.customer_notes
+  add column if not exists follow_up_at timestamptz;
+
+-- Keep the notes table least-privilege after adding the new optional insert column.
+revoke all on table public.customer_notes from public, anon, authenticated;
+grant select on table public.customer_notes to authenticated;
+grant insert (phone_key, note, author, follow_up_at) on table public.customer_notes to authenticated;
