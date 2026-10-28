@@ -15,6 +15,15 @@ import { useToast } from '@hooks/useToast';
 import { useAuth } from '@hooks/useAuth';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
+/** صفوف الموظفين: المبيعات المسلَّمة + تم الاسترجاع + «تمت التسوية» (راجع بلا خصم) — اتحاد المفاتيح حتى يظهر موظف له مرتجعات فقط. */
+function mergeSellerRows(report) {
+  const by = new Map((report.bySeller || []).map((s) => [s.key, s]));
+  const ret = new Map((report.returnsBySeller || []).map((s) => [s.key, s]));
+  const set = new Map((report.settledBySeller || []).map((s) => [s.key, s]));
+  const keys = new Set([...by.keys(), ...ret.keys(), ...set.keys()]);
+  return [...keys].map((k) => ({ key: k, count: 0, byCurrency: {}, usd: 0, ...(by.get(k) || {}), returned: ret.get(k) || null, settled: set.get(k) || null }))
+    .sort((a, b) => b.usd - a.usd || b.count - a.count);
+}
 const curText = (by) => Object.entries(by || {}).map(([c, v]) => `${fmt(v)} ${c}`).join(' + ') || '—';
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 const WARN = { no_price: '⚠️ بلا سعر', no_cost: '⚠️ بلا تكلفة' };
@@ -94,14 +103,14 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
   const [saving, setSaving] = useState(false);
   const overview = useMemo(() => rateOverview(rates), [rates]);
   const setF2 = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
-  const carriers = useMemo(() => [...new Set([...knownCarriers, ...rates.map((r) => carrierKey(r.carrier))])].sort(), [knownCarriers, rates]);
+  const carriers = useMemo(() => [...new Set([...knownCarriers, ...rates.map((r) => carrierKey(r.carrier, r.market))])].sort(), [knownCarriers, rates]);
   const submit = async () => {
     if (!form.carrier.trim()) { toast?.error?.('اختر شركة الشحن'); return; }
     if (!(Number(form.outbound) >= 0) || form.outbound === '') { toast?.error?.('أدخل أجرة الذهاب'); return; }
     if (form.returnPolicy === 'fixed' && form.returnFee === '') { toast?.error?.('أدخل مبلغ المرتجع الثابت'); return; }
     setSaving(true);
     try {
-      await saveCarrierRate({ carrier: carrierKey(form.carrier), market: form.market, currency: form.currency, outbound: form.outbound, returnPolicy: form.returnPolicy, returnFee: form.returnFee, effectiveFrom: form.effectiveFrom || null, note: form.note, name });
+      await saveCarrierRate({ carrier: carrierKey(form.carrier, form.market), market: form.market, currency: form.currency, outbound: form.outbound, returnPolicy: form.returnPolicy, returnFee: form.returnFee, effectiveFrom: form.effectiveFrom || null, note: form.note, name });
       toast?.success?.('حُفظت التعرفة');
       setForm(EMPTY_FORM);
       await onSaved();
@@ -221,7 +230,7 @@ export default function SalesDeliveryAccountingScreen() {
   const opts = useMemo(() => {
     const all = [...(base?.delivered || []), ...(base?.undelivered || []), ...(base?.returns || [])];
     const uniq = (k) => [...new Set(all.map((o) => o[k]).filter(Boolean))].sort();
-    return { sellers: uniq('handler_name'), carriers: [...new Set(all.map((o) => carrierKey(o.shipping_company)))].sort(), currencies: uniq('currency'), markets: uniq('market') };
+    return { sellers: uniq('handler_name'), carriers: [...new Set(all.map((o) => carrierKey(o.shipping_company, o.market)))].sort(), currencies: uniq('currency'), markets: uniq('market') };
   }, [base]);
 
   const reloadRates = useCallback(async () => {
@@ -311,7 +320,7 @@ export default function SalesDeliveryAccountingScreen() {
             <Stat label="القيمة الفعلية" value={curText(report.totals.byCurrency)} />
             <Stat label="الموحّدة بالدولار" value={`$${fmt(report.totals.usd)}`} sub={missingFx ? `${missingFx} طلب بلا سعر صرف` : 'بأسعار الصرف المعتمدة الحالية'} tone={missingFx ? 'text-orange-600' : 'text-text'} />
             <Stat label="الوضع الحالي — حالياً (لا يُنسب للشهر)" value={`${fmt(report.currentPending.returning.length)} راجع للمركز · ${fmt(report.currentPending.not_received.length)} لم يُستلم`} sub="orders.status الآن بلا نافذة زمنية؛ لا يدخل مبيعات ولا عمولات ولا رواتب" tone="text-orange-600" />
-            <Stat label="حالات حدثت بالفترة" value={`${fmt(report.returnsInfo.byKind.reliable.orders)} مرتجع موثوق · ${fmt(report.periodPending.returning.length)} راجع · ${fmt(report.periodPending.not_received.length)} لم يُستلم`} sub={`توقيت غير معروف (خارج أي شهر): ${fmt(report.unknownTiming.length)}`} />
+            <Stat label="حالات حدثت بالفترة" value={`${fmt(report.returnsInfo.byKind.reliable.orders)} تم الاسترجاع · ${fmt(report.periodPending.returning.length)} راجع · ${fmt(report.periodPending.not_received.length)} لم يُستلم`} sub={`توقيت غير معروف (خارج أي شهر): ${fmt(report.unknownTiming.length)}`} />
             <Stat label="خارج الحساب (غير مسلَّمة)" value={fmt(report.undelivered.length)} sub={`مرتجعات بالفترة: ${report.returns.length}`} tone="text-orange-600" />
           </section>
           {(report.settledNoDelivery.length || report.legacyExcluded.length) ? (
@@ -349,6 +358,29 @@ export default function SalesDeliveryAccountingScreen() {
             <div className="space-y-4">
               <p className="text-xs text-muted">القيمة = orders.amount الفعلية. ما لا تثبته البيانات يظهر «غير موثّق» لا صفراً. الأقسام الثلاثة منفصلة: لا يُجمع الوضع الحالي مع ما حدث بالفترة، ولا يدخل أي منها مبيعات أو عمولات أو رواتب.</p>
 
+              <section className="space-y-2 border border-red-500/30 rounded-2xl p-3">
+                <h3 className="text-sm font-black">قيمة المرتجعات</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    ['تم الاسترجاع بالفترة (موثوق)', report.returnsInfo.byKind.reliable.orders, report.returnsInfo.byKind.reliable],
+                    ['تم الاسترجاع — توقيت غير معروف', report.returnsInfo.byKind.unknown_timing.orders, report.returnsInfo.byKind.unknown_timing],
+                    ['راجع للمركز / لم يُستلم — حالياً', report.currentInfo.total.orders, report.currentInfo.total],
+                  ].map(([label, n, g]) => (
+                    <Stat key={label} label={label} value={`${fmt(n)} طلب`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} tone="text-red-600" />
+                  ))}
+                  <Stat label="تمت التسوية — راجع للبائع بلا خصم" value={`${fmt(report.settledAsReturns.length)} طلب`} sub={`${curText(report.settledTotal.byCurrency)}${report.settledTotal.usd ? ` · $${fmt(report.settledTotal.usd)}` : ''}`} tone="text-orange-600" />
+                </div>
+                <p className="text-xs text-muted">«تمت التسوية» = الزبون دفع أجور الشحن ولم يستلم: يُحسب راجعاً للموظف لكن بلا أي خصم من راتبه أو عمولته.</p>
+                <SimpleTable
+                  head={['السوق', 'تم الاسترجاع بالفترة', 'القيمة', 'بالدولار', 'تمت التسوية (بلا خصم)', 'القيمة']}
+                  rows={[...new Set([...report.returnsByMarket.map((m) => m.key), ...report.settledByMarket.map((m) => m.key)])].map((k) => {
+                    const r = report.returnsByMarket.find((m) => m.key === k); const s = report.settledByMarket.find((m) => m.key === k);
+                    return [MARKET_LABELS[k] || k, fmt(r?.count || 0), curText(r?.byCurrency), r?.usd ? `$${fmt(r.usd)}` : '—', fmt(s?.count || 0), curText(s?.byCurrency)];
+                  })}
+                  empty="لا مرتجعات ولا تسويات بالفترة"
+                />
+              </section>
+
               <section className="space-y-2 border border-teal/30 rounded-2xl p-3">
                 <h3 className="text-sm font-black">① الوضع الحالي — حالياً (orders.status الآن، بلا نافذة زمنية، لا يُنسب للشهر المختار)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -359,7 +391,7 @@ export default function SalesDeliveryAccountingScreen() {
                 </div>
                 <SimpleTable
                   head={['الطلب', 'السوق', 'الحالة الحالية', 'منذ', 'تاريخ الطلب', 'البائع', 'الشحن', 'القيمة', 'القطع', 'تكلفة الشحن']}
-                  rows={[...report.currentPending.returning, ...report.currentPending.not_received].map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, RETURN_KIND_LABELS[o.status], o.status_since ? String(o.status_since).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.handler_name || '—', carrierKey(o.shipping_company), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces), hasDocumentedCost(o) ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
+                  rows={[...report.currentPending.returning, ...report.currentPending.not_received].map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, RETURN_KIND_LABELS[o.status], o.status_since ? String(o.status_since).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.handler_name || '—', carrierKey(o.shipping_company, o.market), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces), hasDocumentedCost(o) ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
                   empty="لا طلبات راجعة أو غير مستلمة حالياً"
                 />
               </section>
@@ -367,7 +399,7 @@ export default function SalesDeliveryAccountingScreen() {
               <section className="space-y-2 border border-border rounded-2xl p-3">
                 <h3 className="text-sm font-black">② حالات حدثت خلال الفترة (order_status_history.changed_at داخل الفترة)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[['مرتجع موثوق (إرجاع نهائي بالفترة)', report.returnsInfo.byKind.reliable], ['راجع للمركز — حدث بالفترة', report.returnsInfo.byKind.returning], ['لم يُستلم — حدث بالفترة', report.returnsInfo.byKind.not_received]].map(([label, g]) => (
+                  {[['تم الاسترجاع (إرجاع نهائي بالفترة)', report.returnsInfo.byKind.reliable], ['راجع للمركز — حدث بالفترة', report.returnsInfo.byKind.returning], ['لم يُستلم — حدث بالفترة', report.returnsInfo.byKind.not_received]].map(([label, g]) => (
                     <Stat key={label} label={label} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} />
                   ))}
                 </div>
@@ -378,7 +410,7 @@ export default function SalesDeliveryAccountingScreen() {
                 </p>
                 <SimpleTable
                   head={['الطلب', 'السوق', 'النوع', 'تاريخ الحدث', 'الحالة الآن', 'البائع', 'الشحن', 'القيمة', 'القطع', 'تكلفة الشحن']}
-                  rows={[...report.returns.map((o) => ({ ...o, event_at: o.return_at, current_status: o.status })), ...report.periodPending.returning, ...report.periodPending.not_received].map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, RETURN_KIND_LABELS[o.return_kind || o.status], String(o.event_at || '').slice(0, 10), STATUSES[o.current_status || o.status]?.label || o.status, o.handler_name || '—', carrierKey(o.shipping_company), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces ?? 0), hasDocumentedCost(o) ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
+                  rows={[...report.returns.map((o) => ({ ...o, event_at: o.return_at, current_status: o.status })), ...report.periodPending.returning, ...report.periodPending.not_received].map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, RETURN_KIND_LABELS[o.return_kind || o.status], String(o.event_at || '').slice(0, 10), STATUSES[o.current_status || o.status]?.label || o.status, o.handler_name || '—', carrierKey(o.shipping_company, o.market), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces ?? 0), hasDocumentedCost(o) ? `${fmt(o.delivery_cost)} ${o.currency}` : 'غير موثّق'])}
                   empty="لا أحداث بالفترة"
                 />
               </section>
@@ -388,7 +420,7 @@ export default function SalesDeliveryAccountingScreen() {
                 <Stat label={RETURN_KIND_LABELS.unknown_timing} value={`${fmt(report.returnsInfo.byKind.unknown_timing.orders)} طلب · ${fmt(report.returnsInfo.byKind.unknown_timing.pieces)} قطعة`} sub={`${curText(report.returnsInfo.byKind.unknown_timing.byCurrency)}${report.returnsInfo.byKind.unknown_timing.usd ? ` · $${fmt(report.returnsInfo.byKind.unknown_timing.usd)}` : ''}`} tone="text-orange-600" />
                 <SimpleTable
                   head={['الطلب', 'السوق', 'الحالة الآن', 'السبب', 'تاريخ الطلب', 'البائع', 'الشحن', 'القيمة', 'القطع']}
-                  rows={report.unknownTiming.map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, STATUSES[o.status]?.label || o.status, o.unknown_reason === 'bulk_event' ? 'تحديث جماعي' : o.unknown_reason === 'no_history' ? 'بلا سجل' : 'بلا تاريخ إرجاع', String(o.order_date || '').slice(0, 10), o.handler_name || '—', carrierKey(o.shipping_company), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces ?? 0)])}
+                  rows={report.unknownTiming.map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, STATUSES[o.status]?.label || o.status, o.unknown_reason === 'bulk_event' ? 'تحديث جماعي' : o.unknown_reason === 'no_history' ? 'بلا سجل' : 'بلا تاريخ إرجاع', String(o.order_date || '').slice(0, 10), o.handler_name || '—', carrierKey(o.shipping_company, o.market), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces ?? 0)])}
                   empty="لا حالات بتوقيت غير معروف"
                 />
               </section>
@@ -444,7 +476,7 @@ export default function SalesDeliveryAccountingScreen() {
           {tab === 'products' && (
             <div className="overflow-x-auto border border-border rounded-2xl">
               <table className="w-full text-xs">
-                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع موثوق', 'مرتجع غير موثوق', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'تم الاسترجاع', 'استرجاع غير موثوق', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>
                   {report.products.map((p) => (
                     <tr key={`${p.market}|${p.key}`} className="border-t border-border">
@@ -464,21 +496,23 @@ export default function SalesDeliveryAccountingScreen() {
             <div className="space-y-3">
               <div className="overflow-x-auto border border-border rounded-2xl">
                 <table className="w-full text-xs">
-                  <thead className="bg-surface-alt text-muted"><tr>{['الموظف', 'طلبات مسلَّمة', 'إجمالي المبيعات', 'بالدولار', 'عمولة الرواتب $', ''].map((h) => <th key={h} className="p-2 text-right">{h}</th>)}</tr></thead>
+                  <thead className="bg-surface-alt text-muted"><tr>{['الموظف', 'طلبات مسلَّمة', 'إجمالي المبيعات', 'بالدولار', 'عمولة الرواتب $', 'تم الاسترجاع', 'تمت التسوية (راجع بلا خصم)', ''].map((h) => <th key={h} className="p-2 text-right">{h}</th>)}</tr></thead>
                   <tbody>
-                    {report.bySeller.map((s) => {
+                    {mergeSellerRows(report).map((s) => {
                       const c = commissions.find((x) => normName(x.name) === normName(s.key));
                       return (
                         <tr key={s.key} className="border-t border-border">
                           <td className="p-2 font-bold">{s.key}</td><td className="p-2">{fmt(s.count)}</td><td className="p-2">{curText(s.byCurrency)}</td><td className="p-2">${fmt(s.usd)}</td>
                           <td className="p-2">{c ? `$${fmt(c.commission)}` : '—'}</td>
+                          <td className="p-2">{s.returned ? `${fmt(s.returned.count)} · ${curText(s.returned.byCurrency)}` : '—'}</td>
+                          <td className="p-2" title="الزبون دفع أجور الشحن ولم يستلم — يُحسب راجعاً بلا خصم">{s.settled ? `${fmt(s.settled.count)} · ${curText(s.settled.byCurrency)}` : '—'}</td>
                           <td className="p-2"><button className="text-teal font-bold" onClick={() => setOpenSeller(openSeller === s.key ? null : s.key)}>{openSeller === s.key ? 'إخفاء' : 'تفاصيل الطلبات'}</button></td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-                <p className="text-[11px] text-muted p-2">العمولة تُقرأ من مسيّر الرواتب المحسوب لهذا الشهر (إن وُجد). المصدر الحسابي واحد: الطلبات المسلَّمة في الفترة.</p>
+                <p className="text-[11px] text-muted p-2">العمولة تُقرأ من مسيّر الرواتب المحسوب لهذا الشهر (إن وُجد). المصدر الحسابي واحد: الطلبات المسلَّمة في الفترة. «تمت التسوية» (الزبون دفع أجور الشحن ولم يستلم) تُحسب راجعاً للبائع للعرض فقط — بلا خصم رواجع ولا أثر على الراتب أو العمولة.</p>
               </div>
               {sellerDetail ? (
                 <div className="bg-surface border border-border rounded-2xl p-3 space-y-2">

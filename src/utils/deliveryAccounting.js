@@ -243,6 +243,9 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
     ? F(views.settlements)
     : settlementRows(applyFilters((rows || []).filter((o) => o.status === 'settled' && ts(o.order_date) >= periodStart && ts(o.order_date) < periodEnd), filters), refs.settledPaths);
   const settlementsUnknown = views ? F(views.settlementsUnknown) : [];
+  // «تمت التسوية» بلا تسليم سابق = الزبون دفع أجور الشحن ولم يستلم: يُحتسب راجعاً للبائع للعرض فقط — بلا خصم رواجع ولا أي أثر على الراتب أو العمولة
+  const settledAsReturns = (settlementsList || []).filter((o) => o.settlement_kind !== 'delivered_settled' && !o.delivered_before);
+  const emptyG = { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
   return {
     period, criterion: 'delivery transition date', includeLegacy,
     delivered, returns, returnsUnknown: unknownTiming, undelivered,
@@ -255,6 +258,10 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
     undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
     products: buildProductLines(delivered, [...returns, ...unknownTiming], { ...refs, monthStart, nowMonth }),
     returnsInfo, shipping, shippingEstimate, settlements: settlementsList, settlementsUnknown,
+    settledAsReturns, settledTotal: summarize(settledAsReturns, () => 'all', rateMap)[0] || emptyG,
+    returnsTotal: summarize(returns, () => 'all', rateMap)[0] || emptyG,
+    returnsByMarket: summarize(returns, (o) => o.market, rateMap), settledByMarket: summarize(settledAsReturns, (o) => o.market, rateMap),
+    returnsBySeller: summarize(returns, (o) => o.handler_name || '—', rateMap), settledBySeller: summarize(settledAsReturns, (o) => o.handler_name || '—', rateMap),
   };
 }
 

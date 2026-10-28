@@ -4,6 +4,8 @@ import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, 
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
+import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
+import { STATUSES } from './src/data/orderStatus.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('❌', m); } };
@@ -300,6 +302,45 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   // نظرة التعرفة
   const ov = rateOverview([...RATES, { carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 200, return_policy: 'none', effective_from: '2099-01-01' }], '2026-11-01');
   const q = ov.find((g) => g.carrier === 'قدموس'); eq(q.current.outbound_fee, 180, 'الساري اليوم 180'); eq(q.upcoming.length, 1, 'قادمة 1'); eq(q.history.length, 3, 'السجل 3 صفوف');
+}
+// 16) سوريا: «الموتور» ← «مشوار»، القائمة الرسمية، «تم الاسترجاع»، «تمت التسوية» = راجع للبائع بلا خصم، وقيمة المرتجعات
+{
+  eq(carrierKey('توصيل ميتور', 'syria'), 'مشوار', 'توصيل ميتور (سوريا) = مشوار'); eq(carrierKey('الموتور', 'syria'), 'مشوار', 'الموتور (سوريا) = مشوار');
+  eq(carrierKey('موتور ', 'syria'), 'مشوار', 'موتور بمسافة (سوريا) = مشوار'); eq(carrierKey('مشوار', 'syria'), 'مشوار', 'مشوار يبقى مشوار');
+  eq(carrierKey('توصيل الموتور 🏍️', 'turkey'), 'الموتور', 'موتور إسطنبول (تركيا) لا يتغيّر'); eq(carrierKey('الموتور'), 'الموتور', 'بلا سوق: كما كان');
+  eq(carrierKey('العودة'), 'العودة', 'العودة معرّفة');
+  const OFF = { 'شركة الكرم': 'الكرم', 'كرم': 'الكرم', 'قدموس ': 'قدموس', 'القدموس ': 'قدموس', 'إيزلا': 'ايزلا', 'ايزلا': 'ايزلا', 'صله': 'صلة', 'صلة ': 'صلة', 'بابل اكسبرس': 'بابل', 'توصيل موتور ': 'مشوار', 'توصيل ميتور': 'مشوار', 'الموتور': 'مشوار', 'شركة مسارات ': 'مسارات', 'توصيل جرمانا': 'توصيل جرمانا', 'العودة': 'العودة' };
+  for (const [raw, want] of Object.entries(OFF)) eq(syriaOfficialCarrier(raw), want, `«${raw}» ← ${want}`);
+  for (const bad of ['💰 Paid', '❌ Unpaid', 'فاتح كارغو', 'Yurtiçi Kargo', 'PTT Kargo', 'مندوب توصيل', 'مدفوع الاجور', '', null]) eq(syriaOfficialCarrier(bad), null, `غير رسمي بلا شريحة: «${bad}»`);
+  eq(SYRIA_SHIPPING_PRIORITY.join('|'), 'قدموس|مسارات|مشوار|توصيل جرمانا|الكرم|العودة|ايزلا|بابل|صلة', 'القائمة الرسمية = قائمة الجدول');
+  // تعرفة محفوظة باسم «مشوار» تُلتقط لطلب مخزَّن «الموتور»
+  const RM = [{ carrier: 'مشوار', market: 'syria', currency: 'SYP', outbound_fee: 40, return_policy: 'none', effective_from: '2026-01-01' }];
+  eq(pickRate(RM, 'توصيل ميتور', 'syria', '2026-09-10')?.outbound_fee, 40, 'تعرفة مشوار تخدم الطلبات القديمة');
+  eq(pickRate(RM, 'الموتور', 'turkey', '2026-09-10'), null, 'تعرفة سوريا لا تخدم موتور تركيا');
+  eq(STATUSES.returned.label, 'تم الاسترجاع', 'اسم حالة returned');
+  // تمت التسوية: راجع للبائع بلا خصم — ليست بيعاً ولا تدخل عدّاد الرواجع المخصوم
+  const S1 = o('S1', 'settled', { amount: 80, paid_amount: 80, handler_name: 'Zina', order_date: '2026-09-02T10:00:00+03:00' });
+  const S2 = o('S2', 'settled', { amount: 60, handler_name: 'Zina', order_date: '2026-09-03T10:00:00+03:00', delivered_at: '2026-09-04T10:00:00+03:00', delivery_basis: 'carrier' });
+  const R1 = o('R1', 'returned', { amount: 250, handler_name: 'Lina', market: 'turkey', currency: 'USD', return_at: '2026-09-15T10:00:00+03:00', return_bulk_suspect: false });
+  const led = {
+    orders: [S1, S2, R1],
+    events: [
+      { order_id: 'S1', to_status: 'not_received', changed_at: '2026-09-05T10:00:00+03:00', source: 'x' }, { order_id: 'S1', to_status: 'settled', changed_at: '2026-09-12T10:00:00+03:00', source: 'x' },
+      { order_id: 'S2', to_status: 'settled', changed_at: '2026-09-14T10:00:00+03:00', source: 'x' },
+    ],
+    paths: new Map([
+      ['S1', [{ to_status: 'not_received', changed_at: '2026-09-05T10:00:00+03:00' }, { to_status: 'settled', changed_at: '2026-09-12T10:00:00+03:00' }]],
+      ['S2', [{ to_status: 'delivered', changed_at: '2026-09-04T10:00:00+03:00' }, { to_status: 'settled', changed_at: '2026-09-14T10:00:00+03:00' }]],
+    ]),
+  };
+  const rep = buildReport({ rows: [S1, S2, R1], period: sep, refs: { statusLedger: led } });
+  eq(rep.settledAsReturns.length, 1, 'تسوية بلا تسليم سابق = راجع للبائع (واحدة)'); eq(rep.settledAsReturns[0].id, 'S1', 'هي S1 لا S2 (مسلَّمة قبل التسوية)');
+  eq(rep.settledBySeller.find((x) => x.key === 'Zina')?.count, 1, 'محسوبة لبائعها Zina'); eq(rep.settledTotal.byCurrency.USD, 80, 'قيمة التسوية 80');
+  eq(rep.delivered.some((x) => x.id === 'S1'), false, 'التسوية بلا تسليم ليست بيعاً');
+  eq(rep.returnsInfo.byKind.reliable.orders, 1, 'عدّاد الاسترجاع الموثوق لا يشمل التسوية (فقط R1)'); eq(rep.returnsBySeller.some((x) => x.key === 'Zina'), false, 'Zina بلا «تم الاسترجاع» (التسوية بعمود منفصل)');
+  const idx = buildPayrollIndex(rep.delivered); eq([...idx.values()].reduce((n, b) => n + (b.returnsCount || 0), 0), 0, 'فهرس الرواتب: لا خصم رواجع من التسوية');
+  // قيمة المرتجعات
+  eq(rep.returnsTotal.count, 1, 'مرتجع واحد بالفترة'); eq(rep.returnsTotal.byCurrency.USD, 250, 'قيمة المرتجعات 250'); eq(rep.returnsByMarket.find((x) => x.key === 'turkey')?.count, 1, 'حسب السوق'); eq(rep.returnsBySeller.find((x) => x.key === 'Lina')?.byCurrency.USD, 250, 'حسب البائع');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

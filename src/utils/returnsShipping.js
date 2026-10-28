@@ -33,6 +33,8 @@ const CARRIER_RULES = [
   [/صل[ةه]/i, 'صلة'],
   [/فاتح/i, 'فاتح كارغو'],
   [/جرمانا/i, 'توصيل جرمانا'],
+  [/مشوار/i, 'مشوار'],
+  [/العودة/i, 'العودة'],
   [/موتور|ميتور/i, 'الموتور'],
   [/يورت|yurti/i, 'Yurtiçi'],
   [/\bptt\b/i, 'PTT'],
@@ -41,9 +43,11 @@ const CARRIER_RULES = [
   [/مندوب/i, 'مندوب توصيل (الإمارات)'],
 ];
 /** اسم موحّد للعرض: اسم غير معروف يبقى كما هو بعد التنظيف؛ فارغ = «بلا شركة». */
-export function carrierKey(raw) {
+export function carrierKey(raw, market) {
   const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
   if (!s) return 'بلا شركة';
+  // سوريا: «الموتور» بكل صيغه القديمة = «مشوار» (توصيل الشام وريفها)؛ موتور إسطنبول (تركيا) يبقى «الموتور»
+  if (market === 'syria' && /مشوار|موتور|ميتور/i.test(s)) return 'مشوار';
   for (const [re, name] of CARRIER_RULES) if (re.test(s)) return name;
   return s;
 }
@@ -78,7 +82,7 @@ export function shippingSummary(orders, rateMap) {
   const m = new Map();
   const totals = { customer: { orders: 0, byCurrency: {}, usd: 0, usdMissing: 0 }, company: { orders: 0, byCurrency: {}, usd: 0, usdMissing: 0 }, unknownOrders: 0, orders: 0 };
   for (const o of orders || []) {
-    const carrier = carrierKey(o.shipping_company);
+    const carrier = carrierKey(o.shipping_company, o.market);
     const payer = shippingPayerKind(o);
     const k = `${carrier}|${payer}`;
     const g = m.get(k) || { carrier, payer, orders: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
@@ -100,8 +104,8 @@ export function shippingSummary(orders, rateMap) {
 
 // ───────────── المرتجعات ─────────────
 export const RETURN_KIND_LABELS = {
-  reliable: 'مرتجع موثوق',
-  unknown_timing: 'مرتجع بتوقيت غير موثوق (جماعي/بلا تاريخ)',
+  reliable: 'تم الاسترجاع (موثوق)',
+  unknown_timing: 'تم الاسترجاع بتوقيت غير موثوق (جماعي/بلا تاريخ)',
   returning: 'راجع للمركز',
   not_received: 'لم يُستلم',
 };
@@ -172,4 +176,4 @@ export function settlementRows(settled, paths) {
 }
 
 /** مفتاح مقارنة لاسم الشركة بالفلاتر. */
-export const carrierMatches = (o, key) => !key || key === 'all' || carrierKey(o.shipping_company) === key || normName(o.shipping_company) === normName(key);
+export const carrierMatches = (o, key) => !key || key === 'all' || carrierKey(o.shipping_company, o.market) === key || normName(o.shipping_company) === normName(key);

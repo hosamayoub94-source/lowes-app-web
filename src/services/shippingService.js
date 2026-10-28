@@ -18,6 +18,8 @@
 // =============================================================
 import { create } from 'zustand';
 import { shippingForMarket as fallbackShipping } from '@data/cities';
+import { SYRIA_SHIPPING_PRIORITY, SYRIA_ALIAS_PATTERNS, syriaOfficialCarrier } from '@data/syriaCarriers';
+export { SYRIA_SHIPPING_PRIORITY, SYRIA_ALIAS_PATTERNS, syriaOfficialCarrier };
 
 // Fetch active shipping carriers. Uses the authenticated app session, so the
 // `accounting_channels` SELECT RLS (auth.uid() IS NOT NULL) is satisfied.
@@ -58,28 +60,13 @@ export function mergeShipping(channels, market) {
 // =============================================================
 export const SYRIA_NON_SHIPPING_CHANNEL_NAMES = ['مواصلات', 'معرض دمشق', 'كاندي'];
 
-// ترتيب الطباعة المعتمد — الأولوية الست، ثم «الباقي» (شركات معتمدة أخرى، غير
-// مذكورة هنا)، ثم «أخرى» دائماً أخيراً.
-export const SYRIA_SHIPPING_PRIORITY = ['قدموس', 'الكرم', 'بابل', 'الموتور', 'ايزلا', 'توصيل جرمانا'];
-
-// مطابقة مرنة لالتقاط الصيغ القديمة المخزَّنة بطلبات سابقة (كرم/شركة الكرم،
-// بابل اكسبرس، توصيل ميتور، مسافات زائدة...) تحت شركتها الصحيحة — تُستخدم فقط
-// وقت الطباعة/الفرز، ولا تُعدِّل القيمة المحفوظة بالطلب نفسه أبداً.
-const SYRIA_ALIAS_PATTERNS = {
-  'قدموس':        /قدموس/i,
-  'الكرم':        /كرم/i,
-  'بابل':         /بابل/i,
-  'الموتور':      /موتور|ميتور/i,
-  'ايزلا':        /ايزلا|إيزلا/i,
-  'توصيل جرمانا': /جرمانا/i,
-};
 
 // القائمة الرسمية المعروضة بقائمة اختيار الطلب (سوريا فقط): الأولوية الست،
 // ثم أي شركة شحن سورية أخرى معتمدة بقنوات المحاسبة (بعد استبعاد الجهات غير
 // الشحنية أعلاه)، ثم «أخرى» دائماً أخيراً — الخيار الوحيد الذي يسمح بالكتابة.
 export function syriaShippingOptions(channels) {
   const merged = mergeShipping(channels, 'syria')
-    .filter((n) => !SYRIA_NON_SHIPPING_CHANNEL_NAMES.includes(n) && n !== 'أخرى');
+    .filter((n) => !SYRIA_NON_SHIPPING_CHANNEL_NAMES.includes(n) && n !== 'أخرى' && !syriaOfficialCarrier(n)); // أسماء قديمة (الموتور…) لا تتكرر بجانب «مشوار»
   const rest = merged.filter((n) => !SYRIA_SHIPPING_PRIORITY.includes(n));
   return [...SYRIA_SHIPPING_PRIORITY, ...rest, 'أخرى'];
 }

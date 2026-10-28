@@ -12,7 +12,7 @@ import { printShippingLabel } from '@utils/printShippingLabel';
 // الحالات التي تعني «الطلب على طاولة المجهّز»
 const ACTIONABLE = ['pending', 'preparing', 'motor_prep'];
 
-const isMotor = (o) => /موتور|ميتور/.test(String(o.shipping_company || ''));
+const isMotor = (o) => /موتور|ميتور|مشوار/.test(String(o.shipping_company || ''));
 const isCenterPickup = (o) => String(o.pickup_type || '').includes('استلام من المركز');
 
 // الخطوة التالية لكل طلب حسب حالته وسوقه وجهة إرساله.
@@ -32,7 +32,7 @@ const actionLabel = (o) => o.status === 'pending' ? '📦 بدء التجهيز'
 
 // مفتاح المجموعة: موتور / اسم شركة الشحن / استلام من المركز / غير محدد.
 function groupKeyFor(o) {
-  if (isMotor(o)) return '🏍️ توصيل الموتور';
+  if (isMotor(o)) return o.market === 'syria' ? '🛵 مشوار' : '🏍️ توصيل الموتور';
   const co = String(o.shipping_company || '').trim();
   if (co) return `🚚 ${co}`;
   if (isCenterPickup(o)) return '🏢 استلام من المركز';

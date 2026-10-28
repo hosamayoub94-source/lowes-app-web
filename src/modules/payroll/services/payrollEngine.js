@@ -37,7 +37,7 @@
 
 import { supabase } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
-import { loadDeliveredForPeriod } from '@services/deliveryAccountingService';
+import { loadDeliveredForPeriod, loadSettledAsReturns } from '@services/deliveryAccountingService';
 import { buildPayrollIndex, periodBounds } from '@utils/deliveryAccounting';
 import { fetchMonthlyAttendanceSummary } from './attendanceLink.js';
 import { runPayrollBatch } from './payrollBatch.js';
@@ -311,6 +311,9 @@ export async function fetchEmployeeSalesStatement(emp, year, month) {
   ]);
 
   const mine = (o) => o.market !== 'uae' && names.includes(normalizeName(o.handler_name));
+  // «تمت التسوية» (دفع أجور الشحن ولم يستلم) = راجع للموظف للعرض فقط، بلا خصم: لا يدخل returnsCount ولا أي حساب راتب
+  let settledNoDeduction = [];
+  try { settledNoDeduction = (await loadSettledAsReturns({ from: period.from, to: period.to })).filter(mine); } catch { /* عرض فقط */ }
   const orders = delivered.filter(mine)
     .sort((x, y) => String(x.delivery_at).localeCompare(String(y.delivery_at)))
     .map(o => ({
@@ -328,6 +331,7 @@ export async function fetchEmployeeSalesStatement(emp, year, month) {
   return {
     orders, totalUsd, count: orders.length, products,
     returnsCount: returns.filter(mine).length,
+    settledNoDeductionCount: settledNoDeduction.length,
     legacyCount: orders.filter(o => o.date_source === 'legacy_order_date').length,
   };
 }
