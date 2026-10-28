@@ -26,9 +26,9 @@ const V1_STATUSES = ["new", "reviewing", "approved", "contacted", "package_sent"
 const PRIORITIES = ["P0", "P1", "P2"];
 const TEXT_FIELDS = ["name", "location", "category", "fit", "evidence", "verification_level", "source", "profile_url", "owner"];
 const V2_TEXT_FIELDS = ["city", "email", "phone", "preferred_contact", "source_url"];
-const V2_FIELDS = ["country", "governorate", "city", "location_confidence", "creator_type", "content_types", "skincare_focus", "tags", "bio", "email", "phone", "preferred_contact", "other_platforms", "source_url", "last_verified_at", "last_active_at", "verification_status", "saved"];
+const V2_FIELDS = ["country", "governorate", "city", "location_confidence", "creator_type", "content_types", "skincare_focus", "tags", "bio", "email", "phone", "preferred_contact", "other_platforms", "source_url", "last_verified_at", "last_active_at", "verification_status", "saved", "collaboration_type", "rate_amount", "rate_currency", "rate_usd", "rate_scope", "rate_exchange_rate", "rate_exchange_date"];
 const EDITABLE = ["platform", "handle", "followers", "engagement_pct", "priority", "status", "notes", "verified", ...TEXT_FIELDS, ...V2_FIELDS];
-const SPECIAL = ["followers", "engagement_pct", "priority", "status", "verified", "saved", "country", "governorate", "location_confidence", "creator_type", "verification_status", "last_verified_at", "last_active_at", "other_platforms"];
+const SPECIAL = ["followers", "engagement_pct", "priority", "status", "verified", "saved", "country", "governorate", "location_confidence", "creator_type", "verification_status", "last_verified_at", "last_active_at", "other_platforms", "rate_amount", "rate_usd", "rate_exchange_rate"];
 const BULK_EDITABLE = ["status", "owner", "category", "priority", "verified", "saved", "creator_type", "verification_status"];
 const MAX_IMPORT = 2000;
 
@@ -115,6 +115,15 @@ function normalizeRow(raw: Row, opts: { requireHandle?: boolean } = { requireHan
   const lc = pick(raw.location_confidence, LOCATION_CONFIDENCE); if (lc) row.location_confidence = lc;
   const ct = pick(raw.creator_type, CREATOR_TYPES); if (ct) row.creator_type = ct;
   const vs = pick(raw.verification_status, VERIFICATION); if (vs) row.verification_status = vs;
+  const collabType = pick(raw.collaboration_type, ["paid", "pr", "gift", "hybrid", "unknown"]); if (collabType) row.collaboration_type = collabType;
+  const currency = pick(raw.rate_currency, ["USD", "TRY", "SYP", "AED", "SAR", "EUR", "GBP", "OTHER"]); if (currency) row.rate_currency = currency;
+  for (const f of ["rate_amount", "rate_usd", "rate_exchange_rate"] as const) {
+    if (!(f in raw)) continue;
+    if (raw[f] === null || raw[f] === "") { row[f] = null; continue; }
+    const n = parseNum(raw[f]); if (n === null || n < 0) return { error: `${f}: must be a non-negative number` }; row[f] = n;
+  }
+  if ("rate_scope" in raw) row.rate_scope = cleanText(raw.rate_scope, 300);
+  if ("rate_exchange_date" in raw) { const d = parseDate(raw.rate_exchange_date); if (d === undefined) return { error: "rate_exchange_date: تاريخ غير صالح" }; row.rate_exchange_date = d ? d.slice(0, 10) : null; }
   for (const [f, allowed] of [["content_types", CONTENT_TYPES], ["skincare_focus", SKINCARE_FOCUS], ["tags", null]] as [string, string[] | null][]) {
     if (!(f in raw)) continue;
     const p = parseList(raw[f], allowed, f === "tags" ? 30 : 10);
