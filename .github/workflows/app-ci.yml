@@ -80,5 +80,8 @@ jobs:
       - name: Check B2B atomic audit in PostgreSQL
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/test-b2b-market-entry-atomic-audit.sql
 
+      - name: Run creator matching and pricing regression tests
+        run: node test-creator-match.mjs
+
       - name: Build production bundle
         run: npm run build
