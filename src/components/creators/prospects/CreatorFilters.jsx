@@ -53,9 +53,28 @@ export default function CreatorFilters({
       </div>
       {understood && <div className="text-[11px] text-gray-500">فهمت: {understood}</div>}
 
+      {/* Quick collaboration segments: visible before the general views for fast outreach. */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2 space-y-1.5" aria-label="تصنيف التعاون السريع">
+        <div className="text-[11px] font-black text-gray-600">🎯 فلترة سريعة حسب التعاون والسعر</div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {[
+            ['paid_mini', '💵 مدفوع Mini < $100', 'paid_mini'],
+            ['paid_mid', '💵 متوسط $100–$500', 'paid_mid'],
+            ['paid_premium', '💎 Premium > $500', 'paid_premium'],
+            ['pr', '🎁 PR / منتجات مجانية', 'pr'],
+            ['gift', '🎁 هدايا فقط', 'gift'],
+            ['hybrid', '🤝 مختلط / تفاوض', 'hybrid'],
+            ['rate_unknown', '❓ السعر غير معروف', 'rate_unknown'],
+          ].map(([key, label, countKey]) => (
+            <button key={key} onClick={() => setView(view === key ? 'all' : key)} aria-pressed={view === key}
+              className={pill(view === key)}>{label} ({summary?.[countKey] ?? 0})</button>
+          ))}
+        </div>
+      </div>
+
       {/* ready-made views */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="tablist" aria-label="عروض جاهزة">
-        {VIEWS.filter((v) => v.key !== 'garbled' || summary?.garbled).map((v) => {
+        {VIEWS.filter((v) => !['paid_mini', 'paid_mid', 'paid_premium', 'pr', 'gift', 'hybrid', 'rate_unknown'].includes(v.key) && (v.key !== 'garbled' || summary?.garbled)).map((v) => {
           const n = v.count && summary ? summary[v.count] : null;
           return (
             <button key={v.key} role="tab" aria-selected={view === v.key} onClick={() => setView(v.key)} className={pill(view === v.key)}>
