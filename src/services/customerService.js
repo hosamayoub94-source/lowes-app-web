@@ -212,7 +212,7 @@ export async function listCustomerMonths({ market = null, brand = null, sellerNa
   const buckets = new Map();
   for (const r of rows) {
     const key = String(r.last_order || '').slice(0, 7);
-    if (!/^\\d{4}-\\d{2}$/.test(key) || key >= curKey) continue;
+    if (!/^\d{4}-\d{2}$/.test(key) || key >= curKey) continue;
     buckets.set(key, (buckets.get(key) || 0) + 1);
   }
   return [...buckets.entries()]
