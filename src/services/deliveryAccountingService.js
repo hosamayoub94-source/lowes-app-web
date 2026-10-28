@@ -61,19 +61,21 @@ let ledgerCache = null; // أحداث الحالات + الطلبات الحال
 async function loadLedgerBase(signal) {
   if (ledgerCache && Date.now() - ledgerCache.at < 5 * 60 * 1000) return ledgerCache;
   const [events, current] = await Promise.all([
-    fetchAllRows(() => withSignal(supabase.from('order_status_history').select('id, order_id, to_status, changed_at, source').in('to_status', LEDGER_STATUSES).order('id'), signal)),
-    fetchAllRows(() => withSignal(supabase.from('orders').select(LEDGER_ORDER_COLS).is('deleted_at', null).in('status', LEDGER_STATUSES).order('id'), signal)),
+    fetchAllRowsConcurrent(() => withSignal(supabase.from('order_status_history').select('id, order_id, to_status, changed_at, source').in('to_status', LEDGER_STATUSES).order('id'), signal)),
+    fetchAllRowsConcurrent(() => withSignal(supabase.from('orders').select(LEDGER_ORDER_COLS).is('deleted_at', null).in('status', LEDGER_STATUSES).order('id'), signal)),
   ]);
   ledgerCache = { at: Date.now(), events: events || [], current: current || [] };
   return ledgerCache;
 }
 
 async function fetchByIds(table, cols, ids, signal, extra) {
+  const parts = [];
+  for (let i = 0; i < ids.length; i += CHUNK) parts.push(ids.slice(i, i + CHUNK));
   const out = [];
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const part = ids.slice(i, i + CHUNK);
-    const rows = await fetchAllRows(() => withSignal(extra(supabase.from(table).select(cols).in(table === 'orders' ? 'id' : 'order_id', part)), signal));
-    out.push(...(rows || []));
+  // 4 قطع معاً (النتيجة بنفس ترتيب القطع)
+  for (let w = 0; w < parts.length; w += 4) {
+    const waves = await Promise.all(parts.slice(w, w + 4).map((part) => fetchAllRows(() => withSignal(extra(supabase.from(table).select(cols).in(table === 'orders' ? 'id' : 'order_id', part)), signal))));
+    for (const rows of waves) out.push(...(rows || []));
   }
   return out;
 }
@@ -84,9 +86,11 @@ export async function loadStatusLedger({ from, to, signal }) {
   const t0 = Date.parse(from), t1 = Date.parse(to);
   const have = new Set(base.current.map((o) => o.id));
   const periodIds = [...new Set(base.events.filter((e) => { const t = Date.parse(e.changed_at); return t >= t0 && t < t1; }).map((e) => e.order_id))].filter((id) => !have.has(id));
-  const extra = await fetchByIds('orders', LEDGER_ORDER_COLS, periodIds, signal, (q) => q.is('deleted_at', null).order('id'));
   const settledIds = [...new Set([...base.events.filter((e) => e.to_status === 'settled').map((e) => e.order_id), ...base.current.filter((o) => o.status === 'settled').map((o) => o.id)])];
-  const hist = await fetchByIds('order_status_history', 'order_id, to_status, changed_at', settledIds, signal, (q) => q.order('order_id').order('changed_at'));
+  const [extra, hist] = await Promise.all([
+    fetchByIds('orders', LEDGER_ORDER_COLS, periodIds, signal, (q) => q.is('deleted_at', null).order('id')),
+    fetchByIds('order_status_history', 'order_id, to_status, changed_at', settledIds, signal, (q) => q.order('order_id').order('changed_at')),
+  ]);
   const paths = new Map();
   for (const h of hist) { if (!paths.has(h.order_id)) paths.set(h.order_id, []); paths.get(h.order_id).push({ to_status: h.to_status, changed_at: h.changed_at }); }
   return { events: base.events, orders: [...base.current, ...extra], paths };
