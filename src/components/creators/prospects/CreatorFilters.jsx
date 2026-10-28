@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   COUNTRIES, GOVERNORATES, CREATOR_TYPES, TYPE_AR, PLATFORMS, PLATFORM_AR, STATUSES, STATUS_AR, CONTENT_TYPES, CONTENT_AR, SKINCARE_FOCUS, FOCUS_AR,
-  VERIFICATION, VERIFICATION_AR, SORTS, VIEWS, COLLABS, COLLAB_AR, govOf,
+  VERIFICATION, VERIFICATION_AR, SORTS, VIEWS, COLLABS, COLLAB_AR, COLLAB_TYPES, COLLAB_TYPE_AR, RATE_CURRENCIES, RATE_CURRENCY_AR, RATE_TIER_AR, govOf,
 } from './constants';
 
 const sel = 'border rounded-lg px-2 py-1.5 text-xs bg-white w-full';
@@ -21,6 +21,9 @@ export function activeFilterChips(filters) {
   if (filters.status) add('status', STATUS_AR[filters.status], { status: '' });
   if (filters.verification_status) add('verification_status', VERIFICATION_AR[filters.verification_status], { verification_status: '' });
   if (filters.collab) add('collab', `تعاون: ${COLLAB_AR[filters.collab]}`, { collab: '' });
+  if (filters.collaboration_type) add('collaboration_type', COLLAB_TYPE_AR[filters.collaboration_type], { collaboration_type: '' });
+  if (filters.rate_tier) add('rate_tier', RATE_TIER_AR[filters.rate_tier], { rate_tier: '' });
+  if (filters.rate_currency) add('rate_currency', RATE_CURRENCY_AR[filters.rate_currency] || filters.rate_currency, { rate_currency: '' });
   (filters.content_types || []).forEach((c) => add(`ct-${c}`, CONTENT_AR[c], { content_types: (filters.content_types || []).filter((x) => x !== c) }));
   (filters.skincare_focus || []).forEach((c) => add(`sf-${c}`, FOCUS_AR[c], { skincare_focus: (filters.skincare_focus || []).filter((x) => x !== c) }));
   return out;
@@ -50,9 +53,28 @@ export default function CreatorFilters({
       </div>
       {understood && <div className="text-[11px] text-gray-500">فهمت: {understood}</div>}
 
+      {/* Quick collaboration segments: visible before the general views for fast outreach. */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2 space-y-1.5" aria-label="تصنيف التعاون السريع">
+        <div className="text-[11px] font-black text-gray-600">🎯 فلترة سريعة حسب التعاون والسعر</div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {[
+            ['paid_mini', '💵 مدفوع Mini < $100', 'paid_mini'],
+            ['paid_mid', '💵 متوسط $100–$500', 'paid_mid'],
+            ['paid_premium', '💎 Premium > $500', 'paid_premium'],
+            ['pr', '🎁 PR / منتجات مجانية', 'pr'],
+            ['gift', '🎁 هدايا فقط', 'gift'],
+            ['hybrid', '🤝 مختلط / تفاوض', 'hybrid'],
+            ['rate_unknown', '❓ السعر غير معروف', 'rate_unknown'],
+          ].map(([key, label, countKey]) => (
+            <button key={key} onClick={() => setView(view === key ? 'all' : key)} aria-pressed={view === key}
+              className={pill(view === key)}>{label} ({summary?.[countKey] ?? 0})</button>
+          ))}
+        </div>
+      </div>
+
       {/* ready-made views */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="tablist" aria-label="عروض جاهزة">
-        {VIEWS.filter((v) => v.key !== 'garbled' || summary?.garbled).map((v) => {
+        {VIEWS.filter((v) => !['paid_mini', 'paid_mid', 'paid_premium', 'pr', 'gift', 'hybrid', 'rate_unknown'].includes(v.key) && (v.key !== 'garbled' || summary?.garbled)).map((v) => {
           const n = v.count && summary ? summary[v.count] : null;
           return (
             <button key={v.key} role="tab" aria-selected={view === v.key} onClick={() => setView(v.key)} className={pill(view === v.key)}>
@@ -131,8 +153,20 @@ export default function CreatorFilters({
               <option value="">كل مستويات التحقق</option>
               {VERIFICATION.map((v) => <option key={v} value={v}>{VERIFICATION_AR[v]}</option>)}
             </select>
-            <select value={filters.collab || ''} onChange={(e) => patchFilters({ collab: e.target.value })} className={sel} aria-label="نوع التعاون">
-              <option value="">كل أنواع التعاون</option>
+            <select value={filters.collaboration_type || ''} onChange={(e) => patchFilters({ collaboration_type: e.target.value })} className={sel} aria-label="طريقة التعاون">
+              <option value="">كل طرق التعاون</option>
+              {COLLAB_TYPES.map((c) => <option key={c} value={c}>{COLLAB_TYPE_AR[c]}</option>)}
+            </select>
+            <select value={filters.rate_tier || ''} onChange={(e) => patchFilters({ rate_tier: e.target.value })} className={sel} aria-label="مستوى السعر">
+              <option value="">كل مستويات السعر</option>
+              {Object.entries(RATE_TIER_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={filters.rate_currency || ''} onChange={(e) => patchFilters({ rate_currency: e.target.value })} className={sel} aria-label="عملة السعر">
+              <option value="">كل العملات</option>
+              {RATE_CURRENCIES.map((c) => <option key={c} value={c}>{RATE_CURRENCY_AR[c]}</option>)}
+            </select>
+            <select value={filters.collab || ''} onChange={(e) => patchFilters({ collab: e.target.value })} className={sel} aria-label="تصنيف التعاون القديم">
+              <option value="">كل تصنيفات سير العمل</option>
               {COLLABS.map((c) => <option key={c} value={c}>{COLLAB_AR[c]}</option>)}
             </select>
           </div>

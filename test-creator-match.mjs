@@ -1,7 +1,7 @@
 // «صناع المحتوى» v2 — search / synonyms / score / filters (shared by the edge function and the screen).
 // Run: node test-creator-match.mjs
 import {
-  normalizeText, normalizeHandle, parseQuery, matchRow, scoreCreator, searchCreators, isUgc, isSkincare, skeleton, statusOf, V1_STATUS, STATUSES,
+  normalizeText, normalizeHandle, parseQuery, matchRow, scoreCreator, searchCreators, isUgc, isSkincare, skeleton, statusOf, V1_STATUS, STATUSES, rateTier,
 } from './supabase/functions/_shared/creatorMatch.js';
 
 let pass = 0, fail = 0;
@@ -109,6 +109,26 @@ const dq = buildDiscoveryQueries();
 ok(dq.length > 100 && dq.every((x) => x.url.startsWith('https://www.google.com/search?q=site%3Ainstagram.com')), 'queries: Google site:instagram.com links');
 ok(buildDiscoveryQueries({ governorate: 'aleppo' }).every((x) => x.group === 'حلب'), 'governorate-scoped queries');
 ok(discoveryHashtags('SY').length > 0 && discoveryHashtags('TR').length === 0, 'hashtags per country');
+
+// ---- collaboration pricing tiers and filters ----
+ok(rateTier({ collaboration_type: 'paid', rate_usd: 99.99 }) === 'mini', 'paid under $100 is Mini');
+ok(rateTier({ collaboration_type: 'paid', rate_usd: 100 }) === 'mid', '$100 enters middle tier');
+ok(rateTier({ collaboration_type: 'paid', rate_usd: 500 }) === 'mid', '$500 stays in middle tier');
+ok(rateTier({ collaboration_type: 'paid', rate_usd: 500.01 }) === 'premium', 'above $500 is Premium');
+ok(rateTier({ collaboration_type: 'paid', rate_usd: null }) === 'unknown', 'missing paid rate stays unknown');
+const priceRows = [
+  { ...A, id: 'p1', collaboration_type: 'paid', rate_usd: 75, rate_currency: 'USD' },
+  { ...A, id: 'p2', collaboration_type: 'paid', rate_usd: 250, rate_currency: 'TRY' },
+  { ...A, id: 'p3', collaboration_type: 'paid', rate_usd: 800, rate_currency: 'USD' },
+  { ...A, id: 'p4', collaboration_type: 'pr', rate_usd: null },
+  { ...A, id: 'p5', collaboration_type: 'gift', rate_usd: null },
+  { ...A, id: 'p6', collaboration_type: 'unknown', rate_usd: null },
+];
+ok(searchCreators(priceRows, { filters: { collaboration_type: 'pr' }, all: true }).rows.map((r) => r.id).join() === 'p4', 'PR filter excludes paid and gifting');
+ok(searchCreators(priceRows, { filters: { rate_tier: 'mini' }, all: true }).rows.map((r) => r.id).join() === 'p1', 'Mini tier filter');
+ok(searchCreators(priceRows, { filters: { rate_tier: 'premium' }, all: true }).rows.map((r) => r.id).join() === 'p3', 'Premium tier filter');
+ok(searchCreators(priceRows, { filters: { rate_currency: 'TRY' }, all: true }).rows.map((r) => r.id).join() === 'p2', 'currency filter');
+ok(searchCreators(priceRows, { filters: { rate_tier: 'unknown' }, all: true }).rows.map((r) => r.id).join() === 'p6', 'unknown pricing filter');
 
 console.log(`creator-match: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

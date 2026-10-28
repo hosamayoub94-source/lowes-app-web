@@ -386,6 +386,34 @@ const ts = (d) => { const t = Date.parse(d); return Number.isFinite(t) ? t : nul
 export const RESERVED_TAG_RE = /^(r|collab|reject):/;
 export const COLLABS = ['ugc_ready', 'pr_ready', 'paid_inquiry', 'expert', 'needs_review', 'not_relevant'];
 export const COLLAB_AR = { ugc_ready: 'UGC', pr_ready: 'PR / هدية', paid_inquiry: 'مدفوع', expert: 'خبير', needs_review: 'يحتاج مراجعة', not_relevant: 'غير مناسب' };
+export const COLLAB_TYPES = ['paid', 'pr', 'gift', 'hybrid', 'unknown'];
+export const COLLAB_TYPE_AR = { paid: 'مدفوع', pr: 'PR / منتجات مجانية', gift: 'هدايا فقط', hybrid: 'مختلط / قابل للتفاوض', unknown: 'نوع التعاون غير معروف' };
+export const RATE_CURRENCIES = ['USD', 'TRY', 'SYP', 'AED', 'SAR', 'EUR', 'GBP', 'OTHER'];
+export const RATE_CURRENCY_AR = { USD: 'دولار أمريكي', TRY: 'ليرة تركية', SYP: 'ليرة سورية', AED: 'درهم إماراتي', SAR: 'ريال سعودي', EUR: 'يورو', GBP: 'جنيه إسترليني', OTHER: 'أخرى' };
+export function rateTier(row) {
+  if (row.collaboration_type === 'unknown' || !row.collaboration_type) return 'unknown';
+  if (row.collaboration_type !== 'paid' && row.collaboration_type !== 'hybrid') return null;
+  const usd = row.rate_usd == null || row.rate_usd === '' ? null : Number(row.rate_usd);
+  if (usd == null || !Number.isFinite(usd) || usd < 0) return 'unknown';
+  return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
+}
+export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
+export const COLLAB_TYPES = ['paid', 'pr', 'gift', 'hybrid', 'unknown'];
+export const COLLAB_TYPE_AR = { paid: 'مدفوع', pr: 'PR / منتجات مجانية', gift: 'هدايا فقط', hybrid: 'مختلط / قابل للتفاوض', unknown: 'نوع التعاون غير معروف' };
+export const RATE_CURRENCIES = ['USD', 'TRY', 'SYP', 'AED', 'SAR', 'EUR', 'GBP', 'OTHER'];
+export const RATE_CURRENCY_AR = { USD: 'دولار أمريكي', TRY: 'ليرة تركية', SYP: 'ليرة سورية', AED: 'درهم إماراتي', SAR: 'ريال سعودي', EUR: 'يورو', GBP: 'جنيه إسترليني', OTHER: 'أخرى' };
+export function rateTier(row) {
+  if (row.collaboration_type !== 'paid' && row.collaboration_type !== 'hybrid') return null;
+  const usd = row.rate_usd == null || row.rate_usd === '' ? null : Number(row.rate_usd);
+  if (usd == null || !Number.isFinite(usd) || usd < 0) return 'unknown';
+  return usd < 100 ? 'mini' : usd <= 500 ? 'mid' : 'premium';
+}
+export const RATE_TIER_AR = { mini: 'مدفوع — Mini (< $100)', mid: 'مدفوع — متوسط ($100–$500)', premium: 'مدفوع — Premium (> $500)', unknown: 'السعر غير معروف' };
+export function collaborationLabel(row) {
+  const type = row.collaboration_type || (collabOf(row) === 'pr_ready' ? 'pr' : collabOf(row) === 'paid_inquiry' ? 'paid' : 'unknown');
+  const tier = rateTier(row);
+  return type === 'paid' || type === 'hybrid' ? RATE_TIER_AR[tier || 'unknown'] : (COLLAB_TYPE_AR[type] || COLLAB_TYPE_AR.unknown);
+}
 export const freeTags = (r) => arr(r.tags).filter((t) => !RESERVED_TAG_RE.test(String(t)));
 export function reviewTags(r) {
   const out = {};
@@ -416,6 +444,13 @@ function passFilters(r, f) {
   if (f.incomplete && !missingEssentials(r).length) return false;
   if (f.garbled && !isGarbled(r)) return false;
   if (f.collab && collabOf(r) !== f.collab) return false;
+  if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
+  if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
+  if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
+  if (f.collaboration_type && (r.collaboration_type || (collabOf(r) === 'pr_ready' ? 'pr' : collabOf(r) === 'paid_inquiry' ? 'paid' : 'unknown')) !== f.collaboration_type) return false;
+  if (f.rate_tier && rateTier(r) !== f.rate_tier) return false;
+  if (f.rate_currency && r.rate_currency !== f.rate_currency) return false;
+  if (f.rate_scope && r.rate_scope !== f.rate_scope) return false;
   if (f.ready && !isReady(r)) return false;
   if (f.statuses && arr(f.statuses).length && !arr(f.statuses).includes(statusOf(r.status))) return false;
   if (f.country && r.country !== f.country) return false;
@@ -433,7 +468,7 @@ function passFilters(r, f) {
 
 // Header numbers: always over ALL live rows (never the filtered page), so the team sees the real state of the list.
 export function summarizeCreators(rows) {
-  const s = { total: 0, to_review: 0, verified: 0, rejected: 0, ready: 0, contacted: 0, ugc: 0, skincare: 0, saved: 0, unverified: 0, incomplete: 0, no_source: 0, garbled: 0, collab: {} };
+  const s = { total: 0, to_review: 0, verified: 0, rejected: 0, ready: 0, contacted: 0, ugc: 0, skincare: 0, saved: 0, unverified: 0, incomplete: 0, no_source: 0, garbled: 0, collab: {}, paid_mini: 0, paid_mid: 0, paid_premium: 0, pr: 0, gift: 0, hybrid: 0, rate_unknown: 0 };
   for (const r of rows || []) {
     if (r.deleted_at) continue;
     s.total++;
@@ -451,6 +486,16 @@ export function summarizeCreators(rows) {
     if (!r.source) s.no_source++;
     if (isGarbled(r)) s.garbled++;
     const c = collabOf(r); if (c) s.collab[c] = (s.collab[c] || 0) + 1;
+    const ct = r.collaboration_type || (c === 'pr_ready' ? 'pr' : c === 'paid_inquiry' ? 'paid' : 'unknown');
+    if (ct === 'pr') s.pr++; else if (ct === 'gift') s.gift++; else if (ct === 'hybrid') s.hybrid++;
+    const tier = rateTier(r);
+    if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
+    else if (ct === 'unknown') s.rate_unknown++;
+    const ct = r.collaboration_type || (c === 'pr_ready' ? 'pr' : c === 'paid_inquiry' ? 'paid' : 'unknown');
+    if (ct === 'pr') s.pr++; else if (ct === 'gift') s.gift++; else if (ct === 'hybrid') s.hybrid++;
+    const tier = rateTier(r);
+    if (ct === 'paid' || ct === 'hybrid') { if (tier === 'mini') s.paid_mini++; else if (tier === 'mid') s.paid_mid++; else if (tier === 'premium') s.paid_premium++; else s.rate_unknown++; }
+    else if (ct === 'unknown') s.rate_unknown++;
   }
   return s;
 }
@@ -470,6 +515,20 @@ export const VIEWS = [
   { key: 'incomplete', ar: 'بيانات ناقصة', filters: { incomplete: true }, count: 'incomplete' },
   { key: 'no_source', ar: 'بلا مصدر', filters: { no_source: true }, count: 'no_source' },
   { key: 'garbled', ar: 'يحتاج تصحيح', filters: { garbled: true }, count: 'garbled' },
+  { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { rate_tier: 'mini' }, count: 'paid_mini' },
+  { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { rate_tier: 'mid' }, count: 'paid_mid' },
+  { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { rate_tier: 'premium' }, count: 'paid_premium' },
+  { key: 'pr', ar: 'PR / منتجات مجانية', filters: { collaboration_type: 'pr' }, count: 'pr' },
+  { key: 'gift', ar: 'هدايا فقط', filters: { collaboration_type: 'gift' }, count: 'gift' },
+  { key: 'hybrid', ar: 'مختلط / تفاوض', filters: { collaboration_type: 'hybrid' }, count: 'hybrid' },
+  { key: 'rate_unknown', ar: 'السعر غير معروف', filters: { rate_tier: 'unknown' }, count: 'rate_unknown' },
+  { key: 'paid_mini', ar: 'مدفوع Mini < $100', filters: { collaboration_type: 'paid', rate_tier: 'mini' }, count: 'paid_mini' },
+  { key: 'paid_mid', ar: 'مدفوع متوسط $100–$500', filters: { collaboration_type: 'paid', rate_tier: 'mid' }, count: 'paid_mid' },
+  { key: 'paid_premium', ar: 'مدفوع Premium > $500', filters: { collaboration_type: 'paid', rate_tier: 'premium' }, count: 'paid_premium' },
+  { key: 'pr', ar: 'PR / منتجات مجانية', filters: { collaboration_type: 'pr' }, count: 'pr' },
+  { key: 'gift', ar: 'هدايا فقط', filters: { collaboration_type: 'gift' }, count: 'gift' },
+  { key: 'hybrid', ar: 'مختلط / تفاوض', filters: { collaboration_type: 'hybrid' }, count: 'hybrid' },
+  { key: 'rate_unknown', ar: 'السعر غير معروف', filters: { rate_tier: 'unknown' }, count: 'rate_unknown' },
 ];
 export const viewOf = (key) => VIEWS.find((v) => v.key === key) || VIEWS[0];
 
