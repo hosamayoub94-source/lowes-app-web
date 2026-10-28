@@ -906,7 +906,7 @@ export default function CustomersScreen() {
   const selectedCustomers = useMemo(
     () => campaignBaseList.filter(c => {
       if (!selectedPhones.has(c.phone_key)) return false;
-      const key = String(c.phone_key || '').replace(/\\D/g, '');
+      const key = String(c.phone_key || '').replace(/\D/g, '');
       const tail = key.slice(-10);
       if (undeliverablePhones.has(tail)) return false;
       if (excludeSent && sentPhones.has(c.phone_key)) return false;
