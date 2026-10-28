@@ -6,7 +6,7 @@
 import { supabase } from '@services/supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { selectDeliveredInPeriod, UNDELIVERED_GROUPS } from '@utils/deliveryAccounting';
-import { LEDGER_STATUSES } from '@utils/statusLedger';
+import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
 const DAY = 86400000;
 const OPEN_STATUSES = Object.values(UNDELIVERED_GROUPS).flatMap((g) => g.statuses).filter((s) => !['returned', 'returning', 'not_received'].includes(s));
@@ -87,6 +87,16 @@ export async function loadStatusLedger({ from, to, signal }) {
   const paths = new Map();
   for (const h of hist) { if (!paths.has(h.order_id)) paths.set(h.order_id, []); paths.get(h.order_id).push({ to_status: h.to_status, changed_at: h.changed_at }); }
   return { events: base.events, orders: [...base.current, ...extra], paths };
+}
+
+/**
+ * «تمت التسوية» بلا تسليم سابق داخل الفترة (الزبون دفع أجور الشحن ولم يستلم): يُعدّ راجعاً للبائع للعرض بلا خصم. قراءة فقط.
+ * لا يدخل عدّاد الرواجع المخصوم في الرواتب.
+ */
+export async function loadSettledAsReturns({ from, to, signal } = {}) {
+  const ledger = await loadStatusLedger({ from, to, signal });
+  const views = buildStatusViews(ledger, { from, to });
+  return (views.settlements || []).filter((o) => o.settlement_kind !== 'delivered_settled' && !o.delivered_before);
 }
 
 /** مراجع أسعار المنتجات (نسخ تاريخية + أسعار سوق + خريطة الأسماء). */

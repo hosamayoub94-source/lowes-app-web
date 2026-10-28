@@ -13,7 +13,7 @@ import { sendNotification, sendBulkNotifications } from '@modules/notifications/
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
 import { syncOrderStock } from '@services/warehouseService';
 import { citiesForMarket, shippingForMarket, paymentForMarket, districtsForCity, isMotorZone, buildTurkishAddress, parseTurkishAddress } from '@data/cities';
-import { useShippingStore, syriaShippingOptions } from '@services/shippingService';
+import { useShippingStore, syriaShippingOptions, syriaOfficialCarrier } from '@services/shippingService';
 import { SYRIA_PROVINCES, getSyriaDistricts, getSyriaNeighborhoods } from '@data/syriaAddress';
 import { ComboBox } from '@components/ui/ComboBox';
 import { fetchNeighborhoods, fetchStreets, fetchMahalles } from '@services/turkeyApi';
@@ -1447,6 +1447,8 @@ function TrackingTab({ orders }) {
   );
 }
 // Statuses that count as a return AGAINST the seller (settled is resolved → not counted).
+// مفتاح شريحة شركة الشحن: سوريا = الاسم الرسمي الموحّد (كرم/شركة الكرم → الكرم، الموتور القديم → مشوار)؛ غير الرسمي (مثل «💰 Paid») لا شريحة له.
+const shipChipKey = (o) => (o.market === 'syria' ? syriaOfficialCarrier(o.shipping_company) : (o.shipping_company || null));
 const RETURN_STATUSES   = ['not_received', 'returning', 'returned'];
 // Statuses that need the seller to chase the customer.
 const FOLLOWUP_STATUSES = ['waiting', 'not_received', 'returning'];
@@ -3883,7 +3885,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       if (group ? !group.includes(o.status) : o.status !== status) return false;
     }
     if (sellerFilter && canonicalSeller(o.handler_name) !== sellerFilter) return false;
-    if (shipFilter && o.shipping_company !== shipFilter) return false;
+    if (shipFilter && shipChipKey(o) !== shipFilter) return false;
     if (dateFrom) {
       const oDate = (o.order_date || o.created_at || '').slice(0, 10);
       if (oDate < dateFrom) return false;
@@ -3899,7 +3901,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
              o.phone_1?.includes(q);
     }
     return true;
-  }), [orders, market, brandFilter, status, search, myOrders, myNames, sellerFilter, dateFrom, dateTo]);
+  }), [orders, market, brandFilter, status, search, myOrders, myNames, sellerFilter, shipFilter, dateFrom, dateTo]);
 
   // ── تحميل تدريجي للعرض: نرسم 30 بطاقة ونزيد عند الاقتراب من الأسفل ──
   // (الجلب من القاعدة كما هو — هذا يقصّ الرسم فقط لتخفيف الموبايل)
@@ -3925,15 +3927,19 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
   // شركات الشحن مرتبة تنازلياً بعدد الطلبات
   const shipOptions = useMemo(() => {
+    // من طلبات السوق المعروض فقط: طلبات سوريا لا تعرض شركات تركيا (Yurtiçi/PTT) ولا الإمارات.
     const counts = {};
-    orders.forEach(o => {
-      if (!o.shipping_company) return;
-      counts[o.shipping_company] = (counts[o.shipping_company] || 0) + 1;
+    marketOrders.forEach(o => {
+      const co = shipChipKey(o);
+      if (!co) return;
+      counts[co] = (counts[co] || 0) + 1;
     });
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .map(([co, n]) => ({ co, n }));
-  }, [orders]);
+  }, [marketOrders]);
+  // تغيير السوق يصفّر فلتر الشركة (شرائحه تتبدّل مع السوق)
+  useEffect(() => { setShipFilter(''); }, [market]);
 
   const stats = useMemo(() => {
     // إحصاءات مقصورة على سوق الماكنة الحالية (وعلى البراند لتركيا).

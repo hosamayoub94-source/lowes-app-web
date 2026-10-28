@@ -28,11 +28,11 @@ export function istanbulDay(v) {
 
 /** التعرفة السارية لشركة وسوق بتاريخ معيّن (آخر effective_from ≤ التاريخ). null = لا تعرفة. */
 export function pickRate(rates, carrier, market, onDay) {
-  const key = carrierKey(carrier);
+  const key = carrierKey(carrier, market);
   const day = String(onDay || '').slice(0, 10);
   let best = null;
   for (const r of rates || []) {
-    if (r.market !== market || carrierKey(r.carrier) !== key) continue;
+    if (r.market !== market || carrierKey(r.carrier, r.market) !== key) continue;
     const eff = String(r.effective_from).slice(0, 10);
     if (day && eff > day) continue;
     if (!best || eff > String(best.effective_from).slice(0, 10)) best = r;
@@ -47,7 +47,7 @@ const WENT_OUT = new Set(['delivered', 'settled', 'returned', 'returning', 'not_
  * outbound/returnFee: {amount, currency} أو null. returnState: 'free' | 'charged' | 'unknown' | 'pending' | null
  */
 export function estimateOrderShipping(o, rates) {
-  const carrier = carrierKey(o?.shipping_company);
+  const carrier = carrierKey(o?.shipping_company, o?.market);
   const base = { carrier, basis: 'none', outbound: null, returnFee: null, returnState: null, payerUnconfirmed: false, rate: null };
   if (!WENT_OUT.has(o?.status)) return base;
   if (o.shipping_payer === 'customer') return { ...base, basis: 'customer_paid' };
@@ -105,7 +105,7 @@ export function shippingEstimateSummary(orders, rates, rateMap) {
 export function rateOverview(rates, today = istanbulDay(new Date().toISOString())) {
   const groups = new Map();
   for (const r of rates || []) {
-    const k = `${carrierKey(r.carrier)}|${r.market}`;
+    const k = `${carrierKey(r.carrier, r.market)}|${r.market}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(r);
   }

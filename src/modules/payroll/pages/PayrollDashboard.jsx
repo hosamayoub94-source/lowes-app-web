@@ -1062,7 +1062,8 @@ export function PayrollDashboard() {
                     { label: 'عدد الطلبات المسلَّمة', value: statementData.count },
                     { label: 'المبيعات ($)', value: formatCurrency(statementData.totalUsd, 'USD') },
                     { label: 'العمولة ($)', value: formatCurrency(Number(statementFor.commission_usd) || 0, 'USD') },
-                    { label: 'المرتجعات', value: statementData.returnsCount ?? 0 },
+                    { label: 'المرتجعات (تم الاسترجاع)', value: statementData.returnsCount ?? 0 },
+                    { label: 'تسوية = راجع بلا خصم', value: statementData.settledNoDeductionCount ?? 0 },
                     { label: 'قطع مباعة', value: (statementData.products || []).reduce((n, p) => n + p.qty, 0) },
                   ].map(({ label, value }) => (
                     <div key={label} className="text-center bg-surface-alt rounded-xl py-2">
