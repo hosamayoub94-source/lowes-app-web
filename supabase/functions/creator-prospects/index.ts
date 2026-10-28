@@ -124,15 +124,6 @@ function normalizeRow(raw: Row, opts: { requireHandle?: boolean } = { requireHan
   }
   if ("rate_scope" in raw) row.rate_scope = cleanText(raw.rate_scope, 300);
   if ("rate_exchange_date" in raw) { const d = parseDate(raw.rate_exchange_date); if (d === undefined) return { error: "rate_exchange_date: تاريخ غير صالح" }; row.rate_exchange_date = d ? d.slice(0, 10) : null; }
-  const collabType = pick(raw.collaboration_type, ["paid", "pr", "gift", "hybrid", "unknown"]); if (collabType) row.collaboration_type = collabType;
-  const currency = pick(raw.rate_currency, ["USD", "TRY", "SYP", "AED", "SAR", "EUR", "GBP", "OTHER"]); if (currency) row.rate_currency = currency;
-  for (const f of ["rate_amount", "rate_usd", "rate_exchange_rate"] as const) {
-    if (!(f in raw)) continue;
-    if (raw[f] === null || raw[f] === "") { row[f] = null; continue; }
-    const n = parseNum(raw[f]); if (n === null || n < 0) return { error: `${f}: must be a non-negative number` }; row[f] = n;
-  }
-  if ("rate_scope" in raw) row.rate_scope = cleanText(raw.rate_scope, 300);
-  if ("rate_exchange_date" in raw) { const d = parseDate(raw.rate_exchange_date); if (d === undefined) return { error: "rate_exchange_date: تاريخ غير صالح" }; row.rate_exchange_date = d ? d.slice(0, 10) : null; }
   for (const [f, allowed] of [["content_types", CONTENT_TYPES], ["skincare_focus", SKINCARE_FOCUS], ["tags", null]] as [string, string[] | null][]) {
     if (!(f in raw)) continue;
     const p = parseList(raw[f], allowed, f === "tags" ? 30 : 10);
