@@ -138,14 +138,15 @@ const SORTS = {
 // phoneKeys: قائمة صريحة (مثلاً شريحة "ردّوا على حملة X") — بيتخطّى الترتيب/سقف
 // limit العادي (كان بيقص شرائح صغيرة محسوبة سيرفرياً لو أعضاؤها مش ضمن أعلى
 // limit عميل بالترتيب الافتراضي "الأكثر طلباً"، راجع [[campaign-audience-cap-bug]]).
-export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, monthStart = null, monthEnd = null, maxLastOrder = null, minLastOrder = null, minOrdersCount = null, phoneKeys = null } = {}) {
+export async function listCustomers({ search = '', vipOnly = false, sellerName = null, sellerNames = null, market = null, brand = null, sort = 'orders', limit = 100, offset = 0, monthStart = null, monthEnd = null, maxLastOrder = null, minLastOrder = null, minOrdersCount = null, phoneKeys = null, source = 'customer_stats' } = {}) {
   const s = SORTS[sort] || SORTS.orders;
-  let q = supabase.from('customer_stats').select('*');
+  const sourceName = source === 'customer_delivery_stats' ? 'customer_delivery_stats' : 'customer_stats';
+  let q = supabase.from(sourceName).select('*');
   if (phoneKeys) {
     if (!phoneKeys.length) return [];
     q = q.in('phone_key', phoneKeys); // مجموعة محدودة سلفاً — لا حاجة لـorder/limit
   } else {
-    q = q.order(s.col, { ascending: s.asc, nullsFirst: false }).limit(limit);
+    q = q.order(s.col, { ascending: s.asc, nullsFirst: false }).range(Math.max(0, offset), Math.max(0, offset) + Math.max(1, limit) - 1);
   }
   if (vipOnly) q = q.gte('stars', 1);
   // أرشيف شهري: قصر النتائج على عملاء آخر طلبهم ضمن الشهر [monthStart, monthEnd)
@@ -184,38 +185,40 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
 // يستثني الشهر الحالي (غير المكتمل) والعملاء بلا تاريخ. خفيف: يجلب عمود
 // last_order فقط ويجمّع في العميل.
 export async function listCustomerMonths({ market = null, brand = null, sellerNames = null } = {}) {
-  let q = supabase
-    .from('customer_stats')
-    .select('last_order')
-    .not('last_order', 'is', null)
-    .order('last_order', { ascending: false })
-    .limit(20000);
-  if (market) q = q.contains('markets', [market]);
-  if (brand)  q = q.contains('brands', [brand]);
-  if (sellerNames && sellerNames.length) {
-    q = q.or(sellerNames.map((n) => `sellers.cs.{"${String(n).replace(/"/g, '')}"}`).join(','));
+  // Archive buckets represent last DELIVERED order, not the latest order of any status.
+  const rows = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    let q = supabase
+      .from('customer_delivery_stats')
+      .select('last_order')
+      .not('last_order', 'is', null)
+      .order('last_order', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+    if (market) q = q.contains('markets', [market]);
+    if (brand) q = q.contains('brands', [brand]);
+    if (sellerNames && sellerNames.length) {
+      q = q.or(sellerNames.map((n) => 'sellers.cs.{"' + String(n).replace(/"/g, '') + '"}').join(','));
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || !data.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
   }
-  const { data, error } = await q;
-  if (error) throw error;
 
-  // الشهر الحالي (محلي) — يُستثنى لأنه غير مكتمل
   const now = new Date();
-  const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  const buckets = new Map(); // 'YYYY-MM' → count
-  for (const r of (data || [])) {
-    const key = String(r.last_order || '').slice(0, 7); // YYYY-MM
-    if (!/^\d{4}-\d{2}$/.test(key)) continue;
-    if (key === curKey) continue;          // استثنِ الشهر الحالي
-    if (key > curKey) continue;            // استثنِ تواريخ مستقبلية خاطئة
+  const curKey = String(now.getFullYear()) + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const buckets = new Map();
+  for (const r of rows) {
+    const key = String(r.last_order || '').slice(0, 7);
+    if (!/^\\d{4}-\\d{2}$/.test(key) || key >= curKey) continue;
     buckets.set(key, (buckets.get(key) || 0) + 1);
   }
   return [...buckets.entries()]
-    .sort((a, b) => b[0].localeCompare(a[0]))   // الأحدث أولاً
+    .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([month, count]) => ({ month, count }));
 }
-
-// حدود شهر [start, nextMonthStart) بصيغة YYYY-MM-DD من مفتاح 'YYYY-MM'.
 export function monthRange(monthKey) {
   const [y, m] = monthKey.split('-').map(Number);
   const start = `${y}-${String(m).padStart(2, '0')}-01`;
