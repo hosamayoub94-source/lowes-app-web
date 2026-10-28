@@ -540,6 +540,13 @@ function CustomerModal({ c, sellerName, onClose }) {
                     {redeemResult.ok ? `✅ تحويل ناجح — إحالة من ${redeemResult.referrerName || 'صديقة'}!` : `❌ ${redeemResult.error}`}
                   </p>
                 )}
+                {isOpen && archiveHasMore[month] && (
+                  <div className="text-center pt-3">
+                    <button disabled={loadingMoreMonth === month} onClick={() => loadMoreMonth(month)} className="px-4 py-2 rounded-xl border border-border text-xs font-bold disabled:opacity-50">
+                      {loadingMoreMonth === month ? 'جارٍ تحميل المزيد…' : 'تحميل 200 عميل إضافي'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -582,6 +589,8 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
   const [openMonth, setOpen]  = useState(null);
   const [cache, setCache]     = useState({});      // month → customers[]
   const [loadingMonth, setLoadingMonth] = useState(null);
+  const [archiveHasMore, setArchiveHasMore] = useState({});
+  const [loadingMoreMonth, setLoadingMoreMonth] = useState(null);
 
   useEffect(() => {
     setMonths(null); setError(null); setOpen(null); setCache({});
@@ -598,12 +607,32 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
       try {
         const { start, end } = monthRange(mk);
         const data = await listCustomers({
-          market, brand, sellerNames, sort: 'recent',
-          monthStart: start, monthEnd: end, limit: 2000,
+          market, brand, sellerNames, sort: 'recent', source: 'customer_delivery_stats',
+          monthStart: start, monthEnd: end, limit: 200, offset: 0,
         });
         setCache(p => ({ ...p, [mk]: data }));
-      } catch (e) { setCache(p => ({ ...p, [mk]: [] })); setError(e.message); }
+        setArchiveHasMore(p => ({ ...p, [mk]: data.length === 200 }));
+      } catch (e) { setCache(p => ({ ...p, [mk]: [] })); setArchiveHasMore(p => ({ ...p, [mk]: false })); setError(e.message); }
       finally { setLoadingMonth(null); }
+    }
+  };
+
+  const loadMoreMonth = async (mk) => {
+    const existing = cache[mk] || [];
+    if (loadingMoreMonth === mk || !archiveHasMore[mk]) return;
+    setLoadingMoreMonth(mk);
+    try {
+      const { start, end } = monthRange(mk);
+      const next = await listCustomers({
+        market, brand, sellerNames, sort: 'recent', source: 'customer_delivery_stats',
+        monthStart: start, monthEnd: end, limit: 200, offset: existing.length,
+      });
+      setCache(p => ({ ...p, [mk]: [...(p[mk] || [], ...next] }));
+      setArchiveHasMore(p => ({ ...p, [mk]: next.length === 200 }));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingMoreMonth(null);
     }
   };
 
@@ -731,6 +760,8 @@ export default function CustomersScreen() {
 
   const [section, setSection]   = useState('syria');
   const [rows, setRows]         = useState([]);
+  const [hasMoreRows, setHasMoreRows] = useState(false);
+  const [loadingMoreRows, setLoadingMoreRows] = useState(false);
   const [outreachByPhone, setOutreachByPhone] = useState({}); // آخر تواصل مؤكد ظاهر على بطاقة العميل
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -812,13 +843,39 @@ export default function CustomersScreen() {
         sellerNames: mineOnly ? myNames : null,
         // شريحة idle مفعّلة → الفلترة صارت بالقاعدة، فالسقف يقدر يرتفع بأمان
         // (بيرجع بس المطابقين فعلياً، مو 400 عميل عشوائي بعدين تُفلتَر).
-        limit: segment !== 'all' ? 5000 : (mineOnly ? 600 : 400),
+        limit: 400,
+        offset: 0,
         ...segFilter,
       });
       setRows(data);
+      setHasMoreRows(data.length === 400);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [search, vipOnly, sort, mineOnly, myNames, sec.market, sec.brand, segment]);
+
+  const loadMoreRows = useCallback(async () => {
+    if (loadingMoreRows || loading || !hasMoreRows) return;
+    setLoadingMoreRows(true);
+    try {
+      const now = Date.now();
+      const cutoff = (days) => new Date(now - days * 86400000).toISOString().slice(0, 10);
+      let segFilter = {};
+      if (segment === 'followup') segFilter = { maxLastOrder: cutoff(30) };
+      else if (segment === 'winback') segFilter = { maxLastOrder: cutoff(90) };
+      else if (segment === 'atrisk') segFilter = { maxLastOrder: cutoff(45), minLastOrder: cutoff(90), minOrdersCount: 2 };
+      const data = await listCustomers({
+        search, vipOnly, sort, market: sec.market, brand: sec.brand,
+        sellerNames: mineOnly ? myNames : null,
+        limit: 400, offset: rows.length, ...segFilter,
+      });
+      setRows(prev => [...prev, ...data]);
+      setHasMoreRows(data.length === 400);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingMoreRows(false);
+    }
+  }, [loadingMoreRows, loading, hasMoreRows, search, vipOnly, sort, sec.market, sec.brand, mineOnly, myNames, segment, rows.length]);
 
   // True total for the section (independent of the 400-row display cap).
   useEffect(() => {
@@ -1209,6 +1266,14 @@ export default function CustomersScreen() {
               campaignMode={campaignMode} selected={selectedPhones.has(c.phone_key)} onToggleSelect={toggleSelect}
               alreadySent={sentPhones.has(c.phone_key)} outreach={outreachByPhone[c.phone_key]} />
           ))}
+        </div>
+      )}
+      {!campaignMode && hasMoreRows && (
+        <div className="text-center py-4">
+          <p className="text-xs text-muted mb-2">تم عرض {displayed.length.toLocaleString('en-US')} عميل من القائمة؛ يمكن تحميل المزيد.</p>
+          <button disabled={loadingMoreRows} onClick={loadMoreRows} className="px-5 py-2 rounded-xl border border-border bg-surface text-sm font-bold disabled:opacity-50">
+            {loadingMoreRows ? 'جارٍ تحميل المزيد…' : 'تحميل 400 عميل إضافي'}
+          </button>
         </div>
       )}
       </>
