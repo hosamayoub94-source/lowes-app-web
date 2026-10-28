@@ -486,7 +486,6 @@ function CustomerModal({ c, sellerName, onClose }) {
                 </div>
               </div>
             )}
-            </div>
             {canOfficialWa && (
               <button onClick={openOfficialWa}
                 className="w-full py-2 rounded-xl border border-teal text-teal-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-teal/10 transition">
