@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
-import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview } from './src/utils/shippingRates.js';
+import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows } from './src/utils/returnsShipping.js';
 import { syriaOfficialCarrier, SYRIA_SHIPPING_PRIORITY } from './src/data/syriaCarriers.js';
 import { STATUSES } from './src/data/orderStatus.js';
@@ -341,6 +341,19 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   const idx = buildPayrollIndex(rep.delivered); eq([...idx.values()].reduce((n, b) => n + (b.returnsCount || 0), 0), 0, 'فهرس الرواتب: لا خصم رواجع من التسوية');
   // قيمة المرتجعات
   eq(rep.returnsTotal.count, 1, 'مرتجع واحد بالفترة'); eq(rep.returnsTotal.byCurrency.USD, 250, 'قيمة المرتجعات 250'); eq(rep.returnsByMarket.find((x) => x.key === 'turkey')?.count, 1, 'حسب السوق'); eq(rep.returnsBySeller.find((x) => x.key === 'Lina')?.byCurrency.USD, 250, 'حسب البائع');
+}
+// 17) جدول «شحن كل شركة»: علينا (فعلي + تقدير ذهاب/إرجاع) منفصل عمّا يدفعه العميل
+{
+  const RT = [{ carrier: 'قدموس', market: 'syria', currency: 'SYP', outbound_fee: 150, return_policy: 'fixed', return_fee: 40, effective_from: '2026-01-01' }];
+  const mk = (id, status, extra = {}) => o(id, status, { shipping_company: 'قدموس', market: 'syria', currency: 'SYP', shipping_payer: 'company', delivery_cost: 0, delivery_at: '2026-09-12T10:00:00+03:00', ...extra });
+  const list = [mk('C1', 'delivered'), mk('C2', 'delivered'), mk('C3', 'delivered', { shipping_payer: 'customer', delivery_cost: 200 }), mk('C4', 'returned'), mk('C5', 'delivered', { delivery_cost: 90 })];
+  const ov = carrierCostOverview(shippingEstimateSummary(list, RT, { USD: 1 }).rows, shippingSummary(list, { USD: 1 }).rows);
+  eq(ov.length, 1, 'شركة واحدة'); const g = ov[0];
+  eq(g.orders, 5, 'كل الشحنات 5'); eq(g.outbound.SYP, 450, 'ذهاب تقديري: C1 + C2 + C4 = 450'); eq(g.returnFee.SYP, 40, 'إرجاع تقديري C4 = 40'); eq(g.actual.SYP, 90, 'فعلي موثّق علينا C5 = 90');
+  eq(g.weBear.SYP, 580, 'إجمالي علينا = 90 + 450 + 40'); eq(g.customerAmount.SYP, 200, 'على العميل 200 (موثّق) لا يُخلط بعلينا'); eq(g.customerOrders, 1, 'طلب واحد دفعه العميل');
+  eq(sumCur({ SYP: 1, USD: 2 }, { SYP: 3 }).SYP, 4, 'sumCur عملة بعملة');
+  const none = carrierCostOverview(shippingEstimateSummary(list, [], { USD: 1 }).rows, shippingSummary(list, { USD: 1 }).rows)[0];
+  eq(Object.keys(none.outbound).length, 0, 'بلا تعرفة: لا ذهاب مختلَق'); eq(none.noRate, 3, 'بلا تعرفة 3 (C1,C2,C4)');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

@@ -9,7 +9,8 @@ import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { periodBounds, buildReport, buildProductLines, exportSheets, describeLoadError, MARKET_LABELS } from '@utils/deliveryAccounting';
 import { normName } from '@utils/profitabilityCalc';
 import { carrierKey, hasDocumentedCost, PAYER_LABELS, RETURN_KIND_LABELS } from '@utils/returnsShipping';
-import { rateOverview, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
+import { rateOverview, carrierCostOverview, RATE_MARKETS, RATE_CURRENCIES, RETURN_POLICY_LABELS } from '@utils/shippingRates';
+import { SYRIA_SHIPPING_PRIORITY } from '@data/syriaCarriers';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
 import { useAuth } from '@hooks/useAuth';
@@ -103,7 +104,7 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
   const [saving, setSaving] = useState(false);
   const overview = useMemo(() => rateOverview(rates), [rates]);
   const setF2 = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
-  const carriers = useMemo(() => [...new Set([...knownCarriers, ...rates.map((r) => carrierKey(r.carrier, r.market))])].sort(), [knownCarriers, rates]);
+  const carriers = useMemo(() => [...new Set([...SYRIA_SHIPPING_PRIORITY, ...knownCarriers, ...rates.map((r) => carrierKey(r.carrier, r.market))])].sort(), [knownCarriers, rates]);
   const submit = async () => {
     if (!form.carrier.trim()) { toast?.error?.('اختر شركة الشحن'); return; }
     if (!(Number(form.outbound) >= 0) || form.outbound === '') { toast?.error?.('أدخل أجرة الذهاب'); return; }
@@ -119,7 +120,7 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
   const inputCls = 'bg-surface border border-border rounded-xl px-2 py-1.5 text-sm text-text';
   return (
     <section className="space-y-3 border border-border rounded-2xl p-3">
-      <h3 className="text-sm font-black">⚙️ تعرفة الشحن التقديرية لكل شركة</h3>
+      <h3 className="text-sm font-black">🚛 كم تأخذ كل شركة شحن؟ (أدخل الأجرة مرة لكل شركة)</h3>
       <p className="text-xs text-muted">تُدخَل مرة لكل شركة. التعديل يُضاف بتاريخ سريان جديد ولا يغيّر الأشهر السابقة. هذه تقديرات منفصلة عن الفعلي (delivery_cost) ولا تدخل الرواتب ولا العمولات. الأول لشركة جديدة يجوز بتاريخ قديم ليغطي الأشهر السابقة.</p>
       {missingTable ? <p className="text-xs text-orange-600 bg-orange-500/10 border border-orange-500/20 rounded-xl p-2">جدول التعرفة غير مُطبَّق على القاعدة بعد — لن تظهر تقديرات حتى تُطبَّق الهجرة.</p> : null}
       <SimpleTable
@@ -163,7 +164,7 @@ function RatesPanel({ rates, knownCarriers, canEdit, missingTable, name, onSaved
   );
 }
 
-const TABS = [['sales', '✅ المبيعات المسلَّمة'], ['undelivered', '🚚 غير المسلَّمة'], ['returns', '↩️ المرتجعات'], ['shipping', '💳 الشحن والتسويات'], ['products', '📦 المنتجات'], ['sellers', '👤 الموظفون والعمولات']];
+const TABS = [['sales', '✅ المبيعات المسلَّمة'], ['undelivered', '🚚 غير المسلَّمة'], ['returns', '↩️ المرتجعات'], ['rates', '🚛 أجور شركات الشحن'], ['shipping', '💳 الشحن والتسويات'], ['products', '📦 المنتجات'], ['sellers', '👤 الموظفون والعمولات']];
 
 export default function SalesDeliveryAccountingScreen() {
   const toast = useToast();
@@ -429,6 +430,16 @@ export default function SalesDeliveryAccountingScreen() {
 
           {tab === 'shipping' && (
             <div className="space-y-3">
+              <section className="space-y-2 border border-teal/30 rounded-2xl p-3">
+                <h3 className="text-sm font-black">📊 شحن كل شركة — ما ندفعه نحن وما يدفعه العميل</h3>
+                <p className="text-xs text-muted">«علينا» = الفعلي الموثّق + تقدير الذهاب والإرجاع من أجور الشركات (تبويب 🚛). «على العميل» = أجور التوصيل المسجّلة بالطلب حين الدافع العميل. الطلب الذي لا تعرفة لشركته يظهر «بلا تعرفة» لا صفراً.</p>
+                {!(data.refs.carrierRates || []).length ? <p className="text-xs text-orange-600 bg-orange-500/10 border border-orange-500/20 rounded-xl p-2">لم تُدخَل أي أجرة لأي شركة بعد — خانات «علينا» ستبقى فارغة حتى تُدخلها من تبويب «🚛 أجور شركات الشحن».</p> : null}
+                <SimpleTable
+                  head={['الشركة', 'الشحنات', 'علينا — فعلي موثّق', 'علينا — ذهاب (تقدير)', 'علينا — إرجاع (تقدير)', 'إجمالي علينا', 'على العميل (موثّق)', 'طلبات دفعها العميل', 'بلا تعرفة']}
+                  rows={carrierCostOverview(report.shippingEstimate.rows, report.shipping.rows).map((s) => [s.carrier, fmt(s.orders), curText(s.actual), curText(s.outbound), curText(s.returnFee), curText(s.weBear), curText(s.customerAmount), fmt(s.customerOrders), fmt(s.noRate)])}
+                  empty="لا شحنات بالفترة"
+                />
+              </section>
               <p className="text-xs text-muted">تكلفة الشحن «موثّقة» فقط حين delivery_cost &gt; 0. الدافع الافتراضي «علينا» لا يُعدّ دليلاً. تكلفة العميل لا تدخل إيراداً ولا مصروفاً علينا ولا تُخلط بقيمة الطلب.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Stat label="تكلفة شحن على العميل (موثّقة)" value={curText(report.shipping.totals.customer.byCurrency)} sub={`${fmt(report.shipping.totals.customer.orders)} طلب${report.shipping.totals.customer.usd ? ` · $${fmt(report.shipping.totals.customer.usd)}` : ''}`} />
@@ -454,7 +465,7 @@ export default function SalesDeliveryAccountingScreen() {
                   empty="لا بيانات"
                 />
               </section>
-              <RatesPanel rates={data.refs.carrierRates || []} knownCarriers={opts.carriers} canEdit={['admin', 'manager'].includes(role)} missingTable={!!data.refs.ratesMissingTable} name={actorName} onSaved={reloadRates} />
+              <p className="text-xs text-muted">لإدخال أو تعديل ما تأخذه كل شركة (ذهاب/إرجاع) افتح تبويب «🚛 أجور شركات الشحن».</p>
               <h3 className="text-sm font-black">التسويات (settled) — بتاريخ التسوية (order_status_history) داخل الفترة؛ لا تدخل المبيعات ولا العمولات ولا الرواتب</h3>
               <SimpleTable
                 head={['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'مسار الحالات', 'سبق التسوية تسليم؟', 'القيمة', 'المحصّل', 'تكلفة الشحن']}
@@ -470,6 +481,13 @@ export default function SalesDeliveryAccountingScreen() {
                   />
                 </>
               ) : null}
+            </div>
+          )}
+
+          {tab === 'rates' && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted">هنا تُدخل كم تأخذ كل شركة شحن على الذهاب وعلى الإرجاع. بعد الإدخال يحسب جدول «شحن كل شركة» (تبويب الشحن) ما ندفعه نحن بالتقدير، ويبقى ما يدفعه العميل من حقل «أجور التوصيل» بالطلب.</p>
+              <RatesPanel rates={data.refs.carrierRates || []} knownCarriers={opts.carriers} canEdit={['admin', 'manager'].includes(role)} missingTable={!!data.refs.ratesMissingTable} name={actorName} onSaved={reloadRates} />
             </div>
           )}
 
