@@ -540,13 +540,6 @@ function CustomerModal({ c, sellerName, onClose }) {
                     {redeemResult.ok ? `✅ تحويل ناجح — إحالة من ${redeemResult.referrerName || 'صديقة'}!` : `❌ ${redeemResult.error}`}
                   </p>
                 )}
-                {isOpen && archiveHasMore[month] && (
-                  <div className="text-center pt-3">
-                    <button disabled={loadingMoreMonth === month} onClick={() => loadMoreMonth(month)} className="px-4 py-2 rounded-xl border border-border text-xs font-bold disabled:opacity-50">
-                      {loadingMoreMonth === month ? 'جارٍ تحميل المزيد…' : 'تحميل 200 عميل إضافي'}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -679,6 +672,13 @@ function MonthlyArchive({ market, brand, sellerNames, onOpen }) {
                   </div>
                 ) : (
                   <p className="text-center py-6 text-muted text-xs">لا عملاء في هذا الشهر.</p>
+                )}
+                {custs && archiveHasMore[month] && (
+                  <div className="text-center pt-3">
+                    <button disabled={loadingMoreMonth === month} onClick={() => loadMoreMonth(month)} className="px-4 py-2 rounded-xl border border-border text-xs font-bold disabled:opacity-50">
+                      {loadingMoreMonth === month ? 'جارٍ تحميل المزيد…' : 'تحميل 200 عميل إضافي'}
+                    </button>
+                  </div>
                 )}
               </div>
             )}
