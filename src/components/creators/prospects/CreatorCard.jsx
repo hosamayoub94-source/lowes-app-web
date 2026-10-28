@@ -1,7 +1,7 @@
 // بطاقة صانع محتوى — مين، وين، أرقامه (أو «غير متوفر»)، حالته وتحققه ونوع التعاون، وسطر «الخطوة التالية».
 // الرقم 0–100 «أولوية» لترتيب الشغل فقط — ليس حكماً على الجودة. الحساب اللي ما انفحص يظهر «⚪ ما انفحص» (محايد).
 import {
-  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, VERIFICATION_AR, VERIFY_CLS, COLLAB_AR, COLLAB_CLS, COLLAB_TYPE_AR, COLLAB_TYPES, RATE_TIER_AR, RATE_CURRENCY_AR, rateTier, TONE_CLS, MISSING_AR,
+  BADGES, CONTENT_AR, FOCUS_AR, TYPE_AR, STATUS_AR, STATUS_CLS, CATEGORY_AR, VERIFICATION_AR, VERIFY_CLS, COLLAB_AR, COLLAB_CLS, COLLAB_TYPE_AR, RATE_TIER_AR, rateTier, TONE_CLS, MISSING_AR,
   statusOf, fmtNum, instagramUrl, profileUrl, placeOf, shownHandle, isUnreviewed, collabOf, isGarbled, missingEssentials, displayName,
 } from './constants';
 import { nextStep } from '@services/creatorWorkqueue';
