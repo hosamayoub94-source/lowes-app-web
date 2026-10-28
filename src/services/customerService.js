@@ -146,7 +146,7 @@ export async function listCustomers({ search = '', vipOnly = false, sellerName =
     if (!phoneKeys.length) return [];
     q = q.in('phone_key', phoneKeys); // مجموعة محدودة سلفاً — لا حاجة لـorder/limit
   } else {
-    q = q.order(s.col, { ascending: s.asc, nullsFirst: false }).range(Math.max(0, offset), Math.max(0, offset) + Math.max(1, limit) - 1);
+    q = q.order(s.col, { ascending: s.asc, nullsFirst: false }).order('phone_key', { ascending: true }).range(Math.max(0, offset), Math.max(0, offset) + Math.max(1, limit) - 1);
   }
   if (vipOnly) q = q.gte('stars', 1);
   // أرشيف شهري: قصر النتائج على عملاء آخر طلبهم ضمن الشهر [monthStart, monthEnd)
@@ -353,10 +353,12 @@ export async function getNotes(phoneKeyValue) {
   return data ?? [];
 }
 
-export async function addNote(phoneKeyValue, note, author) {
+export async function addNote(phoneKeyValue, note, author, followUpAt = null) {
+  const payload = { phone_key: phoneKeyValue, note: String(note).trim(), author: author || null };
+  if (followUpAt) payload.follow_up_at = new Date(followUpAt).toISOString();
   const { data, error } = await supabase
     .from('customer_notes')
-    .insert({ phone_key: phoneKeyValue, note: String(note).trim(), author: author || null })
+    .insert(payload)
     .select()
     .single();
   if (error) throw error;
