@@ -3,8 +3,9 @@
 // test-login-directory.mjs runs every branch in Node with a fake.
 //
 // Why it exists: the login screen (group -> name -> PIN) shows the active staff names BEFORE any session exists. It used to
-// read public.profiles with the anon key; since 20261028212705 contain_anon_profile... anon has no access to profiles (and no
-// usage on the public schema), so the name list came back empty and nobody whose session had ended could sign in again.
+// read public.profiles with the anon key; since 20261028212705 contain_anon_profile... anon has no privilege on the profiles
+// table (42501 permission denied; anon still has USAGE on schema public, only the table grants were revoked), so the name
+// list came back empty and nobody whose session had ended could sign in again.
 // Re-opening profiles to anon would expose the whole row again; this function returns ONLY what the picker shows.
 //
 // Contract: POST { roleTypes?: string[] }  ->  200 { ok:true, profiles:[{ employee_name, role_type }] }
