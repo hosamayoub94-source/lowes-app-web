@@ -116,6 +116,12 @@ export function toUsd(amount, currency, rateMap) {
   return r > 0 ? num(amount) * r : null;
 }
 
+/** أي دورة رواتب تُعتمد للشهر حين توجد أكثر من واحدة: المدفوعة ثم المعتمدة (finalized) ثم أحدث مسودة. */
+export function pickPayrollRun(runs) {
+  const rank = { paid: 0, finalized: 1 };
+  return [...(runs || [])].sort((a, b) => (rank[a.status] ?? 2) - (rank[b.status] ?? 2) || (String(a.created_at) < String(b.created_at) ? 1 : -1))[0] || null;
+}
+
 /** فلاتر اللوحة (كلها اختيارية). */
 export function applyFilters(rows, f = {}) {
   // 'all' = بلا فلتر (قيمة القوائم الافتراضية بالشاشة) — لا يجوز أن يُعامَل كاسم بائع أو منتج

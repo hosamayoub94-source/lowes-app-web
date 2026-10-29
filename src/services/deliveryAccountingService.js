@@ -5,7 +5,7 @@
 // =============================================================
 import { supabase } from '@services/supabase';
 import { fetchAllRows, fetchAllRowsConcurrent } from '@utils/fetchAllRows';
-import { selectDeliveredInPeriod, UNDELIVERED_GROUPS } from '@utils/deliveryAccounting';
+import { selectDeliveredInPeriod, UNDELIVERED_GROUPS, pickPayrollRun } from '@utils/deliveryAccounting';
 import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
 const DAY = 86400000;
@@ -160,14 +160,18 @@ export async function deleteCarrierRate({ id, name }) {
 
 /** عمولات الشهر كما حُسبت فعلاً بمسيّر الرواتب (قراءة فقط) — اسم الموظف → عمولة $. */
 export async function loadStoredCommissions(year, month) {
-  const { data: run } = await supabase.from('payroll_runs').select('id').eq('period_year', year).eq('period_month', month).maybeSingle();
+  // ليس maybeSingle: شهر بأكثر من دورة (تموز 2026: 3 مسودات + مدفوعة) كان يُرجع خطأ فيظهر «—» بصمت
+  const { data: runs } = await supabase.from('payroll_runs').select('id, status, created_at').eq('period_year', year).eq('period_month', month);
+  const run = pickPayrollRun(runs);
   if (!run?.id) return [];
   const [{ data: entries }, { data: profs }] = await Promise.all([
     supabase.from('payroll_entries').select('employee_id, commission_usd, sales_total_usd, sales_orders_count').eq('run_id', run.id),
     supabase.from('profiles').select('id, employee_name'),
   ]);
   const nameOf = new Map((profs || []).map((p) => [p.id, p.employee_name]));
-  return (entries || []).map((e) => ({ name: nameOf.get(e.employee_id) || e.employee_id, commission: Number(e.commission_usd) || 0, salesUsd: Number(e.sales_total_usd) || 0, orders: Number(e.sales_orders_count) || 0 }));
+  // المسودة: العمولة مؤقتة وتُخزَّن 0 حتى إغلاق الشهر، والأعداد من آخر تشغيل (قد تكون قديمة) — final=false فلا تُعرض 0 كأنها عمولة حقيقية
+  const final = ['paid', 'finalized'].includes(run.status);
+  return (entries || []).map((e) => ({ name: nameOf.get(e.employee_id) || e.employee_id, commission: Number(e.commission_usd) || 0, salesUsd: Number(e.sales_total_usd) || 0, orders: Number(e.sales_orders_count) || 0, final, runStatus: run.status }));
 }
 
 /** كل بيانات الفترة الخام (بلا فلاتر) — الشاشة تُركّب التقرير والفلاتر محلياً بلا إعادة جلب. */

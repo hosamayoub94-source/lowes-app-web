@@ -71,6 +71,14 @@ jobs:
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 
+      - name: Check delivery accounting (sales-delivery + payroll source)
+        run: node test-delivery-accounting.mjs
+
+      - name: Check delivery-based payroll sales
+        run: node test-delivery-payroll.mjs
+      # test-profitability-calc.mjs is intentionally not here: it imports a .ts file
+      # (supabase/functions/_shared/orderHistory.ts) that Node 20 cannot load; run it locally on Node >= 22.
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 

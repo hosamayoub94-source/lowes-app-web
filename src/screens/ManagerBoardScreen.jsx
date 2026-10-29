@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { loadManagerBoard } from '@services/managerBoardService';
 import { useAuth } from '@hooks/useAuth';
 import SyriaFlag from '@components/ui/SyriaFlag';
-import { targetForCurrency } from '@data/targets';
+import { Link } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { ROLES } from '@data/teams';
 
@@ -116,7 +116,7 @@ export default function ManagerBoardScreen() {
     </div>
   );
 
-  const { sales, orders, attendance, tasks, target, commissions, returns, inventory } = data;
+  const { sales, orders, attendance, tasks, target, commissions, returns, inventory, deliveredLoadFailed } = data;
 
   // Sales display — primary in USD, with TRY/SYP secondary
   // Prefer the dashboard's achieved_usd if present, else our daily_reports sum
@@ -232,7 +232,7 @@ export default function ManagerBoardScreen() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <StatCard icon="📦" label="إجمالي الطلبات" value={orders.total} tone="navy" />
           <StatCard icon="⏳" label="قيد التجهيز" value={orders.pending} tone="orange" />
-          <StatCard icon="🚚" label="تم التوصيل" value={orders.delivered} tone="green" />
+          <StatCard icon="🚚" label="مسلَّم هذا الشهر" value={orders.delivered ?? '—'} tone="green" />
           <StatCard icon="🚫" label="ملغاة" value={orders.cancelled} tone="red" />
         </div>
 
@@ -253,7 +253,10 @@ export default function ManagerBoardScreen() {
 
         {Object.keys(orders.byMarket || {}).length > 0 && (
           <div className="bg-surface-alt rounded-xl px-3 py-2.5">
-            <p className="text-[11px] font-bold text-muted mb-2">🌍 بحسب الفريق — المُسلَّم فعلياً (الرقم الحقيقي للمباع)</p>
+            <p className="text-[11px] font-bold text-muted mb-2">🌍 بحسب الفريق — المُسلَّم فعلياً هذا الشهر (بتاريخ التسليم، نفس الرواتب)</p>
+            {deliveredLoadFailed && (
+              <p className="text-[11px] text-amber-700 mb-2">تعذّر تحميل المسلَّم هذا الشهر — الأرقام المسلَّمة غير معروضة. حدّث الصفحة.</p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {Object.entries(orders.byMarket).map(([mk, m]) => (
                 <div key={mk} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
@@ -266,7 +269,7 @@ export default function ManagerBoardScreen() {
                     ))}
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted/70 mt-1 pt-1 border-t border-border/40">
-                    <span>كل الطلبات (كل الحالات): {m.orders} طلب · {m.units} قطعة</span>
+                    <span>طلبات أُنشئت هذا الشهر (كل الحالات): {m.orders} طلب · {m.units} قطعة</span>
                   </div>
                 </div>
               ))}
@@ -296,53 +299,36 @@ export default function ManagerBoardScreen() {
         </Section>
       )}
 
-      {/* ── عمولات البائعين (المسلّم هذا الشهر) ───── */}
-      {commissions?.sellers?.length > 0 && (
-        <Section title="عمولات البائعين (المسلّم هذا الشهر)" icon="📊">
-          <div className="space-y-2">
-            {commissions.sellers.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 bg-surface-alt rounded-xl px-3 py-2.5">
-                <span className="text-xs font-bold text-teal w-5 shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-text truncate">{s.name}</p>
-                  <p className="text-[11px] text-muted">
-                    {s.count} طلب مسلّم
-                    {s.pct > 0 && <span className="text-teal font-semibold"> · عمولة {s.pct}%</span>}
-                  </p>
-                </div>
-                <div className="text-left shrink-0 space-y-0.5">
-                  {Object.entries(s.totals).map(([cur, total]) => {
-                    const target = targetForCurrency(cur);
-                    const pct = target ? Math.round((total / target) * 100) : null;
-                    return (
-                      <div key={cur} className="flex items-center justify-end gap-2">
-                        <span className="text-xs font-bold text-text tabular-nums">{fmt(total)} {cur}</span>
-                        {pct !== null && (
-                          <span className={`text-[10px] font-semibold tabular-nums ${pct >= 100 ? 'text-green-fg' : 'text-muted'}`}>
-                            {pct}% من الهدف
-                          </span>
-                        )}
-                        {s.pct > 0 && (
-                          <span className="text-[10px] text-teal font-semibold tabular-nums">
-                            (+{fmt(s.commissions[cur])})
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+      {/* ── عمولات البائعين — من مسيّر الرواتب (D-174) ───── */}
+      {commissions?.hasRun && (
+        <Section title="عمولات البائعين (مسيّر الرواتب — هذا الشهر)" icon="📊">
+          {!commissions.final ? (
+            <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+              🟡 دورة رواتب هذا الشهر ما زالت مسودة — العمولة مؤقتة وتُحسب نهائياً عند إغلاق الشهر، فلا تُعرض أرقام هنا. المسلَّم الحالي لكل بائع في القسم التالي.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {commissions.sellers.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-surface-alt rounded-xl px-3 py-2.5">
+                    <span className="text-xs font-bold text-teal w-5 shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-text truncate">{s.name}</p>
+                      <p className="text-[11px] text-muted">{s.orders} طلب مسلّم · مبيعات ${fmt(s.salesUsd)}</p>
+                    </div>
+                    <span className="text-sm font-extrabold text-teal tabular-nums shrink-0">${fmt(s.commission)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-muted mt-3 text-center">
-            العمولة بين قوسين = قيمة المبيعات × نسبة عمولة البائع · تُضبط من «المستخدمون»
-          </p>
+              <p className="text-[10px] text-muted mt-3 text-center">كما حُسبت بدورة الرواتب المعتمدة لهذا الشهر</p>
+            </>
+          )}
         </Section>
       )}
 
-      {/* ── الرواجع: المسلّم مقابل الراجع لكل بائع (هذا الشهر) ───── */}
+      {/* ── الرواجع: المسلّم مقابل «تم الاسترجاع» لكل بائع (هذا الشهر) ───── */}
       {returns?.sellers?.length > 0 && (
-        <Section title="المسلّم مقابل الراجع (هذا الشهر)" icon="🔁">
+        <Section title="المسلّم مقابل تم الاسترجاع (هذا الشهر)" icon="🔁">
           <div className="flex gap-3 mb-3">
             <div className="flex-1 bg-green-bg rounded-xl px-3 py-2 text-center">
               <p className="text-xl font-extrabold text-green-fg tabular-nums">{returns.totals.deliveredCount}</p>
@@ -350,11 +336,7 @@ export default function ManagerBoardScreen() {
             </div>
             <div className="flex-1 bg-red-bg rounded-xl px-3 py-2 text-center">
               <p className="text-xl font-extrabold text-red-fg tabular-nums">{returns.totals.returnedCount}</p>
-              <p className="text-[10px] text-muted">راجع</p>
-            </div>
-            <div className="flex-1 bg-surface-alt rounded-xl px-3 py-2 text-center">
-              <p className="text-xl font-extrabold text-text tabular-nums">{returns.totals.settledCount || 0}</p>
-              <p className="text-[10px] text-muted">🤝 تمت التسوية</p>
+              <p className="text-[10px] text-muted">تم الاسترجاع</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -377,21 +359,19 @@ export default function ManagerBoardScreen() {
                 {s.returnedCount > 0 && (
                   <div className="flex items-center gap-4 mt-0.5 text-[11px]">
                     <span className="text-red-fg font-semibold">
-                      🔁 {s.returnedCount} راجع
+                      🔁 {s.returnedCount} تم الاسترجاع
                       {Object.keys(s.returnedValue).length > 0 && (
                         <span className="text-muted font-normal"> · {Object.entries(s.returnedValue).map(([c, v]) => `${fmt(v)} ${c}`).join(' · ')}</span>
                       )}
                     </span>
                   </div>
                 )}
-                {s.settledCount > 0 && (
-                  <div className="mt-0.5 text-[11px] text-muted">🤝 {s.settledCount} تمت تسويتها (لا تُحتسب راجع)</div>
-                )}
               </div>
             ))}
           </div>
           <p className="text-[10px] text-muted mt-3 text-center">
-            نسبة الرجوع = الراجع ÷ (المسلّم + الراجع) · كلما قلّت كان أفضل
+            المسلّم بتاريخ التسليم الفعلي، والراجع بتاريخ الإرجاع — نفس الرواتب · نسبة الرجوع = تم الاسترجاع ÷ (المسلّم + تم الاسترجاع)
+            {' · '}<Link to="/sales-delivery" className="text-teal font-bold">المعلّق والتسويات بالتفصيل</Link>
           </p>
         </Section>
       )}
