@@ -7,10 +7,12 @@
 // usage on the public schema), so the name list came back empty and nobody whose session had ended could sign in again.
 // Re-opening profiles to anon would expose the whole row again; this function returns ONLY what the picker shows.
 //
-// Contract: POST { roleTypes?: string[] }  ->  200 { ok:true, profiles:[{ employee_name, role_type, avatar_url }] }
+// Contract: POST { roleTypes?: string[] }  ->  200 { ok:true, profiles:[{ employee_name, role_type }] }
 //   * id is deliberately NOT returned: the Auth e-mail is `<profile id>@auth.lowes-pro.local` and in auth_mode='compat' the
 //     password is derived from the 4-digit PIN, so a public id list would allow guessing PINs against the Auth endpoint
 //     directly, around verify-pin's rate limit.
+//   * avatar_url is NOT returned either: most avatar files are stored as `avatars/<profile id>`, so the URL carries the id
+//     (found on the live login screen 29 Oct). The picker shows initials instead.
 //   * only is_active = true rows; unknown role types are ignored (never echoed into the query).
 // =============================================================
 
@@ -39,7 +41,7 @@ export async function handleLoginDirectory(deps: Deps, body: Record<string, unkn
 
   const { data, error } = await deps.admin
     .from('profiles')
-    .select('employee_name, role_type, avatar_url')
+    .select('employee_name, role_type')
     .eq('is_active', true)
     .in('role_type', roles)
     .order('employee_name');
@@ -50,10 +52,9 @@ export async function handleLoginDirectory(deps: Deps, body: Record<string, unkn
 
   const profiles = (data ?? [])
     .filter((p: { employee_name?: string }) => typeof p.employee_name === 'string' && p.employee_name.trim() !== '')
-    .map((p: { employee_name: string; role_type: string; avatar_url?: string | null }) => ({
+    .map((p: { employee_name: string; role_type: string }) => ({
       employee_name: p.employee_name,
       role_type:     p.role_type,
-      avatar_url:    p.avatar_url ?? null,
     }));
   return res(200, { ok: true, profiles });
 }

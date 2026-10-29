@@ -65,10 +65,10 @@ function fakeAdmin({ rows = ROWS, error = null } = {}) {
 {
   const { admin, seen } = fakeAdmin();
   const r = await handleLoginDirectory({ admin }, { roleTypes: ['employee'] });
-  ok(!/\bid\b|pin|permission/.test(seen.selects.join(',')), 'query never selects id/pin/permissions');
+  ok(!/\bid\b|pin|permission|avatar/.test(seen.selects.join(',')), 'query never selects id/pin/permissions/avatar');
   for (const p of r.body.profiles) {
-    ok(JSON.stringify(Object.keys(p).sort()) === JSON.stringify(['avatar_url', 'employee_name', 'role_type']), `only picker fields for ${p.employee_name}`);
-    ok(!('id' in p) && !('pin' in p), `no id/pin for ${p.employee_name}`);
+    ok(JSON.stringify(Object.keys(p).sort()) === JSON.stringify(['employee_name', 'role_type']), `only picker fields for ${p.employee_name}`);
+    ok(!('id' in p) && !('pin' in p) && !('avatar_url' in p), `no id/pin/avatar (avatar files are named by id) for ${p.employee_name}`);
   }
   ok(r.body.profiles.length === 1 && r.body.profiles[0].employee_name === 'Ann', 'role filter applied');
 }
