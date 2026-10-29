@@ -1,6 +1,6 @@
 // اختبار منطق الفترة بتاريخ التسليم — node test-delivery-accounting.mjs
 import fs from 'node:fs';
-import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError } from './src/utils/deliveryAccounting.js';
+import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError, pickPayrollRun } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur, isRateLocked } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows, carrierScorecard } from './src/utils/returnsShipping.js';
@@ -414,6 +414,19 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(SUM.totals.actualByCurrency.SYP, 120 + 100 + 55 + 80, 'مجموع الفعلي: ذهاب 120+100+80 وإرجاع فعلي 55');
   eq(SUM.totals.outbound.SYP, 150, 'التقدير لطلب بلا فعلي فقط (S2)'); eq(SUM.totals.returnFee.SYP, 40, 'إرجاع مقدَّر لـS4 فقط');
   eq(SUM.totals.actual, 3, 'ثلاثة طلبات فعلية'); eq(SUM.totals.estimated, 1, 'طلب واحد مقدَّر');
+}
+// D-174: شهر بأكثر من دورة رواتب (تموز 2026: 3 مسودات + مدفوعة) — تُعتمد المدفوعة لا خطأ صامت
+{
+  const runs = [
+    { id: 'd1', status: 'draft', created_at: '2026-08-01T10:00:00Z' },
+    { id: 'p1', status: 'paid', created_at: '2026-07-28T10:00:00Z' },
+    { id: 'd2', status: 'draft', created_at: '2026-08-03T10:00:00Z' },
+  ];
+  eq(pickPayrollRun(runs)?.id, 'p1', 'المدفوعة تسبق المسودات الأحدث');
+  eq(pickPayrollRun([{ id: 'd1', status: 'draft', created_at: '2026-08-01' }, { id: 'f1', status: 'finalized', created_at: '2026-07-01' }])?.id, 'f1', 'المعتمدة تسبق المسودة');
+  eq(pickPayrollRun([{ id: 'd1', status: 'draft', created_at: '2026-08-01' }, { id: 'd2', status: 'draft', created_at: '2026-08-03' }])?.id, 'd2', 'بين المسودات: الأحدث');
+  eq(pickPayrollRun([]), null, 'لا دورة ← null');
+  eq(pickPayrollRun(null), null, 'null آمن');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

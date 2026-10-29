@@ -1,13 +1,12 @@
 // =============================================================
-// PerformanceScreen — نظام KPI والعمولات الحقيقي
-// مبني على SALES_RULES.md الرسمي للشركة
+// PerformanceScreen — مؤشرات الأداء (KPI) الشهرية
 //
 // KPI 100 نقطة:
 //   30% حجم المبيعات · 15% زيارات · 15% عملاء جدد
 //   15% إعادة الطلب · 15% التحصيل · 10% الانضباط
 //
-// العمولات:
-//   مبتدئ: 8% ثابتة · نشيط: 5%+3% · محترف: 10%+ · وكيل: 20%+
+// لا حساب عمولة هنا (D-174): العمولة مصدرها الوحيد مسيّر الرواتب.
+// المستوى (LEVELS) تصنيف للعرض فقط.
 // =============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth }  from '@hooks/useAuth';
@@ -32,18 +31,6 @@ const KPI_WEIGHTS = [
   { key: 'collection', label: 'نسبة التحصيل',        weight: 15, min_target: 95,    unit: '%',  icon: '💳' },
   { key: 'discipline', label: 'الانضباط',             weight: 10, min_target: 8,     unit: '/10', icon: '📋' },
 ];
-
-// Volume bonus tiers from SALES_RULES.md
-function calcVolumeBonus(level, achievementPct) {
-  const tiers = [
-    { min: 150, junior: 0, active: 7, professional: 10, agent: 12 },
-    { min: 120, junior: 0, active: 5, professional: 7,  agent: 9  },
-    { min: 100, junior: 0, active: 3, professional: 5,  agent: 6  },
-    { min: 80,  junior: 0, active: 1, professional: 2,  agent: 3  },
-  ];
-  const tier = tiers.find(t => achievementPct >= t.min);
-  return tier ? (tier[level] ?? 0) : 0;
-}
 
 function calcTotalScore(kpiData) {
   let total = 0;
@@ -228,10 +215,6 @@ function KpiEntryModal({ employee, month, year, existing, onSave, onClose }) {
 function EmployeeKpiCard({ emp, kpi, isAdmin, onEdit }) {
   const level = LEVELS[kpi?.level ?? 'junior'];
   const total = kpi?.total_score ?? 0;
-  const salesPct = kpi?.sales_target > 0 ? Math.round((kpi.sales_score / kpi.sales_target) * 100) : 0;
-  const volBonus = calcVolumeBonus(kpi?.level ?? 'junior', salesPct);
-  const commissionPct = level.base_commission + volBonus;
-  const commissionUsd = kpi?.sales_score ? ((kpi.sales_score * commissionPct) / 100).toFixed(2) : '—';
 
   return (
     <div className="bg-surface border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
@@ -284,12 +267,6 @@ function EmployeeKpiCard({ emp, kpi, isAdmin, onEdit }) {
               </div>
             );
           })}
-
-          {/* Commission */}
-          <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between">
-            <span className="text-xs font-bold text-muted">💰 العمولة المحتملة</span>
-            <span className="text-sm font-extrabold text-teal tabular-nums">${commissionUsd} <span className="text-[10px] text-muted font-normal">({commissionPct}%)</span></span>
-          </div>
         </div>
       ) : (
         <div className="px-4 py-6 text-center">
@@ -305,53 +282,20 @@ function EmployeeKpiCard({ emp, kpi, isAdmin, onEdit }) {
 }
 
 // ── My Own KPI Card (employee view) ────────────────────────────
-function MyKpiView({ kpi, month, year, userId }) {
+// العمولة لا تُحسب هنا (D-174): نموذج المستويات 8–20% خاص بالمندوبين الميدانيين، وعمولة الموظفين
+// مصدرها الوحيد مسيّر الرواتب (D-081). هذه الصفحة للقياس فقط.
+const COMMISSION_NOTE = 'العمولة تُحسب في مسيّر الرواتب فقط (التارجت المعتمد للشهر) — لا تُحسب في هذه الصفحة.';
+
+function MyKpiView({ kpi, month, year }) {
   const level = LEVELS[kpi?.level ?? 'junior'];
   const total = kpi?.total_score ?? 0;
-  const salesPct = kpi?.sales_target > 0 ? Math.round((kpi.sales_score / kpi.sales_target) * 100) : 0;
-  const volBonus = calcVolumeBonus(kpi?.level ?? 'junior', salesPct);
-  const commissionPct = level.base_commission + volBonus;
-  const commissionUsd = kpi?.sales_score ? ((kpi.sales_score * commissionPct) / 100).toFixed(2) : null;
-
-  // Auto-commission estimate when no KPI record yet
-  const [estSales,  setEstSales]  = useState(null);
-  const [estLoading, setEstLoading] = useState(false);
-
-  const calcEstimate = async () => {
-    setEstLoading(true);
-    try {
-      const from = `${year}-${String(month).padStart(2,'0')}-01`;
-      const to   = new Date(year, month, 0).toISOString().slice(0,10);
-      const { data } = await supabase.from('daily_reports')
-        .select('total_sales_usd').eq('employee_id', userId)
-        .gte('report_date', from).lte('report_date', to);
-      const total = (data ?? []).reduce((s,r) => s + (Number(r.total_sales_usd)||0), 0);
-      setEstSales(Math.round(total));
-    } catch { /* تجاهل */ }
-    finally { setEstLoading(false); }
-  };
 
   if (!kpi) return (
     <div className="bg-surface border border-border rounded-2xl p-6 text-center space-y-3">
       <p className="text-4xl">📊</p>
       <p className="text-base font-bold text-text">لم تُحدَّد بياناتك لهذا الشهر</p>
       <p className="text-xs text-muted">سيقوم المدير بإدخال بيانات KPI الخاصة بك قريباً</p>
-      {estSales === null ? (
-        <button onClick={calcEstimate} disabled={estLoading}
-          className="mx-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-teal/10 text-teal text-sm font-bold hover:bg-teal/20 transition disabled:opacity-50">
-          {estLoading ? '…جاري الحساب' : '💰 احسب عمولتي التقديرية'}
-        </button>
-      ) : (
-        <div className="bg-teal/10 rounded-2xl p-4 space-y-1">
-          <p className="text-xs text-muted">مبيعاتك المسجلة هذا الشهر</p>
-          <p className="text-2xl font-extrabold text-teal tabular-nums">${estSales.toLocaleString('en-US')}</p>
-          <p className="text-xs text-muted mt-1">
-            عمولة مبدئية (~{LEVELS.junior.base_commission}%):
-            <span className="font-bold text-text ms-1">${((estSales * LEVELS.junior.base_commission) / 100).toFixed(2)}</span>
-          </p>
-          <p className="text-[10px] text-muted/70">* تقديرية — النهائية بعد تأكيد المدير</p>
-        </div>
-      )}
+      <p className="text-[11px] text-muted/80">{COMMISSION_NOTE}</p>
     </div>
   );
 
@@ -377,12 +321,6 @@ function MyKpiView({ kpi, month, year, userId }) {
           <div className="w-full h-3 rounded-full bg-white/20 overflow-hidden">
             <div className="h-full rounded-full bg-white transition-all duration-700" style={{width:`${total}%`}} />
           </div>
-          {commissionUsd && (
-            <div className="mt-4 px-4 py-2.5 bg-white/10 rounded-xl flex items-center justify-between">
-              <span className="text-white/80 text-sm">💰 عمولتك المحتملة</span>
-              <span className="text-white font-extrabold text-lg tabular-nums">${commissionUsd}</span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -430,26 +368,8 @@ function MyKpiView({ kpi, month, year, userId }) {
         </div>
       </div>
 
-      {/* Commission breakdown */}
-      <div className="bg-surface border border-border rounded-2xl p-4">
-        <p className="text-sm font-bold text-text mb-3">💰 تفصيل العمولة</p>
-        <div className="space-y-2">
-          {[
-            { label: `عمولة أساسية (${level.label})`, value: `${level.base_commission}%` },
-            { label: `بونص حجم المبيعات (${salesPct}% تحقيق)`, value: volBonus > 0 ? `+${volBonus}%` : '—' },
-            { label: 'إجمالي نسبة العمولة', value: `${commissionPct}%`, bold: true },
-            { label: 'المبيعات الكلية', value: kpi.sales_score ? `$${Number(kpi.sales_score).toLocaleString('en-US')}` : '—' },
-            { label: 'العمولة المحتملة', value: commissionUsd ? `$${commissionUsd}` : '—', bold: true, highlight: true },
-          ].map(({ label, value, bold, highlight }) => (
-            <div key={label} className={`flex items-center justify-between py-1.5 ${bold ? 'border-t border-border/40 mt-1 pt-2.5' : ''}`}>
-              <span className={`text-xs ${bold ? 'font-bold text-text' : 'text-muted'}`}>{label}</span>
-              <span className={`text-sm tabular-nums ${highlight ? 'text-teal font-extrabold' : bold ? 'font-bold text-text' : 'text-text'}`}>{value}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 p-3 bg-surface-alt rounded-xl text-[11px] text-muted leading-relaxed">
-          ⚠️ العمولة نهائية بعد الموافقة الإدارية وتأكيد نسبة التحصيل
-        </div>
+      <div className="p-3 bg-surface-alt rounded-xl text-[11px] text-muted leading-relaxed">
+        💰 {COMMISSION_NOTE}
       </div>
     </div>
   );
@@ -540,13 +460,7 @@ export default function PerformanceScreen() {
     const avg = Math.round(kpis.reduce((s,k) => s + (k.total_score??0), 0) / kpis.length);
     const stars    = kpis.filter(k => (k.total_score??0) >= 90).length;
     const weak     = kpis.filter(k => (k.total_score??0) < 60 && k.total_score > 0).length;
-    const totalComm = kpis.reduce((s,k) => {
-      const lvl = LEVELS[k.level ?? 'junior'];
-      const sp = k.sales_target > 0 ? Math.round((k.sales_score/k.sales_target)*100) : 0;
-      const pct = lvl.base_commission + calcVolumeBonus(k.level ?? 'junior', sp);
-      return s + ((k.sales_score ?? 0) * pct / 100);
-    }, 0);
-    return { avg, stars, weak, totalComm: totalComm.toFixed(0), entered: kpis.length };
+    return { avg, stars, weak, entered: kpis.length };
   }, [kpiMap, isAdmin]);
 
   return (
@@ -554,8 +468,8 @@ export default function PerformanceScreen() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-text">نظام KPI والعمولات</h1>
-          <p className="text-sm text-muted mt-0.5">مؤشرات الأداء الشهرية · SALES_RULES.md</p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-text">مؤشرات الأداء (KPI)</h1>
+          <p className="text-sm text-muted mt-0.5">مؤشرات الأداء الشهرية — العمولة من مسيّر الرواتب فقط</p>
         </div>
         <select
           value={`${year}-${month}`}
@@ -581,7 +495,7 @@ export default function PerformanceScreen() {
                 { label: 'متوسط النتيجة',   value: summary.avg + '/100', icon: '📊', color: scoreColor(summary.avg) },
                 { label: '⭐ نجوم الشهر',   value: summary.stars,       icon: '🌟', color: 'text-amber-fg' },
                 { label: '⚠️ يحتاج متابعة', value: summary.weak,        icon: '📢', color: 'text-red-fg' },
-                { label: 'عمولات الشهر',    value: `$${Number(summary.totalComm).toLocaleString('en-US')}`, icon: '💰', color: 'text-teal' },
+                { label: 'تقييمات مُدخلة',  value: summary.entered,     icon: '📝', color: 'text-teal' },
               ].map(s => (
                 <div key={s.label} className="bg-surface border border-border rounded-2xl p-4">
                   <div className="text-2xl mb-2">{s.icon}</div>
@@ -622,7 +536,7 @@ export default function PerformanceScreen() {
           )}
         </>
       ) : (
-        <MyKpiView kpi={myKpi} month={month} year={year} userId={userId} />
+        <MyKpiView kpi={myKpi} month={month} year={year} />
       )}
 
       {/* Edit Modal */}

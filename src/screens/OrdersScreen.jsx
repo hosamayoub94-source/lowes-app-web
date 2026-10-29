@@ -4,7 +4,7 @@
 // منظومة البائع: طلباتي + دفع جزئي + فاتورة + عمولة
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
@@ -21,7 +21,7 @@ import { targetForCurrency } from '@data/targets';
 import { lookupCustomer, starLabel, canonicalSeller, getCustomerOrders } from '@services/customerService';
 import { saveEconomics } from '@services/profitabilityService';
 import { STATUSES, statusKeysForMarket, stagesForMarket } from '@data/orderStatus';
-import { MARKET_LABEL, MARKET_CURRENCY, AED_PER_USD, phoneCcForMarket } from '@data/markets';
+import { MARKET_LABEL, MARKET_CURRENCY, phoneCcForMarket } from '@data/markets';
 import { BRAND, COMPANY, BRAND_COLORS, BRAND_ASSETS } from '@data/brand';
 import { syncToSheet, retrySync, retryAllFailed, recordStatusChange, softDeleteOrder, getStatusHistory, restoreOrder, listDeleted, findDuplicates, isSyncable } from '@services/orderSyncService';
 import { notifyOrderStatusWhatsApp, sendOrderReceivedMessage } from '@services/whatsappService';
@@ -111,23 +111,12 @@ async function notifyNewOrderToFulfillment(order) {
 
 // ── Commission helpers ────────────────────────────────────────
 const CURRENCY_SYMBOLS = { TRY: '₺', SYP: 'ل.س', USD: '$', AED: 'د.إ' };
-const THIS_MONTH = new Date().toISOString().slice(0, 7); // '2026-06'
 
-// Convert any order amount to USD using admin-set rates (units per 1 USD).
-function toUSD(amount, currency, rates) {
-  const a = Number(amount || 0);
-  if (!a) return 0;
-  const cur = String(currency || 'SYP').toUpperCase();
-  if (cur === 'USD') return a;
-  if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
-  if (cur === 'SYP') return a / (Number(rates?.syp_per_usd) || 14000);
-  if (cur === 'AED') return a / (Number(rates?.aed_per_usd) || AED_PER_USD);
-  return 0;
-}
-
-function useCommission(isManager) {
+// قواعد العمولة الافتراضية (commission_rules) — يقرؤها مسيّر الرواتب كنقطة بداية لإعداد الشهر.
+// هذه الشاشة تعدّلها فقط ولا تحسب بها عمولة (D-174): العمولة من مسيّر الرواتب وحده.
+// التعديلات اليدوية (monthly_commission_adjustments) أُزيلت من هنا لأن المسيّر لا يقرؤها.
+function useCommission() {
   const [rulesById, setRulesById] = useState(null); // { turkey:{...}, syria:{...} }
-  const [adjustments, setAdj] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -139,12 +128,8 @@ function useCommission(isManager) {
         if (!map.syria)  map.syria  = { id: 'syria',  monthly_target_try: 0, monthly_target_usd: 1000, try_per_usd: 33, syp_per_usd: 14000, base_commission_pct: 0, prepaid_bonus_try: 0, prepaid_bonus_pct: 0, repeat_customer_bonus_try: 0 };
         setRulesById(map);
       });
-    supabase.from('monthly_commission_adjustments').select('*').eq('month', THIS_MONTH)
-      .then(({ data }) => setAdj(data || []));
   }, []);
 
-  // Shared conversion rates live on the turkey row.
-  const rates = rulesById ? { try_per_usd: rulesById.turkey?.try_per_usd ?? 33, syp_per_usd: rulesById.turkey?.syp_per_usd ?? 14000 } : { try_per_usd: 33, syp_per_usd: 14000 };
   const rules = rulesById?.turkey || null; // backward-compat for the settings panel
 
   const saveRules = async (updated, actor) => {
@@ -167,18 +152,7 @@ function useCommission(isManager) {
     setSaving(false);
   };
 
-  const saveAdj = async (employeeName, adjustmentTry, note, actor) => {
-    setSaving(true);
-    const row = { employee_name: employeeName, month: THIS_MONTH, adjustment_try: Number(adjustmentTry), note, created_by: actor };
-    await supabase.from('monthly_commission_adjustments').upsert(row, { onConflict: 'employee_name,month' });
-    setAdj(prev => {
-      const filtered = prev.filter(a => a.employee_name !== employeeName);
-      return [...filtered, { ...row }];
-    });
-    setSaving(false);
-  };
-
-  return { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving };
+  return { rules, rulesById, saveRules, saving };
 }
 
 // ── Commission Panel (admin settings) ────────────────────────
@@ -251,35 +225,10 @@ function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, savi
   );
 }
 
-// ── Per-employee commission card ──────────────────────────────
-function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd, adj, onSaveAdj, saving, isManager, isMe }) {
-  const [showAdj, setShowAdj] = useState(false);
-  const [adjVal, setAdjVal] = useState('');
-  const [adjNote, setAdjNote] = useState('');
-
-  if (!rules) return null;
-  const tryTotal = emp.totals['TRY'] || 0;
-
-  // USD sales total — catalog-priced (offer-immune), precomputed in byEmployee.
-  // Falls back to amount→USD only if byEmployee didn't set it.
-  const usdTotal = emp.usdCommTotal != null
-    ? emp.usdCommTotal
-    : emp.orders.reduce((s, o) => s + toUSD(o.amount, o.currency, rates), 0);
-  // Target progress — in the market's own currency: Turkey TRY vs TRY target,
-  // Syria catalog-USD vs USD target (so the bar matches how commission is judged).
-  const isSyria = (emp.market || 'turkey') === 'syria';
-  const progVal    = isSyria ? usdTotal : tryTotal;
-  const progTarget = isSyria ? (Number(targetUsd) || 0) : (Number(rulesById?.turkey?.monthly_target_try) || 0);
-  const progSym    = isSyria ? '$' : '₺';
-  const pct = progTarget > 0 ? Math.min(100, Math.round((progVal / progTarget) * 100)) : 0;
-
-  // Tiered, per-market commission breakdown (shared with the Excel export)
-  const { cur, aboveComm, prepaidTier1, prepaidTier2, manualAdj, net: netCommission, prepaidCount, reachedPrepaid } =
-    commissionBreakdown(emp, rulesById, adj);
-  const cSym = cur === 'USD' ? '$' : '₺';
-  const hasCommission = aboveComm > 0 || prepaidTier1 > 0 || prepaidTier2 > 0 || manualAdj !== 0;
-  const adjNote_saved = adj?.note || '';
-
+// ── Per-employee delivery card ────────────────────────────────
+// التسليمات من نفس مصدر الرواتب و«محاسبة المبيعات والتسليمات» (تاريخ التسليم الفعلي).
+// العمولة تُقرأ من مسيّر الرواتب كما حُسبت — لا حساب موازٍ هنا (D-174).
+function EmployeeDeliveryCard({ emp, rank, payroll, monthMode, isMe }) {
   const RANK_ICONS = ['🥇', '🥈', '🥉'];
 
   return (
@@ -292,10 +241,10 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
             <p className="font-extrabold text-text">{emp.name}</p>
             {isMe && <span className="text-[10px] bg-teal/20 text-teal px-2 py-0.5 rounded-full font-bold">أنت</span>}
           </div>
-          <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم · {prepaidCount} مسبق</p>
+          <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم{emp.legacy ? ` · ${emp.legacy} بتاريخ تقديري` : ''}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-base font-black text-text">${usdTotal.toFixed(0)}</p>
+          <p className="text-base font-black text-text">${emp.usdTotal.toFixed(0)}{emp.usdMissing ? '+' : ''}</p>
           {Object.entries(emp.totals).map(([cur, val]) => (
             <p key={cur} className="text-[11px] text-muted">
               {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} {cur}
@@ -304,54 +253,13 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
         </div>
       </div>
 
-      {/* Target progress — in the market's own currency */}
-      {progTarget > 0 && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted font-bold">🎯 التارجت</span>
-            <span className={`font-extrabold ${pct >= 100 ? 'text-green-fg' : 'text-text'}`}>
-              {progSym}{Math.round(progVal).toLocaleString('en-US')} / {progSym}{progTarget.toLocaleString('en-US')} ({pct}%)
-            </span>
-          </div>
-          <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
-            <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-fg' : pct >= 70 ? 'bg-teal' : 'bg-amber-fg'}`}
-              style={{ width: pct + '%' }} />
-          </div>
-        </div>
-      )}
-
-      {/* Commission breakdown (tiered, per-market) */}
-      {hasCommission && (
-        <div className="bg-surface-alt rounded-xl p-3 space-y-1.5 text-xs">
-          <p className="font-extrabold text-text text-[11px] mb-2">💰 تفصيل العمولة</p>
-          {prepaidTier1 > 0 && (
-            <div className="flex justify-between"><span className="text-muted">⚡ مسبق الدفع — أول {(Number(rules.prepaid_target_try)||0).toLocaleString('en-US')} ({rules.prepaid_tier1_pct}%)</span><span className="font-bold text-teal">+{cSym}{prepaidTier1.toFixed(0)}</span></div>
-          )}
-          {prepaidTier2 > 0 && (
-            <div className="flex justify-between"><span className="text-muted">⚡ مسبق فوق التارجت ({rules.prepaid_tier2_pct}%)</span><span className="font-bold text-teal">+{cSym}{prepaidTier2.toFixed(0)}</span></div>
-          )}
-          {aboveComm > 0 && (
-            <div className="flex justify-between"><span className="text-muted">📈 فوق التارجت ({rules.above_target_pct}%)</span><span className="font-bold text-green-fg">+{cSym}{aboveComm.toFixed(0)}</span></div>
-          )}
-          {manualAdj !== 0 && (
-            <div className="flex justify-between">
-              <span className="text-muted">{adjNote_saved || 'تعديل يدوي'}</span>
-              <span className={`font-bold ${manualAdj > 0 ? 'text-green-fg' : 'text-red-fg'}`}>{manualAdj > 0 ? '+' : ''}₺{manualAdj.toFixed(0)}</span>
-            </div>
-          )}
-          <div className="border-t border-border pt-1.5 flex justify-between">
-            <span className="font-extrabold text-text">الصافي</span>
-            <span className={`font-extrabold text-base ${netCommission > 0 ? 'text-green-fg' : 'text-red-fg'}`}>{cSym}{netCommission.toFixed(0)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Target not yet reached → no commission */}
-      {!hasCommission && (emp.orders.length > 0) && (
-        <div className="text-xs text-muted text-center py-1">
-          {pct >= 100 ? '✅ وصل التارجت' : `${100 - pct}% للتارجت`}
-        </div>
-      )}
+      {/* Commission — read-only from payroll */}
+      <div className="bg-surface-alt rounded-xl px-3 py-2 flex justify-between text-xs">
+        <span className="text-muted font-bold">💰 العمولة (مسيّر الرواتب)</span>
+        {payroll
+          ? <span className="font-extrabold text-text">${Number(payroll.commission || 0).toFixed(0)}</span>
+          : <span className="text-muted">{monthMode ? 'لم تُحسب بعد بالمسيّر' : 'تُعرض لشهر واحد فقط'}</span>}
+      </div>
 
       {/* Products */}
       {Object.keys(emp.products).length > 0 && (
@@ -361,33 +269,6 @@ function EmployeeCommissionCard({ emp, rank, rules, rulesById, rates, targetUsd,
               {name} <span className="font-extrabold text-text">×{qty}</span>
             </span>
           ))}
-        </div>
-      )}
-
-      {/* Admin: manual adjustment */}
-      {isManager && (
-        <div>
-          <button onClick={() => setShowAdj(v => !v)}
-            className="text-xs text-muted hover:text-text transition font-bold">
-            ✏️ {showAdj ? 'إخفاء' : 'تعديل يدوي'}
-            {manualAdj !== 0 && <span className={`ml-1 ${manualAdj > 0 ? 'text-green-fg' : 'text-red-fg'}`}>({manualAdj > 0 ? '+' : ''}₺{manualAdj})</span>}
-          </button>
-          {showAdj && (
-            <div className="mt-2 space-y-2">
-              <div className="flex gap-2">
-                <input type="number" value={adjVal} onChange={e => setAdjVal(e.target.value)}
-                  placeholder="₺ قيمة (سالب=خصم)"
-                  className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-                <input value={adjNote} onChange={e => setAdjNote(e.target.value)}
-                  placeholder="السبب"
-                  className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-              </div>
-              <button onClick={() => { onSaveAdj(emp.name, adjVal, adjNote); setShowAdj(false); }} disabled={saving}
-                className="w-full py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy/90 transition disabled:opacity-40">
-                {saving ? '…' : '💾 حفظ التعديل'}
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -458,61 +339,6 @@ function soldProducts(delivered) {
   return Object.values(agg).sort((a, b) => b.qty - a.qty);
 }
 
-// Value one order in USD by the catalog price list: Σ qty × sale_price_usd.
-// This is the unified, offer-immune revenue basis (owner-approved). Falls back to
-// the recorded amount→USD conversion only when an order has no catalog-priced items
-// (e.g. non-brand products like third-party items).
-function orderUsd(o, prices, rates) {
-  let v = 0;
-  (o.items || []).forEach(it => {
-    const p = prices?.[normName(it.name)];
-    if (p > 0) v += p * Number(it.qty || 1);
-  });
-  return v > 0 ? v : toUSD(o.amount, o.currency, rates);
-}
-
-const isPrepaid = (o) => {
-  const p = o.payment_method || '';
-  return p.includes('مسبق') || p.includes('bank') || p.includes('بنك');
-};
-
-// Commission breakdown for one employee — tiered, per-market (owner-defined June 2026).
-//
-// Turkey (TRY): target monthly_target_try (65,000). Prepaid sub-target
-//   prepaid_target_try (15,000). Once prepaid ≥ sub-target → first 15k @
-//   prepaid_tier1_pct (5%), prepaid beyond @ prepaid_tier2_pct (10%). Total sales
-//   above the 65k target → above_target_pct (5%) on the excess.
-// Syria (USD): target monthly_target_usd ($1,000). Sales (catalog USD) above the
-//   target → above_target_pct (10%) on the excess. (Provisional.)
-//
-// Returns amounts in the market's own currency (cur). Manual adjustment kept as-is.
-function commissionBreakdown(emp, rulesById, adj) {
-  const market = emp.market || 'turkey';
-  const rules = rulesById?.[market] || null;
-  const prepaidCount = emp.orders.filter(isPrepaid).length;
-  const manualAdj = adj?.adjustment_try || 0;
-  const zero = { cur: market === 'syria' ? 'USD' : 'TRY', aboveComm: 0, prepaidTier1: 0, prepaidTier2: 0, manualAdj, net: manualAdj, prepaidCount, reachedPrepaid: false };
-  if (!rules) return zero;
-
-  if (market === 'syria') {
-    const target = Number(rules.monthly_target_usd) || 0;
-    const sales  = Number(emp.usdCommTotal ?? emp.usdTotal) || 0;
-    const aboveComm = Math.max(0, sales - target) * (Number(rules.above_target_pct) || 0) / 100;
-    return { cur: 'USD', aboveComm, prepaidTier1: 0, prepaidTier2: 0, manualAdj, net: aboveComm + manualAdj, prepaidCount, reachedPrepaid: false };
-  }
-
-  // Turkey (TRY)
-  const tryTotal  = emp.totals['TRY'] || 0;
-  const prepaidTry = emp.prepaidTry || 0;
-  const target   = Number(rules.monthly_target_try) || 0;
-  const ppTarget = Number(rules.prepaid_target_try) || 0;
-  const aboveComm = Math.max(0, tryTotal - target) * (Number(rules.above_target_pct) || 0) / 100;
-  const reachedPrepaid = ppTarget > 0 && prepaidTry >= ppTarget;
-  const prepaidTier1 = reachedPrepaid ? ppTarget * (Number(rules.prepaid_tier1_pct) || 0) / 100 : 0;
-  const prepaidTier2 = reachedPrepaid ? Math.max(0, prepaidTry - ppTarget) * (Number(rules.prepaid_tier2_pct) || 0) / 100 : 0;
-  return { cur: 'TRY', aboveComm, prepaidTier1, prepaidTier2, manualAdj,
-    net: aboveComm + prepaidTier1 + prepaidTier2 + manualAdj, prepaidCount, reachedPrepaid };
-}
 
 // ── Product values (sold products + editable catalog price) ───
 // المنتجات المباعة من الطلبات المسلّمة + قيمتها (USD) من أسعار الكتالوج.
@@ -612,27 +438,23 @@ function ProductValuesSection({ delivered, canEdit }) {
 
 // ── Monthly Deliveries Tab ────────────────────────────────────
 
+// تسليمات الشهر (D-174): نفس مصدر «محاسبة المبيعات والتسليمات» والرواتب — loadDeliveredForPeriod،
+// أي تاريخ انتقال الطلب إلى «تم التسليم» لا تاريخ إنشائه. الدولار بأسعار exchange_rates كالشاشة نفسها.
+// لا عمولة محسوبة هنا ولا ربح/خسارة: العمولة تُقرأ من مسيّر الرواتب، والربح في «الربحية والنتائج الشهرية».
 function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archiving }) {
   const [brand, setBrand] = useState('all');
   const [showSettings, setShowSettings] = useState(false);
-  const { rules, rulesById, rates, adjustments, saveRules, saveAdj, saving } = useCommission(isManager);
+  const { rules, rulesById, saveRules, saving } = useCommission();
 
-  // Catalog USD price list (normName → sale_price_usd) — the offer-immune revenue
-  // basis for the leaderboard, target progress and Excel export.
-  // costs: normName → { cost, ad, ship } per unit (USD) — أساس حساب الربح/الخسارة.
+  // سعر الكتالوج (normName → sale_price_usd) — لعمود «سعر الكتالوج» بورقة المنتجات في التصدير فقط.
   const [prices, setPrices] = useState({});
-  const [costs,  setCosts]  = useState({});
   const [syncingPrices, setSyncingPrices] = useState(false);
   const loadPrices = async () => {
-    const { data } = await supabase.from('product_economics').select('item_name, sale_price_usd, cost_usd, ad_cost_usd, shipping_cost_usd');
+    const { data } = await supabase.from('product_economics').select('item_name, sale_price_usd');
     if (!data) return;
-    const m = {}, c = {};
-    data.forEach(r => {
-      const k = normName(r.item_name);
-      m[k] = Number(r.sale_price_usd) || 0;
-      c[k] = { cost: Number(r.cost_usd) || 0, ad: Number(r.ad_cost_usd) || 0, ship: Number(r.shipping_cost_usd) || 0 };
-    });
-    setPrices(m); setCosts(c);
+    const m = {};
+    data.forEach(r => { m[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
+    setPrices(m);
   };
   useEffect(() => { loadPrices(); }, []);
 
@@ -671,70 +493,87 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     const label = new Date(y, m - 1, 1).toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
     return { periodStart: start, periodEnd: end, periodLabel: label };
   }, [periodMode, selMonth, cFrom, cTo]);
+  const monthMode = !(periodMode === 'custom' && cFrom && cTo);
 
-  // ── الأرشيف للفترة المختارة: الطلبات المؤرشفة لا تظهر بالاستعلام الرئيسي
-  // لذا نجلبها مستقلاً حتى تظهر الأشهر الماضية بعد أرشفتها ──────────────
-  const [archivedForPeriod, setArchivedForPeriod] = useState([]);
+  // ── المسلَّم بالفترة: نفس محدِّد الرواتب و/sales-delivery (يُحمَّل عند فتح التبويب فقط) ──
+  // كل صف يحمل usd (null = بلا سعر صرف) محسوباً بأسعار exchange_rates الحالية كالشاشة المرجعية.
+  const [shared, setShared] = useState({ status: 'loading', rows: [], error: null });
+  const [payrollRows, setPayrollRows] = useState([]);
   useEffect(() => {
     let cancelled = false;
-    fetchAllRows(() => supabase
-      .from('orders')
-      .select('*')
-      .eq('archived', true)
-      .eq('status', 'delivered')
-      .is('deleted_at', null)
-      .gte('order_date', periodStart)
-      .lte('order_date', periodEnd + 'T23:59:59')
-    ).then((rows) => { if (!cancelled) setArchivedForPeriod(rows); })
-     .catch(() => { if (!cancelled) setArchivedForPeriod([]); });
+    setShared({ status: 'loading', rows: [], error: null });
+    setPayrollRows([]);
+    (async () => {
+      try {
+        const [svc, acc, pay] = await Promise.all([
+          import('@services/deliveryAccountingService'),
+          import('@utils/deliveryAccounting'),
+          import('@modules/payroll/services/payrollEngine'),
+        ]);
+        const p = monthMode ? acc.periodBounds({ month: selMonth }) : acc.periodBounds({ fromDate: periodStart, toDate: periodEnd });
+        const [res, rateMap, comm] = await Promise.all([
+          svc.loadDeliveredForPeriod({ from: p.from, to: p.to }),
+          pay.fetchExchangeRateMap().catch(() => ({ USD: 1 })),
+          monthMode ? svc.loadStoredCommissions(Number(selMonth.slice(0, 4)), Number(selMonth.slice(5, 7))).catch(() => []) : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        setPayrollRows(comm);
+        setShared({ status: 'ready', rows: res.delivered.map(o => ({ ...o, usd: acc.toUsd(o.amount, o.currency, rateMap) })), error: null });
+      } catch (e) {
+        if (!cancelled) setShared({ status: 'error', rows: [], error: e?.message || String(e) });
+      }
+    })();
     return () => { cancelled = true; };
-  }, [periodStart, periodEnd]);
+  }, [monthMode, selMonth, periodStart, periodEnd]);
 
-  // دمج الطلبات الحية مع المؤرشفة للفترة (بلا تكرار)
-  const allForPeriod = useMemo(() => {
-    const archivedIds = new Set(archivedForPeriod.map(o => o.id));
-    return [...orders.filter(o => !archivedIds.has(o.id)), ...archivedForPeriod];
-  }, [orders, archivedForPeriod]);
-
-  // ── السجل الشهري: 6 أشهر × كل موظف ──────────────────────────────────
+  // ── السجل الشهري: 6 أشهر × كل موظف — بشهر التسليم (نفس المصدر) ──
   const [showRecords, setShowRecords] = useState(false);
   const [recordsRaw,  setRecordsRaw]  = useState(null);
   const [loadingRec,  setLoadingRec]  = useState(false);
-  useEffect(() => {
-    if (!showRecords || recordsRaw) return;
-    setLoadingRec(true);
-    const d = new Date(); d.setMonth(d.getMonth() - 5); d.setDate(1);
-    const since = d.toISOString().slice(0, 10);
-    const base = () => supabase.from('orders')
-      .select('id,handler_name,order_date,amount,currency,market,items')
-      .eq('status', 'delivered').is('deleted_at', null).gte('order_date', since);
-    // نجلب المؤرشف والحيّ على دفعات (المؤرشف وحده قد يتجاوز 4000 صف).
-    Promise.all([
-      fetchAllRows(() => base().or('archived.is.null,archived.eq.false')),
-      fetchAllRows(() => base().eq('archived', true)),
-    ]).then(([live, arch]) => {
-      setRecordsRaw([...live, ...arch]);
-      setLoadingRec(false);
-    }).catch(() => { setRecordsRaw([]); setLoadingRec(false); });
-  }, [showRecords, recordsRaw]);
-
-  // بناء جدول الموظف × الشهر
-  const recordsTable = useMemo(() => {
-    if (!recordsRaw) return null;
-    const now = new Date();
-    const months = [];
+  const recordMonths = useMemo(() => {
+    const now = new Date(), months = [];
     for (let i = 5; i >= 0; i--) {
       const md = new Date(now.getFullYear(), now.getMonth() - i, 1);
       months.push(`${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}`);
     }
+    return months;
+  }, []);
+  useEffect(() => {
+    if (!showRecords || recordsRaw) return;
+    setLoadingRec(true);
+    (async () => {
+      const [svc, acc, pay, calc] = await Promise.all([
+        import('@services/deliveryAccountingService'),
+        import('@utils/deliveryAccounting'),
+        import('@modules/payroll/services/payrollEngine'),
+        import('@utils/profitabilityCalc'),
+      ]);
+      const from = acc.periodBounds({ month: recordMonths[0] }).from;
+      const to = acc.periodBounds({ month: recordMonths[recordMonths.length - 1] }).to;
+      const [res, rateMap] = await Promise.all([
+        svc.loadDeliveredForPeriod({ from, to }),
+        pay.fetchExchangeRateMap().catch(() => ({ USD: 1 })),
+      ]);
+      setRecordsRaw(res.delivered.map(o => ({
+        handler_name: o.handler_name,
+        month: String(calc.istanbulMonthStart(o.delivery_at) || '').slice(0, 7),
+        usd: acc.toUsd(o.amount, o.currency, rateMap),
+      })));
+    })().catch(() => setRecordsRaw([])).finally(() => setLoadingRec(false));
+  }, [showRecords, recordsRaw, recordMonths]);
+
+  // بناء جدول الموظف × الشهر
+  const recordsTable = useMemo(() => {
+    if (!recordsRaw) return null;
+    const months = recordMonths;
     const empMap = {};
     recordsRaw.forEach(o => {
       const name = canonicalSeller(o.handler_name) || 'غير محدد';
-      const mon  = (o.order_date || '').slice(0, 7);
+      const mon  = o.month;
       if (!months.includes(mon)) return;
       if (!empMap[name]) empMap[name] = { name, byMonth: {}, total: 0, totalOrders: 0 };
       if (!empMap[name].byMonth[mon]) empMap[name].byMonth[mon] = { usd: 0, cnt: 0 };
-      const usdVal = orderUsd(o, prices, rates);
+      const usdVal = o.usd || 0;
       empMap[name].byMonth[mon].usd   += usdVal;
       empMap[name].byMonth[mon].cnt   += 1;
       empMap[name].total              += usdVal;
@@ -742,7 +581,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     });
     const employees = Object.values(empMap).sort((a, b) => b.total - a.total);
     return { months, employees };
-  }, [recordsRaw, prices, rates]);
+  }, [recordsRaw, recordMonths]);
 
   // last 12 months for the dropdown
   const monthOptions = useMemo(() => {
@@ -757,103 +596,65 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     return arr;
   }, []);
 
-  // Filter: delivered within the selected period — includes archived orders fetched above
-  const delivered = useMemo(() => allForPeriod.filter(o => {
-    if (o.status !== 'delivered') return false;
-    if (brand !== 'all' && (o.brand || 'lowes').toLowerCase() !== brand) return false;
-    const od = (o.order_date || '').slice(0, 10);
-    return od && od >= periodStart && od <= periodEnd;
-  }), [allForPeriod, brand, periodStart, periodEnd]);
+  // المسلَّم بالفترة بعد فلتر البراند
+  const delivered = useMemo(() => shared.rows.filter(o =>
+    brand === 'all' || (o.brand || 'lowes').toLowerCase() === brand
+  ), [shared.rows, brand]);
 
-  // Group by employee, with USD-equivalent total + dominant market
+  // Group by employee: totals per currency + USD (exchange_rates) + dominant market
   const byEmployee = useMemo(() => {
     const map = {};
     for (const o of delivered) {
       const name = canonicalSeller(o.handler_name) || 'غير محدد';
-      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {}, prepaidTry: 0 };
-      map[name].orders.push(o);
+      if (!map[name]) map[name] = { name, orders: [], totals: {}, products: {}, marketCount: {}, usdTotal: 0, usdMissing: 0, legacy: 0 };
+      const e = map[name];
+      e.orders.push(o);
       const cur = (o.currency || 'SYP').toUpperCase();
-      map[name].totals[cur] = (map[name].totals[cur] || 0) + Number(o.amount || 0);
-      if (cur === 'TRY' && isPrepaid(o)) map[name].prepaidTry += Number(o.amount || 0);
+      e.totals[cur] = (e.totals[cur] || 0) + Number(o.amount || 0);
+      if (o.usd == null) e.usdMissing += 1; else e.usdTotal += o.usd;
+      if (o.delivery_source === 'legacy_order_date') e.legacy += 1;
       const mk = o.market || 'turkey';
-      // الإمارات بلا عمولة حالياً (قرار حسام 27 أيلول 2026) — لا تحدد «سوق» الموظف
-      // بحساب العمولة إلا إذا كل تسليماته إمارات.
-      if (mk !== 'uae') map[name].marketCount[mk] = (map[name].marketCount[mk] || 0) + 1;
+      e.marketCount[mk] = (e.marketCount[mk] || 0) + 1;
       (o.items || []).forEach(it => {
         const k = it.name || '—';
-        map[name].products[k] = (map[name].products[k] || 0) + Number(it.qty || 1);
+        e.products[k] = (e.products[k] || 0) + Number(it.qty || 1);
       });
     }
-    const list = Object.values(map).map(emp => {
-      emp.usdTotal = emp.orders.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
-      // أساس العمولة: بلا طلبات الإمارات (بلا عمولة حالياً).
-      emp.usdCommTotal = emp.orders.filter(o => o.market !== 'uae').reduce((s, o) => s + orderUsd(o, prices, rates), 0);
-      // dominant market = the one with the most delivered orders
-      emp.market = Object.entries(emp.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0]
-        || (emp.orders.some(o => o.market === 'uae') ? 'uae' : 'turkey');
-      return emp;
-    });
-    // Sort by USD total (the unified metric) descending
-    return list.sort((a, b) => b.usdTotal - a.usdTotal);
-  }, [delivered, rates, prices]);
-
-  // Target (USD) for a given market.
-  const targetUsdFor = (market) => {
-    if (market === 'syria') return Number(rulesById?.syria?.monthly_target_usd) || 1000;
-    // Turkey team's TRY target expressed in USD (so everyone compares in $)
-    const tTry = Number(rulesById?.turkey?.monthly_target_try) || 0;
-    const tUsd = Number(rulesById?.turkey?.monthly_target_usd) || 0;
-    return tUsd > 0 ? tUsd : (tTry > 0 ? tTry / (Number(rates?.try_per_usd) || 33) : 0);
-  };
-
-  // Grand totals
-  const grandTotals = useMemo(() => {
-    const t = {};
-    delivered.forEach(o => {
-      const c = (o.currency || 'SYP').toUpperCase();
-      t[c] = (t[c] || 0) + Number(o.amount || 0);
-    });
-    return t;
+    return Object.values(map)
+      .map(e => ({ ...e, market: Object.entries(e.marketCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'turkey' }))
+      .sort((a, b) => b.usdTotal - a.usdTotal);
   }, [delivered]);
 
-  // ── P&L: الإيراد − تكلفة المنتجات = ربح إجمالي؛ − شحن − إعلان = صافي ──
-  // التكاليف لكل وحدة من product_economics (تُدخل من شاشة ربحية المنتج).
-  const pnl = useMemo(() => {
-    const blank = () => ({ qty: 0, revenue: 0, cogs: 0, ship: 0, ad: 0 });
-    const total = blank();
-    const perMarket = { turkey: blank(), syria: blank(), uae: blank() };
-    const missing = new Set();
-    for (const o of delivered) {
-      const mk = o.market === 'syria' || o.market === 'uae' ? o.market : 'turkey';
-      const rev = orderUsd(o, prices, rates);
-      total.revenue += rev; perMarket[mk].revenue += rev;
-      for (const it of (o.items || [])) {
-        const q = Number(it.qty || 1);
-        total.qty += q; perMarket[mk].qty += q;
-        const c = costs[normName(it.name)];
-        if (!c || !(c.cost > 0)) missing.add((it.name || '').trim() || '—');
-        if (c) {
-          total.cogs += q * c.cost; total.ship += q * c.ship; total.ad += q * c.ad;
-          perMarket[mk].cogs += q * c.cost; perMarket[mk].ship += q * c.ship; perMarket[mk].ad += q * c.ad;
-        }
-      }
-    }
-    const finish = (t) => ({ ...t, gross: t.revenue - t.cogs, net: t.revenue - t.cogs - t.ship - t.ad });
-    return { ...finish(total), perMarket: { turkey: finish(perMarket.turkey), syria: finish(perMarket.syria) }, missing: [...missing] };
-  }, [delivered, prices, costs, rates]);
+  // عمولة الموظف كما حُسبت بمسيّر الرواتب (قراءة فقط)
+  const payrollFor = (name) => payrollRows.find(p => normName(p.name) === normName(name)) || null;
 
-  const RANK_ICONS = ['🥇', '🥈', '🥉'];
-  const BRAND_COLORS = { lowes: 'border-teal/40 bg-teal/5', strong: 'border-amber/40 bg-amber/5' };
+  // Grand totals
+  const totals = useMemo(() => {
+    const byCur = {};
+    let usd = 0, usdMissing = 0, qty = 0, legacy = 0;
+    delivered.forEach(o => {
+      const c = (o.currency || 'SYP').toUpperCase();
+      byCur[c] = (byCur[c] || 0) + Number(o.amount || 0);
+      if (o.usd == null) usdMissing += 1; else usd += o.usd;
+      if (o.delivery_source === 'legacy_order_date') legacy += 1;
+      (o.items || []).forEach(it => { qty += Number(it.qty || 1); });
+    });
+    return { byCur, usd, usdMissing, qty, legacy };
+  }, [delivered]);
 
   // أرشفة للشهر السابق فقط — الشهر الحالي يبقى مرئياً حتى يُغلَق.
+  // (عملية تشغيلية على الطلبات الحية بتاريخ الطلب — كما كانت؛ لا علاقة لها بأرقام التسليم.)
   const currentMonthPrefix = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }, []);
-  const archiveEligible = useMemo(() =>
-    delivered.filter(o => !o.archived && String(o.updated_at || o.order_date || '').slice(0, 7) < currentMonthPrefix),
-    [delivered, currentMonthPrefix]
-  );
+  const archiveEligible = useMemo(() => orders.filter(o => {
+    if (o.status !== 'delivered' || o.archived) return false;
+    if (brand !== 'all' && (o.brand || 'lowes').toLowerCase() !== brand) return false;
+    const od = (o.order_date || '').slice(0, 10);
+    if (!od || od < periodStart || od > periodEnd) return false;
+    return String(o.updated_at || o.order_date || '').slice(0, 7) < currentMonthPrefix;
+  }), [orders, brand, periodStart, periodEnd, currentMonthPrefix]);
 
   // ── Excel export for the accountant: summary + products + employees ──
   const [exporting, setExporting] = useState(false);
@@ -861,55 +662,41 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setExporting(true);
     try {
       const XLSX = await import('xlsx');
-      const usdTotal = delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0);
 
-      // 1) Summary (+ P&L قبل الأرشفة)
+      // 1) Summary
       const summary = [
         ['الفترة', periodLabel],
+        ['معيار الإدخال', 'تاريخ انتقال الطلب إلى «تم التسليم» — نفس الرواتب و«محاسبة المبيعات والتسليمات»'],
         ['عدد الطلبات المسلّمة', delivered.length],
-        ['عدد القطع المباعة', pnl.qty],
+        ['منها بتاريخ تقديري (بلا سجل تسليم)', totals.legacy],
+        ['عدد القطع المسلّمة', totals.qty],
         ['عدد الموظفين', byEmployee.length],
-        ['الإجمالي بالدولار (USD)', Math.round(usdTotal)],
-        ...Object.entries(grandTotals).map(([cur, t]) => [`الإجمالي ${cur}`, t]),
+        ['الإجمالي بالدولار (USD) — بأسعار الصرف المعتمدة', Math.round(totals.usd)],
+        ...(totals.usdMissing ? [['طلبات بلا سعر صرف (خارج الدولار)', totals.usdMissing]] : []),
+        ...Object.entries(totals.byCur).map(([cur, t]) => [`الإجمالي ${cur}`, t]),
         [],
-        ['— ربح/خسارة (USD) —', ''],
-        ['الإيراد', Math.round(pnl.revenue)],
-        ['تكلفة المنتجات', -Math.round(pnl.cogs)],
-        ['ربح إجمالي', Math.round(pnl.gross)],
-        ['الشحن', -Math.round(pnl.ship)],
-        ['الإعلانات', -Math.round(pnl.ad)],
-        ['صافي الربح/الخسارة', Math.round(pnl.net)],
-        ['صافي تركيا', Math.round(pnl.perMarket.turkey.net)],
-        ['صافي سوريا', Math.round(pnl.perMarket.syria.net)],
-        ['صافي الإمارات', Math.round(pnl.perMarket.uae.net)],
-        ...(pnl.missing.length ? [[`⚠️ منتجات بلا تكلفة`, pnl.missing.length]] : []),
+        ['الربح والخسارة', 'في شاشة «الربحية والنتائج الشهرية»'],
+        ['العمولة', 'من مسيّر الرواتب (ورقة الموظفون)'],
       ];
 
       // 2) Products (qty + catalog value in USD)
-      const { data: econ } = await supabase.from('product_economics').select('item_name, sale_price_usd');
-      const priceMap = {};
-      (econ || []).forEach(r => { priceMap[normName(r.item_name)] = Number(r.sale_price_usd) || 0; });
       const products = soldProducts(delivered).map(p => {
-        const price = priceMap[p.key] || 0;
-        const c = costs[p.key];
-        const unitCost = c ? c.cost + c.ship + c.ad : 0;
+        const price = prices[p.key] || 0;
         return {
           'المنتج': p.name, 'الكمية': p.qty,
-          'السعر (USD)': price || '', 'القيمة (USD)': price ? Math.round(price * p.qty) : '',
-          'التكلفة/وحدة (USD)': unitCost || '',
-          'الربح (USD)': (price && unitCost) ? Math.round((price - unitCost) * p.qty) : '',
+          'سعر الكتالوج (USD)': price || '', 'القيمة بسعر الكتالوج (USD)': price ? Math.round(price * p.qty) : '',
         };
       });
 
-      // 3) Employees (deliveries + sales + commission)
+      // 3) Employees (deliveries + sales + payroll commission)
       const employees = byEmployee.map(e => {
-        const c = commissionBreakdown(e, rulesById, adjustments.find(a => a.employee_name === e.name));
+        const pr = payrollFor(e.name);
         const row = {
           'الموظف': e.name, 'السوق': MARKET_LABEL[e.market] || 'تركيا',
           'عدد التسليمات': e.orders.length, 'المبيعات (USD)': Math.round(e.usdTotal),
         };
         Object.entries(e.totals).forEach(([cur, v]) => { row[`مبيعات ${cur}`] = v; });
-        row['العمولة'] = `${Math.round(c.net)} ${c.cur}`;
+        row['العمولة — مسيّر الرواتب (USD)'] = pr ? Math.round(Number(pr.commission) || 0) : (monthMode ? 'لم تُحسب بعد' : '—');
         return row;
       });
 
@@ -941,8 +728,10 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             <p className="text-xs text-muted mt-0.5">
               {showRecords
                 ? `${recordsTable?.employees?.length ?? 0} موظف · ${(recordsTable?.months ?? []).length} أشهر`
+                : shared.status === 'loading' ? '⏳ جارٍ التحميل…'
                 : `${delivered.length} طلب مسلّم · ${byEmployee.length} موظف`}
             </p>
+            <p className="text-[10px] text-muted/80 mt-0.5">بتاريخ التسليم الفعلي — نفس أرقام الرواتب و«محاسبة المبيعات والتسليمات»</p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button onClick={() => { setShowRecords(v => !v); }}
@@ -1045,13 +834,13 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         )}
 
         {/* Grand totals */}
-        {Object.keys(grandTotals).length > 0 && (
+        {!showRecords && Object.keys(totals.byCur).length > 0 && (
           <div className="flex gap-3 mt-3 flex-wrap items-stretch">
             <div className="bg-teal text-navy rounded-xl px-3 py-1.5 text-center">
               <p className="text-[10px] opacity-80">الإجمالي ≈ USD</p>
-              <p className="text-sm font-black">${delivered.reduce((s, o) => s + orderUsd(o, prices, rates), 0).toFixed(0)}</p>
+              <p className="text-sm font-black">${totals.usd.toFixed(0)}{totals.usdMissing ? '+' : ''}</p>
             </div>
-            {Object.entries(grandTotals).map(([cur, total]) => (
+            {Object.entries(totals.byCur).map(([cur, total]) => (
               <div key={cur} className="bg-surface rounded-xl px-3 py-1.5 text-center">
                 <p className="text-xs text-muted">{cur}</p>
                 <p className="text-sm font-extrabold text-text">{CURRENCY_SYMBOLS[cur]}{total.toLocaleString('en-US')}</p>
@@ -1059,67 +848,25 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             ))}
           </div>
         )}
+        {!showRecords && (totals.legacy > 0 || totals.usdMissing > 0) && (
+          <p className="text-[11px] text-amber-700 mt-2">
+            {totals.legacy > 0 ? `${totals.legacy} طلب بلا سجل تسليم دخل بتاريخ الطلب (تقديري). ` : ''}
+            {totals.usdMissing > 0 ? `${totals.usdMissing} طلب بلا سعر صرف — غير داخل في الدولار.` : ''}
+          </p>
+        )}
       </div>
 
-      {/* P&L — ربح/خسارة الفترة (للمدير، قبل الأرشفة) */}
-      {isManager && delivered.length > 0 && (
-        <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-text text-sm">📊 ربح/خسارة الفترة (USD)</h3>
-            <span className="text-[11px] text-muted">{pnl.qty.toLocaleString('en-US')} قطعة مباعة</span>
-          </div>
-
-          <div className="space-y-1.5 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted text-xs">💵 الإيراد (سعر الكتالوج)</span>
-              <span className="font-bold text-text">${Math.round(pnl.revenue).toLocaleString('en-US')}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted text-xs">📦 − تكلفة المنتجات</span>
-              <span className="font-bold text-red-500">−${Math.round(pnl.cogs).toLocaleString('en-US')}</span>
-            </div>
-            <div className="flex items-center justify-between border-t border-border/60 pt-1.5">
-              <span className="text-xs font-bold text-text">= ربح إجمالي</span>
-              <span className={`font-extrabold ${pnl.gross >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(pnl.gross).toLocaleString('en-US')}</span>
-            </div>
-            {(pnl.ship > 0 || pnl.ad > 0) && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted text-xs">🚚 − الشحن</span>
-                  <span className="font-bold text-red-500">−${Math.round(pnl.ship).toLocaleString('en-US')}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted text-xs">📣 − الإعلانات</span>
-                  <span className="font-bold text-red-500">−${Math.round(pnl.ad).toLocaleString('en-US')}</span>
-                </div>
-              </>
-            )}
-            <div className={`flex items-center justify-between rounded-xl px-3 py-2 mt-1 ${pnl.net >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
-              <span className="text-xs font-extrabold text-text">{pnl.net >= 0 ? '✅ صافي الربح' : '🔻 صافي الخسارة'}</span>
-              <span className={`text-base font-black ${pnl.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(Math.abs(pnl.net)).toLocaleString('en-US')}</span>
-            </div>
-          </div>
-
-          {/* تركيا مقابل سوريا */}
-          <div className="grid grid-cols-3 gap-2">
-            {[['turkey', '🇹🇷 تركيا'], ['syria', '🇸🇾 سوريا'], ['uae', '🇦🇪 الإمارات']].map(([mk, label]) => {
-              const m = pnl.perMarket[mk];
-              if (!m.qty) return <div key={mk} className="bg-surface-alt rounded-xl px-3 py-2 text-center text-[11px] text-muted">{label}: لا تسليمات</div>;
-              return (
-                <div key={mk} className="bg-surface-alt rounded-xl px-3 py-2 text-center">
-                  <p className="text-[11px] text-muted">{label} · {m.qty} قطعة</p>
-                  <p className={`text-sm font-black ${m.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>${Math.round(m.net).toLocaleString('en-US')}</p>
-                  <p className="text-[10px] text-muted">إيراد ${Math.round(m.revenue).toLocaleString('en-US')}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          {pnl.missing.length > 0 && (
-            <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-              ⚠️ {pnl.missing.length} منتج مباع بلا تكلفة محدّدة — الربح أعلاه ناقص. حدّد التكاليف من شاشة «💎 ربحية المنتج».
-            </div>
-          )}
+      {/* الأرقام المعتمدة: التفاصيل والربح في شاشاتها */}
+      {isManager && !showRecords && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Link to="/sales-delivery" className="bg-surface border border-border rounded-2xl p-3 text-sm font-bold text-text hover:border-teal/40 transition">
+            🧮 محاسبة المبيعات والتسليمات
+            <span className="block text-[11px] text-muted font-normal mt-0.5">المرتجعات، الشحن، المنتجات، الموظفون بالتفصيل</span>
+          </Link>
+          <Link to="/profitability" className="bg-surface border border-border rounded-2xl p-3 text-sm font-bold text-text hover:border-teal/40 transition">
+            💎 الربحية والنتائج الشهرية
+            <span className="block text-[11px] text-muted font-normal mt-0.5">الربح والخسارة المعتمدة (إيراد، تكلفة، مصاريف)</span>
+          </Link>
         </div>
       )}
 
@@ -1167,8 +914,14 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
         ))}
       </div>
 
-      {/* Empty state */}
-      {delivered.length === 0 && (
+      {/* Loading / error / empty */}
+      {shared.status === 'loading' && (
+        <div className="text-center py-10 text-muted text-sm">⏳ جارٍ تحميل التسليمات…</div>
+      )}
+      {shared.status === 'error' && (
+        <div className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-xl p-3">تعذّر تحميل التسليمات: {shared.error}</div>
+      )}
+      {shared.status === 'ready' && delivered.length === 0 && (
         <div className="text-center py-16 text-muted border-2 border-dashed border-border rounded-2xl">
           <p className="text-4xl mb-3">📭</p>
           <p className="text-sm font-bold">لا توجد تسليمات في هذه الفترة</p>
@@ -1176,14 +929,14 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       )}
 
       {/* Sold products + values (accountant) */}
-      <ProductValuesSection delivered={delivered} canEdit={isManager} />
+      {shared.status === 'ready' && <ProductValuesSection delivered={delivered} canEdit={isManager} />}
 
-      {/* Commission settings toggle (admin only) */}
+      {/* Commission settings toggle — القيم الافتراضية التي يبدأ منها إعداد شهر الرواتب */}
       {isManager && (
         <button onClick={() => setShowSettings(v => !v)}
           className={`w-full py-2.5 rounded-xl border text-sm font-bold transition
             ${showSettings ? 'bg-navy/10 border-navy/30 text-navy' : 'bg-surface-alt border-border text-muted hover:text-text'}`}>
-          ⚙️ {showSettings ? 'إخفاء إعدادات العمولة' : 'إعدادات العمولة والتارجت'}
+          ⚙️ {showSettings ? 'إخفاء إعدادات العمولة' : 'إعدادات العمولة والتارجت (القيم الافتراضية لمسيّر الرواتب)'}
         </button>
       )}
       {isManager && showSettings && (
@@ -1194,18 +947,12 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
 
       {/* Leaderboard */}
       {byEmployee.map((emp, i) => (
-        <EmployeeCommissionCard
+        <EmployeeDeliveryCard
           key={emp.name}
           emp={emp}
           rank={i}
-          rules={rules}
-          rulesById={rulesById}
-          rates={rates}
-          targetUsd={targetUsdFor(emp.market)}
-          adj={adjustments.find(a => a.employee_name === emp.name)}
-          onSaveAdj={(name, val, note) => saveAdj(name, val, note, userName)}
-          saving={saving}
-          isManager={isManager}
+          payroll={payrollFor(emp.name)}
+          monthMode={monthMode}
           isMe={emp.name === userName}
         />
       ))}
@@ -2884,7 +2631,8 @@ function OrderFormModal({ order, onClose, onSave, forcedMarket = null }) {
 }
 
 // ── Seller Stats Card ─────────────────────────────────────────
-function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
+// لا عرض عمولة هنا (D-174): النسبة الثابتة × المبيعات لم تكن ما يُصرف؛ العمولة من مسيّر الرواتب فقط.
+function SellerStatsCard({ orders, userName, myNames }) {
   const nameSet = useMemo(() => myNames || new Set([userName]), [myNames, userName]);
   const delivered = useMemo(() =>
     orders.filter(o => o.status === 'delivered' && nameSet.has(o.handler_name)),
@@ -2903,11 +2651,6 @@ function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
     <div className="bg-gradient-to-br from-teal/10 to-navy/5 border border-teal/20 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-text">📊 مبيعاتي المسلّمة</h3>
-        {commissionPct > 0 && (
-          <span className="text-[10px] font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-full">
-            عمولة {commissionPct}%
-          </span>
-        )}
       </div>
 
       {!hasData ? (
@@ -2915,7 +2658,6 @@ function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
       ) : (
         <div className="space-y-2">
           {Object.entries(totals).map(([currency, total]) => {
-            const commission = commissionPct > 0 ? (total * commissionPct / 100).toFixed(0) : null;
             const target = targetForCurrency(currency);
             const pct = target ? Math.min(100, Math.round((total / target) * 100)) : null;
             return (
@@ -2924,9 +2666,6 @@ function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
                   <span className="text-xs font-bold text-muted">{currency}</span>
                   <div className="text-right">
                     <div className="text-sm font-black text-text">{total.toFixed(0)} {currency}</div>
-                    {commission && (
-                      <div className="text-[10px] text-teal font-semibold">عمولتي: {commission} {currency}</div>
-                    )}
                   </div>
                 </div>
                 {pct !== null && (
@@ -2952,7 +2691,7 @@ function SellerStatsCard({ orders, userName, commissionPct, myNames }) {
 }
 
 // ── Seller Wallet — محفظة المبيعات ─────────────────────────────
-function SellerWallet({ orders, userName, myNames, commissionPct }) {
+function SellerWallet({ orders, userName, myNames }) {
   const nameSet = useMemo(() => myNames || new Set([userName]), [myNames, userName]);
 
   const myOrders = useMemo(() =>
@@ -3016,9 +2755,7 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
             <p className="text-[10px] opacity-80 mt-0.5">🔁 راجع</p>
           </div>
         </div>
-        {commissionPct > 0 && (
-          <p className="text-[11px] opacity-70 text-center">نسبة عمولتي: {commissionPct}%</p>
-        )}
+        <p className="text-[11px] opacity-70 text-center">العمولة تُحسب في مسيّر الرواتب فقط</p>
       </div>
 
       {/* المبالغ المسلّمة */}
@@ -3027,7 +2764,6 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
         {Object.keys(deliveredTotals).length === 0
           ? <p className="text-xs text-muted text-center py-2">لا توجد مبيعات مسلّمة بعد</p>
           : Object.entries(deliveredTotals).map(([c, total]) => {
-            const commission = commissionPct > 0 ? (total * commissionPct / 100) : null;
             const target = targetForCurrency(c);
             const pct = target ? Math.min(100, Math.round((total / target) * 100)) : null;
             return (
@@ -3036,7 +2772,6 @@ function SellerWallet({ orders, userName, myNames, commissionPct }) {
                   <span className="text-xs text-muted">{c}</span>
                   <div className="text-right">
                     <span className="text-base font-black text-text">{total.toLocaleString()} {c}</span>
-                    {commission && <p className="text-[10px] text-teal font-semibold">عمولة: {commission.toFixed(0)} {c}</p>}
                   </div>
                 </div>
                 {pct !== null && (
@@ -3131,7 +2866,6 @@ export default function OrdersScreen({ forcedMarket = null }) {
   const [deletedOrders,  setDeletedOrders] = useState([]);
   const [deletedLoading, setDeletedLoading]= useState(false);
   const [refreshing,     setRefreshing]    = useState(false);   // manual tracking refresh
-  const [commissionPct, setCommissionPct] = useState(0);
   const [partnerNames,  setPartnerNames]  = useState([]);      // accepted shift-partner names
   const [sellerFilter,  setSellerFilter]  = useState('');      // فلتر اسم البائع
   const [shipFilter,    setShipFilter]    = useState('');      // فلتر شركة الشحن
@@ -3154,17 +2888,6 @@ export default function OrdersScreen({ forcedMarket = null }) {
     const q = new URLSearchParams(location.search).get('q');
     if (q) setSearch(q);
   }, [location.search]);
-
-  // Load commission_pct for current seller
-  useEffect(() => {
-    if (!userName) return;
-    supabase.from('profiles')
-      .select('commission_pct')
-      .eq('employee_name', userName)
-      .maybeSingle()
-      .then(({ data }) => { if (data?.commission_pct != null) setCommissionPct(Number(data.commission_pct)); })
-      .catch(() => {});
-  }, [userName]);
 
   // Load accepted shift partners so their orders appear in «طلباتي»
   useEffect(() => {
@@ -4133,7 +3856,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
       {/* محفظة المبيعات */}
       {viewWallet && !isFulfillment && !isStorage && (
-        <SellerWallet orders={orders} userName={userName} myNames={myNames} commissionPct={commissionPct} />
+        <SellerWallet orders={orders} userName={userName} myNames={myNames} />
       )}
 
       {/* «طلباتي» / «كل الطلبات» toggle */}
@@ -4154,7 +3877,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
 
       {/* Seller stats — visible when in «طلباتي» mode */}
       {myOrders && !isFulfillment && !viewTracking && !viewMonthly && !viewWallet && !viewDeleted && (
-        <SellerStatsCard orders={orders} userName={userName} commissionPct={commissionPct} myNames={myNames} />
+        <SellerStatsCard orders={orders} userName={userName} myNames={myNames} />
       )}
 
       {/* Fulfillment banner */}

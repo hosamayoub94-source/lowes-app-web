@@ -10,8 +10,25 @@
 //   • profiles          → active headcount
 //   • sales_targets     → monthly target (if defined)
 // =============================================================
-import { supabase, supabaseAnon } from './supabase';
+import { supabase } from './supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { loadDeliveredForPeriod, loadStoredCommissions } from './deliveryAccountingService';
+import { periodBounds } from '@utils/deliveryAccounting';
+
+// ── المسلَّم هذا الشهر (D-174) ────────────────────────────────
+// نفس محدِّد الرواتب و«محاسبة المبيعات والتسليمات»: تاريخ انتقال الطلب إلى «تم التسليم»
+// بتوقيت إسطنبول، لا order_date. يُحمَّل مرة ويُمرَّر لكل الأقسام. null = تعذّر (يظهر «—» لا صفر).
+async function fetchDeliveredThisMonth() {
+  const d = new Date();
+  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  try {
+    const p = periodBounds({ month });
+    const res = await loadDeliveredForPeriod({ from: p.from, to: p.to });
+    return { delivered: res.delivered, returns: res.returns };
+  } catch {
+    return null;
+  }
+}
 
 // ── Date helpers ──────────────────────────────────────────────
 function todaySlash() {
@@ -63,7 +80,9 @@ async function fetchSales() {
 const zero = () => ({ try: 0, syp: 0, usd: 0 });
 
 // ── Orders (status + value + top products) ────────────────────
-async function fetchOrders() {
+// byStatus/valueByCurrency/topProducts = طلبات أُنشئت هذا الشهر (حسب حالتها الآن).
+// «المسلَّم» (العدد ولكل سوق) من deliv: ما سُلِّم فعلاً هذا الشهر — نفس الرواتب (D-174).
+async function fetchOrders(deliv) {
   const monthStart = monthStartISO();
   // fetchAllRows — PostgREST يبتر عند 1000 صف صامتاً بلا خطأ. تحقّقت حياً:
   // آخر الشهر بيعدّي 1000 طلب بسهولة (أغسطس لحاله عدّى 800+ بمنتصف الشهر)،
@@ -96,14 +115,11 @@ async function fetchOrders() {
   for (const o of data) {
     byStatus[o.status] = (byStatus[o.status] || 0) + 1;
     const mb = marketBucket(o.market || 'غير محدد');
-    const isDelivered = o.status === 'delivered';
     mb.orders += 1;
-    if (isDelivered) mb.delivered.orders += 1;
     if (o.amount) {
       const cur = o.currency || 'TRY';
       valueByCurrency[cur] = (valueByCurrency[cur] || 0) + Number(o.amount);
       mb.valueByCurrency[cur] = (mb.valueByCurrency[cur] || 0) + Number(o.amount);
-      if (isDelivered) mb.delivered.valueByCurrency[cur] = (mb.delivered.valueByCurrency[cur] || 0) + Number(o.amount);
     }
     if (Array.isArray(o.items)) {
       for (const it of o.items) {
@@ -111,9 +127,17 @@ async function fetchOrders() {
         const qty = Number(it.qty || 1);
         productCount[name] = (productCount[name] || 0) + qty;
         mb.units += qty;
-        if (isDelivered) mb.delivered.units += qty;
       }
     }
+  }
+  for (const o of deliv?.delivered || []) {
+    const mb = marketBucket(o.market || 'غير محدد');
+    mb.delivered.orders += 1;
+    if (o.amount) {
+      const cur = o.currency || 'TRY';
+      mb.delivered.valueByCurrency[cur] = (mb.delivered.valueByCurrency[cur] || 0) + Number(o.amount);
+    }
+    for (const it of Array.isArray(o.items) ? o.items : []) mb.delivered.units += Number(it.qty || 1);
   }
 
   const topProducts = Object.entries(productCount)
@@ -125,7 +149,7 @@ async function fetchOrders() {
     total:      data.length,
     byStatus,
     pending:    (byStatus.pending || 0) + (byStatus.preparing || 0),
-    delivered:  byStatus.delivered || 0,
+    delivered:  deliv ? deliv.delivered.length : null, // null = تعذّر التحميل (يُعرض «—»)
     cancelled:  byStatus.cancelled || 0,
     shipped:    byStatus.shipped || 0,
     topProducts,
@@ -248,87 +272,45 @@ async function fetchTasks() {
   return { overdue, inProgress, doneThisWeek, highPriority, total: data.length };
 }
 
-// ── Seller commissions (delivered orders this month) ──────────
-// For each seller: total delivered value per currency + commission
-// (value × profiles.commission_pct). Sorted by total value.
+// ── Seller commissions — من مسيّر الرواتب كما حُسبت (D-174) ────────
+// كانت: قيمة المسلَّم بتاريخ الطلب × profiles.commission_pct — رقم لا يُصرف.
+// الآن: payroll_entries لدورة الشهر (قراءة فقط، محمية بصلاحية الرواتب؛ بلا صلاحية ← قائمة فارغة).
 async function fetchCommissions() {
-  const monthStart = monthStartISO();
-
-  const [ordRes, profRes] = await Promise.all([
-    supabaseAnon.from('orders')
-      .select('handler_name, amount, currency, order_date')
-      .eq('status', 'delivered')
-      .gte('order_date', monthStart + 'T00:00:00'),
-    supabase.from('profiles')
-      .select('employee_name, commission_pct'),
-  ]);
-
-  const orders = ordRes.data || [];
-  const pctByName = {};
-  for (const p of (profRes.data || [])) {
-    if (p.employee_name) pctByName[p.employee_name] = Number(p.commission_pct ?? 0);
+  const d = new Date();
+  try {
+    const rows = await loadStoredCommissions(d.getFullYear(), d.getMonth() + 1);
+    const sellers = rows
+      .filter(r => r.orders > 0 || r.commission > 0)
+      .sort((a, b) => b.commission - a.commission || b.salesUsd - a.salesUsd);
+    return { sellers, totalSellers: sellers.length };
+  } catch {
+    return { sellers: [], totalSellers: 0 };
   }
-
-  // Group by seller → { totals: {cur: sum}, count }
-  const bySeller = {};
-  for (const o of orders) {
-    const name = o.handler_name;
-    if (!name || !o.amount) continue;
-    const cur = o.currency || 'USD';
-    if (!bySeller[name]) bySeller[name] = { name, totals: {}, count: 0, pct: pctByName[name] ?? 0 };
-    bySeller[name].totals[cur] = (bySeller[name].totals[cur] || 0) + Number(o.amount);
-    bySeller[name].count += 1;
-  }
-
-  // Compute commission per currency + a sort key (sum of all currency totals)
-  const sellers = Object.values(bySeller).map(s => {
-    const commissions = {};
-    let sortVal = 0;
-    for (const [cur, total] of Object.entries(s.totals)) {
-      commissions[cur] = s.pct > 0 ? Math.round(total * s.pct / 100) : 0;
-      sortVal += total;
-    }
-    return { ...s, commissions, sortVal };
-  }).sort((a, b) => b.sortVal - a.sortVal);
-
-  return { sellers, totalSellers: sellers.length };
 }
 
 // ── Returns report: per-seller delivered vs returned (count + value) ──
 // «آخر الشهر: لكل موظف شو مسلّم وشو عندو راجع بالعدد والقيمة»
-// Returns that count against the seller; «تمت التسوية» (settled) does NOT —
-// the customer paid the shipping, so it's a 0-return for the seller's balance.
-const RETURN_STATUSES = ['not_received', 'returning', 'returned'];
-async function fetchReturnsReport() {
-  const monthStart = monthStartISO();
-  const { data } = await supabaseAnon.from('orders')
-    .select('handler_name, amount, currency, status, order_date')
-    .in('status', ['delivered', 'settled', ...RETURN_STATUSES])
-    .gte('order_date', monthStart + 'T00:00:00');
-
-  const rows = data || [];
+// المسلَّم = سُلِّم فعلاً هذا الشهر؛ الراجع = «تم الاسترجاع» بتاريخ إرجاع موثوق داخل الشهر
+// (نفس تبويب المرتجعات بـ/sales-delivery). المعلّق (راجع للمركز/لم يُستلم) والتسويات هناك بالتفصيل.
+function buildReturnsReport(deliv) {
+  if (!deliv) return null;
   const bySeller = {};
-  for (const o of rows) {
-    const name = o.handler_name;
-    if (!name) continue;
-    const cur = o.currency || 'USD';
-    const amt = Number(o.amount) || 0;
-    if (!bySeller[name]) bySeller[name] = { name, deliveredCount: 0, returnedCount: 0, settledCount: 0, deliveredValue: {}, returnedValue: {} };
-    const s = bySeller[name];
-    if (o.status === 'delivered') {
-      s.deliveredCount += 1;
-      s.deliveredValue[cur] = (s.deliveredValue[cur] || 0) + amt;
-    } else if (o.status === 'settled') {
-      s.settledCount += 1; // resolved — not held against the seller
-    } else if (RETURN_STATUSES.includes(o.status)) {
-      s.returnedCount += 1;
-      s.returnedValue[cur] = (s.returnedValue[cur] || 0) + amt;
-    }
+  const slot = (name) => (bySeller[name] ??= { name, deliveredCount: 0, returnedCount: 0, deliveredValue: {}, returnedValue: {} });
+  for (const o of deliv.delivered) {
+    if (!o.handler_name) continue;
+    const s = slot(o.handler_name), cur = o.currency || 'USD';
+    s.deliveredCount += 1;
+    s.deliveredValue[cur] = (s.deliveredValue[cur] || 0) + (Number(o.amount) || 0);
+  }
+  for (const o of deliv.returns) {
+    if (!o.handler_name) continue;
+    const s = slot(o.handler_name), cur = o.currency || 'USD';
+    s.returnedCount += 1;
+    s.returnedValue[cur] = (s.returnedValue[cur] || 0) + (Number(o.amount) || 0);
   }
 
   const sellers = Object.values(bySeller).map(s => {
     const totalOrders = s.deliveredCount + s.returnedCount;
-    // Return rate by count — settled excluded (counts as 0 return for the seller)
     s.returnRate = totalOrders > 0 ? Math.round((s.returnedCount / totalOrders) * 100) : 0;
     return s;
   }).sort((a, b) => (b.deliveredCount + b.returnedCount) - (a.deliveredCount + a.returnedCount));
@@ -336,7 +318,6 @@ async function fetchReturnsReport() {
   const totals = {
     deliveredCount: sellers.reduce((n, s) => n + s.deliveredCount, 0),
     returnedCount:  sellers.reduce((n, s) => n + s.returnedCount, 0),
-    settledCount:   sellers.reduce((n, s) => n + s.settledCount, 0),
   };
   return { sellers, totals };
 }
@@ -360,16 +341,19 @@ async function fetchTarget() {
 
 // ── Master loader ─────────────────────────────────────────────
 export async function loadManagerBoard() {
-  const [sales, orders, attendance, tasks, target, commissions, returns, inventory] = await Promise.all([
+  // المسلَّم هذا الشهر يُحمَّل أولاً (بالتوازي مع الباقي) ويُمرَّر للطلبات والرواجع — مصدر واحد
+  const delivPromise = fetchDeliveredThisMonth();
+  const [sales, orders, attendance, tasks, target, commissions, deliv, inventory] = await Promise.all([
     fetchSales(),
-    fetchOrders(),
+    delivPromise.then(fetchOrders),
     fetchAttendance(),
     fetchTasks(),
     fetchTarget(),
     fetchCommissions(),
-    fetchReturnsReport(),
+    delivPromise,
     fetchInventoryMovements(),
   ]);
+  const returns = buildReturnsReport(deliv);
 
-  return { sales, orders, attendance, tasks, target, commissions, returns, inventory, loadedAt: new Date().toISOString() };
+  return { sales, orders, attendance, tasks, target, commissions, returns, inventory, deliveredLoadFailed: !deliv, loadedAt: new Date().toISOString() };
 }

@@ -71,6 +71,15 @@ jobs:
       - name: Check payroll fail-closed behavior
         run: node test-payroll-batch.mjs
 
+      - name: Check delivery accounting (sales-delivery + payroll source)
+        run: node test-delivery-accounting.mjs
+
+      - name: Check delivery-based payroll sales
+        run: node test-delivery-payroll.mjs
+
+      - name: Check monthly profitability calc
+        run: node test-profitability-calc.mjs
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 

@@ -5,7 +5,7 @@
 // =============================================================
 import { supabase } from '@services/supabase';
 import { fetchAllRows, fetchAllRowsConcurrent } from '@utils/fetchAllRows';
-import { selectDeliveredInPeriod, UNDELIVERED_GROUPS } from '@utils/deliveryAccounting';
+import { selectDeliveredInPeriod, UNDELIVERED_GROUPS, pickPayrollRun } from '@utils/deliveryAccounting';
 import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
 const DAY = 86400000;
@@ -160,7 +160,9 @@ export async function deleteCarrierRate({ id, name }) {
 
 /** عمولات الشهر كما حُسبت فعلاً بمسيّر الرواتب (قراءة فقط) — اسم الموظف → عمولة $. */
 export async function loadStoredCommissions(year, month) {
-  const { data: run } = await supabase.from('payroll_runs').select('id').eq('period_year', year).eq('period_month', month).maybeSingle();
+  // ليس maybeSingle: شهر بأكثر من دورة (تموز 2026: 3 مسودات + مدفوعة) كان يُرجع خطأ فيظهر «—» بصمت
+  const { data: runs } = await supabase.from('payroll_runs').select('id, status, created_at').eq('period_year', year).eq('period_month', month);
+  const run = pickPayrollRun(runs);
   if (!run?.id) return [];
   const [{ data: entries }, { data: profs }] = await Promise.all([
     supabase.from('payroll_entries').select('employee_id, commission_usd, sales_total_usd, sales_orders_count').eq('run_id', run.id),
