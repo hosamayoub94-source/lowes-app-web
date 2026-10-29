@@ -27,16 +27,12 @@ export const supabase = createClient(url || 'http://localhost', anonKey || 'anon
   auth: { persistSession: true, autoRefreshToken: true },
 });
 
-// Session-less client — always uses the anon/publishable key, never attaches
-// a user JWT. Required for tables where the `authenticated` RLS policy is more
-// restrictive than `anon` (e.g. orders table restricted to own rows). Use this
-// client for SELECT-only queries where all users should see all rows.
-// storageKey مختلف عمداً: كان العميلان يتشاركان نفس المفتاح (sb-<ref>-auth-token) فيظهر تحذير
-// «Multiple GoTrueClient instances» ويتنافسان على نفس قفل Navigator Lock لقراءة/تجديد الجلسة.
-// هذا العميل بلا جلسة ولا تجديد، فلا حاجة لمشاركة مفتاح الجلسة.
-export const supabaseAnon = createClient(url || 'http://localhost', anonKey || 'anon', {
-  auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-anon-sessionless' },
-});
+// كان هذا عميلاً بلا جلسة (دور anon) لقراءة/كتابة الطلبات متجاوزاً قيود authenticated.
+// منذ 28 تشرين الأول 2026 سُحبت كل صلاحيات anon على orders (migration orders_anon_access_containment)
+// فصار كل طلب منه 401 (قوائم الطلبات فارغة). الآن هو نفس العميل المسجَّل: يرسل جلسة المستخدم،
+// وسياسة orders_select_active_staff (migration 20261029600000) تعطي كل موظف فعّال رؤية كل الطلبات
+// كما كان قبلاً. الاسم باقٍ كي لا تتغيّر مواقع الاستدعاء (~30 موقعاً).
+export const supabaseAnon = supabase;
 
 // Storage bucket helper — matches legacy upload path.
 export const AVATAR_BUCKET = 'avatars';
