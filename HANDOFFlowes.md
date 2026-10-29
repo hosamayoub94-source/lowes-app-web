@@ -3,6 +3,19 @@
 
 ---
 
+### 🗓️ 29 تشرين الأول 2026 (2) — 🔴 الدخول + «المصاريف والشحن» بعد إغلاق anon — فرع `fix/login-directory-and-finance-rls-20261029`
+
+- **الدخول (السبب المثبت):** شاشة الدخول (فئة ← اسم ← PIN) تجلب الأسماء **قبل أي جلسة** عبر `listActiveProfiles` (قراءة `profiles` بدور anon). منذ `contain_anon_profile...` (28/10 21:27) anon بلا أي وصول (حتى المخطط: `PGRST205 graphql_public.profiles`) ← قائمة الأسماء فارغة ← **أي موظف انتهت جلسته لا يقدر يرجع**. `verify-pin` و Auth سليمان. سياسة `profiles_select_active_staff_directory` (التغيير المباشر 06:54) تخدم المسجَّلين فقط ولا تحل الدخول.
+  - الإصلاح: Edge Function جديدة `login-directory` (service role) ترجع `employee_name/role_type/avatar_url` للفعّالين فقط — **بدون `id`** عمداً: بريد Auth = `<id>@auth.lowes-pro.local` وكلمة المرور بوضع `compat` = `lp:<PIN>`، فقائمة id علنية تسمح بتخمين الـPIN على Auth مباشرة متجاوزاً حدّ المحاولات. `LoginScreen` يستعمل `listLoginProfiles` والمفتاح صار الاسم. اختبار `test-login-directory.mjs` (17).
+- **«المصاريف والشحن» (السبب المثبت):** `tighten_customer_and_accounting_rls` حذف `acc_entries_all`/`accounting_channels_write_all`/`acc_cats_all` وبقيت سياسات أضيق من قاعدة الشاشة. محاكاة جلسات (معاملة ملغاة): فادي (hr_manager + view_finance) وهيا (sales_manager) يريان **0 من 960** قيداً؛ فادي سجّل 130 قيداً بـ45 يوماً وآخرها 27/10. الشاشة لا تستعمل `expenses`/`profitability_expenses`/`shipping_carrier_rates` (فرضية التقرير الأصلي سقطت).
+  - الإصلاح: `20261029700000_restore_finance_staff_accounting_access.sql` — `app_finance_access()` (admin/manager/accountant/sales_manager أو `view_finance` عبر `app_has_permission`) للقراءة والإدخال، `app_finance_manager()` (admin/manager) للتعديل/الحذف — مطابق لـ`AccountingScreen` (`canEnter`/`isAdmin`). مُختبَر بمعاملة ملغاة: أدمن/مدير كل شيء، فادي/هيا قراءة+إدخال بلا تعديل/حذف، موظف/مخزن لا شيء، anon مرفوض.
+- **profiles / attendance_records / activity_logs 401:** كلها طلبات **بلا JWT** (لا 401 واحد بدور authenticated بالسجلات): (أ) شاشة الدخول، (ب) فحص وجود جدول `attendance_records` عند تحميل الصفحة قبل استعادة الجلسة (غير مؤذٍ)، (ج) تسجيل «فشل الدخول» بـ`activity_logs` قبل الجلسة (يضيع سجل المحاولة الفاشلة فقط)، (د) أجهزة تشغّل نسخة PWA قديمة قبل PR #122 (`supabaseAnon` منفصل) — تُحل بإعادة التحميل. الصلاحيات للمسجَّلين سليمة (محاكاة: profiles 37، orders 36,650 لكل دور).
+- **سُجّلت بالمستودع حرفياً** 6 migrations كانت بالإنتاج فقط (منها التغيير المباشر `restore_staff_directory_and_attendance_helper_access`).
+- **⏳ لم يُطبَّق على الإنتاج بعد:** الـmigration والدالة — مصنّف الأذونات رفض `apply_migration` (Production Deploy) فلم يُلتَف عليه. **الترتيب الصحيح:** migration ← `supabase functions deploy login-directory --no-verify-jwt` ← نشر الواجهة (الواجهة قبل الدالة = نفس العطل الحالي برسالة مختلفة).
+- **ملاحظات خارج النطاق:** (1) Google Apps Script يقرأ `orders` بمفتاح anon القديم (404 الآن). (2) `activity_logs_select_anon` (`USING true`) = كل مسجَّل يقرأ كل سجل التدقيق (2,433 صف لموظف عادي). (3) قيد الدخل التلقائي عند التسليم صفر منذ 22/10 على الأقل (قبل الإغلاق — ليس من هذا التراجع). (4) `expenses` ما زال بسياسات `true` لـpublic (anon محجوب بالصلاحيات فقط). (5) 4 ملفات اختبار تفشل على main أصلاً (b2b-leads-fn، b2b-model، cron-service-key-sql، media-sales-hidden).
+
+---
+
 ### 🗓️ 29 تشرين الأول 2026 — 🔴 الطلبات اختفت من التطبيق (موجودة بالجدول) — أُصلح بلا تراجع عن الأمان (PR #122)
 
 - **البلاغ (حسام):** صفحة طلبات سوريا كلها 0 بينما الجدول فيه طلبات.

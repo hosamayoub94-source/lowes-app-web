@@ -10,7 +10,7 @@ import { Avatar } from '@components/ui/Avatar';
 import { Spinner } from '@components/ui/Loading';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
-import { signInWithPin, listActiveProfiles } from '@services/authService';
+import { signInWithPin, listLoginProfiles } from '@services/authService';
 import { useAuthStore } from '@stores/authStore';
 import { LOGIN_GROUPS, ROLE_LABELS } from '@data/teams';
 import { ROUTES } from '@routes/paths';
@@ -37,7 +37,8 @@ export default function LoginScreen() {
   useEffect(() => {
     if (!group) return;
     setLoadingProfiles(true);
-    listActiveProfiles({ roleTypes: group.roles })
+    // قبل الدخول ما في جلسة، و anon ممنوع من profiles منذ 29 تشرين الأول — القائمة من دالة login-directory
+    listLoginProfiles({ roleTypes: group.roles })
       .then((data) => setProfiles(data || []))
       .catch((err) => toast.error(err?.message || 'تعذر تحميل القائمة'))
       .finally(() => setLoadingProfiles(false));
@@ -131,7 +132,7 @@ export default function LoginScreen() {
           ) : (
             profiles.map((p) => (
               <button
-                key={p.id}
+                key={p.employee_name}
                 type="button"
                 onClick={() => onPickName(p.employee_name)}
                 className="w-full text-start flex items-center gap-3 p-3 rounded-xl border border-border bg-surface hover:border-teal/40 transition-colors"

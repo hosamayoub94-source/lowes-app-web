@@ -74,6 +74,17 @@ export async function listActiveProfiles({ roleType, roleTypes } = {}) {
   return data || [];
 }
 
+/**
+ * Names for the LOGIN screen picker — runs before any session exists.
+ * anon can no longer read profiles (29 Oct 2026 lockdown), so the list comes from the login-directory Edge Function
+ * (service role, returns only employee_name / role_type / avatar_url of active staff — no id, see its handler.ts).
+ */
+export async function listLoginProfiles({ roleTypes } = {}) {
+  const { data, error } = await supabase.functions.invoke('login-directory', { body: { roleTypes: roleTypes || [] } });
+  if (error || !data?.ok) throw new Error('تعذّر تحميل قائمة الأسماء — تحقّق من الاتصال وأعد المحاولة');
+  return data.profiles || [];
+}
+
 // -------------------------------------------------------------
 // Manual session helpers
 // -------------------------------------------------------------
