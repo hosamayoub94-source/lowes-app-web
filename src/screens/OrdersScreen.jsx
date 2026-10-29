@@ -34,7 +34,6 @@ import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
 import { fetchAllRows } from '@utils/fetchAllRows';
-import { isBankMethod } from '@utils/payment';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -3378,50 +3377,11 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // مُصلِّح المخزون: يخصم عند «في التجهيز» فما فوق، يسترد عند الانتظار/الرجوع/الإلغاء
     if (order) syncOrderStock({ ...order, status: newStatus }, userName);
 
-    // ── Auto accounting entry when delivered (idempotent) ─────────
-    // Records income on delivery ONLY for non-COD orders or already-paid COD.
-    // COD unpaid = الفلوس لسا مع السائق/يورتيشي → لا نسجّل دخلاً الآن.
-    // نسجّل فقط: مدفوع مسبق (prepaid) أو COD مدفوع جزئياً/كلياً قبل التسليم.
-    const _skipCodAccounting = isCodOrder(order) && order.payment_status === 'unpaid';
-    // الدرهم (AED) ما له خزينة/عمود بدفاتر المحاسبة (usd/try/syp فقط) — تسجيله
-    // هنا كان سيدخل كـ«cash_syp» بمبلغ صفر (قيد خاطئ). يُسجَّل يدوياً لحين إضافة خزينة AED.
-    const _skipAedAccounting = String(order?.currency || '').toUpperCase() === 'AED';
-    if (newStatus === 'delivered' && order && Number(order.amount) > 0 && !_skipCodAccounting && !_skipAedAccounting) {
-      try {
-        const cur     = (order.currency || 'SYP').toUpperCase();
-        const orderNum = order.order_id || order.order_number || order.id?.slice(0, 8) || '—';
-        const ref     = `ORD-${orderNum}`;
-        // Skip if this order already has an income entry (idempotency guard).
-        const { data: existing } = await supabase
-          .from('accounting_entries').select('id').eq('reference_no', ref).limit(1).maybeSingle();
-        if (!existing) {
-          // Amount actually collected: partial → paid_amount, otherwise full.
-          const amt = order.payment_status === 'partial' && Number(order.paid_amount) > 0
-            ? Number(order.paid_amount) : Number(order.amount);
-          // توجيه لخزينة محددة بحسب العملة + الطريقة. isBankMethod موحّد بـ
-          // @utils/payment (payment_method قيم مسمّاة لا 'bank' الحرفية).
-          const isBank = isBankMethod(order.payment_method);
-          const wallet = cur === 'USD' ? (isBank ? 'bank_usd' : 'cash_usd')
-                       : cur === 'TRY' ? (isBank ? 'bank_try' : 'cash_try')
-                       : 'cash_syp';
-          await supabase.from('accounting_entries').insert({
-            entry_type:     'income',
-            category:       'مبيعات أونلاين',
-            description:    `مبيعات — طلب #${orderNum} (${order.customer_name || order.client_name || '—'})`,
-            amount_usd:     cur === 'USD' ? amt : 0,
-            amount_try:     cur === 'TRY' ? amt : 0,
-            amount_syp:     cur === 'SYP' ? amt : 0,
-            payment_method: wallet,
-            reference_no:   ref,
-            entry_date:     new Date().toISOString().slice(0, 10),
-            notes:          `تسجيل تلقائي عند التسليم — البائع: ${userName}`,
-            created_by:     userName,
-          });
-        }
-      } catch (e) {
-        console.warn('⚠️ لم يتم تسجيل القيد المحاسبي تلقائياً:', e.message);
-      }
-    }
+    // ── لا قيد محاسبي تلقائي عند التسليم (قرار حسام 29 تشرين الأول 2026، D-172) ─────────
+    // كان هنا إدراج تلقائي في accounting_entries لكنه لا يعمل منذ حزيران: يكتب created_by باسم نصي بعمود uuid NOT NULL
+    // فيفشل بصمت (7 قيود فقط بكل التاريخ، 0 برمز ORD-). الدفتر الفعلي يُدخَل يدوياً من المحاسبين (شاشة المصاريف والشحن)،
+    // فتفعيل التلقائي كان سيضاعف القيود. أُزيل المسار بدل تركه يستعلم/يفشل مع كل تسليم.
+    // ملاحظة: AED بلا خزينة بالدفاتر أصلاً — يبقى يدوياً.
 
   };
 
