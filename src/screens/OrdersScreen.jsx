@@ -5,7 +5,7 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase, supabaseAnon } from '@services/supabase';
+import { supabase, supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
@@ -678,7 +678,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   const [archivedForPeriod, setArchivedForPeriod] = useState([]);
   useEffect(() => {
     let cancelled = false;
-    fetchAllRows(() => supabaseAnon
+    fetchAllRows(() => supabase
       .from('orders')
       .select('*')
       .eq('archived', true)
@@ -706,7 +706,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setLoadingRec(true);
     const d = new Date(); d.setMonth(d.getMonth() - 5); d.setDate(1);
     const since = d.toISOString().slice(0, 10);
-    const base = () => supabaseAnon.from('orders')
+    const base = () => supabase.from('orders')
       .select('id,handler_name,order_date,amount,currency,market,items')
       .eq('status', 'delivered').is('deleted_at', null).gte('order_date', since);
     // نجلب المؤرشف والحيّ على دفعات (المؤرشف وحده قد يتجاوز 4000 صف).
@@ -3219,7 +3219,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (viewArchive) return;
     try {
       // على دفعات — بدونها تتوقف مزامنة حالات الطلبات بعد الصف 1000 صامتاً.
-      const data = await fetchAllRows(() => supabaseAnon
+      const data = await fetchAllRows(() => supabase
         .from('orders')
         .select('id, status, tracking_number, deleted_at')
         .or('archived.is.null,archived.eq.false'));
@@ -3265,7 +3265,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     if (!window.confirm(`أرشفة ${ids.length} طلب مسلّم من الأشهر السابقة؟ طلبات الشهر الحالي لن تُؤرشَف. ستختفي من القائمة وتبقى في الأرشيف.`)) return;
     setArchiving(true);
     try {
-      await batchUpdateByIds(supabaseAnon, 'orders', ids, { archived: true });
+      await batchUpdateByIds(supabase, 'orders', ids, { archived: true });
       await load();
       setViewMonthly(false);
     } catch (e) { window.alert('تعذّر: ' + e.message); }
@@ -3279,16 +3279,16 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // selling works; the market tabs below let them narrow to تركيا/سوريا.
       // Edits/permissions are handled per-card, not by hiding rows here.
       if (viewArchive) {
-        // Archive view — supabaseAnon bypasses authenticated-role RLS restriction.
-        let q = supabaseAnon.from('orders').select('*').is('deleted_at', null)
+        // Archive view — uses the authenticated session and database RLS.
+        let q = supabase.from('orders').select('*').is('deleted_at', null)
           .order('order_date', { ascending: false }).eq('archived', true);
         const s = search.trim();
         if (s) q = q.or(`customer_name.ilike.%${s}%,phone_1.ilike.%${s}%,order_id.ilike.%${s}%`);
         const { data } = await q.limit(500);
         setOrders(data ?? []);
       } else {
-        // النشطة: نجلب على دفعات — supabaseAnon يتجاوز قيود RLS على authenticated role.
-        const rows = await fetchAllRows(() => supabaseAnon.from('orders').select('*')
+        // النشطة: نجلب على دفعات — supabase يستخدم جلسة الموظف وسياسات RLS.
+        const rows = await fetchAllRows(() => supabase.from('orders').select('*')
           .is('deleted_at', null).or('archived.is.null,archived.eq.false')
           .order('order_date', { ascending: false }));
         setOrders(rows);
@@ -3360,7 +3360,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // لا نُكمِل التأثيرات الجانبية (محاسبة/مخزون/إشعار) إن لم تُحفظ الحالة فعلاً.
     // updated_at → وقت تغيير الحالة؛ يظهر بالكرت ويُمرَّر للجدول عبر edge fn.
     const statusChangedAt = new Date().toISOString();
-    const { error: stErr } = await supabaseAnon.from('orders').update({
+    const { error: stErr } = await supabase.from('orders').update({
       status: newStatus,
       updated_at: statusChangedAt,
       updated_by: userName,
@@ -3433,7 +3433,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     for (const o of list) {
       const next = nextFor(o);
       try {
-        await supabaseAnon.from('orders')
+        await supabase.from('orders')
           .update({ status: next, updated_at: new Date().toISOString(), updated_by: userName })
           .eq('id', o.id);
         recordStatusChange({ orderId: o.id, from: o.status, to: next, by: userName, source: 'app' });
@@ -3582,14 +3582,14 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // كتابة مباشرة عبر Supabase REST (بدون Edge Function)
       let set = 0, unchanged = 0, unmatched = [];
       for (const { orderId, go } of clean) {
-        const { data: rows, error: selErr } = await supabaseAnon
+        const { data: rows, error: selErr } = await supabase
           .from('orders')
           .select('id, yurtici_cargo_key')
           .eq('order_id', orderId)
           .limit(1);
         if (selErr || !rows?.length) { unmatched.push(orderId); continue; }
         if (rows[0].yurtici_cargo_key) { unchanged++; continue; }
-        const { error: upErr } = await supabaseAnon
+        const { error: upErr } = await supabase
           .from('orders')
           .update({ yurtici_cargo_key: go, shipping_company: 'Yurtiçi Kargo', updated_at: new Date().toISOString() })
           .eq('id', rows[0].id)
@@ -3709,7 +3709,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     // الحالة قبل الحفظ: حفظ نموذج التعديل كان يغيّر الحالة بلا أي سجل بـorder_status_history (سبب «توقيت غير معروف» بالمرتجعات) — نسجّل الآن.
     const prevStatus = existingId ? (orders.find((o) => o.id === existingId)?.status ?? null) : null;
     if (existingId) {
-      const { error } = await supabaseAnon.from('orders')
+      const { error } = await supabase.from('orders')
         .update({ ...form, updated_at: new Date().toISOString(), updated_by: userName })
         .eq('id', existingId);
       if (error) throw new Error(error.message);
@@ -3718,7 +3718,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
       // (market+brand) عند ترك order_id فارغاً — لا عشوائية ولا تضارب ولا سباق.
       const payload = { ...form, created_by: userName };
       delete payload.order_id; // اتركه للتريغر ليولّد TL-/TS-/SL-/SS- التسلسلي
-      const { data, error } = await supabaseAnon.from('orders')
+      const { data, error } = await supabase.from('orders')
         .insert(payload)
         .select('id, order_id').single();
       if (error) throw new Error(error.message);
@@ -3861,7 +3861,7 @@ export default function OrdersScreen({ forcedMarket = null }) {
     setArchiving(true);
     try {
       const ids = eligible.map(o => o.id);
-      await batchUpdateByIds(supabaseAnon, 'orders', ids, { archived: true });
+      await batchUpdateByIds(supabase, 'orders', ids, { archived: true });
       setArchivePickerOpen(false);
       await load();
     } catch (e) { window.alert('تعذّر: ' + e.message); }
