@@ -142,6 +142,28 @@ ok(denied(await as('authenticated', U.emp, `truncate commission_rules`)), 'emplo
 ok(wrote(await as('anon', null, `select id from commission_rules`)), 'anon READ of commission rules unchanged (payroll/manual sessions; batch B1 later)');
 ok(wrote(await as('authenticated', U.emp, `select id from commission_rules`)), 'staff can still READ commission rules');
 
+// ── acceptance (pre-apply review): the exact statements the app sends
+// commission editor = PostgREST upsert = INSERT ... ON CONFLICT (id) DO UPDATE, then UPDATE ... WHERE id='syria'
+const upsertRules = (v) => `insert into commission_rules (id, try_per_usd, syp_per_usd, monthly_target_try) values ('turkey', ${v}, 130, 65000) on conflict (id) do update set try_per_usd = excluded.try_per_usd, monthly_target_try = excluded.monthly_target_try returning id`;
+for (const [who, uid] of [['manager', U.manager], ['sales_manager', U.sales], ['admin', U.admin]]) {
+  ok(wrote(await as('authenticated', uid, upsertRules(48))), `${who}: editor UPSERT (insert ... on conflict do update) on an existing row works`);
+  ok(wrote(await as('authenticated', uid, `update commission_rules set syp_per_usd = 131 where id='syria' returning id`)), `${who}: second statement of the editor (update syria row) works`);
+}
+ok(denied(await as('authenticated', U.emp, upsertRules(1))), 'employee: the same UPSERT is rejected with an error');
+ok(denied(await as('anon', null, upsertRules(1))), 'anon: the same UPSERT is rejected with an error');
+{ // documented behaviour: a plain UPDATE blocked by RLS is NOT an error (0 rows) -> the editor must check affected rows / use .select()
+  const r = await as('authenticated', U.emp, `update commission_rules set try_per_usd = 1 where id='turkey' returning id`);
+  ok(!r.err && r.n === 0, 'FINDING: employee UPDATE returns NO error and 0 rows (silent) -> UI must verify the result, it currently does not');
+  ok((await db.query(`select try_per_usd::int v from commission_rules where id='turkey'`)).rows[0].v === 47, 'and the stored value really did not change');
+}
+// order history can be recorded by every kind of signed-in staff (the app flow), not only employees
+for (const [who, uid] of [['employee', U.emp], ['manager', U.manager], ['sales_manager', U.sales], ['admin', U.admin]]) {
+  ok(wrote(await as('authenticated', uid, `insert into order_status_history (order_id,from_status,to_status,changed_by,source) values ('00000000-0000-0000-0000-0000000000c1','new','shipped','x','app') returning id`)), `${who} can record an order status change`);
+}
+// exchange rate: a repeated pair is just another row (no unique key) and a refusal is an error the screen can show
+ok(wrote(await as('authenticated', U.admin, `insert into exchange_rates (from_cur,to_cur,rate) values ('USD','TRY',50) returning id`)), 'admin inserting an already-existing pair simply adds a row (append-only history)');
+{ const r = await as('authenticated', U.emp, `insert into exchange_rates (from_cur,to_cur,rate) values ('USD','TRY',1) returning id`); ok(denied(r), 'rejected rate insert is an ERROR (the admin screen shows it as ❌ ...): ' + r.err); }
+
 // monthly_commission_adjustments
 ok(wrote(await as('authenticated', U.admin, `insert into monthly_commission_adjustments (employee_name,month,adjustment_try) values ('Z','2026-10',1) returning id`)), 'admin can insert an adjustment');
 ok(denied(await as('authenticated', U.manager, `insert into monthly_commission_adjustments (employee_name,month,adjustment_try) values ('Z','2026-10',1) returning id`)), 'manager cannot insert an adjustment');
