@@ -5,7 +5,7 @@
 // =============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase, supabase } from '@services/supabase';
+import { supabase } from '@services/supabase';
 import { useAuth }  from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 import { ROLES }    from '@data/teams';
