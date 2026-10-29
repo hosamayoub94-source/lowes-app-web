@@ -256,9 +256,9 @@ function EmployeeDeliveryCard({ emp, rank, payroll, monthMode, isMe }) {
       {/* Commission — read-only from payroll */}
       <div className="bg-surface-alt rounded-xl px-3 py-2 flex justify-between text-xs">
         <span className="text-muted font-bold">💰 العمولة (مسيّر الرواتب)</span>
-        {payroll
+        {payroll?.final
           ? <span className="font-extrabold text-text">${Number(payroll.commission || 0).toFixed(0)}</span>
-          : <span className="text-muted">{monthMode ? 'لم تُحسب بعد بالمسيّر' : 'تُعرض لشهر واحد فقط'}</span>}
+          : <span className="text-muted">{!monthMode ? 'تُعرض لشهر واحد فقط' : payroll ? 'مؤقتة — تُحسب نهائياً عند إغلاق الشهر' : 'لم تُحسب بعد بالمسيّر'}</span>}
       </div>
 
       {/* Products */}
@@ -696,7 +696,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           'عدد التسليمات': e.orders.length, 'المبيعات (USD)': Math.round(e.usdTotal),
         };
         Object.entries(e.totals).forEach(([cur, v]) => { row[`مبيعات ${cur}`] = v; });
-        row['العمولة — مسيّر الرواتب (USD)'] = pr ? Math.round(Number(pr.commission) || 0) : (monthMode ? 'لم تُحسب بعد' : '—');
+        row['العمولة — مسيّر الرواتب (USD)'] = pr?.final ? Math.round(Number(pr.commission) || 0) : (pr ? 'مؤقتة' : (monthMode ? 'لم تُحسب بعد' : '—'));
         return row;
       });
 

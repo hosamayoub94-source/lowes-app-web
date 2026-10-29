@@ -570,7 +570,7 @@ export default function SalesDeliveryAccountingScreen() {
                       return (
                         <tr key={s.key} className="border-t border-border">
                           <td className="p-2 font-bold">{s.key}</td><td className="p-2">{fmt(s.count)}</td><td className="p-2">{curText(s.byCurrency)}</td><td className="p-2">${fmt(s.usd)}</td>
-                          <td className="p-2">{c ? `$${fmt(c.commission)}` : '—'}</td>
+                          <td className="p-2">{c ? (c.final ? `$${fmt(c.commission)}` : 'مؤقتة') : '—'}</td>
                           <td className="p-2">{s.returned ? `${fmt(s.returned.count)} · ${curText(s.returned.byCurrency)}` : '—'}</td>
                           <td className="p-2" title="الزبون دفع أجور الشحن ولم يستلم — يُحسب راجعاً بلا خصم">{s.settled ? `${fmt(s.settled.count)} · ${curText(s.settled.byCurrency)}` : '—'}</td>
                           <td className="p-2"><button className="text-teal font-bold" onClick={() => setOpenSeller(openSeller === s.key ? null : s.key)}>{openSeller === s.key ? 'إخفاء' : 'تفاصيل الطلبات'}</button></td>

@@ -279,10 +279,11 @@ async function fetchCommissions() {
   const d = new Date();
   try {
     const rows = await loadStoredCommissions(d.getFullYear(), d.getMonth() + 1);
+    const final = rows.length > 0 && rows.every(r => r.final);
     const sellers = rows
-      .filter(r => r.orders > 0 || r.commission > 0)
-      .sort((a, b) => b.commission - a.commission || b.salesUsd - a.salesUsd);
-    return { sellers, totalSellers: sellers.length };
+      .filter(r => r.commission > 0)
+      .sort((a, b) => b.commission - a.commission);
+    return { sellers, totalSellers: sellers.length, final, hasRun: rows.length > 0 };
   } catch {
     return { sellers: [], totalSellers: 0 };
   }
@@ -297,14 +298,12 @@ function buildReturnsReport(deliv) {
   const bySeller = {};
   const slot = (name) => (bySeller[name] ??= { name, deliveredCount: 0, returnedCount: 0, deliveredValue: {}, returnedValue: {} });
   for (const o of deliv.delivered) {
-    if (!o.handler_name) continue;
-    const s = slot(o.handler_name), cur = o.currency || 'USD';
+    const s = slot(o.handler_name || 'بلا اسم موظف'), cur = o.currency || 'USD';
     s.deliveredCount += 1;
     s.deliveredValue[cur] = (s.deliveredValue[cur] || 0) + (Number(o.amount) || 0);
   }
   for (const o of deliv.returns) {
-    if (!o.handler_name) continue;
-    const s = slot(o.handler_name), cur = o.currency || 'USD';
+    const s = slot(o.handler_name || 'بلا اسم موظف'), cur = o.currency || 'USD';
     s.returnedCount += 1;
     s.returnedValue[cur] = (s.returnedValue[cur] || 0) + (Number(o.amount) || 0);
   }

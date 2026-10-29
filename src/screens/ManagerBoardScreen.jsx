@@ -300,23 +300,29 @@ export default function ManagerBoardScreen() {
       )}
 
       {/* ── عمولات البائعين — من مسيّر الرواتب (D-174) ───── */}
-      {commissions?.sellers?.length > 0 && (
+      {commissions?.hasRun && (
         <Section title="عمولات البائعين (مسيّر الرواتب — هذا الشهر)" icon="📊">
-          <div className="space-y-2">
-            {commissions.sellers.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 bg-surface-alt rounded-xl px-3 py-2.5">
-                <span className="text-xs font-bold text-teal w-5 shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-text truncate">{s.name}</p>
-                  <p className="text-[11px] text-muted">{s.orders} طلب مسلّم · مبيعات ${fmt(s.salesUsd)}</p>
-                </div>
-                <span className="text-sm font-extrabold text-teal tabular-nums shrink-0">${fmt(s.commission)}</span>
+          {!commissions.final ? (
+            <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+              🟡 دورة رواتب هذا الشهر ما زالت مسودة — العمولة مؤقتة وتُحسب نهائياً عند إغلاق الشهر، فلا تُعرض أرقام هنا. المسلَّم الحالي لكل بائع في القسم التالي.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {commissions.sellers.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-surface-alt rounded-xl px-3 py-2.5">
+                    <span className="text-xs font-bold text-teal w-5 shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-text truncate">{s.name}</p>
+                      <p className="text-[11px] text-muted">{s.orders} طلب مسلّم · مبيعات ${fmt(s.salesUsd)}</p>
+                    </div>
+                    <span className="text-sm font-extrabold text-teal tabular-nums shrink-0">${fmt(s.commission)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-muted mt-3 text-center">
-            كما حُسبت بآخر تشغيل لمسيّر الرواتب لهذا الشهر — أعد الحساب من «الرواتب» لتحديثها
-          </p>
+              <p className="text-[10px] text-muted mt-3 text-center">كما حُسبت بدورة الرواتب المعتمدة لهذا الشهر</p>
+            </>
+          )}
         </Section>
       )}
 

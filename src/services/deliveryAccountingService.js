@@ -169,7 +169,9 @@ export async function loadStoredCommissions(year, month) {
     supabase.from('profiles').select('id, employee_name'),
   ]);
   const nameOf = new Map((profs || []).map((p) => [p.id, p.employee_name]));
-  return (entries || []).map((e) => ({ name: nameOf.get(e.employee_id) || e.employee_id, commission: Number(e.commission_usd) || 0, salesUsd: Number(e.sales_total_usd) || 0, orders: Number(e.sales_orders_count) || 0 }));
+  // المسودة: العمولة مؤقتة وتُخزَّن 0 حتى إغلاق الشهر، والأعداد من آخر تشغيل (قد تكون قديمة) — final=false فلا تُعرض 0 كأنها عمولة حقيقية
+  const final = ['paid', 'finalized'].includes(run.status);
+  return (entries || []).map((e) => ({ name: nameOf.get(e.employee_id) || e.employee_id, commission: Number(e.commission_usd) || 0, salesUsd: Number(e.sales_total_usd) || 0, orders: Number(e.sales_orders_count) || 0, final, runStatus: run.status }));
 }
 
 /** كل بيانات الفترة الخام (بلا فلاتر) — الشاشة تُركّب التقرير والفلاتر محلياً بلا إعادة جلب. */
