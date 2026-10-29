@@ -34,6 +34,7 @@ import LabelPrintModal from '@components/feature/LabelPrintModal';
 import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { saveCommissionRules } from '@utils/commissionRulesSave';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -132,24 +133,20 @@ function useCommission() {
 
   const rules = rulesById?.turkey || null; // backward-compat for the settings panel
 
+  // يرمي Error برسالة عربية إذا فشل الحفظ (المحرر يعرضها) — لا تُحدَّث الحالة المحلية إلا بعد نجاح فعلي (D-174/D-175).
   const saveRules = async (updated, actor) => {
     setSaving(true);
-    // Persist conversion rates to BOTH rows so they stay in sync.
-    const ratePatch = { try_per_usd: Number(updated.try_per_usd) || 33, syp_per_usd: Number(updated.syp_per_usd) || 14000 };
-    // Strip virtual (non-column) keys before writing the Turkey row.
-    const { syria_target_usd, syria_above_target_pct, ...turkeyCols } = updated;
-    await supabase.from('commission_rules').upsert({ ...turkeyCols, ...ratePatch, id: 'turkey', updated_at: new Date().toISOString(), updated_by: actor });
-    // Syria row: keep rates in sync + its own target and above-target %.
-    const syriaPatch = { ...ratePatch };
-    if (updated.syria_target_usd != null) syriaPatch.monthly_target_usd = Number(updated.syria_target_usd);
-    if (updated.syria_above_target_pct != null) syriaPatch.above_target_pct = Number(updated.syria_above_target_pct);
-    await supabase.from('commission_rules').update(syriaPatch).eq('id', 'syria');
-    setRulesById(prev => ({
-      ...prev,
-      turkey: { ...prev.turkey, ...updated, ...ratePatch },
-      syria:  { ...prev.syria, ...syriaPatch },
-    }));
-    setSaving(false);
+    try {
+      const { turkey, syria } = await saveCommissionRules(supabase, updated, actor);
+      const { id: _id, updated_at: _u, updated_by: _b, ...turkeyVals } = turkey;
+      setRulesById(prev => ({
+        ...prev,
+        turkey: { ...prev.turkey, ...turkeyVals },
+        syria:  { ...prev.syria, ...syria },
+      }));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return { rules, rulesById, saveRules, saving };
@@ -158,6 +155,7 @@ function useCommission() {
 // ── Commission Panel (admin settings) ────────────────────────
 function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, saving, actor }) {
   const [draft, setDraft] = useState(null);
+  const [msg, setMsg] = useState(null); // { ok, text } — نتيجة آخر محاولة حفظ
   useEffect(() => {
     if (rules) setDraft({ ...rules, syria_target_usd: syriaTargetUsd ?? 1000, syria_above_target_pct: syriaAbovePct ?? 10 });
   }, [rules, syriaTargetUsd, syriaAbovePct]);
@@ -181,19 +179,6 @@ function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, savi
         </div>
       </div>
 
-      <p className="text-[11px] font-bold text-muted pt-1">💱 أسعار التحويل لـ USD (كم وحدة = 1$)</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted font-bold">₺ ليرة تركية / دولار</label>
-          <input type="number" value={draft.try_per_usd || 0} onChange={f('try_per_usd')} min="0"
-            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted font-bold">£ ليرة سورية / دولار</label>
-          <input type="number" value={draft.syp_per_usd || 0} onChange={f('syp_per_usd')} min="0"
-            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
-        </div>
-      </div>
 
       <p className="text-[11px] font-bold text-muted pt-1">💰 العمولة (تركيا — TRY)</p>
       <div className="grid grid-cols-2 gap-3">
@@ -217,10 +202,18 @@ function CommissionSettings({ rules, syriaTargetUsd, syriaAbovePct, onSave, savi
         <input type="number" value={draft.syria_above_target_pct ?? 10} onChange={f('syria_above_target_pct')} min="0"
           className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-surface text-text focus:outline-none focus:ring-2 focus:ring-teal/30" />
       </div>
-      <button onClick={() => onSave(draft, actor)} disabled={saving}
+      <button onClick={async () => {
+        setMsg(null);
+        try { await onSave(draft, actor); setMsg({ ok: true, text: '✅ تم حفظ الإعدادات' }); }
+        catch (e) { setMsg({ ok: false, text: '❌ ' + (e?.message || 'تعذّر الحفظ') }); }
+      }} disabled={saving}
         className="w-full py-2.5 rounded-xl bg-teal text-navy text-sm font-bold hover:bg-teal/90 transition disabled:opacity-40">
         {saving ? 'جاري الحفظ…' : '💾 حفظ الإعدادات'}
       </button>
+      {msg && (
+        <p role="status" className={`text-xs font-bold text-center ${msg.ok ? 'text-green-fg' : 'text-red-fg'}`}>{msg.text}</p>
+      )}
+      <p className="text-[10px] text-muted text-center">أسعار التحويل تُدار من «الإدارة ← الإعدادات ← 💱 أسعار الصرف» (للأدمن) — لا تُعدَّل من هنا.</p>
     </div>
   );
 }
