@@ -30,7 +30,9 @@
 // ============================================================
 var YK_PUBLIC = 'https://www.yurticikargo.com/service/shipmentstracking';
 var YK_SHEET_TO_APP = 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sheet-to-app';
-var YK_APP_ORDERS = 'https://fghdumrgimoeqsafdhhh.supabase.co/rest/v1/orders?select=order_id,status&market=eq.turkey&archived=not.eq.true&deleted_at=is.null&limit=3000';
+// ⚠️ 29 تشرين الأول 2026: الحارس كان يقرأ orders بمفتاح anon (REST) فصار 401/404 بعد إغلاق anon (28/10) والحارس معطّل.
+// الآن يسأل دالة قراءة-فقط بنفس توكن الجدول (YK_TOKEN) — ترجع order_id + status فقط. لا مفتاح anon لقراءة الطلبات.
+var YK_APP_STATUSES = 'https://fghdumrgimoeqsafdhhh.supabase.co/functions/v1/sheet-order-statuses';
 var YK_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnaGR1bXJnaW1vZXFzYWZkaGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTE3OTQsImV4cCI6MjA5MTc2Nzc5NH0.e9DiuJySh4WMp7x5ErVV5LqBFawHUESrlGDRb8N5zPM';
 var YK_TOKEN = 'LOWES-TURKEY-2026';
 var YK_TABS = ['LOWES_TR', 'STRONG_TR'];
@@ -97,11 +99,20 @@ function pollYurticiStatuses() {
   // .forEach وكان الـcatch الفاضي يبلعه → YK_APP فاضية → هذا الحارس (سطر returning/not_received…
   // أدناه) ما اشتغل أبداً. الآن: الهيدر + تسجيل أي فشل بدل إخفائه.
   try {
-    var __r = UrlFetchApp.fetch(YK_APP_ORDERS, { headers: { apikey: YK_ANON, Authorization: 'Bearer ' + YK_ANON, 'Accept-Profile': 'public' }, muteHttpExceptions: true });
-    var __rows = JSON.parse(__r.getContentText());
-    if (!Array.isArray(__rows)) throw new Error('guard fetch http=' + __r.getResponseCode() + ' ' + String(__r.getContentText()).slice(0, 120));
-    __rows.forEach(function (o) { if (o.order_id) YK_APP[String(o.order_id).trim()] = o.status; });
-  } catch (e) { Logger.log('pollYurtici GUARD DISABLED: ' + e); }
+    var __r = UrlFetchApp.fetch(YK_APP_STATUSES, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ token: YK_TOKEN, market: 'turkey' }),
+      muteHttpExceptions: true,
+    });
+    var __j = JSON.parse(__r.getContentText());
+    if (!__j || __j.ok !== true || !Array.isArray(__j.rows)) throw new Error('guard fetch http=' + __r.getResponseCode() + ' ' + String(__r.getContentText()).slice(0, 120));
+    __j.rows.forEach(function (o) { if (o.order_id) YK_APP[String(o.order_id).trim()] = o.status; });
+  } catch (e) {
+    // Fail CLOSED (29 Oct 2026): without the guard a courier status could overwrite a return/cancel the team set in the app.
+    // Skipping one 10-minute cycle only delays tracking; the next run tries again.
+    Logger.log('pollYurtici GUARD UNAVAILABLE — cycle skipped: ' + e);
+    return 'guard unavailable — skipped';
+  }
   YK_TABS.forEach(function (name) {
     var sh = ss.getSheetByName(name);
     if (!sh) return;

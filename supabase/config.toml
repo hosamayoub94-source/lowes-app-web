@@ -443,3 +443,12 @@ verify_jwt = false
 verify_jwt = false
 [functions.shift-report-reminder]
 verify_jwt = false
+
+# Login-screen name list and the Apps Script order-status guard: no JWT can be sent before sign-in / from Apps Script.
+# Without these entries a CLI/CI "deploy all" would switch JWT verification ON and break sign-in (verify-pin is already live with verify_jwt=false), the login screen and the guard.
+[functions.verify-pin]
+verify_jwt = false
+[functions.login-directory]
+verify_jwt = false
+[functions.sheet-order-statuses]
+verify_jwt = false
