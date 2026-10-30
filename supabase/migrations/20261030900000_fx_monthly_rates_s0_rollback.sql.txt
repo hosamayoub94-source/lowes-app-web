@@ -1,0 +1,2 @@
+-- Rollback of S0 (not in the migrations path on purpose; run manually): the table is new and unread, so dropping it restores the previous state exactly.
+drop table if exists public.fx_monthly_rates;
