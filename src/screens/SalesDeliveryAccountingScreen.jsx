@@ -17,7 +17,7 @@ import { useAuth } from '@hooks/useAuth';
 import FxShadowPanel from '@components/feature/FxShadowPanel';
 import { FX_MONTHLY_DISPLAY } from '@utils/fxFlags';
 import { loadFxRates } from '@services/fxRatesService';
-import { makeMonthlyConverter, usdDisplay } from '@utils/fxConverter';
+import { makeMonthlyConverter, usdDisplay, usdSubMonthly } from '@utils/fxConverter';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
 /** صفوف الموظفين: المبيعات المسلَّمة + تم الاسترجاع + «تمت التسوية» (راجع بلا خصم) — اتحاد المفاتيح حتى يظهر موظف له مرتجعات فقط. */
@@ -399,7 +399,7 @@ export default function SalesDeliveryAccountingScreen() {
             <div className="space-y-3">
               <p className="text-xs text-muted">كل ما في هذا القسم خارج المبيعات والعمولات والرواتب. يُعرض كما هو الآن (قبل نهاية الفترة).</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {report.undeliveredByGroup.map((g) => <Stat key={g.group} label={g.label} value={`${fmt(g.count)} طلب`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}`} />)}
+                {report.undeliveredByGroup.map((g) => <Stat key={g.group} label={g.label} value={`${fmt(g.count)} طلب`} sub={`${curText(g.byCurrency)}${report.fxMonthly ? usdSubMonthly(g, fmt) : (g.usd ? ` · $${fmt(g.usd)}` : '')}`} />)}
               </div>
               <OrdersTable orders={report.undelivered} showDelivery={false} />
               {report.returns.length ? <><h3 className="text-sm font-black">مرتجعات الفترة (لا تُحتسب بيعاً)</h3><OrdersTable orders={report.returns.map((o) => ({ ...o, delivery_at: o.return_at || o.order_date }))} /></> : null}
@@ -418,16 +418,16 @@ export default function SalesDeliveryAccountingScreen() {
                     ['تم الاسترجاع — توقيت غير معروف', report.returnsInfo.byKind.unknown_timing.orders, report.returnsInfo.byKind.unknown_timing],
                     ['راجع للمركز / لم يُستلم — حالياً', report.currentInfo.total.orders, report.currentInfo.total],
                   ].map(([label, n, g]) => (
-                    <Stat key={label} label={label} value={`${fmt(n)} طلب`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} tone="text-red-600" />
+                    <Stat key={label} label={label} value={`${fmt(n)} طلب`} sub={`${curText(g.byCurrency)}${report.fxMonthly ? usdSubMonthly(g, fmt) : (`${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`)}`} tone="text-red-600" />
                   ))}
-                  <Stat label="تمت التسوية — راجع للبائع بلا خصم" value={`${fmt(report.settledAsReturns.length)} طلب`} sub={`${curText(report.settledTotal.byCurrency)}${report.settledTotal.usd ? ` · $${fmt(report.settledTotal.usd)}` : ''}`} tone="text-orange-600" />
+                  <Stat label="تمت التسوية — راجع للبائع بلا خصم" value={`${fmt(report.settledAsReturns.length)} طلب`} sub={`${curText(report.settledTotal.byCurrency)}${report.fxMonthly ? usdSubMonthly(report.settledTotal, fmt) : (report.settledTotal.usd ? ` · $${fmt(report.settledTotal.usd)}` : '')}`} tone="text-orange-600" />
                 </div>
                 <p className="text-xs text-muted">«تمت التسوية» = الزبون دفع أجور الشحن ولم يستلم: يُحسب راجعاً للموظف لكن بلا أي خصم من راتبه أو عمولته.</p>
                 <SimpleTable
                   head={['السوق', 'تم الاسترجاع بالفترة', 'القيمة', 'بالدولار', 'تمت التسوية (بلا خصم)', 'القيمة']}
                   rows={[...new Set([...report.returnsByMarket.map((m) => m.key), ...report.settledByMarket.map((m) => m.key)])].map((k) => {
                     const r = report.returnsByMarket.find((m) => m.key === k); const s = report.settledByMarket.find((m) => m.key === k);
-                    return [MARKET_LABELS[k] || k, fmt(r?.count || 0), curText(r?.byCurrency), r?.usd ? `$${fmt(r.usd)}` : '—', fmt(s?.count || 0), curText(s?.byCurrency)];
+                    return [MARKET_LABELS[k] || k, fmt(r?.count || 0), curText(r?.byCurrency), report.fxMonthly ? (r ? usdDisplay(r, fmt).text : '—') : (r?.usd ? `$${fmt(r.usd)}` : '—'), fmt(s?.count || 0), curText(s?.byCurrency)];
                   })}
                   empty="لا مرتجعات ولا تسويات بالفترة"
                 />
@@ -438,7 +438,7 @@ export default function SalesDeliveryAccountingScreen() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {['returning', 'not_received'].map((k) => {
                     const g = report.currentInfo.byKind[k];
-                    return <Stat key={k} label={`${RETURN_KIND_LABELS[k]} — حالياً`} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} />;
+                    return <Stat key={k} label={`${RETURN_KIND_LABELS[k]} — حالياً`} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${report.fxMonthly ? usdSubMonthly(g, fmt) : (`${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`)}`} />;
                   })}
                 </div>
                 <SimpleTable
@@ -452,7 +452,7 @@ export default function SalesDeliveryAccountingScreen() {
                 <h3 className="text-sm font-black">② حالات حدثت خلال الفترة (order_status_history.changed_at داخل الفترة)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[['تم الاسترجاع (إرجاع نهائي بالفترة)', report.returnsInfo.byKind.reliable], ['راجع للمركز — حدث بالفترة', report.returnsInfo.byKind.returning], ['لم يُستلم — حدث بالفترة', report.returnsInfo.byKind.not_received]].map(([label, g]) => (
-                    <Stat key={label} label={label} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`} />
+                    <Stat key={label} label={label} value={`${fmt(g.orders)} طلب · ${fmt(g.pieces)} قطعة`} sub={`${curText(g.byCurrency)}${report.fxMonthly ? usdSubMonthly(g, fmt) : (`${g.usd ? ` · $${fmt(g.usd)}` : ''}${g.usdMissing ? ` · ${g.usdMissing} بلا سعر صرف` : ''}`)}`} />
                   ))}
                 </div>
                 <p className="text-xs text-muted">
@@ -469,7 +469,7 @@ export default function SalesDeliveryAccountingScreen() {
 
               <section className="space-y-2 border border-orange-500/30 rounded-2xl p-3">
                 <h3 className="text-sm font-black">③ توقيت غير معروف — لا يُنسب لأي شهر</h3>
-                <Stat label={RETURN_KIND_LABELS.unknown_timing} value={`${fmt(report.returnsInfo.byKind.unknown_timing.orders)} طلب · ${fmt(report.returnsInfo.byKind.unknown_timing.pieces)} قطعة`} sub={`${curText(report.returnsInfo.byKind.unknown_timing.byCurrency)}${report.returnsInfo.byKind.unknown_timing.usd ? ` · $${fmt(report.returnsInfo.byKind.unknown_timing.usd)}` : ''}`} tone="text-orange-600" />
+                <Stat label={RETURN_KIND_LABELS.unknown_timing} value={`${fmt(report.returnsInfo.byKind.unknown_timing.orders)} طلب · ${fmt(report.returnsInfo.byKind.unknown_timing.pieces)} قطعة`} sub={`${curText(report.returnsInfo.byKind.unknown_timing.byCurrency)}${report.fxMonthly ? usdSubMonthly(report.returnsInfo.byKind.unknown_timing, fmt) : (report.returnsInfo.byKind.unknown_timing.usd ? ` · $${fmt(report.returnsInfo.byKind.unknown_timing.usd)}` : '')}`} tone="text-orange-600" />
                 <SimpleTable
                   head={['الطلب', 'السوق', 'الحالة الآن', 'السبب', 'تاريخ الطلب', 'البائع', 'الشحن', 'القيمة', 'القطع']}
                   rows={report.unknownTiming.map((o) => [o.order_code || o.order_id || String(o.id).slice(0, 8), MARKET_LABELS[o.market] || o.market, STATUSES[o.status]?.label || o.status, o.unknown_reason === 'bulk_event' ? 'تحديث جماعي' : o.unknown_reason === 'no_history' ? 'بلا سجل' : 'بلا تاريخ إرجاع', String(o.order_date || '').slice(0, 10), o.handler_name || '—', carrierKey(o.shipping_company, o.market), `${fmt(o.amount)} ${o.currency}`, fmt(o.pieces ?? 0)])}
@@ -505,20 +505,20 @@ export default function SalesDeliveryAccountingScreen() {
               </section>
               <p className="text-xs text-muted">تكلفة الشحن «موثّقة» فقط حين delivery_cost &gt; 0. الدافع الافتراضي «علينا» لا يُعدّ دليلاً. تكلفة العميل لا تدخل إيراداً ولا مصروفاً علينا ولا تُخلط بقيمة الطلب.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <Stat label="تكلفة شحن على العميل (موثّقة)" value={curText(report.shipping.totals.customer.byCurrency)} sub={`${fmt(report.shipping.totals.customer.orders)} طلب${report.shipping.totals.customer.usd ? ` · $${fmt(report.shipping.totals.customer.usd)}` : ''}`} />
-                <Stat label="تكلفة شحن علينا (موثّقة)" value={curText(report.shipping.totals.company.byCurrency)} sub={`${fmt(report.shipping.totals.company.orders)} طلب${report.shipping.totals.company.usd ? ` · $${fmt(report.shipping.totals.company.usd)}` : ''}`} />
+                <Stat label="تكلفة شحن على العميل (موثّقة)" value={curText(report.shipping.totals.customer.byCurrency)} sub={`${fmt(report.shipping.totals.customer.orders)} طلب${report.fxMonthly ? usdSubMonthly(report.shipping.totals.customer, fmt) : (report.shipping.totals.customer.usd ? ` · $${fmt(report.shipping.totals.customer.usd)}` : '')}`} />
+                <Stat label="تكلفة شحن علينا (موثّقة)" value={curText(report.shipping.totals.company.byCurrency)} sub={`${fmt(report.shipping.totals.company.orders)} طلب${report.fxMonthly ? usdSubMonthly(report.shipping.totals.company, fmt) : (report.shipping.totals.company.usd ? ` · $${fmt(report.shipping.totals.company.usd)}` : '')}`} />
                 <Stat label="تكلفة شحن غير موثّقة" value={`${fmt(report.shipping.totals.unknownOrders)} طلب`} sub={`من ${fmt(report.shipping.totals.orders)} (مسلَّم + مرتجع + عدم استلام)`} tone="text-orange-600" />
               </div>
               <SimpleTable
                 head={['شركة الشحن', 'الدافع', 'الطلبات', 'التكلفة الموثّقة', 'بالدولار']}
-                rows={report.shipping.rows.map((g) => [g.carrier, PAYER_LABELS[g.payer], fmt(g.orders), g.payer === 'unknown' ? 'غير موثّق' : curText(g.byCurrency), g.payer === 'unknown' ? 'غير موثّق' : (g.usdMissing ? `$${fmt(g.usd)} (+ بلا سعر صرف)` : `$${fmt(g.usd)}`)])}
+                rows={report.shipping.rows.map((g) => [g.carrier, PAYER_LABELS[g.payer], fmt(g.orders), g.payer === 'unknown' ? 'غير موثّق' : curText(g.byCurrency), g.payer === 'unknown' ? 'غير موثّق' : (report.fxMonthly ? usdDisplay(g, fmt).text + (g.usdMissing ? ` (+${g.usdMissing} غير محوَّل)` : '') : (g.usdMissing ? `$${fmt(g.usd)} (+ بلا سعر صرف)` : `$${fmt(g.usd)}`))])}
               />
               <section className="space-y-2 border border-border rounded-2xl p-3">
                 <h3 className="text-sm font-black">💡 تكلفة الشحن التقديرية (من تعرفة الشركات) — منفصلة عن الفعلي</h3>
                 <p className="text-xs text-muted">يُحسب: أجرة الذهاب لكل شحنة بلا تكلفة موثّقة دافعها «علينا» أو غير مؤكد، + أجرة المرتجع للمرتجع النهائي حسب سياسة الشركة. «على العميل» لا يُقدَّر. الفعلي الموثّق يغلب التقدير. طلب بلا تعرفة لشركته يظهر «بلا تعرفة» لا صفراً.</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <Stat label="ذهاب تقديري علينا" value={curText(report.shippingEstimate.totals.outbound)} sub={`${fmt(report.shippingEstimate.totals.estimated)} شحنة${report.shippingEstimate.totals.usdOutbound ? ` · $${fmt(report.shippingEstimate.totals.usdOutbound)}` : ''} · منها الدافع غير مؤكد ${fmt(report.shippingEstimate.totals.payerUnconfirmed)}`} />
-                  <Stat label="مرتجع تقديري علينا" value={curText(report.shippingEstimate.totals.returnFee)} sub={`${report.shippingEstimate.totals.usdReturn ? `$${fmt(report.shippingEstimate.totals.usdReturn)} · ` : ''}سياسة غير معروفة: ${fmt(report.shippingEstimate.totals.returnUnknown)} · معلّق: ${fmt(report.shippingEstimate.totals.returnPending)}`} />
+                  <Stat label="ذهاب تقديري علينا" value={curText(report.shippingEstimate.totals.outbound)} sub={`${fmt(report.shippingEstimate.totals.estimated)} شحنة${report.fxMonthly ? usdSubMonthly(report.shippingEstimate.totals.outboundUsd, fmt) : (report.shippingEstimate.totals.usdOutbound ? ` · $${fmt(report.shippingEstimate.totals.usdOutbound)}` : '')} · منها الدافع غير مؤكد ${fmt(report.shippingEstimate.totals.payerUnconfirmed)}`} />
+                  <Stat label="مرتجع تقديري علينا" value={curText(report.shippingEstimate.totals.returnFee)} sub={`${report.fxMonthly ? (report.shippingEstimate.totals.returnUsd?.usd ? `${usdDisplay(report.shippingEstimate.totals.returnUsd, fmt).text} · ` : '') : (report.shippingEstimate.totals.usdReturn ? `$${fmt(report.shippingEstimate.totals.usdReturn)} · ` : '')}سياسة غير معروفة: ${fmt(report.shippingEstimate.totals.returnUnknown)} · معلّق: ${fmt(report.shippingEstimate.totals.returnPending)}`} />
                   <Stat label="فعلي موثّق (علينا)" value={curText(report.shippingEstimate.totals.actualByCurrency)} sub={`${fmt(report.shippingEstimate.totals.actual)} طلب`} />
                   <Stat label="بلا تعرفة / على العميل" value={`${fmt(report.shippingEstimate.totals.noRate)} بلا تعرفة · ${fmt(report.shippingEstimate.totals.customerPaid)} على العميل`} sub="لا تدخل التقدير" tone={report.shippingEstimate.totals.noRate ? 'text-orange-600' : 'text-text'} />
                 </div>

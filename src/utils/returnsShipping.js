@@ -11,6 +11,7 @@
 //  • أسماء الشركات تُوحَّد للعرض والفلترة فقط (لا كتابة بالبيانات) — التوحيد الحقيقي في جلسة منفصلة.
 // =============================================================
 import { normName } from './profitabilityCalc.js';
+import { accumulateUsd, finalizeUsd } from './fxConverter.js';
 
 const num = (v) => Number(v) || 0;
 const round2 = (v) => Math.round(v * 100) / 100;
@@ -78,7 +79,7 @@ export const PAYER_LABELS = { customer: 'على العميل', company: 'علي�
  * الصفوف: {carrier, payer, orders, documentedOrders, byCurrency, usd, usdMissing}
  * totals: لكل دافع (customer/company) مجاميع التكلفة الموثّقة فقط + عدد الطلبات بلا تكلفة موثّقة.
  */
-export function shippingSummary(orders, rateMap) {
+export function shippingSummary(orders, rateMap, converter = null) {
   const m = new Map();
   const totals = { customer: { orders: 0, byCurrency: {}, usd: 0, usdMissing: 0 }, company: { orders: 0, byCurrency: {}, usd: 0, usdMissing: 0 }, unknownOrders: 0, orders: 0 };
   for (const o of orders || []) {
@@ -93,11 +94,18 @@ export function shippingSummary(orders, rateMap) {
       addCur(g.byCurrency, o.currency, c);
       addCur(totals[payer].byCurrency, o.currency, c);
       totals[payer].orders += 1;
-      const u = usdOf(c, o.currency, rateMap);
-      if (u === null) { g.usdMissing += 1; totals[payer].usdMissing += 1; } else { g.usd = round2(g.usd + u); totals[payer].usd = round2(totals[payer].usd + u); }
+      if (converter) {
+        // S3b-2: تكلفة الشحن بسعر شهر التسليم/الشحن
+        const cc = converter.convert({ amount: c, currency: o.currency, delivery_at: o.delivery_at, order_date: o.order_date }, 'shipping');
+        accumulateUsd(g, cc); accumulateUsd(totals[payer], cc);
+      } else {
+        const u = usdOf(c, o.currency, rateMap);
+        if (u === null) { g.usdMissing += 1; totals[payer].usdMissing += 1; } else { g.usd = round2(g.usd + u); totals[payer].usd = round2(totals[payer].usd + u); }
+      }
     }
     m.set(k, g);
   }
+  if (converter) { for (const g of m.values()) finalizeUsd(g); finalizeUsd(totals.customer); finalizeUsd(totals.company); }
   const rows = [...m.values()].sort((a, b) => (a.carrier === b.carrier ? (a.payer < b.payer ? -1 : 1) : b.orders - a.orders));
   return { rows, totals };
 }
@@ -123,18 +131,23 @@ const emptyVal = () => ({ orders: 0, pieces: 0, byCurrency: {}, usd: 0, usdMissi
  * deliveredBeforeReturn: عدد المرتجعات النهائية التي لها تسليم سابق بالسجل (قد يتأثر بتذبذب سجل الحالات → conflict).
  * restock: موثّق (حركة «استرداد للمخزون») أم غير موثّق. تكلفة الشحن (ذهاب/إياب) تُلخَّص من shippingSummary لا هنا.
  */
-export function returnsAnalysis(rows, rateMap) {
+export function returnsAnalysis(rows, rateMap, converter = null) {
   const byKind = { reliable: emptyVal(), unknown_timing: emptyVal(), returning: emptyVal(), not_received: emptyVal() };
   const out = { byKind, total: emptyVal(), deliveredBeforeReturn: 0, historyConflict: 0, restockDocumented: 0, restockUndocumented: 0, costUndocumented: 0, rows: [] };
   for (const o of rows || []) {
     const kind = o.return_kind || returnKind(o);
     if (!kind || !byKind[kind]) continue;
     const pieces = piecesOf(o);
+    // S3b-2: المرتجع الموثوق بشهر استرجاعه؛ بلا توقيت موثوق أو راجع/لم يُستلم بتاريخ حدثه (وإلا بتاريخ الطلب وتقديرياً)
+    const cc = converter ? converter.convert(o, kind === 'reliable' || kind === 'unknown_timing' ? 'return' : 'pending') : null;
     for (const g of [byKind[kind], out.total]) {
       g.orders += 1; g.pieces += pieces;
       addCur(g.byCurrency, o.currency, num(o.amount));
-      const u = usdOf(o.amount, o.currency, rateMap);
-      if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
+      if (cc) accumulateUsd(g, cc);
+      else {
+        const u = usdOf(o.amount, o.currency, rateMap);
+        if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
+      }
     }
     // تسليم سابق/استرداد المخزون معلومتان من profitability_orders فقط: لا تُحسبان لصفوف لا تحملهما (سجل الحالات/orders)
     if (o.status === 'returned' && 'restock_qty' in o) {
@@ -145,6 +158,7 @@ export function returnsAnalysis(rows, rateMap) {
     if (!hasDocumentedCost(o)) out.costUndocumented += 1;
     out.rows.push({ ...o, return_kind: kind, pieces });
   }
+  if (converter) { for (const g of Object.values(byKind)) finalizeUsd(g); finalizeUsd(out.total); }
   return out;
 }
 

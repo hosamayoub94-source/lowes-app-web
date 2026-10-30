@@ -100,6 +100,9 @@ jobs:
       - name: Check FX monthly converter for sales screens (S3b-1, flag off)
         run: node test-fx-converter.mjs
 
+      - name: Check FX monthly converter for returns/settlements/shipping (S3b-2, flag off)
+        run: node test-fx-returns-shipping.mjs
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 

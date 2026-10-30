@@ -101,7 +101,7 @@ const rows = [row('a1', 1400, 'TRY', 'turkey', 'أ'), row('a2', 2800, 'SYP', 'sy
   near(mon.totals.usd, old.totals.usd, 'أكتوبر: نفس الرقم بالطريقتين', 0.011);
   ok(mon.byMarket.length === 3 && mon.bySeller.length === 3, 'مجموع الأسواق والموظفين');
   ok(mon.delivered.length === old.delivered.length && mon.returns.length === old.returns.length, 'الطلبات المسلَّمة والمرتجعات لا تتغير');
-  ok(JSON.stringify(mon.returnsTotal) === JSON.stringify(old.returnsTotal) && JSON.stringify(mon.shipping) === JSON.stringify(old.shipping), 'المرتجعات والشحن لم تُمَس (S3b-2)');
+  ok(JSON.stringify(mon.returnsTotal) === JSON.stringify(old.returnsTotal) && JSON.stringify(mon.shipping) === JSON.stringify(old.shipping), 'بلا مرتجعات/شحن موثّق بالفترة: التقريران متطابقان (التفصيل في test-fx-returns-shipping)');
 }
 // ── 8) التصدير
 {
