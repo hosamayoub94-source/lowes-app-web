@@ -14,6 +14,7 @@ import { SYRIA_SHIPPING_PRIORITY } from '@data/syriaCarriers';
 import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
 import { useAuth } from '@hooks/useAuth';
+import FxShadowPanel from '@components/feature/FxShadowPanel';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
 /** صفوف الموظفين: المبيعات المسلَّمة + تم الاسترجاع + «تمت التسوية» (راجع بلا خصم) — اتحاد المفاتيح حتى يظهر موظف له مرتجعات فقط. */
@@ -367,6 +368,8 @@ export default function SalesDeliveryAccountingScreen() {
               {report.legacyExcluded.length ? `ℹ️ ${report.legacyExcluded.length} طلب مسلَّم بلا سجل تسليم مُستبعَد من الأرقام.` : ''}
             </p>
           ) : null}
+
+          {role === 'admin' && <FxShadowPanel delivered={report.delivered} rateMap={rateMap} displayedUsd={report.totals.usd} />}
 
           <nav className="flex gap-1 overflow-x-auto">
             {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-xl text-sm font-bold whitespace-nowrap ${tab === k ? 'bg-teal text-white' : 'bg-surface border border-border text-muted'}`}>{l}</button>)}
