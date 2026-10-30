@@ -76,6 +76,9 @@ jobs:
 
       - name: Check delivery-based payroll sales
         run: node test-delivery-payroll.mjs
+
+      - name: Check commission rules save (error handling)
+        run: node test-commission-rules-save.mjs
       # test-profitability-calc.mjs is intentionally not here: it imports a .ts file
       # (supabase/functions/_shared/orderHistory.ts) that Node 20 cannot load; run it locally on Node >= 22.
 
