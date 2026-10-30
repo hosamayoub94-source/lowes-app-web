@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { sendBulkNotifications } from '@modules/notifications/services/notificationService';
 import { NOTIFICATION_TYPE } from '@modules/notifications/types/notification.types';
+import FxMonthlyRatesTab from '@components/feature/FxMonthlyRatesTab';
 
 const CURRENCIES = ['USD', 'TRY', 'SYP'];
 const PAIRS = [
@@ -86,6 +87,7 @@ async function upsertSalarySetting(payload) {
 
 const TABS = [
   { key: 'rates',         label: '💱 أسعار الصرف'    },
+  { key: 'fxmonthly',     label: '📅 الأسعار الشهرية' },
   { key: 'salary',        label: '💰 إعدادات الرواتب' },
   { key: 'announcements', label: '📢 الإعلانات'        },
 ];
@@ -119,6 +121,7 @@ export default function AdminSettingsScreen() {
       </div>
 
       {tab === 'rates'         && <ExchangeRatesTab />}
+      {tab === 'fxmonthly'     && <FxMonthlyRatesTab />}
       {tab === 'salary'        && <SalarySettingsTab />}
       {tab === 'announcements' && <AnnouncementsTab />}
     </div>
