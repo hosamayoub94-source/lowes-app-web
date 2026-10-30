@@ -22,6 +22,8 @@ import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
+import { computeMyTarget, progressPct } from '@utils/myTargetCalc';
 import { shiftDateSlash } from '@utils/date';
 
 // ── Daily motivation quotes ─────────────────────────────────────
@@ -685,17 +687,9 @@ function MiniLeaderboard() {
 // كانوا يقارنوا رقم البطاقة بمبلغ فاتورتهم الحقيقي فيلخبطهم اختلاف
 // المقياسين — رغم إنه بيفتح احتمال تضخيم الرقم بعرض/سعر أعلى على نفس
 // المنتج (تنازل واعٍ عن الحصانة ضد العروض لصالح رقم مفهوم للفريق).
-function toUsdRate(amount, currency, rates) {
-  const a = Number(amount || 0);
-  if (!a) return 0;
-  const cur = String(currency || 'SYP').toUpperCase();
-  if (cur === 'USD') return a;
-  if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
-  if (cur === 'AED') return a / 3.6725;
-  return a / (Number(rates?.syp_per_usd) || 14000);
-}
 function MyTargetCard({ name }) {
-  const [data, setData] = useState(null); // { syria:{val,target}, turkey:{val,target} }
+  const [data, setData] = useState(null); // { syria:{val,target,unconverted}, turkey:{...} }
+  const [rateFailed, setRateFailed] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -713,46 +707,42 @@ function MyTargetCard({ name }) {
     // واحد بلا حاجة لـ.in() بالمرة (يتجنّب أيضاً عطل طول الرابط اللي
     // صلّحناه بالأرشفة — بائعين عندهم مئات الطلبات المسلَّمة تاريخياً).
     Promise.allSettled([
-      supabase.from('commission_rules').select('try_per_usd, syp_per_usd').eq('id', 'turkey').maybeSingle(),
+      fetchExchangeRateMap(),
       supabaseAnon.from('orders').select('amount, currency, market, status, handler_name')
         .eq('handler_name', name).eq('status', 'delivered').gte('updated_at', monthStart + 'T00:00:00'),
     ]).then(([rRes, oRes]) => {
-      const rates = rRes.value?.data ?? {};
+      // لا أسعار احتياطية: فشل تحميل الأسعار = null، والطلبات التي تحتاج تحويلاً تُعلَن «غير محوَّلة» بدل تقدير صامت.
+      const rates = rRes.status === 'fulfilled' ? rRes.value : null;
+      setRateFailed(rRes.status !== 'fulfilled');
       const orders = oRes.value?.data ?? [];
-      let syriaUsd = 0, turkeyTry = 0, hasSyria = false, hasTurkey = false;
-      orders.forEach(o => {
-        // الإمارات: بلا هدف/عمولة حالياً (قرار 27 أيلول 2026) — لا تُخلط بهدف سوريا.
-        if (o.market === 'uae') return;
-        const isTurkey = (o.market === 'turkey') || /try|تركي|₺/i.test(o.currency || '');
-        if (isTurkey) {
-          hasTurkey = true;
-          turkeyTry += Number(o.amount) || 0;
-        } else {
-          hasSyria = true;
-          syriaUsd += toUsdRate(o.amount, o.currency, rates);
-        }
-      });
+      const calc = computeMyTarget(orders, rates);
       const out = {};
-      if (hasSyria || !hasTurkey) out.syria  = { val: syriaUsd,  target: TARGETS_BY_CURRENCY.USD, cur: '$', usd: true };
-      if (hasTurkey)             out.turkey = { val: turkeyTry, target: TARGETS_BY_CURRENCY.TRY, cur: '₺' };
+      if (calc.syria)  out.syria  = { ...calc.syria,  target: TARGETS_BY_CURRENCY.USD, cur: '$', usd: true };
+      if (calc.turkey) out.turkey = { ...calc.turkey, target: TARGETS_BY_CURRENCY.TRY, cur: '₺' };
       setData(out);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [name]);
 
   const Bar = ({ b }) => {
-    const pct = b.target > 0 ? Math.min(100, Math.round((b.val / b.target) * 100)) : 0;
+    const pct = progressPct(b.val, b.target);
+    const partial = b.unconverted > 0;
     const reached = pct >= 100;
     return (
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
           <span className="text-lg font-extrabold text-text tabular-nums">
-            {b.usd ? '$' : ''}{Math.round(b.val).toLocaleString()}{b.usd ? '' : ' ₺'}
+            {partial ? '≥ ' : ''}{b.usd ? '$' : ''}{Math.round(b.val).toLocaleString()}{b.usd ? '' : ' ₺'}
           </span>
           <span className={`text-xs font-bold ${reached ? 'text-emerald-600' : 'text-muted'}`}>
             {pct}% {reached ? '🎉' : `من ${b.usd ? '$' : ''}${b.target.toLocaleString()}${b.usd ? '' : '₺'}`}
           </span>
         </div>
+        {partial && (
+          <p className="text-[11px] text-amber-600 font-semibold mb-1.5">
+            ⚠️ {b.unconverted} طلب لم يُحوَّل ({b.currencies.join('، ')}): {rateFailed ? 'تعذّر تحميل أسعار الصرف' : 'سعر الصرف غير متوفر'} — الرقم غير نهائي
+          </p>
+        )}
         <div className="h-2.5 rounded-full bg-surface-alt overflow-hidden">
           <div className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-teal'}`} style={{ width: `${pct}%` }} />
         </div>
