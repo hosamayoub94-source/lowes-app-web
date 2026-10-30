@@ -1,4 +1,4 @@
--- 20261030_d175_close_write_holes.sql  (D-175, stage A — NOT APPLIED; needs the owner's explicit approval)
+-- 20261030_d175_close_write_holes.sql  (D-175, stage A — APPLIED to production 2026-10-30 as migration d175_close_write_holes, on the owner's explicit approval)
 -- Closes write access that should never have been open on the four tables that feed commission, FX display and delivery dates:
 --   commission_rules, monthly_commission_adjustments, exchange_rates, order_status_history.
 -- Reads are deliberately NOT touched here (manual-session accounts may still read as anon; that is the existing F-01 batch B1/B2 work).
