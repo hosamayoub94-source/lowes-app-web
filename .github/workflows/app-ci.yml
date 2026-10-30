@@ -88,6 +88,9 @@ jobs:
       - name: Check FX monthly-rate resolver and rates service (S1a SQL test + SQL parity run locally: need PGlite)
         run: node test-fx-resolve.mjs
 
+      - name: Check FX shadow comparison (S2)
+        run: node test-fx-shadow.mjs
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 
