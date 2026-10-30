@@ -11,6 +11,9 @@ export const FX_PURPOSES = [
   ['payroll', 'الرواتب'],
   ['commission', 'العمولات'],
 ];
+// عملات كل غرض: الرواتب تجمّد TRY وSYP فقط (الإمارات بلا هدف/عمولة) — لا تذكير ولا خلايا «لا سعر» للدرهم هناك.
+export const PURPOSE_CURRENCIES = { delivery_accounting: ['TRY', 'SYP', 'AED'], payroll: ['TRY', 'SYP'], commission: ['TRY', 'SYP'] };
+export const currenciesFor = (purpose) => PURPOSE_CURRENCIES[purpose] || FX_CURRENCIES;
 export const PURPOSE_LABEL = Object.fromEntries([...FX_PURPOSES, ['profitability', 'الربحية (جدولها الخاص)']]);
 
 // نطاق مقبول للإدخال: خارجه يُرفض (خطأ مرجَّح بالوحدة/الفاصلة). داخل نطاق أضيق يُحذَّر فقط.
@@ -31,6 +34,7 @@ export function validateRateInput({ purpose, currency, month, rate, quality = 'e
   const errors = []; const warnings = [];
   if (!FX_PURPOSES.some(([p]) => p === purpose)) errors.push('غرض غير مدعوم (الربحية لها جدولها الخاص).');
   if (!FX_CURRENCIES.includes(currency)) errors.push('عملة غير مدعومة.');
+  else if (FX_PURPOSES.some(([p]) => p === purpose) && !currenciesFor(purpose).includes(currency)) errors.push(`${currency} غير مستعملة لغرض ${PURPOSE_LABEL[purpose]}.`);
   if (!/^\d{4}-\d{2}(-01)?$/.test(String(month || ''))) errors.push('شهر غير صالح.');
   const r = Number(rate);
   if (rate === '' || rate == null || !Number.isFinite(r) || r <= 0) errors.push('أدخل سعراً موجباً (وحدات العملة لكل 1 دولار).');

@@ -3,7 +3,7 @@
 import { createServer } from 'vite';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { monthsBack, validateRateInput, missingExactForMonth, buildMonthlyGrid, legacyConsistency, currentMonthKey, FX_CURRENCIES } from './src/utils/fxRatesAdmin.js';
+import { monthsBack, validateRateInput, missingExactForMonth, buildMonthlyGrid, legacyConsistency, currentMonthKey, FX_CURRENCIES, currenciesFor } from './src/utils/fxRatesAdmin.js';
 
 let PGlite = null;
 try { ({ PGlite } = await import('@electric-sql/pglite')); } catch { /* skipped below */ }
@@ -28,6 +28,7 @@ ok(!v({ currency: 'SYP', rate: 13000 }).ok && /قديمة/.test(v({ currency: 'S
 ok(v({ currency: 'SYP', rate: 140 }).ok && !v({ currency: 'SYP', rate: 1.4 }).ok, 'SYP 140 مقبول، 1.4 مرفوض');
 ok(!v({ currency: 'TRY', rate: 5000 }).ok && v({ currency: 'TRY', rate: 250 }).warnings.length === 1, 'TRY 5000 مرفوض، 250 تحذير فقط');
 ok(v({ currency: 'AED', rate: 3.6725 }).ok && v({ currency: 'AED', rate: 3.6725 }).warnings.length === 0 && v({ currency: 'AED', rate: 4.2 }).warnings.length === 1, 'AED 3.6725 بلا تحذير، 4.2 تحذير');
+ok(!v({ purpose: 'payroll', currency: 'AED', rate: 3.6725 }).ok && v({ purpose: 'delivery_accounting', currency: 'AED', rate: 3.6725 }).ok, 'الدرهم مرفوض للرواتب ومقبول لمحاسبة التسليم');
 ok(!v({ currency: 'EUR' }).ok && !v({ purpose: 'profitability' }).ok && !v({ purpose: 'nonsense' }).ok, 'عملة/غرض غير مدعومين مرفوضان (الربحية بجدولها الخاص)');
 ok(!v({ month: '2026-13' }).ok || !v({ month: 'x' }).ok, 'شهر غير صالح');
 ok(!v({ quality: 'guess' }).ok, 'جودة غير معروفة مرفوضة');
@@ -37,6 +38,10 @@ ok(missingExactForMonth(ROWS, 'delivery_accounting', '2026-10-15').join() === 'A
 ok(missingExactForMonth(ROWS, 'delivery_accounting', '2026-11-03').join() === 'TRY,SYP,AED', 'نوفمبر: لا سعر مؤكَّد لأي عملة رغم وجود مُرحَّل');
 ok(missingExactForMonth(ROWS, 'delivery_accounting', '2026-03-10').join() === 'TRY,SYP,AED', 'مارس: التقريبي لا يكفي (مؤكَّد مطلوب)');
 ok(missingExactForMonth(ROWS, 'payroll', '2026-10-01').join() === 'SYP,AED', 'غرض الرواتب مستقل');
+
+// الرواتب: TRY وSYP فقط — لا تذكير للدرهم (وجد حيّاً: «الرواتب: AED» ضجيج)
+ok(currenciesFor('payroll').join() === 'TRY,SYP' && currenciesFor('delivery_accounting').join() === 'TRY,SYP,AED', 'عملات كل غرض');
+ok(missingExactForMonth(ROWS, 'payroll', '2026-10-01', currenciesFor('payroll')).join() === 'SYP', 'تذكير الرواتب لا يطلب الدرهم');
 
 // ── buildMonthlyGrid: الحالات الأربع
 const grid = buildMonthlyGrid(ROWS, 'delivery_accounting', ['2026-11-01', '2026-10-01', '2026-03-01', '2026-01-01']);
