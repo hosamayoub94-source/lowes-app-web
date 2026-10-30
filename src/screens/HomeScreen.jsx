@@ -22,7 +22,7 @@ import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
 import { fetchAllRows } from '@utils/fetchAllRows';
-import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
+import { loadFxRates } from '@services/fxRatesService';
 import { computeMyTarget, progressPct } from '@utils/myTargetCalc';
 import { shiftDateSlash } from '@utils/date';
 
@@ -707,13 +707,14 @@ function MyTargetCard({ name }) {
     // واحد بلا حاجة لـ.in() بالمرة (يتجنّب أيضاً عطل طول الرابط اللي
     // صلّحناه بالأرشفة — بائعين عندهم مئات الطلبات المسلَّمة تاريخياً).
     Promise.allSettled([
-      fetchExchangeRateMap(),
-      supabaseAnon.from('orders').select('amount, currency, market, status, handler_name')
+      loadFxRates(),
+      supabaseAnon.from('orders').select('amount, currency, market, status, handler_name, order_date')
         .eq('handler_name', name).eq('status', 'delivered').gte('updated_at', monthStart + 'T00:00:00'),
     ]).then(([rRes, oRes]) => {
-      // لا أسعار احتياطية: فشل تحميل الأسعار = null، والطلبات التي تحتاج تحويلاً تُعلَن «غير محوَّلة» بدل تقدير صامت.
-      const rates = rRes.status === 'fulfilled' ? rRes.value : null;
-      setRateFailed(rRes.status !== 'fulfilled');
+      // S3c: سعر الشهر لمحاسبة التسليم (fx_monthly_rates). فشل التحميل (رفض أو خطأ) = null، والطلبات التي تحتاج تحويلاً تُعلَن «غير محوَّلة» بدل تقدير صامت.
+      const fxRes = rRes.status === 'fulfilled' ? rRes.value : null;
+      const rates = fxRes && !fxRes.error ? fxRes : null;
+      setRateFailed(!rates);
       const orders = oRes.value?.data ?? [];
       const calc = computeMyTarget(orders, rates);
       const out = {};
@@ -727,12 +728,13 @@ function MyTargetCard({ name }) {
   const Bar = ({ b }) => {
     const pct = progressPct(b.val, b.target);
     const partial = b.unconverted > 0;
+    const estimated = b.estimatedN > 0;
     const reached = pct >= 100;
     return (
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
           <span className="text-lg font-extrabold text-text tabular-nums">
-            {partial ? '≥ ' : ''}{b.usd ? '$' : ''}{Math.round(b.val).toLocaleString()}{b.usd ? '' : ' ₺'}
+            {partial ? '≥ ' : estimated ? '≈ ' : ''}{b.usd ? '$' : ''}{Math.round(b.val).toLocaleString()}{b.usd ? '' : ' ₺'}
           </span>
           <span className={`text-xs font-bold ${reached ? 'text-emerald-600' : 'text-muted'}`}>
             {pct}% {reached ? '🎉' : `من ${b.usd ? '$' : ''}${b.target.toLocaleString()}${b.usd ? '' : '₺'}`}
@@ -741,6 +743,11 @@ function MyTargetCard({ name }) {
         {partial && (
           <p className="text-[11px] text-amber-600 font-semibold mb-1.5">
             ⚠️ {b.unconverted} طلب لم يُحوَّل ({b.currencies.join('، ')}): {rateFailed ? 'تعذّر تحميل أسعار الصرف' : 'سعر الصرف غير متوفر'} — الرقم غير نهائي
+          </p>
+        )}
+        {estimated && (
+          <p className="text-[11px] text-amber-600 font-semibold mb-1.5">
+            ≈ {b.estimatedN} طلب بسعر تقديري ({b.carriedFrom.length ? `مُرحَّل من ${b.carriedFrom.join('، ')}` : 'تقريبي معتمد'}) — الرقم غير نهائي
           </p>
         )}
         <div className="h-2.5 rounded-full bg-surface-alt overflow-hidden">
