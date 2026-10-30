@@ -35,6 +35,8 @@ import { labelEligible } from '@services/labelPrint';
 import { printShippingLabel } from '@utils/printShippingLabel';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { saveCommissionRules } from '@utils/commissionRulesSave';
+import { FX_MONTHLY_DISPLAY } from '@utils/fxFlags';
+import { loadFxRates } from '@services/fxRatesService';
 
 // ── Google Sheet dual-write ──────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -237,7 +239,7 @@ function EmployeeDeliveryCard({ emp, rank, payroll, monthMode, isMe }) {
           <p className="text-xs text-muted">{emp.orders.length} طلب مسلّم{emp.legacy ? ` · ${emp.legacy} بتاريخ تقديري` : ''}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-base font-black text-text">${emp.usdTotal.toFixed(0)}{emp.usdMissing ? '+' : ''}</p>
+          <p className="text-base font-black text-text">{emp.usdEstN ? '≈ ' : ''}${emp.usdTotal.toFixed(0)}{emp.usdMissing ? '+' : ''}</p>
           {Object.entries(emp.totals).map(([cur, val]) => (
             <p key={cur} className="text-[11px] text-muted">
               {CURRENCY_SYMBOLS[cur]}{val.toLocaleString('en-US')} {cur}
@@ -498,20 +500,24 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     setPayrollRows([]);
     (async () => {
       try {
-        const [svc, acc, pay] = await Promise.all([
+        const [svc, acc, pay, fxc] = await Promise.all([
           import('@services/deliveryAccountingService'),
           import('@utils/deliveryAccounting'),
           import('@modules/payroll/services/payrollEngine'),
+          import('@utils/fxConverter'),
         ]);
         const p = monthMode ? acc.periodBounds({ month: selMonth }) : acc.periodBounds({ fromDate: periodStart, toDate: periodEnd });
-        const [res, rateMap, comm] = await Promise.all([
+        const [res, rateMap, comm, fx] = await Promise.all([
           svc.loadDeliveredForPeriod({ from: p.from, to: p.to }),
           pay.fetchExchangeRateMap().catch(() => ({ USD: 1 })),
           monthMode ? svc.loadStoredCommissions(Number(selMonth.slice(0, 4)), Number(selMonth.slice(5, 7))).catch(() => []) : Promise.resolve([]),
+          // S3b: الأسعار الشهرية فقط عند تفعيل FX_MONTHLY_DISPLAY (D10). فشلها = الطريقة القديمة مع شريط واضح (D12).
+          FX_MONTHLY_DISPLAY ? loadFxRates().catch((e) => ({ rows: [], units: [], error: e?.message || 'تعذّر التحميل' })) : Promise.resolve(null),
         ]);
         if (cancelled) return;
         setPayrollRows(comm);
-        setShared({ status: 'ready', rows: res.delivered.map(o => ({ ...o, usd: acc.toUsd(o.amount, o.currency, rateMap) })), error: null });
+        const converter = FX_MONTHLY_DISPLAY && fx ? fxc.makeMonthlyConverter(fx) : null;
+        setShared({ status: 'ready', rows: res.delivered.map(o => { const u = fxc.usdForRow(o, { converter, rateMap, toUsdLegacy: acc.toUsd }); return { ...o, usd: u.usd, usdEst: u.est, usdStatus: u.status }; }), error: null, fxFailed: FX_MONTHLY_DISPLAY && !!fx?.error, fxError: fx?.error || null });
       } catch (e) {
         if (!cancelled) setShared({ status: 'error', rows: [], error: e?.message || String(e) });
       }
@@ -535,23 +541,25 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
     if (!showRecords || recordsRaw) return;
     setLoadingRec(true);
     (async () => {
-      const [svc, acc, pay, calc] = await Promise.all([
+      const [svc, acc, pay, calc, fxc] = await Promise.all([
         import('@services/deliveryAccountingService'),
         import('@utils/deliveryAccounting'),
         import('@modules/payroll/services/payrollEngine'),
         import('@utils/profitabilityCalc'),
+        import('@utils/fxConverter'),
       ]);
       const from = acc.periodBounds({ month: recordMonths[0] }).from;
       const to = acc.periodBounds({ month: recordMonths[recordMonths.length - 1] }).to;
-      const [res, rateMap] = await Promise.all([
+      const [res, rateMap, fx] = await Promise.all([
         svc.loadDeliveredForPeriod({ from, to }),
         pay.fetchExchangeRateMap().catch(() => ({ USD: 1 })),
+        FX_MONTHLY_DISPLAY ? loadFxRates().catch((e) => ({ rows: [], units: [], error: e?.message || 'تعذّر التحميل' })) : Promise.resolve(null),
       ]);
-      setRecordsRaw(res.delivered.map(o => ({
-        handler_name: o.handler_name,
-        month: String(calc.istanbulMonthStart(o.delivery_at) || '').slice(0, 7),
-        usd: acc.toUsd(o.amount, o.currency, rateMap),
-      })));
+      const converter = FX_MONTHLY_DISPLAY && fx ? fxc.makeMonthlyConverter(fx) : null;
+      setRecordsRaw(res.delivered.map(o => {
+        const u = fxc.usdForRow(o, { converter, rateMap, toUsdLegacy: acc.toUsd });
+        return { handler_name: o.handler_name, month: String(calc.istanbulMonthStart(o.delivery_at) || '').slice(0, 7), usd: u.usd, usdEst: u.est };
+      }));
     })().catch(() => setRecordsRaw([])).finally(() => setLoadingRec(false));
   }, [showRecords, recordsRaw, recordMonths]);
 
@@ -605,6 +613,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
       const cur = (o.currency || 'SYP').toUpperCase();
       e.totals[cur] = (e.totals[cur] || 0) + Number(o.amount || 0);
       if (o.usd == null) e.usdMissing += 1; else e.usdTotal += o.usd;
+      if (o.usdEst) e.usdEstN = (e.usdEstN || 0) + 1;
       if (o.delivery_source === 'legacy_order_date') e.legacy += 1;
       const mk = o.market || 'turkey';
       e.marketCount[mk] = (e.marketCount[mk] || 0) + 1;
@@ -624,15 +633,16 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
   // Grand totals
   const totals = useMemo(() => {
     const byCur = {};
-    let usd = 0, usdMissing = 0, qty = 0, legacy = 0;
+    let usd = 0, usdMissing = 0, qty = 0, legacy = 0, usdEstN = 0;
     delivered.forEach(o => {
       const c = (o.currency || 'SYP').toUpperCase();
       byCur[c] = (byCur[c] || 0) + Number(o.amount || 0);
       if (o.usd == null) usdMissing += 1; else usd += o.usd;
+      if (o.usdEst) usdEstN += 1;
       if (o.delivery_source === 'legacy_order_date') legacy += 1;
       (o.items || []).forEach(it => { qty += Number(it.qty || 1); });
     });
-    return { byCur, usd, usdMissing, qty, legacy };
+    return { byCur, usd, usdMissing, qty, legacy, usdEstN };
   }, [delivered]);
 
   // أرشفة للشهر السابق فقط — الشهر الحالي يبقى مرئياً حتى يُغلَق.
@@ -831,7 +841,7 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
           <div className="flex gap-3 mt-3 flex-wrap items-stretch">
             <div className="bg-teal text-navy rounded-xl px-3 py-1.5 text-center">
               <p className="text-[10px] opacity-80">الإجمالي ≈ USD</p>
-              <p className="text-sm font-black">${totals.usd.toFixed(0)}{totals.usdMissing ? '+' : ''}</p>
+              <p className="text-sm font-black">{totals.usdEstN ? '≈ ' : ''}${totals.usd.toFixed(0)}{totals.usdMissing ? '+' : ''}</p>
             </div>
             {Object.entries(totals.byCur).map(([cur, total]) => (
               <div key={cur} className="bg-surface rounded-xl px-3 py-1.5 text-center">
@@ -841,6 +851,8 @@ function MonthlyDeliveriesTab({ orders, isManager, userName, onArchive, archivin
             ))}
           </div>
         )}
+        {FX_MONTHLY_DISPLAY && shared.fxFailed && <p className="text-[11px] text-red-700 mt-2">⚠️ تعذّر تحميل الأسعار الشهرية ({shared.fxError}) — الدولار هنا بسعر اليوم الواحد (الطريقة القديمة).</p>}
+        {!showRecords && totals.usdEstN > 0 && <p className="text-[11px] text-amber-700 mt-2">≈ {totals.usdEstN} طلب بسعر تقديري (تقريبي أو مُرحَّل) — الرقم بالدولار غير نهائي.</p>}
         {!showRecords && (totals.legacy > 0 || totals.usdMissing > 0) && (
           <p className="text-[11px] text-amber-700 mt-2">
             {totals.legacy > 0 ? `${totals.legacy} طلب بلا سجل تسليم دخل بتاريخ الطلب (تقديري). ` : ''}
