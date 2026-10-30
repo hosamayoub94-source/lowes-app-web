@@ -91,6 +91,9 @@ jobs:
       - name: Check FX shadow comparison (S2)
         run: node test-fx-shadow.mjs
 
+      - name: Check FX monthly-rate admin logic and save service (S3a; SQL part needs PGlite locally)
+        run: node test-fx-admin.mjs
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 
