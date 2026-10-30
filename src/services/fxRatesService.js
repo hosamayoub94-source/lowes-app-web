@@ -2,7 +2,7 @@
 // (الكتابة الوحيدة عبر الدالة fx_set_monthly_rate للأدمن). لا يبتلع الخطأ: الفشل يُرجَع صراحةً ليُعلَن «تعذّر تحميل أسعار الصرف».
 import { supabase } from './supabase';
 
-const RATE_COLS = 'purpose, currency, units_per_usd, period_month, market, currency_unit, status, source, note, approved_at, created_at';
+const RATE_COLS = 'purpose, currency, units_per_usd, period_month, market, currency_unit, status, rate_quality, source, note, approved_at, created_at';
 let cache = null; // { at, value } — الجدول صغير؛ عمر الذاكرة قصير
 
 /** @returns {Promise<{rows: Array, units: Array, error: string|null}>} */
@@ -10,7 +10,7 @@ export async function loadFxRates({ client = supabase, force = false, ttlMs = 5 
   if (!force && cache && Date.now() - cache.at < ttlMs) return cache.value;
   const [r, u] = await Promise.all([
     client.from('fx_monthly_rates').select(RATE_COLS).eq('status', 'confirmed').not('period_month', 'is', null),
-    client.from('fx_currency_units').select('currency, unit, valid_from, valid_to, status'),
+    client.from('fx_currency_units').select('currency, unit, valid_from, valid_to, min_amount, status'),
   ]);
   const err = r.error || u.error;
   if (err) return { rows: [], units: [], error: err.message || 'fx rates unavailable' }; // لا نخزّن الفشل

@@ -76,13 +76,20 @@ ok(JSON.stringify(await one(`select * from payroll_runs order by id`)) === payro
 ok(JSON.stringify(await one(`select id from exchange_rates order by id`)) === exBefore, 'exchange_rates untouched by the migration itself');
 
 // ── monthly rows
-const monthly = await one(`select currency, period_month::text m, units_per_usd::float8 r, source from fx_monthly_rates where purpose='delivery_accounting' and period_month is not null order by currency, period_month`);
+const allMonthly = await one(`select currency, period_month::text m, units_per_usd::float8 r, source, rate_quality q, note from fx_monthly_rates where purpose='delivery_accounting' and period_month is not null order by currency, period_month`);
+const monthly = allMonthly.filter((x) => x.q === 'exact');
+const approx = allMonthly.filter((x) => x.q === 'approximate');
 const get = (c, m) => monthly.find((x) => x.currency === c && x.m === m)?.r;
 ok(get('TRY', '2026-08-01') === 48 && get('TRY', '2026-09-01') === 46.8 && get('TRY', '2026-10-01') === 50, 'D2: TRY months = frozen payroll rates (48 / 46.8 / 50)');
 ok(get('SYP', '2026-08-01') === 131 && get('SYP', '2026-09-01') === 131 && get('SYP', '2026-10-01') === 140, 'D2: SYP months = frozen payroll rates (131 / 131 / 140)');
 ok(['2026-08-01', '2026-09-01', '2026-10-01'].every((m) => get('AED', m) === 3.6725), 'D3: AED 3.6725 explicit for Aug/Sep/Oct');
 ok(monthly.filter((x) => x.currency === 'AED').every((x) => /^owner_decision:D3/.test(x.source)), 'D3 rows record their source');
-ok(monthly.every((x) => x.m >= '2026-08-01') && monthly.length === 9, 'no monthly row before Aug 2026; exactly 9 rows (3 currencies x 3 months)');
+ok(approx.length === 21 && approx.every((x) => x.m >= '2026-01-01' && x.m <= '2026-07-01' && /^owner_approximate:2026-10-30/.test(x.source) && /^approximate:/.test(x.note)), 'D5: 21 APPROXIMATE rows (3 currencies x Jan-Jul 2026), each labelled with its source/rule');
+const ap = (c, m) => approx.find((x) => x.currency === c && x.m === m)?.r;
+ok([1, 2, 3, 4, 5].every((k) => ap('TRY', `2026-0${k}-01`) === 45.9) && ap('TRY', '2026-06-01') === 45.9 && ap('TRY', '2026-07-01') === 46.8, 'D5 TRY rule: Jan-Jun 45.9 (earliest recorded real rate), Jul 46.8; the stale 32.5 rows are not used');
+ok([1, 2, 3, 4, 5].every((k) => ap('SYP', `2026-0${k}-01`) === 130) && ap('SYP', '2026-06-01') === 140 && ap('SYP', '2026-07-01') === 142, 'D5 SYP rule: Jan-May 130 (13,000 legacy / 100), Jun 140, Jul 142');
+ok([1, 2, 3, 4, 5, 6, 7].every((k) => ap('AED', `2026-0${k}-01`) === 3.6725), 'D5 AED: 3.6725 for Jan-Jul');
+ok(monthly.every((x) => x.m >= '2026-08-01') && monthly.length === 9, 'EXACT rows only from Aug 2026: exactly 9 (3 currencies x 3 months); nothing before 2026');
 ok((await one(`select count(*)::int n from fx_monthly_rates where units_per_usd > 5000`))[0].n === 0, 'legacy SYP 13000 never copied');
 ok((await one(`select count(*)::int n from fx_monthly_rates where period_month is null`))[0].n === s0Rows, 'S0 copies kept as history (period_month null)');
 
@@ -96,14 +103,31 @@ r = await rate('delivery_accounting', 'AED', '2026-09-10');
 ok(r && +r.units_per_usd === 3.6725 && r.exact === true, 'AED Sep resolves (was unconverted before D3)');
 r = await rate('delivery_accounting', 'TRY', '2026-11-05');
 ok(r && +r.units_per_usd === 50 && r.exact === false && new Date(r.period_month).toISOString().startsWith('2026-10'), 'Nov has no row → carried from CONFIRMED Oct, exact=false');
-ok((await rate('delivery_accounting', 'TRY', '2026-07-10')) === null, 'Jul (before any confirmed month) → no row = unconverted');
+ok((await rate('delivery_accounting', 'TRY', '2025-12-10')) === null, 'Dec 2025 (before any rate) → no row = unconverted');
+r = await rate('delivery_accounting', 'TRY', '2026-03-10');
+ok(r && +r.units_per_usd === 45.9 && r.quality === 'approximate' && r.exact === true, 'Mar 2026 → approximate 45.9, labelled approximate');
+r = await rate('delivery_accounting', 'SYP', '2026-02-10');
+ok(r && +r.units_per_usd === 130 && r.quality === 'approximate', 'Feb 2026 SYP → approximate 130');
+r = await rate('delivery_accounting', 'TRY', '2026-10-10');
+ok(r && r.quality === 'exact', 'Oct 2026 stays exact');
+// an approximate rate never becomes a carry source: remove the exact rows (inside a rolled-back txn) and ask for Sep -> must NOT carry from the approximate Jul
+await db.exec('begin'); await db.exec(`delete from fx_monthly_rates where rate_quality='exact' and period_month is not null`);
+const noCarry = (await db.query(`select * from fx_rate_for('delivery_accounting','TRY','2026-09-10',null)`)).rows;
+const ownMonth = (await db.query(`select * from fx_rate_for('delivery_accounting','TRY','2026-07-10',null)`)).rows;
+await db.exec('rollback');
+ok(noCarry.length === 0, 'approximate Jul is NOT carried into Sep');
+ok(ownMonth.length === 1 && ownMonth[0].quality === 'approximate', 'approximate serves its own month');
 ok((await rate('profitability', 'TRY', '2026-10-10')) === null, 'purposes are separate: no profitability monthly row => none (S0 copy ignored)');
 ok((await rate('payroll', 'TRY', '2026-10-10')) === null, 'payroll purpose has no monthly rows in S1a');
 
 // ── units
-const unit = async (c, d) => { const x = await as('authenticated', U.emp, `select fx_unit_for('${c}','${d}') u`); if (x.err) console.error('UNIT ERR', x.err); return x.rows[0]?.u; };
-ok((await unit('SYP', '2025-11-15')) === 'legacy' && (await unit('SYP', '2026-02-01')) === 'current' && (await unit('TRY', '2025-11-15')) === 'current', 'SYP Oct-Dec 2025 = legacy unit; 2026 = current; TRY unaffected');
+const unit = async (c, d, amt = null) => { const x = await as('authenticated', U.emp, `select fx_unit_for('${c}','${d}',${amt === null ? 'null' : amt}) u`); if (x.err) console.error('UNIT ERR', x.err); return x.rows[0]?.u; };
+ok((await unit('SYP', '2025-11-15', 120000)) === 'legacy' && (await unit('SYP', '2025-12-31', 85000)) === 'legacy' && (await unit('SYP', '2026-02-01', 2000)) === 'current' && (await unit('TRY', '2025-11-15', 120000)) === 'current', 'SYP: big amounts up to 31/12/2025 = legacy; 2026 = current; TRY unaffected');
+ok((await unit('SYP', '2025-12-24', 1800)) === 'current' && (await unit('SYP', '2025-12-24', 5300)) === 'current' && (await unit('SYP', '2025-10-05', 2400)) === 'current', 'mixed weeks: a small SYP amount in Oct-Dec 2025 is already current-unit (data gap 10k-55k)');
+ok((await unit('SYP', '2026-03-01', 150000)) === 'suspect', 'a >= 20,000 SYP amount in 2026 is flagged suspect, never converted');
+ok((await unit('SYP', '2025-12-24', null)) === 'current', 'unknown amount: no size rule applies (callers must pass the amount)');
 ok((await one(`select status from fx_currency_units where currency='SYP' order by valid_from`)).every((x) => x.status === 'confirmed'), 'SYP cut-over (31/12/2025) is CONFIRMED by the owner');
+ok((await one(`select count(*)::int n from fx_currency_units`))[0].n === 2, 'two unit rules (legacy before the cut-over, suspect after)');
 
 // ── single write path
 ok(denied(await as('authenticated', U.admin, `insert into fx_monthly_rates(purpose,currency,units_per_usd,effective_from,source) values('payroll','TRY',1,current_date,'x')`)), 'even admin cannot INSERT directly (single write path)');
