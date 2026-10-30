@@ -8,8 +8,10 @@ import { PERMISSIONS } from '@data/permissions';
 import { fetchMonthlyAttendanceSummary } from '../services/attendanceLink.js';
 import {
   runPayrollForMonth, fetchEmployeeSalesStatement,
-  fetchCommissionRules, fetchExchangeRateMap, DEFAULT_RULES,
+  fetchCommissionRules, DEFAULT_RULES,
 } from '../services/payrollEngine.js';
+import { loadFxRates, saveMonthlyRate } from '@services/fxRatesService';
+import { suggestSetupRates, recordMonthlyRatesAfterSetup } from '@utils/fxMonthSetup';
 import {
   usePayrollBootstrap,
   usePayrollDashboard,
@@ -204,6 +206,7 @@ export function PayrollDashboard() {
   //    before "⚡ تشغيل الدورة" (spec §1/17: لا حسبة قبل تأكيد بيانات الشهر).
   const [showSetup, setShowSetup] = useState(false);
   const [setupForm, setSetupForm] = useState(null);
+  const [setupRateHints, setSetupRateHints] = useState(null); // S3d: مصدر السعر المقترح لكل عملة
   const [setupLoading, setSetupLoading] = useState(false);
 
   // ── دفعة الرواتب (💵 أونلاين/مكتب + نصف الراتب) — طبقة عرض بحتة
@@ -240,6 +243,7 @@ export function PayrollDashboard() {
       // Prefill from the run's own frozen snapshot if it already has one,
       // else from live commission_rules/exchange_rates as a starting point.
       if (run.month_setup_confirmed_at) {
+        setSetupRateHints(null);
         setSetupForm({
           target_syria_usd: run.target_syria_usd,
           target_turkey_try: run.target_turkey_try,
@@ -249,23 +253,33 @@ export function PayrollDashboard() {
           rate_usd_syp: run.rate_usd_syp ?? '',
         });
       } else {
-        const [rules, rateMap] = await Promise.all([
+        // S3d: أسعار الصرف المقترحة من الأسعار الشهرية (لا من exchange_rates الحي)؛ فشل التحميل = حقول فارغة بتنبيه، لا قيمة مخمَّنة.
+        const [rules, fx] = await Promise.all([
           fetchCommissionRules().catch(() => DEFAULT_RULES),
-          fetchExchangeRateMap().catch(() => ({ USD: 1 })),
+          loadFxRates().catch((e) => ({ rows: [], units: [], error: e?.message || 'تعذّر التحميل' })),
         ]);
+        const sug = fx.error ? { TRY: { rate: null, label: `تعذّر تحميل الأسعار الشهرية (${fx.error}) — أدخل السعر يدوياً`, level: 'none' }, SYP: { rate: null, label: `تعذّر تحميل الأسعار الشهرية (${fx.error}) — أدخل السعر يدوياً`, level: 'none' } } : suggestSetupRates(fx.rows, run.period_year, run.period_month);
+        setSetupRateHints(sug);
         setSetupForm({
           target_syria_usd: run.target_syria_usd ?? rules.syria.monthly_target_usd,
           target_turkey_try: run.target_turkey_try ?? rules.turkey.monthly_target_try,
           above_target_pct_syria: run.above_target_pct_syria ?? rules.syria.above_target_pct,
           above_target_pct_turkey: run.above_target_pct_turkey ?? rules.turkey.above_target_pct,
-          rate_usd_try: rateMap.TRY > 0 ? Math.round((1 / rateMap.TRY) * 100) / 100 : '',
-          rate_usd_syp: rateMap.SYP > 0 ? Math.round((1 / rateMap.SYP) * 100) / 100 : '',
+          rate_usd_try: sug.TRY.rate ?? '',
+          rate_usd_syp: sug.SYP.rate ?? '',
         });
       }
     } finally {
       setSetupLoading(false);
     }
   }, [run]);
+
+  // S3d: بعد التثبيت (وبعد نجاحه فقط) نسجّل سعري الشهر في الأسعار الشهرية للرواتب ولمحاسبة التسليم (قاعدة D2). خطوة منفصلة وغير ذرّية مع الدورة،
+  // ولا نكتب فوق سعر مؤكَّد مختلف (ننبّه). فشلها لا يمس الدورة ولا الرواتب. الكتابة للأدمن فقط (الدالة تفرض ذلك).
+  const recordRatesAfterSetup = (clean) => recordMonthlyRatesAfterSetup(
+    { year: run.period_year, month: run.period_month, rates: { TRY: clean.rate_usd_try, SYP: clean.rate_usd_syp } },
+    { loadFx: () => loadFxRates({ force: true }), save: saveMonthlyRate },
+  );
 
   const handleSaveMonthSetup = async () => {
     if (!setupForm) return;
@@ -276,7 +290,9 @@ export function PayrollDashboard() {
       );
       await confirmMonthSetup(clean);
       setShowSetup(false);
-      setCommMsg('✅ تم تأكيد إعداد الشهر — يمكنك الآن تشغيل الدورة.');
+      let fxNote = '';
+      try { fxNote = await recordRatesAfterSetup(clean); } catch (e) { fxNote = `⚠️ تعذّر تسجيل الأسعار الشهرية (${e?.message || e}) — الإعداد والرواتب لم تتأثر`; }
+      setCommMsg('✅ تم تأكيد إعداد الشهر — يمكنك الآن تشغيل الدورة.' + (fxNote ? ' · ' + fxNote : ''));
     } catch (e) {
       setCommMsg('⚠️ ' + (e?.message || e));
     } finally {
@@ -1026,6 +1042,7 @@ export function PayrollDashboard() {
                       onChange={e => setSetupForm(f => ({ ...f, [key]: e.target.value === '' ? '' : Number(e.target.value) }))}
                       className={INP}
                     />
+                    {setupRateHints && (key === 'rate_usd_try' || key === 'rate_usd_syp') && (() => { const h = setupRateHints[key === 'rate_usd_try' ? 'TRY' : 'SYP']; return h ? <p className={`text-[10px] mt-1 ${h.level === 'confirmed' ? 'text-emerald-600' : h.level === 'estimate' ? 'text-amber-600' : 'text-red-600'}`}>{h.label}</p> : null; })()}
                   </div>
                 ))}
               </div>
