@@ -97,6 +97,9 @@ jobs:
       - name: Check FX payroll month-setup suggestions and write-through (S3d)
         run: node test-fx-month-setup.mjs
 
+      - name: Check FX monthly converter for sales screens (S3b-1, flag off)
+        run: node test-fx-converter.mjs
+
       - name: Check B2B marketplace classification
         run: npm run test:b2b-marketplace
 

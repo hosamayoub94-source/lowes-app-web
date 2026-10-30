@@ -15,6 +15,9 @@ import { STATUSES } from '@data/orderStatus';
 import { useToast } from '@hooks/useToast';
 import { useAuth } from '@hooks/useAuth';
 import FxShadowPanel from '@components/feature/FxShadowPanel';
+import { FX_MONTHLY_DISPLAY } from '@utils/fxFlags';
+import { loadFxRates } from '@services/fxRatesService';
+import { makeMonthlyConverter, usdDisplay } from '@utils/fxConverter';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
 /** صفوف الموظفين: المبيعات المسلَّمة + تم الاسترجاع + «تمت التسوية» (راجع بلا خصم) — اتحاد المفاتيح حتى يظهر موظف له مرتجعات فقط. */
@@ -216,6 +219,7 @@ export default function SalesDeliveryAccountingScreen() {
   const [tab, setTab] = useState('sales');
   const [data, setData] = useState(null);
   const [rateMap, setRateMap] = useState({ USD: 1 });
+  const [fxState, setFxState] = useState(null); // S3b: الأسعار الشهرية (فقط عند تفعيل FX_MONTHLY_DISPLAY)
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openSeller, setOpenSeller] = useState(null);
@@ -241,10 +245,10 @@ export default function SalesDeliveryAccountingScreen() {
     try {
       const hit = cacheRef.current.get(key);
       const fresh = hit && Date.now() - hit.at < 5 * 60 * 1000;
-      const [d, rates] = fresh ? [hit.d, hit.rates] : await Promise.all([loadDeliveryData({ period, includeLegacy, signal: ac.signal }), fetchExchangeRateMap().catch(() => ({ USD: 1 }))]);
+      const [d, rates, fx] = fresh ? [hit.d, hit.rates, hit.fx] : await Promise.all([loadDeliveryData({ period, includeLegacy, signal: ac.signal }), fetchExchangeRateMap().catch(() => ({ USD: 1 })), FX_MONTHLY_DISPLAY ? loadFxRates().catch((e) => ({ rows: [], units: [], error: e?.message || 'تعذّر التحميل' })) : Promise.resolve(null)]);
       if (id !== reqId.current) return; // وصل ردّ متأخر لفترة لم تعد المختارة
-      if (!fresh) cacheRef.current.set(key, { d, rates, at: Date.now() });
-      setData({ ...d, period }); setRateMap(rates);
+      if (!fresh) cacheRef.current.set(key, { d, rates, fx, at: Date.now() });
+      setData({ ...d, period }); setRateMap(rates); setFxState(fx);
       if (mode === 'month') {
         loadStoredCommissions(Number(month.slice(0, 4)), Number(month.slice(5, 7)))
           .then((c) => { if (id === reqId.current) setCommissions(c); })
@@ -262,9 +266,12 @@ export default function SalesDeliveryAccountingScreen() {
   useEffect(() => { const h = setTimeout(load, 350); return () => clearTimeout(h); }, [load, retryTick]);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const base = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs }) : null), [data, rateMap, includeLegacy]);
+  // S3b (D10/D12): بوضع السعر الشهري يُستعمل المحوِّل؛ فشل تحميل الأسعار الشهرية ⇒ الطريقة القديمة مع شريط واضح (لا إخفاء ولا تخمين صامت).
+  const converter = useMemo(() => (FX_MONTHLY_DISPLAY && fxState ? makeMonthlyConverter(fxState) : null), [fxState]);
+  const fxFailed = FX_MONTHLY_DISPLAY && !!fxState?.error;
+  const base = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs, converter }) : null), [data, rateMap, includeLegacy, converter]);
   const filters = useMemo(() => ({ ...f, product: f.product.trim() }), [f]);
-  const report = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs, filters }) : null), [data, rateMap, includeLegacy, filters]);
+  const report = useMemo(() => (data ? buildReport({ rows: data.rows, period: data.period, rateMap, includeLegacy, refs: data.refs, filters, converter }) : null), [data, rateMap, includeLegacy, filters, converter]);
 
   const opts = useMemo(() => {
     const all = [...(base?.delivered || []), ...(base?.undelivered || []), ...(base?.returns || [])];
@@ -310,6 +317,7 @@ export default function SalesDeliveryAccountingScreen() {
 
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const missingFx = report?.totals?.usdMissing || 0;
+  const ud = report?.fxMonthly ? usdDisplay(report.totals, fmt) : null;
 
   return (
     <div className="p-4 space-y-4 max-w-6xl mx-auto" dir="rtl">
@@ -354,10 +362,13 @@ export default function SalesDeliveryAccountingScreen() {
       ) : (
         <>
           <p className="text-xs text-muted">الفترة المعروضة: <b className="text-text">{report.period.label}</b></p>
+          {fxFailed && <p className="text-xs text-red-700 bg-red-500/10 border border-red-500/30 rounded-xl p-2">⚠️ تعذّر تحميل الأسعار الشهرية ({fxState.error}) — الأرقام بالدولار هنا بسعر اليوم الواحد (الطريقة القديمة) وليست بأسعار الشهر.</p>}
           <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <Stat label="طلبات مسلَّمة بالفترة" value={fmt(report.totals.count)} sub={report.legacyCount ? `منها ${report.legacyCount} بتاريخ تقديري` : null} tone="text-green-600" />
             <Stat label="القيمة الفعلية" value={curText(report.totals.byCurrency)} />
-            <Stat label="الموحّدة بالدولار" value={`$${fmt(report.totals.usd)}`} sub={missingFx ? `${missingFx} طلب بلا سعر صرف` : 'بأسعار الصرف المعتمدة الحالية'} tone={missingFx ? 'text-orange-600' : 'text-text'} />
+            {ud
+              ? <Stat label="الموحّدة بالدولار (بسعر شهر التسليم)" value={ud.text} sub={[ud.detail, ud.unconverted ? `+ ${ud.unconverted} غير محوَّل (${ud.unconvertedText})` : '', ud.final ? 'بأسعار الشهر المؤكَّدة' : ''].filter(Boolean).join(' · ')} tone={ud.unconverted ? 'text-orange-600' : ud.estimated ? 'text-amber-600' : 'text-text'} />
+              : <Stat label="الموحّدة بالدولار" value={`$${fmt(report.totals.usd)}`} sub={missingFx ? `${missingFx} طلب بلا سعر صرف` : 'بأسعار الصرف المعتمدة الحالية'} tone={missingFx ? 'text-orange-600' : 'text-text'} />}
             <Stat label="الوضع الحالي — حالياً (لا يُنسب للشهر)" value={`${fmt(report.currentPending.returning.length)} راجع للمركز · ${fmt(report.currentPending.not_received.length)} لم يُستلم`} sub="orders.status الآن بلا نافذة زمنية؛ لا يدخل مبيعات ولا عمولات ولا رواتب" tone="text-orange-600" />
             <Stat label="حالات حدثت بالفترة" value={`${fmt(report.returnsInfo.byKind.reliable.orders)} تم الاسترجاع · ${fmt(report.periodPending.returning.length)} راجع · ${fmt(report.periodPending.not_received.length)} لم يُستلم`} sub={`توقيت غير معروف (خارج أي شهر): ${fmt(report.unknownTiming.length)}`} />
             <Stat label="خارج الحساب (غير مسلَّمة)" value={fmt(report.undelivered.length)} sub={`مرتجعات بالفترة: ${report.returns.length}`} tone="text-orange-600" />
@@ -378,7 +389,7 @@ export default function SalesDeliveryAccountingScreen() {
           {tab === 'sales' && (
             <div className="space-y-3">
               <div className="grid md:grid-cols-3 gap-2">
-                {report.byMarket.map((m) => <Stat key={m.key} label={MARKET_LABELS[m.key] || m.key} value={`${fmt(m.count)} طلب`} sub={`${curText(m.byCurrency)} · $${fmt(m.usd)}${m.usdMissing ? ' (+ بلا سعر صرف)' : ''}`} />)}
+                {report.byMarket.map((m) => <Stat key={m.key} label={MARKET_LABELS[m.key] || m.key} value={`${fmt(m.count)} طلب`} sub={`${curText(m.byCurrency)} · ${report.fxMonthly ? usdDisplay(m, fmt).text : `$${fmt(m.usd)}`}${m.usdMissing ? (report.fxMonthly ? ` (+ ${m.usdMissing} غير محوَّل)` : ' (+ بلا سعر صرف)') : ''}`} />)}
               </div>
               <OrdersTable orders={report.delivered} />
             </div>
@@ -572,7 +583,7 @@ export default function SalesDeliveryAccountingScreen() {
                       const c = commissions.find((x) => normName(x.name) === normName(s.key));
                       return (
                         <tr key={s.key} className="border-t border-border">
-                          <td className="p-2 font-bold">{s.key}</td><td className="p-2">{fmt(s.count)}</td><td className="p-2">{curText(s.byCurrency)}</td><td className="p-2">${fmt(s.usd)}</td>
+                          <td className="p-2 font-bold">{s.key}</td><td className="p-2">{fmt(s.count)}</td><td className="p-2">{curText(s.byCurrency)}</td><td className="p-2">{s.estimatedN > 0 ? '≈ ' : ''}${fmt(s.usd)}{s.usdMissing && report.fxMonthly ? ` (+${s.usdMissing})` : ''}</td>
                           <td className="p-2">{c ? (c.final ? `$${fmt(c.commission)}` : 'مؤقتة') : '—'}</td>
                           <td className="p-2">{s.returned ? `${fmt(s.returned.count)} · ${curText(s.returned.byCurrency)}` : '—'}</td>
                           <td className="p-2" title="الزبون دفع أجور الشحن ولم يستلم — يُحسب راجعاً بلا خصم">{s.settled ? `${fmt(s.settled.count)} · ${curText(s.settled.byCurrency)}` : '—'}</td>

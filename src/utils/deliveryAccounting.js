@@ -142,7 +142,7 @@ export function applyFilters(rows, f = {}) {
 }
 
 /** مجاميع حسب مفتاح: لكل مجموعة count و byCurrency (قيمة فعلية) و usd (null عند نقص سعر صرف). */
-export function summarize(orders, keyFn, rateMap) {
+export function summarize(orders, keyFn, rateMap, converter = null) {
   const m = new Map();
   for (const o of orders) {
     const k = keyFn(o) ?? '—';
@@ -150,10 +150,25 @@ export function summarize(orders, keyFn, rateMap) {
     g.count += 1;
     const cur = String(o.currency || 'USD').toUpperCase();
     g.byCurrency[cur] = round2((g.byCurrency[cur] || 0) + num(o.amount));
-    const u = toUsd(o.amount, cur, rateMap);
-    if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
+    if (converter) {
+      // S3b: سعر شهر التسليم. نجمع دقيقاً ونقرّب مرة واحدة بالنهاية؛ المؤكَّد والتقديري منفصلان؛ غير المحوَّل يُعدّ ولا يدخل أي مجموع.
+      if (g.usdConfirmed === undefined) Object.assign(g, { usdConfirmed: 0, usdEstimated: 0, estimatedN: 0, approximateN: 0, carriedN: 0, unconvertedBreakdown: { noRate: 0, legacy: 0, suspect: 0, invalid: 0 } });
+      const c = converter.convert(o);
+      if (c.status === 'ok') g.usdConfirmed += c.usd;
+      else if (c.status === 'approximate') { g.usdEstimated += c.usd; g.estimatedN += 1; g.approximateN += 1; }
+      else if (c.status === 'carried') { g.usdEstimated += c.usd; g.estimatedN += 1; g.carriedN += 1; }
+      else {
+        g.usdMissing += 1;
+        const b = g.unconvertedBreakdown;
+        if (c.status === 'unit_legacy') b.legacy += 1; else if (c.status === 'unit_suspect') b.suspect += 1; else if (c.status === 'invalid') b.invalid += 1; else b.noRate += 1;
+      }
+    } else {
+      const u = toUsd(o.amount, cur, rateMap);
+      if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
+    }
     m.set(k, g);
   }
+  if (converter) for (const g of m.values()) { const c = g.usdConfirmed, e = g.usdEstimated; g.usd = round2(c + e); g.usdConfirmed = round2(c); g.usdEstimated = round2(e); }
   return [...m.values()].sort((a, b) => b.usd - a.usd || b.count - a.count);
 }
 
@@ -218,7 +233,7 @@ export function buildPayrollIndex(delivered, { normalize = (s) => String(s ?? ''
 }
 
 /** التقرير الكامل (المنطق الصرف) — الخدمة تغذّيه بالصفوف والمراجع. */
-export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, includeLegacy = true, refs = {}, nowMonth = null }) {
+export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, includeLegacy = true, refs = {}, nowMonth = null, converter = null }) {
   const sel = selectDeliveredInPeriod(rows, { from: period.from, to: period.to, includeLegacy });
   const delivered = applyFilters(sel.delivered, filters);
   const returns = applyFilters(sel.returns, filters);
@@ -234,7 +249,7 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
   const unknownTiming = views ? F(views.unknown) : returnsUnknown;
   const periodPending = views ? { returning: F(views.period.returning), not_received: F(views.period.not_received) } : { returning: [], not_received: [] };
   const monthStart = period.monthStart || null; // مدى مخصص: سعر كل طلب من شهر تسليمه
-  const totals = summarize(delivered, () => 'all', rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
+  const totals = summarize(delivered, () => 'all', rateMap, converter)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
   // إحصائية الفترة: مرتجع موثوق (return_at) + أحداث راجع/لم يُستلم بتاريخ الحدث + (دون الفترة) التوقيت المجهول
   const pendingAsRows = views ? [...periodPending.returning, ...periodPending.not_received] : [...currentPending.returning, ...currentPending.not_received];
   const returnsInfo = returnsAnalysis([...returns, ...unknownTiming, ...pendingAsRows], rateMap);
@@ -259,8 +274,9 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
     settledNoDelivery: sel.settledNoDelivery, legacyExcluded: sel.legacyExcluded,
     legacyCount: delivered.filter((o) => o.delivery_source === 'legacy_order_date').length,
     totals,
-    byMarket: summarize(delivered, (o) => o.market, rateMap),
-    bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap),
+    byMarket: summarize(delivered, (o) => o.market, rateMap, converter),
+    bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap, converter),
+    converter, fxMonthly: !!converter,
     undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
     products: buildProductLines(delivered, [...returns, ...unknownTiming], { ...refs, monthStart, nowMonth }),
     returnsInfo, shipping, shippingEstimate, settlements: settlementsList, settlementsUnknown,
@@ -277,12 +293,18 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
   const cur = (o) => Object.entries(o.byCurrency || {}).map(([c, v]) => `${v} ${c}`).join(' + ');
   const orderRow = (o) => [o.order_code || o.id, o.market, o.status, o.handler_name || '', o.customer_name || '', o.shipping_company || '', o.amount, o.currency, o.delivery_at || o.order_date || '', o.delivery_source || ''];
   const head = ['الطلب', 'السوق', 'الحالة', 'البائع', 'العميل', 'شركة الشحن', 'القيمة', 'العملة', 'تاريخ التسليم/الطلب', 'مصدر التاريخ'];
+  const fxm = !!report.converter; // S3b: أعمدة المؤكَّد/التقديري/حالة السعر تُضاف فقط بوضع السعر الشهري
+  const stat = (o) => { const c = report.converter.convert(o); return [c.usd == null ? '' : Math.round(c.usd * 100) / 100, c.status]; };
   return {
-    'ملخص الأسواق': [['السوق', 'عدد الطلبات المسلّمة', 'القيمة الفعلية', 'بالدولار', 'طلبات بلا سعر صرف'], ...report.byMarket.map((m) => [m.key, m.count, cur(m), m.usd, m.usdMissing])],
-    'الطلبات المسلّمة': [head, ...report.delivered.map(orderRow)],
+    'ملخص الأسواق': fxm
+      ? [['السوق', 'عدد الطلبات المسلّمة', 'القيمة الفعلية', 'بالدولار', 'منه مؤكَّد $', 'منه تقديري $', 'غير محوَّل'], ...report.byMarket.map((m) => [m.key, m.count, cur(m), m.usd, m.usdConfirmed, m.usdEstimated, m.usdMissing])]
+      : [['السوق', 'عدد الطلبات المسلّمة', 'القيمة الفعلية', 'بالدولار', 'طلبات بلا سعر صرف'], ...report.byMarket.map((m) => [m.key, m.count, cur(m), m.usd, m.usdMissing])],
+    'الطلبات المسلّمة': fxm ? [[...head, 'بالدولار', 'حالة السعر'], ...report.delivered.map((o) => [...orderRow(o), ...stat(o)])] : [head, ...report.delivered.map(orderRow)],
     'غير المسلّمة': [[...head.slice(0, 9), 'المجموعة'], ...report.undelivered.map((o) => [...orderRow(o).slice(0, 9), o.group])],
     'المنتجات المسلّمة': [['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع', 'تحذير'], ...report.products.map((p) => [p.market, p.name, p.qty, p.value, p.cost, p.unitProfit, p.profit, p.returnedQty, p.warning || ''])],
-    'الموظفون والعمولات': [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
+    'الموظفون والعمولات': fxm
+      ? [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'منه تقديري $', 'غير محوَّل', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, s.usdEstimated, s.usdMissing, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])]
+      : [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
     'المرتجعات': [['الطلب', 'السوق', 'الحالة', 'النوع', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع', 'تسليم سابق', 'استرداد مخزون موثّق', 'تكلفة شحن'], ...report.returnsInfo.rows.map((o) => [o.order_code || o.id, o.market, o.status, o.return_kind, o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces, o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'نعم' : 'غير موثّق', Number(o.delivery_cost) > 0 ? o.delivery_cost : 'غير موثّق'])],
     'الشحن': [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
     'التسويات': [['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'النوع', 'المسار', 'سبق التسوية تسليم', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...[...report.settlements, ...report.settlementsUnknown].map((o) => [o.order_code || o.order_id || o.id, o.market, o.settled_at ? String(o.settled_at).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.settlement_kind, o.path, o.delivered_before ? 'نعم' : 'لا', o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
