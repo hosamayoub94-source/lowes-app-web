@@ -60,10 +60,10 @@ create policy fxcu_select_staff on public.fx_currency_units for select to authen
 revoke all on public.fx_currency_units from public, anon;
 revoke insert, update, delete, truncate, references, trigger, maintain on public.fx_currency_units from authenticated;
 
--- Proposed from live data (orders SYP, 30 Oct 2026): Oct-Dec 2025 medians 85k-108k, Jan 2026 onward ~2k => legacy units until 31 Dec 2025. OWNER MUST CONFIRM the cut-over date.
+-- Derived from live data (orders SYP, 30 Oct 2026): Oct-Dec 2025 medians 85k-108k, Jan 2026 onward ~2k => legacy units until 31 Dec 2025. CONFIRMED by the owner on 30 Oct 2026 (cut-over 31/12/2025).
 insert into public.fx_currency_units (currency, unit, valid_from, valid_to, status, note) values
-  ('SYP', 'legacy',  date '2000-01-01', date '2025-12-31', 'proposed', 'orders.currency=SYP amounts of Oct-Dec 2025 are ~100x current units; cut-over date to be confirmed by the owner'),
-  ('SYP', 'current', date '2026-01-01', null,              'proposed', 'current units (median order ~2,000 SYP)')
+  ('SYP', 'legacy',  date '2000-01-01', date '2025-12-31', 'confirmed', 'orders.currency=SYP amounts of Oct-Dec 2025 are ~100x current units; cut-over 31/12/2025 confirmed by the owner (30 Oct 2026)'),
+  ('SYP', 'current', date '2026-01-01', null,              'confirmed', 'current units (median order ~2,000 SYP); confirmed by the owner (30 Oct 2026)')
 on conflict do nothing;
 
 create or replace function public.fx_unit_for(p_currency text, p_on date)

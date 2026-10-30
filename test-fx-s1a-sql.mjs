@@ -103,7 +103,7 @@ ok((await rate('payroll', 'TRY', '2026-10-10')) === null, 'payroll purpose has n
 // ── units
 const unit = async (c, d) => { const x = await as('authenticated', U.emp, `select fx_unit_for('${c}','${d}') u`); if (x.err) console.error('UNIT ERR', x.err); return x.rows[0]?.u; };
 ok((await unit('SYP', '2025-11-15')) === 'legacy' && (await unit('SYP', '2026-02-01')) === 'current' && (await unit('TRY', '2025-11-15')) === 'current', 'SYP Oct-Dec 2025 = legacy unit; 2026 = current; TRY unaffected');
-ok((await one(`select status from fx_currency_units where currency='SYP' order by valid_from`)).every((x) => x.status === 'proposed'), 'cut-over is PROPOSED until the owner confirms');
+ok((await one(`select status from fx_currency_units where currency='SYP' order by valid_from`)).every((x) => x.status === 'confirmed'), 'SYP cut-over (31/12/2025) is CONFIRMED by the owner');
 
 // ── single write path
 ok(denied(await as('authenticated', U.admin, `insert into fx_monthly_rates(purpose,currency,units_per_usd,effective_from,source) values('payroll','TRY',1,current_date,'x')`)), 'even admin cannot INSERT directly (single write path)');

@@ -26,8 +26,8 @@ const ROWS = [
   { ...row('TRY', '2026-10-01', 49.5), purpose: 'profitability' },       // غرض آخر: لا يتداخل
 ];
 const UNITS = [
-  { currency: 'SYP', unit: 'legacy', valid_from: '2000-01-01', valid_to: '2025-12-31', status: 'proposed' },
-  { currency: 'SYP', unit: 'current', valid_from: '2026-01-01', valid_to: null, status: 'proposed' },
+  { currency: 'SYP', unit: 'legacy', valid_from: '2000-01-01', valid_to: '2025-12-31', status: 'confirmed' },
+  { currency: 'SYP', unit: 'current', valid_from: '2026-01-01', valid_to: null, status: 'confirmed' },
 ];
 
 // ── monthKey (توقيت إسطنبول)
