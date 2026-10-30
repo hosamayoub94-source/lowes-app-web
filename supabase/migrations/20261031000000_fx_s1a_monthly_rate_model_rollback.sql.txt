@@ -1,0 +1,16 @@
+-- Rollback of S1a (manual). Removes only what S1a added; S0 table and its 19 rows remain. NOTE: rows written through fx_set_monthly_rate after S1a are lost with the new columns' data — export them first if any.
+drop function if exists public.fx_approve_period(text, date, text, jsonb);
+drop function if exists public.fx_set_monthly_rate(text, text, date, numeric, text, text, text);
+drop function if exists public.fx_rate_for(text, text, date, text);
+drop function if exists public.fx_unit_for(text, date);
+drop table if exists public.fx_period_approvals;
+drop table if exists public.fx_currency_units;
+delete from public.fx_monthly_rates where period_month is not null;
+drop index if exists public.fx_monthly_rates_one_confirmed;
+alter table public.fx_monthly_rates drop constraint if exists fx_monthly_rates_purpose_check, drop constraint if exists fx_monthly_rates_market_check,
+  drop constraint if exists fx_monthly_rates_period_month_check, drop constraint if exists fx_monthly_rates_unit_check, drop constraint if exists fx_monthly_rates_status_check;
+alter table public.fx_monthly_rates drop column if exists market, drop column if exists period_month, drop column if exists currency_unit, drop column if exists status,
+  drop column if exists approved_at, drop column if exists superseded_at, drop column if exists superseded_by;
+alter table public.fx_monthly_rates add constraint fx_monthly_rates_purpose_check check (purpose in ('delivery_accounting', 'payroll', 'profitability'));
+create policy fxmr_insert_admin on public.fx_monthly_rates for insert to authenticated with check ((select public.current_role_type()) = 'admin');
+grant insert on public.fx_monthly_rates to authenticated;
