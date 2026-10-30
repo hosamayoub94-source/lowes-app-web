@@ -13,6 +13,7 @@
 //  • قيمة الطلب = orders.amount الفعلي بعملته؛ قيمة المنتجات تحليلية من product_economics (نسخة الشهر).
 // =============================================================
 import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
+import { accumulateUsd, finalizeUsd } from './fxConverter.js';
 import { buildStatusViews } from './statusLedger.js';
 import { shippingEstimateSummary } from './shippingRates.js';
 import { carrierKey as carrierKeyLocal, carrierMatches, shippingPayerKind, returnKind, returnsAnalysis, shippingSummary, settlementRows } from './returnsShipping.js';
@@ -142,7 +143,7 @@ export function applyFilters(rows, f = {}) {
 }
 
 /** مجاميع حسب مفتاح: لكل مجموعة count و byCurrency (قيمة فعلية) و usd (null عند نقص سعر صرف). */
-export function summarize(orders, keyFn, rateMap, converter = null) {
+export function summarize(orders, keyFn, rateMap, converter = null, kind = 'delivery') {
   const m = new Map();
   for (const o of orders) {
     const k = keyFn(o) ?? '—';
@@ -152,23 +153,14 @@ export function summarize(orders, keyFn, rateMap, converter = null) {
     g.byCurrency[cur] = round2((g.byCurrency[cur] || 0) + num(o.amount));
     if (converter) {
       // S3b: سعر شهر التسليم. نجمع دقيقاً ونقرّب مرة واحدة بالنهاية؛ المؤكَّد والتقديري منفصلان؛ غير المحوَّل يُعدّ ولا يدخل أي مجموع.
-      if (g.usdConfirmed === undefined) Object.assign(g, { usdConfirmed: 0, usdEstimated: 0, estimatedN: 0, approximateN: 0, carriedN: 0, unconvertedBreakdown: { noRate: 0, legacy: 0, suspect: 0, invalid: 0 } });
-      const c = converter.convert(o);
-      if (c.status === 'ok') g.usdConfirmed += c.usd;
-      else if (c.status === 'approximate') { g.usdEstimated += c.usd; g.estimatedN += 1; g.approximateN += 1; }
-      else if (c.status === 'carried') { g.usdEstimated += c.usd; g.estimatedN += 1; g.carriedN += 1; }
-      else {
-        g.usdMissing += 1;
-        const b = g.unconvertedBreakdown;
-        if (c.status === 'unit_legacy') b.legacy += 1; else if (c.status === 'unit_suspect') b.suspect += 1; else if (c.status === 'invalid') b.invalid += 1; else b.noRate += 1;
-      }
+      accumulateUsd(g, converter.convert(o, kind));
     } else {
       const u = toUsd(o.amount, cur, rateMap);
       if (u === null) g.usdMissing += 1; else g.usd = round2(g.usd + u);
     }
     m.set(k, g);
   }
-  if (converter) for (const g of m.values()) { const c = g.usdConfirmed, e = g.usdEstimated; g.usd = round2(c + e); g.usdConfirmed = round2(c); g.usdEstimated = round2(e); }
+  if (converter) for (const g of m.values()) finalizeUsd(g);
   return [...m.values()].sort((a, b) => b.usd - a.usd || b.count - a.count);
 }
 
@@ -252,13 +244,13 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
   const totals = summarize(delivered, () => 'all', rateMap, converter)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 };
   // إحصائية الفترة: مرتجع موثوق (return_at) + أحداث راجع/لم يُستلم بتاريخ الحدث + (دون الفترة) التوقيت المجهول
   const pendingAsRows = views ? [...periodPending.returning, ...periodPending.not_received] : [...currentPending.returning, ...currentPending.not_received];
-  const returnsInfo = returnsAnalysis([...returns, ...unknownTiming, ...pendingAsRows], rateMap);
-  const currentInfo = returnsAnalysis([...currentPending.returning, ...currentPending.not_received], rateMap);
+  const returnsInfo = returnsAnalysis([...returns, ...unknownTiming, ...pendingAsRows], rateMap, converter);
+  const currentInfo = returnsAnalysis([...currentPending.returning, ...currentPending.not_received], rateMap, converter);
   // نطاق الشحن: كل طلب مرة واحدة. حدث راجع/لم يُستلم لطلب حالته الآن مسلَّم لا يدخل (شحنته محسوبة بفترة تسليمه) — منعاً للعدّ المزدوج.
   const seenShip = new Set();
   const shipScope = [...delivered, ...returns, ...pendingAsRows.filter((o) => ['returning', 'not_received', 'returned'].includes(o.current_status || o.status))].filter((o) => { const k = o.id ?? o.order_code; if (k == null) return true; if (seenShip.has(k)) return false; seenShip.add(k); return true; });
-  const shipping = shippingSummary(shipScope, rateMap);
-  const shippingEstimate = shippingEstimateSummary(shipScope, refs.carrierRates, rateMap);
+  const shipping = shippingSummary(shipScope, rateMap, converter);
+  const shippingEstimate = shippingEstimateSummary(shipScope, refs.carrierRates, rateMap, converter);
   const periodStart = ts(period.from), periodEnd = ts(period.to);
   const settlementsList = views
     ? F(views.settlements)
@@ -277,13 +269,13 @@ export function buildReport({ rows, period, rateMap = { USD: 1 }, filters = {}, 
     byMarket: summarize(delivered, (o) => o.market, rateMap, converter),
     bySeller: summarize(delivered, (o) => o.handler_name || '—', rateMap, converter),
     converter, fxMonthly: !!converter,
-    undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap)[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
+    undeliveredByGroup: Object.keys(UNDELIVERED_GROUPS).map((g) => ({ group: g, label: UNDELIVERED_GROUPS[g].label, ...(summarize(undelivered.filter((o) => o.group === g), () => g, rateMap, converter, 'order')[0] || { count: 0, byCurrency: {}, usd: 0, usdMissing: 0 }) })),
     products: buildProductLines(delivered, [...returns, ...unknownTiming], { ...refs, monthStart, nowMonth }),
     returnsInfo, shipping, shippingEstimate, settlements: settlementsList, settlementsUnknown,
-    settledAsReturns, settledTotal: summarize(settledAsReturns, () => 'all', rateMap)[0] || emptyG,
-    returnsTotal: summarize(returns, () => 'all', rateMap)[0] || emptyG,
-    returnsByMarket: summarize(returns, (o) => o.market, rateMap), settledByMarket: summarize(settledAsReturns, (o) => o.market, rateMap),
-    returnsBySeller: summarize(returns, (o) => o.handler_name || '—', rateMap), settledBySeller: summarize(settledAsReturns, (o) => o.handler_name || '—', rateMap),
+    settledAsReturns, settledTotal: summarize(settledAsReturns, () => 'all', rateMap, converter, 'settled')[0] || emptyG,
+    returnsTotal: summarize(returns, () => 'all', rateMap, converter, 'return')[0] || emptyG,
+    returnsByMarket: summarize(returns, (o) => o.market, rateMap, converter, 'return'), settledByMarket: summarize(settledAsReturns, (o) => o.market, rateMap, converter, 'settled'),
+    returnsBySeller: summarize(returns, (o) => o.handler_name || '—', rateMap, converter, 'return'), settledBySeller: summarize(settledAsReturns, (o) => o.handler_name || '—', rateMap, converter, 'settled'),
   };
 }
 
@@ -306,7 +298,9 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
       ? [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'منه تقديري $', 'غير محوَّل', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, s.usdEstimated, s.usdMissing, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])]
       : [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
     'المرتجعات': [['الطلب', 'السوق', 'الحالة', 'النوع', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع', 'تسليم سابق', 'استرداد مخزون موثّق', 'تكلفة شحن'], ...report.returnsInfo.rows.map((o) => [o.order_code || o.id, o.market, o.status, o.return_kind, o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces, o.delivered_before_return ? 'نعم' : 'لا', Number(o.restock_qty) > 0 ? 'نعم' : 'غير موثّق', Number(o.delivery_cost) > 0 ? o.delivery_cost : 'غير موثّق'])],
-    'الشحن': [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
+    'الشحن': fxm
+      ? [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار', 'منه تقديري $', 'غير محوَّل'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd, g.payer === 'unknown' ? '' : g.usdEstimated, g.payer === 'unknown' ? '' : g.usdMissing])]
+      : [['الشركة', 'الدافع', 'عدد الطلبات', 'التكلفة الموثّقة', 'بالدولار'], ...report.shipping.rows.map((g) => [g.carrier, g.payer === 'unknown' ? 'غير موثّق' : g.payer === 'customer' ? 'على العميل' : 'علينا', g.orders, g.payer === 'unknown' ? 'غير موثّق' : cur(g), g.payer === 'unknown' ? 'غير موثّق' : g.usd])],
     'التسويات': [['الطلب', 'السوق', 'تاريخ التسوية', 'تاريخ الطلب', 'النوع', 'المسار', 'سبق التسوية تسليم', 'القيمة', 'العملة', 'المحصّل', 'تكلفة شحن'], ...[...report.settlements, ...report.settlementsUnknown].map((o) => [o.order_code || o.order_id || o.id, o.market, o.settled_at ? String(o.settled_at).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.settlement_kind, o.path, o.delivered_before ? 'نعم' : 'لا', o.amount, o.currency, o.collected_known ? o.paid_amount : 'غير موثّق', o.shipping_documented ? o.delivery_cost : 'غير موثّق'])],
     'تقدير الشحن': [['الشركة', 'طلبات بالنطاق', 'مُقدَّرة', 'فعلية (موثّقة)', 'على العميل', 'بلا تعرفة', 'الدافع غير مؤكد', 'ذهاب تقديري', 'مرتجع تقديري', 'مرتجع بسياسة غير معروفة', 'معلّق (راجع/لم يُستلم)'], ...report.shippingEstimate.rows.map((g) => [g.carrier, g.orders, g.estimated, g.actual, g.customerPaid, g.noRate, g.payerUnconfirmed, cur({ byCurrency: g.outbound }), cur({ byCurrency: g.returnFee }), g.returnUnknown, g.returnPending])],
     'الوضع الحالي': [['الطلب', 'السوق', 'الحالة الآن', 'منذ', 'تاريخ الطلب', 'البائع', 'شركة الشحن', 'القيمة', 'العملة', 'القطع'], ...[...report.currentPending.returning, ...report.currentPending.not_received].map((o) => [o.order_code || o.order_id || o.id, o.market, o.status, o.status_since ? String(o.status_since).slice(0, 10) : 'غير معروف', String(o.order_date || '').slice(0, 10), o.handler_name || '', carrierKeyOf(o), o.amount, o.currency, o.pieces])],

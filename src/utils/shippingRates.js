@@ -12,6 +12,7 @@
 //  • التقدير لا يُكتب على الطلبات ولا يُخلط بالفعلي ولا يدخل الرواتب ولا العمولات.
 // =============================================================
 import { carrierKey, hasDocumentedCost } from './returnsShipping.js';
+import { accumulateUsd, finalizeUsd } from './fxConverter.js';
 
 export const RETURN_POLICY_LABELS = { none: 'لا يأخذون على المرتجع', fixed: 'مبلغ ثابت', same_as_outbound: 'مثل أجرة الذهاب', unknown: 'غير معروف' };
 export const RATE_MARKETS = { syria: 'سوريا', turkey: 'تركيا', uae: 'الإمارات' };
@@ -88,9 +89,10 @@ const usdOf = (amount, cur, rateMap) => (cur === 'USD' ? amount : rateMap?.[cur]
 const blank = () => ({ orders: 0, estimated: 0, actual: 0, customerPaid: 0, noRate: 0, payerUnconfirmed: 0, returnUnknown: 0, returnPending: 0, outbound: {}, returnFee: {}, actualByCurrency: {} });
 
 /** ملخص التقدير حسب الشركة + المجاميع. rateMap = عملة → دولار (للتحويل فقط؛ ناقص السعر يُعدّ ولا يُصفَّر). */
-export function shippingEstimateSummary(orders, rates, rateMap) {
+export function shippingEstimateSummary(orders, rates, rateMap, converter = null) {
   const by = new Map();
   const totals = { ...blank(), usdOutbound: 0, usdReturn: 0, usdMissing: 0 };
+  const accOut = {}, accRet = {}; // S3b-2: محوِّل شهري (ذهاب/إرجاع منفصلان)
   for (const o of orders || []) {
     const e = estimateOrderShipping(o, rates);
     if (e.basis === 'none') continue;
@@ -115,11 +117,22 @@ export function shippingEstimateSummary(orders, rates, rateMap) {
       }
     }
     if (e.basis === 'estimated') {
-      const u = usdOf(e.outbound.amount, e.outbound.currency, rateMap);
-      if (u === null) totals.usdMissing += 1; else totals.usdOutbound = round2(totals.usdOutbound + u);
-      if (e.returnFee) { const r = usdOf(e.returnFee.amount, e.returnFee.currency, rateMap); if (r === null) totals.usdMissing += 1; else totals.usdReturn = round2(totals.usdReturn + r); }
+      if (converter) {
+        const at = { delivery_at: o.delivery_at, order_date: o.order_date };
+        accumulateUsd(accOut, converter.convert({ amount: e.outbound.amount, currency: e.outbound.currency, ...at }, 'shipping'));
+        if (e.returnFee) accumulateUsd(accRet, converter.convert({ amount: e.returnFee.amount, currency: e.returnFee.currency, ...at }, 'shipping'));
+      } else {
+        const u = usdOf(e.outbound.amount, e.outbound.currency, rateMap);
+        if (u === null) totals.usdMissing += 1; else totals.usdOutbound = round2(totals.usdOutbound + u);
+        if (e.returnFee) { const r = usdOf(e.returnFee.amount, e.returnFee.currency, rateMap); if (r === null) totals.usdMissing += 1; else totals.usdReturn = round2(totals.usdReturn + r); }
+      }
     }
     by.set(e.carrier, g);
+  }
+  if (converter) {
+    finalizeUsd(accOut); finalizeUsd(accRet);
+    totals.usdOutbound = accOut.usd || 0; totals.usdReturn = accRet.usd || 0; totals.usdMissing = (accOut.usdMissing || 0) + (accRet.usdMissing || 0);
+    totals.outboundUsd = accOut; totals.returnUsd = accRet;
   }
   return { rows: [...by.values()].sort((a, b) => b.orders - a.orders), totals };
 }
