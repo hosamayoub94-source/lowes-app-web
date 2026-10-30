@@ -22,6 +22,7 @@ import FavoritesQuickAccess from '@components/feature/FavoritesQuickAccess';
 import { TARGETS_BY_CURRENCY } from '@data/targets';
 import { getStockMatrix } from '@services/warehouseService';
 import { fetchAllRows } from '@utils/fetchAllRows';
+import { fetchExchangeRateMap } from '@modules/payroll/services/payrollEngine';
 import { shiftDateSlash } from '@utils/date';
 
 // ── Daily motivation quotes ─────────────────────────────────────
@@ -690,9 +691,10 @@ function toUsdRate(amount, currency, rates) {
   if (!a) return 0;
   const cur = String(currency || 'SYP').toUpperCase();
   if (cur === 'USD') return a;
-  if (cur === 'TRY') return a / (Number(rates?.try_per_usd) || 33);
-  if (cur === 'AED') return a / 3.6725;
-  return a / (Number(rates?.syp_per_usd) || 14000);
+  // rates = خريطة exchange_rates الموحَّدة (قيمة العملة بالدولار)، لا أعمدة commission_rules القديمة (D-174)
+  if (cur === 'TRY') return a * (Number(rates?.TRY) || 1 / 50);
+  if (cur === 'AED') return a * (Number(rates?.AED) || 1 / 3.6725);
+  return a * (Number(rates?.SYP) || 1 / 140);
 }
 function MyTargetCard({ name }) {
   const [data, setData] = useState(null); // { syria:{val,target}, turkey:{val,target} }
@@ -713,7 +715,7 @@ function MyTargetCard({ name }) {
     // واحد بلا حاجة لـ.in() بالمرة (يتجنّب أيضاً عطل طول الرابط اللي
     // صلّحناه بالأرشفة — بائعين عندهم مئات الطلبات المسلَّمة تاريخياً).
     Promise.allSettled([
-      supabase.from('commission_rules').select('try_per_usd, syp_per_usd').eq('id', 'turkey').maybeSingle(),
+      fetchExchangeRateMap().then(data => ({ data })),
       supabaseAnon.from('orders').select('amount, currency, market, status, handler_name')
         .eq('handler_name', name).eq('status', 'delivered').gte('updated_at', monthStart + 'T00:00:00'),
     ]).then(([rRes, oRes]) => {
