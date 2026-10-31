@@ -2,6 +2,7 @@
 // القواعد: التكلفة باسم بديل تصل للمنتج الموحّد · كل سوق وشهر مستقل · التعارض لا يُحسم آلياً · لا تعديل للمصدر.
 import { computeMonthly, unifyCostSources, summarizeCostConflicts, buildResolver, resolveEcon, buildVersionIndex, buildMarketIndex } from './src/utils/profitabilityCalc.js';
 import { buildProductLines } from './src/utils/deliveryAccounting.js';
+import { costStatusOf, needsCostAttention } from './src/utils/costStatus.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('❌', m); } };
@@ -172,6 +173,19 @@ const UI2 = unifyCostSources({ historyRows: [], currentRows: curConf, resolve, d
 ok(UI2.conflicts.find((c) => c.table === 'product_economics')?.inert === false, '13: بلا سجل تاريخ ← فعّال (يحتاج قراراً)');
 const sum = summarizeCostConflicts([...US.conflicts, ...UI.conflicts]);
 ok(sum.groups === 2 && sum.inert === 1 && sum.decisions === 1, '13: الملخص: 2 مجموعة، منها 1 غير فعّالة، = قرار واحد فعّال');
+
+// 14) مراجعة #128: المحرر يعرض التعارض «بانتظار قرار» لا «ناقصة»، وdecisions=null لا ينهار
+{
+  const H14 = (n, d, c) => ({ item_name: n, effective_from: d, sale_price_usd: 10, cost_usd: c, ad_cost_usd: 0, shipping_cost_usd: 0 });
+  const pt = computeMonthly({ orders: [], nameMapRows: nameMap, historyRows: [H14('سيروم اللحية', '2026-10-01', 2), H14('BEARD SERUM', '2026-10-01', 3)], month: '2026-10', nowMonth: '2026-10-01', costDecisions: {} }).priceTable.find((t) => t.name === 'سيروم اللحية');
+  ok(pt.markets.uae.costStatus === 'conflict', '14: جدول المحرر يحمل الحالة conflict');
+  const [lab] = costStatusOf(pt.markets.uae.costStatus), [labMissing] = costStatusOf('missing');
+  ok(lab !== labMissing && /تعارض/.test(lab), '14: المحرر يعرض «تعارض» لا «ناقصة»');
+  ok(needsCostAttention('conflict') && needsCostAttention('missing') && !needsCostAttention('market') && !needsCostAttention('unified'), '14: فلتر «الناقصة والمتعارضة» يشمل conflict');
+  ok(costStatusOf('شيء_غير_معروف')[0] === labMissing, '14: حالة مجهولة ← ناقصة (كما كان)');
+  let threw = false; try { unifyCostSources({ historyRows: [H14('سيروم اللحية', '2026-10-01', 2), H14('BEARD SERUM', '2026-10-01', 3)], resolve, decisions: null }); } catch { threw = true; }
+  ok(!threw, '14: decisions=null مع تعارض لا ينهار'); 
+}
 
 console.log(`\n${pass} نجح · ${fail} فشل`);
 if (fail) process.exit(1);

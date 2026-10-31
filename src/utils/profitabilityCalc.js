@@ -140,7 +140,7 @@ export function unifyCostSources({ historyRows = [], currentRows = [], marketPri
       if (costs.length === 1) { row.cost_usd = costs[0]; if (!g.rows.some((x) => x.isCanon && Number(x.r.cost_usd) === costs[0])) row.cost_source = 'alias'; }
       else if (costs.length > 1) {
         const dk = `${g.name}|${g.market}|${g.period}`;
-        const decided = Number(decisions[dk]);
+        const decided = Number(decisions?.[dk]);
         row.cost_usd = decided > 0 ? decided : null;
         row.cost_source = decided > 0 ? 'owner_decision' : 'conflict';
         if (!(decided > 0)) row.conflictFields = ['cost_usd'];
