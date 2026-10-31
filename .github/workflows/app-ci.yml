@@ -88,7 +88,7 @@ jobs:
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs
 
-      - name: Check FX monthly-rate resolver and rates service (S1a SQL test + SQL parity run locally: need PGlite)
+      - name: "Check FX monthly-rate resolver and rates service (S1a SQL test + SQL parity run locally: need PGlite)"
         run: node test-fx-resolve.mjs
 
       - name: Check FX shadow comparison (S2)
