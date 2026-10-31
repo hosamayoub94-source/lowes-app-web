@@ -241,13 +241,13 @@ const emptyMarket = () => ({
   unpricedUnits: 0, legacyUnifiedUnits: 0, unmappedUnits: 0, collected: {}, settledOrders: 0, settledCollected: {},
   deliveryBasis: {}, substituteOrders: 0, substituteUnits: 0,
   unknownDelivery: { orders: 0, units: 0 }, returnTimingUnknown: { orders: 0, units: 0, revenue: 0, cost: 0 },
-  pendingReturns: { orders: 0, units: 0, cost: 0 }, historyConflict: 0, costConflictUnits: 0,
+  pendingReturns: { orders: 0, units: 0, cost: 0 }, historyConflict: 0, costConflictUnits: 0, conflictHeld: 0,
   unconverted: {}, adsEstimated: true, shippingEstimated: true,
 });
 
 const ISSUES = {
   missing_econ: ['partial', 'قطع بلا تكلفة معتمدة (تكلفتها غير محسوبة)'],
-  cost_conflict: ['partial', 'قطع بتكلفة متعارضة (أكثر من قيمة لنفس المنتج والشهر) — لم تُعتمد أيٌّ منها حتى قرار المالك'],
+  cost_conflict: ['partial', 'قطع بتكلفة متعارضة (أكثر من قيمة لنفس المنتج والشهر) — لم تُعتمد أيٌّ منها حتى قرار المالك، ومبيعاتها محجوزة خارج الربح'],
   revenue_fx_missing: ['partial', 'طلبات مسلَّمة بعملة بلا سعر صرف شهري معتمد — لا إيراد ولا تكلفة لها بالأرقام'],
   revenue_missing: ['partial', 'طلبات مسلَّمة بقيمة صفرية أو غير مسجَّلة — لا إيراد ولا تكلفة لها بالأرقام'],
   revenue_unsplit: ['partial', 'طلبات بأصناف من براندات مختلفة تعذّر توزيع قيمتها (لم تُحسب)'],
@@ -371,7 +371,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     return { v: e.uni, price: e.price, cost: e.cost, ship: e.ship, ad: e.ad, basis: e.basis, complete: e.complete, costConflict: e.costConflict };
   };
   const filt = (arr) => arr.filter((it) => it.active && (brand === 'all' || it.brand === brand));
-  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, complete: true, ...emptyDetail() }; agg.set(id, r); return r; };
+  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, conflictHeld: 0, complete: true, ...emptyDetail() }; agg.set(id, r); return r; };
   // تفاصيل إضافية لتحليل المنتجات (لا تغيّر أي رقم أعلاه): مراجع الطلبات، القيمة بعملتها الأصلية، المجاني/بلا قيمة/بلا سعر صرف
   const emptyDetail = () => ({ refs: new Map(), returnRefs: [], native: {}, nativeNoFx: {}, freeUnits: 0, freeCost: 0, freeOrders: 0, noValueUnits: 0, noFxUnits: 0, costMissingUnits: 0 });
   const addRef = (r, o, it, kind, usd, native) => {
@@ -459,6 +459,8 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
       if (pv.basis === 'market' && pv.price > 0) M.referenceRevenue += pv.price * it.q;
       if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; r.costMissingUnits += it.q; if (pv.costConflict) M.costConflictUnits += it.q; }
       r.estAds += (M.adsEstimated ? pv.ad : 0) * it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
+      // تكلفة متعارضة: مساهمة القطعة (حصتها من الإيراد − إعلانها وشحنها التقديريان) تُحجز خارج الربح حتى قرار المالك — لا ربح وهمي
+      if (!(pv.cost > 0) && pv.costConflict) { const held = (sp.shares.find((s) => s.it === it)?.usd || 0) - ((M.adsEstimated ? pv.ad : 0) + (M.shippingEstimated ? pv.ship : 0)) * it.q; r.conflictHeld += held; M.conflictHeld += held; }
     }
   };
   const handleCompletedReturn = (c) => {
@@ -476,7 +478,12 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     let costOut = 0, incomplete = 0;
     for (const it of c.items) {
       const pv = versionFor(it, dRef, m);
-      if (!(pv.cost > 0)) { incomplete += it.q; continue; }
+      if (!(pv.cost > 0)) {
+        incomplete += it.q;
+        // الشحن التقديري لا يتعلق بالتكلفة: التعارض لا يُسقطه (وإلا ارتفع الربح بقدره)
+        if (pv.costConflict) row(it, m).estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
+        continue;
+      }
       costOut += pv.cost * it.q;
       const r = row(it, m); r.returns += it.q; r.returnRefs.push({ id: o.id, code: o.order_code, at: o.return_at, status: o.status, kind: 'return', qty: it.q, afterDelivery }); r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
     }
@@ -535,7 +542,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   for (const r of agg.values()) {
     const m = mk(r.market);
     const p = { name: r.name, brand: r.brand, market: r.market, units: r.units, returns: r.returns, revenue: r.revenue, productCost: r.productCost, estAds: r.estAds, estShipping: r.estShipping, hasEcon: r.complete };
-    p.netProfit = r.revenue - r.productCost - r.estAds - r.estShipping;
+    p.netProfit = r.revenue - r.productCost - r.estAds - r.estShipping - r.conflictHeld; p.conflictHeld = r.conflictHeld;
     p.unitProfit = r.units && r.complete ? p.netProfit / r.units : null;
     p.margin = r.revenue ? Math.round((p.netProfit * 100) / r.revenue) : null;
     const ret = r.units + r.returns ? Math.round((r.returns * 100) / (r.units + r.returns)) : 0; p.returnRate = ret;
@@ -558,7 +565,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     else { const m = mk(r.market); m.expenses += r.usd; m.expensesByCategory[r.category] = (m.expensesByCategory[r.category] || 0) + r.usd; if (r.group === 'shipping') m.actualShipping += r.usd; }
   }
   for (const m of Object.values(summary)) {
-    m.productProfit = m.revenue - m.productCost - m.estAds - m.estShipping + (m.__returnEffect || 0);
+    m.productProfit = m.revenue - m.productCost - m.estAds - m.estShipping + (m.__returnEffect || 0) - m.conflictHeld;
     m.netProfit = m.productProfit - m.expenses; m.returnEffect = m.__returnEffect || 0; delete m.__returnEffect;
   }
 
@@ -631,7 +638,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },
     pendingReturns: { orders: sumM((m) => m.pendingReturns.orders), units: sumM((m) => m.pendingReturns.units), cost: sumM((m) => m.pendingReturns.cost) },
-    costConflictUnits: sumM((m) => m.costConflictUnits), substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), historyConflict: sumM((m) => m.historyConflict),
+    costConflictUnits: sumM((m) => m.costConflictUnits), conflictHeld: sumM((m) => m.conflictHeld), substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), historyConflict: sumM((m) => m.historyConflict),
     unconverted: unconvertedList.reduce((o, u) => ((o[u.currency] = (o[u.currency] || 0) + u.amount), o), {}),
   };
   total.expenses = total.marketExpenses + total.sharedExpenses + total.unallocatedExpenses;

@@ -27,6 +27,8 @@ const MUTANTS = [
   Rda('/sales-delivery: المقام كمية خاطئة بالمتوسط', 'r.unitCost = a.both ? round2(a.sumCost / a.both) : 0;', 'r.unitCost = a.both ? round2(a.sumCost / a.priced) : 0;'),
   Rda('/sales-delivery: التعارض يظهر «بلا تكلفة»', "else if (e.costConflict) r.warning = r.warning === 'no_price' ? r.warning : 'cost_conflict';", ''),
   Rda('/sales-delivery: التعارض يغطّي «بلا سعر»', "r.warning = r.warning === 'no_price' ? r.warning : 'cost_conflict';", "r.warning = 'cost_conflict';"),
+  R('ربح وهمي: مبيعات القطع المتعارضة تدخل الربح', "+ (m.__returnEffect || 0) - m.conflictHeld;", "+ (m.__returnEffect || 0);"),
+  R('ربح وهمي: التعارض يُسقط شحن المرتجع التقديري', 'if (pv.costConflict) row(it, m).estShipping +=', 'if (false) row(it, m).estShipping +='),
   R('مفتاح القرار السوقي يُطبَّق على كل الأسواق', 'const dk = `${g.name}|${g.market}|${g.period}`;', 'const dk = `${g.name}||${g.period}`;'),
   Rda('/sales-delivery: fallback لا يُحتسب', "if (pd.basis === 'month_fallback') r.fallbackQty += it.q;", ''),
   R('فترات السريان: التجميع بالشهر لا باليوم', 'const gk = `${x.key}|${marketOf(r)}|${period}`;', 'const gk = `${x.key}|${marketOf(r)}|${period.slice(0, 7)}`;'),

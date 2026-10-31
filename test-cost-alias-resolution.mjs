@@ -256,5 +256,25 @@ ok(sum.groups === 2 && sum.inert === 1 && sum.decisions === 1, '13: الملخص
   ok(!g1.company.quality.issues.some((i) => i.code === 'cost_conflict'), '16: بعد القرار يختفي تنبيه التعارض');
 }
 
+
+// 17) التعارض لا يتحوّل إلى ربح وهمي: مبيعات القطع المتعارضة خارج الربح حتى القرار، وشحن المرتجع لا يسقط بسبب التعارض
+{
+  const runU = (orders, hRows, decisions = {}) => computeMonthly({ orders, nameMapRows: nameMap, historyRows: hRows, marketPriceRows: [], month: '2026-10', nowMonth: '2026-11-01', costDecisions: decisions });
+  const costed = OD('p1', 'سيروم اللحية', '2026-10-10T10:00:00+03:00'), conflicted = OD('p2', 'سيروم اللحية', '2026-10-20T10:00:00+03:00'); // 20$ لكلٍّ منهما
+  const r0 = runU([costed, conflicted], hSame), r1 = runU([costed, conflicted], hSame, { 'سيروم اللحية||2026-10-15': 4 });
+  eq(r0.marketSummary.uae.revenue, 40, '17: الإيراد كاملاً (لا يُخفى بيع)');
+  eq(r0.marketSummary.uae.productProfit, 18, '17: الربح من القطعة المحسوبة فقط (20 − 2) — لا 38');
+  eq(r0.company.productProfit, 18, '17: وعلى مستوى الشركة');
+  eq(r1.marketSummary.uae.productProfit, 34, '17: بعد القرار (4) ← 40 − 2 − 4 = 34');
+  eq(r0.marketSummary.uae.conflictHeld, 20, '17: المبلغ المحجوز خارج الربح ظاهر (20)');
+  eq(runU([conflicted], hSame).products.find((p) => p.name === 'سيروم اللحية').netProfit, 0, '17: منتج كل قطعه متعارضة ← ربح المنتج 0 لا 20');
+  // مرتجع لم يُسلَّم (طلب أيلول أُرجع بتشرين الأول) ونسخة أيلول متعارضة: الشحن التقديري يُحتسب، ولا يتغيّر بالقيمة المختارة
+  const hShip = [H('سيروم اللحية', '2026-09-01', 2, { shipping_cost_usd: 1 }), H('BEARD SERUM', '2026-09-01', 3, { shipping_cost_usd: 1 })];
+  const refused = { ...OD('rf', 'سيروم اللحية', '2026-09-20T10:00:00+03:00'), status: 'returned', delivered_at: null, delivered_before_return: false, order_date: '2026-09-15T10:00:00+03:00', return_at: '2026-10-10T10:00:00+03:00' };
+  const s0 = runU([refused], hShip), s1 = runU([refused], hShip, { 'سيروم اللحية||2026-09-01': 3 });
+  eq(s0.marketSummary.uae.estShipping, 1.5, '17: شحن الرحلة الفاشلة يُقدَّر رغم التعارض (1 × 1.5)');
+  eq(s0.marketSummary.uae.productProfit, s1.marketSummary.uae.productProfit, '17: الربح نفسه قبل القرار وبعده (الشحن لا يتعلق بالتكلفة)');
+  eq(s0.marketSummary.uae.returns.costOut, 0, '17: تكلفة المرتجع غير محسومة قبل القرار'); eq(s1.marketSummary.uae.returns.costOut, 3, '17: وبعده 3');
+}
 console.log(`\n${pass} نجح · ${fail} فشل`);
 if (fail) process.exit(1);
