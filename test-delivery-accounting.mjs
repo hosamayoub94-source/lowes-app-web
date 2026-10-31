@@ -498,11 +498,11 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   // 7) تعارض بنفس فترة السريان: لا اختيار، ولا يؤثر على ما قبله
   const hConf = [H('Retail', '2026-10-01', 10, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
   const cNew = one(D('c20', '2026-10-20T12:00:00+03:00'), hConf);
-  eq(cNew.warning, 'no_cost', 'DL7: 20/10 داخل فترة تعارض ← تحذير بلا تكلفة'); near(cNew.cost, 0, 'DL7: لا تكلفة مختارة (لا 3 ولا 4)'); near(cNew.profit, 0, 'DL7: لا ربح مُخمَّن');
+  eq(cNew.warning, 'cost_conflict', 'DL7: 20/10 داخل فترة تعارض ← تحذير «تعارض» لا «بلا تكلفة»'); near(cNew.cost, 0, 'DL7: لا تكلفة مختارة (لا 3 ولا 4)'); near(cNew.profit, 0, 'DL7: لا ربح مُخمَّن');
   near(one(D('c14', '2026-10-14T12:00:00+03:00'), hConf).cost, 2, 'DL7: 14/10 قبل فترة التعارض ← 2 غير متأثر');
   near(one(D('c20', '2026-10-20T12:00:00+03:00'), hConf, { }).cost, 0, 'DL7: monthStart لا يتجاوز التعارض');
   const cMix = buildProductLines([D('d14', '2026-10-14T12:00:00+03:00'), D('d20', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf, monthStart: '2026-10-01' })[0];
-  near(cMix.cost, 2, 'DL7: تكلفة الطلب المسعَّر فقط (2) — لا تُنسب التكلفة المجهولة'); near(cMix.unitCost, 2, 'DL7: متوسط التكلفة على الوحدات المسعَّرة فقط (المقام = الوحدات داخل الإجمالي)'); eq(cMix.warning, 'no_cost', 'DL7: والتحذير يبقى');
+  near(cMix.cost, 2, 'DL7: تكلفة الطلب المسعَّر فقط (2) — لا تُنسب التكلفة المجهولة'); near(cMix.unitCost, 2, 'DL7: متوسط التكلفة على الوحدات المسعَّرة فقط (المقام = الوحدات داخل الإجمالي)'); eq(cMix.warning, 'cost_conflict', 'DL7: والتحذير يبقى (تعارض)');
   const cDecided = buildProductLines([D('e20', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf, monthStart: '2026-10-01', costDecisions: { 'Retail||2026-10-15': 4 } })[0];
   near(cDecided.cost, 4, 'DL7: قرار المالك لفترة 15/10 يُطبَّق على /sales-delivery أيضاً');
 
@@ -528,6 +528,18 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   near(pl.fallbackQty, 1, 'DL9: قطعة واحدة بتسعير fallback'); eq(pl.costMixed, true, 'DL9: costMixed'); near(pl.unitCost, 2.5, 'DL9: متوسط مرجّح = 10 ÷ 4');
   const ex = exportSheets(rep, {})['المنتجات المسلّمة'];
   ok(ex[0].some((h) => /تكلفة الوحدة/.test(h)) && ex[0].some((h) => /متوسط/.test(h)), 'DL9: ورقة Excel فيها تكلفة الوحدة وتسمية «متوسط مرجّح»');
+  // 10) المراجعة النهائية لـ#128: التكلفة المتعارضة تظهر «تعارض — بانتظار قرار» لا «بلا تكلفة»؛ الناقصة فعلاً تبقى «بلا تكلفة»
+  {
+    const hConf10 = [H('Retail', '2026-10-01', 10, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
+    eq(one(D('t20', '2026-10-20T12:00:00+03:00'), hConf10).warning, 'cost_conflict', 'DL10: داخل فترة تعارض ← cost_conflict');
+    eq(one(D('t14', '2026-10-14T12:00:00+03:00'), [H('Retail', '2026-10-01', 10, 0)]).warning, 'no_cost', 'DL10: تكلفة صفر فعلاً (لا تعارض) ← no_cost كما كان');
+    const both = buildProductLines([D('t1', '2026-10-20T12:00:00+03:00'), D('t2', '2026-10-25T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf10, monthStart: '2026-10-01' })[0];
+    eq(both.warning, 'cost_conflict', 'DL10: كل الطلبات متعارضة ← cost_conflict');
+    eq(one(D('t3', '2026-10-20T12:00:00+03:00'), [H('Retail', '2026-10-01', 0, 2), H('Retail', '2026-10-15', 0, 3), H('RETAIL OLD', '2026-10-15', 0, 4)]).warning, 'no_price', 'DL10: بلا سعر يبقى الأولوية');
+    eq(buildProductLines([D('t4', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf10, monthStart: '2026-10-01', costDecisions: { 'Retail||2026-10-15': 4 } })[0].warning, null, 'DL10: بعد قرار المالك لا تحذير');
+    const hNoPrice = [H('Retail', '2026-10-01', 0, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
+    eq(buildProductLines([D('t5', '2026-10-05T12:00:00+03:00'), D('t6', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hNoPrice, monthStart: '2026-10-01' })[0].warning, 'no_price', 'DL10: طلب بلا سعر ثم طلب متعارض ← يبقى «بلا سعر» (الأشد)');
+  }
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

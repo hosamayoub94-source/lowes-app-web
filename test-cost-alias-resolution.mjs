@@ -1,6 +1,6 @@
 // اختبار قراءة التكلفة عبر الأسماء البديلة (D-176) — node test-cost-alias-resolution.mjs
 // القواعد: التكلفة باسم بديل تصل للمنتج الموحّد · كل سوق وشهر مستقل · التعارض لا يُحسم آلياً · لا تعديل للمصدر.
-import { computeMonthly, unifyCostSources, summarizeCostConflicts, buildResolver, resolveEcon, buildVersionIndex, buildMarketIndex } from './src/utils/profitabilityCalc.js';
+import { computeMonthly, snapshotOf, unifyCostSources, summarizeCostConflicts, buildResolver, resolveEcon, buildVersionIndex, buildMarketIndex } from './src/utils/profitabilityCalc.js';
 import { buildProductLines } from './src/utils/deliveryAccounting.js';
 import { costStatusOf, needsCostAttention } from './src/utils/costStatus.js';
 
@@ -228,6 +228,32 @@ ok(sum.groups === 2 && sum.inert === 1 && sum.decisions === 1, '13: الملخص
   const p3 = prod2([sameMonth, sold]);
   eq(p3.cost, 14 / 6, '15ب: سُلِّم 4/10 وأُرجع 25/10 = مبيع أكتوبر ← يدخل الترجيح (14 ÷ 6)'); ok(p3.costMixed === true, '15ب: costMixed');
   ok(p2.costMixed === false, '15ب: ولا علامة اختلاط بسببهما');
+}
+
+// 16) المراجعة النهائية لـ#128: قرار على مستوى السوق · عزل الترجيح بين الأسواق · بوابة الإقفال
+{
+  const ODm = (id, name, at, mkt, qty = 1) => ({ ...OD(id, name, at, mkt), items: [{ name, qty }], amount: 10 * qty });
+  const run = (orders, hRows, mRows, decisions = {}) => computeMonthly({ orders, nameMapRows: nameMap, historyRows: hRows, marketPriceRows: mRows, month: '2026-10', nowMonth: '2026-11-01', costDecisions: decisions });
+  // 16أ) تعارض سوقي (الإمارات: زيت الروزماري 7 ≠ ROSEMARY OIL 8) — مفتاحه يحمل السوق ويُطبَّق على ذلك السوق وحده
+  const UR = unifyCostSources({ historyRows: history, marketPriceRows: marketRows, resolve, decisions: {} });
+  ok(UR.conflicts.some((c) => c.decisionKey === 'زيت الروزماري|uae|2026-10-01'), '16: مفتاح التعارض السوقي يحمل السوق');
+  const rose = [ODm('k1', 'ROSEMARY OIL', '2026-10-10T10:00:00+03:00', 'uae'), ODm('k2', 'زيت الروزماري', '2026-10-10T10:00:00+03:00', 'syria')];
+  const r0 = run(rose, history, marketRows), r1 = run(rose, history, marketRows, { 'زيت الروزماري|uae|2026-10-01': 7.5 });
+  eq(r0.marketSummary.uae.productCost, 0, '16: الإمارات بلا قرار ← غير محسوبة (لا 7 ولا 8)'); eq(r0.marketSummary.uae.costConflictUnits, 1, '16: وتُعدّ قطعة متعارضة');
+  eq(r1.marketSummary.uae.productCost, 7.5, '16: قرار الإمارات ← 7.5 للإمارات');
+  eq(r0.marketSummary.syria.productCost, 3, '16: سوريا (بلا صف سوقي) ← الموحّدة 3 قبل القرار');
+  eq(r1.marketSummary.syria.productCost, 3, '16: قرار الإمارات لا يمسّ سوريا');
+  ok(run(rose, history, marketRows, { 'زيت الروزماري||2026-10-01': 7.5 }).marketSummary.uae.productCost === 0, '16: قرار بلا سوق لا يحسم تعارضاً سوقياً');
+  // 16ب) الترجيح لكل (منتج، سوق) مستقل: نفس المنتج بسوقين وتكلفتين لا يُخلطان
+  const iso = run([ODm('i1', 'سيروم اللحية', '2026-10-02T10:00:00+03:00', 'uae', 2), ODm('i2', 'BEARD SERUM', '2026-10-20T10:00:00+03:00', 'turkey', 3)], hMid, []);
+  const pu = iso.products.find((p) => p.market === 'uae' && p.name === 'سيروم اللحية'), ptk = iso.products.find((p) => p.market === 'turkey' && p.name === 'سيروم اللحية');
+  ok(pu.cost === 2 && ptk.cost === 3 && !pu.costMixed && !ptk.costMixed, '16: الإمارات 2 وتركيا 3 — لا متوسط مشترك بين الأسواق');
+  // 16ج) بوابة الإقفال: قطع متعارضة ← cost_conflict بمستوى partial، واللقطة partial (الإقفال يرفضها)؛ القرار يزيل السبب
+  const g0 = run([ODm('g1', 'سيروم اللحية', '2026-10-20T10:00:00+03:00', 'uae')], hSame, []);
+  const g1 = run([ODm('g1', 'سيروم اللحية', '2026-10-20T10:00:00+03:00', 'uae')], hSame, [], { 'سيروم اللحية||2026-10-15': 4 });
+  ok(g0.company.quality.issues.some((i) => i.code === 'cost_conflict' && i.level === 'partial' && i.units === 1), '16: تنبيه cost_conflict بمستوى partial');
+  ok(snapshotOf(g0).status === 'partial', '16: لقطة الإقفال partial ← لا يُقفل الشهر بتكلفة غير محسومة');
+  ok(!g1.company.quality.issues.some((i) => i.code === 'cost_conflict'), '16: بعد القرار يختفي تنبيه التعارض');
 }
 
 console.log(`\n${pass} نجح · ${fail} فشل`);

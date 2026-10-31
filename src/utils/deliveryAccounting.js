@@ -221,6 +221,7 @@ export function buildProductLines(delivered, returns, { nameMapRows = [], histor
       r.unitPrice = e.price; r.unitCost = e.cost;
       a.variants.add(`${e.price}|${e.cost}`);
       if (!(e.price > 0)) r.warning = 'no_price';
+      else if (e.costConflict) r.warning = r.warning === 'no_price' ? r.warning : 'cost_conflict'; // ليست «ناقصة»: تنتظر قرار المالك
       else if (!(e.cost > 0)) r.warning = r.warning || 'no_cost';
       if (e.price > 0) { r.value = round2(r.value + it.q * e.price); a.priced += it.q; a.sumPrice += it.q * e.price; }
       if (e.price > 0 && e.cost > 0) {

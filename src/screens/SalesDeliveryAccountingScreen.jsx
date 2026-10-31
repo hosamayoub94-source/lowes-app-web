@@ -31,7 +31,7 @@ function mergeSellerRows(report) {
 }
 const curText = (by) => Object.entries(by || {}).map(([c, v]) => `${fmt(v)} ${c}`).join(' + ') || '—';
 const thisMonth = () => new Date().toISOString().slice(0, 7);
-const WARN = { no_price: '⚠️ بلا سعر', no_cost: '⚠️ بلا تكلفة' };
+const WARN = { no_price: '⚠️ بلا سعر', no_cost: '⚠️ بلا تكلفة', cost_conflict: '🟠 تعارض تكلفة — بانتظار قرارك' };
 const SOURCE = { history: 'سجل التسليم', substitute: 'تاريخ بديل', legacy_order_date: 'تقديري (تاريخ الطلب)' };
 
 function Stat({ label, value, sub, tone = 'text-text' }) {
