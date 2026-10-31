@@ -70,7 +70,7 @@ const MUTANTS = [
   R('التغليف: لا تحذير نقص', "packaging_missing: scope === 'company' && m.orders > 0 &&", "packaging_missing: scope === 'company' && false &&"),
   R('براند: لا تصفية', 'arr.filter((it) => it.active && (brand === \'all\' || it.brand === brand))', 'arr.filter((it) => it.active)'),
   R('المعلّق يُعامل كمرتجع مكتمل', "&& inM(o.order_date)) handlePending(c);", "&& inM(o.order_date)) handleCompletedReturn(c);"),
-  R('تكلفة ناقصة تُعدّ صفراً', 'if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; if (pv.costConflict) M.costConflictUnits += it.q; }', 'r.productCost += pv.cost * it.q;'),
+  R('تكلفة ناقصة تُعدّ صفراً', 'if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; r.costMissingUnits += it.q; if (pv.costConflict) M.costConflictUnits += it.q; }', 'r.productCost += pv.cost * it.q;'),
   R('سعر السوق يُستعار من سوريا', "const arr = marketIdx.get(`${key}|${market}`);", "const arr = marketIdx.get(`${key}|syria`) || marketIdx.get(`${key}|${market}`);"),
   R('نسخة الأسعار الموحّدة: المستقبل يتسرّب', "String(r.effective_from).slice(0, 10) <= monthStart) || null)", "String(r.effective_from).slice(0, 10) <= '2099-12-31') || null)"),
   R('أسعار السوق: المستقبل يتسرّب', "String(r.effective_from).slice(0, 10) <= monthStart && (hasN(r[f])", "String(r.effective_from).slice(0, 10) <= '2099-12-31' && (hasN(r[f])"),

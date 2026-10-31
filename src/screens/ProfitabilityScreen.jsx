@@ -3,7 +3,8 @@
 // يعرض الوحدات المباعة + المرتجعات + الربح الصافي لكل صنف،
 // مع إدخال السعر/التكلفة/الإعلان/الشحن (يُحفظ ويُحسب فوراً).
 // =============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { loadProfitability, saveEconomics, saveMarketPrice, saveExpense, deleteExpense, saveFxRate, closeMonth, acknowledgeRetroDrift, setProductActive } from '@services/profitabilityService';
 import { DELIVERY_BASIS_LABELS, snapshotOf } from '@utils/profitabilityCalc';
 import { costStatusOf, needsCostAttention } from '@utils/costStatus';
@@ -381,7 +382,7 @@ function ClosureBar({ month, data, actor, onChanged }) {
   </div>;
 }
 
-export default function ProfitabilityScreen() {
+function ProfitabilityMonthly() {
   const toast = useToast();
   const { name: actor } = useAuth();
   const [data, setData]   = useState(null);
@@ -605,6 +606,29 @@ export default function ProfitabilityScreen() {
 
       {editing && <MarketPriceEditor table={data.priceTable || []} focus={editing.name} viewMonth={month} actor={actor} onClose={()=>setEditing(null)} onSaved={()=>{ setEditing(null); load(); }} />}
       {bulk && <MarketPriceEditor table={data.priceTable || []} focus="" viewMonth={month} actor={actor} onClose={()=>setBulk(false)} onSaved={()=>{ setBulk(false); load(); }} />}
+    </div>
+  );
+}
+
+// ───── تبويبات الصفحة: النتائج الشهرية (كما هي) + تحليل المنتجات حسب السوق ─────
+const ProductAnalyticsTab = lazy(() => import('./profitability/ProductAnalyticsTab'));
+const TABS = [{ key: 'monthly', label: '💎 النتائج الشهرية' }, { key: 'products', label: '🧾 تحليل المنتجات حسب السوق' }];
+export default function ProfitabilityScreen() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'products' ? 'products' : 'monthly';
+  return (
+    <div className="max-w-3xl mx-auto space-y-3" dir="rtl">
+      <div className="flex gap-1.5">
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setParams(t.key === 'monthly' ? {} : { tab: t.key }, { replace: true })}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${tab === t.key ? 'bg-navy text-white border-navy' : 'bg-surface text-muted border-border hover:border-navy/40'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'monthly' ? <ProfitabilityMonthly /> : (
+        <div className="pb-24"><Suspense fallback={<div className="h-24 rounded-2xl bg-surface-alt animate-pulse" />}><ProductAnalyticsTab /></Suspense></div>
+      )}
     </div>
   );
 }
