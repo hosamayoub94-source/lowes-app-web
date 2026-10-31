@@ -13,6 +13,9 @@ const R = (name, from, to) => ({ name, mutate: (s) => { const i = s.indexOf(from
 const afterNeedle = (name, needle, from, to) => ({ name, mutate: (s) => { const n = s.indexOf(needle); if (n < 0) return null; const i = s.indexOf(from, n); return i < 0 ? null : s.slice(0, i) + to + s.slice(i + from.length); } });
 
 const MUTANTS = [
+  R('توحيد التكلفة: التعارض يأخذ أول قيمة', 'if (costs.length === 1) {', 'if (costs.length >= 1) {'),
+  R('توحيد التكلفة: السوق خارج مفتاح المجموعة', 'const gk = `${x.key}|${marketOf(r)}|${month}`;', 'const gk = `${x.key}||${month}`;'),
+  R('توحيد التكلفة: الاسم البديل لا يُقرأ', 'const g = groups.get(gk) || { name: x.name,', 'const g = groups.get(gk) || { name: r.item_name,'),
   R('FX: القسمة صارت ضرباً (إيراد الطلب)', 'usd: amount / rate', 'usd: amount * rate'),
   R('FX: USD يُعامل كعملة تحتاج صرفاً', "if (cur === 'USD') return { ok: true,", "if (false) return { ok: true,"),
   R('إيراد: قيمة صفرية تُقبل', "if (!(amount > 0)) return { ok: false, why: 'no_amount', amount, cur };", ''),
@@ -46,10 +49,10 @@ const MUTANTS = [
   R('التغليف: لا تحذير نقص', "packaging_missing: scope === 'company' && m.orders > 0 &&", "packaging_missing: scope === 'company' && false &&"),
   R('براند: لا تصفية', 'arr.filter((it) => it.active && (brand === \'all\' || it.brand === brand))', 'arr.filter((it) => it.active)'),
   R('المعلّق يُعامل كمرتجع مكتمل', "&& inM(o.order_date)) handlePending(c);", "&& inM(o.order_date)) handleCompletedReturn(c);"),
-  R('تكلفة ناقصة تُعدّ صفراً', 'if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; }', 'r.productCost += pv.cost * it.q;'),
+  R('تكلفة ناقصة تُعدّ صفراً', 'if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; if (pv.costConflict) M.costConflictUnits += it.q; }', 'r.productCost += pv.cost * it.q;'),
   R('سعر السوق يُستعار من سوريا', "const arr = marketIdx.get(`${key}|${market}`);", "const arr = marketIdx.get(`${key}|syria`) || marketIdx.get(`${key}|${market}`);"),
   R('نسخة الأسعار الموحّدة: المستقبل يتسرّب', "String(r.effective_from).slice(0, 10) <= monthStart) || null)", "String(r.effective_from).slice(0, 10) <= '2099-12-31') || null)"),
-  R('أسعار السوق: المستقبل يتسرّب', "String(r.effective_from).slice(0, 10) <= monthStart && hasN(r[f])", "String(r.effective_from).slice(0, 10) <= '2099-12-31' && hasN(r[f])"),
+  R('أسعار السوق: المستقبل يتسرّب', "String(r.effective_from).slice(0, 10) <= monthStart && (hasN(r[f])", "String(r.effective_from).slice(0, 10) <= '2099-12-31' && (hasN(r[f])"),
   R('مرتجع بتحويل جماعي يُقبل', "o.return_at && !o.return_bulk_suspect", 'o.return_at'),
   R('مصروف يدوي مربوط بقيد يُحتسب مرتين', 'if (e.accounting_entry_id && countedAccIds.has(e.accounting_entry_id)) { manualDup++; continue; }', ''),
   R('المحصَّل بالعملة الأصلية لا يُسجَّل', "M.revenueByCurrency[rv.cur] = (M.revenueByCurrency[rv.cur] || 0) + rv.amount;", ''),
@@ -58,13 +61,15 @@ const MUTANTS = [
   R('توزيع: بالتساوي بدل الكمية', 'rv.usd * (it.q / totalQ)', 'rv.usd * (1 / c.all.length)'),
   R('كمية مشبوهة تُقبل', 'qty > 0 && !bad ? qty : 1', 'qty > 0 ? qty : 1'),
   R('المرجع يعتمد السعر الموحّد القديم', "pv.basis === 'market' && pv.price > 0", 'pv.price > 0'),
-  R('حالة التكلفة: ناقصة تُعدّ موحّدة', "costStatus: cost > 0 ? (mc ? 'market' : 'unified') : 'missing'", "costStatus: mc ? 'market' : 'unified'"),
+  R('حالة التكلفة: ناقصة تُعدّ موحّدة', "costStatus: costConflict ? 'conflict' : cost > 0 ? (mc ? 'market' : 'unified') : 'missing'", "costStatus: mc ? 'market' : 'unified'"),
   R('الأصل بالكتالوج مقلوب', 'catalogKeys.has(key)', '!catalogKeys.has(key)'),
   R('العلامة من الطلب لا تُطبَّق', 'if (o.brand && brand !== \'all\' && o.brand !== brand) {', 'if (false) {'),
   R('اسم الصنف يحدد العلامة بدل الطلب', 'items = o.brand ? all.filter((it) => it.active) : filt(all)', 'items = filt(all)'),
 ];
 
-const run = () => spawnSync(process.execPath, ['test-profitability-calc.mjs'], { encoding: 'utf8', timeout: 180000 });
+// الطفرة «قُتلت» إن فشل أيٌّ من اختبارَي المحرك (الحساب الشهري + قراءة التكلفة عبر الأسماء البديلة D-176)
+const runOne = (file) => spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 180000 });
+const run = () => { const a = runOne('test-profitability-calc.mjs'); if (a.status !== 0) return a; return runOne('test-cost-alias-resolution.mjs'); };
 const base = run();
 if (base.status !== 0) { console.error('الاختبار الأصلي يفشل — أصلحه أولاً.\n' + (base.stdout || '').split('\n').filter((l) => l.includes('❌')).join('\n')); process.exit(2); }
 

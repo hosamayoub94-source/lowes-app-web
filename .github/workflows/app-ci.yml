@@ -82,10 +82,13 @@ jobs:
       # test-profitability-calc.mjs is intentionally not here: it imports a .ts file
       # (supabase/functions/_shared/orderHistory.ts) that Node 20 cannot load; run it locally on Node >= 22.
 
+      - name: Check cost reading through product aliases (D-176)
+        run: node test-cost-alias-resolution.mjs
+
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs
 
-      - name: Check FX monthly-rate resolver and rates service (S1a SQL test + SQL parity run locally: need PGlite)
+      - name: "Check FX monthly-rate resolver and rates service (S1a SQL test + SQL parity run locally: need PGlite)"
         run: node test-fx-resolve.mjs
 
       - name: Check FX shadow comparison (S2)

@@ -12,7 +12,7 @@
 //  • غير المسلَّم (تجهيز/شحن/وارد/لم يُستلم) يُعرض بقيمه ولا يدخل أي مجموع.
 //  • قيمة الطلب = orders.amount الفعلي بعملته؛ قيمة المنتجات تحليلية من product_economics (نسخة الشهر).
 // =============================================================
-import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
+import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, unifyCostSources, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
 import { accumulateUsd, finalizeUsd } from './fxConverter.js';
 import { buildStatusViews } from './statusLedger.js';
 import { shippingEstimateSummary } from './shippingRates.js';
@@ -170,8 +170,10 @@ export function summarize(orders, keyFn, rateMap, converter = null, kind = 'deli
  */
 export function buildProductLines(delivered, returns, { nameMapRows = [], historyRows = [], currentRows = [], marketPriceRows = [], monthStart, nowMonth = null } = {}) {
   const resolve = buildResolver(nameMapRows);
-  const versions = buildVersionIndex(historyRows, currentRows);
-  const marketIdx = buildMarketIndex(marketPriceRows);
+  // نفس توحيد صفوف التكلفة تحت الاسم الموحّد كمحرك الربحية (D-176) — التعارض لا يُحسم آلياً
+  const unified = unifyCostSources({ historyRows, currentRows, marketPriceRows, resolve });
+  const versions = buildVersionIndex(unified.history, unified.current);
+  const marketIdx = buildMarketIndex(unified.market);
   const rows = new Map();
   const slot = (it, market) => {
     const id = `${market}|${it.key}`;
