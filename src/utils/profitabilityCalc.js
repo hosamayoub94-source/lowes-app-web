@@ -290,7 +290,14 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     return { v: e.uni, price: e.price, cost: e.cost, ship: e.ship, ad: e.ad, basis: e.basis, complete: e.complete };
   };
   const filt = (arr) => arr.filter((it) => it.active && (brand === 'all' || it.brand === brand));
-  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, complete: true }; agg.set(id, r); return r; };
+  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, complete: true, ...emptyDetail() }; agg.set(id, r); return r; };
+  // تفاصيل إضافية لتحليل المنتجات (لا تغيّر أي رقم أعلاه): مراجع الطلبات، القيمة بعملتها الأصلية، المجاني/بلا قيمة/بلا سعر صرف
+  const emptyDetail = () => ({ refs: new Map(), returnRefs: [], native: {}, nativeNoFx: {}, freeUnits: 0, freeCost: 0, freeOrders: 0, noValueUnits: 0, noFxUnits: 0, costMissingUnits: 0 });
+  const addRef = (r, o, it, kind, usd, native) => {
+    const x = r.refs.get(o.id) || { id: o.id, code: o.order_code, at: o.delivered_at, status: o.status, kind, qty: 0, usd: 0, currency: String(o.currency || '').trim().toUpperCase() || null, native: 0 };
+    x.qty += it.q; x.usd += usd || 0; x.native += native || 0; r.refs.set(o.id, x);
+  };
+  const nativeShare = (c, it, amount) => { const tq = c.all.reduce((s, x) => s + x.q, 0); return tq > 0 ? amount * (it.q / tq) : 0; };
 
   // كل فرع بدالة صغيرة (يُبقي مسارات التحليل قليلة — ESLint react-hooks كان ينفد ذاكرته على الدالة الواحدة الضخمة)
   const countedItems = (c) => c.items.length > 0;
@@ -345,6 +352,15 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
       if (rv.why === 'no_fx') { M.revenueNoFx.orders++; M.revenueNoFx.units += c.units; M.revenueNoFx.byCurrency[rv.cur] = (M.revenueNoFx.byCurrency[rv.cur] || 0) + rv.amount; }
       else { M.revenueMissing.orders++; M.revenueMissing.units += c.units; }
       for (const { r } of pvs) { r.complete = false; r.noRevenue = true; }
+      // تفصيل: الطلب المجاني (قيمة مسجّلة = 0 صراحةً) منفصل عن «بلا قيمة» (فارغة) وعن «بلا سعر صرف»
+      const free = rv.why === 'no_amount' && o.amount !== null && o.amount !== undefined && o.amount !== '' && Number(o.amount) === 0;
+      if (free) M.freeOrders = (M.freeOrders || 0) + 1;
+      for (const { it, r, pv } of pvs) {
+        if (rv.why === 'no_fx') { r.noFxUnits += it.q; const sh = nativeShare(c, it, rv.amount); r.nativeNoFx[rv.cur] = (r.nativeNoFx[rv.cur] || 0) + sh; addRef(r, o, it, 'no_fx', 0, sh); }
+        else if (free) { r.freeUnits += it.q; if (pv.cost > 0) r.freeCost += pv.cost * it.q; addRef(r, o, it, 'free', 0, 0); }
+        else { r.noValueUnits += it.q; addRef(r, o, it, 'no_value', 0, 0); }
+      }
+      for (const r of new Set(pvs.map((x) => x.r))) if (free) r.freeOrders++;
       revenueGaps.push({ id: o.id, code: o.order_code, market: m, currency: rv.cur || null, amount: rv.amount, why: rv.why, units: c.units });
       return;
     }
@@ -357,8 +373,10 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
 
     for (const s of sp.shares) pvs.find((x) => x.it === s.it).r.revenue += s.usd;
     for (const { it, r, pv } of pvs) {
+      const sh = nativeShare(c, it, rv.amount); r.native[rv.cur] = (r.native[rv.cur] || 0) + sh;
+      addRef(r, o, it, 'sale', rv.usd * (sh / rv.amount), sh);
       if (pv.basis === 'market' && pv.price > 0) M.referenceRevenue += pv.price * it.q;
-      if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; }
+      if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; r.costMissingUnits += it.q; }
       r.estAds += (M.adsEstimated ? pv.ad : 0) * it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
     }
   };
@@ -378,7 +396,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
       const pv = versionFor(it, dMonth, m);
       if (!(pv.cost > 0)) { incomplete += it.q; continue; }
       costOut += pv.cost * it.q;
-      const r = row(it, m); r.returns += it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
+      const r = row(it, m); r.returns += it.q; r.returnRefs.push({ id: o.id, code: o.order_code, at: o.return_at, status: o.status, kind: 'return', qty: it.q, afterDelivery }); r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
     }
     R.unpricedUnits += incomplete;
     const denom = num(o.reserve_qty) > 0 ? num(o.reserve_qty) : c.allUnits;
@@ -442,6 +460,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const rk = usedVersions.get(`${r.key}|${r.market}`); const ee = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
     p.versionFrom = ee.priceFrom; p.priceBasis = ee.basis; p.priceStatus = ee.status;
     p.price = ee.price; p.cost = ee.cost; p.adRaw = ee.ad; p.shipRaw = ee.ship; p.ad = m.adsEstimated ? p.adRaw : 0; p.ship = m.shippingEstimated ? p.shipRaw : 0;
+    p.detail = { key: r.key, costBasis: ee.costBasis, orders: r.refs.size, orderRefs: [...r.refs.values()], returnRefs: r.returnRefs, native: r.native, nativeNoFx: r.nativeNoFx, freeUnits: r.freeUnits, freeCost: r.freeCost, freeOrders: r.freeOrders, noValueUnits: r.noValueUnits, noFxUnits: r.noFxUnits, costMissingUnits: r.costMissingUnits };
     products.push(p);
     m.productCost += r.productCost; m.estAds += r.estAds; m.estShipping += r.estShipping;
   }
@@ -456,7 +475,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   }
   for (const m of Object.values(summary)) {
     m.productProfit = m.revenue - m.productCost - m.estAds - m.estShipping + (m.__returnEffect || 0);
-    m.netProfit = m.productProfit - m.expenses; delete m.__returnEffect;
+    m.netProfit = m.productProfit - m.expenses; m.returnEffect = m.__returnEffect || 0; delete m.__returnEffect;
   }
 
   // ── مراجعة الأسعار التاريخية ──
@@ -562,7 +581,8 @@ export function snapshotOf(r) {
   const c = r.company;
   return { netProfit: round2(c.netProfit), revenue: round2(c.revenue), productCost: round2(c.productCost), expenses: round2(c.expenses), orders: c.orders, units: c.units, status: c.quality.status };
 }
+/** المقارنة على الأرقام المفتاحية فقط: المفاتيح الكائنية (مثل detail للنسخة المعتمدة التفصيلية) لا تُقارَن بالمرجع. */
 export function diffSnapshot(a, b) {
-  return Object.keys(a || {}).filter((k) => a[k] !== (b || {})[k]).map((k) => ({ field: k, before: a[k], after: (b || {})[k] }));
+  return Object.keys(a || {}).filter((k) => (a[k] === null || typeof a[k] !== 'object') && a[k] !== (b || {})[k]).map((k) => ({ field: k, before: a[k], after: (b || {})[k] }));
 }
 const round2 = (x) => Math.round(num(x) * 100) / 100;
