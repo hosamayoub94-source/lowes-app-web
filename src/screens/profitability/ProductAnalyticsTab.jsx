@@ -188,7 +188,7 @@ export default function ProductAnalyticsTab() {
 
         {/* ── المؤشرات ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Kpi icon="💵" label="إجمالي المبيعات" value={usd(t.salesUsd)} sub={native(t.salesNative)} tone="text-teal" onClick={() => setDetail({ type: 'kpi', k: 'sales' })} />
+          <Kpi icon="💵" label="إجمالي المبيعات" value={usd(t.salesUsd)} sub={`${native(t.salesNative)}${t.unallocatedRevenue ? ` · + ${usd(t.unallocatedRevenue)} طلبات بلا أصناف (غير موزّعة)` : ""}`} tone="text-teal" onClick={() => setDetail({ type: 'kpi', k: 'sales' })} />
           <Kpi icon="📦" label="القطع المباعة (صافي)" value={fmt(t.netUnits)} sub={`${fmt(t.units)} مسلَّمة − ${fmt(t.returnedUnits)} مرتجعة · ${fmt(t.orders)} طلب`} onClick={() => setDetail({ type: 'kpi', k: 'units' })} />
           <Kpi icon="🏭" label="تكلفة المنتجات" value={usd(t.cogs)} sub={t.revenueWithoutCost ? `${usd(t.revenueWithoutCost)} مبيعات بلا تكلفة` : 'كل المبيعات بتكلفة معتمدة'} tone="text-orange-600" onClick={() => setDetail({ type: 'kpi', k: 'cogs' })} />
           <Kpi icon="📈" label="الربح الإجمالي" value={usd(t.grossProfit)} sub={t.margin !== null ? `هامش ${t.margin}%` : '—'} tone={t.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'} onClick={() => setDetail({ type: 'kpi', k: 'profit' })} />

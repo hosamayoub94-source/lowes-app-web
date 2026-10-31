@@ -82,6 +82,9 @@ jobs:
       # test-profitability-calc.mjs is intentionally not here: it imports a .ts file
       # (supabase/functions/_shared/orderHistory.ts) that Node 20 cannot load; run it locally on Node >= 22.
 
+      - name: Check product sales/COGS analytics by market
+        run: node test-product-analytics.mjs
+
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs
 

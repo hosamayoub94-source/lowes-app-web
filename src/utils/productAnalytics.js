@@ -100,7 +100,7 @@ function rowFromProduct(p) {
   r.soldUnits = num(p.units); r.freeUnits = num(d.freeUnits); r.noValueUnits = num(d.noValueUnits); r.noFxUnits = num(d.noFxUnits);
   r.paidUnits = r.soldUnits - r.freeUnits - r.noValueUnits - r.noFxUnits;
   r.returnedUnits = num(p.returns);
-  r.unitCost = num(p.cost) > 0 ? num(p.cost) : null; r.costBasis = d.costBasis || null; r.costFrom = p.versionFrom || null;
+  r.unitCost = num(p.cost) > 0 ? num(p.cost) : null; r.costBasis = d.costBasis || null; r.costFrom = d.costFrom || null;
   r.totalCost = num(p.productCost); r.freeCost = num(d.freeCost); r.salesUsd = num(p.revenue);
   r.salesNative = { ...(d.native || {}) }; r.salesNativeNoFx = { ...(d.nativeNoFx || {}) };
   r.orders = num(d.orders); r.freeOrders = num(d.freeOrders); r.costMissingUnits = num(d.costMissingUnits);
@@ -146,9 +146,9 @@ export function buildMarketProductReport(result, { market = 'all', categoryIndex
     for (const m of markets) {
       const id = keyOf(t.key, m);
       const e = t.markets?.[m];
-      if (rows.has(id)) { const r = rows.get(id); if (r.unitCost === null && e?.cost > 0 && market !== 'all') { r.unitCost = e.cost; r.costBasis = e.costBasis; r.costFrom = e.from; } continue; }
+      if (rows.has(id)) { const r = rows.get(id); if (r.unitCost === null && e?.cost > 0 && market !== 'all') { r.unitCost = e.cost; r.costBasis = e.costBasis; r.costFrom = e.costFrom ?? null; } continue; }
       const r = emptyRow(t.key, t.name, market === 'all' ? 'all' : m);
-      if (e?.cost > 0) { r.unitCost = e.cost; r.costBasis = e.costBasis; r.costFrom = e.from; }
+      if (e?.cost > 0) { r.unitCost = e.cost; r.costBasis = e.costBasis; r.costFrom = e.costFrom ?? null; }
       if (market === 'all') {
         const costs = markets.map((mm) => t.markets?.[mm]?.cost).filter((c) => c > 0);
         r.unitCost = costs.length === 0 ? null : costs.every((c) => c === costs[0]) ? costs[0] : 'mixed';

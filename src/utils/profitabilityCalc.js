@@ -460,7 +460,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const rk = usedVersions.get(`${r.key}|${r.market}`); const ee = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
     p.versionFrom = ee.priceFrom; p.priceBasis = ee.basis; p.priceStatus = ee.status;
     p.price = ee.price; p.cost = ee.cost; p.adRaw = ee.ad; p.shipRaw = ee.ship; p.ad = m.adsEstimated ? p.adRaw : 0; p.ship = m.shippingEstimated ? p.shipRaw : 0;
-    p.detail = { key: r.key, costBasis: ee.costBasis, orders: r.refs.size, orderRefs: [...r.refs.values()], returnRefs: r.returnRefs, native: r.native, nativeNoFx: r.nativeNoFx, freeUnits: r.freeUnits, freeCost: r.freeCost, freeOrders: r.freeOrders, noValueUnits: r.noValueUnits, noFxUnits: r.noFxUnits, costMissingUnits: r.costMissingUnits };
+    p.detail = { key: r.key, costBasis: ee.costBasis, costFrom: ee.uni ? String(ee.uni.effective_from).slice(0, 10) : null, orders: r.refs.size, orderRefs: [...r.refs.values()], returnRefs: r.returnRefs, native: r.native, nativeNoFx: r.nativeNoFx, freeUnits: r.freeUnits, freeCost: r.freeCost, freeOrders: r.freeOrders, noValueUnits: r.noValueUnits, noFxUnits: r.noFxUnits, costMissingUnits: r.costMissingUnits };
     products.push(p);
     m.productCost += r.productCost; m.estAds += r.estAds; m.estShipping += r.estShipping;
   }
@@ -562,7 +562,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   for (const arr of marketIdx.values()) arr.forEach((r) => addIfCanonical(r.item_name));
   const catalogKeys = new Set(catalogNames.map(normName));
   const priceTable = [...names.entries()].map(([key, name]) => ({ key, name, inCatalog: catalogKeys.size === 0 ? null : catalogKeys.has(key), markets: Object.fromEntries(MARKET_KEYS.map((m) => [m, resolveEcon(versions, marketIdx, key, m, monthStart, nowM)])) }))
-    .map((r) => ({ ...r, markets: Object.fromEntries(Object.entries(r.markets).map(([m, e]) => [m, { price: e.price, cost: e.cost, ship: e.ship, basis: e.basis, status: e.status, from: e.priceFrom, costBasis: e.costBasis, costStatus: e.costStatus, complete: e.complete }])) }))
+    .map((r) => ({ ...r, markets: Object.fromEntries(Object.entries(r.markets).map(([m, e]) => [m, { price: e.price, cost: e.cost, ship: e.ship, basis: e.basis, status: e.status, from: e.priceFrom, costFrom: e.uni ? String(e.uni.effective_from).slice(0, 10) : null, costBasis: e.costBasis, costStatus: e.costStatus, complete: e.complete }])) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
   const flagCount = (f) => products.filter((p) => p.flag === f).length;
