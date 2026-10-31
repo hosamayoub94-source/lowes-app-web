@@ -187,5 +187,48 @@ ok(sum.groups === 2 && sum.inert === 1 && sum.decisions === 1, '13: الملخص
   ok(!threw, '14: decisions=null مع تعارض لا ينهار'); 
 }
 
+// 15) تكلفة الوحدة المعروضة بالمنتج (result.products[].cost) = متوسط مرجّح بالكميات عند اختلافها داخل الفترة، لا تكلفة أول طلب
+//     (تقرأها تبويب التحليلات #127 والنسخة المعتمدة عند الإقفال)
+{
+  const ODq = (id, name, delivered_at, qty, extra = {}) => ({ ...OD(id, name, delivered_at), items: [{ name, qty }], amount: 10 * qty, ...extra });
+  const prodOf = (orders, hRows) => computeMonthly({ orders, nameMapRows: nameMap, historyRows: hRows, marketPriceRows: [], month: '2026-10', nowMonth: '2026-11-01', costDecisions: {} }).products.find((p) => p.name === 'سيروم اللحية');
+  const A = ODq('w1', 'سيروم اللحية', '2026-10-02T10:00:00+03:00', 2), B = ODq('w2', 'BEARD SERUM', '2026-10-20T10:00:00+03:00', 3);
+  const pAB = prodOf([A, B], hMid), pBA = prodOf([B, A], hMid);
+  eq(pAB.productCost, 13, '15: إجمالي التكلفة = 2×2 + 3×3');
+  eq(pAB.cost, 2.6, '15: تكلفة الوحدة = 13 ÷ 5 = 2.6 (لا 2 تكلفة أول طلب)');
+  eq(pBA.cost, 2.6, '15: عكس ترتيب الطلبات ← 2.6 أيضاً (لا 3)');
+  ok(pAB.costMixed === true && pBA.costMixed === true, '15: costMixed = true');
+  // بلا اختلاف ← القيمة نفسها حرفياً
+  const pSame = prodOf([ODq('w3', 'سيروم اللحية', '2026-10-16T10:00:00+03:00', 2), ODq('w4', 'BEARD SERUM', '2026-10-25T10:00:00+03:00', 4)], hMid);
+  ok(pSame.cost === 3 && pSame.costMixed === false, '15: تكلفة واحدة ← 3 كما هي وبلا علامة');
+  // أول طلب داخل فترة تعارض (بلا تكلفة) والثاني مسعَّر ← تكلفة الوحدة من المسعَّر لا 0
+  const pConf = prodOf([ODq('w5', 'سيروم اللحية', '2026-10-20T10:00:00+03:00', 1), ODq('w6', 'سيروم اللحية', '2026-10-05T10:00:00+03:00', 2)], hSame);
+  eq(pConf.cost, 2, '15: الطلب الأول متعارض ← تكلفة الوحدة 2 من الطلب المسعَّر (لا 0)'); ok(pConf.costMixed === false, '15: قيمة موجبة واحدة ← ليست اختلاطاً');
+  eq(pConf.productCost, 4, '15: والإجمالي لا يُنسب للوحدة المتعارضة');
+  // طلب بلا سعر صرف: يدخل ترجيح تكلفة الوحدة (خاصية الوحدات المسلّمة) ولا يدخل إجمالي التكلفة (قاعدة المحرك)
+  const pFx = prodOf([A, ODq('w7', 'BEARD SERUM', '2026-10-20T10:00:00+03:00', 3, { currency: 'SYP', amount: 4200 })], hMid);
+  eq(pFx.productCost, 4, '15: إجمالي التكلفة بلا الطلب غير المحوَّل (كما كان)');
+  eq(pFx.cost, 2.6, '15: تكلفة الوحدة مرجّحة على كل الوحدات المسلّمة ذات التكلفة المعروفة (2×2 + 3×3) ÷ 5');
+  // لا قطع مسعَّرة إطلاقاً ← السلوك القديم (نسخة أول طلب)
+  const pNone = prodOf([ODq('w8', 'سيروم اللحية', '2026-10-20T10:00:00+03:00', 1)], hSame);
+  ok(pNone.cost === 0 && pNone.costMixed === false, '15: كل القطع بلا تكلفة ← 0 بلا علامة (لا اختراع)');
+}
+
+// 15ب) الترجيح يشمل الوحدات المسلَّمة فقط: طلب معلّق (راجع/لم يُستلم) أو مرتجع لنفس المنتج بتكلفة أخرى لا يدخل تكلفة الوحدة
+{
+  const ODq2 = (id, name, at, qty, extra = {}) => ({ ...OD(id, name, at), items: [{ name, qty }], amount: 10 * qty, ...extra });
+  const prod2 = (orders) => computeMonthly({ orders, nameMapRows: nameMap, historyRows: hMid, marketPriceRows: [], month: '2026-10', nowMonth: '2026-11-01', costDecisions: {} }).products.find((p) => p.name === 'سيروم اللحية');
+  const sold = ODq2('v1', 'سيروم اللحية', '2026-10-20T10:00:00+03:00', 2);                         // مسلَّم بتكلفة 3
+  const pending = ODq2('v2', 'سيروم اللحية', '2026-10-03T10:00:00+03:00', 5, { status: 'returning', delivered_at: null });   // معلّق بنسخة 1/10 = 2
+  const ret = ODq2('v3', 'سيروم اللحية', '2026-09-28T10:00:00+03:00', 4, { status: 'returned', delivered_before_return: true, return_at: '2026-10-25T10:00:00+03:00' }); // مبيع أيلول أُرجع بأكتوبر: ليس مبيع أكتوبر
+  const p2 = prod2([pending, ret, sold]);
+  eq(p2.cost, 3, '15ب: تكلفة الوحدة من المسلَّم فقط (3) — المعلّق والمرتجع لا يدخلان الترجيح');
+  // مُسلَّم ومُرجع بالشهر نفسه = مبيع بالشهر حسب قاعدة المحرك ← يدخل الترجيح بحق: (4×2 + 2×3) ÷ 6
+  const sameMonth = ODq2('v4', 'سيروم اللحية', '2026-10-04T10:00:00+03:00', 4, { status: 'returned', delivered_before_return: true, return_at: '2026-10-25T10:00:00+03:00' });
+  const p3 = prod2([sameMonth, sold]);
+  eq(p3.cost, 14 / 6, '15ب: سُلِّم 4/10 وأُرجع 25/10 = مبيع أكتوبر ← يدخل الترجيح (14 ÷ 6)'); ok(p3.costMixed === true, '15ب: costMixed');
+  ok(p2.costMixed === false, '15ب: ولا علامة اختلاط بسببهما');
+}
+
 console.log(`\n${pass} نجح · ${fail} فشل`);
 if (fail) process.exit(1);

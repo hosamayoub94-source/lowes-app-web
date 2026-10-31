@@ -361,11 +361,13 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     }
     return out;
   };
-  const versionFor = (it, ref, market) => {
+  // weigh (التسليمات فقط): يُراكم Σ(كمية × تكلفة يوم التسليم) لكل وحدة مسلَّمة تكلفتها معروفة ← تكلفة الوحدة المعروضة متوسط مرجّح لا تكلفة أول طلب
+  const versionFor = (it, ref, market, weigh = false) => {
     const e = resolveEcon(versions, marketIdx, it.key, market, ref, nowM);
     const id = `${it.key}|${market}`;
     const rec = usedVersions.get(id) || { key: it.key, name: it.name, market, units: 0, v: e.uni, e };
     rec.units += it.q; rec.v = rec.v || e.uni; rec.e = rec.e || e; usedVersions.set(id, rec);
+    if (weigh && e.cost > 0) { rec.costUnits = (rec.costUnits || 0) + it.q; rec.costSum = (rec.costSum || 0) + it.q * e.cost; (rec.costSet ||= new Set()).add(e.cost); }
     return { v: e.uni, price: e.price, cost: e.cost, ship: e.ship, ad: e.ad, basis: e.basis, complete: e.complete, costConflict: e.costConflict };
   };
   const filt = (arr) => arr.filter((it) => it.active && (brand === 'all' || it.brand === brand));
@@ -412,7 +414,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
     if (noItemsOrder) M.ordersNoItems++;
     const pvs = c.items.map((it) => {
-      const r = row(it, m); const pv = versionFor(it, istanbulDay(o.delivered_at) || monthStart, m);
+      const r = row(it, m); const pv = versionFor(it, istanbulDay(o.delivered_at) || monthStart, m, true);
 
       r.units += it.q; M.units += it.q; if (it.qtySuspect) M.suspectQtyLines++;
       if (!it.mapped) { const u = unmapped.get(it.key) || { name: it.raw, units: 0 }; u.units += it.q; unmapped.set(it.key, u); M.unmappedUnits += it.q; }
@@ -520,7 +522,8 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     p.margin = r.revenue ? Math.round((p.netProfit * 100) / r.revenue) : null;
     const ret = r.units + r.returns ? Math.round((r.returns * 100) / (r.units + r.returns)) : 0; p.returnRate = ret;
     p.flag = r.noRevenue ? 'nofx' : !r.complete ? 'unset' : p.unitProfit <= 0 ? 'loss' : ret > 25 ? 'risky' : p.netProfit > 0 && r.units >= 2 ? 'star' : 'ok';
-    const rk = usedVersions.get(`${r.key}|${r.market}`); const ee = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
+    const rk = usedVersions.get(`${r.key}|${r.market}`); const ee0 = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
+    const ee = rk?.costUnits ? { ...ee0, cost: rk.costSet.size === 1 ? [...rk.costSet][0] : rk.costSum / rk.costUnits } : ee0; p.costMixed = !!rk?.costSet && rk.costSet.size > 1;
     p.versionFrom = ee.priceFrom; p.priceBasis = ee.basis; p.priceStatus = ee.status;
     p.price = ee.price; p.cost = ee.cost; p.adRaw = ee.ad; p.shipRaw = ee.ship; p.ad = m.adsEstimated ? p.adRaw : 0; p.ship = m.shippingEstimated ? p.shipRaw : 0;
     products.push(p);

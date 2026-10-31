@@ -15,6 +15,9 @@ const R = (name, from, to) => ({ name, mutate: (s) => { const i = s.indexOf(from
 const afterNeedle = (name, needle, from, to) => ({ name, mutate: (s) => { const n = s.indexOf(needle); if (n < 0) return null; const i = s.indexOf(from, n); return i < 0 ? null : s.slice(0, i) + to + s.slice(i + from.length); } });
 
 const MUTANTS = [
+  R('تكلفة الوحدة المعروضة: أول طلب لا متوسط مرجّح', 'const ee = rk?.costUnits ? { ...ee0, cost: rk.costSet.size === 1 ? [...rk.costSet][0] : rk.costSum / rk.costUnits } : ee0;', 'const ee = ee0;'),
+  R('تكلفة الوحدة المعروضة: متوسط بلا ترجيح بالكميات', 'rec.costSum = (rec.costSum || 0) + it.q * e.cost;', 'rec.costSum = (rec.costSum || 0) + e.cost * (rec.costUnits / Math.max(1, rec.costUnits));'),
+  R('تكلفة الوحدة المعروضة: المرتجعات/المعلّق تدخل الترجيح', 'const versionFor = (it, ref, market, weigh = false) => {', 'const versionFor = (it, ref, market, weigh = true) => {'),
   R('يوم التسليم بتوقيت UTC لا إسطنبول', 'return Number.isFinite(t) ? new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 10) : null;', 'return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null;'),
   Rda('/sales-delivery: كل الطلبات تُسعَّر ببداية الشهر (لا بيوم التسليم)', "if (day) return { asOf: day, basis: 'delivery_day' };", "if (false) return { asOf: day, basis: 'delivery_day' };"),
   Rda('/sales-delivery: تاريخ الطلب البديل يُعدّ تسليماً موثوقاً', "basis !== 'unknown' && basis !== 'legacy_order_date'", "basis !== 'unknown'"),
@@ -25,7 +28,7 @@ const MUTANTS = [
   Rda('/sales-delivery: fallback لا يُحتسب', "if (pd.basis === 'month_fallback') r.fallbackQty += it.q;", ''),
   R('فترات السريان: التجميع بالشهر لا باليوم', 'const gk = `${x.key}|${marketOf(r)}|${period}`;', 'const gk = `${x.key}|${marketOf(r)}|${period.slice(0, 7)}`;'),
   R('فترات السريان: مفتاح القرار بلا تاريخ الفترة', 'const dk = `${g.name}|${g.market}|${g.period}`;', 'const dk = `${g.name}|${g.market}|${g.period.slice(0, 7)}-01`;'),
-  R('فترات السريان: التسليم يُسعَّر ببداية الشهر لا بيومه', 'versionFor(it, istanbulDay(o.delivered_at) || monthStart, m)', 'versionFor(it, monthStart, m)'),
+  R('فترات السريان: التسليم يُسعَّر ببداية الشهر لا بيومه', 'versionFor(it, istanbulDay(o.delivered_at) || monthStart, m, true)', 'versionFor(it, monthStart, m, true)'),
   R('فترات السريان: المرتجع يُسعَّر ببداية شهر التسليم', 'const pv = versionFor(it, dRef, m);', 'const pv = versionFor(it, dMonth, m);'),
   R('فترات السريان: تاريخ السريان يُسوّى للشهر', 'if (!inferred) row.effective_from = g.period;', 'if (!inferred) row.effective_from = g.period.slice(0, 7) + "-01";'),
   R('توحيد التكلفة: التعارض يأخذ أول قيمة', 'if (costs.length === 1) {', 'if (costs.length >= 1) {'),
