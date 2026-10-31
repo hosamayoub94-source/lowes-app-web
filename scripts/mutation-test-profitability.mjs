@@ -4,15 +4,25 @@
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 
-const FILE = 'src/utils/profitabilityCalc.js';
-const original = fs.readFileSync(FILE, 'utf8');
-const restore = () => fs.writeFileSync(FILE, original);
+const FILES = { calc: 'src/utils/profitabilityCalc.js', da: 'src/utils/deliveryAccounting.js' };
+const originals = Object.fromEntries(Object.entries(FILES).map(([k, p]) => [k, fs.readFileSync(p, 'utf8')]));
+const restore = () => { for (const k of Object.keys(FILES)) fs.writeFileSync(FILES[k], originals[k]); };
 process.on('exit', restore); process.on('SIGINT', () => process.exit(130)); process.on('SIGTERM', () => process.exit(143));
 
+// طفرة بملف deliveryAccounting.js (تسعير /sales-delivery): Rda
+const Rda = (name, from, to) => ({ ...R(name, from, to), file: 'da' });
 const R = (name, from, to) => ({ name, mutate: (s) => { const i = s.indexOf(from); return i < 0 ? null : s.slice(0, i) + to + s.slice(i + from.length); } });
 const afterNeedle = (name, needle, from, to) => ({ name, mutate: (s) => { const n = s.indexOf(needle); if (n < 0) return null; const i = s.indexOf(from, n); return i < 0 ? null : s.slice(0, i) + to + s.slice(i + from.length); } });
 
 const MUTANTS = [
+  R('يوم التسليم بتوقيت UTC لا إسطنبول', 'return Number.isFinite(t) ? new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 10) : null;', 'return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null;'),
+  Rda('/sales-delivery: كل الطلبات تُسعَّر ببداية الشهر (لا بيوم التسليم)', "if (day) return { asOf: day, basis: 'delivery_day' };", "if (false) return { asOf: day, basis: 'delivery_day' };"),
+  Rda('/sales-delivery: تاريخ الطلب البديل يُعدّ تسليماً موثوقاً', "basis !== 'unknown' && basis !== 'legacy_order_date'", "basis !== 'unknown'"),
+  Rda('/sales-delivery: بلا أساس تسليم يُعدّ موثوقاً', 'const reliable = !!basis && basis', 'const reliable = basis !== \'unknown\' && basis'),
+  Rda('/sales-delivery: تكلفة الوحدة = قيمة آخر طلب لا متوسط', 'const r = rows.get(id); if (!r || a.variants.size < 2) continue;', 'const r = rows.get(id); if (!r || true) continue;'),
+  Rda('/sales-delivery: المتوسط بلا ترجيح بالكميات', 'a.both += it.q; a.sumCost += it.q * e.cost; a.sumProfit += it.q * (e.price - e.cost);', 'a.both += 1; a.sumCost += e.cost; a.sumProfit += (e.price - e.cost);'),
+  Rda('/sales-delivery: المقام كمية خاطئة بالمتوسط', 'r.unitCost = a.both ? round2(a.sumCost / a.both) : 0;', 'r.unitCost = a.both ? round2(a.sumCost / a.priced) : 0;'),
+  Rda('/sales-delivery: fallback لا يُحتسب', "if (pd.basis === 'month_fallback') r.fallbackQty += it.q;", ''),
   R('فترات السريان: التجميع بالشهر لا باليوم', 'const gk = `${x.key}|${marketOf(r)}|${period}`;', 'const gk = `${x.key}|${marketOf(r)}|${period.slice(0, 7)}`;'),
   R('فترات السريان: مفتاح القرار بلا تاريخ الفترة', 'const dk = `${g.name}|${g.market}|${g.period}`;', 'const dk = `${g.name}|${g.market}|${g.period.slice(0, 7)}-01`;'),
   R('فترات السريان: التسليم يُسعَّر ببداية الشهر لا بيومه', 'versionFor(it, istanbulDay(o.delivered_at) || monthStart, m)', 'versionFor(it, monthStart, m)'),
@@ -74,17 +84,19 @@ const MUTANTS = [
 
 // الطفرة «قُتلت» إن فشل أيٌّ من اختبارَي المحرك (الحساب الشهري + قراءة التكلفة عبر الأسماء البديلة D-176)
 const runOne = (file) => spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 180000 });
-const run = () => { const a = runOne('test-profitability-calc.mjs'); if (a.status !== 0) return a; return runOne('test-cost-alias-resolution.mjs'); };
+const run = () => { for (const t of ['test-profitability-calc.mjs', 'test-cost-alias-resolution.mjs', 'test-delivery-accounting.mjs']) { const r = runOne(t); if (r.status !== 0) return r; } return { status: 0, stdout: '', stderr: '' }; };
 const base = run();
 if (base.status !== 0) { console.error('الاختبار الأصلي يفشل — أصلحه أولاً.\n' + (base.stdout || '').split('\n').filter((l) => l.includes('❌')).join('\n')); process.exit(2); }
 
 let killed = 0; const survived = [], inapplicable = [];
 for (const m of MUTANTS) {
-  const src = m.mutate(original);
+  const key = m.file || 'calc';
+  const src = m.mutate(originals[key]);
   if (src === null) { inapplicable.push(m.name); continue; }
-  if (src === original) { inapplicable.push(m.name + ' (لا فرق)'); continue; }
-  fs.writeFileSync(FILE, src);
+  if (src === originals[key]) { inapplicable.push(m.name + ' (لا فرق)'); continue; }
+  fs.writeFileSync(FILES[key], src);
   const r = run();
+  restore();
   const failedAsserts = ((r.stderr || '') + (r.stdout || '')).split('\n').filter((l) => l.startsWith('❌')).length;
   if (r.status !== 0) { killed++; console.log(`✅ قُتلت: ${m.name} — ${failedAsserts ? failedAsserts + ' assert' : 'استثناء/انهيار'}`); }
   else { survived.push(m.name); console.log(`❌ نجت:  ${m.name}`); }
