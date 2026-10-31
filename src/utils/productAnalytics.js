@@ -115,7 +115,7 @@ function finalizeRow(r) {
   r.netUnits = r.soldUnits - r.returnedUnits;
   r.hasCost = r.unitCost === 'mixed' || (r.unitCost !== null && r.unitCost > 0);
   // الربح الإجمالي = قيمة المبيعات المدفوعة المحوَّلة − تكلفتها. يُحجب إن كان أي جزء مدفوع بلا تكلفة.
-  r.grossProfit = r.costMissingUnits > 0 || (r.paidUnits > 0 && !r.hasCost) ? null : r2(r.salesUsd - r.totalCost);
+  r.grossProfit = r.costMissingUnits > 0 || (r.paidUnits > 0 && !r.hasCost) ? null : r2(r2(r.salesUsd) - r2(r.totalCost));
   r.margin = r.grossProfit !== null && r.salesUsd > 0 ? Math.round((r.grossProfit * 100) / r.salesUsd) : null;
   return r;
 }
@@ -164,48 +164,80 @@ export function buildMarketProductReport(result, { market = 'all', categoryIndex
     if (market === 'all' && r.markets.length) r.market = r.markets.length === 1 ? r.markets[0] : 'all';
   }
   const list = [...rows.values()].sort((a, b) => b.salesUsd - a.salesUsd || b.soldUnits - a.soldUnits || a.name.localeCompare(b.name, 'ar'));
-  return { month: result.month, market, rows: list, totals: marketTotals(result, list, markets, statusBreakdown) };
+  const base = marketBase(result, markets, statusBreakdown);
+  return { month: result.month, market, rows: list, base, totals: finalizeTotals(list, base) };
 }
 
-function marketTotals(result, rows, markets, statusBreakdown) {
+/** أساس إجماليات سوق/أسواق من ملخص المحرك (قيم خام بلا تقريب، تُجمع بين الأشهر). */
+function marketBase(result, markets, statusBreakdown) {
   const S = result.marketSummary || {};
-  const t = {
-    orders: 0, units: 0, salesUsd: 0, cogs: 0, grossProfit: 0, revenueWithoutCost: 0, unitsWithoutCost: 0,
-    freeOrders: 0, freeUnits: 0, freeCost: 0, noValueOrders: 0, returnedUnits: 0, netUnits: 0, returnOrders: 0,
-    returnRevenueReduction: 0, returnEffect: 0, unallocatedRevenue: 0, ordersNoItems: 0,
-    salesNative: {}, salesNativeNoFx: {}, noFxOrders: 0, customerDeliveryFees: {}, settledOrders: 0, settledCollected: {},
-    unknownDelivery: { orders: 0, units: 0 }, pendingReturns: { orders: 0, units: 0 }, statusOrders: {},
-    productsWithSales: 0, productsWithoutSales: 0, quality: [],
+  const b = {
+    orders: 0, units: 0, freeOrders: 0, noValueOrders: 0, returnOrders: 0, returnRevenueReduction: 0, returnEffect: 0,
+    unallocatedRevenue: 0, ordersNoItems: 0, noFxOrders: 0, settledOrders: 0,
+    salesNative: {}, salesNativeNoFx: {}, customerDeliveryFees: {}, settledCollected: {}, statusOrders: {},
+    pendingReturns: { orders: 0, units: 0 }, unknownDeliveryList: [],
   };
   for (const m of markets) {
     const M = S[m]; if (!M) continue;
-    t.orders += num(M.orders); t.units += num(M.units); t.freeOrders += num(M.freeOrders);
-    t.noValueOrders += num(M.revenueMissing?.orders) - num(M.freeOrders);
-    t.returnOrders += num(M.returns?.orders); t.returnRevenueReduction += num(M.returns?.revenueReduction); t.returnEffect += num(M.returnEffect);
-    t.unallocatedRevenue += num(M.unallocatedRevenue); t.ordersNoItems += num(M.ordersNoItems);
-    addMap(t.salesNative, M.revenueByCurrency); addMap(t.salesNativeNoFx, M.revenueNoFx?.byCurrency); t.noFxOrders += num(M.revenueNoFx?.orders);
-    addMap(t.customerDeliveryFees, M.customerDeliveryFees);
-    t.settledOrders += num(M.settledOrders); addMap(t.settledCollected, M.settledCollected);
-    t.unknownDelivery.orders += num(M.unknownDelivery?.orders); t.unknownDelivery.units += num(M.unknownDelivery?.units);
-    t.pendingReturns.orders += num(M.pendingReturns?.orders); t.pendingReturns.units += num(M.pendingReturns?.units);
-    for (const [b, v] of Object.entries(statusBreakdown?.byMarket?.[m] || {})) t.statusOrders[b] = (t.statusOrders[b] || 0) + v.orders;
+    b.orders += num(M.orders); b.units += num(M.units); b.freeOrders += num(M.freeOrders);
+    b.noValueOrders += Math.max(0, num(M.revenueMissing?.orders) - num(M.freeOrders));
+    b.returnOrders += num(M.returns?.orders); b.returnRevenueReduction += num(M.returns?.revenueReduction); b.returnEffect += num(M.returnEffect);
+    b.unallocatedRevenue += num(M.unallocatedRevenue); b.ordersNoItems += num(M.ordersNoItems);
+    addMap(b.salesNative, M.revenueByCurrency); addMap(b.salesNativeNoFx, M.revenueNoFx?.byCurrency); b.noFxOrders += num(M.revenueNoFx?.orders);
+    addMap(b.customerDeliveryFees, M.customerDeliveryFees);
+    b.settledOrders += num(M.settledOrders); addMap(b.settledCollected, M.settledCollected);
+    b.pendingReturns.orders += num(M.pendingReturns?.orders); b.pendingReturns.units += num(M.pendingReturns?.units);
+    for (const [k, v] of Object.entries(statusBreakdown?.byMarket?.[m] || {})) b.statusOrders[k] = (b.statusOrders[k] || 0) + v.orders;
   }
-  for (const r of rows) {
-    t.salesUsd += r.salesUsd; t.cogs += r.totalCost; t.freeUnits += r.freeUnits; t.freeCost += r.freeCost;
-    t.returnedUnits += r.returnedUnits;
-    if (r.grossProfit !== null) t.grossProfit += r.grossProfit; else { t.revenueWithoutCost += r.salesUsd; t.unitsWithoutCost += r.costMissingUnits || r.paidUnits; }
-    if (r.soldUnits > 0 || r.returnedUnits > 0) t.productsWithSales++; else t.productsWithoutSales++;
+  // «مُسلَّم بلا تاريخ تسليم موثّق»: المحرك يجمعها من كل نافذة الطلبات (لا من الشهر) ← قائمة بالمعرّف تُزال تكراراتها عند تجميع أشهر
+  b.unknownDeliveryList = (result.unknownDeliveryOrders || []).filter((o) => markets.includes(o.market))
+    .map((o) => ({ id: o.id, code: o.code, market: o.market, order_date: o.order_date, units: num(o.units), reason: o.reason }));
+  return b;
+}
+
+function mergeBases(bases) {
+  const out = marketBase({}, [], null);
+  const seen = new Set();
+  for (const b of bases) {
+    for (const k of ['orders', 'units', 'freeOrders', 'noValueOrders', 'returnOrders', 'returnRevenueReduction', 'returnEffect', 'unallocatedRevenue', 'ordersNoItems', 'noFxOrders', 'settledOrders']) out[k] += num(b[k]);
+    for (const k of ['salesNative', 'salesNativeNoFx', 'customerDeliveryFees', 'settledCollected', 'statusOrders']) addMap(out[k], b[k]);
+    out.pendingReturns.orders += b.pendingReturns.orders; out.pendingReturns.units += b.pendingReturns.units;
+    for (const o of b.unknownDeliveryList) if (!seen.has(o.id)) { seen.add(o.id); out.unknownDeliveryList.push(o); }
   }
-  t.netUnits = t.units - t.returnedUnits;
-  t.noValueOrders = Math.max(0, t.noValueOrders);
-  for (const k of ['salesUsd', 'cogs', 'grossProfit', 'revenueWithoutCost', 'freeCost', 'returnRevenueReduction', 'returnEffect', 'unallocatedRevenue']) t[k] = r2(t[k]);
-  t.margin = t.salesUsd - t.revenueWithoutCost > 0 ? Math.round((t.grossProfit * 100) / (t.salesUsd - t.revenueWithoutCost)) : null;
+  return out;
+}
+
+/**
+ * الإجماليات المعروضة — كل رقم مركّب يُحسب من الأرقام المقرَّبة المعروضة نفسها (لا فرق سنت بين «المبيعات − التكلفة» و«الربح»):
+ *  إجمالي الإيرادات = مبيعات المنتجات + الإيراد غير الموزّع (طلبات بلا أصناف) — يظهر منفصلاً ولا يختفي.
+ *  الربح الإجمالي = مبيعات الأصناف ذات التكلفة − تكلفتها فقط؛ الصنف بلا تكلفة لا يُحسب بتكلفة صفر.
+ */
+function finalizeTotals(rows, b) {
+  const sum = (f) => rows.reduce((s, r) => s + num(f(r)), 0);
+  const costed = rows.filter((r) => r.grossProfit !== null), uncosted = rows.filter((r) => r.grossProfit === null);
+  const t = { ...b, pendingReturns: { ...b.pendingReturns }, unknownDeliveryList: [...b.unknownDeliveryList] };
+  t.productSalesUsd = r2(sum((r) => r.salesUsd));
+  t.unallocatedRevenue = r2(b.unallocatedRevenue);
+  t.salesUsd = r2(t.productSalesUsd + t.unallocatedRevenue);
+  t.revenueWithoutCost = r2(uncosted.reduce((s, r) => s + r.salesUsd, 0));
+  t.unitsWithoutCost = uncosted.reduce((s, r) => s + (r.costMissingUnits || r.paidUnits), 0);
+  t.cogs = r2(sum((r) => r.totalCost));
+  t.cogsCosted = r2(costed.reduce((s, r) => s + r.totalCost, 0));
+  t.salesCosted = r2(t.productSalesUsd - t.revenueWithoutCost);
+  t.grossProfit = r2(t.salesCosted - t.cogsCosted);
+  t.margin = t.salesCosted > 0 ? Math.round((t.grossProfit * 100) / t.salesCosted) : null;
+  t.freeUnits = sum((r) => r.freeUnits); t.freeCost = r2(sum((r) => r.freeCost));
+  t.returnedUnits = sum((r) => r.returnedUnits); t.netUnits = t.units - t.returnedUnits;
+  t.productsWithSales = rows.filter((r) => r.soldUnits > 0 || r.returnedUnits > 0).length; t.productsWithoutSales = rows.length - t.productsWithSales;
+  for (const k of ['returnRevenueReduction', 'returnEffect']) t[k] = r2(t[k]);
+  t.unknownDelivery = { orders: t.unknownDeliveryList.length, units: t.unknownDeliveryList.reduce((s, o) => s + o.units, 0) };
   // جودة الكشف (ما يجعل الرقم ناقصاً) — بلا تقدير
-  if (t.unitsWithoutCost > 0) t.quality.push({ code: 'no_cost', level: 'partial', text: `${t.unitsWithoutCost} قطعة بلا تكلفة معتمدة — ربحها غير محسوب (${r2(t.revenueWithoutCost)}$ مبيعات)` });
+  t.quality = [];
+  if (t.unknownDelivery.orders > 0) t.quality.push({ code: 'unknown_delivery', level: 'partial', text: `${t.unknownDelivery.orders} طلباً (${t.unknownDelivery.units} قطعة) حالتها «مُسلَّم» بلا تاريخ تسليم موثّق — لم تُحسب في هذه الفترة ولا في أي شهر (طلبات بتاريخ طلب حتى 120 يوماً قبل الفترة)` });
+  if (t.unitsWithoutCost > 0) t.quality.push({ code: 'no_cost', level: 'partial', text: `${t.unitsWithoutCost} قطعة بلا تكلفة معتمدة — مبيعاتها (${t.revenueWithoutCost}$) خارج الربح الإجمالي، لا بتكلفة صفر` });
+  if (t.ordersNoItems > 0) t.quality.push({ code: 'no_items', level: 'partial', text: `${t.ordersNoItems} طلباً مسلّماً بلا أصناف — ${t.unallocatedRevenue}$ ضمن إجمالي الإيرادات، غير موزّعة على منتج وخارج الربح الإجمالي` });
   if (t.noFxOrders > 0) t.quality.push({ code: 'no_fx', level: 'partial', text: `${t.noFxOrders} طلب بعملة بلا سعر صرف شهري معتمد — قيمتها معروضة بعملتها فقط` });
   if (t.noValueOrders > 0) t.quality.push({ code: 'no_value', level: 'partial', text: `${t.noValueOrders} طلب مسلَّم بلا قيمة مسجّلة` });
-  if (t.unknownDelivery.orders > 0) t.quality.push({ code: 'unknown_delivery', level: 'partial', text: `${t.unknownDelivery.orders} طلب مسلَّم بتاريخ تسليم غير معروف — غير مُسنَد لأي شهر` });
-  if (t.ordersNoItems > 0) t.quality.push({ code: 'no_items', level: 'partial', text: `${t.ordersNoItems} طلب مسلَّم بلا أصناف — قيمته (${t.unallocatedRevenue}$) غير موزّعة على منتج` });
   t.status = t.quality.length ? 'partial' : 'final';
   return t;
 }
@@ -243,7 +275,7 @@ export function compareMonths(reports = []) {
   const series = reports.map((r) => ({
     month: r.month, salesUsd: r.totals.salesUsd, cogs: r.totals.cogs, grossProfit: r.totals.grossProfit,
     units: r.totals.units, netUnits: r.totals.netUnits, orders: r.totals.orders, status: r.totals.status,
-    revenueWithoutCost: r.totals.revenueWithoutCost, noFxOrders: r.totals.noFxOrders, salesNative: r.totals.salesNative,
+    revenueWithoutCost: r.totals.revenueWithoutCost, unallocatedRevenue: r.totals.unallocatedRevenue, noFxOrders: r.totals.noFxOrders, salesNative: r.totals.salesNative,
   }));
   return series.map((s, i) => {
     const p = series[i - 1];
@@ -266,17 +298,7 @@ export function combineReports(reports = []) {
   }
   const list = [...rows.values()].map(finalizeRow)
     .sort((a, b) => b.salesUsd - a.salesUsd || b.soldUnits - a.soldUnits || a.name.localeCompare(b.name, 'ar'));
-  const totals = {};
-  const sumKeys = ['orders', 'units', 'salesUsd', 'cogs', 'grossProfit', 'revenueWithoutCost', 'unitsWithoutCost', 'freeOrders', 'freeUnits', 'freeCost', 'noValueOrders', 'returnedUnits', 'netUnits', 'returnOrders', 'returnRevenueReduction', 'returnEffect', 'unallocatedRevenue', 'ordersNoItems', 'noFxOrders', 'settledOrders'];
-  for (const k of sumKeys) totals[k] = r2(reports.reduce((s, r) => s + num(r.totals[k]), 0));
-  for (const k of ['salesNative', 'salesNativeNoFx', 'customerDeliveryFees', 'settledCollected', 'statusOrders']) totals[k] = reports.reduce((o, r) => addMap(o, r.totals[k]), {});
-  totals.unknownDelivery = { orders: reports.reduce((s, r) => s + r.totals.unknownDelivery.orders, 0), units: reports.reduce((s, r) => s + r.totals.unknownDelivery.units, 0) };
-  totals.pendingReturns = { orders: reports.reduce((s, r) => s + r.totals.pendingReturns.orders, 0), units: reports.reduce((s, r) => s + r.totals.pendingReturns.units, 0) };
-  totals.productsWithSales = list.filter((r) => r.soldUnits > 0 || r.returnedUnits > 0).length;
-  totals.productsWithoutSales = list.length - totals.productsWithSales;
-  totals.margin = totals.salesUsd - totals.revenueWithoutCost > 0 ? Math.round((totals.grossProfit * 100) / (totals.salesUsd - totals.revenueWithoutCost)) : null;
-  totals.quality = reports.flatMap((r) => r.totals.quality.map((q) => ({ ...q, text: `${r.month.slice(0, 7)}: ${q.text}` })));
-  totals.status = totals.quality.length ? 'partial' : 'final';
+  const totals = finalizeTotals(list, mergeBases(reports.map((r) => r.base)));
   return { month: reports.map((r) => r.month).join(','), market: reports[0]?.market, rows: list, totals, months: reports.map((r) => r.month) };
 }
 
@@ -304,16 +326,19 @@ export function exportSheets(report, { title = '', fxRates = [], monthSeries = n
     r.unitCost === 'mixed' ? 'متعدد' : r.unitCost ?? 'بلا تكلفة', r2(r.totalCost), r2(r.freeCost), r2(r.salesUsd), fmtNative(r.salesNative), fmtNative(r.salesNativeNoFx),
     r.grossProfit ?? 'غير محسوب', r.margin ?? '', r.orders].map(guard));
   const t = report.totals;
+  if (t.unallocatedRevenue) body.push(['طلبات بلا أصناف (غير موزّعة على منتج)', '', '', '', '', '', '', '', '', '', t.unallocatedRevenue, '', '', 'غير محسوب', '', t.ordersNoItems]);
+  body.push(['الإجمالي', '', '', t.units, t.freeUnits, t.returnedUnits, t.netUnits, '', t.cogs, t.freeCost, t.salesUsd, fmtNative(t.salesNative), fmtNative(t.salesNativeNoFx), t.grossProfit, t.margin ?? '', t.orders]);
   const summary = [
     ['البند', 'القيمة'], ['التقرير', title], ['آخر تحديث للبيانات', fetchedAt || ''],
     ['عدد الطلبات المسلّمة', t.orders], ['القطع المسلّمة', t.units], ['المرتجع (قطع)', t.returnedUnits], ['صافي القطع', t.netUnits],
-    ['قيمة المبيعات $', t.salesUsd], ['قيمة المبيعات بالعملة الأصلية', fmtNative(t.salesNative)], ['تكلفة المنتجات المباعة $', t.cogs],
-    ['الربح الإجمالي $ (للأصناف ذات التكلفة)', t.grossProfit], ['مبيعات بلا تكلفة معتمدة $', t.revenueWithoutCost],
+    ['إجمالي الإيرادات $', t.salesUsd], ['  منها مبيعات منتجات $', t.productSalesUsd], ['  منها غير موزّعة (طلبات بلا أصناف) $', t.unallocatedRevenue], ['قيمة المبيعات بالعملة الأصلية', fmtNative(t.salesNative)], ['تكلفة المنتجات المباعة $', t.cogs],
+    ['مبيعات الأصناف ذات التكلفة $', t.salesCosted], ['تكلفتها $', t.cogsCosted], ['الربح الإجمالي $ (= السطرين السابقين)', t.grossProfit], ['مبيعات بلا تكلفة معتمدة $', t.revenueWithoutCost],
     ['طلبات مجانية', t.freeOrders], ['تكلفة القطع المجانية $', t.freeCost], ['أثر المرتجعات المؤكَّد $', t.returnEffect],
     ['رسوم توصيل على الزبون (خارج قيمة المنتجات)', fmtNative(t.customerDeliveryFees)], ['طلبات تسوية (ليست مبيعات)', t.settledOrders],
     ...Object.entries(STATUS_BUCKET_LABELS).map(([b, l]) => [`${l} (طلبات بتاريخ الطلب)`, t.statusOrders?.[b] || 0]),
     [], ['أسعار الصرف المستخدمة (وحدة لكل 1$)', ''],
     ...fxRates.map((r) => [`${r.currency} · ${r.scope} · ${String(r.month).slice(0, 7)}`, Number(r.units_per_usd)]),
+    [], ['طلبات «مُسلَّم» بلا تاريخ تسليم (غير محسوبة)', t.unknownDelivery.orders], ...t.unknownDeliveryList.slice(0, 500).map((o) => [`  ${o.code || o.id}`, `${MARKET_LABELS[o.market] || o.market} · ${String(o.order_date || '').slice(0, 10)} · ${o.units} قطعة`]),
     [], ['ملاحظات الجودة', ''], ...t.quality.map((q) => [q.level === 'partial' ? 'ناقص' : 'تقديري', q.text]),
     [], ['السياسة', 'المبيعات بتاريخ التسليم الموثّق؛ التكلفة = التكلفة المعيارية الشهرية السارية؛ لا جمع لعملات مختلفة؛ الشحن خارج قيمة المنتجات'],
   ];

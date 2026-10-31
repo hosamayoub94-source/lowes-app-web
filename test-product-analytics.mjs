@@ -168,10 +168,50 @@ ok(snap.detail.products.some((p) => p.name === 'زيت الروزماري' && p.
 ok(diffSnapshot(snap, base).length === 0, '11: detail لا يُطلق إنذار تغيّر كاذب');
 ok(diffSnapshot({ ...snap, revenue: 1 }, base).length === 1, '11: تغيّر رقم مفتاحي ما زال يُكشف');
 const sheets = exportSheets(syr, { title: 'سوريا — 2026-10', fxRates });
-ok(sheets['كشف المنتجات'].length === syr.rows.length + 1, '11: ورقة الكشف = كل الأسطر + العنوان');
+ok(sheets['كشف المنتجات'].length === syr.rows.length + 2, '11: ورقة الكشف = العنوان + كل الأسطر + سطر الإجمالي');
+ok(sheets['كشف المنتجات'].at(-1)[0] === 'الإجمالي' && sheets['كشف المنتجات'].at(-1)[13] === syr.totals.grossProfit, '11: سطر الإجمالي = ربح المؤشر');
 ok(Object.keys(sheets).includes('الملخص والافتراضات'), '11: ورقة الافتراضات');
 const evil = exportSheets({ ...syr, rows: [{ ...ros, name: '=HYPERLINK("x")' }] });
 ok(String(evil['كشف المنتجات'][1][0]).startsWith("'"), '11: حماية من حقن الصيغ');
+
+// ════ 13) فرق السنت: الربح = المبيعات المعروضة − التكلفة المعروضة ════
+// 3 منتجات × 1000 ل.س ÷ 140 = 7.142857$ لكل منها؛ تكلفة 2.52 → ربح السطر المقرَّب 4.62 ×3 = 13.86، لكن 21.43 − 7.56 = 13.87
+const histR = ['P1', 'P2', 'P3'].map((n) => ({ item_name: n, effective_from: '2026-06-01', sale_price_usd: 9, cost_usd: 2.52 }));
+const mapR = ['P1', 'P2', 'P3'].map((n) => ({ alias_name: n, canonical_name: n, brand: 'lowes', is_active: true }));
+const roundRes = computeMonthly({ orders: ['P1', 'P2', 'P3'].map((n) => O({ items: [{ name: n, qty: 1 }], amount: 1000 })), nameMapRows: mapR, historyRows: histR, fxRates, month: '2026-10', brand: 'lowes', nowMonth: '2026-10-01' });
+const rt = buildMarketProductReport(roundRes, { market: 'syria' }).totals;
+eq(rt.salesUsd, 21.43, '13: المبيعات المعروضة'); eq(rt.cogs, 7.56, '13: التكلفة المعروضة');
+eq(rt.grossProfit, 13.87, '13: الربح = 21.43 − 7.56 (لا مجموع أرباح أسطر مقرَّبة 13.86)');
+for (const T of [t, tr.totals, ua.totals, all.totals, comb.totals]) eq(T.grossProfit, Math.round((T.salesCosted - T.cogsCosted) * 100) / 100, '13: الربح = مبيعات الأصناف ذات التكلفة − تكلفتها بكل كشف');
+eq(syr.totals.grossProfit, syr.totals.salesUsd - syr.totals.cogs, '13: سوريا (كل الأصناف بتكلفة): الربح = المبيعات − التكلفة حرفياً');
+
+// ════ 14) طلبات بلا أصناف: ضمن إجمالي الإيرادات ومنفصلة، خارج الربح ════
+const noItems = O({ items: [], amount: 1400 });                                 // 10$ بلا أصناف
+const niRes = computeMonthly({ orders: [A, noItems], nameMapRows: nameMap, historyRows: history, fxRates, month: '2026-10', brand: 'lowes', nowMonth: '2026-10-01' });
+const ni = buildMarketProductReport(niRes, { market: 'syria' }).totals;
+eq(ni.unallocatedRevenue, 10, '14: الإيراد غير الموزّع منفصل'); eq(ni.productSalesUsd, 20, '14: مبيعات المنتجات');
+eq(ni.salesUsd, 30, '14: إجمالي الإيرادات يشمل غير الموزّع (لا يختفي)'); eq(ni.salesUsd, niRes.marketSummary.syria.revenue, '14: = إيراد المحرك');
+eq(ni.grossProfit, 10, '14: الربح من المنتجات فقط (20 − 10)، غير الموزّع بلا تكلفة خارجه');
+ok(ni.quality.some((q) => q.code === 'no_items' && q.text.includes('ضمن إجمالي الإيرادات')), '14: تنبيه واضح');
+const niSheet = exportSheets(buildMarketProductReport(niRes, { market: 'syria' }))['كشف المنتجات'];
+ok(niSheet.some((r) => String(r[0]).startsWith('طلبات بلا أصناف') && r[10] === 10), '14: سطر منفصل بالـExcel');
+
+// ════ 15) الصنف بلا تكلفة لا يدخل الربح بتكلفة صفر ════
+eq(tr.totals.cogsCosted, 8, '15: تكلفة الأصناف ذات التكلفة فقط'); eq(tr.totals.salesCosted, 10, '15: مبيعاتها فقط');
+eq(tr.totals.grossProfit, 2, '15: 10 − 8 (لو عُدّت تكلفة Super Viga صفراً لكان 22)');
+eq(tr.totals.salesUsd, 30, '15: لكن مبيعاته داخل إجمالي الإيرادات');
+
+// ════ 16) مُسلَّم بلا تاريخ تسليم: تنبيه بعدد وقطع وقائمة، بلا تكرار عبر الأشهر ════
+const unk = O({ delivery_basis: 'unknown', delivered_at: null, items: [{ name: 'Rosemary Oil', qty: 3 }], order_date: '2026-09-20T10:00:00+03:00' });
+const unkOct = computeMonthly({ orders: [A, unk], nameMapRows: nameMap, historyRows: history, fxRates, month: '2026-10', brand: 'lowes', nowMonth: '2026-10-01' });
+const unkSep = computeMonthly({ orders: [A, unk], nameMapRows: nameMap, historyRows: history, fxRates, month: '2026-09', brand: 'lowes', nowMonth: '2026-10-01' });
+const uR = buildMarketProductReport(unkOct, { market: 'syria' });
+eq(uR.totals.unknownDelivery.orders, 1, '16: عدد الطلبات'); eq(uR.totals.unknownDelivery.units, 3, '16: عدد القطع');
+ok(uR.totals.unknownDeliveryList[0].code === unk.order_code, '16: قائمة بأرقام الطلبات');
+ok(uR.totals.quality[0].code === 'unknown_delivery' && uR.totals.quality[0].text.includes('لم تُحسب'), '16: أول تنبيه وواضح');
+eq(uR.totals.units, 2, '16: قطعها خارج المباع');
+const uComb = combineReports([buildMarketProductReport(unkSep, { market: 'syria' }), uR]);
+eq(uComb.totals.unknownDelivery.orders, 1, '16: نفس الطلب بشهرين يُعدّ مرة واحدة');
 
 // ════ 12) عدم المساس بالأرقام القديمة ════
 eq(oct.marketSummary.syria.revenue, 60, '12: إيراد السوق بالمحرك كما هو');

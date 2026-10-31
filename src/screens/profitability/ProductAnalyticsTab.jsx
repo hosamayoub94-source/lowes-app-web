@@ -127,6 +127,8 @@ export default function ProductAnalyticsTab() {
     const t = view$.combined.totals;
     const columns = [['name', 'المنتج'], ['qty', 'الكمية'], ['unitCost', 'تكلفة الوحدة $'], ['cost', 'إجمالي التكلفة $'], ['sales', 'قيمة المبيعات $'], ['native', 'بالعملة الأصلية'], ['profit', 'الربح $']].map(([key, label]) => ({ key, label }));
     const rows = view$.rows.map((r) => ({ name: r.name, qty: fmt(r.netUnits), unitCost: r.unitCost === 'mixed' ? 'متعدد' : r.unitCost === null ? 'بلا تكلفة' : fmt(r.unitCost, 2), cost: fmt(r.totalCost, 2), sales: fmt(r.salesUsd, 2), native: native(r.salesNative), profit: r.grossProfit === null ? 'غير محسوب' : fmt(r.grossProfit, 2) }));
+    if (t.unallocatedRevenue) rows.push({ name: `طلبات بلا أصناف (${t.ordersNoItems}) — غير موزّعة`, qty: '—', unitCost: '—', cost: '—', sales: fmt(t.unallocatedRevenue, 2), native: '—', profit: 'غير محسوب' });
+    rows.push({ name: 'الإجمالي', qty: fmt(t.netUnits), unitCost: '', cost: fmt(t.cogs, 2), sales: fmt(t.salesUsd, 2), native: native(t.salesNative), profit: fmt(t.grossProfit, 2) });
     const res = await exportReport({ format: 'pdf', columns, rows, title: `كشف المنتجات — ${title}`, meta: [`المبيعات ${usd(t.salesUsd)}`, `التكلفة ${usd(t.cogs)}`, `الربح الإجمالي ${usd(t.grossProfit)}`, `آخر تحديث ${new Date(data.fetchedAt).toLocaleString('ar')}`] });
     if (!res.ok) toast.error(res.reason);
   };
@@ -178,20 +180,28 @@ export default function ProductAnalyticsTab() {
             {single.closureDiff.length > 0 && ` · تغيّرت البيانات منذ الإقفال: ${single.closureDiff.map((d) => `${d.field} ${d.before}→${d.after}`).join('، ')}`}
           </div>
         )}
-        {t.quality.length > 0 && (
+        {t.unknownDelivery.orders > 0 && (
+          <div className="rounded-xl border-2 border-orange-500/50 bg-orange-500/10 px-3 py-2.5 text-xs flex flex-wrap items-center gap-2">
+            <p className="flex-1 min-w-[200px] text-text">
+              <span className="font-extrabold text-orange-700">🚚 {fmt(t.unknownDelivery.orders)} طلباً «مُسلَّماً» بلا تاريخ تسليم موثّق ({fmt(t.unknownDelivery.units)} قطعة)</span>
+              <span className="block text-[11px] text-muted mt-0.5">غير محسوبة في مبيعات هذه الفترة ولا أي شهر حتى يُعرف تاريخ تسليمها — الأرقام أعلاه لا تشملها.</span>
+            </p>
+            <button onClick={() => setDetail({ type: 'unknown' })} className="px-3 py-1.5 rounded-xl bg-orange-600 text-white text-[11px] font-bold">عرض الطلبات</button>
+          </div>
+        )}
+        {t.quality.filter((x) => x.code !== 'unknown_delivery').length > 0 && (
           <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-[11px] space-y-0.5">
             <p className="font-bold text-red-600">⚠️ الكشف ناقص — لا أرقام مخترعة:</p>
-            {t.quality.slice(0, 8).map((x, i) => <p key={i} className="text-text">• {x.text}</p>)}
-            {t.quality.length > 8 && <p className="text-muted">و{t.quality.length - 8} ملاحظة أخرى (بالـExcel)</p>}
+            {t.quality.filter((x) => x.code !== 'unknown_delivery').slice(0, 8).map((x, i) => <p key={i} className="text-text">• {x.text}</p>)}
           </div>
         )}
 
         {/* ── المؤشرات ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Kpi icon="💵" label="إجمالي المبيعات" value={usd(t.salesUsd)} sub={`${native(t.salesNative)}${t.unallocatedRevenue ? ` · + ${usd(t.unallocatedRevenue)} طلبات بلا أصناف (غير موزّعة)` : ""}`} tone="text-teal" onClick={() => setDetail({ type: 'kpi', k: 'sales' })} />
+          <Kpi icon="💵" label="إجمالي الإيرادات" value={usd(t.salesUsd)} sub={t.unallocatedRevenue ? `منتجات ${usd(t.productSalesUsd)} + غير موزّعة ${usd(t.unallocatedRevenue)} (${fmt(t.ordersNoItems)} طلب بلا أصناف)` : native(t.salesNative)} tone="text-teal" onClick={() => setDetail({ type: 'kpi', k: 'sales' })} />
           <Kpi icon="📦" label="القطع المباعة (صافي)" value={fmt(t.netUnits)} sub={`${fmt(t.units)} مسلَّمة − ${fmt(t.returnedUnits)} مرتجعة · ${fmt(t.orders)} طلب`} onClick={() => setDetail({ type: 'kpi', k: 'units' })} />
-          <Kpi icon="🏭" label="تكلفة المنتجات" value={usd(t.cogs)} sub={t.revenueWithoutCost ? `${usd(t.revenueWithoutCost)} مبيعات بلا تكلفة` : 'كل المبيعات بتكلفة معتمدة'} tone="text-orange-600" onClick={() => setDetail({ type: 'kpi', k: 'cogs' })} />
-          <Kpi icon="📈" label="الربح الإجمالي" value={usd(t.grossProfit)} sub={t.margin !== null ? `هامش ${t.margin}%` : '—'} tone={t.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'} onClick={() => setDetail({ type: 'kpi', k: 'profit' })} />
+          <Kpi icon="🏭" label="تكلفة المنتجات" value={usd(t.cogs)} sub={t.unitsWithoutCost ? `${fmt(t.unitsWithoutCost)} قطعة بلا تكلفة (${usd(t.revenueWithoutCost)} مبيعات) — خارج الربح` : 'كل القطع المباعة بتكلفة معتمدة'} tone="text-orange-600" onClick={() => setDetail({ type: 'kpi', k: 'cogs' })} />
+          <Kpi icon="📈" label="الربح الإجمالي" value={usd(t.grossProfit)} sub={`${usd(t.salesCosted)} − ${usd(t.cogsCosted)}${t.margin !== null ? ` · هامش ${t.margin}%` : ''}`} tone={t.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'} onClick={() => setDetail({ type: 'kpi', k: 'profit' })} />
         </div>
 
         {/* ── مقارنة الأسواق ── */}
@@ -252,6 +262,19 @@ export default function ProductAnalyticsTab() {
                 </>) : (<><td className="pe-2">{r.category}</td><td className="pe-2 font-bold">{fmt(view === 'returned' ? r.returnedUnits : r.statusUnits[view] || 0)}</td></>)}
               </tr>))}
               {view$.rows.length === 0 && <tr><td colSpan={9} className="py-4 text-center text-muted">لا منتجات مطابقة للفلاتر</td></tr>}
+              {view === 'sold' && !q && !category && !onlyWithSales && (<>
+                {t.unallocatedRevenue > 0 && (
+                  <tr className="border-t border-border/40 text-orange-700">
+                    <td className="pe-2 py-1 font-bold">طلبات بلا أصناف ({fmt(t.ordersNoItems)})<div className="text-[9px] text-muted">غير موزّعة على منتج</div></td>
+                    <td className="pe-2">—</td><td className="pe-2">—</td><td className="pe-2">—</td><td className="pe-2">—</td><td className="pe-2">—</td>
+                    <td className="pe-2">{fmt(t.unallocatedRevenue, 2)}</td><td className="pe-2">—</td><td className="pe-2">غير محسوب</td>
+                  </tr>
+                )}
+                <tr className="border-t-2 border-border font-extrabold">
+                  <td className="pe-2 py-1.5">الإجمالي</td><td className="pe-2">{fmt(t.units)}</td><td className="pe-2">{fmt(t.returnedUnits)}</td><td className="pe-2">{fmt(t.netUnits)}</td><td className="pe-2" />
+                  <td className="pe-2">{fmt(t.cogs, 2)}</td><td className="pe-2">{fmt(t.salesUsd, 2)}</td><td className="pe-2 whitespace-nowrap">{native(t.salesNative)}</td><td className="pe-2">{fmt(t.grossProfit, 2)}</td>
+                </tr>
+              </>)}
             </tbody>
           </table></div>
           <p className="text-[10px] text-muted mt-2">المبيعات بتاريخ التسليم الموثّق · تكلفة الوحدة = التكلفة المعيارية الشهرية السارية (لا FIFO: لا تكلفة شراء مسجّلة) · 🎁 = قطع من طلبات بقيمة 0 (تكلفتها خارج الربح، مستقلة) · رسوم الشحن خارج قيمة المنتجات · لا جمع لعملات مختلفة.</p>
@@ -261,7 +284,9 @@ export default function ProductAnalyticsTab() {
       {detail?.type === 'kpi' && t && (
         <Sheet title={{ sales: 'تفصيل المبيعات', units: 'تفصيل القطع', cogs: 'تفصيل تكلفة المنتجات', profit: 'تفصيل الربح الإجمالي' }[detail.k]} onClose={() => setDetail(null)}>
           {detail.k === 'sales' && (<>
-            <Line2 k="قيمة مبيعات المنتجات (دولار)" v={usd(t.salesUsd)} />
+            <Line2 k="إجمالي الإيرادات (دولار)" v={usd(t.salesUsd)} />
+            <Line2 k="  منها مبيعات منتجات" v={usd(t.productSalesUsd)} />
+            <Line2 k="  منها غير موزّعة على منتج (طلبات بلا أصناف — خارج الربح)" v={`${usd(t.unallocatedRevenue)} · ${fmt(t.ordersNoItems)} طلب`} />
             <Line2 k="بالعملة الأصلية (كل عملة على حدة)" v={native(t.salesNative)} />
             <Line2 k="مبيعات بلا سعر صرف شهري (غير محوَّلة)" v={`${native(t.salesNativeNoFx)} · ${fmt(t.noFxOrders)} طلب`} />
             <Line2 k="طلبات بلا أصناف (قيمة غير موزّعة)" v={`${fmt(t.ordersNoItems)} طلب · ${usd(t.unallocatedRevenue)}`} />
@@ -283,11 +308,21 @@ export default function ProductAnalyticsTab() {
             <p className="text-muted">لإكمال التكلفة: صفحة الربحية ← «النتائج الشهرية» ← محرّر الأسعار والتكاليف (يسري من الشهر الحالي، لا يغيّر الأشهر السابقة).</p>
           </>)}
           {detail.k === 'profit' && (<>
-            <Line2 k="المبيعات (للأصناف ذات التكلفة)" v={usd(t.salesUsd - t.revenueWithoutCost)} /><Line2 k="− تكلفة المنتجات" v={usd(t.cogs)} />
+            <Line2 k="مبيعات الأصناف ذات التكلفة" v={usd(t.salesCosted)} /><Line2 k="− تكلفتها" v={usd(t.cogsCosted)} />
+            <Line2 k="خارج الربح: مبيعات بلا تكلفة معتمدة (لا تُحسب بتكلفة صفر)" v={`${usd(t.revenueWithoutCost)} · ${fmt(t.unitsWithoutCost)} قطعة`} />
+            <Line2 k="خارج الربح: غير موزّعة على منتج" v={usd(t.unallocatedRevenue)} />
             <Line2 k="= الربح الإجمالي" v={usd(t.grossProfit)} /><Line2 k="أثر المرتجعات المؤكَّد (غير مخصوم أعلاه)" v={usd(t.returnEffect)} />
             <Line2 k="تكلفة القطع المجانية (غير مخصومة أعلاه)" v={usd(t.freeCost)} />
             <p className="text-muted">الربح الإجمالي لا يشمل الإعلان والشحن والرواتب — الصافي في تبويب «النتائج الشهرية».</p>
           </>)}
+        </Sheet>
+      )}
+      {detail?.type === 'unknown' && t && (
+        <Sheet title={`طلبات «مُسلَّمة» بلا تاريخ تسليم موثّق — ${fmt(t.unknownDelivery.orders)}`} onClose={() => setDetail(null)}>
+          <p className="text-muted">لا تدخل مبيعات أي شهر حتى يُسجَّل تاريخ تسليمها (من مصدر الشحن أو سجل الحالات). السبب: no_history = لا سجل حالات · no_delivered_event = لا حدث «مُسلَّم» · bulk_import_event = حدث استيراد جماعي غير موثوق.</p>
+          <div className="overflow-x-auto"><table className="w-full text-[11px]"><thead><tr className="text-muted">{['الطلب', 'السوق', 'تاريخ الطلب', 'القطع', 'السبب'].map((h) => <th key={h} className="text-start pe-2 py-1">{h}</th>)}</tr></thead>
+            <tbody>{[...t.unknownDeliveryList].sort((a, b) => String(b.order_date).localeCompare(String(a.order_date))).map((o) => (
+              <tr key={o.id} className="border-t border-border/40"><td className="pe-2 py-0.5 font-mono">{o.code || '—'}</td><td className="pe-2">{MARKET_LABELS[o.market] || o.market}</td><td className="pe-2">{o.order_date ? new Date(o.order_date).toLocaleDateString('ar') : '—'}</td><td className="pe-2">{fmt(o.units)}</td><td className="pe-2">{o.reason}</td></tr>))}</tbody></table></div>
         </Sheet>
       )}
       {detail?.type === 'product' && (
