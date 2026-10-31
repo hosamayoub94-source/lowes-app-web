@@ -8,6 +8,7 @@
 import { supabase } from './supabase';
 import { fetchAllRows } from '@utils/fetchAllRows';
 import { computeMonthly, monthBounds, snapshotOf, diffSnapshot } from '@utils/profitabilityCalc';
+import { STATUS_BUCKETS, buildStatusBreakdown, buildCategoryIndex, buildAliasIndex, dedupeById, detailedSnapshotOf } from '@utils/productAnalytics';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const missingTable = (res) => res?.error && /does not exist|schema cache|Could not find the function/i.test(res.error.message || '');
@@ -63,9 +64,79 @@ export async function loadProfitability({ month, since, brand = 'lowes' } = {}) 
   const closure = closureRes.error ? null : closureRes.data;
   const liveSnap = snapshotOf(result);
   return {
-    ...result, expenses, fxRates, since: monthStart, closure,
+    ...result, expenses, fxRates, since: monthStart, closure, brand,
     closureDiff: closure ? diffSnapshot(closure.snapshot, liveSnap) : [],
     historyFailures30d: failRes?.count ?? 0,
+  };
+}
+
+// ───── تحليل المنتجات حسب السوق (نفس المحرك، مدى أشهر) ─────
+const OPEN_STATUSES = [...STATUS_BUCKETS.in_transit, ...STATUS_BUCKETS.cancelled];
+const monthsBetween = (fromM, toM) => {
+  const out = []; let y = Number(fromM.slice(0, 4)), m = Number(fromM.slice(5, 7));
+  const [ty, tm] = [Number(toM.slice(0, 4)), Number(toM.slice(5, 7))];
+  while ((y < ty || (y === ty && m <= tm)) && out.length < 24) { out.push(`${y}-${String(m).padStart(2, '0')}-01`); m++; if (m > 12) { m = 1; y++; } }
+  return out;
+};
+
+/**
+ * كشف مبيعات/تكلفة/ربح إجمالي لكل منتج وسوق لمدى أشهر (حتى 12).
+ * الطلبات: profitability_orders لكل شهر (نفس قواعد صفحة الربحية) + الطلبات غير المباعة (ملغى/قيد التوصيل) بأعمدة خفيفة بلا بيانات زبون.
+ * لا مصاريف تشغيلية هنا: النطاق = الربح الإجمالي (المبيعات − تكلفة المنتجات).
+ */
+export async function loadProductAnalytics({ fromMonth, toMonth, brand = 'lowes' } = {}) {
+  await requireSession();
+  const months = monthsBetween(String(fromMonth || currentMonth()).slice(0, 7), String(toMonth || fromMonth || currentMonth()).slice(0, 7)).slice(0, 12);
+  if (!months.length) throw new Error('مدى الأشهر غير صالح');
+  const first = monthBounds(months[0]), last = monthBounds(months[months.length - 1]);
+  const winFrom = new Date(Date.parse(first.from) - 120 * 86400000).toISOString();
+  const toM = months[months.length - 1];
+
+  // RPC شهراً بشهر (تسلسلياً — دالة ثقيلة، لا تزاحم على مهلة القاعدة)؛ النوافذ تتداخل ← إزالة التكرار بالمعرّف
+  const rpcPerMonth = [];
+  for (const m of months) { const b = monthBounds(m); rpcPerMonth.push(await fetchAllRows(() => supabase.rpc('profitability_orders', { p_from: b.from, p_to: b.to }))); }
+  const [brandRows, openRows, econRes, mapRes, historyRes, fxRes, mktRes, catalogRes, closuresRes] = await Promise.all([
+    fetchAllRows(() => supabase.from('orders').select('id, brand').is('deleted_at', null).gte('order_date', winFrom).lt('order_date', last.to).in('status', ['delivered', 'settled', 'returned', 'returning', 'not_received']).order('id')),
+    fetchAllRows(() => supabase.from('orders').select('id, market, status, order_date, items, brand').is('deleted_at', null).gte('order_date', first.from).lt('order_date', last.to).in('status', OPEN_STATUSES).order('id')),
+    supabase.from('product_economics').select('*'),
+    supabase.from('product_name_map').select('*'),
+    supabase.from('product_economics_history').select('*').lte('effective_from', toM),
+    supabase.from('profitability_fx_rates').select('*').lte('month', toM).order('entered_at', { ascending: false }),
+    supabase.from('product_market_prices').select('*').lte('effective_from', toM).order('effective_from', { ascending: false }),
+    supabase.from('products').select('*'),
+    supabase.from('profitability_month_closures').select('*').in('month', months),
+  ]);
+  for (const res of [econRes, mapRes, historyRes, fxRes, mktRes, closuresRes]) if (res.error && !missingTable(res)) throw res.error;
+
+  const brandById = new Map((brandRows || []).map((r) => [r.id, r.brand]));
+  const orders = dedupeById(rpcPerMonth.flat()).map((r) => ({ ...r, brand: brandById.get(r.id) || null }));
+  const nameMapRows = mapRes.data || [];
+  const fxAll = fxRes.error ? [] : (fxRes.data || []);
+  const productRows = catalogRes?.error ? [] : (catalogRes?.data || []);
+  const closures = new Map((closuresRes.error ? [] : (closuresRes.data || [])).map((c) => [String(c.month).slice(0, 10), c]));
+  const statusSource = dedupeById([...orders, ...(openRows || [])]);
+  const perMonth = months.map((month) => {
+    const result = computeMonthly({
+      orders, month, brand, fxRates: fxAll, nameMapRows,
+      historyRows: historyRes.error ? [] : (historyRes.data || []),
+      currentRows: econRes.data || [],
+      marketPriceRows: mktRes.error ? [] : (mktRes.data || []),
+      catalogNames: productRows.map((p) => p.name),
+    });
+    const closure = closures.get(month) || null;
+    return {
+      month, result, closure,
+      statusBreakdown: buildStatusBreakdown(statusSource, { nameMapRows, month, brand }),
+      fxRates: fxAll.filter((r) => String(r.month).slice(0, 10) === month),
+      closureDiff: closure ? diffSnapshot(closure.snapshot, snapshotOf(result)) : [],
+    };
+  });
+  const nowIso = new Date().toISOString();
+  const latest = orders.reduce((mx, o) => [o.delivered_at, o.return_at].reduce((a, t) => (t && t > a && t <= nowIso ? t : a), mx), '');
+  return {
+    months: perMonth, brand, fetchedAt: nowIso, dataAsOf: latest || null,
+    categoryIndex: buildCategoryIndex(productRows, nameMapRows), aliasIndex: buildAliasIndex(nameMapRows),
+    categories: [...new Set(productRows.map((p) => String(p.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar')),
   };
 }
 
@@ -104,7 +175,9 @@ export async function saveFxRate({ month, scope = 'all', currency, units_per_usd
 
 // ───── إغلاق الشهر وسجل التعديل الرجعي ─────
 export async function closeMonth({ month, result, name, note = '' }) {
-  const { error } = await supabase.rpc('profitability_close_month', { p_month: monthStart(month), p_snapshot: snapshotOf(result), p_name: name, p_note: note || null });
+  // النسخة المعتمدة: الأرقام المفتاحية نفسها + detail (أسطر المنتجات لكل سوق وأسعار الصرف المستخدمة) — diffSnapshot يقارن المفتاحية فقط
+  const snap = detailedSnapshotOf(snapshotOf(result), result, { fxRates: result.fxRates || [], brand: result.brand || 'lowes' });
+  const { error } = await supabase.rpc('profitability_close_month', { p_month: monthStart(month), p_snapshot: snap, p_name: name, p_note: note || null });
   if (error) throw error;
 }
 export async function acknowledgeRetroDrift({ month, reason, before, after, name }) {
