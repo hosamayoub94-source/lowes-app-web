@@ -13,8 +13,13 @@ const R = (name, from, to) => ({ name, mutate: (s) => { const i = s.indexOf(from
 const afterNeedle = (name, needle, from, to) => ({ name, mutate: (s) => { const n = s.indexOf(needle); if (n < 0) return null; const i = s.indexOf(from, n); return i < 0 ? null : s.slice(0, i) + to + s.slice(i + from.length); } });
 
 const MUTANTS = [
+  R('فترات السريان: التجميع بالشهر لا باليوم', 'const gk = `${x.key}|${marketOf(r)}|${period}`;', 'const gk = `${x.key}|${marketOf(r)}|${period.slice(0, 7)}`;'),
+  R('فترات السريان: مفتاح القرار بلا تاريخ الفترة', 'const dk = `${g.name}|${g.market}|${g.period}`;', 'const dk = `${g.name}|${g.market}|${g.period.slice(0, 7)}-01`;'),
+  R('فترات السريان: التسليم يُسعَّر ببداية الشهر لا بيومه', 'versionFor(it, istanbulDay(o.delivered_at) || monthStart, m)', 'versionFor(it, monthStart, m)'),
+  R('فترات السريان: المرتجع يُسعَّر ببداية شهر التسليم', 'const pv = versionFor(it, dRef, m);', 'const pv = versionFor(it, dMonth, m);'),
+  R('فترات السريان: تاريخ السريان يُسوّى للشهر', 'if (!inferred) row.effective_from = g.period;', 'if (!inferred) row.effective_from = g.period.slice(0, 7) + "-01";'),
   R('توحيد التكلفة: التعارض يأخذ أول قيمة', 'if (costs.length === 1) {', 'if (costs.length >= 1) {'),
-  R('توحيد التكلفة: السوق خارج مفتاح المجموعة', 'const gk = `${x.key}|${marketOf(r)}|${month}`;', 'const gk = `${x.key}||${month}`;'),
+  R('توحيد التكلفة: السوق خارج مفتاح المجموعة', 'const gk = `${x.key}|${marketOf(r)}|${period}`;', 'const gk = `${x.key}||${period}`;'),
   R('توحيد التكلفة: الاسم البديل لا يُقرأ', 'const g = groups.get(gk) || { name: x.name,', 'const g = groups.get(gk) || { name: r.item_name,'),
   R('FX: القسمة صارت ضرباً (إيراد الطلب)', 'usd: amount / rate', 'usd: amount * rate'),
   R('FX: USD يُعامل كعملة تحتاج صرفاً', "if (cur === 'USD') return { ok: true,", "if (false) return { ok: true,"),
@@ -27,7 +32,7 @@ const MUTANTS = [
   afterNeedle('بلا صرف: الطلب يكمل ويحسب تكلفته', 'revenueGaps.push(', 'return;', ''),
   R('مرتجع: التكلفة المفترضة المستردة مُلغاة', 'assumed = costOut - costOut * rr - damaged', 'assumed = 0'),
   R('مرتجع: خصم الإيراد بشهر الإرجاع لا التسليم', 'const dMonth = afterDelivery ? istanbulMonthStart(o.delivered_at)', 'const dMonth = afterDelivery ? monthStart'),
-  R('مرتجع: التكلفة بنسخة شهر الإرجاع', 'const pv = versionFor(it, dMonth, m);', 'const pv = versionFor(it, monthStart, m);'),
+  R('مرتجع: التكلفة بنسخة شهر الإرجاع', 'const pv = versionFor(it, dRef, m);', 'const pv = versionFor(it, monthStart, m);'),
   R('مرتجع: إشارة خصم الإيراد معكوسة', '(afterDelivery ? -revRed + restocked : -damaged)', '(afterDelivery ? revRed + restocked : -damaged)'),
   R('مرتجع: الاسترداد الجزئي مفترض كاملاً', 'const rr = denom > 0 ? Math.min(1, num(o.restock_qty) / denom) : 0;', 'const rr = 1;'),
   R('حد الشهر: النهاية شاملة', 't >= t0 && t < t1', 't >= t0 && t <= t1'),

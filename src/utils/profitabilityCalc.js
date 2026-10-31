@@ -51,6 +51,10 @@ export function istanbulMonthStart(ts) {
   const t = Date.parse(ts);
   return Number.isFinite(t) ? `${new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 7)}-01` : null;
 }
+export function istanbulDay(ts) {
+  const t = Date.parse(ts);
+  return Number.isFinite(t) ? new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 10) : null;
+}
 export function monthBounds(input) {
   const start = monthStartOf(input);
   const y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7));
@@ -102,23 +106,29 @@ const hasN = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite
 /**
  * توحيد صفوف التكلفة تحت الاسم الموحّد قبل بناء الفهارس (قرار D-176 — بانتظار اعتماد المالك).
  * بدونه تُقرأ التكلفة بالاسم الحرفي المسجّل بها، فالتكلفة المسجّلة باسم بديل (إنجليزي/قديم/إملاء آخر) لا تصل للمنتج.
- *  • التجميع: (الاسم الموحّد عبر الموحِّد، السوق، شهر السريان) — كل سوق وكل شهر مستقل، لا يُنقل سعر بين أسواق أو أشهر.
- *  • قيمة تكلفة موجبة واحدة بالمجموعة (أو تطابق القيم) ← تُعتمد للاسم الموحّد.
- *  • أكثر من قيمة موجبة مختلفة = تعارض: لا تُختار أيٌّ منها؛ التكلفة «غير محسومة» (مفقودة) ما لم يوجد قرار مسجّل
- *    للمجموعة نفسها في decisions (مفتاحها `${اسم موحّد}|${سوق أو ''}|${YYYY-MM-01}`).
+ *  • التجميع: (الاسم الموحّد، السوق، **تاريخ السريان الدقيق**). لكل فترة سريان مجموعتها: فترتان بتاريخين مختلفين
+ *    — حتى بنفس الشهر — تبقيان نسختين مستقلتين (تغيير زمني مشروع)، ولا تُعدّان تعارضاً ولا تُدمجان.
+ *    (قاعدة البيانات تفرض اليوم بداية الشهر بقيد CHECK، لكن الكود لا يعتمد على ذلك.)
+ *    استثناء وحيد: صفوف جدول «الحالي» (product_economics) بلا effective_from، فتاريخها المستنتَج = بداية شهر updated_at (قاعدة المحرك القديمة).
+ *  • داخل الفترة الواحدة: قيمة تكلفة موجبة واحدة (أو قيم متطابقة) ← تُعتمد للاسم الموحّد.
+ *    أكثر من قيمة موجبة مختلفة = تعارض حقيقي بنفس فترة السريان: لا تُختار أيٌّ منها؛ التكلفة «غير محسومة» (مفقودة)
+ *    ما لم يوجد قرار مسجّل للمجموعة نفسها في decisions (مفتاحها `${اسم موحّد}|${سوق أو ''}|${YYYY-MM-DD تاريخ الفترة}`).
  *  • لا يُحذف/يُعدَّل أي صف مصدر: الناتج نسخ مقروءة فقط، والصف الأصلي يبقى بالقاعدة كما هو.
  *  • السعر/الإعلان/الشحن تُؤخذ من صف الاسم الموحّد إن وُجد وإلا من أول صف بالمجموعة (مرجع تحليلي لا يدخل تكلفة المنتجات).
+ *  • دليل التعارض (للمالك فقط — لا يُستعمل للاختيار): مصدر كل قيمة، ووقت كتابتها، ووقت آخر تحديث لصفها بجدول «الحالي».
  * @returns {{ history: Array, current: Array, market: Array, conflicts: Array }}
  */
 export function unifyCostSources({ historyRows = [], currentRows = [], marketPriceRows = [], resolve, decisions = COST_CONFLICT_DECISIONS } = {}) {
   if (!resolve) return { history: historyRows, current: currentRows, market: marketPriceRows, conflicts: [] };
   const conflicts = [];
-  const unify = (rows, { table, marketOf, monthOf }) => {
+  const observed = new Map(currentRows.map((r) => [normName(r.item_name), r.updated_at]));   // دليل فقط
+  const day = (v) => (v ? String(v).slice(0, 10) : null);
+  const unify = (rows, { table, marketOf, periodOf, inferred }) => {
     const groups = new Map();
     for (const r of rows) {
-      const x = resolve(r.item_name); const month = monthOf(r); if (!month) continue;
-      const gk = `${x.key}|${marketOf(r)}|${month}`;
-      const g = groups.get(gk) || { name: x.name, key: x.key, market: marketOf(r), month, rows: [] };
+      const x = resolve(r.item_name); const period = periodOf(r); if (!period) continue;
+      const gk = `${x.key}|${marketOf(r)}|${period}`;
+      const g = groups.get(gk) || { name: x.name, key: x.key, market: marketOf(r), period, rows: [] };
       g.rows.push({ r, isCanon: x.key === normName(r.item_name) }); groups.set(gk, g);
     }
     const out = [];
@@ -126,27 +136,39 @@ export function unifyCostSources({ historyRows = [], currentRows = [], marketPri
       const base = (g.rows.find((x) => x.isCanon) || g.rows[0]).r;
       const costs = [...new Set(g.rows.map((x) => Number(x.r.cost_usd)).filter((c) => c > 0))];
       const row = { ...base, item_name: g.name };
+      if (!inferred) row.effective_from = g.period;        // تاريخ السريان الدقيق كما سُجّل — لا يُسوَّى إلى بداية الشهر
       if (costs.length === 1) { row.cost_usd = costs[0]; if (!g.rows.some((x) => x.isCanon && Number(x.r.cost_usd) === costs[0])) row.cost_source = 'alias'; }
       else if (costs.length > 1) {
-        const dk = `${g.name}|${g.market}|${g.month}`;
+        const dk = `${g.name}|${g.market}|${g.period}`;
         const decided = Number(decisions[dk]);
         row.cost_usd = decided > 0 ? decided : null;
         row.cost_source = decided > 0 ? 'owner_decision' : 'conflict';
         if (!(decided > 0)) row.conflictFields = ['cost_usd'];
-        conflicts.push({ table, key: g.key, name: g.name, market: g.market || null, month: g.month, decisionKey: dk, decided: decided > 0 ? decided : null,
-          values: g.rows.filter((x) => Number(x.r.cost_usd) > 0).map((x) => ({ item_name: x.r.item_name, cost: Number(x.r.cost_usd), canonical: x.isCanon })) });
+        const vals = g.rows.filter((x) => Number(x.r.cost_usd) > 0).map((x) => ({
+          item_name: x.r.item_name, cost: Number(x.r.cost_usd), canonical: x.isCanon, source: x.r.source || null,
+          recordedAt: x.r.created_at || null, observedAt: observed.get(normName(x.r.item_name)) || x.r.updated_at || null,
+        }));
+        conflicts.push({ table, key: g.key, name: g.name, market: g.market || null, period: g.period, month: g.period.slice(0, 7) + '-01', decisionKey: dk,
+          decided: decided > 0 ? decided : null, inferredPeriod: inferred || vals.every((v) => v.source === 'legacy_backfill'), values: vals });
       }
       out.push(row);
     }
     return out;
   };
-  const m01 = (v) => (v ? `${String(v).slice(0, 7)}-01` : null);
-  return {
-    history: unify(historyRows, { table: 'product_economics_history', marketOf: () => '', monthOf: (r) => m01(r.effective_from) }),
-    current: unify(currentRows, { table: 'product_economics', marketOf: () => '', monthOf: (r) => istanbulMonthStart(r.updated_at) }),
-    market: unify(marketPriceRows, { table: 'product_market_prices', marketOf: (r) => r.market || '', monthOf: (r) => m01(r.effective_from) }),
-    conflicts,
-  };
+  const history = unify(historyRows, { table: 'product_economics_history', marketOf: () => '', periodOf: (r) => day(r.effective_from) });
+  const current = unify(currentRows, { table: 'product_economics', marketOf: () => '', periodOf: (r) => istanbulMonthStart(r.updated_at), inferred: true });
+  const market = unify(marketPriceRows, { table: 'product_market_prices', marketOf: (r) => r.market || '', periodOf: (r) => day(r.effective_from) });
+  // صفوف «الحالي» لا تُقرأ إن كان للاسم الموحّد أي سجل تاريخ (buildVersionIndex) ← تعارضها غير فعّال ولا يستلزم قراراً مستقلاً
+  const histKeys = new Set(history.map((r) => normName(r.item_name)));
+  for (const c of conflicts) c.inert = c.table === 'product_economics' && histKeys.has(c.key);
+  return { history, current, market, conflicts };
+}
+
+/** ملخص التعارضات: مجموعات (جدول·منتج·سوق·فترة) · منها غير فعّالة · قرارات فريدة مطلوبة (مفتاح القرار يوحّد الجدولين). */
+export function summarizeCostConflicts(conflicts = []) {
+  const open = conflicts.filter((c) => !c.decided);
+  const active = open.filter((c) => !c.inert);
+  return { groups: conflicts.length, inert: conflicts.filter((c) => c.inert).length, decided: conflicts.filter((c) => c.decided).length, decisions: new Set(active.map((c) => c.decisionKey)).size };
 }
 /**
  * سعر/تكلفة/شحن صنف بسوق وشهر. السعر من جدول السوق فقط؛ غيابه ← السعر الموحّد القديم موسوماً legacy_unified؛ غيابهما ← missing.
@@ -390,7 +412,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
     if (noItemsOrder) M.ordersNoItems++;
     const pvs = c.items.map((it) => {
-      const r = row(it, m); const pv = versionFor(it, monthStart, m);
+      const r = row(it, m); const pv = versionFor(it, istanbulDay(o.delivered_at) || monthStart, m);
 
       r.units += it.q; M.units += it.q; if (it.qtySuspect) M.suspectQtyLines++;
       if (!it.mapped) { const u = unmapped.get(it.key) || { name: it.raw, units: 0 }; u.units += it.q; unmapped.set(it.key, u); M.unmappedUnits += it.q; }
@@ -424,6 +446,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const R = M.returns; R.orders++; R.units += c.units;
     const afterDelivery = !!o.delivered_before_return && !!o.delivered_at;
     const dMonth = afterDelivery ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
+    const dRef = afterDelivery ? istanbulDay(o.delivered_at) || dMonth : dMonth;   // نسخة التكلفة: يوم التسليم (الصرف يبقى بشهره)
     let revRed = 0;
     if (afterDelivery) {
       const rv = orderRevenue(o, m, dMonth);
@@ -432,7 +455,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     }
     let costOut = 0, incomplete = 0;
     for (const it of c.items) {
-      const pv = versionFor(it, dMonth, m);
+      const pv = versionFor(it, dRef, m);
       if (!(pv.cost > 0)) { incomplete += it.q; continue; }
       costOut += pv.cost * it.q;
       const r = row(it, m); r.returns += it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
@@ -454,7 +477,8 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     let rev = 0, cost = 0;
     const ref = o.delivered_at ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
     if (o.delivered_before_return) { const rv = orderRevenue(o, m, ref); if (rv.ok) rev = splitRevenue(c, rv, ref).total; }
-    for (const it of c.items) { const pv = versionFor(it, ref, m); if (pv.cost > 0) cost += pv.cost * it.q; }
+    const vref = o.delivered_at ? istanbulDay(o.delivered_at) || ref : ref;
+    for (const it of c.items) { const pv = versionFor(it, vref, m); if (pv.cost > 0) cost += pv.cost * it.q; }
     M.returnTimingUnknown.orders++; M.returnTimingUnknown.units += c.units; M.returnTimingUnknown.revenue += rev; M.returnTimingUnknown.cost += cost;
     returnLists.timingUnknown.push({ id: o.id, code: o.order_code, market: m, units: c.units, revenue: rev, cost, afterDelivery: !!o.delivered_before_return });
   };
