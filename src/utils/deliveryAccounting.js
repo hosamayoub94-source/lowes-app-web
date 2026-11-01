@@ -47,10 +47,19 @@ export function periodBounds({ month, fromDate, toDate } = {}) {
   return { from: b.from, to: b.to, label: b.monthStart.slice(0, 7), monthStart: b.monthStart };
 }
 
+/**
+ * D-179: تأكيد المالية لتاريخ التسليم (delivery_basis = finance_confirmed) يخدم الربحية فقط. أما المبيعات المحتسبة للعمولات والرواتب
+ * وتقرير التسليمات فتبقى بتاريخها القديم (تاريخ الطلب) حتى يقرر المالك غير ذلك — كي لا ينتقل بيع بين شهرين بسبب ورقة تأكيد.
+ * التفعيل قرار مالك وحده: يُغيَّر هذا الثابت (أو يُمرَّر financeConfirmed:true) بعد موافقته وبتغيير مراجَع.
+ */
+export const FINANCE_CONFIRMED_AFFECTS_PAYROLL = false;
+const isTrusted = (o, financeConfirmed) => !!(o.delivered_at && o.delivery_basis && o.delivery_basis !== 'unknown'
+  && (o.delivery_basis !== 'finance_confirmed' || financeConfirmed));
+
 /** تاريخ دخول الطلب للحساب + مصدره. null = لا يدخل (غير مسلَّم). */
-export function deliveryEntry(o, { includeLegacy = true } = {}) {
+export function deliveryEntry(o, { includeLegacy = true, financeConfirmed = FINANCE_CONFIRMED_AFFECTS_PAYROLL } = {}) {
   if (!['delivered', 'settled'].includes(o.status)) return null;
-  if (o.delivered_at && o.delivery_basis && o.delivery_basis !== 'unknown') {
+  if (isTrusted(o, financeConfirmed)) {
     return { at: o.delivered_at, source: o.delivery_basis === 'carrier' || o.delivery_basis === 'external' ? 'history' : 'substitute', basis: o.delivery_basis };
   }
   if (o.status === 'settled') return null; // settled بلا تسليم سابق ليس بيعاً
@@ -62,7 +71,7 @@ export function deliveryEntry(o, { includeLegacy = true } = {}) {
  * يفصل صفوف الفترة: delivered (تدخل الحساب) | returns | settledNoDelivery | legacyExcluded.
  * كل طلب مرة واحدة فقط (مفتاح id) ولو تكرر الصف.
  */
-export function selectDeliveredInPeriod(rows, { from, to, includeLegacy = true } = {}) {
+export function selectDeliveredInPeriod(rows, { from, to, includeLegacy = true, financeConfirmed = FINANCE_CONFIRMED_AFFECTS_PAYROLL } = {}) {
   const t0 = ts(from), t1 = ts(to);
   const seen = new Set();
   const out = { delivered: [], returns: [], returnsUnknown: [], settledNoDelivery: [], legacyExcluded: [] };
@@ -75,16 +84,16 @@ export function selectDeliveredInPeriod(rows, { from, to, includeLegacy = true }
       else if (at >= t0 && at < t1) out.returns.push({ ...o, return_basis: 'history', return_kind: returnKind(o) });
       continue;
     }
-    if (o.status === 'settled' && !(o.delivered_at && o.delivery_basis && o.delivery_basis !== 'unknown')) {
+    if (o.status === 'settled' && !isTrusted(o, financeConfirmed)) {
       const at = ts(o.order_date);
       if (at !== null && at >= t0 && at < t1) out.settledNoDelivery.push(o);
       continue;
     }
-    const e = deliveryEntry(o, { includeLegacy });
+    const e = deliveryEntry(o, { includeLegacy, financeConfirmed });
     if (!e) {
       if (o.status === 'delivered' && !includeLegacy) {
         const at = ts(o.order_date);
-        if (at !== null && at >= t0 && at < t1 && (!o.delivery_basis || o.delivery_basis === 'unknown')) out.legacyExcluded.push(o);
+        if (at !== null && at >= t0 && at < t1 && !isTrusted(o, financeConfirmed)) out.legacyExcluded.push(o);
       }
       continue;
     }

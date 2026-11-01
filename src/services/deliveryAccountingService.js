@@ -5,7 +5,7 @@
 // =============================================================
 import { supabase } from '@services/supabase';
 import { fetchAllRows, fetchAllRowsConcurrent } from '@utils/fetchAllRows';
-import { selectDeliveredInPeriod, UNDELIVERED_GROUPS, pickPayrollRun } from '@utils/deliveryAccounting';
+import { selectDeliveredInPeriod, UNDELIVERED_GROUPS, pickPayrollRun, FINANCE_CONFIRMED_AFFECTS_PAYROLL } from '@utils/deliveryAccounting';
 import { LEDGER_STATUSES, buildStatusViews } from '@utils/statusLedger';
 
 const DAY = 86400000;
@@ -25,11 +25,25 @@ async function fetchOrderExtras(from, to, signal) {
 }
 const attachExtras = (rpcRows, byId) => rpcRows.map((r) => ({ ...r, ...(byId.get(r.id) || {}) }));
 
+/**
+ * profitability_orders للعمولات/الرواتب/التسليمات: تأكيدات المالية تُعطَّل ما لم يقرر المالك غير ذلك (D-179)، فلا ينتقل بيع بين شهرين بسببها.
+ * إن لم تكن الهجرة مطبَّقة بعد (الدالة بمعاملين فقط) نعيد النداء القديم — السلوك آنذاك مطابق أصلاً لأنه لا تأكيدات.
+ */
+async function fetchOrdersRpc(from, to, signal) {
+  if (FINANCE_CONFIRMED_AFFECTS_PAYROLL) return fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to }), signal));
+  try {
+    return await fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to, p_use_finance_confirmations: false }), signal));
+  } catch (e) {
+    if (e?.code !== 'PGRST202' && !/Could not find the function|p_use_finance_confirmations/.test(String(e?.message || ''))) throw e;
+    return fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to }), signal));
+  }
+}
+
 /** الطلبات المسلَّمة/المرتجعة ضمن الفترة (تدخل الحساب). نفس الدالة تستعملها الرواتب. */
 export async function loadDeliveredForPeriod({ from, to, includeLegacy = true, signal } = {}) {
   // الدالة وحقول الطلب بالتوازي (كانت الثانية تنتظر الأولى فتتراكم 8–14 ثانية بالتحميل الأول)
   const [rows, byId] = await Promise.all([
-    fetchAllRows(() => withSignal(supabase.rpc('profitability_orders', { p_from: from, p_to: to }), signal)),
+    fetchOrdersRpc(from, to, signal),
     fetchOrderExtras(from, to, signal),
   ]);
   const full = attachExtras(rows || [], byId);

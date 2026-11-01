@@ -1,6 +1,6 @@
 // اختبار منطق الفترة بتاريخ التسليم — node test-delivery-accounting.mjs
 import fs from 'node:fs';
-import { periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError, pickPayrollRun } from './src/utils/deliveryAccounting.js';
+import { FINANCE_CONFIRMED_AFFECTS_PAYROLL, deliveryEntry, periodBounds, selectDeliveredInPeriod, selectUndelivered, buildReport, buildProductLines, buildPayrollIndex, applyFilters, toUsd, NON_ACCOUNTING_STATUSES, exportSheets, describeLoadError, pickPayrollRun } from './src/utils/deliveryAccounting.js';
 import { buildStatusViews, bulkMinutes } from './src/utils/statusLedger.js';
 import { pickRate, estimateOrderShipping, shippingEstimateSummary, rateOverview, carrierCostOverview, sumCur, isRateLocked } from './src/utils/shippingRates.js';
 import { carrierKey, piecesOf, shippingPayerKind, shippingSummary, returnKind, returnsAnalysis, settlementRows, carrierScorecard } from './src/utils/returnsShipping.js';
@@ -540,6 +540,23 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
     const hNoPrice = [H('Retail', '2026-10-01', 0, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
     eq(buildProductLines([D('t5', '2026-10-05T12:00:00+03:00'), D('t6', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hNoPrice, monthStart: '2026-10-01' })[0].warning, 'no_price', 'DL10: طلب بلا سعر ثم طلب متعارض ← يبقى «بلا سعر» (الأشد)');
   }
+}
+// D-179: تأكيد المالية للتسليم لا ينقل البيع بين أشهر العمولات/الرواتب افتراضياً (قرار مالك مؤجَّل)
+{
+  eq(FINANCE_CONFIRMED_AFFECTS_PAYROLL, false, 'FC1: الافتراضي = لا أثر على العمولات');
+  const fc = o('FC', 'delivered', { order_date: '2026-09-10T10:00:00+03:00', delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'finance_confirmed' });
+  eq(deliveryEntry(fc).basis, 'legacy_order_date', 'FC2: يُحتسب بتاريخ الطلب القديم');
+  eq(deliveryEntry(fc).at, fc.order_date, 'FC2: التاريخ = order_date');
+  eq(ids(selectDeliveredInPeriod([fc], sep).delivered), 'FC', 'FC3: يبقى بشهر الطلب (سبتمبر)');
+  eq(selectDeliveredInPeriod([fc], oct).delivered.length, 0, 'FC3: ولا يدخل أكتوبر');
+  eq(ids(selectDeliveredInPeriod([fc], { ...oct, financeConfirmed: true }).delivered), 'FC', 'FC4: بعد تفعيل القرار يدخل أكتوبر');
+  eq(deliveryEntry(fc, { financeConfirmed: true }).basis, 'finance_confirmed', 'FC4: الأساس يبقى finance_confirmed');
+  eq(deliveryEntry(fc, { includeLegacy: false }), null, 'FC5: بلا legacy لا يدخل');
+  eq(selectDeliveredInPeriod([fc], { ...sep, includeLegacy: false }).legacyExcluded.length, 1, 'FC5: يظهر ضمن المستبعدين');
+  const car = o('CR', 'delivered', { delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'carrier' });
+  eq(deliveryEntry(car).basis, 'carrier', 'FC6: أدلة الشحن لا تتأثر');
+  const st = o('ST', 'settled', { delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'finance_confirmed' });
+  eq(selectDeliveredInPeriod([st], oct).delivered.length, 0, 'FC7: settled بتأكيد مالي فقط لا يدخل أكتوبر افتراضياً');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);
