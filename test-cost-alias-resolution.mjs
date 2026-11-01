@@ -3,6 +3,7 @@
 import { computeMonthly, snapshotOf, unifyCostSources, summarizeCostConflicts, buildResolver, resolveEcon, buildVersionIndex, buildMarketIndex } from './src/utils/profitabilityCalc.js';
 import { buildProductLines } from './src/utils/deliveryAccounting.js';
 import { costStatusOf, needsCostAttention } from './src/utils/costStatus.js';
+import { COST_CONFLICT_DECISIONS } from './src/utils/costConflictDecisions.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error('❌', m); } };
@@ -275,6 +276,20 @@ ok(sum.groups === 2 && sum.inert === 1 && sum.decisions === 1, '13: الملخص
   eq(s0.marketSummary.uae.estShipping, 1.5, '17: شحن الرحلة الفاشلة يُقدَّر رغم التعارض (1 × 1.5)');
   eq(s0.marketSummary.uae.productProfit, s1.marketSummary.uae.productProfit, '17: الربح نفسه قبل القرار وبعده (الشحن لا يتعلق بالتكلفة)');
   eq(s0.marketSummary.uae.returns.costOut, 0, '17: تكلفة المرتجع غير محسومة قبل القرار'); eq(s1.marketSummary.uae.returns.costOut, 3, '17: وبعده 3');
+}
+
+// 18) قرارات المالك السبعة (1/11/2026) مثبتة حرفياً — أي تعديل لاحق يجب أن يمرّ بقرار صريح
+{
+  const EXPECT = { 'كريم تفتيح البشرة||2026-10-01': 2.52, 'جل شد الجسم و السيليوليت||2026-08-01': 3, 'سيروم العناية بالثدي||2026-08-01': 3, 'ديرما رول 0.5mm||2026-06-01': 1, 'كريم إزالة الشعر||2026-06-01': 2, 'Super Viga Blue||2026-06-01': 1, 'Spray super viga||2026-06-01': 3 };
+  ok(Object.isFrozen(COST_CONFLICT_DECISIONS), '18: ملف القرارات مجمَّد');
+  ok(Object.keys(COST_CONFLICT_DECISIONS).length === 7, '18: سبعة قرارات بالضبط');
+  for (const [k, v] of Object.entries(EXPECT)) ok(COST_CONFLICT_DECISIONS[k] === v, `18: ${k} = ${v}`);
+  ok(Object.keys(COST_CONFLICT_DECISIONS).every((k) => /^[^|]+\|\|\d{4}-\d{2}-01$/.test(k)), '18: كل المفاتيح بلا سوق وبتاريخ بداية شهر');
+  // التطبيق الافتراضي (بلا تمرير decisions) يحسم تعارض الإنتاج المماثل ويحمل الشارة owner_decision
+  const UD = unifyCostSources({ historyRows: [H('كريم تفتيح البشرة', '2026-10-01', 2.52), H('Skin lightening cream', '2026-10-01', 3)], resolve });
+  ok(UD.conflicts.length === 1 && UD.conflicts[0].decided === 2.52, '18: القرار الافتراضي من الملف يحسم تعارض كريم تفتيح البشرة بـ2.52');
+  ok(UD.history.find((r) => r.item_name === 'كريم تفتيح البشرة')?.cost_source === 'owner_decision', '18: مصدر التكلفة owner_decision');
+  eq(summarizeCostConflicts(UD.conflicts).decisions, 0, '18: لا قرارات معلّقة بعد الحسم');
 }
 console.log(`\n${pass} نجح · ${fail} فشل`);
 if (fail) process.exit(1);
