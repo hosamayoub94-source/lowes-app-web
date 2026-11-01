@@ -1,5 +1,6 @@
 -- التراجع عن «تأكيدات التسليم المالية» (D-179). يرفض حذف الجدول إن كان فيه تأكيدات (لا فقدان لبيانات موثَّقة).
 -- 1) استرجاع profitability_orders الأصلية حرفياً (migration 20261018300000)
+DROP FUNCTION IF EXISTS public.profitability_orders(timestamptz, timestamptz, boolean);
 DROP FUNCTION IF EXISTS public.profitability_orders(timestamptz, timestamptz);
 CREATE FUNCTION public.profitability_orders(p_from timestamp with time zone, p_to timestamp with time zone)
  RETURNS TABLE(id uuid, order_code text, market text, status text, order_date timestamp with time zone, items jsonb, amount numeric, currency text, delivered_at timestamp with time zone, delivery_basis text, delivery_source text, delivery_bulk_suspect boolean, delivered_before_return boolean, history_conflict boolean, return_at timestamp with time zone, return_source text, return_bulk_suspect boolean, hist_rows integer, reserve_qty numeric, restock_qty numeric, waste_qty numeric, delivery_cost numeric, shipping_payer text, payment_status text, paid_amount numeric)

@@ -12,16 +12,23 @@ export const BASIS_LABELS = {
   'مستند آخر': 'other_document',
 };
 const BASIS_VALUES = new Set(Object.values(BASIS_LABELS));
+const squash = (x) => String(x || '').replace(/[\s\u200e\u200f\u00a0]+/g, '').replace(/[\u0623\u0625\u0622]/g, '\u0627').replace(/\u0629/g, '\u0647').replace(/[\u064b-\u0652]/g, '');
+const BASIS_BY_SQUASH = new Map(Object.entries(BASIS_LABELS).map(([k, v]) => [squash(k), v]));
+/** يقبل الاسم العربي بأي مسافات/همزات أو القيمة الإنكليزية. */
+const basisFrom = (raw) => BASIS_LABELS[raw] || (BASIS_VALUES.has(raw) ? raw : BASIS_BY_SQUASH.get(squash(raw)) || null);
 
 /** CSV بسيط مع علامات اقتباس وسطور داخل الحقول وBOM. */
 export function parseCsv(text) {
   const s = String(text || '').replace(/^\uFEFF/, '');
+  const first = s.split(/\r?\n/, 1)[0] || '';
+  const cnt = (c) => first.split(c).length - 1;
+  const delim = cnt(',') >= cnt(';') && cnt(',') >= cnt('\t') ? ',' : (cnt(';') >= cnt('\t') ? ';' : '\t'); // Excel بإعدادات إقليمية يحفظ بفاصلة منقوطة
   const rows = []; let row = [], cur = '', q = false;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
     if (q) { if (ch === '"') { if (s[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
     else if (ch === '"') q = true;
-    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === delim) { row.push(cur); cur = ''; }
     else if (ch === '\n' || ch === '\r') { if (ch === '\r' && s[i + 1] === '\n') i++; row.push(cur); cur = ''; if (row.some((c) => c !== '')) rows.push(row); row = []; }
     else cur += ch;
   }
@@ -29,14 +36,18 @@ export function parseCsv(text) {
   return rows;
 }
 
-/** "2026-10-14 15:30" ← 2026-10-14T15:30:00+03:00. تاريخ بلا وقت ← 12:00 مع إشارة timeAssumed (لا دقة مزيّفة). */
+/** يحوّل الأرقام العربية/الفارسية إلى لاتينية ويوحّد الفواصل. */
+const westernDigits = (t) => String(t || '').replace(/[٠-٩]/g, (c) => c.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, (c) => c.charCodeAt(0) - 0x6F0);
+const validCal = (y, mo, d) => { const dt = new Date(Date.UTC(+y, +mo - 1, +d)); return dt.getUTCFullYear() === +y && dt.getUTCMonth() === +mo - 1 && dt.getUTCDate() === +d; };
+
+/** "2026-10-14 15:30[:SS]" ← 2026-10-14T15:30:00+03:00. تاريخ بلا وقت ← 12:00 مع timeAssumed (لا دقة مزيّفة). يتحقق من التقويم الحقيقي (31 شباط مرفوض). */
 export function toIstanbulIso(v) {
-  const t = String(v || '').trim().replace(/\//g, '-');
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})$/.exec(t);
+  const t = westernDigits(v).trim().replace(/[/.]/g, '-').replace(/\s+/g, ' ');
   const pad = (x) => String(x).padStart(2, '0');
-  if (m) { const [, y, mo, d, h, mi] = m; if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31 || +h > 23 || +mi > 59) return null; return { iso: `${y}-${pad(mo)}-${pad(d)}T${pad(h)}:${mi}:00+03:00`, timeAssumed: false }; }
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?: |T)(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(t);
+  if (m) { const [, y, mo, d, h, mi] = m; if (!validCal(y, mo, d) || +h > 23 || +mi > 59) return null; return { iso: `${y}-${pad(mo)}-${pad(d)}T${pad(h)}:${mi}:00+03:00`, timeAssumed: false }; }
   m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
-  if (m) { const [, y, mo, d] = m; if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null; return { iso: `${y}-${pad(mo)}-${pad(d)}T12:00:00+03:00`, timeAssumed: true }; }
+  if (m) { const [, y, mo, d] = m; if (!validCal(y, mo, d)) return null; return { iso: `${y}-${pad(mo)}-${pad(d)}T12:00:00+03:00`, timeAssumed: true }; }
   return null;
 }
 
@@ -63,7 +74,7 @@ export function buildConfirmationPayload(csvText) {
     seen.add(code);
     if (!at) return fail('التاريخ ناقص');
     const d = toIstanbulIso(at); if (!d) return fail(`تاريخ غير مفهوم «${at}» (الصيغة YYYY-MM-DD HH:MM)`);
-    const basis = BASIS_LABELS[basisRaw] || (BASIS_VALUES.has(basisRaw) ? basisRaw : null); if (!basis) return fail(`أساس غير معروف «${basisRaw}»`);
+    const basis = basisFrom(basisRaw); if (!basis) return fail(`أساس غير معروف «${basisRaw}»`);
     if (ref.length < 3) return fail('المستند/المرجع إلزامي (3 أحرف على الأقل)');
     if (d.timeAssumed) assumedTime++;
     payload.push({ order_code: code, delivered_at: d.iso, basis, evidence_ref: ref, ...(note || d.timeAssumed ? { note: [note, d.timeAssumed ? 'الوقت غير معروف، افتُرض 12:00 بتوقيت إسطنبول' : ''].filter(Boolean).join(' — ') } : {}) });

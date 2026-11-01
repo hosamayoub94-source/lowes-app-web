@@ -85,6 +85,8 @@ await bad({ order_code: '' }, /missing/, 'رمز فارغ');
 await bad({ delivered_at: '2999-01-01T00:00:00+03:00' }, /future/, 'تاريخ مستقبلي');
 await bad({ delivered_at: '2026-10-05T08:00:00+03:00' }, /before the order date/, 'قبل تاريخ الطلب (الطلب 05/10 10:00)');
 await bad({ delivered_at: 'ليس تاريخاً' }, /invalid/, 'تاريخ غير صالح');
+await bad({ delivered_at: '2026-10-14 15:30' }, /invalid/, 'تاريخ بلا إزاحة توقيت يُرفض (لا تفسير بتوقيت الجلسة)');
+await bad({ delivered_at: '2026-10-14T15:30:00' }, /invalid/, 'ISO بلا إزاحة يُرفض');
 await bad({ basis: 'guess' }, /basis invalid/, 'أساس غير معروف');
 await bad({ evidence_ref: ' ' }, /evidence_ref/, 'بلا مستند');
 await bad({ evidence_ref: 'ab' }, /evidence_ref/, 'مستند أقصر من 3 أحرف');
@@ -109,6 +111,16 @@ ok(conf.confirmed_by_name === 'سلمى - المحاسبة' && conf.basis === 'd
 const p1 = await po(OCT, 'P-UNKNOWN');
 eq([p1.delivery_basis, p1.delivery_source, new Date(p1.delivered_at).toISOString()], ['finance_confirmed', 'finance_confirmed:driver_report', '2026-10-14T12:30:00.000Z'], 'D3: الطلب صار finance_confirmed بتاريخ التأكيد');
 eq(await po(NOV, 'P-UNKNOWN'), undefined, 'D3: لا يظهر بنافذة تشرين الثاني (لم يعد مجهولاً)');
+// مفتاح العمولات/الرواتب: p_use_finance_confirmations=false ← الدالة تتجاهل التأكيدات كأنها لم تُطبَّق
+{
+  const off = (win, code) => q('SELECT delivery_basis, delivered_at FROM profitability_orders($1,$2,false) WHERE order_code = $3', [...win, code]);
+  const pOff = (await off(OCT, 'P-UNKNOWN'))[0];
+  eq([pOff?.delivery_basis, pOff?.delivered_at], ['unknown', null], 'D3b: مع false يبقى الطلب مجهول التسليم بنافذة تشرين الأول (كما قبل الهجرة)');
+  eq((await off(NOV, 'P-UNKNOWN')).map((r) => r.delivery_basis), ['unknown'], 'D3b: ويظهر بنافذة تشرين الثاني كمجهول (سلوك ما قبل الهجرة: المجهول يُحمَّل 60 يوماً ويقرر المحرك بتاريخ الطلب)');
+  eq((await q("SELECT count(*)::int AS n FROM profitability_orders($1,$2,false) WHERE delivery_basis = 'finance_confirmed'", OCT))[0].n, 0, 'D3b: لا صف finance_confirmed إطلاقاً مع false');
+  const dflt = (await q('SELECT delivery_basis FROM profitability_orders($1,$2) WHERE order_code = $3', [...OCT, 'P-UNKNOWN']))[0];
+  eq(dflt.delivery_basis, 'finance_confirmed', 'D3b: نداء المعاملين (الربحية) يرى التأكيد');
+}
 const orderRow = (await q(`SELECT status, updated_by, updated_at FROM orders WHERE order_id = 'P-UNKNOWN'`))[0];
 ok(orderRow.status === 'delivered' && orderRow.updated_by === 'staff', 'D4: جدول orders لم يُمسّ (الحالة وupdated_by)');
 eq((await q(`SELECT count(*)::int AS n FROM order_status_history WHERE order_id = $1`, [parity.unknown]))[0].n, 0, 'D4: لا حدث في order_status_history (فلا عمولة ولا مخزون)');
@@ -211,5 +223,18 @@ const unk = run([O('u1', 'unknown', null)]); ok(unk.company.quality.issues.some(
   eq(buildConfirmationPayloadMany([]).payload, [], 'K6: بلا ملفات ← حمولة فارغة');
 }
 
+// تحصين الاستيراد (D-179): أرقام عربية، ثوانٍ، تقويم حقيقي، فاصلة منقوطة، تسامح بأسماء الأساس
+{
+  eq(toIstanbulIso('٢٠٢٦-١٠-١٤ ١٥:٣٠'), { iso: '2026-10-14T15:30:00+03:00', timeAssumed: false }, 'L1: أرقام عربية');
+  eq(toIstanbulIso('2026-10-14 15:30:45'), { iso: '2026-10-14T15:30:00+03:00', timeAssumed: false }, 'L2: ثوانٍ تُقبل وتُهمل');
+  eq(toIstanbulIso('2026-02-31'), null, 'L3: 31 شباط مرفوض');
+  eq(toIstanbulIso('2026-10-14 24:00'), null, 'L4: الساعة 24 مرفوضة');
+  eq(toIstanbulIso('14-10-2026'), null, 'L5: صيغة يوم-شهر-سنة مرفوضة (غموض)');
+  const semi = 'رقم الطلب;تاريخ التسليم المؤكَّد;أساس التأكيد;المستند / المرجع\nSL-1;2026-10-14 10:00;كشف السائق/ المندوب;ورقة 3\nSL-2;٢٠٢٦-١٠-١٤;تقرير شركة الشحن;كشف ٥\n';
+  const r = buildConfirmationPayload(semi);
+  eq(r.payload.length, 2, 'L6: فاصلة منقوطة + تسامح مسافات الأساس ← صفّان صالحان');
+  eq(r.errors.length, 0, 'L6: بلا أخطاء');
+  eq(buildConfirmationPayload('رقم الطلب\tتاريخ التسليم المؤكَّد\tأساس التأكيد\tالمستند\nSL-9\t2026-10-14 10:00\tmستند آخر\tوثيقة 1\n'.replace('m', 'م')).payload.length, 1, 'L7: فاصل Tab');
+}
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail ? 1 : 0);

@@ -88,7 +88,9 @@ BEGIN
     v_note := nullif(btrim(coalesce(v_row->>'note', '')), '');
     v_reason := btrim(coalesce(v_row->>'supersede_reason', ''));
     BEGIN v_super := coalesce((v_row->>'supersede')::boolean, false); EXCEPTION WHEN others THEN v_super := false; END;
-    BEGIN v_at := (v_row->>'delivered_at')::timestamptz; EXCEPTION WHEN others THEN v_at := NULL; END;
+    -- إزاحة التوقيت إلزامية (Z أو ±HH[:MM]): تاريخ بلا إزاحة يُفسَّر بتوقيت جلسة القاعدة فيزيح الساعة بصمت
+    IF coalesce(v_row->>'delivered_at', '') !~ '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$' THEN v_at := NULL;
+    ELSE BEGIN v_at := (v_row->>'delivered_at')::timestamptz; EXCEPTION WHEN others THEN v_at := NULL; END; END IF;
 
     SELECT count(*) INTO v_n FROM orders WHERE order_id = v_code AND deleted_at IS NULL;
     IF v_code = '' THEN v_err := 'order_code missing';
@@ -143,8 +145,10 @@ GRANT EXECUTE ON FUNCTION public.confirm_order_deliveries(jsonb, text, boolean) 
 
 -- 3) profitability_orders: يقرأ التأكيد المالي بعد الأدلة الآلية الأقوى. نفس التوقيع ونفس الأعمدة ----------------
 -- التعديل الوحيد: اللصق LATERAL fc وثلاثة فروع CASE (delivered_at / delivery_basis / delivery_source).
+-- p_use_finance_confirmations: الربحية تقرأ التأكيد المالي (الافتراضي true). العمولات/الرواتب/تقرير التسليمات تمرّر false ← الدالة تتصرف كما قبل هذه الهجرة تماماً
+-- (قرار المالك: لا ينتقل بيع بين شهرين بسبب ورقة تأكيد). التوقيع الجديد بمعامل ثالث له قيمة افتراضية، فنداء المعاملين القديم يبقى صالحاً.
 DROP FUNCTION IF EXISTS public.profitability_orders(timestamptz, timestamptz);
-CREATE FUNCTION public.profitability_orders(p_from timestamp with time zone, p_to timestamp with time zone)
+CREATE FUNCTION public.profitability_orders(p_from timestamp with time zone, p_to timestamp with time zone, p_use_finance_confirmations boolean DEFAULT true)
  RETURNS TABLE(id uuid, order_code text, market text, status text, order_date timestamp with time zone, items jsonb, amount numeric, currency text, delivered_at timestamp with time zone, delivery_basis text, delivery_source text, delivery_bulk_suspect boolean, delivered_before_return boolean, history_conflict boolean, return_at timestamp with time zone, return_source text, return_bulk_suspect boolean, hist_rows integer, reserve_qty numeric, restock_qty numeric, waste_qty numeric, delivery_cost numeric, shipping_payer text, payment_status text, paid_amount numeric)
  LANGUAGE sql
  STABLE
@@ -251,7 +255,7 @@ base AS (
   LEFT JOIN LATERAL (SELECT e.delivered_at, e.carrier FROM order_delivery_evidence e
                       WHERE e.order_id = c.id AND e.source_kind = 'carrier_public_page' LIMIT 1) ev ON true
   LEFT JOIN LATERAL (SELECT k.delivered_at, k.basis FROM order_delivery_confirmations k
-                      WHERE k.order_id = c.id AND k.superseded_at IS NULL LIMIT 1) fc ON true
+                      WHERE k.order_id = c.id AND k.superseded_at IS NULL AND p_use_finance_confirmations LIMIT 1) fc ON true
 )
 SELECT base.id, base.order_code, base.market, base.status, base.order_date, base.items, base.amount, base.currency,
        base.delivered_at, base.delivery_basis, base.delivery_source, base.delivery_bulk_suspect,
@@ -267,5 +271,5 @@ WHERE (base.delivered_at >= p_from AND base.delivered_at < p_to)
    OR (base.status = 'settled' AND base.order_date >= p_from AND base.order_date < p_to)
 ORDER BY base.id
 $function$;
-REVOKE ALL ON FUNCTION public.profitability_orders(timestamptz, timestamptz) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.profitability_orders(timestamptz, timestamptz) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.profitability_orders(timestamptz, timestamptz, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.profitability_orders(timestamptz, timestamptz, boolean) TO authenticated, service_role;

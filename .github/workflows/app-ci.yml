@@ -88,6 +88,8 @@ jobs:
         run: node test-cost-alias-resolution.mjs
       - name: "Check finance delivery confirmations (D-179; SQL part needs PGlite locally)"
         run: node test-finance-delivery-confirmation.mjs
+      - name: Check payroll is unaffected by delivery confirmations and UAE items (D-179)
+        run: node test-payroll-finance-confirmed.mjs
 
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs

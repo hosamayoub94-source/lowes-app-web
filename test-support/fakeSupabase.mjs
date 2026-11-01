@@ -78,11 +78,22 @@ export function makeDb(seed, opts = {}) {
   const rpc = (name, args) => {
     if (name !== 'profitability_orders') return Promise.resolve({ data: null, error: { message: 'unknown rpc ' + name } });
     const t0 = Date.parse(args.p_from), t1 = Date.parse(args.p_to);
-    const data = (tables.orders || []).filter((o) => ['delivered', 'settled', 'returned'].includes(o.status)).map((o) => ({
-      id: o.id, order_code: o.order_id || o.id, market: o.market, status: o.status, order_date: o.order_date, items: o.items || [], amount: o.amount, currency: o.currency,
-      delivered_at: o.status === 'returned' ? null : (o.delivered_at ?? o.order_date), delivery_basis: o.status === 'returned' ? 'unknown' : 'carrier',
-      return_at: o.status === 'returned' ? o.order_date : null,
-    })).filter((r) => { const t = Date.parse(r.delivered_at || r.return_at); return t >= t0 && t < t1; });
+    // o.fc_delivered_at = تأكيد مالي لتاريخ التسليم (D-179). مع p_use_finance_confirmations=false يتصرف الطلب كمجهول التسليم (يُحمَّل بتاريخ طلبه) كما قبل الهجرة.
+    const useFc = args.p_use_finance_confirmations !== false;
+    const LOOK = 60 * 86400000;
+    const data = (tables.orders || []).filter((o) => ['delivered', 'settled', 'returned'].includes(o.status)).map((o) => {
+      const fc = o.status === 'delivered' && o.fc_delivered_at;
+      const unknown = o.status === 'returned' || (fc && !useFc);
+      return {
+        id: o.id, order_code: o.order_id || o.id, market: o.market, status: o.status, order_date: o.order_date, items: o.items || [], amount: o.amount, currency: o.currency,
+        delivered_at: unknown ? null : (fc ? o.fc_delivered_at : (o.delivered_at ?? o.order_date)),
+        delivery_basis: unknown ? 'unknown' : (fc ? 'finance_confirmed' : 'carrier'),
+        return_at: o.status === 'returned' ? o.order_date : null,
+      };
+    }).filter((r) => {
+      if (r.delivery_basis === 'unknown' && r.status !== 'returned') { const t = Date.parse(r.order_date); return t >= t0 - LOOK && t < t1; }
+      const t = Date.parse(r.delivered_at || r.return_at); return t >= t0 && t < t1;
+    });
     const p = Promise.resolve({ data, error: null });
     p.range = (x, y) => Promise.resolve({ data: data.slice(x, y + 1), error: null }); // مثل PostgREST: fetchAllRows يستدعي range
     return p;
