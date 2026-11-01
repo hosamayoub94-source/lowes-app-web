@@ -40,7 +40,7 @@ import { checkRunDeletable } from '../utils/runDeletePolicy.js';
 import { PAYROLL_GROUPS, filterEntriesByGroup, summarizeGroups, externalSharesTotalUsd } from '../utils/payrollGroups.js';
 import { fetchExternalShares } from '../services/payrollService.js';
 import { provisionalBlockReason, isOpenPeriod, PROVISIONAL_BANNER } from '../utils/payrollPeriod.js';
-import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
+import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck, fetchLiveSalesDrift } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
 
@@ -220,22 +220,41 @@ export function PayrollDashboard() {
   const [inputsChecked, setInputsChecked] = useState(false);
   // ملخص الدورة (عدد/صافي) يجب أن يطابق القيود فعلاً — يُقرأ طازجاً من القاعدة لا من ذاكرة الواجهة
   const [summaryCheck, setSummaryCheck] = useState(null);
+  // مبيعات التسليمات الآن مقابل المحفوظ بالقيود: تأكيد تسليم مالي/إثبات شحن بعد الحسبة يجعلها قديمة
+  const [salesDrift, setSalesDrift] = useState(null);
   useEffect(() => {
     if (!run?.id || run.status !== PAYROLL_STATUS.DRAFT || showAllowances) return undefined;
     let active = true;
     setInputsChecked(false);
     setSummaryCheck(null);
+    setSalesDrift(null);
+    const runRates = { period_year: run.period_year, period_month: run.period_month, rate_usd_try: run.rate_usd_try, rate_usd_syp: run.rate_usd_syp };
     Promise.all([
       fetchPayrollInputsUpdatedAt(run.period_year, run.period_month),
       fetchRunSummaryCheck(run.id),
-    ]).then(([value, summary]) => {
+      fetchLiveSalesDrift(runRates, entries),
+    ]).then(([value, summary, drift]) => {
       if (!active) return;
       setInputsUpdatedAt(value);
       setSummaryCheck(summary);
+      setSalesDrift(drift);
       setInputsChecked(true);
     });
     return () => { active = false; };
-  }, [run?.id, run?.status, run?.period_year, run?.period_month, entries, showAllowances]);
+  }, [run?.id, run?.status, run?.period_year, run?.period_month, run?.rate_usd_try, run?.rate_usd_syp, entries, showAllowances]);
+
+  // قبل تسجيل الدفع لدورة معتمدة تشغيلية: نفس فحص المبيعات (القيود مقفلة منذ الاعتماد؛ أي تغيّر بعده يمنع الدفع — والخادم يرفضه أيضاً)
+  const [payDrift, setPayDrift] = useState(undefined); // undefined = لم يُفحص بعد، null = تعذّر الفحص
+  const payCheckApplies = !!run && run.status === PAYROLL_STATUS.APPROVED && !isHistoricalPayrollPeriod(run.period_year, run.period_month);
+  useEffect(() => {
+    if (!payCheckApplies) { setPayDrift(undefined); return undefined; }
+    let active = true;
+    setPayDrift(undefined);
+    const runRates = { period_year: run.period_year, period_month: run.period_month, rate_usd_try: run.rate_usd_try, rate_usd_syp: run.rate_usd_syp };
+    fetchLiveSalesDrift(runRates, entries).then((drift) => { if (active) setPayDrift(drift); });
+    return () => { active = false; };
+  }, [payCheckApplies, run?.id, run?.period_year, run?.period_month, run?.rate_usd_try, run?.rate_usd_syp, entries]);
+  const payBlocked = payCheckApplies && (payDrift === undefined || payDrift === null || payDrift.stale);
 
   const openMonthSetup = useCallback(async () => {
     if (!run) return;
@@ -522,7 +541,7 @@ export function PayrollDashboard() {
     negativeNetEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
-  const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt });
+  const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt, salesDrift });
   // الشهر الجاري = حسبة مؤقتة: لا اعتماد ولا دفع قبل إغلاقه ثم إعادة التشغيل (قرار مالك 24/10/2026).
   const provisionalReason = run ? provisionalBlockReason({ run, entries }) : null;
   const isOpenMonthRun = run ? isOpenPeriod(Number(run.period_year), Number(run.period_month)) : false;
@@ -664,7 +683,7 @@ export function PayrollDashboard() {
                     </ActionBtn>
                   )}
                   {canFinalizeRun && run.status === PAYROLL_STATUS.APPROVED && (
-                    <ActionBtn onClick={handleMarkPaid} disabled={isSubmitting || !!provisionalReason} variant="green">
+                    <ActionBtn onClick={handleMarkPaid} disabled={isSubmitting || !!provisionalReason || payBlocked} variant="green">
                       💳 تسجيل دفع
                     </ActionBtn>
                   )}
@@ -741,6 +760,19 @@ export function PayrollDashboard() {
                 <div className="mx-5 mt-4 rounded-xl border border-blue-400/40 bg-blue-50 px-4 py-3">
                   <p className="text-sm font-bold text-blue-700">
                     ⚙️ إعداد الشهر (التارجت/أسعار الصرف) غير مؤكَّد بعد — <b>الاعتماد معطَّل</b> حتى تؤكّده.
+                  </p>
+                </div>
+              )}
+              {!loadingEntries && payCheckApplies && payDrift !== undefined && (payDrift === null || payDrift.stale) && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-400/40 bg-red-50 px-4 py-3">
+                  <p className="text-sm font-bold text-red-700">
+                    ⛔ <b>تسجيل الدفع معطَّل</b> — مبيعات التسليمات تغيّرت بعد اعتماد هذه الدورة (أو تعذّر التحقق منها).
+                  </p>
+                  <p className="text-[11px] text-red-700/80 mt-0.5">
+                    {payDrift === null
+                      ? 'تعذّر التحقق من مبيعات التسليمات الحالية.'
+                      : payDrift.rows.map((r) => `${r.name}: ${r.storedCount}→${r.liveCount} طلب، ${r.storedLocal}→${r.liveLocal} ${r.currency}`).join(' · ')}
+                    {' '}لا تعديل تلقائي: القرار (إعادة فتح وإعادة حسبة، أو تسوية) لصاحب الشركة.
                   </p>
                 </div>
               )}

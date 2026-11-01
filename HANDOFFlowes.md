@@ -4001,3 +4001,13 @@ finance → المحاسبة
 - **باقٍ كما هو عمداً:** محرّر قواعد العمولة الافتراضية (يقرؤه المسيّر)، الأرشفة (تشغيلية بتاريخ الطلب)، توزيع حالات طلبات الشهر بلوحة المدير (طلبات أُنشئت هذا الشهر — سؤال مختلف).
 - **التالي (PR منفصل):** مصدر صرف شهري واحد (D-164: يدوي) بدل exchange_rates / profitability_fx_rates / commission_rules.try_per_usd.
 - **تحقق:** اختبارات 302/302 · 13/13 · 305 · payroll-batch 16/16 · routes 81/0 · eslint بلا أخطاء · build ✔. Preview بحساب المدير مطلوب قبل الدمج.
+
+## 1 Nov 2026 (ليلاً) — ERP المرحلة 1 (D-181): بوابة «رواتب قديمة» على التسليمات + فحص مطابقة المحرّكات — PR #130 مسودّة، غير مدموج
+- فرع `feat/erp-finance-unification` (worktree `C:\Users\acer\Projects\lowes-erp-wt`). التقرير: `docs/erp/ERP_AUDIT_2026-11-01.md`.
+- دورة أكتوبر `f2926f39` معتمدة 18:32:09 UTC؛ تأكيد TL-29869 بعدها 18:45:08 ⇒ Hla Al Namra 114.20$ ← 116.80$ (+2.60$)، لم تُعدَّل الدورة (قرار Q4).
+- الجديد: `detectSalesDrift`/`fetchLiveSalesDrift`/`computeLiveTeamSales`/`fetchRunRateMap` + `utils/crossEngineChecks.js`. اختبارات `test-payroll-sales-drift.mjs` 27/27، `test-cross-engine-checks.mjs` 18/18. 4 اختبارات قديمة تفشل على main أصلاً (b2b-leads-fn، b2b-model، cron-service-key-sql، media-sales-hidden).
+- قرارات مفتوحة Q1–Q5 بـD-181 (أسعار أكتوبر TRY 49.5/50 وSYP 143.2/140، الـ39 المنقولة من أيلول، قاعدة «بلا تاريخ»، فرق Hla، settled).
+- **تحديث (2 Nov):** قفل الاعتماد بالخادم مقترح غير مطبَّق `docs/proposed/20261102_payroll_sales_drift_gate.sql` (+rollback)، اختبار `test-payroll-sales-drift-sql.mjs` 30/30 + 6/6 طفرات؛ دوال الإنتاج المنسوخة للاختبار في `test-support/payroll-prod-bodies-20261101.sql`. فخ: fake `select()` يتجاهل الأعمدة فيُرجع الصف كاملاً — مفتاح `delivered_at: null` بالـfixture يمسح تاريخ الـRPC عند دمج الحقول الإضافية. كشف الـ39 في ABOS `OCT_CLOSE_2026-11-01/10_كشف_الطلبات_39/`. PR #130 مسودّة.
+- **تحديث الدفع (2 Nov):** المقترحة تقفل `payroll_mark_paid` وكل انتقال إلى paid + تمنع نقل شهر الدورة التشغيلية + الدفع للدورة فقط (`payroll_entries_payment_guard`). SQL 55/55، 13/13 طفرة. زر الدفع بالواجهة معطَّل عند الفرق. بعد التطبيق لا يُدفع أكتوبر حتى حسم فرق Hla.
+- **مراجعة نهائية (2 Nov):** fixture دوال الإنتاج بايت ببايت (`-text` بـ`.gitattributes`، فيه CRLF حقيقي)، حارسا md5 قبل التطبيق/التراجع، دفع يعيد كل فحوص الاعتماد، قراءة مصدر المبيعات دائماً. CI صار يثبّت `@electric-sql/pglite@0.5.9` (كان الاختبار يتخطّى نفسه بصمت). SQL 108/108، 21/21 طفرة.
+- **فرق Hla محلول (2 Nov):** TL-29869 وحده (تأكيد 18:45:08 بعد الاعتماد)؛ as-of الحسبة = 34/57,100 حرفياً. إعادة اختبار الدفع على لقطة أكتوبر الحقيقية: `scripts/replay-d181-oct-payment.mjs <snapshot>` (اللقطة خارج المستودع) 29/29. تحذير: لا إعادة حسبة كاملة لأكتوبر — بدل Joelle azar صار نشطاً بعد الاعتماد (≈52.37$).

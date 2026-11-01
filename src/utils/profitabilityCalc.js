@@ -227,6 +227,11 @@ export function buildFxLookup(rows = [], monthStart) {
 }
 
 // ───────────────────────── الحساب ─────────────────────────
+/** قاعدة الربحية لدخول تسليم الطلب في الفترة (هنا وفي مطابقة المحرّكات crossEngineChecks). settled ليس بيعاً هنا. inM(ts) → داخل الفترة؟ */
+export function profitabilityDeliveryIn(o, inM) {
+  if (o.status === 'settled') return false;
+  return !!((o.status === 'delivered' || o.delivered_before_return) && o.delivered_at && inM(o.delivered_at) && o.delivery_basis !== 'unknown');
+}
 const num = (v) => Number(v) || 0;
 // سياسة المالك (18 تشرين الأول): الطلب المرتجع يعود للمخزون؛ شحنه مرة ونصف إجمالاً (بعد التسليم يُضاف نصف مرة فوق الشحن المحسوب عند التسليم)
 const MAX_QTY = 500; // كمية بند أكبر من هذا = إدخال خاطئ (مثلاً رقم هاتف) → تُعدّ 1 وتُنبَّه
@@ -528,7 +533,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const c = { o, m, M: mk(m), all, items, units: items.reduce((s, i) => s + i.q, 0), allUnits: all.reduce((s, i) => s + i.q, 0) };
     if (o.status === 'settled') return handleSettled(c);
     if (o.status === 'delivered' && (!o.delivered_at || o.delivery_basis === 'unknown')) return handleUnknownDelivery(c);
-    const delivered = (o.status === 'delivered' || o.delivered_before_return) && o.delivered_at && inM(o.delivered_at) && o.delivery_basis !== 'unknown';
+    const delivered = profitabilityDeliveryIn(o, inM);
     const retKnown = o.status === 'returned' && o.return_at && !o.return_bulk_suspect;
     if (o.status === 'returned' && o.history_conflict) c.M.historyConflict++;
     if (delivered) handleDelivery(c);

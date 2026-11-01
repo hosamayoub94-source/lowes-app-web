@@ -83,7 +83,8 @@ export function makeDb(seed, opts = {}) {
     const LOOK = 60 * 86400000;
     const data = (tables.orders || []).filter((o) => ['delivered', 'settled', 'returned'].includes(o.status)).map((o) => {
       const fc = o.status === 'delivered' && o.fc_delivered_at;
-      const unknown = o.status === 'returned' || (fc && !useFc);
+      // o.no_delivery_date = لا سجل حالة ولا إثبات شحن (أساس unknown) ما لم يوجد تأكيد مالي مُفعَّل
+      const unknown = o.status === 'returned' || (fc && !useFc) || (o.no_delivery_date && !(fc && useFc));
       return {
         id: o.id, order_code: o.order_id || o.id, market: o.market, status: o.status, order_date: o.order_date, items: o.items || [], amount: o.amount, currency: o.currency,
         delivered_at: unknown ? null : (fc ? o.fc_delivered_at : (o.delivered_at ?? o.order_date)),

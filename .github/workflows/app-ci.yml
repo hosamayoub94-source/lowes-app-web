@@ -44,6 +44,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      # The SQL lock tests run on an in-memory Postgres; without this they skip themselves (D-181).
+      - name: Install PGlite for SQL tests (not an app dependency)
+        run: npm i --no-save @electric-sql/pglite@0.5.9
+
       # The repository currently has pre-existing lint debt across unrelated
       # screens (13 errors / 227 warnings). Gate this change on the files it
       # touches; keep whole-app lint cleanup in its own reviewed workstream.
@@ -90,6 +94,12 @@ jobs:
         run: node test-finance-delivery-confirmation.mjs
       - name: Check payroll is unaffected by delivery confirmations and UAE items (D-179)
         run: node test-payroll-finance-confirmed.mjs
+      - name: "Check payroll approval is blocked when delivery sales changed after the calculation"
+        run: node test-payroll-sales-drift.mjs
+      - name: "Check the proposed server-side payroll approval lock (SQL part needs PGlite locally)"
+        run: node test-payroll-sales-drift-sql.mjs
+      - name: "Check profitability vs delivery accounting recognition and FX source comparison"
+        run: node test-cross-engine-checks.mjs
 
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs

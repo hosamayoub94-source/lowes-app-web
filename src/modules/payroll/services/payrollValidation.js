@@ -23,7 +23,9 @@ export function checkRunSummary({ runCount, runNet, entries = [] } = {}) {
 // decisions, or the month setup itself. Manual entries are frozen by design and
 // do not count. Unknown input timestamps (fetch failed) are treated as stale —
 // approval must never rest on a calculation we could not verify as current.
-export function getPayrollStaleness({ entries = [], run = null, inputsUpdatedAt = null } = {}) {
+// salesDrift (from detectSalesDrift) adds the delivery data itself: undefined = not checked,
+// null = checked but unverifiable (treated as stale).
+export function getPayrollStaleness({ entries = [], run = null, inputsUpdatedAt = null, salesDrift } = {}) {
   const autoEntries = entries.filter((entry) => entry.source !== 'manual');
   const reasons = [];
   if (autoEntries.length === 0) return { stale: entries.length === 0, reasons: entries.length === 0 ? ['لم تُشغَّل الحسبة بعد.'] : [] };
@@ -40,7 +42,35 @@ export function getPayrollStaleness({ entries = [], run = null, inputsUpdatedAt 
     if (newer(inputsUpdatedAt.allowances)) reasons.push('البدلات عُدِّلت بعد آخر حسبة.');
     if (newer(inputsUpdatedAt.absenceReviews)) reasons.push('قرارات الغياب تغيّرت بعد آخر حسبة.');
   }
+  if (salesDrift === null) reasons.push('تعذّر التحقق من أن مبيعات التسليمات لم تتغيّر بعد آخر حسبة.');
+  else if (salesDrift?.stale) {
+    const list = salesDrift.rows.slice(0, 5).map((r) => `${r.name}: ${r.storedCount}→${r.liveCount} طلب، ${r.storedLocal}→${r.liveLocal} ${r.currency}`).join('؛ ');
+    reasons.push(`مبيعات التسليمات تغيّرت بعد آخر حسبة (${salesDrift.rows.length} موظف — ${list}${salesDrift.rows.length > 5 ? '…' : ''}).`);
+  }
   return { stale: reasons.length > 0, reasons };
+}
+
+// Sales drift: stored sales of each auto entry (sales_local in the team currency + order count) vs the
+// same figure recomputed now from the shared delivery source (computeLiveTeamSales). A finance delivery
+// confirmation, carrier evidence or status change added after the calculation shows up here although no
+// payroll input table changed. Compared in whole cents; entries without a sales team are skipped.
+export function detectSalesDrift({ entries = [], live = new Map(), names = new Map() } = {}) {
+  const rows = [];
+  for (const e of entries) {
+    if (e.source === 'manual' || !['syria', 'turkey'].includes(e.team)) continue;
+    const now = live.get(e.employee_id) || { value: 0, count: 0 };
+    const storedCents = Math.round((Number(e.sales_local) || 0) * 100);
+    const liveCents = Math.round((Number(now.value) || 0) * 100);
+    const storedCount = Number(e.sales_orders_count) || 0;
+    const liveCount = Number(now.count) || 0;
+    if (storedCents === liveCents && storedCount === liveCount) continue;
+    rows.push({
+      employee_id: e.employee_id, name: names.get(e.employee_id) || e.employee_name || e.employee_id,
+      currency: e.target_currency || (e.team === 'turkey' ? 'TRY' : 'USD'),
+      storedLocal: storedCents / 100, liveLocal: liveCents / 100, storedCount, liveCount,
+    });
+  }
+  return { stale: rows.length > 0, rows };
 }
 export function getPayrollBlockingEntryIssues(entries = []) {
   const zeroSalaryEntries = entries.filter(
