@@ -26,6 +26,25 @@
 -- =====================================================================
 BEGIN;
 
+-- حارس ما قبل التطبيق: لا نكتب فوق نسخة من المشغّل غير التي رُوجعت (1/11/2026)، ولا فوق كائنات بنفس الأسماء.
+DO $guard$
+DECLARE m text;
+BEGIN
+  SELECT md5(prosrc) INTO m FROM pg_proc WHERE oid = 'public.payroll_run_consistency_gate()'::regprocedure;
+  IF m IS DISTINCT FROM '8a108d81cd819569e6463ed949471264' THEN
+    RAISE EXCEPTION 'D-181: payroll_run_consistency_gate تغيّر منذ مراجعة 1/11/2026 (md5 %) — لا تطبيق قبل إعادة المراجعة.', m;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'payroll_runs_zz_consistency_gate' AND tgrelid = 'public.payroll_runs'::regclass AND tgenabled = 'O') THEN
+    RAISE EXCEPTION 'D-181: المشغّل payroll_runs_zz_consistency_gate غير موجود أو معطَّل — لا تطبيق.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'
+              AND p.proname IN ('payroll_norm_name', 'payroll_live_team_sales', 'payroll_sales_drift', 'payroll_assert_sales_fresh',
+                                'payroll_runs_period_guard', 'payroll_entries_payment_guard'))
+     OR EXISTS (SELECT 1 FROM pg_trigger WHERE tgname IN ('payroll_runs_period_guard', 'payroll_entries_payment_guard')) THEN
+    RAISE EXCEPTION 'D-181: توجد مسبقاً دوال/مشغّلات بأسماء هذه الـmigration — لا تطبيق قبل المراجعة.';
+  END IF;
+END $guard$;
+
 CREATE OR REPLACE FUNCTION public.payroll_norm_name(p text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $$
   SELECT regexp_replace(lower(regexp_replace(coalesce(p, ''), '^\s+|\s+$', '', 'g')), '\s+', ' ', 'g')
@@ -152,6 +171,9 @@ CREATE OR REPLACE FUNCTION public.payroll_assert_sales_fresh(p_run_id uuid, p_ac
 RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE bad int; names text;
 BEGIN
+  -- قراءة مصدر المبيعات دائماً — حتى لو لم يكن بالدورة قيد مبيعات يُقارَن — فيفشل الفحص مغلقاً إن تعذّرت القراءة
+  -- (بدونها: دورة بلا قيود مبيعات كانت تمرّ دون أن يُقرأ المصدر أصلاً؛ اكتشفه اختبار دورة أكتوبر).
+  PERFORM 1 FROM public.payroll_live_team_sales(p_run_id);
   SELECT count(*), string_agg(format('%s: %s→%s طلب، %s→%s', d.employee_name, d.stored_count, d.live_count, d.stored_local, d.live_local), '؛ ')
     INTO bad, names
     FROM public.payroll_sales_drift(p_run_id) d;
@@ -169,16 +191,16 @@ CREATE OR REPLACE FUNCTION public.payroll_run_consistency_gate()
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-declare n int; t numeric; bad int; names text;
+declare n int; t numeric; bad int; names text; act text;
 begin
   if not public.payroll_period_is_operational(old.period_year, old.period_month) then return new; end if;
-  -- D-181: تسجيل الدفع لدورة معتمدة (payroll_mark_paid أو أي UPDATE) يعيد فحص المبيعات الحية.
-  -- القيود مقفلة منذ الاعتماد، فالفحوص الأخرى أدناه نتيجتها لم تتغيّر ولا تُعاد هنا.
-  if old.status in ('finalized', 'approved') and new.status = 'paid' then
-    perform public.payroll_assert_sales_fresh(old.id, 'لا يُسجَّل الدفع');
-    return new;
+  -- D-181: الاعتماد (من مسودة) وتسجيل الدفع (من معتمدة) يمرّان بكل الفحوص نفسها ثم بفحص المبيعات الحية.
+  -- يُعاد الكل عند الدفع لأن المسار المميّز يستطيع تعديل قيود دورة معتمدة.
+  -- 'approved' غير موجودة بالجدول (CHECK) وتُذكر دفاعياً فقط.
+  if old.status in ('finalized', 'approved') and new.status = 'paid' then act := 'لا يُسجَّل الدفع';
+  elsif old.status = 'draft' and new.status in ('finalized', 'approved', 'paid') then act := 'لا تُعتمد الدورة';
+  else return new;
   end if;
-  if not (old.status = 'draft' and new.status in ('finalized', 'approved', 'paid')) then return new; end if;
 
   select count(*)::int, coalesce(sum(net_salary_usd), 0) into n, t from public.payroll_entries where run_id = old.id;
   if old.employee_count is distinct from n or round(coalesce(old.total_net_usd, 0), 2) <> round(t, 2) then
@@ -208,7 +230,7 @@ begin
   if bad > 0 then raise exception '% قيد آلي بدلاته لا تطابق تفصيل البدلات المحفوظ — أعد تشغيل الدورة.', bad; end if;
 
   -- D-181: مبيعات التسليم الآن = المحفوظة بالقيود؟ (تأكيد مالي/إثبات شحن/تغيير حالة بعد الحسبة ⇒ رفض)
-  perform public.payroll_assert_sales_fresh(old.id, 'لا تُعتمد الدورة');
+  perform public.payroll_assert_sales_fresh(old.id, act);
 
   return new;
 end $function$;

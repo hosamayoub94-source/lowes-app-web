@@ -108,15 +108,12 @@ ALTER TABLE public.payroll_runs ADD CONSTRAINT payroll_runs_status_check CHECK (
 CREATE TABLE public.payroll_run_events (id serial PRIMARY KEY, run_id uuid, period int, action text, actor uuid, at timestamptz DEFAULT now(), changes jsonb, reason text, before_snapshot jsonb);
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 
--- production bodies (1 Nov 2026)
-CREATE FUNCTION public.current_role_type() RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ select role_type from public.profiles where id = auth.uid() $$;
-CREATE FUNCTION public.payroll_can_finalize() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $$
-  SELECT EXISTS (SELECT 1 FROM public.payroll_access pa JOIN public.profiles p ON p.id = pa.profile_id WHERE pa.profile_id = auth.uid() AND pa.can_finalize = true AND p.is_active = true); $$;
-CREATE FUNCTION public.payroll_is_new_period(p_year integer, p_month integer) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT coalesce(p_year * 100 + p_month, 0) >= 202609 $$;
-CREATE FUNCTION public.payroll_period_is_operational(p_year integer, p_month integer) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ select coalesce(p_year * 100 + p_month, 0) >= 202610 $$;
-CREATE FUNCTION public.payroll_s2_authorized_path() RETURNS boolean LANGUAGE sql STABLE AS $$
-  SELECT coalesce(current_setting('payroll.s2_path', true), '') = 'rpc' AND current_user NOT IN ('anon', 'authenticated', 'service_role'); $$;
+-- stand-in (only read on the reopen→approve path; not part of the lock)
 CREATE FUNCTION public.payroll_s2_entries_snapshot(p uuid) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+`);
+// production bodies, byte-exact (functions + the 5 production triggers on payroll_runs/payroll_entries)
+await db.exec(readFileSync('test-support/payroll-prod-bodies-20261101.sql', 'utf8'));
+await db.exec(`
 
 -- profitability_orders stand-in with the SAME semantics as test-support/fakeSupabase.mjs (and the production role gate)
 CREATE FUNCTION public.profitability_orders(p_from timestamptz, p_to timestamptz, p_use_finance_confirmations boolean DEFAULT true)
@@ -134,49 +131,35 @@ LANGUAGE sql STABLE SET search_path TO 'public' AS $$
       OR (NOT unk AND z.d >= p_from AND z.d < p_to)
       OR (z.status = 'returned' AND z.order_date >= p_from AND z.order_date < p_to) $$;
 `);
-await db.exec(readFileSync('test-support/payroll-prod-bodies-20261101.sql', 'utf8'));
 const insertRows = async (table, rows) => { for (const r of rows) { const k = Object.keys(r); await q(`INSERT INTO public.${table} (${k.join(',')}) VALUES (${k.map((_, i) => `$${i + 1}`).join(',')})`, k.map((c) => r[c])); } };
 await insertRows('profiles', profiles);
 await insertRows('payroll_access', [{ profile_id: P.hosam, can_finalize: true }, { profile_id: P.clerk, can_finalize: true }]);
 await insertRows('orders', orders);
 await insertRows('exchange_rates', exchange_rates);
-// payroll_mark_paid as in production (1 Nov 2026)
-await db.exec(`CREATE FUNCTION public.payroll_mark_paid(p_run_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $function$
-DECLARE r public.payroll_runs%ROWTYPE;
-BEGIN
-  IF NOT public.payroll_can_finalize() THEN
-    RAISE EXCEPTION 'تسجيل الدفع لحسام وأماني فقط (D-090).' USING ERRCODE = 'insufficient_privilege';
-  END IF;
-  SELECT * INTO r FROM public.payroll_runs WHERE id = p_run_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'الدورة غير موجودة.'; END IF;
-  IF NOT public.payroll_is_new_period(r.period_year, r.period_month) THEN
-    RAISE EXCEPTION 'هذا المسار لدورات أيلول 2026+ فقط.';
-  END IF;
-  IF r.status <> 'finalized' THEN RAISE EXCEPTION 'الدفع لدورة معتمدة فقط (الحالة: %).', r.status; END IF;
-  PERFORM set_config('payroll.s2_path', 'rpc', true);
-  UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = p_run_id;
-  INSERT INTO public.payroll_run_events (run_id, period, action, actor) VALUES (p_run_id, r.period_year * 100 + r.period_month, 'pay', auth.uid());
-  PERFORM set_config('payroll.s2_path', '', true);
-  RETURN jsonb_build_object('run_id', p_run_id, 'status', 'paid');
-END $function$;
-CREATE FUNCTION public.payroll_run_is_locked_new(p_run_id uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $$
-  SELECT coalesce((SELECT public.payroll_is_new_period(r.period_year, r.period_month) AND r.status <> 'draft' FROM public.payroll_runs r WHERE r.id = p_run_id), false); $$;
-CREATE FUNCTION public.payroll_entries_s2_guard() RETURNS trigger LANGUAGE plpgsql AS $function$
-BEGIN
-  IF (TG_OP <> 'INSERT' AND public.payroll_run_is_locked_new(OLD.run_id))
-     OR (TG_OP <> 'DELETE' AND public.payroll_run_is_locked_new(NEW.run_id)) THEN
-    IF NOT public.payroll_s2_authorized_path() THEN
-      RAISE EXCEPTION 'بنود دورة أيلول 2026+ معتمدة/مدفوعة — لا تُضاف ولا تُعدَّل ولا تُحذف. أعد فتح الدورة أولاً (D-090).'
-        USING ERRCODE = 'insufficient_privilege';
-    END IF;
-  END IF;
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-END $function$;
-CREATE TRIGGER payroll_entries_s2_guard BEFORE INSERT OR DELETE OR UPDATE ON public.payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_entries_s2_guard();`);
+// md5(prosrc) of every copied production function, read from production on 2 Nov 2026 (read-only).
+// The fixture is accepted only if each body is byte-identical to production.
+const PROD_SRC_MD5 = {
+  current_role_type: 'f580b2f67b60454be33090e4be28f4bc', payroll_approve_run: 'dd5ab3f6bb14e99b85d66e2ddacca9da',
+  payroll_can_finalize: 'e3d43c4cbc78c74e123cce69b4015535', payroll_entries_s2_guard: 'd98ba82a778274894d8e91584a036786',
+  payroll_is_new_period: 'c1c734de3375989cdf401ab095986c71', payroll_mark_paid: '3f497248357e0d76cca334cd4b671658',
+  payroll_period_is_operational: 'f7a3677d4fb2570be0e9675f4408b05b', payroll_run_consistency_gate: '8a108d81cd819569e6463ed949471264',
+  payroll_run_is_locked_new: 'd265ade00227b2fd33ad8830668b3f6d', payroll_runs_delete_guard: '290115d5f0180d37a30c94e2f3663404',
+  payroll_runs_s2_guard: '837c2e07b70c6faacb945d77a136e7b6', payroll_s2_authorized_path: 'fb6f8a03d054e9021e30f87652351f52',
+  payroll_sync_run_summary: 'e96daa07707ebc5e94eb5be172d08bcc',
+};
+// production triggers on payroll_runs / payroll_entries (2 Nov 2026), all enabled (tgenabled = O)
+const PROD_TRIGGERS = 'payroll_entries.payroll_entries_s2_guard:O,payroll_entries.payroll_entries_sync_run_summary:O,payroll_runs.payroll_runs_delete_guard:O,payroll_runs.payroll_runs_s2_guard:O,payroll_runs.payroll_runs_zz_consistency_gate:O';
+const srcMd5 = async () => Object.fromEntries((await q(`SELECT p.proname, md5(p.prosrc) m FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = ANY($1)`, [Object.keys(PROD_SRC_MD5)])).rows.map((r) => [r.proname, r.m]));
 const objects = async () => (await q(`SELECT
-  (SELECT string_agg(tgrelid::regclass || '.' || tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE NOT tgisinternal) AS triggers,
-  (SELECT string_agg(md5(pg_get_functiondef(p.oid)), ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public') AS funcs`)).rows[0];
+  (SELECT string_agg(tgrelid::regclass::text || '.' || tgname || ':' || tgenabled::text, ',' ORDER BY tgrelid::regclass::text, tgname) FROM pg_trigger WHERE NOT tgisinternal AND tgrelid IN ('public.payroll_runs'::regclass, 'public.payroll_entries'::regclass)) AS triggers,
+  (SELECT string_agg(md5(pg_get_triggerdef(oid)), ',' ORDER BY tgname) FROM pg_trigger WHERE NOT tgisinternal) AS trigger_defs,
+  (SELECT string_agg(p.proname || '=' || md5(pg_get_functiondef(p.oid)) || '/' || coalesce(p.proacl::text, '-'), ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public') AS funcs`)).rows[0];
+{
+  const m = await srcMd5();
+  for (const [k, v] of Object.entries(PROD_SRC_MD5)) ok(m[k] === v, `fixture body = production byte-for-byte: ${k} (${m[k]} vs ${v})`);
+}
 const before = await objects();
+ok(before.triggers === PROD_TRIGGERS, `fixture triggers = production trigger set (${before.triggers})`);
 const gateBefore = (await q(`SELECT pg_get_functiondef('public.payroll_run_consistency_gate()'::regprocedure) d`)).rows[0].d;
 
 await db.exec(readFileSync('docs/proposed/20261102_payroll_sales_drift_gate.sql', 'utf8'));
@@ -216,12 +199,16 @@ try {
   await insertRows('orders', [o('Hla Al Namra', 999, 'TRY', '2026-11-01T09:00:00Z', { delivered_at: '2026-11-02T09:00:00Z' })]);
   ok((await q('SELECT count(*)::int n FROM public.payroll_sales_drift($1)', [R1])).rows[0].n === 0, 'November delivery → October still not stale');
   ok(await err('SELECT public.payroll_approve_run($1)', [R1]) === null && await status(R1) === 'finalized', 'clean run approves through the RPC');
-  // payment 1: approved and sales unchanged → payment recorded
-  ok(await err('SELECT public.payroll_mark_paid($1)', [R1]) === null && await status(R1) === 'paid', 'PAY: approved run with unchanged sales → payroll_mark_paid succeeds');
+  // the app archives right after approval (production October run: archived_at 2.5 s after finalized_at) — same here
+  ok(await err('UPDATE public.payroll_runs SET archived_at = now() WHERE id = $1', [R1]) === null, 'archiving an approved run stays allowed');
+  // payment 1: approved + archived (the real October state) and sales unchanged → payment recorded
+  ok(await err('SELECT public.payroll_mark_paid($1)', [R1]) === null && await status(R1) === 'paid', 'PAY: approved+archived run with unchanged sales → payroll_mark_paid succeeds');
+  ok((await q("SELECT count(*)::int n FROM public.payroll_run_events WHERE run_id = $1 AND action = 'pay'", [R1])).rows[0].n === 1, 'PAY: exactly one pay event');
   // R3: approved now (clean), paid only AFTER the delivery data changes below
   const R3 = U(503);
   await newRun(R3, sql);
   ok(await err('SELECT public.payroll_approve_run($1)', [R3]) === null && await status(R3) === 'finalized', 'R3 approved while sales were current');
+  await q('UPDATE public.payroll_runs SET archived_at = now() WHERE id = $1', [R3]); // October-shaped: finalized + archived
 
   // ── C) late finance confirmation → every path refused
   await newRun(R2, sql);
@@ -287,7 +274,7 @@ try {
   let p4 = null;
   try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); UPDATE public.payroll_runs SET status = 'paid' WHERE id = '" + R3 + "'; COMMIT;"); }
   catch (e) { p4 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
-  ok(p4 && p4.includes('لحسام وأماني فقط'), 'PAY: privileged UPDATE without a user cannot run the check → refused: ' + p4);
+  ok(p4 && (p4.includes('لحسام وأماني فقط') || p4.includes('تعذّر التحقق من مبيعات التسليمات')) && await status(R3) === 'finalized', 'PAY: privileged UPDATE without a user cannot run the check → refused: ' + p4);
   await asUser(P.hosam);
 
   // reading the delivery data fails → payment refused
@@ -343,6 +330,18 @@ try {
   ok(await err("UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = $1", [RL]) === null && await status(RL) === 'paid', 'SCOPE: legacy August run keeps its old direct path');
   ok(await err("UPDATE public.payroll_entries SET payment_status = 'paid' WHERE run_id = $1", [RL]) === null, 'SCOPE: entry payment flags on legacy runs untouched by the new guard');
 
+  // privileged path alters an APPROVED run's entries before payment → payment re-runs the consistency checks too
+  const R4 = U(504);
+  await newRun(R4, await sqlLive(U(500)));
+  ok(await err('SELECT public.payroll_approve_run($1)', [R4]) === null, 'R4 approved with current sales');
+  let p14 = null;
+  try { await db.exec(`BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); INSERT INTO public.payroll_entries (run_id, employee_id, source, team, sales_local, sales_orders_count, computed_at, net_salary_usd, base_salary_usd) VALUES ('${R4}', '${P.dina}', 'manual', 'turkey', 0, 0, now(), 50, 50); COMMIT;`); }
+  catch (e) { p14 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p14 === null, 'setup: the privileged path CAN add an entry to an approved run (existing behaviour)');
+  const p15 = await err('SELECT public.payroll_mark_paid($1)', [R4]);
+  ok(p15 && p15.includes('ملخص الدورة لا يطابق'), 'PAY: an entry slipped into an approved run blocks payment (summary re-checked at payment): ' + p15);
+  ok(await status(R4) === 'finalized', 'PAY: R4 stays finalized');
+
   // recalculation (entries updated to the live figures) reopens the path
   await q('UPDATE public.payroll_entries SET sales_local = 6500, sales_orders_count = 5, computed_at = $2 WHERE run_id = $1 AND employee_id = $3 AND source = $4', [R2, '2026-11-01T19:00:00Z', P.hla, 'auto']);
   ok((await q('SELECT count(*)::int n FROM public.payroll_sales_drift($1)', [R2])).rows[0].n === 0, 'after recalculation: no drift');
@@ -354,12 +353,127 @@ try {
   ok(gateAfter === gateBefore, 'rollback restores the gate byte-for-byte');
   ok((await q("SELECT count(*)::int n FROM pg_proc WHERE proname IN ('payroll_sales_drift','payroll_live_team_sales','payroll_norm_name','payroll_assert_sales_fresh','payroll_runs_period_guard','payroll_entries_payment_guard')")).rows[0].n === 0, 'rollback drops every new function');
   const after = await objects();
-  ok(after.triggers === before.triggers, `rollback: trigger set identical to before (${after.triggers})`);
-  ok(after.funcs === before.funcs, 'rollback: every public function body identical to before (md5 of all definitions)');
+  ok(after.triggers === before.triggers && after.triggers === PROD_TRIGGERS, `rollback: trigger set = before = production (${after.triggers})`);
+  ok(after.trigger_defs === before.trigger_defs, 'rollback: every trigger definition identical (events, timing, function)');
+  ok(after.funcs === before.funcs, 'rollback: every public function definition AND its permissions (proacl) identical to before');
+  { const m = await srcMd5(); for (const [k, v] of Object.entries(PROD_SRC_MD5)) ok(m[k] === v, `rollback: ${k} body = production md5 again`); }
   ok(await err('SELECT public.payroll_approve_run($1)', [R2]) === null, 'after rollback the old behaviour returns (stale run approvable) — proves the lock came from this migration');
   ok(await err('SELECT public.payroll_mark_paid($1)', [U(503)]) === null, 'after rollback a stale approved run can be paid again (old behaviour)');
 } finally {
   await server.close();
+}
+
+// ── F) migration / rollback guards on fresh databases (production schema subset + byte-exact bodies)
+const freshDb = async () => {
+  const d = new PGlite();
+  await d.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('test.uid', true), '')::uuid $$;
+    CREATE TABLE public.profiles (id uuid PRIMARY KEY, employee_name text, role_type text, team text, seller_alias text, is_active boolean, payroll_excluded boolean DEFAULT false);
+    CREATE TABLE public.payroll_access (profile_id uuid, can_finalize boolean);
+    CREATE TABLE public.payroll_runs (id uuid PRIMARY KEY, period_year int, period_month int, status text CHECK (status = ANY (ARRAY['draft','finalized','paid'])), employee_count int, total_net_usd numeric,
+      archived_at timestamptz, rate_usd_try numeric, rate_usd_syp numeric, month_setup_confirmed_at timestamptz, approved_by uuid, finalized_by uuid, finalized_at timestamptz, paid_at timestamptz);
+    CREATE TABLE public.payroll_entries (id serial, run_id uuid, employee_id uuid, source text, team text, sales_local numeric, sales_orders_count int, computed_at timestamptz,
+      net_salary_usd numeric, base_salary_usd numeric, allowances_usd numeric, commission_usd numeric, bonus_usd numeric, deductions_usd numeric,
+      absence_deduction_usd numeric, shortfall_deduction_usd numeric, advance_deduction_usd numeric, allowances_detail jsonb DEFAULT '[]',
+      payment_status text NOT NULL DEFAULT 'pending', paid_at timestamptz);
+    CREATE TABLE public.payroll_run_events (id serial, run_id uuid, period int, action text, actor uuid, changes jsonb, reason text, before_snapshot jsonb);
+    CREATE FUNCTION public.payroll_s2_entries_snapshot(p uuid) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;`);
+  await d.exec(readFileSync('test-support/payroll-prod-bodies-20261101.sql', 'utf8'));
+  return d;
+};
+const tryExec = async (d, sql) => { try { await d.exec(sql); return null; } catch (e) { await d.exec('ROLLBACK').catch(() => {}); return String(e.message || e); } };
+const snapshot = async (d) => (await d.query(`SELECT
+  (SELECT string_agg(tgname || '/' || md5(pg_get_triggerdef(oid)), ',' ORDER BY tgname) FROM pg_trigger WHERE NOT tgisinternal) t,
+  (SELECT string_agg(proname || '=' || md5(pg_get_functiondef(oid)), ',' ORDER BY proname) FROM pg_proc WHERE pronamespace = 'public'::regnamespace) f`)).rows[0];
+const MIG = readFileSync('docs/proposed/20261102_payroll_sales_drift_gate.sql', 'utf8');
+const RB = readFileSync('docs/proposed/20261102_payroll_sales_drift_gate_rollback.sql', 'utf8');
+{
+  // 1) the gate was changed after the 1 Nov review → migration refuses and changes nothing
+  const d = await freshDb();
+  await d.exec(`CREATE OR REPLACE FUNCTION public.payroll_run_consistency_gate() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+    AS $f$ begin /* a protection added later */ if new.status = 'paid' and new.paid_at is null then raise exception 'later protection'; end if; return new; end $f$;`);
+  const s0 = await snapshot(d);
+  const e = await tryExec(d, MIG);
+  ok(e && e.includes('تغيّر منذ مراجعة'), 'GUARD: migration refuses to overwrite a gate changed after the review: ' + e);
+  const s1 = await snapshot(d);
+  ok(s1.t === s0.t && s1.f === s0.f, 'GUARD: refused migration left every function and trigger untouched');
+}
+{
+  // 2) objects with the migration's names already exist → refuse
+  const d = await freshDb();
+  await d.exec('CREATE FUNCTION public.payroll_sales_drift(uuid) RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;');
+  const e = await tryExec(d, MIG);
+  ok(e && e.includes('بأسماء هذه الـmigration'), 'GUARD: migration refuses when its object names already exist');
+}
+{
+  // 3) a protection added AFTER the migration (edited period guard) → rollback refuses, keeps it
+  const d = await freshDb();
+  ok(await tryExec(d, MIG) === null, 'GUARD: migration applies on the reviewed production state');
+  await d.exec(`CREATE OR REPLACE FUNCTION public.payroll_runs_period_guard() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'stricter later rule'; END $f$;`);
+  const s0 = await snapshot(d);
+  const e = await tryExec(d, RB);
+  ok(e && e.includes('لا تراجع آلي') && e.includes('payroll_runs_period_guard'), 'GUARD: rollback refuses when a migration object was changed later (names it): ' + e);
+  const s1 = await snapshot(d);
+  ok(s1.t === s0.t && s1.f === s0.f, 'GUARD: refused rollback changed nothing (the later protection survives)');
+}
+{
+  // 3b) a migration trigger was removed after applying (someone disabled the lock) → rollback refuses, changes nothing
+  const d = await freshDb();
+  await d.exec(MIG);
+  await d.exec('DROP TRIGGER payroll_entries_payment_guard ON public.payroll_entries;');
+  const s0 = await snapshot(d);
+  const e = await tryExec(d, RB);
+  ok(e && e.includes('مشغّلا الـmigration'), 'GUARD: rollback refuses when a migration trigger is missing/re-pointed: ' + e);
+  const s1 = await snapshot(d);
+  ok(s1.t === s0.t && s1.f === s0.f, 'GUARD: refused rollback changed nothing');
+}
+{
+  // 4) an unrelated protection added after the migration survives a normal rollback
+  const d = await freshDb();
+  const sProd = await snapshot(d);
+  await d.exec(MIG);
+  await d.exec(`CREATE FUNCTION public.later_protection() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RETURN NEW; END $f$;
+    CREATE TRIGGER payroll_runs_later_protection BEFORE UPDATE ON public.payroll_runs FOR EACH ROW EXECUTE FUNCTION public.later_protection();`);
+  ok(await tryExec(d, RB) === null, 'GUARD: rollback runs when the migration objects are untouched');
+  const s1 = await snapshot(d);
+  ok(s1.t.includes('payroll_runs_later_protection') && s1.f.includes('later_protection='), 'GUARD: a protection added later (other name) is NOT removed by rollback');
+  const strip = (s) => s.split(',').filter((x) => !x.startsWith('later_protection') && !x.startsWith('payroll_runs_later_protection')).join(',');
+  ok(strip(s1.t) === sProd.t && strip(s1.f) === sProd.f, 'GUARD: everything else is back exactly to the production state');
+  // 5) a second rollback (already rolled back) refuses instead of re-creating the old gate on top
+  const e = await tryExec(d, RB);
+  ok(e && e.includes('لا تراجع آلي'), 'GUARD: rollback is not re-runnable blindly');
+}
+{
+  // 6) the REAL October run row (production, 2 Nov 2026): status 'finalized' + archived_at set → payment goes through the lock
+  const d = await freshDb();
+  await d.exec(MIG);
+  const OCT = { id: 'f2926f39-3f39-45fe-9fd0-d612ee7c2781', period_year: 2026, period_month: 10, rate_usd_try: 50, rate_usd_syp: 143.2, month_setup_confirmed_at: '2026-11-01T13:36:26.423+00:00',
+    finalized_at: '2026-11-01T18:32:09.48608+00:00', archived_at: '2026-11-01T18:32:11.952+00:00', employee_count: 0, total_net_usd: 0 };
+  await d.query("INSERT INTO public.profiles (id, employee_name, role_type, is_active) VALUES ($1, 'hosam ayoub', 'admin', true)", [P.hosam]);
+  await d.query('INSERT INTO public.payroll_access VALUES ($1, true)', [P.hosam]);
+  await d.query('INSERT INTO public.payroll_runs (id, period_year, period_month, status, rate_usd_try, rate_usd_syp, month_setup_confirmed_at, employee_count, total_net_usd) VALUES ($1, 2026, 10, $2, 50, 143.2, $3, 0, 0)', [OCT.id, 'draft', OCT.month_setup_confirmed_at]);
+  // reach the production state (finalized, archived) the way production did: through the definer path
+  const e0 = await tryExec(d, `BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true);
+    UPDATE public.payroll_runs SET status = 'finalized', finalized_at = '${OCT.finalized_at}' WHERE id = '${OCT.id}'; COMMIT;`);
+  ok(!!e0, 'OCT: privileged draft→finalized without a verifiable sales source is refused: ' + e0);
+  const st = (await d.query('SELECT status, archived_at FROM public.payroll_runs WHERE id = $1', [OCT.id])).rows[0];
+  // the draft→finalized step above needs the live-sales source; this fresh DB has none, so it must have been refused:
+  ok(st.status === 'draft', 'OCT: even reaching "finalized" needs the sales check (fresh DB has no sales source → refused)');
+  // put the row in its exact production state directly (as if approved before the migration existed), then archive like the UI
+  await d.exec('ALTER TABLE public.payroll_runs DISABLE TRIGGER USER');
+  await d.query("UPDATE public.payroll_runs SET status = 'finalized', finalized_at = $2 WHERE id = $1", [OCT.id, OCT.finalized_at]);
+  await d.exec('ALTER TABLE public.payroll_runs ENABLE TRIGGER USER');
+  ok(await tryExec(d, `UPDATE public.payroll_runs SET archived_at = '${OCT.archived_at}' WHERE id = '${OCT.id}'`) === null, 'OCT: archiving a finalized run is still allowed (UI does this 2.5 s after approval)');
+  const row = (await d.query('SELECT status, archived_at IS NOT NULL a FROM public.payroll_runs WHERE id = $1', [OCT.id])).rows[0];
+  ok(row.status === 'finalized' && row.a, 'OCT: row now matches production (finalized, archived)');
+  await d.exec(`SELECT set_config('test.uid', '${P.hosam}', false)`);
+  const e1 = await tryExec(d, `SELECT public.payroll_mark_paid('${OCT.id}')`);
+  ok(e1 && /profitability_orders/.test(e1), 'OCT: payroll_mark_paid on the archived finalized October run enters the lock (no sales source here → refused, fail-closed): ' + e1);
+  ok((await d.query('SELECT status FROM public.payroll_runs WHERE id = $1', [OCT.id])).rows[0].status === 'finalized', 'OCT: still finalized, not paid');
+  // 'approved' cannot exist in the database: the CHECK constraint rejects it, so no status escapes the branch
+  const e2 = await tryExec(d, `ALTER TABLE public.payroll_runs DISABLE TRIGGER USER; UPDATE public.payroll_runs SET status = 'approved' WHERE id = '${OCT.id}';`);
+  await d.exec('ALTER TABLE public.payroll_runs ENABLE TRIGGER USER').catch(() => {});
+  ok(e2 && /check constraint|payroll_runs_status_check/i.test(e2), "STATUS: 'approved' is impossible in the table (CHECK) — finalized is the only approved state: " + e2);
 }
 
 console.log(`payroll sales drift SQL: ${pass} passed, ${fail} failed`);

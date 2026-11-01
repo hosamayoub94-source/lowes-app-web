@@ -1,4 +1,57 @@
--- Production bodies as of 1 Nov 2026 (read with pg_get_functiondef, read-only). Test fixture only.
+-- Production bodies (pg_get_functiondef, read-only; re-read 2 Nov 2026). Test fixture only — byte-exact copies, verified by md5(prosrc) in the test.
+CREATE OR REPLACE FUNCTION public.current_role_type()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  select role_type from public.profiles where id = auth.uid()
+$function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_can_finalize()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.payroll_access pa
+    JOIN public.profiles p ON p.id = pa.profile_id
+    WHERE pa.profile_id = auth.uid() AND pa.can_finalize = true AND p.is_active = true);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_is_new_period(p_year integer, p_month integer)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$ SELECT coalesce(p_year * 100 + p_month, 0) >= 202609 $function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_period_is_operational(p_year integer, p_month integer)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$ select coalesce(p_year * 100 + p_month, 0) >= 202610 $function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_s2_authorized_path()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+  SELECT coalesce(current_setting('payroll.s2_path', true), '') = 'rpc'
+     AND current_user NOT IN ('anon', 'authenticated', 'service_role');
+$function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_run_is_locked_new(p_run_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  SELECT coalesce(
+    (SELECT public.payroll_is_new_period(r.period_year, r.period_month) AND r.status <> 'draft'
+       FROM public.payroll_runs r WHERE r.id = p_run_id),
+    false);
+$function$;
+
 CREATE OR REPLACE FUNCTION public.payroll_runs_s2_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -159,5 +212,92 @@ begin
   return new;
 end $function$;
 
+CREATE OR REPLACE FUNCTION public.payroll_entries_s2_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF (TG_OP <> 'INSERT' AND public.payroll_run_is_locked_new(OLD.run_id))
+     OR (TG_OP <> 'DELETE' AND public.payroll_run_is_locked_new(NEW.run_id)) THEN
+    IF NOT public.payroll_s2_authorized_path() THEN
+      RAISE EXCEPTION 'بنود دورة أيلول 2026+ معتمدة/مدفوعة — لا تُضاف ولا تُعدَّل ولا تُحذف. أعد فتح الدورة أولاً (D-090).'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_mark_paid(p_run_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE r public.payroll_runs%ROWTYPE;
+BEGIN
+  IF NOT public.payroll_can_finalize() THEN
+    RAISE EXCEPTION 'تسجيل الدفع لحسام وأماني فقط (D-090).' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  SELECT * INTO r FROM public.payroll_runs WHERE id = p_run_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'الدورة غير موجودة.'; END IF;
+  IF NOT public.payroll_is_new_period(r.period_year, r.period_month) THEN
+    RAISE EXCEPTION 'هذا المسار لدورات أيلول 2026+ فقط.';
+  END IF;
+  IF r.status <> 'finalized' THEN RAISE EXCEPTION 'الدفع لدورة معتمدة فقط (الحالة: %).', r.status; END IF;
+
+  PERFORM set_config('payroll.s2_path', 'rpc', true);
+  UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = p_run_id;
+  INSERT INTO public.payroll_run_events (run_id, period, action, actor)
+  VALUES (p_run_id, r.period_year * 100 + r.period_month, 'pay', auth.uid());
+  PERFORM set_config('payroll.s2_path', '', true);
+
+  RETURN jsonb_build_object('run_id', p_run_id, 'status', 'paid');
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_runs_delete_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if coalesce(old.period_year * 100 + old.period_month, 0) < 202610 then
+    raise exception 'لا يمكن حذف دورة تاريخية (قبل تشرين الأول 2026) — هي سجل للعرض والتدقيق فقط.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if old.status is distinct from 'draft' then
+    raise exception 'لا تُحذف إلا مسودة غير معتمدة — الدورة المعتمدة أو المدفوعة تُعاد فتحها ولا تُحذف.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return old;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.payroll_sync_run_summary()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare rid uuid;
+begin
+  for rid in
+    select distinct x from unnest(array[
+      case when tg_op <> 'DELETE' then new.run_id end,
+      case when tg_op <> 'INSERT' then old.run_id end]) x
+    where x is not null
+  loop
+    update public.payroll_runs r
+       set employee_count = s.n, total_net_usd = s.t
+      from (select count(*)::int n, coalesce(sum(net_salary_usd), 0) t
+              from public.payroll_entries where run_id = rid) s
+     where r.id = rid
+       and r.status = 'draft'
+       and public.payroll_period_is_operational(r.period_year, r.period_month)
+       and (r.employee_count is distinct from s.n or r.total_net_usd is distinct from s.t);
+  end loop;
+  return null;
+end $function$;
+
+CREATE TRIGGER payroll_entries_s2_guard BEFORE INSERT OR DELETE OR UPDATE ON public.payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_entries_s2_guard();
+CREATE TRIGGER payroll_entries_sync_run_summary AFTER INSERT OR DELETE OR UPDATE OF net_salary_usd, run_id ON public.payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_sync_run_summary();
+CREATE TRIGGER payroll_runs_delete_guard BEFORE DELETE ON public.payroll_runs FOR EACH ROW EXECUTE FUNCTION payroll_runs_delete_guard();
 CREATE TRIGGER payroll_runs_s2_guard BEFORE INSERT OR DELETE OR UPDATE ON public.payroll_runs FOR EACH ROW EXECUTE FUNCTION payroll_runs_s2_guard();
 CREATE TRIGGER payroll_runs_zz_consistency_gate BEFORE UPDATE ON public.payroll_runs FOR EACH ROW EXECUTE FUNCTION payroll_run_consistency_gate();
