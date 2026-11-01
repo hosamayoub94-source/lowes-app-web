@@ -56,11 +56,5 @@ export function summarizeGroups(entries = [], netOf = (e) => Number(e?.net_salar
   return out;
 }
 
-// ما تدفعه الإمارات (Reem) عن موظفين من هذه الدورة — معلوماتي فقط، لا يدخل إجمالي الدورة ولا الاعتماد/الدفع.
-// قرار المالك 1/11/2026 (من أكتوبر 2026): Arwa راتبها كله من الإمارات، وSham نصف راتبها (النصف علينا: 100$ + 5$ إنترنت).
-// المبالغ من إعدادات الرواتب (Arwa 130+10، Sham 200+10 قبل التقسيم) — تحتاج تأكيد من حسابات الإمارات؛ تُنقل لاحقاً لجدول بالقاعدة.
-export const UAE_PAID_SHARES = [
-  { employee_id: '2320f139-c909-4604-8778-f22f00eb689d', name: 'Arwa Mohammed', part: 'كامل الراتب (130$ أساسي + 10$ إنترنت)', usd: 140 },
-  { employee_id: 'f9e95205-99e9-4575-97fb-297f55aa8dcd', name: 'Sham', part: 'نصف الراتب (100$ أساسي + 5$ إنترنت) — النصف الآخر علينا', usd: 105 },
-];
-export const uaePaidTotalUsd = () => UAE_PAID_SHARES.reduce((n, x) => n + x.usd, 0);
+// ما تدفعه الإمارات (Reem) عن موظفين — صفوف payroll_external_shares (عرض فقط، لا يدخل إجمالي الدورة).
+export const externalSharesTotalUsd = (rows = []) => Math.round(rows.reduce((n, r) => n + (Number(r?.amount_usd) || 0), 0) * 100) / 100;

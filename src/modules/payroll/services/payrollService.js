@@ -297,3 +297,27 @@ export async function upsertExchangeRate(rate) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+/**
+ * ما تدفعه الإمارات عن موظفين لدورة (year, month): الصفوف الفعّالة التي بدأت في/قبل هذا الشهر. للعرض فقط.
+ * فشل القراءة (جدول غير موجود/صلاحية) ⇒ [] بلا كسر الشاشة.
+ */
+export async function fetchExternalShares(year, month) {
+  if (USE_MOCK) return [];
+  try {
+    const { supabase } = await import('@services/supabase');
+    const { data, error } = await supabase
+      .from('payroll_external_shares')
+      .select('id, employee_id, payer, part_label, amount_usd, from_year, from_month, note, profiles(employee_name)')
+      .eq('is_active', true)
+      .eq('payer', 'uae');
+    if (error) return [];
+    const key = Number(year) * 12 + Number(month);
+    return (data ?? [])
+      .filter((r) => r.from_year * 12 + r.from_month <= key)
+      .map((r) => ({ ...r, name: r.profiles?.employee_name ?? '' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}

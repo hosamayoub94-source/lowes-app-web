@@ -1,5 +1,5 @@
 /* global process */
-import { UAE_PAID_SHARES, uaePaidTotalUsd, MANAGEMENT_EMPLOYEE_IDS, groupOfEntry, filterEntriesByGroup, summarizeGroups, PAYROLL_GROUPS } from './src/modules/payroll/utils/payrollGroups.js';
+import { externalSharesTotalUsd, MANAGEMENT_EMPLOYEE_IDS, groupOfEntry, filterEntriesByGroup, summarizeGroups, PAYROLL_GROUPS } from './src/modules/payroll/utils/payrollGroups.js';
 let pass = 0; let fail = 0;
 const eq = (a, b, m) => { if (JSON.stringify(a) === JSON.stringify(b)) pass += 1; else { fail += 1; console.error('FAIL', m, JSON.stringify(a), '≠', JSON.stringify(b)); } };
 
@@ -37,8 +37,8 @@ eq(sm.admin.totals.USD, 579, 'صافي الإدارة');
 // عملتان
 const mixed = [E('a', 'تركيا', 10, { currency: 'TRY' }), E('b', 'تركيا', 20, { currency: 'USD' })];
 eq(summarizeGroups(mixed).turkey.totals, { TRY: 10, USD: 20 }, 'عملات منفصلة');
-eq(UAE_PAID_SHARES.length, 2, 'الإمارات: Arwa وSham');
-eq(uaePaidTotalUsd(), 245, 'ما على الإمارات = 140 + 105');
-eq(new Set(UAE_PAID_SHARES.map((x) => x.employee_id)).size, 2, 'معرّفان مختلفان');
+eq(externalSharesTotalUsd([{ amount_usd: '140.00' }, { amount_usd: 105 }]), 245, 'ما على الإمارات = 140 + 105');
+eq(externalSharesTotalUsd([]), 0, 'فارغ = 0');
+eq(externalSharesTotalUsd([{ amount_usd: 0.1 }, { amount_usd: 0.2 }]), 0.3, 'تقريب عشري');
 console.log(`payroll groups: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
