@@ -1,12 +1,18 @@
 -- =====================================================================
--- D-181 · قفل اعتماد الرواتب بالخادم عند تغيّر مبيعات التسليم بعد الحسبة
+-- D-181 · قفل اعتماد الرواتب **وتسجيل دفعها** بالخادم عند تغيّر مبيعات التسليم بعد الحسبة
 -- الحالة: مقترح — غير مطبَّق. لا يُطبَّق على الإنتاج إلا بموافقة المالك الصريحة.
 -- الاختبار: node test-payroll-sales-drift-sql.mjs (PGlite، بيانات وهمية) — يشمل محاولات التجاوز وتطابق JS/SQL.
 -- التراجع: 20261102_payroll_sales_drift_gate_rollback.sql
 --
--- لماذا هنا: كل انتقال draft → finalized/approved/paid لدورة تشغيلية (≥ 2026-10) يمرّ بالمشغّل
--- payroll_runs_zz_consistency_gate (BEFORE UPDATE)، سواء جاء من payroll_approve_run أو من أي UPDATE آخر.
--- فالفحص فيه يُغلق كل المسارات، لا زرّ الواجهة فقط.
+-- النطاق: الدورات التشغيلية فقط (payroll_period_is_operational: ≥ 2026-10). أيلول 2026 وما قبله لا يتأثر.
+-- المسارات المغطاة (كلها بالخادم، لا تعتمد على الواجهة):
+--   1) الاعتماد draft → finalized/paid: المشغّل القائم payroll_runs_zz_consistency_gate + فحص المبيعات.
+--   2) تسجيل الدفع finalized → paid (payroll_mark_paid أو أي UPDATE): نفس المشغّل، فرع جديد يعيد فحص المبيعات.
+--   3) نقل دورة إلى شهر خارج النطاق للتهرب من الفحص، أو إدراج دورة غير مسودّة: payroll_runs_period_guard.
+--   4) تسجيل الدفع على مستوى القيد (payment_status='paid' أو paid_at): payroll_entries_payment_guard — الدفع للدورة فقط.
+-- لا مسار تجاوز: لا إعداد ولا دور يتخطى الفحص (حتى المسار المميّز payroll.s2_path='rpc').
+-- ملاحظة محاسبية: الفحص «حيّ» — أي مرتجع/تأكيد/تغيير حالة يمسّ مبيعات الشهر بعد الاعتماد يوقف تسجيل الدفع
+-- حتى إعادة الفتح وإعادة الحسبة (قرار المالك: هل هذا المطلوب لكل تغيير؟ — انظر التقرير § 5ج).
 --
 -- ما يُحسب: مبيعات كل قيد آلي الآن بعملة فريق الموظف — نسخة SQL حرفية من مسار الرواتب بالواجهة:
 --   profitability_orders(p_from, p_to, true)  ← نفس المصدر (FINANCE_CONFIRMED_AFFECTS_PAYROLL = true)
@@ -141,7 +147,22 @@ REVOKE ALL ON FUNCTION public.payroll_live_team_sales(uuid) FROM PUBLIC, anon, a
 REVOKE ALL ON FUNCTION public.payroll_sales_drift(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.payroll_sales_drift(uuid) TO authenticated;
 
--- المشغّل القائم كما هو بالإنتاج (1/11/2026) + فحص المبيعات في آخره.
+-- يرفض العملية (اعتماد/دفع) إن تغيّرت مبيعات أي قيد آلي منذ الحسبة، أو تعذّر التحقق (أي خطأ يمرّ كما هو فيرفض).
+CREATE OR REPLACE FUNCTION public.payroll_assert_sales_fresh(p_run_id uuid, p_action text)
+RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE bad int; names text;
+BEGIN
+  SELECT count(*), string_agg(format('%s: %s→%s طلب، %s→%s', d.employee_name, d.stored_count, d.live_count, d.stored_local, d.live_local), '؛ ')
+    INTO bad, names
+    FROM public.payroll_sales_drift(p_run_id) d;
+  IF bad > 0 THEN
+    RAISE EXCEPTION '%: مبيعات التسليمات تغيّرت بعد آخر حسبة لـ% موظف (%) — أعد فتح/تشغيل الدورة أولاً.', p_action, bad, names
+      USING ERRCODE = 'check_violation';
+  END IF;
+END $$;
+REVOKE ALL ON FUNCTION public.payroll_assert_sales_fresh(uuid, text) FROM PUBLIC, anon, authenticated;
+
+-- المشغّل القائم كما هو بالإنتاج (1/11/2026) + فحص المبيعات عند الاعتماد + فرع تسجيل الدفع.
 CREATE OR REPLACE FUNCTION public.payroll_run_consistency_gate()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -150,8 +171,14 @@ CREATE OR REPLACE FUNCTION public.payroll_run_consistency_gate()
 AS $function$
 declare n int; t numeric; bad int; names text;
 begin
-  if not (old.status = 'draft' and new.status in ('finalized', 'approved', 'paid')) then return new; end if;
   if not public.payroll_period_is_operational(old.period_year, old.period_month) then return new; end if;
+  -- D-181: تسجيل الدفع لدورة معتمدة (payroll_mark_paid أو أي UPDATE) يعيد فحص المبيعات الحية.
+  -- القيود مقفلة منذ الاعتماد، فالفحوص الأخرى أدناه نتيجتها لم تتغيّر ولا تُعاد هنا.
+  if old.status in ('finalized', 'approved') and new.status = 'paid' then
+    perform public.payroll_assert_sales_fresh(old.id, 'لا يُسجَّل الدفع');
+    return new;
+  end if;
+  if not (old.status = 'draft' and new.status in ('finalized', 'approved', 'paid')) then return new; end if;
 
   select count(*)::int, coalesce(sum(net_salary_usd), 0) into n, t from public.payroll_entries where run_id = old.id;
   if old.employee_count is distinct from n or round(coalesce(old.total_net_usd, 0), 2) <> round(t, 2) then
@@ -181,15 +208,50 @@ begin
   if bad > 0 then raise exception '% قيد آلي بدلاته لا تطابق تفصيل البدلات المحفوظ — أعد تشغيل الدورة.', bad; end if;
 
   -- D-181: مبيعات التسليم الآن = المحفوظة بالقيود؟ (تأكيد مالي/إثبات شحن/تغيير حالة بعد الحسبة ⇒ رفض)
-  select count(*), string_agg(format('%s: %s→%s طلب، %s→%s', d.employee_name, d.stored_count, d.live_count, d.stored_local, d.live_local), '؛ ')
-    into bad, names
-    from public.payroll_sales_drift(old.id) d;
-  if bad > 0 then
-    raise exception 'مبيعات التسليمات تغيّرت بعد آخر حسبة لـ% موظف (%) — أعد تشغيل الدورة قبل الاعتماد.', bad, names
-      using errcode = 'check_violation';
-  end if;
+  perform public.payroll_assert_sales_fresh(old.id, 'لا تُعتمد الدورة');
 
   return new;
 end $function$;
+
+-- D-181: لا تهرّب من الفحص بتغيير شهر الدورة، ولا دورة تشغيلية تولد غير مسودّة (حتى بالمسار المميّز).
+CREATE OR REPLACE FUNCTION public.payroll_runs_period_guard()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF public.payroll_period_is_operational(NEW.period_year, NEW.period_month) AND NEW.status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'دورة تشغيلية (تشرين الأول 2026+) تبدأ مسودة فقط ثم تُعتمد وتُدفع عبر الفحوص (D-181).' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF (NEW.period_year, NEW.period_month) IS DISTINCT FROM (OLD.period_year, OLD.period_month)
+     AND (public.payroll_period_is_operational(OLD.period_year, OLD.period_month)
+          OR public.payroll_period_is_operational(NEW.period_year, NEW.period_month)) THEN
+    RAISE EXCEPTION 'لا يُغيَّر شهر دورة رواتب تشغيلية (% → %) — أنشئ دورة جديدة للشهر الصحيح (D-181).',
+      OLD.period_year * 100 + OLD.period_month, NEW.period_year * 100 + NEW.period_month USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS payroll_runs_period_guard ON public.payroll_runs;
+CREATE TRIGGER payroll_runs_period_guard BEFORE INSERT OR UPDATE ON public.payroll_runs
+  FOR EACH ROW EXECUTE FUNCTION public.payroll_runs_period_guard();
+
+-- D-181: الدفع يُسجَّل للدورة فقط (payroll_mark_paid). لا قيد يُعلَّم «مدفوع» أو يُعطى paid_at بدورة تشغيلية
+-- (لا كاتب شرعي لهذين العمودين اليوم: كل الـ287 قيداً pending). «hold» مسموح كما هو.
+CREATE OR REPLACE FUNCTION public.payroll_entries_payment_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE op boolean;
+BEGIN
+  SELECT public.payroll_period_is_operational(r.period_year, r.period_month) INTO op FROM public.payroll_runs r WHERE r.id = NEW.run_id;
+  IF NOT coalesce(op, false) THEN RETURN NEW; END IF;
+  IF (TG_OP = 'INSERT' AND (NEW.payment_status = 'paid' OR NEW.paid_at IS NOT NULL))
+     OR (TG_OP = 'UPDATE' AND ((NEW.payment_status = 'paid' AND OLD.payment_status IS DISTINCT FROM 'paid')
+                               OR NEW.paid_at IS DISTINCT FROM OLD.paid_at)) THEN
+    RAISE EXCEPTION 'الدفع يُسجَّل للدورة كاملة عبر payroll_mark_paid فقط، لا للقيد الفردي (D-181).' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS payroll_entries_payment_guard ON public.payroll_entries;
+CREATE TRIGGER payroll_entries_payment_guard BEFORE INSERT OR UPDATE ON public.payroll_entries
+  FOR EACH ROW EXECUTE FUNCTION public.payroll_entries_payment_guard();
 
 COMMIT;

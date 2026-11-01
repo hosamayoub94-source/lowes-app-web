@@ -1,4 +1,4 @@
--- التراجع عن 20261102_payroll_sales_drift_gate.sql: يعيد المشغّل كما كان بالإنتاج في 1/11/2026 ويحذف الدوال الجديدة.
+-- التراجع عن 20261102_payroll_sales_drift_gate.sql: يعيد مشغّل الاتساق كما كان بالإنتاج في 1/11/2026 ويحذف المشغّلين والدوال الجديدة.
 -- لا يمسّ أي بيانات (دورات/قيود/طلبات).
 BEGIN;
 
@@ -43,6 +43,11 @@ begin
   return new;
 end $function$;
 
+DROP TRIGGER IF EXISTS payroll_runs_period_guard ON public.payroll_runs;
+DROP FUNCTION IF EXISTS public.payroll_runs_period_guard();
+DROP TRIGGER IF EXISTS payroll_entries_payment_guard ON public.payroll_entries;
+DROP FUNCTION IF EXISTS public.payroll_entries_payment_guard();
+DROP FUNCTION IF EXISTS public.payroll_assert_sales_fresh(uuid, text);
 DROP FUNCTION IF EXISTS public.payroll_sales_drift(uuid);
 DROP FUNCTION IF EXISTS public.payroll_live_team_sales(uuid);
 DROP FUNCTION IF EXISTS public.payroll_norm_name(text);

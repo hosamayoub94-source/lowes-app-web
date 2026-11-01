@@ -102,8 +102,10 @@ CREATE TABLE public.payroll_runs (id uuid PRIMARY KEY, period_year int, period_m
   approved_by uuid, finalized_by uuid, finalized_at timestamptz, archived_at timestamptz, paid_at timestamptz);
 CREATE TABLE public.payroll_entries (id serial PRIMARY KEY, run_id uuid, employee_id uuid, source text, team text, sales_local numeric, sales_orders_count int,
   computed_at timestamptz, net_salary_usd numeric, base_salary_usd numeric, allowances_usd numeric DEFAULT 0, commission_usd numeric DEFAULT 0, bonus_usd numeric DEFAULT 0,
-  deductions_usd numeric DEFAULT 0, absence_deduction_usd numeric DEFAULT 0, shortfall_deduction_usd numeric DEFAULT 0, advance_deduction_usd numeric DEFAULT 0, allowances_detail jsonb DEFAULT '[]');
-CREATE TABLE public.payroll_run_events (id serial PRIMARY KEY, run_id uuid, period int, action text, actor uuid, changes jsonb, reason text, before_snapshot jsonb);
+  deductions_usd numeric DEFAULT 0, absence_deduction_usd numeric DEFAULT 0, shortfall_deduction_usd numeric DEFAULT 0, advance_deduction_usd numeric DEFAULT 0, allowances_detail jsonb DEFAULT '[]',
+  payment_status text NOT NULL DEFAULT 'pending' CHECK (payment_status = ANY (ARRAY['pending','paid','hold'])), paid_at timestamptz);
+ALTER TABLE public.payroll_runs ADD CONSTRAINT payroll_runs_status_check CHECK (status = ANY (ARRAY['draft','finalized','paid']));
+CREATE TABLE public.payroll_run_events (id serial PRIMARY KEY, run_id uuid, period int, action text, actor uuid, at timestamptz DEFAULT now(), changes jsonb, reason text, before_snapshot jsonb);
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 
 -- production bodies (1 Nov 2026)
@@ -138,6 +140,43 @@ await insertRows('profiles', profiles);
 await insertRows('payroll_access', [{ profile_id: P.hosam, can_finalize: true }, { profile_id: P.clerk, can_finalize: true }]);
 await insertRows('orders', orders);
 await insertRows('exchange_rates', exchange_rates);
+// payroll_mark_paid as in production (1 Nov 2026)
+await db.exec(`CREATE FUNCTION public.payroll_mark_paid(p_run_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $function$
+DECLARE r public.payroll_runs%ROWTYPE;
+BEGIN
+  IF NOT public.payroll_can_finalize() THEN
+    RAISE EXCEPTION 'تسجيل الدفع لحسام وأماني فقط (D-090).' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  SELECT * INTO r FROM public.payroll_runs WHERE id = p_run_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'الدورة غير موجودة.'; END IF;
+  IF NOT public.payroll_is_new_period(r.period_year, r.period_month) THEN
+    RAISE EXCEPTION 'هذا المسار لدورات أيلول 2026+ فقط.';
+  END IF;
+  IF r.status <> 'finalized' THEN RAISE EXCEPTION 'الدفع لدورة معتمدة فقط (الحالة: %).', r.status; END IF;
+  PERFORM set_config('payroll.s2_path', 'rpc', true);
+  UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = p_run_id;
+  INSERT INTO public.payroll_run_events (run_id, period, action, actor) VALUES (p_run_id, r.period_year * 100 + r.period_month, 'pay', auth.uid());
+  PERFORM set_config('payroll.s2_path', '', true);
+  RETURN jsonb_build_object('run_id', p_run_id, 'status', 'paid');
+END $function$;
+CREATE FUNCTION public.payroll_run_is_locked_new(p_run_id uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $$
+  SELECT coalesce((SELECT public.payroll_is_new_period(r.period_year, r.period_month) AND r.status <> 'draft' FROM public.payroll_runs r WHERE r.id = p_run_id), false); $$;
+CREATE FUNCTION public.payroll_entries_s2_guard() RETURNS trigger LANGUAGE plpgsql AS $function$
+BEGIN
+  IF (TG_OP <> 'INSERT' AND public.payroll_run_is_locked_new(OLD.run_id))
+     OR (TG_OP <> 'DELETE' AND public.payroll_run_is_locked_new(NEW.run_id)) THEN
+    IF NOT public.payroll_s2_authorized_path() THEN
+      RAISE EXCEPTION 'بنود دورة أيلول 2026+ معتمدة/مدفوعة — لا تُضاف ولا تُعدَّل ولا تُحذف. أعد فتح الدورة أولاً (D-090).'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END $function$;
+CREATE TRIGGER payroll_entries_s2_guard BEFORE INSERT OR DELETE OR UPDATE ON public.payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_entries_s2_guard();`);
+const objects = async () => (await q(`SELECT
+  (SELECT string_agg(tgrelid::regclass || '.' || tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE NOT tgisinternal) AS triggers,
+  (SELECT string_agg(md5(pg_get_functiondef(p.oid)), ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public') AS funcs`)).rows[0];
+const before = await objects();
 const gateBefore = (await q(`SELECT pg_get_functiondef('public.payroll_run_consistency_gate()'::regprocedure) d`)).rows[0].d;
 
 await db.exec(readFileSync('docs/proposed/20261102_payroll_sales_drift_gate.sql', 'utf8'));
@@ -177,6 +216,12 @@ try {
   await insertRows('orders', [o('Hla Al Namra', 999, 'TRY', '2026-11-01T09:00:00Z', { delivered_at: '2026-11-02T09:00:00Z' })]);
   ok((await q('SELECT count(*)::int n FROM public.payroll_sales_drift($1)', [R1])).rows[0].n === 0, 'November delivery → October still not stale');
   ok(await err('SELECT public.payroll_approve_run($1)', [R1]) === null && await status(R1) === 'finalized', 'clean run approves through the RPC');
+  // payment 1: approved and sales unchanged → payment recorded
+  ok(await err('SELECT public.payroll_mark_paid($1)', [R1]) === null && await status(R1) === 'paid', 'PAY: approved run with unchanged sales → payroll_mark_paid succeeds');
+  // R3: approved now (clean), paid only AFTER the delivery data changes below
+  const R3 = U(503);
+  await newRun(R3, sql);
+  ok(await err('SELECT public.payroll_approve_run($1)', [R3]) === null && await status(R3) === 'finalized', 'R3 approved while sales were current');
 
   // ── C) late finance confirmation → every path refused
   await newRun(R2, sql);
@@ -216,6 +261,88 @@ try {
   ok(await status(R2) === 'draft', 'still draft');
   await asUser(P.hosam);
 
+  // ── E) payment after approval: the delivery data changed between approval and payment (R3)
+  const p1 = await err('SELECT public.payroll_mark_paid($1)', [R3]);
+  ok(p1 && p1.includes('لا يُسجَّل الدفع') && p1.includes('Hla Al Namra') && p1.includes('4→5') && p1.includes('5200.00→6500.00'), 'PAY: change between approval and payment detected — RPC refused with names and differences: ' + p1);
+  ok(await status(R3) === 'finalized', 'PAY: run stays finalized (approved run, entries and status untouched)');
+  ok((await q("SELECT count(*)::int n FROM public.payroll_run_events WHERE run_id = $1 AND action = 'pay'", [R3])).rows[0].n === 0, 'PAY: no pay event written');
+
+  await db.exec('SET ROLE authenticated');
+  const p2 = await err("UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = $1", [R3]);
+  await db.exec('RESET ROLE');
+  ok(p2 && /payroll_mark_paid/.test(p2), 'PAY: direct UPDATE by an app user refused: ' + p2);
+
+  let p3 = null;
+  try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = '" + R3 + "'; COMMIT;"); }
+  catch (e) { p3 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p3 && p3.includes('لا يُسجَّل الدفع'), 'PAY: privileged UPDATE that passes the s2 guard is still refused by the trigger: ' + p3);
+
+  let p3b = null;
+  try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = '" + R2 + "'; COMMIT;"); }
+  catch (e) { p3b = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p3b && p3b.includes('مبيعات التسليمات تغيّرت') && await status(R2) === 'draft', 'PAY: draft → paid directly (privileged, skipping approval) is refused by the same checks: ' + p3b);
+
+  // privileged path with NO signed-in user (service/SQL editor style): cannot verify → refused
+  await asUser('');
+  let p4 = null;
+  try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); UPDATE public.payroll_runs SET status = 'paid' WHERE id = '" + R3 + "'; COMMIT;"); }
+  catch (e) { p4 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p4 && p4.includes('لحسام وأماني فقط'), 'PAY: privileged UPDATE without a user cannot run the check → refused: ' + p4);
+  await asUser(P.hosam);
+
+  // reading the delivery data fails → payment refused
+  await db.exec(`ALTER FUNCTION public.profitability_orders(timestamptz, timestamptz, boolean) RENAME TO profitability_orders_ok;
+    CREATE FUNCTION public.profitability_orders(p_from timestamptz, p_to timestamptz, p_use_finance_confirmations boolean DEFAULT true)
+    RETURNS TABLE(id uuid, order_code text, market text, status text, order_date timestamptz, amount numeric, currency text, delivered_at timestamptz, delivery_basis text, return_at timestamptz)
+    LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'delivery source unavailable'; END $f$;`);
+  const p5 = await err('SELECT public.payroll_mark_paid($1)', [R3]);
+  ok(p5 && p5.includes('delivery source unavailable') && await status(R3) === 'finalized', 'PAY: delivery data unreadable → refused, run unchanged: ' + p5);
+  await db.exec(`DROP FUNCTION public.profitability_orders(timestamptz, timestamptz, boolean);
+    ALTER FUNCTION public.profitability_orders_ok(timestamptz, timestamptz, boolean) RENAME TO profitability_orders;`);
+  await asUser(P.clerk);
+  const p6 = await err('SELECT public.payroll_mark_paid($1)', [R3]);
+  ok(p6 && p6.includes('تعذّر التحقق من مبيعات التسليمات'), 'PAY: finalizer whose role cannot read sales → refused (fail-closed): ' + p6);
+  await asUser(P.hosam);
+
+  // entry-level payment markers on an operational run
+  const eid = (await q("SELECT id FROM public.payroll_entries WHERE run_id = $1 AND source = 'auto' LIMIT 1", [R2])).rows[0].id;
+  const p7 = await err("UPDATE public.payroll_entries SET payment_status = 'paid' WHERE id = $1", [eid]);
+  ok(p7 && p7.includes('للدورة كاملة'), 'ENTRY: marking a single entry paid is refused (draft run): ' + p7);
+  const p8 = await err('UPDATE public.payroll_entries SET paid_at = now() WHERE id = $1', [eid]);
+  ok(p8 && p8.includes('للدورة كاملة'), 'ENTRY: setting paid_at on an entry is refused');
+  const p9 = await err("INSERT INTO public.payroll_entries (run_id, employee_id, source, payment_status) VALUES ($1, $2, 'manual', 'paid')", [R2, P.dina]);
+  ok(p9 && p9.includes('للدورة كاملة'), 'ENTRY: inserting an already-paid entry is refused');
+  ok(await err("UPDATE public.payroll_entries SET payment_status = 'hold' WHERE id = $1", [eid]) === null, 'ENTRY: hold (not a payment) still allowed on a draft run');
+  await q("UPDATE public.payroll_entries SET payment_status = 'pending' WHERE id = $1", [eid]);
+  let p10 = null;
+  try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); UPDATE public.payroll_entries SET payment_status = 'paid' WHERE run_id = '" + R3 + "'; COMMIT;"); }
+  catch (e) { p10 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p10 && p10.includes('للدورة كاملة'), 'ENTRY: even the privileged path cannot mark entries of an approved run paid: ' + p10);
+
+  // escaping the check by moving the run to a month outside the policy, or creating it already paid
+  const p11 = await err('UPDATE public.payroll_runs SET period_month = 9 WHERE id = $1', [R2]);
+  ok(p11 && p11.includes('لا يُغيَّر شهر'), 'BYPASS: moving a draft October run to September is refused: ' + p11);
+  const RS = U(509);
+  await insertRows('payroll_runs', [{ id: RS, ...RUN, period_month: 9, status: 'draft' }]);
+  const p12 = await err('UPDATE public.payroll_runs SET period_month = 10 WHERE id = $1', [RS]);
+  ok(p12 && p12.includes('لا يُغيَّر شهر'), 'BYPASS: moving a September run into October is refused');
+  let p13 = null;
+  try { await db.exec("BEGIN; SELECT set_config('payroll.s2_path', 'rpc', true); INSERT INTO public.payroll_runs (id, period_year, period_month, status) VALUES ('" + U(510) + "', 2026, 10, 'paid'); COMMIT;"); }
+  catch (e) { p13 = String(e.message || e); await db.exec('ROLLBACK').catch(() => {}); }
+  ok(p13 && p13.includes('تبدأ مسودة فقط'), 'BYPASS: inserting an October run already paid is refused even on the privileged path: ' + p13);
+
+  // runs outside the new policy are unaffected
+  // September 2026 (s2 period, not operational): approve + pay with stale entries still works
+  await q("INSERT INTO public.payroll_entries (run_id, employee_id, source, team, sales_local, sales_orders_count, computed_at, net_salary_usd, base_salary_usd) VALUES ($1, $2, 'auto', 'turkey', 1, 1, '2026-11-01T17:57:13Z', 100, 100)", [RS, P.hla]);
+  await q('UPDATE public.payroll_runs SET employee_count = 1, total_net_usd = 100 WHERE id = $1', [RS]);
+  ok(await err('SELECT public.payroll_approve_run($1)', [RS]) === null && await err('SELECT public.payroll_mark_paid($1)', [RS]) === null && await status(RS) === 'paid', 'SCOPE: September 2026 run (outside policy) approves and pays as before');
+  // legacy period (August 2026, < s2): direct status update to paid as before
+  const RL = U(511);
+  await insertRows('payroll_runs', [{ id: RL, ...RUN, period_month: 8, status: 'finalized' }]);
+  await insertRows('payroll_entries', [{ run_id: RL, employee_id: P.hla, source: 'auto', team: 'turkey', sales_local: 1, sales_orders_count: 1, computed_at: '2026-09-01T00:00:00Z', net_salary_usd: 1, base_salary_usd: 1 }]);
+  ok(await err("UPDATE public.payroll_runs SET status = 'paid', paid_at = now() WHERE id = $1", [RL]) === null && await status(RL) === 'paid', 'SCOPE: legacy August run keeps its old direct path');
+  ok(await err("UPDATE public.payroll_entries SET payment_status = 'paid' WHERE run_id = $1", [RL]) === null, 'SCOPE: entry payment flags on legacy runs untouched by the new guard');
+
   // recalculation (entries updated to the live figures) reopens the path
   await q('UPDATE public.payroll_entries SET sales_local = 6500, sales_orders_count = 5, computed_at = $2 WHERE run_id = $1 AND employee_id = $3 AND source = $4', [R2, '2026-11-01T19:00:00Z', P.hla, 'auto']);
   ok((await q('SELECT count(*)::int n FROM public.payroll_sales_drift($1)', [R2])).rows[0].n === 0, 'after recalculation: no drift');
@@ -225,8 +352,12 @@ try {
   await db.exec(readFileSync('docs/proposed/20261102_payroll_sales_drift_gate_rollback.sql', 'utf8'));
   const gateAfter = (await q(`SELECT pg_get_functiondef('public.payroll_run_consistency_gate()'::regprocedure) d`)).rows[0].d;
   ok(gateAfter === gateBefore, 'rollback restores the gate byte-for-byte');
-  ok((await q("SELECT count(*)::int n FROM pg_proc WHERE proname IN ('payroll_sales_drift','payroll_live_team_sales','payroll_norm_name')")).rows[0].n === 0, 'rollback drops the new functions');
+  ok((await q("SELECT count(*)::int n FROM pg_proc WHERE proname IN ('payroll_sales_drift','payroll_live_team_sales','payroll_norm_name','payroll_assert_sales_fresh','payroll_runs_period_guard','payroll_entries_payment_guard')")).rows[0].n === 0, 'rollback drops every new function');
+  const after = await objects();
+  ok(after.triggers === before.triggers, `rollback: trigger set identical to before (${after.triggers})`);
+  ok(after.funcs === before.funcs, 'rollback: every public function body identical to before (md5 of all definitions)');
   ok(await err('SELECT public.payroll_approve_run($1)', [R2]) === null, 'after rollback the old behaviour returns (stale run approvable) — proves the lock came from this migration');
+  ok(await err('SELECT public.payroll_mark_paid($1)', [U(503)]) === null, 'after rollback a stale approved run can be paid again (old behaviour)');
 } finally {
   await server.close();
 }
