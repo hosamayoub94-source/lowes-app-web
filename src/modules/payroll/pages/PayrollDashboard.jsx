@@ -37,6 +37,7 @@ import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { checkRunDeletable } from '../utils/runDeletePolicy.js';
+import { PAYROLL_GROUPS, filterEntriesByGroup, summarizeGroups } from '../utils/payrollGroups.js';
 import { provisionalBlockReason, isOpenPeriod, PROVISIONAL_BANNER } from '../utils/payrollPeriod.js';
 import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
@@ -497,6 +498,12 @@ export function PayrollDashboard() {
     return acc;
   }, {});
 
+  // تبويبات المجموعات (عرض فقط): الإجمالي الكامل والاعتماد/الدفع يبقون على الدورة كلها
+  const [groupTab, setGroupTab] = useState('all');
+  const groupSummary = summarizeGroups(entries, calcNetSalary, run?.currency || 'USD');
+  const visibleEntries = filterEntriesByGroup(entries, groupTab);
+  const visibleTotals = groupSummary[groupTab]?.totals || {};
+
   // Approval must be blocked whenever salary/team inputs or a required currency
   // conversion is incomplete. Otherwise the employee card may show zero sales,
   // zero advance repayment, or an understated salary while appearing approvable.
@@ -786,7 +793,25 @@ export function PayrollDashboard() {
                    الشاشات الكبيرة — عشان شاشة كبيرة تعرض عدد أكبر من
                    بطاقات الموظفين دفعة وحدة بدل التمرير الطويل. */
                 <div className="overflow-y-auto max-h-[85vh] p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3 content-start">
-                  {entries.map(e => (
+                  {/* لوحات المجموعات — عرض فقط، لا عزل: «الكل» هو النتيجة الكاملة */}
+                  <div className="xl:col-span-2 2xl:col-span-3 flex flex-wrap gap-2" role="tablist" aria-label="مجموعات الرواتب">
+                    {PAYROLL_GROUPS.filter(g => g.key === 'all' || g.key === 'uae' || groupSummary[g.key].count > 0).map(g => {
+                      const sm = groupSummary[g.key];
+                      const active = groupTab === g.key;
+                      return (
+                        <button key={g.key} role="tab" aria-selected={active} onClick={() => setGroupTab(g.key)}
+                          className={`px-3 py-2 rounded-xl border text-xs font-bold transition ${active ? 'bg-teal text-navy border-teal' : 'bg-surface-alt/60 text-text border-border/40 hover:border-teal/60'}`}>
+                          <span>{g.icon} {g.label}</span>
+                          <span className="mx-1.5 opacity-70">· {sm.count}</span>
+                          <span className="tabular-nums opacity-90">{Object.entries(sm.totals).map(([c, v]) => formatCurrency(v, c)).join(' + ') || '—'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {visibleEntries.length === 0 && (
+                    <div className="xl:col-span-2 2xl:col-span-3 text-center text-muted text-sm py-8">لا يوجد موظفون في هذه المجموعة بهذه الدورة</div>
+                  )}
+                  {visibleEntries.map(e => (
                     <EmployeePayrollCard
                       key={e.id}
                       entry={e}
@@ -801,13 +826,18 @@ export function PayrollDashboard() {
 
                   {/* الإجمالي (لكل عملة) — يمتد بعرض الشبكة كاملاً */}
                   <div className="xl:col-span-2 2xl:col-span-3 bg-surface-alt/60 border border-border/40 rounded-2xl px-5 py-3 flex items-center justify-between font-bold">
-                    <span className="text-xs text-muted">الإجمالي (لكل عملة)</span>
+                    <span className="text-xs text-muted">{groupTab === 'all' ? 'الإجمالي (لكل عملة)' : `إجمالي «${PAYROLL_GROUPS.find(g => g.key === groupTab)?.label}» (لكل عملة)`}</span>
                     <span className="text-teal font-extrabold text-sm tabular-nums text-left">
-                      {Object.keys(totalsByCurrency).length === 0
+                      {Object.keys(visibleTotals).length === 0
                         ? formatCurrency(0)
-                        : Object.entries(totalsByCurrency).map(([c, v]) => (
+                        : Object.entries(visibleTotals).map(([c, v]) => (
                             <div key={c}>{formatCurrency(v, c)}</div>
                           ))}
+                      {groupTab !== 'all' && (
+                        <div className="text-[11px] text-muted font-normal mt-1">
+                          الإجمالي الكامل: {Object.entries(totalsByCurrency).map(([c, v]) => formatCurrency(v, c)).join(' + ') || formatCurrency(0)}
+                        </div>
+                      )}
                     </span>
                   </div>
                 </div>
