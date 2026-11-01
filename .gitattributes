@@ -2,3 +2,4 @@
 docs/proposed/*.sql text eol=lf
 # Byte-exact copy of production function bodies (one contains CRLF on purpose) — never convert.
 test-support/payroll-prod-bodies-20261101.sql -text
+test-support/payroll-prod-bodies-reopen-20261102.sql -text
