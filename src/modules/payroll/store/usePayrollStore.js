@@ -64,17 +64,18 @@ const usePayrollStore = create()(
 
     // ── Payroll Runs ───────────────────────────────────────────────────────
 
-    async loadRuns(filters = {}) {
-      get()._setLoading('runs', true);
+    // silent=true (التحديث الدوري بالخلفية): لا مؤشر «جار التحميل» ولا استبدال للبيانات إن لم تتغيّر — فلا ترفّ الشاشة كل 30 ثانية.
+    async loadRuns(filters = {}, { silent = false } = {}) {
+      if (!silent) get()._setLoading('runs', true);
       try {
         const { fetchPayrollRuns } = await import('../services/payrollService.js');
         const merged = { ...get().filters, ...filters };
         const runs = await fetchPayrollRuns(merged);
-        set({ runs });
+        if (!silent || JSON.stringify(runs) !== JSON.stringify(get().runs)) set({ runs });
       } catch (err) {
-        set({ error: err.message });
+        if (!silent) set({ error: err.message });
       } finally {
-        get()._setLoading('runs', false);
+        if (!silent) get()._setLoading('runs', false);
       }
     },
 
@@ -256,16 +257,17 @@ const usePayrollStore = create()(
       if (runId) await get().loadEntries(runId);
     },
 
-    async loadEntries(runId) {
-      get()._setLoading('entries', true);
+    async loadEntries(runId, { silent = false } = {}) {
+      if (!silent) get()._setLoading('entries', true);
       try {
         const { fetchPayrollEntries } = await import('../services/payrollService.js');
         const entries = await fetchPayrollEntries(runId);
-        set({ entries });
+        if (get().selectedRunId !== runId && silent) return; // تبدّلت الدورة المختارة أثناء الجلب
+        if (!silent || JSON.stringify(entries) !== JSON.stringify(get().entries)) set({ entries });
       } catch (err) {
-        set({ error: err.message });
+        if (!silent) set({ error: err.message });
       } finally {
-        get()._setLoading('entries', false);
+        if (!silent) get()._setLoading('entries', false);
       }
     },
 
@@ -420,8 +422,8 @@ const usePayrollStore = create()(
     _startRealtime() {
       const timer = setInterval(() => {
         if (!get()._initialized) return;
-        get().loadRuns();
-        if (get().selectedRunId) get().loadEntries(get().selectedRunId);
+        get().loadRuns({}, { silent: true });
+        if (get().selectedRunId) get().loadEntries(get().selectedRunId, { silent: true });
       }, PAYROLL_REALTIME_INTERVAL_MS);
       set({ _realtimeTimer: timer });
     },
