@@ -2,7 +2,7 @@
 // تأكيدات التسليم المالية (D-179، مرحلة 1): اختبار المسودة docs/proposed/20261101_finance_delivery_confirmations.sql
 // على Postgres في الذاكرة (PGlite) — لا يمسّ أي قاعدة حقيقية — + سلوك المحرك مع الأساس الجديد.
 // usage: node test-finance-delivery-confirmation.mjs        (ENGINE_PATH=<ملف> لاختبار محرك آخر)
-import { buildConfirmationPayload, toIstanbulIso, parseCsv } from './src/utils/financeDeliveryImport.js';
+import { buildConfirmationPayload, buildConfirmationPayloadMany, toIstanbulIso, parseCsv } from './src/utils/financeDeliveryImport.js';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -192,6 +192,23 @@ const unk = run([O('u1', 'unknown', null)]); ok(unk.company.quality.issues.some(
   eq(buildConfirmationPayload('رقم الطلب\n').errors[0].error, 'الملف فارغ أو بلا صفوف', 'J11: ملف بلا صفوف');
   ok(/أعمدة ناقصة/.test(buildConfirmationPayload('"a","b"\r\n"1","2"').errors[0].error), 'J12: أعمدة ناقصة تُرفض');
   eq(parseCsv('﻿"a ""b""","c\nd"\r\n1,2').slice(0, 1), [['a "b"', 'c\nd']], 'J13: CSV: اقتباس مضاعف وسطر داخل حقل وBOM');
+}
+
+
+// ───────── د) عدة ملفات (ورقة لكل فريق) ─────────
+{
+  const H2 = '"رقم الطلب","تاريخ التسليم المؤكَّد (YYYY-MM-DD HH:MM بتوقيت إسطنبول)","أساس التأكيد","المستند/المرجع","ملاحظة"';
+  const f = (name, ...rows) => ({ name, text: [H2, ...rows].join('\r\n') });
+  const ok1 = '"A-1","2026-10-14 15:30","كشف السائق/المندوب","كشف 14/10",""';
+  const many = buildConfirmationPayloadMany([f('syria.csv', ok1, '"A-2","","","",""'), f('uae.csv', '"B-1","2026-10-15 10:00","ورقة/جدول التسليم","ورقة 15/10",""')]);
+  eq([many.payload.map((p) => p.order_code), many.skipped, many.errors.length], [['A-1', 'B-1'], 1, 0], 'K1: ملفان ← حمولة واحدة بترتيب الملفات + غير المعبّأ يُتجاوز');
+  eq(many.perFile.map((x) => [x.name, x.valid, x.skipped, x.errors]), [['syria.csv', 1, 1, 0], ['uae.csv', 1, 0, 0]], 'K2: إحصاء كل ملف');
+  const dup = buildConfirmationPayloadMany([f('one.csv', ok1), f('two.csv', ok1.replace('كشف 14/10', 'كشف آخر'))]);
+  eq([dup.payload.length, dup.errors.length], [1, 1], 'K3: الطلب المكرر بين ملفين ← يُقبل الأول ويُرفض الثاني');
+  ok(/مكرر بين الملفات \(أولاً في one\.csv\)/.test(dup.errors[0].error) && dup.errors[0].file === 'two.csv', 'K4: رسالة الخطأ تسمّي الملفين');
+  const mixed = buildConfirmationPayloadMany([f('good.csv', ok1), f('bad.csv', '"C-1","كذا","كشف السائق/المندوب","مستند طويل",""')]);
+  eq([mixed.payload.length, mixed.errors.map((e) => `${e.file}:${e.line}`)], [1, ['bad.csv:2']], 'K5: خطأ بملف لا يُسقط صحيح الملف الآخر، ويُنسب لملفه وسطره');
+  eq(buildConfirmationPayloadMany([]).payload, [], 'K6: بلا ملفات ← حمولة فارغة');
 }
 
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);

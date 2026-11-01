@@ -70,3 +70,22 @@ export function buildConfirmationPayload(csvText) {
   });
   return { payload, skipped, errors, assumedTime };
 }
+
+/**
+ * عدة ملفات (ورقة لكل فريق/شركة شحن) ← حمولة واحدة. يكشف الطلب المكرر بين الملفات، ويُرجع إحصاء كل ملف.
+ * @param {Array<{name:string, text:string}>} files
+ */
+export function buildConfirmationPayloadMany(files) {
+  const payload = [], errors = [], perFile = []; let skipped = 0, assumedTime = 0; const firstSeen = new Map();
+  for (const f of files) {
+    const r = buildConfirmationPayload(f.text);
+    perFile.push({ name: f.name, valid: r.payload.length, skipped: r.skipped, errors: r.errors.length });
+    skipped += r.skipped; assumedTime += r.assumedTime;
+    for (const e of r.errors) errors.push({ file: f.name, ...e });
+    for (const p of r.payload) {
+      if (firstSeen.has(p.order_code)) { errors.push({ file: f.name, line: 0, code: p.order_code, error: `رقم الطلب مكرر بين الملفات (أولاً في ${firstSeen.get(p.order_code)})` }); continue; }
+      firstSeen.set(p.order_code, f.name); payload.push(p);
+    }
+  }
+  return { payload, skipped, errors, assumedTime, perFile };
+}
