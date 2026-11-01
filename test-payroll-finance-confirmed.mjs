@@ -60,7 +60,10 @@ try {
   // (أ) تأكيد مالي لتاريخ تسليم أكتوبر لثلاثة طلبات أُنشئت أيلول: الراتب لا يتغير (تبقى بشهرها القديم أيلول، لا تنتقل لأكتوبر)
   const withFc = [...baseOrders(), ...Array.from({ length: 3 }, () => order('Ali Syria', 150, { order_date: '2026-09-20', fc_delivered_at: '2026-10-12T12:00:00+03:00' }))];
   const B = await runWith(withFc);
-  ok(JSON.stringify(pick(B.ali)) === JSON.stringify(pick(A.ali)), 'B: تأكيدات أيلول→أكتوبر لا تغيّر أي رقم براتب علي: ' + JSON.stringify(pick(B.ali)) + ' ≠ ' + JSON.stringify(pick(A.ali)));
+  // قرار المالك 1/11/2026: التأكيد المالي معتمد بالرواتب — الطلبات الثلاثة (150$ لكل) تنتقل من سبتمبر إلى أكتوبر
+  near(B.ali.sales_total_usd, 1950, 'B: بعد قرار المالك تدخل الطلبات المؤكَّدة أكتوبر (1500 + 3×150)');
+  near(B.ali.commission_usd, 47.5, 'B: العمولة = (1950−1000)×5%');
+  near(B.ali.net_salary_usd - A.ali.net_salary_usd, 22.5, 'B: فرق الصافي = 22.5$ (الزيادة 450$×5%)');
   // طلبات أكتوبر نفسها المؤكَّدة بتاريخ أكتوبر (نفس الشهر): كذلك لا تغيير
   const sameMonth = [...baseOrders().filter((o) => o.market !== 'uae'), ...baseOrders().filter((o) => o.market === 'uae')].map((o, i) => (i === 0 ? { ...o, fc_delivered_at: '2026-10-25T12:00:00+03:00' } : o));
   const C = await runWith(sameMonth);

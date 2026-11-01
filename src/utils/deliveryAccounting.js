@@ -48,11 +48,11 @@ export function periodBounds({ month, fromDate, toDate } = {}) {
 }
 
 /**
- * D-179: تأكيد المالية لتاريخ التسليم (delivery_basis = finance_confirmed) يخدم الربحية فقط. أما المبيعات المحتسبة للعمولات والرواتب
- * وتقرير التسليمات فتبقى بتاريخها القديم (تاريخ الطلب) حتى يقرر المالك غير ذلك — كي لا ينتقل بيع بين شهرين بسبب ورقة تأكيد.
- * التفعيل قرار مالك وحده: يُغيَّر هذا الثابت (أو يُمرَّر financeConfirmed:true) بعد موافقته وبتغيير مراجَع.
+ * D-179: تأكيد المالية لتاريخ التسليم (delivery_basis = finance_confirmed) يُعتمد في الربحية والعمولات والرواتب وتقرير التسليمات
+ * (قرار المالك 1/11/2026: طلبات الجدول سُلِّمت في أكتوبر فتُحسب في أكتوبر لا بتاريخ الطلب). أي دليل آلي أقوى (شحن/جدول) يغلب التأكيد.
+ * للتراجع: false (أو يُمرَّر financeConfirmed:false) ⇒ يعود الاحتساب بتاريخ الطلب القديم.
  */
-export const FINANCE_CONFIRMED_AFFECTS_PAYROLL = false;
+export const FINANCE_CONFIRMED_AFFECTS_PAYROLL = true;
 const isTrusted = (o, financeConfirmed) => !!(o.delivered_at && o.delivery_basis && o.delivery_basis !== 'unknown'
   && (o.delivery_basis !== 'finance_confirmed' || financeConfirmed));
 

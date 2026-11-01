@@ -541,22 +541,22 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
     eq(buildProductLines([D('t5', '2026-10-05T12:00:00+03:00'), D('t6', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hNoPrice, monthStart: '2026-10-01' })[0].warning, 'no_price', 'DL10: طلب بلا سعر ثم طلب متعارض ← يبقى «بلا سعر» (الأشد)');
   }
 }
-// D-179: تأكيد المالية للتسليم لا ينقل البيع بين أشهر العمولات/الرواتب افتراضياً (قرار مالك مؤجَّل)
+// D-179: تأكيد المالية للتسليم يُعتمد في الرواتب/العمولات/التقرير (قرار مالك 1/11/2026)
 {
-  eq(FINANCE_CONFIRMED_AFFECTS_PAYROLL, false, 'FC1: الافتراضي = لا أثر على العمولات');
+  eq(FINANCE_CONFIRMED_AFFECTS_PAYROLL, true, 'FC1: الافتراضي = التأكيد المالي معتمد');
   const fc = o('FC', 'delivered', { order_date: '2026-09-10T10:00:00+03:00', delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'finance_confirmed' });
-  eq(deliveryEntry(fc).basis, 'legacy_order_date', 'FC2: يُحتسب بتاريخ الطلب القديم');
-  eq(deliveryEntry(fc).at, fc.order_date, 'FC2: التاريخ = order_date');
-  eq(ids(selectDeliveredInPeriod([fc], sep).delivered), 'FC', 'FC3: يبقى بشهر الطلب (سبتمبر)');
-  eq(selectDeliveredInPeriod([fc], oct).delivered.length, 0, 'FC3: ولا يدخل أكتوبر');
-  eq(ids(selectDeliveredInPeriod([fc], { ...oct, financeConfirmed: true }).delivered), 'FC', 'FC4: بعد تفعيل القرار يدخل أكتوبر');
-  eq(deliveryEntry(fc, { financeConfirmed: true }).basis, 'finance_confirmed', 'FC4: الأساس يبقى finance_confirmed');
-  eq(deliveryEntry(fc, { includeLegacy: false }), null, 'FC5: بلا legacy لا يدخل');
-  eq(selectDeliveredInPeriod([fc], { ...sep, includeLegacy: false }).legacyExcluded.length, 1, 'FC5: يظهر ضمن المستبعدين');
+  eq(deliveryEntry(fc).basis, 'finance_confirmed', 'FC2: يُحتسب بتاريخ التأكيد');
+  eq(deliveryEntry(fc).at, fc.delivered_at, 'FC2: التاريخ = تاريخ التأكيد');
+  eq(ids(selectDeliveredInPeriod([fc], oct).delivered), 'FC', 'FC3: يدخل أكتوبر');
+  eq(selectDeliveredInPeriod([fc], sep).delivered.length, 0, 'FC3: ولا يبقى بسبتمبر');
+  eq(deliveryEntry(fc, { financeConfirmed: false }).basis, 'legacy_order_date', 'FC4: التراجع (false) يعيد تاريخ الطلب');
+  eq(ids(selectDeliveredInPeriod([fc], { ...sep, financeConfirmed: false }).delivered), 'FC', 'FC4: وبالتراجع يبقى بسبتمبر');
+  eq(deliveryEntry(fc, { includeLegacy: false }).basis, 'finance_confirmed', 'FC5: التأكيد دليل موثوق فيدخل حتى بلا legacy');
+  eq(selectDeliveredInPeriod([fc], { ...sep, includeLegacy: false }).legacyExcluded.length, 0, 'FC5: ولا يُعدّ مستبعداً');
   const car = o('CR', 'delivered', { delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'carrier' });
   eq(deliveryEntry(car).basis, 'carrier', 'FC6: أدلة الشحن لا تتأثر');
-  const st = o('ST', 'settled', { delivered_at: '2026-10-03T12:00:00+03:00', delivery_basis: 'finance_confirmed' });
-  eq(selectDeliveredInPeriod([st], oct).delivered.length, 0, 'FC7: settled بتأكيد مالي فقط لا يدخل أكتوبر افتراضياً');
+  const un = o('UN', 'delivered', { order_date: '2026-10-05T10:00:00+03:00', delivery_basis: 'unknown' });
+  eq(deliveryEntry(un).basis, 'legacy_order_date', 'FC7: بلا تأكيد ولا دليل ← تاريخ الطلب كما كان');
 }
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);
