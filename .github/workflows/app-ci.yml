@@ -92,6 +92,8 @@ jobs:
         run: node test-payroll-finance-confirmed.mjs
       - name: "Check payroll approval is blocked when delivery sales changed after the calculation"
         run: node test-payroll-sales-drift.mjs
+      - name: "Check the proposed server-side payroll approval lock (SQL part needs PGlite locally)"
+        run: node test-payroll-sales-drift-sql.mjs
       - name: "Check profitability vs delivery accounting recognition and FX source comparison"
         run: node test-cross-engine-checks.mjs
 
