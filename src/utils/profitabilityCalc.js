@@ -239,7 +239,7 @@ const emptyMarket = () => ({
   returns: emptyReturns(),
   expenses: 0, expensesByCategory: {}, actualShipping: 0, netProfit: 0,
   unpricedUnits: 0, legacyUnifiedUnits: 0, unmappedUnits: 0, collected: {}, settledOrders: 0, settledCollected: {},
-  deliveryBasis: {}, substituteOrders: 0, substituteUnits: 0,
+  deliveryBasis: {}, substituteOrders: 0, substituteUnits: 0, financeConfirmedOrders: 0, financeConfirmedUnits: 0,
   unknownDelivery: { orders: 0, units: 0 }, returnTimingUnknown: { orders: 0, units: 0, revenue: 0, cost: 0 },
   pendingReturns: { orders: 0, units: 0, cost: 0 }, historyConflict: 0, costConflictUnits: 0, conflictHeld: 0,
   unconverted: {}, adsEstimated: true, shippingEstimated: true,
@@ -263,6 +263,7 @@ const ISSUES = {
   payroll_from_accounting: ['estimated', 'رواتب مأخوذة من المحاسبة مؤقتاً — لم تُدخَل يدوياً للسوق'],
   unallocated_expenses: ['estimated', 'مصاريف غير موزّعة على سوق'],
   substitute_dates: ['estimated', 'مبيعات بتاريخ تسليم بديل (وقت تسجيل/تحديث وليس وقت تسليم مؤكد)'],
+  finance_confirmed: ['estimated', 'مبيعات بتاريخ تسليم مؤكَّد من المالية بمستند (لا دليل آلي من شركة الشحن) — راجع مستند كل طلب'],
   legacy_prices: ['estimated', 'أسعار/تكاليف تاريخها مستنتج من updated_at وليس من سجل أصلي'],
   legacy_unified_price: ['estimated', 'قطع بسعر مرجعي موحّد قديم لأن سعراً لهذا السوق لم يُدخَل (يؤثر على توزيع الإيراد والمرجع التحليلي)'],
   packaging_missing: ['partial', 'أجور التغليف: لا قيد محاسبي بالشهر ولا تكلفة تغليف معتمدة لكل وحدة (ناقص — غير محسوب)'],
@@ -418,6 +419,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     M.orders++;
     M.deliveryBasis[o.delivery_basis] = (M.deliveryBasis[o.delivery_basis] || 0) + 1;
     if (String(o.delivery_basis).startsWith('substitute')) { M.substituteOrders++; M.substituteUnits += c.units; }
+    if (o.delivery_basis === 'finance_confirmed') { M.financeConfirmedOrders++; M.financeConfirmedUnits += c.units; }
     if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
     if (noItemsOrder) M.ordersNoItems++;
     const pvs = c.items.map((it) => {
@@ -607,6 +609,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     estimate_with_unallocated: scope === 'company' && ((estUsedAds && unallocActual('ads')) || (estUsedShip && unallocActual('shipping'))) ? { count: 1 } : null,
     unallocated_expenses: scope === 'company' ? { amount: company.unallocated } : null,
     substitute_dates: { orders: m.substituteOrders, units: m.substituteUnits },
+    finance_confirmed: { orders: m.financeConfirmedOrders, units: m.financeConfirmedUnits },
     legacy_prices: scope === 'company' ? { units: legacyUnits } : null,
 
     packaging_missing: scope === 'company' && m.orders > 0 && !records.some((r) => r.group === 'packaging' && r.usd > 0) ? { count: 1 } : null,
@@ -638,7 +641,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },
     pendingReturns: { orders: sumM((m) => m.pendingReturns.orders), units: sumM((m) => m.pendingReturns.units), cost: sumM((m) => m.pendingReturns.cost) },
-    costConflictUnits: sumM((m) => m.costConflictUnits), conflictHeld: sumM((m) => m.conflictHeld), substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), historyConflict: sumM((m) => m.historyConflict),
+    costConflictUnits: sumM((m) => m.costConflictUnits), conflictHeld: sumM((m) => m.conflictHeld), substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), financeConfirmedOrders: sumM((m) => m.financeConfirmedOrders), financeConfirmedUnits: sumM((m) => m.financeConfirmedUnits), historyConflict: sumM((m) => m.historyConflict),
     unconverted: unconvertedList.reduce((o, u) => ((o[u.currency] = (o[u.currency] || 0) + u.amount), o), {}),
   };
   total.expenses = total.marketExpenses + total.sharedExpenses + total.unallocatedExpenses;

@@ -86,6 +86,8 @@ jobs:
         run: node test-product-analytics.mjs
       - name: Check cost reading through product aliases (D-176)
         run: node test-cost-alias-resolution.mjs
+      - name: "Check finance delivery confirmations (D-179; SQL part needs PGlite locally)"
+        run: node test-finance-delivery-confirmation.mjs
 
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs
