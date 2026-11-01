@@ -21,6 +21,8 @@
 //  • الإيراد «محسوب من سعر المنتج بالدولار»، والمحصَّل الفعلي يبقى بعملته ولا يُجمع.
 // =============================================================
 
+import { COST_CONFLICT_DECISIONS } from './costConflictDecisions.js';
+
 export const MARKET_KEYS = ['syria', 'turkey', 'uae'];
 export const ISTANBUL_OFFSET = '+03:00';
 export const ADS_CATEGORIES = ['حملات إعلانية', 'سوشل ميديا', 'إعلانات'];
@@ -48,6 +50,10 @@ export const monthStartOf = (input) => `${String(input).slice(0, 7)}-01`;
 export function istanbulMonthStart(ts) {
   const t = Date.parse(ts);
   return Number.isFinite(t) ? `${new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 7)}-01` : null;
+}
+export function istanbulDay(ts) {
+  const t = Date.parse(ts);
+  return Number.isFinite(t) ? new Date(t + 3 * 3600 * 1000).toISOString().slice(0, 10) : null;
 }
 export function monthBounds(input) {
   const start = monthStartOf(input);
@@ -96,6 +102,74 @@ export function buildMarketIndex(rows = []) {
   return idx;
 }
 const hasN = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+
+/**
+ * توحيد صفوف التكلفة تحت الاسم الموحّد قبل بناء الفهارس (قرار D-176 — بانتظار اعتماد المالك).
+ * بدونه تُقرأ التكلفة بالاسم الحرفي المسجّل بها، فالتكلفة المسجّلة باسم بديل (إنجليزي/قديم/إملاء آخر) لا تصل للمنتج.
+ *  • التجميع: (الاسم الموحّد، السوق، **تاريخ السريان الدقيق**). لكل فترة سريان مجموعتها: فترتان بتاريخين مختلفين
+ *    — حتى بنفس الشهر — تبقيان نسختين مستقلتين (تغيير زمني مشروع)، ولا تُعدّان تعارضاً ولا تُدمجان.
+ *    (قاعدة البيانات تفرض اليوم بداية الشهر بقيد CHECK، لكن الكود لا يعتمد على ذلك.)
+ *    استثناء وحيد: صفوف جدول «الحالي» (product_economics) بلا effective_from، فتاريخها المستنتَج = بداية شهر updated_at (قاعدة المحرك القديمة).
+ *  • داخل الفترة الواحدة: قيمة تكلفة موجبة واحدة (أو قيم متطابقة) ← تُعتمد للاسم الموحّد.
+ *    أكثر من قيمة موجبة مختلفة = تعارض حقيقي بنفس فترة السريان: لا تُختار أيٌّ منها؛ التكلفة «غير محسومة» (مفقودة)
+ *    ما لم يوجد قرار مسجّل للمجموعة نفسها في decisions (مفتاحها `${اسم موحّد}|${سوق أو ''}|${YYYY-MM-DD تاريخ الفترة}`).
+ *  • لا يُحذف/يُعدَّل أي صف مصدر: الناتج نسخ مقروءة فقط، والصف الأصلي يبقى بالقاعدة كما هو.
+ *  • السعر/الإعلان/الشحن تُؤخذ من صف الاسم الموحّد إن وُجد وإلا من أول صف بالمجموعة (مرجع تحليلي لا يدخل تكلفة المنتجات).
+ *  • دليل التعارض (للمالك فقط — لا يُستعمل للاختيار): مصدر كل قيمة، ووقت كتابتها، ووقت آخر تحديث لصفها بجدول «الحالي».
+ * @returns {{ history: Array, current: Array, market: Array, conflicts: Array }}
+ */
+export function unifyCostSources({ historyRows = [], currentRows = [], marketPriceRows = [], resolve, decisions = COST_CONFLICT_DECISIONS } = {}) {
+  if (!resolve) return { history: historyRows, current: currentRows, market: marketPriceRows, conflicts: [] };
+  const conflicts = [];
+  const observed = new Map(currentRows.map((r) => [normName(r.item_name), r.updated_at]));   // دليل فقط
+  const day = (v) => (v ? String(v).slice(0, 10) : null);
+  const unify = (rows, { table, marketOf, periodOf, inferred }) => {
+    const groups = new Map();
+    for (const r of rows) {
+      const x = resolve(r.item_name); const period = periodOf(r); if (!period) continue;
+      const gk = `${x.key}|${marketOf(r)}|${period}`;
+      const g = groups.get(gk) || { name: x.name, key: x.key, market: marketOf(r), period, rows: [] };
+      g.rows.push({ r, isCanon: x.key === normName(r.item_name) }); groups.set(gk, g);
+    }
+    const out = [];
+    for (const g of groups.values()) {
+      const base = (g.rows.find((x) => x.isCanon) || g.rows[0]).r;
+      const costs = [...new Set(g.rows.map((x) => Number(x.r.cost_usd)).filter((c) => c > 0))];
+      const row = { ...base, item_name: g.name };
+      if (!inferred) row.effective_from = g.period;        // تاريخ السريان الدقيق كما سُجّل — لا يُسوَّى إلى بداية الشهر
+      if (costs.length === 1) { row.cost_usd = costs[0]; if (!g.rows.some((x) => x.isCanon && Number(x.r.cost_usd) === costs[0])) row.cost_source = 'alias'; }
+      else if (costs.length > 1) {
+        const dk = `${g.name}|${g.market}|${g.period}`;
+        const decided = Number(decisions?.[dk]);
+        row.cost_usd = decided > 0 ? decided : null;
+        row.cost_source = decided > 0 ? 'owner_decision' : 'conflict';
+        if (!(decided > 0)) row.conflictFields = ['cost_usd'];
+        const vals = g.rows.filter((x) => Number(x.r.cost_usd) > 0).map((x) => ({
+          item_name: x.r.item_name, cost: Number(x.r.cost_usd), canonical: x.isCanon, source: x.r.source || null,
+          recordedAt: x.r.created_at || null, observedAt: observed.get(normName(x.r.item_name)) || x.r.updated_at || null,
+        }));
+        conflicts.push({ table, key: g.key, name: g.name, market: g.market || null, period: g.period, month: g.period.slice(0, 7) + '-01', decisionKey: dk,
+          decided: decided > 0 ? decided : null, inferredPeriod: inferred || vals.every((v) => v.source === 'legacy_backfill'), values: vals });
+      }
+      out.push(row);
+    }
+    return out;
+  };
+  const history = unify(historyRows, { table: 'product_economics_history', marketOf: () => '', periodOf: (r) => day(r.effective_from) });
+  const current = unify(currentRows, { table: 'product_economics', marketOf: () => '', periodOf: (r) => istanbulMonthStart(r.updated_at), inferred: true });
+  const market = unify(marketPriceRows, { table: 'product_market_prices', marketOf: (r) => r.market || '', periodOf: (r) => day(r.effective_from) });
+  // صفوف «الحالي» لا تُقرأ إن كان للاسم الموحّد أي سجل تاريخ (buildVersionIndex) ← تعارضها غير فعّال ولا يستلزم قراراً مستقلاً
+  const histKeys = new Set(history.map((r) => normName(r.item_name)));
+  for (const c of conflicts) c.inert = c.table === 'product_economics' && histKeys.has(c.key);
+  return { history, current, market, conflicts };
+}
+
+/** ملخص التعارضات: مجموعات (جدول·منتج·سوق·فترة) · منها غير فعّالة · قرارات فريدة مطلوبة (مفتاح القرار يوحّد الجدولين). */
+export function summarizeCostConflicts(conflicts = []) {
+  const open = conflicts.filter((c) => !c.decided);
+  const active = open.filter((c) => !c.inert);
+  return { groups: conflicts.length, inert: conflicts.filter((c) => c.inert).length, decided: conflicts.filter((c) => c.decided).length, decisions: new Set(active.map((c) => c.decisionKey)).size };
+}
 /**
  * سعر/تكلفة/شحن صنف بسوق وشهر. السعر من جدول السوق فقط؛ غيابه ← السعر الموحّد القديم موسوماً legacy_unified؛ غيابهما ← missing.
  * لا يُستعمل أبداً سعر سوق آخر. التكلفة: تكلفة السوق إن وُجدت وإلا التكلفة الموحّدة.
@@ -103,15 +177,18 @@ const hasN = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite
 export function resolveEcon(versions, marketIdx, key, market, monthStart, nowMonth) {
   const uni = pickVersion(versions, key, monthStart);
   const arr = marketIdx.get(`${key}|${market}`);
-  const find = (f) => (arr ? (arr.find((r) => String(r.effective_from).slice(0, 10) <= monthStart && hasN(r[f])) || null) : null);
-  const mp = find('sale_price_usd'), mc = find('cost_usd'), ms = find('shipping_cost_usd');
+  // صف متعارض (conflictFields) يوقف البحث عن الحقل نفسه: لا رجوع صامت لنسخة أقدم أو للتكلفة الموحّدة
+  const find = (f) => (arr ? (arr.find((r) => String(r.effective_from).slice(0, 10) <= monthStart && (hasN(r[f]) || r.conflictFields?.includes(f))) || null) : null);
+  const mp = find('sale_price_usd'), mcRow = find('cost_usd'), ms = find('shipping_cost_usd');
+  const costConflict = !!(mcRow?.conflictFields?.includes('cost_usd') || (!mcRow && uni?.conflictFields?.includes('cost_usd')));
+  const mc = mcRow && !mcRow.conflictFields?.includes('cost_usd') ? mcRow : null;
   let price = 0, basis = 'missing', priceFrom = null;
   if (mp) { price = Number(mp.sale_price_usd) || 0; basis = 'market'; priceFrom = String(mp.effective_from).slice(0, 10); }
   else if (uni && Number(uni.sale_price_usd) > 0) { price = Number(uni.sale_price_usd); basis = 'legacy_unified'; priceFrom = String(uni.effective_from).slice(0, 10); }
-  const cost = mc ? Number(mc.cost_usd) || 0 : Number(uni?.cost_usd) || 0;
+  const cost = costConflict ? 0 : mc ? Number(mc.cost_usd) || 0 : Number(uni?.cost_usd) || 0;
   const ship = ms ? Number(ms.shipping_cost_usd) || 0 : Number(uni?.shipping_cost_usd) || 0;
   const status = basis === 'missing' ? 'missing' : basis === 'legacy_unified' ? 'legacy_unified' : (monthStart >= (nowMonth || monthStart) ? 'current' : 'historical');
-  return { uni, price, cost, ship, ad: Number(uni?.ad_cost_usd) || 0, basis, priceFrom, status, costBasis: mc ? 'market' : 'unified', costStatus: cost > 0 ? (mc ? 'market' : 'unified') : 'missing', complete: price > 0 && cost > 0 };
+  return { uni, price, cost, ship, ad: Number(uni?.ad_cost_usd) || 0, basis, priceFrom, status, costBasis: mc ? 'market' : 'unified', costStatus: costConflict ? 'conflict' : cost > 0 ? (mc ? 'market' : 'unified') : 'missing', costConflict, complete: price > 0 && cost > 0 };
 }
 
 // ───────────────────────── المصاريف ─────────────────────────
@@ -164,12 +241,13 @@ const emptyMarket = () => ({
   unpricedUnits: 0, legacyUnifiedUnits: 0, unmappedUnits: 0, collected: {}, settledOrders: 0, settledCollected: {},
   deliveryBasis: {}, substituteOrders: 0, substituteUnits: 0,
   unknownDelivery: { orders: 0, units: 0 }, returnTimingUnknown: { orders: 0, units: 0, revenue: 0, cost: 0 },
-  pendingReturns: { orders: 0, units: 0, cost: 0 }, historyConflict: 0,
+  pendingReturns: { orders: 0, units: 0, cost: 0 }, historyConflict: 0, costConflictUnits: 0, conflictHeld: 0,
   unconverted: {}, adsEstimated: true, shippingEstimated: true,
 });
 
 const ISSUES = {
   missing_econ: ['partial', 'قطع بلا تكلفة معتمدة (تكلفتها غير محسوبة)'],
+  cost_conflict: ['partial', 'قطع بتكلفة متعارضة (أكثر من قيمة لنفس المنتج والشهر) — لم تُعتمد أيٌّ منها حتى قرار المالك، ومبيعاتها محجوزة خارج الربح'],
   revenue_fx_missing: ['partial', 'طلبات مسلَّمة بعملة بلا سعر صرف شهري معتمد — لا إيراد ولا تكلفة لها بالأرقام'],
   revenue_missing: ['partial', 'طلبات مسلَّمة بقيمة صفرية أو غير مسجَّلة — لا إيراد ولا تكلفة لها بالأرقام'],
   revenue_unsplit: ['partial', 'طلبات بأصناف من براندات مختلفة تعذّر توزيع قيمتها (لم تُحسب)'],
@@ -215,13 +293,14 @@ function assess(flags) {
  * @param {Array} [p.fxRates]       profitability_fx_rates
  * @param {string} p.month
  */
-export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [], historyRows = [], currentRows = [], expenses = [], accountingEntries = [], channels = [], fxRates = [], marketPriceRows = [], nowMonth = null, month, brand = 'lowes' }) {
+export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [], historyRows = [], currentRows = [], expenses = [], accountingEntries = [], channels = [], fxRates = [], marketPriceRows = [], nowMonth = null, month, brand = 'lowes', costDecisions = COST_CONFLICT_DECISIONS }) {
   const { monthStart, from, to } = monthBounds(month);
   const t0 = Date.parse(from), t1 = Date.parse(to);
   const inM = (ts) => { const t = Date.parse(ts); return Number.isFinite(t) && t >= t0 && t < t1; };
   const resolve = buildResolver(nameMapRows);
-  const versions = buildVersionIndex(historyRows, currentRows);
-  const marketIdx = buildMarketIndex(marketPriceRows);
+  const unified = unifyCostSources({ historyRows, currentRows, marketPriceRows, resolve, decisions: costDecisions });
+  const versions = buildVersionIndex(unified.history, unified.current);
+  const marketIdx = buildMarketIndex(unified.market);
   const nowM = nowMonth || istanbulMonthStart(new Date().toISOString());
 
   const chById = Array.isArray(channels) ? Object.fromEntries(channels.map((c) => [c.id, c])) : channels;
@@ -282,15 +361,17 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     }
     return out;
   };
-  const versionFor = (it, ref, market) => {
+  // weigh (التسليمات فقط): يُراكم Σ(كمية × تكلفة يوم التسليم) لكل وحدة مسلَّمة تكلفتها معروفة ← تكلفة الوحدة المعروضة متوسط مرجّح لا تكلفة أول طلب
+  const versionFor = (it, ref, market, weigh = false) => {
     const e = resolveEcon(versions, marketIdx, it.key, market, ref, nowM);
     const id = `${it.key}|${market}`;
     const rec = usedVersions.get(id) || { key: it.key, name: it.name, market, units: 0, v: e.uni, e };
     rec.units += it.q; rec.v = rec.v || e.uni; rec.e = rec.e || e; usedVersions.set(id, rec);
-    return { v: e.uni, price: e.price, cost: e.cost, ship: e.ship, ad: e.ad, basis: e.basis, complete: e.complete };
+    if (weigh && e.cost > 0) { rec.costUnits = (rec.costUnits || 0) + it.q; rec.costSum = (rec.costSum || 0) + it.q * e.cost; (rec.costSet ||= new Set()).add(e.cost); }
+    return { v: e.uni, price: e.price, cost: e.cost, ship: e.ship, ad: e.ad, basis: e.basis, complete: e.complete, costConflict: e.costConflict };
   };
   const filt = (arr) => arr.filter((it) => it.active && (brand === 'all' || it.brand === brand));
-  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, complete: true, ...emptyDetail() }; agg.set(id, r); return r; };
+  const row = (it, m) => { const id = `${it.key}|${m}`; const r = agg.get(id) || { name: it.name, brand: it.brand, market: m, key: it.key, units: 0, returns: 0, revenue: 0, productCost: 0, estAds: 0, estShipping: 0, netProfit: 0, conflictHeld: 0, complete: true, ...emptyDetail() }; agg.set(id, r); return r; };
   // تفاصيل إضافية لتحليل المنتجات (لا تغيّر أي رقم أعلاه): مراجع الطلبات، القيمة بعملتها الأصلية، المجاني/بلا قيمة/بلا سعر صرف
   const emptyDetail = () => ({ refs: new Map(), returnRefs: [], native: {}, nativeNoFx: {}, freeUnits: 0, freeCost: 0, freeOrders: 0, noValueUnits: 0, noFxUnits: 0, costMissingUnits: 0 });
   const addRef = (r, o, it, kind, usd, native) => {
@@ -340,7 +421,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     if (o.status === 'delivered' && o.currency) M.collected[o.currency] = (M.collected[o.currency] || 0) + num(o.amount);
     if (noItemsOrder) M.ordersNoItems++;
     const pvs = c.items.map((it) => {
-      const r = row(it, m); const pv = versionFor(it, monthStart, m);
+      const r = row(it, m); const pv = versionFor(it, istanbulDay(o.delivered_at) || monthStart, m, true);
 
       r.units += it.q; M.units += it.q; if (it.qtySuspect) M.suspectQtyLines++;
       if (!it.mapped) { const u = unmapped.get(it.key) || { name: it.raw, units: 0 }; u.units += it.q; unmapped.set(it.key, u); M.unmappedUnits += it.q; }
@@ -376,8 +457,10 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
       const sh = nativeShare(c, it, rv.amount); r.native[rv.cur] = (r.native[rv.cur] || 0) + sh;
       addRef(r, o, it, 'sale', rv.usd * (sh / rv.amount), sh);
       if (pv.basis === 'market' && pv.price > 0) M.referenceRevenue += pv.price * it.q;
-      if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; r.costMissingUnits += it.q; }
+      if (pv.cost > 0) r.productCost += pv.cost * it.q; else { r.complete = false; M.unpricedUnits += it.q; r.costMissingUnits += it.q; if (pv.costConflict) M.costConflictUnits += it.q; }
       r.estAds += (M.adsEstimated ? pv.ad : 0) * it.q; r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q;
+      // تكلفة متعارضة: مساهمة القطعة (حصتها من الإيراد − إعلانها وشحنها التقديريان) تُحجز خارج الربح حتى قرار المالك — لا ربح وهمي
+      if (!(pv.cost > 0) && pv.costConflict) { const held = (sp.shares.find((s) => s.it === it)?.usd || 0) - ((M.adsEstimated ? pv.ad : 0) + (M.shippingEstimated ? pv.ship : 0)) * it.q; r.conflictHeld += held; M.conflictHeld += held; }
     }
   };
   const handleCompletedReturn = (c) => {
@@ -385,6 +468,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     const R = M.returns; R.orders++; R.units += c.units;
     const afterDelivery = !!o.delivered_before_return && !!o.delivered_at;
     const dMonth = afterDelivery ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
+    const dRef = afterDelivery ? istanbulDay(o.delivered_at) || dMonth : dMonth;   // نسخة التكلفة: يوم التسليم (الصرف يبقى بشهره)
     let revRed = 0;
     if (afterDelivery) {
       const rv = orderRevenue(o, m, dMonth);
@@ -393,8 +477,13 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     }
     let costOut = 0, incomplete = 0;
     for (const it of c.items) {
-      const pv = versionFor(it, dMonth, m);
-      if (!(pv.cost > 0)) { incomplete += it.q; continue; }
+      const pv = versionFor(it, dRef, m);
+      if (!(pv.cost > 0)) {
+        incomplete += it.q;
+        // الشحن التقديري لا يتعلق بالتكلفة: التعارض لا يُسقطه (وإلا ارتفع الربح بقدره)
+        if (pv.costConflict) row(it, m).estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
+        continue;
+      }
       costOut += pv.cost * it.q;
       const r = row(it, m); r.returns += it.q; r.returnRefs.push({ id: o.id, code: o.order_code, at: o.return_at, status: o.status, kind: 'return', qty: it.q, afterDelivery }); r.estShipping += (M.shippingEstimated ? pv.ship : 0) * it.q * RETURN_SHIP_FACTOR(afterDelivery);
     }
@@ -415,7 +504,8 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     let rev = 0, cost = 0;
     const ref = o.delivered_at ? istanbulMonthStart(o.delivered_at) : istanbulMonthStart(o.order_date);
     if (o.delivered_before_return) { const rv = orderRevenue(o, m, ref); if (rv.ok) rev = splitRevenue(c, rv, ref).total; }
-    for (const it of c.items) { const pv = versionFor(it, ref, m); if (pv.cost > 0) cost += pv.cost * it.q; }
+    const vref = o.delivered_at ? istanbulDay(o.delivered_at) || ref : ref;
+    for (const it of c.items) { const pv = versionFor(it, vref, m); if (pv.cost > 0) cost += pv.cost * it.q; }
     M.returnTimingUnknown.orders++; M.returnTimingUnknown.units += c.units; M.returnTimingUnknown.revenue += rev; M.returnTimingUnknown.cost += cost;
     returnLists.timingUnknown.push({ id: o.id, code: o.order_code, market: m, units: c.units, revenue: rev, cost, afterDelivery: !!o.delivered_before_return });
   };
@@ -452,12 +542,13 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   for (const r of agg.values()) {
     const m = mk(r.market);
     const p = { name: r.name, brand: r.brand, market: r.market, units: r.units, returns: r.returns, revenue: r.revenue, productCost: r.productCost, estAds: r.estAds, estShipping: r.estShipping, hasEcon: r.complete };
-    p.netProfit = r.revenue - r.productCost - r.estAds - r.estShipping;
+    p.netProfit = r.revenue - r.productCost - r.estAds - r.estShipping - r.conflictHeld; p.conflictHeld = r.conflictHeld;
     p.unitProfit = r.units && r.complete ? p.netProfit / r.units : null;
     p.margin = r.revenue ? Math.round((p.netProfit * 100) / r.revenue) : null;
     const ret = r.units + r.returns ? Math.round((r.returns * 100) / (r.units + r.returns)) : 0; p.returnRate = ret;
     p.flag = r.noRevenue ? 'nofx' : !r.complete ? 'unset' : p.unitProfit <= 0 ? 'loss' : ret > 25 ? 'risky' : p.netProfit > 0 && r.units >= 2 ? 'star' : 'ok';
-    const rk = usedVersions.get(`${r.key}|${r.market}`); const ee = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
+    const rk = usedVersions.get(`${r.key}|${r.market}`); const ee0 = rk?.e || resolveEcon(versions, marketIdx, r.key, r.market, monthStart, nowM);
+    const ee = rk?.costUnits ? { ...ee0, cost: rk.costSet.size === 1 ? [...rk.costSet][0] : rk.costSum / rk.costUnits } : ee0; p.costMixed = !!rk?.costSet && rk.costSet.size > 1;
     p.versionFrom = ee.priceFrom; p.priceBasis = ee.basis; p.priceStatus = ee.status;
     p.price = ee.price; p.cost = ee.cost; p.adRaw = ee.ad; p.shipRaw = ee.ship; p.ad = m.adsEstimated ? p.adRaw : 0; p.ship = m.shippingEstimated ? p.shipRaw : 0;
     p.detail = { key: r.key, costBasis: ee.costBasis, costFrom: ee.uni ? String(ee.uni.effective_from).slice(0, 10) : null, orders: r.refs.size, orderRefs: [...r.refs.values()], returnRefs: r.returnRefs, native: r.native, nativeNoFx: r.nativeNoFx, freeUnits: r.freeUnits, freeCost: r.freeCost, freeOrders: r.freeOrders, noValueUnits: r.noValueUnits, noFxUnits: r.noFxUnits, costMissingUnits: r.costMissingUnits };
@@ -474,7 +565,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     else { const m = mk(r.market); m.expenses += r.usd; m.expensesByCategory[r.category] = (m.expensesByCategory[r.category] || 0) + r.usd; if (r.group === 'shipping') m.actualShipping += r.usd; }
   }
   for (const m of Object.values(summary)) {
-    m.productProfit = m.revenue - m.productCost - m.estAds - m.estShipping + (m.__returnEffect || 0);
+    m.productProfit = m.revenue - m.productCost - m.estAds - m.estShipping + (m.__returnEffect || 0) - m.conflictHeld;
     m.netProfit = m.productProfit - m.expenses; m.returnEffect = m.__returnEffect || 0; delete m.__returnEffect;
   }
 
@@ -502,6 +593,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
   const unconvertedCount = unconvertedList.length;
   const qualityFor = (m, scope) => assess({
     missing_econ: { units: m.unpricedUnits + m.returns.unpricedUnits },
+    cost_conflict: { units: m.costConflictUnits },
     revenue_fx_missing: { orders: m.revenueNoFx.orders },
     revenue_missing: { orders: m.revenueMissing.orders },
     revenue_unsplit: { orders: m.mixedBrandUnsplit },
@@ -546,7 +638,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     unknownDelivery: { orders: sumM((m) => m.unknownDelivery.orders), units: sumM((m) => m.unknownDelivery.units) },
     returnTimingUnknown: { orders: sumM((m) => m.returnTimingUnknown.orders), units: sumM((m) => m.returnTimingUnknown.units), revenue: sumM((m) => m.returnTimingUnknown.revenue), cost: sumM((m) => m.returnTimingUnknown.cost) },
     pendingReturns: { orders: sumM((m) => m.pendingReturns.orders), units: sumM((m) => m.pendingReturns.units), cost: sumM((m) => m.pendingReturns.cost) },
-    substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), historyConflict: sumM((m) => m.historyConflict),
+    costConflictUnits: sumM((m) => m.costConflictUnits), conflictHeld: sumM((m) => m.conflictHeld), substituteOrders: sumM((m) => m.substituteOrders), substituteUnits: sumM((m) => m.substituteUnits), historyConflict: sumM((m) => m.historyConflict),
     unconverted: unconvertedList.reduce((o, u) => ((o[u.currency] = (o[u.currency] || 0) + u.amount), o), {}),
   };
   total.expenses = total.marketExpenses + total.sharedExpenses + total.unallocatedExpenses;
@@ -571,7 +663,7 @@ export function computeMonthly({ catalogNames = [], orders = [], nameMapRows = [
     sharedExpenses: company.shared, sharedByCategory: company.sharedByCategory,
     unallocated: { usd: company.unallocated, byCategory: company.unallocatedByCategory, unconverted: unconvertedList },
     payroll, payrollOverridden, priceTable, revenueGaps, brandExcluded, skippedAccounting: skipped, unknownDeliveryOrders: unknownList, returnLists,
-    unmapped: [...unmapped.values()].sort((a, b) => b.units - a.units), reviewList,
+    unmapped: [...unmapped.values()].sort((a, b) => b.units - a.units), reviewList, costConflicts: unified.conflicts,
     totals: { netProfit: total.netProfit, revenue: total.revenue, stars: flagCount('star'), losers: flagCount('loss'), risky: flagCount('risky'), unset: flagCount('unset') },
   };
 }

@@ -31,7 +31,7 @@ function mergeSellerRows(report) {
 }
 const curText = (by) => Object.entries(by || {}).map(([c, v]) => `${fmt(v)} ${c}`).join(' + ') || '—';
 const thisMonth = () => new Date().toISOString().slice(0, 7);
-const WARN = { no_price: '⚠️ بلا سعر', no_cost: '⚠️ بلا تكلفة' };
+const WARN = { no_price: '⚠️ بلا سعر', no_cost: '⚠️ بلا تكلفة', cost_conflict: '🟠 تعارض تكلفة — بانتظار قرارك' };
 const SOURCE = { history: 'سجل التسليم', substitute: 'تاريخ بديل', legacy_order_date: 'تقديري (تاريخ الطلب)' };
 
 function Stat({ label, value, sub, tone = 'text-text' }) {
@@ -557,19 +557,20 @@ export default function SalesDeliveryAccountingScreen() {
           {tab === 'products' && (
             <div className="overflow-x-auto border border-border rounded-2xl">
               <table className="w-full text-xs">
-                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'تم الاسترجاع', 'استرجاع غير موثوق', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead className="bg-surface-alt text-muted"><tr>{['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'تكلفة الوحدة $', 'ربح الوحدة $', 'الربح $', 'تم الاسترجاع', 'استرجاع غير موثوق', 'تنبيه'].map((h) => <th key={h} className="p-2 text-right whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>
                   {report.products.map((p) => (
                     <tr key={`${p.market}|${p.key}`} className="border-t border-border">
                       <td className="p-2">{MARKET_LABELS[p.market] || p.market}</td><td className="p-2">{p.name}{p.mapped ? '' : ' •'}</td>
                       <td className="p-2 font-bold">{fmt(p.qty)}</td><td className="p-2">{fmt(p.value)}</td><td className="p-2">{fmt(p.cost)}</td>
-                      <td className="p-2">{fmt(p.unitProfit)}</td><td className="p-2">{fmt(p.profit)}</td><td className="p-2">{fmt(p.returnedQty)}</td><td className="p-2 text-orange-600">{p.returnedUnknownQty ? fmt(p.returnedUnknownQty) : '—'}</td>
-                      <td className="p-2 text-orange-600">{WARN[p.warning] || ''}</td>
+                      <td className="p-2 whitespace-nowrap" title={p.costMixed ? 'تكلفة الوحدة تغيّرت بين طلبات هذه الفترة: المعروض متوسط مرجّح بالكميات = إجمالي التكلفة ÷ إجمالي الكمية' : undefined}>{fmt(p.unitCost)}{p.costMixed && <span className="text-orange-600"> ≈ متوسط</span>}</td>
+                      <td className="p-2 whitespace-nowrap" title={p.costMixed ? 'متوسط مرجّح بالكميات = إجمالي الربح ÷ إجمالي الكمية' : undefined}>{fmt(p.unitProfit)}{p.costMixed && <span className="text-orange-600"> ≈</span>}</td><td className="p-2">{fmt(p.profit)}</td><td className="p-2">{fmt(p.returnedQty)}</td><td className="p-2 text-orange-600">{p.returnedUnknownQty ? fmt(p.returnedUnknownQty) : '—'}</td>
+                      <td className="p-2 text-orange-600">{WARN[p.warning] || ''}{p.fallbackQty ? <span className="block text-[10px]">{fmt(p.fallbackQty)} قطعة بتسعير بداية الشهر (بلا تاريخ تسليم موثوق)</span> : null}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="text-[11px] text-muted p-2">القيمة هنا تحليلية = الكمية × سعر المنتج بنسخة الشهر. إجمالي الطلب الفعلي يبقى من orders.amount. «•» = اسم غير موحَّد.</p>
+              <p className="text-[11px] text-muted p-2">القيمة هنا تحليلية: كل طلب يُسعَّر بنسخة يوم تسليمه (بتوقيت إسطنبول)، فالتكلفة قد تختلف بين طلبات المنتج الواحد داخل الفترة. «التكلفة $» و«الربح $» = مجموع (كمية كل طلب × قيمته يوم تسليمه). حين تختلف التكلفة بين الطلبات تُعرض «تكلفة الوحدة» و«ربح الوحدة» كمتوسط مرجّح بالكميات (≈) = الإجمالي ÷ إجمالي الكمية، لا قيمة آخر طلب. الطلب بلا تاريخ تسليم موثوق (دخل بتاريخ طلبه) يُسعَّر بنسخة بداية الشهر وينبَّه عليه. إجمالي الطلب الفعلي يبقى من orders.amount. «•» = اسم غير موحَّد.</p>
             </div>
           )}
 

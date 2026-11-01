@@ -84,6 +84,8 @@ jobs:
 
       - name: Check product sales/COGS analytics by market
         run: node test-product-analytics.mjs
+      - name: Check cost reading through product aliases (D-176)
+        run: node test-cost-alias-resolution.mjs
 
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs

@@ -428,5 +428,118 @@ const ids = (arr) => arr.map((x) => x.id).sort().join(',');
   eq(pickPayrollRun([]), null, 'لا دورة ← null');
   eq(pickPayrollRun(null), null, 'null آمن');
 }
+// ════ buildProductLines: تسعير كل طلب بيوم تسليمه (إسطنبول) + متوسط مرجّح عند اختلاف التكلفة (D-176) ════
+{
+  const near = (a, b, m) => ok(Number.isFinite(a) && Math.abs(a - b) < 1e-9, `${m} (متوقع ${b}، كان ${a})`);
+  const names = [
+    { alias_name: 'Retail', canonical_name: 'Retail', brand: 'lowes', is_active: true },
+    { alias_name: 'RETAIL OLD', canonical_name: 'Retail', brand: 'lowes', is_active: true },
+  ];
+  const H = (item_name, effective_from, sale_price_usd, cost_usd) => ({ item_name, effective_from, sale_price_usd, cost_usd, ad_cost_usd: 0, shipping_cost_usd: 0 });
+  // تغيير تكلفة بمنتصف الشهر (القاعدة تمنعه اليوم بقيد CHECK، والكود لا يعتمد عليه): قبل 15/10 → 10$/2$، من 15/10 → 12$/3$
+  const hMid = [H('Retail', '2026-10-01', 10, 2), H('RETAIL OLD', '2026-10-15', 12, 3)];
+  // صف كما تُنتجه selectDeliveredInPeriod: delivery_at + delivery_basis_final
+  const D = (id, delivery_at, qty = 1, extra = {}) => ({ id, order_code: id, status: 'delivered', market: 'syria', items: [{ name: 'Retail', qty }], delivery_at, delivery_basis: 'carrier', delivery_basis_final: 'carrier', ...extra });
+  const one = (row, hist, opts = {}) => buildProductLines([row], [], { nameMapRows: names, historyRows: hist, monthStart: '2026-10-01', ...opts })[0];
+
+  // 1) طلب سُلِّم 14/10 ← القديمة؛ 15/10 و20/10 ← الجديدة (وقد مُرِّر monthStart = 1/10)
+  const a14 = one(D('a14', '2026-10-14T12:00:00+03:00'), hMid), a15 = one(D('a15', '2026-10-15T12:00:00+03:00'), hMid), a20 = one(D('a20', '2026-10-20T12:00:00+03:00'), hMid);
+  near(a14.cost, 2, 'DL1: 14/10 ← تكلفة قديمة 2'); near(a14.value, 10, 'DL1: 14/10 ← سعر قديم 10');
+  near(a15.cost, 3, 'DL1: 15/10 ← تكلفة جديدة 3'); near(a15.value, 12, 'DL1: 15/10 ← سعر جديد 12');
+  near(a20.cost, 3, 'DL1: 20/10 ← تكلفة جديدة 3'); near(a20.value, 12, 'DL1: 20/10 ← سعر جديد 12');
+  // 2) تمرير monthStart لا يعطّل التسعير باليوم: نفس النتيجة بدونه وبقيم أخرى له
+  for (const ms of [undefined, null, '2026-10-01', '2026-09-01', '2026-12-01']) {
+    const lab = ms === undefined ? 'بلا monthStart' : `monthStart=${ms}`;
+    near(one(D('b14', '2026-10-14T12:00:00+03:00'), hMid, { monthStart: ms }).cost, 2, `DL2: ${lab} ← 14/10 يبقى 2`);
+    near(one(D('b20', '2026-10-20T12:00:00+03:00'), hMid, { monthStart: ms }).cost, 3, `DL2: ${lab} ← 20/10 يبقى 3`);
+  }
+  // 3) حدود التوقيت بتوقيت إسطنبول (+03:00) لا UTC
+  near(one(D('t1', '2026-10-14T23:59:59+03:00'), hMid).cost, 2, 'DL3: 14/10 23:59:59 إسطنبول ← قبل التغيير 2');
+  near(one(D('t2', '2026-10-15T00:00:00+03:00'), hMid).cost, 3, 'DL3: 15/10 00:00:00 إسطنبول ← لحظة التغيير 3');
+  near(one(D('t3', '2026-10-14T20:59:59Z'), hMid).cost, 2, 'DL3: 14/10 20:59:59Z = 23:59:59 إسطنبول ← 2');
+  near(one(D('t4', '2026-10-14T21:00:00Z'), hMid).cost, 3, 'DL3: 14/10 21:00:00Z = 00:00 يوم 15 بإسطنبول ← 3 (لا تُحسب 14 بحسب UTC)');
+  // 4) حدّ الشهر بنسخ بداية-شهر الفعلية: 30/9 ← 2، 1/10 ← 3 — حتى لو مُرِّر monthStart الشهر الآخر
+  const hMonths = [H('Retail', '2026-09-01', 10, 2), H('Retail', '2026-10-01', 12, 3)];
+  near(one(D('m1', '2026-09-30T23:59:59+03:00'), hMonths, { monthStart: '2026-10-01' }).cost, 2, 'DL4: 30/9 23:59:59 ← 2 ولو monthStart=1/10');
+  near(one(D('m2', '2026-10-01T00:00:00+03:00'), hMonths, { monthStart: '2026-09-01' }).cost, 3, 'DL4: 1/10 00:00:00 ← 3 ولو monthStart=1/9');
+  near(one(D('m3', '2026-09-30T23:59:59+03:00'), hMonths, { monthStart: undefined }).cost, 2, 'DL4: وضع المدى (بلا monthStart) 30/9 ← 2');
+  near(one(D('m4', '2026-10-01T00:00:00+03:00'), hMonths, { monthStart: undefined }).cost, 3, 'DL4: وضع المدى 1/10 ← 3');
+
+  // 5) متوسط مرجّح بالكميات عند اختلاف التكلفة داخل الشهر: 2×(10/2) + 3×(12/3) + 5×(12/3)
+  const mixed = buildProductLines([D('q14', '2026-10-14T12:00:00+03:00', 2), D('q15', '2026-10-15T12:00:00+03:00', 3), D('q20', '2026-10-20T12:00:00+03:00', 5)], [], { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(mixed.qty, 10, 'DL5: إجمالي الكمية 10');
+  near(mixed.cost, 28, 'DL5: إجمالي التكلفة = 2×2 + 3×3 + 5×3 = 28');
+  near(mixed.value, 116, 'DL5: إجمالي القيمة = 2×10 + 3×12 + 5×12 = 116');
+  near(mixed.profit, 88, 'DL5: إجمالي الربح = 2×8 + 3×9 + 5×9 = 88');
+  near(mixed.unitCost, 2.8, 'DL5: متوسط تكلفة الوحدة = 28 ÷ 10 = 2.8 (لا تكلفة آخر طلب 3)');
+  near(mixed.unitProfit, 8.8, 'DL5: متوسط ربح الوحدة = 88 ÷ 10 = 8.8 (لا ربح آخر طلب 9)');
+  near(mixed.unitPrice, 11.6, 'DL5: متوسط سعر الوحدة = 116 ÷ 10');
+  ok(mixed.unitCost !== 3 && mixed.unitProfit !== 9, 'DL5: لا تُعرض قيمة آخر طلب كأنها لكل الوحدات');
+  eq(mixed.costMixed, true, 'DL5: costMixed = true (التكلفة اختلفت بين الطلبات)');
+  // ترتيب الطلبات لا يغيّر النتيجة (المتوسط ليس «آخر طلب»)
+  const mixedRev = buildProductLines([D('q20', '2026-10-20T12:00:00+03:00', 5), D('q15', '2026-10-15T12:00:00+03:00', 3), D('q14', '2026-10-14T12:00:00+03:00', 2)], [], { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(mixedRev.unitCost, 2.8, 'DL5: عكس ترتيب الطلبات ← المتوسط نفسه'); near(mixedRev.cost, 28, 'DL5: والإجمالي نفسه');
+  // بلا اختلاف ← القيمة نفسها حرفياً وبلا علامة
+  const same = buildProductLines([D('s1', '2026-10-16T12:00:00+03:00', 2), D('s2', '2026-10-25T12:00:00+03:00', 4)], [], { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(same.unitCost, 3, 'DL5: كل الطلبات بنفس التكلفة ← 3 كما هي'); near(same.unitProfit, 9, 'DL5: ربح الوحدة 9'); eq(same.costMixed, false, 'DL5: costMixed = false');
+
+  // 6) fallback: monthStart فقط حين لا يوجد تاريخ تسليم موثوق
+  const legacy = D('l1', '2026-10-20T12:00:00+03:00', 1, { delivery_basis: 'unknown', delivery_basis_final: 'legacy_order_date' });   // order_date استُعمل بديلاً
+  const lg = one(legacy, hMid);
+  near(lg.cost, 2, 'DL6: legacy_order_date ← fallback = نسخة بداية الشهر (2) لا يوم الطلب (3)'); near(lg.fallbackQty, 1, 'DL6: الكمية موسومة بأنها بتسعير fallback');
+  near(one(legacy, hMid, { monthStart: undefined }).cost, 2, 'DL6: وضع المدى: fallback = شهر delivery_at (2)');
+  const noBasis = D('l2', '2026-10-20T12:00:00+03:00'); delete noBasis.delivery_basis; delete noBasis.delivery_basis_final;
+  near(one(noBasis, hMid).cost, 2, 'DL6: بلا أساس تسليم معروف ← fallback (2)'); near(one(noBasis, hMid).fallbackQty, 1, 'DL6: وموسوم fallback');
+  near(a20.fallbackQty, 0, 'DL6: التسعير بيوم التسليم الموثوق ← fallbackQty = 0');
+  const trusted = buildProductLines([D('x1', '2026-10-20T12:00:00+03:00', 2), legacy], [], { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(trusted.qty, 3, 'DL6: مزيج موثوق وfallback — الكمية 3'); near(trusted.fallbackQty, 1, 'DL6: قطعة واحدة بتسعير fallback'); near(trusted.cost, 2 * 3 + 1 * 2, 'DL6: التكلفة = 2×3 (موثوق) + 1×2 (fallback)');
+  near(buildProductLines([D('x2', '2026-10-20T12:00:00+03:00', 1, { delivery_basis: 'substitute_staff_event', delivery_basis_final: 'substitute_staff_event' })], [], { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0].cost, 3, 'DL6: أساس بديل متحقَّق منه (substitute_*) يُعدّ تاريخاً موثوقاً ← 3');
+
+  // 7) تعارض بنفس فترة السريان: لا اختيار، ولا يؤثر على ما قبله
+  const hConf = [H('Retail', '2026-10-01', 10, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
+  const cNew = one(D('c20', '2026-10-20T12:00:00+03:00'), hConf);
+  eq(cNew.warning, 'cost_conflict', 'DL7: 20/10 داخل فترة تعارض ← تحذير «تعارض» لا «بلا تكلفة»'); near(cNew.cost, 0, 'DL7: لا تكلفة مختارة (لا 3 ولا 4)'); near(cNew.profit, 0, 'DL7: لا ربح مُخمَّن');
+  near(one(D('c14', '2026-10-14T12:00:00+03:00'), hConf).cost, 2, 'DL7: 14/10 قبل فترة التعارض ← 2 غير متأثر');
+  near(one(D('c20', '2026-10-20T12:00:00+03:00'), hConf, { }).cost, 0, 'DL7: monthStart لا يتجاوز التعارض');
+  const cMix = buildProductLines([D('d14', '2026-10-14T12:00:00+03:00'), D('d20', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf, monthStart: '2026-10-01' })[0];
+  near(cMix.cost, 2, 'DL7: تكلفة الطلب المسعَّر فقط (2) — لا تُنسب التكلفة المجهولة'); near(cMix.unitCost, 2, 'DL7: متوسط التكلفة على الوحدات المسعَّرة فقط (المقام = الوحدات داخل الإجمالي)'); eq(cMix.warning, 'cost_conflict', 'DL7: والتحذير يبقى (تعارض)');
+  const cDecided = buildProductLines([D('e20', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf, monthStart: '2026-10-01', costDecisions: { 'Retail||2026-10-15': 4 } })[0];
+  near(cDecided.cost, 4, 'DL7: قرار المالك لفترة 15/10 يُطبَّق على /sales-delivery أيضاً');
+
+  // 8) المرتجعات: تُعدّ كميات فقط ولا تغيّر التسعير ولا تُسعَّر بيوم الإرجاع
+  const rets = [{ id: 'r1', status: 'returned', market: 'syria', items: [{ name: 'Retail', qty: 4 }], return_at: '2026-10-25T10:00:00+03:00', return_kind: 'after_delivery' }, { id: 'r2', status: 'returned', market: 'syria', items: [{ name: 'Retail', qty: 1 }], return_kind: 'unknown_timing' }];
+  const withRet = buildProductLines([D('f14', '2026-10-14T12:00:00+03:00'), D('f20', '2026-10-20T12:00:00+03:00')], rets, { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(withRet.returnedQty, 4, 'DL8: مرتجع موثوق 4 قطع'); near(withRet.returnedUnknownQty, 1, 'DL8: مرتجع توقيته مجهول 1 منفصل');
+  near(withRet.cost, 2 + 3, 'DL8: المرتجعات لا تغيّر تكلفة المبيعات (14/10 ← 2، 20/10 ← 3)');
+  const onlyRet = buildProductLines([], rets, { nameMapRows: names, historyRows: hMid, monthStart: '2026-10-01' })[0];
+  near(onlyRet.cost, 0, 'DL8: مرتجع بلا مبيعات ← لا تكلفة'); near(onlyRet.unitCost, 0, 'DL8: ولا تكلفة وحدة'); eq(onlyRet.costMixed, false, 'DL8: ولا علامة اختلاط');
+
+  // 9) من الطرف إلى الطرف عبر الشاشة: selectDeliveredInPeriod ← buildReport (يمرّر period.monthStart)
+  const e2e = [
+    o('Z14', 'delivered', { market: 'syria', items: [{ name: 'Retail', qty: 1 }], delivered_at: '2026-10-14T23:59:59+03:00', delivery_basis: 'carrier' }),
+    o('Z15', 'delivered', { market: 'syria', items: [{ name: 'Retail', qty: 1 }], delivered_at: '2026-10-15T00:00:00+03:00', delivery_basis: 'carrier' }),
+    o('Z20', 'delivered', { market: 'syria', items: [{ name: 'Retail', qty: 1 }], delivered_at: '2026-10-20T10:00:00+03:00', delivery_basis: 'carrier' }),
+    o('ZL', 'delivered', { market: 'syria', items: [{ name: 'Retail', qty: 1 }], order_date: '2026-10-22T10:00:00+03:00', delivered_at: null, delivery_basis: 'unknown' }),   // بلا تسليم موثوق ← order_date
+  ];
+  const rep = buildReport({ rows: e2e, period: oct, refs: { nameMapRows: names, historyRows: hMid } });
+  const pl = rep.products.find((p) => p.name === 'Retail');
+  eq(oct.monthStart, '2026-10-01', 'DL9: الفترة تحمل monthStart');
+  near(pl.qty, 4, 'DL9: 4 طلبات'); near(pl.cost, 2 + 3 + 3 + 2, 'DL9: 14/10 ← 2، 15/10 و20/10 ← 3، والبلا-تسليم-موثوق ← fallback بداية الشهر 2');
+  near(pl.fallbackQty, 1, 'DL9: قطعة واحدة بتسعير fallback'); eq(pl.costMixed, true, 'DL9: costMixed'); near(pl.unitCost, 2.5, 'DL9: متوسط مرجّح = 10 ÷ 4');
+  const ex = exportSheets(rep, {})['المنتجات المسلّمة'];
+  ok(ex[0].some((h) => /تكلفة الوحدة/.test(h)) && ex[0].some((h) => /متوسط/.test(h)), 'DL9: ورقة Excel فيها تكلفة الوحدة وتسمية «متوسط مرجّح»');
+  // 10) المراجعة النهائية لـ#128: التكلفة المتعارضة تظهر «تعارض — بانتظار قرار» لا «بلا تكلفة»؛ الناقصة فعلاً تبقى «بلا تكلفة»
+  {
+    const hConf10 = [H('Retail', '2026-10-01', 10, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
+    eq(one(D('t20', '2026-10-20T12:00:00+03:00'), hConf10).warning, 'cost_conflict', 'DL10: داخل فترة تعارض ← cost_conflict');
+    eq(one(D('t14', '2026-10-14T12:00:00+03:00'), [H('Retail', '2026-10-01', 10, 0)]).warning, 'no_cost', 'DL10: تكلفة صفر فعلاً (لا تعارض) ← no_cost كما كان');
+    const both = buildProductLines([D('t1', '2026-10-20T12:00:00+03:00'), D('t2', '2026-10-25T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf10, monthStart: '2026-10-01' })[0];
+    eq(both.warning, 'cost_conflict', 'DL10: كل الطلبات متعارضة ← cost_conflict');
+    eq(one(D('t3', '2026-10-20T12:00:00+03:00'), [H('Retail', '2026-10-01', 0, 2), H('Retail', '2026-10-15', 0, 3), H('RETAIL OLD', '2026-10-15', 0, 4)]).warning, 'no_price', 'DL10: بلا سعر يبقى الأولوية');
+    eq(buildProductLines([D('t4', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hConf10, monthStart: '2026-10-01', costDecisions: { 'Retail||2026-10-15': 4 } })[0].warning, null, 'DL10: بعد قرار المالك لا تحذير');
+    const hNoPrice = [H('Retail', '2026-10-01', 0, 2), H('Retail', '2026-10-15', 12, 3), H('RETAIL OLD', '2026-10-15', 12, 4)];
+    eq(buildProductLines([D('t5', '2026-10-05T12:00:00+03:00'), D('t6', '2026-10-20T12:00:00+03:00')], [], { nameMapRows: names, historyRows: hNoPrice, monthStart: '2026-10-01' })[0].warning, 'no_price', 'DL10: طلب بلا سعر ثم طلب متعارض ← يبقى «بلا سعر» (الأشد)');
+  }
+}
 console.log(`\nنتيجة: ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

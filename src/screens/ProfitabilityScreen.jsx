@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { loadProfitability, saveEconomics, saveMarketPrice, saveExpense, deleteExpense, saveFxRate, closeMonth, acknowledgeRetroDrift, setProductActive } from '@services/profitabilityService';
 import { DELIVERY_BASIS_LABELS, snapshotOf } from '@utils/profitabilityCalc';
+import { costStatusOf, needsCostAttention } from '@utils/costStatus';
 import { useAuth } from '@hooks/useAuth';
 import { useToast } from '@hooks/useToast';
 
@@ -35,11 +36,6 @@ function StatCard({ icon, label, value, tone='navy' }) {
 // التكلفة فقط. سعر البيع يتغيّر من طلب لآخر، فلا يُدخَل هنا: الإيراد يُؤخذ من قيمة كل طلب فعلياً.
 // تكلفة خاصة بسوق تتفوق على التكلفة الموحّدة؛ الخانة الفارغة = ترث الموحّدة. الماضي لا يُعاد كتابته.
 const MKTS = [['syria', '🇸🇾 سوريا'], ['turkey', '🇹🇷 تركيا'], ['uae', '🇦🇪 الإمارات']];
-const COST_STATUS = {
-  market:  ['🟢 خاصة بالسوق', 'text-green-600'],
-  unified: ['🔵 موحّدة', 'text-teal'],
-  missing: ['🔴 ناقصة', 'text-red-600'],
-};
 const thisMonth = () => new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 7);
 
 function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved }) {
@@ -81,7 +77,7 @@ function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved })
     onSaved();
   };
 
-  const missingCount = (t) => MKTS.filter(([mk]) => t.markets[mk].costStatus === 'missing').length;
+  const missingCount = (t) => MKTS.filter(([mk]) => needsCostAttention(t.markets[mk].costStatus)).length;
   const list = table.filter((t) => (!q || t.name.toLowerCase().includes(q.trim().toLowerCase())) && (!onlyMissing || missingCount(t) > 0));
   const INP = 'w-16 border border-border rounded-lg px-1.5 py-1 text-xs bg-surface-alt text-text text-center focus:outline-none focus:ring-2 focus:ring-teal/30';
 
@@ -97,7 +93,7 @@ function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved })
           <label className="text-xs text-text flex items-center gap-1.5">تسري من شهر
             <input type="month" value={startMonth} min={cur} onChange={(e) => setStartMonth(e.target.value || cur)} className="border border-border rounded-lg px-2 py-1 text-xs bg-surface-alt text-text" />
           </label>
-          <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} /> الناقصة فقط</label>
+          <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} /> الناقصة والمتعارضة فقط</label>
         </div>
         <div className="overflow-y-auto flex-1 px-3">
           <table className="w-full text-xs">
@@ -114,7 +110,7 @@ function MarketPriceEditor({ table, focus, viewMonth, actor, onClose, onSaved })
                   <td className="py-1.5 pe-2 text-text font-medium">{t.name}{t.inCatalog === false && <div className="text-[9px] text-orange-600 font-normal">⚠️ بلا أصل بالكتالوج</div>}</td>
                   <td className="text-center py-1"><input value={rows[`${t.key}|unified`].cost} onChange={(ev) => set(`${t.key}|unified`, ev.target.value)} inputMode="decimal" className={INP} placeholder="—" /></td>
                   {MKTS.map(([mk]) => {
-                    const e = t.markets[mk], id = `${t.key}|${mk}`, [lab, cls] = COST_STATUS[e.costStatus] || COST_STATUS.missing;
+                    const e = t.markets[mk], id = `${t.key}|${mk}`, [lab, cls] = costStatusOf(e.costStatus);
                     return (
                       <td key={mk} className="text-center py-1">
                         <input value={rows[id].cost} onChange={(ev) => set(id, ev.target.value)} inputMode="decimal" className={INP} placeholder={e.costStatus === 'unified' ? String(e.cost) : '—'} />

@@ -12,7 +12,7 @@
 //  • غير المسلَّم (تجهيز/شحن/وارد/لم يُستلم) يُعرض بقيمه ولا يدخل أي مجموع.
 //  • قيمة الطلب = orders.amount الفعلي بعملته؛ قيمة المنتجات تحليلية من product_economics (نسخة الشهر).
 // =============================================================
-import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, normName, monthBounds, istanbulMonthStart, ISTANBUL_OFFSET } from './profitabilityCalc.js';
+import { resolveEcon, buildResolver, buildVersionIndex, buildMarketIndex, unifyCostSources, normName, monthBounds, istanbulMonthStart, istanbulDay, ISTANBUL_OFFSET } from './profitabilityCalc.js';
 import { accumulateUsd, finalizeUsd } from './fxConverter.js';
 import { buildStatusViews } from './statusLedger.js';
 import { shippingEstimateSummary } from './shippingRates.js';
@@ -165,19 +165,44 @@ export function summarize(orders, keyFn, rateMap, converter = null, kind = 'deli
 }
 
 /**
- * سطور المنتجات المسلَّمة لكل سوق: كمية × sale_price_usd (نسخة الشهر) — قيمة تحليلية.
- * صنف بلا سعر/تكلفة: يظهر بتحذير ولا يكسر التقرير (لا يدخل مجموع الربح).
+ * تاريخ سريان تسعير طلب مسلَّم (D-176).
+ *  • تاريخ تسليم موثوق (delivery_basis_final/delivery_basis ليس unknown ولا legacy_order_date، وdelivery_at صالح):
+ *    يُسعَّر بيوم تسليمه الفعلي بتوقيت إسطنبول — الطلب قبل تاريخ تغيير التكلفة يأخذ القديمة وبعده الجديدة،
+ *    ولا يُستبدل بـmonthStart الفترة ولو كان مُمرَّراً.
+ *  • fallback (يُوسَم month_fallback): لا تاريخ تسليم موثوق — الطلب دخل بتاريخ طلبه البديل (legacy_order_date)
+ *    أو بلا أساس تسليم معروف ← نسخة بداية شهر الفترة (monthStart)، وإن غاب (وضع المدى) فشهر delivery_at.
  */
-export function buildProductLines(delivered, returns, { nameMapRows = [], historyRows = [], currentRows = [], marketPriceRows = [], monthStart, nowMonth = null } = {}) {
+export function pricingDateFor(o, monthStart) {
+  const basis = o?.delivery_basis_final ?? o?.delivery_basis;
+  const reliable = !!basis && basis !== 'unknown' && basis !== 'legacy_order_date';
+  const day = reliable ? istanbulDay(o.delivery_at) : null;
+  if (day) return { asOf: day, basis: 'delivery_day' };
+  return { asOf: monthStart || istanbulMonthStart(o?.delivery_at) || null, basis: 'month_fallback' };
+}
+
+/**
+ * سطور المنتجات المسلَّمة لكل سوق: كمية × sale_price_usd/cost_usd — قيمة تحليلية.
+ * كل طلب يُسعَّر بنسخة يوم تسليمه (pricingDateFor)، فالتكلفة قد تختلف بين طلبات المنتج الواحد داخل الفترة:
+ *  • cost/value/profit = مجموع (كمية كل طلب × قيمته يوم تسليمه) — لا متوسطات في الإجماليات.
+ *  • unitCost/unitPrice/unitProfit: عند اختلاف القيم (costMixed) = **متوسط مرجّح بالكميات** = الإجمالي ÷ كمية الوحدات الداخلة فيه
+ *    (تكلفة وربح: الوحدات ذات السعر والتكلفة معاً)، لا قيمة آخر طلب؛ وعند عدم الاختلاف القيمة نفسها كما هي.
+ *  • fallbackQty: كمية سُعِّرت بنسخة بداية الشهر لغياب تاريخ تسليم موثوق.
+ * صنف بلا سعر/تكلفة (أو بتكلفة متعارضة بانتظار قرار المالك): يظهر بتحذير ولا يكسر التقرير (لا يدخل مجموع الربح).
+ */
+export function buildProductLines(delivered, returns, { nameMapRows = [], historyRows = [], currentRows = [], marketPriceRows = [], monthStart, nowMonth = null, costDecisions } = {}) {
   const resolve = buildResolver(nameMapRows);
-  const versions = buildVersionIndex(historyRows, currentRows);
-  const marketIdx = buildMarketIndex(marketPriceRows);
+  // نفس توحيد صفوف التكلفة تحت الاسم الموحّد كمحرك الربحية (D-176) — التعارض لا يُحسم آلياً
+  const unified = unifyCostSources({ historyRows, currentRows, marketPriceRows, resolve, ...(costDecisions ? { decisions: costDecisions } : {}) });
+  const versions = buildVersionIndex(unified.history, unified.current);
+  const marketIdx = buildMarketIndex(unified.market);
   const rows = new Map();
   const slot = (it, market) => {
     const id = `${market}|${it.key}`;
-    if (!rows.has(id)) rows.set(id, { market, name: it.name, key: it.key, qty: 0, returnedQty: 0, returnedUnknownQty: 0, value: 0, cost: 0, profit: 0, unitPrice: 0, unitCost: 0, unitProfit: 0, warning: null, mapped: it.mapped });
+    if (!rows.has(id)) rows.set(id, { market, name: it.name, key: it.key, qty: 0, returnedQty: 0, returnedUnknownQty: 0, value: 0, cost: 0, profit: 0, unitPrice: 0, unitCost: 0, unitProfit: 0, costMixed: false, fallbackQty: 0, warning: null, mapped: it.mapped });
     return rows.get(id);
   };
+  const acc = new Map();   // مراكم غير مقرَّبة للمتوسط المرجّح: لكل صف
+  const accOf = (id) => { if (!acc.has(id)) acc.set(id, { priced: 0, sumPrice: 0, both: 0, sumCost: 0, sumProfit: 0, variants: new Set() }); return acc.get(id); };
   const itemsOf = (o) => (Array.isArray(o.items) ? o.items : []).map((raw) => {
     const name = String(raw?.name ?? '').trim();
     if (!name) return null;
@@ -187,16 +212,32 @@ export function buildProductLines(delivered, returns, { nameMapRows = [], histor
   }).filter((it) => it && it.active);
   for (const o of delivered) {
     for (const it of itemsOf(o)) {
-      const e = resolveEcon(versions, marketIdx, it.key, o.market, monthStart || istanbulMonthStart(o.delivery_at) || String(o.delivery_at).slice(0, 7) + '-01', nowMonth);
+      const pd = pricingDateFor(o, monthStart);
+      const e = resolveEcon(versions, marketIdx, it.key, o.market, pd.asOf, nowMonth);
       const r = slot(it, o.market);
+      const a = accOf(`${o.market}|${it.key}`);
       r.qty += it.q;
+      if (pd.basis === 'month_fallback') r.fallbackQty += it.q;
       r.unitPrice = e.price; r.unitCost = e.cost;
+      a.variants.add(`${e.price}|${e.cost}`);
       if (!(e.price > 0)) r.warning = 'no_price';
+      else if (e.costConflict) r.warning = r.warning === 'no_price' ? r.warning : 'cost_conflict'; // ليست «ناقصة»: تنتظر قرار المالك
       else if (!(e.cost > 0)) r.warning = r.warning || 'no_cost';
-      if (e.price > 0) r.value = round2(r.value + it.q * e.price);
-      if (e.price > 0 && e.cost > 0) { r.cost = round2(r.cost + it.q * e.cost); r.profit = round2(r.profit + it.q * (e.price - e.cost)); }
+      if (e.price > 0) { r.value = round2(r.value + it.q * e.price); a.priced += it.q; a.sumPrice += it.q * e.price; }
+      if (e.price > 0 && e.cost > 0) {
+        r.cost = round2(r.cost + it.q * e.cost); r.profit = round2(r.profit + it.q * (e.price - e.cost));
+        a.both += it.q; a.sumCost += it.q * e.cost; a.sumProfit += it.q * (e.price - e.cost);
+      }
       r.unitProfit = e.price > 0 && e.cost > 0 ? round2(e.price - e.cost) : 0;
     }
+  }
+  // اختلفت القيم بين طلبات الصف ← متوسط مرجّح بالكميات بدل قيمة آخر طلب
+  for (const [id, a] of acc) {
+    const r = rows.get(id); if (!r || a.variants.size < 2) continue;
+    r.costMixed = true;
+    r.unitPrice = a.priced ? round2(a.sumPrice / a.priced) : 0;
+    r.unitCost = a.both ? round2(a.sumCost / a.both) : 0;
+    r.unitProfit = a.both ? round2(a.sumProfit / a.both) : 0;
   }
   for (const o of returns || []) {
     const unknown = (o.return_kind || returnKind(o)) === 'unknown_timing'; // توقيت جماعي/بلا تاريخ: يُعرض منفصلاً ولا يُعدّ موثوقاً
@@ -293,7 +334,7 @@ export function exportSheets(report, { sellerCommissions = [] } = {}) {
       : [['السوق', 'عدد الطلبات المسلّمة', 'القيمة الفعلية', 'بالدولار', 'طلبات بلا سعر صرف'], ...report.byMarket.map((m) => [m.key, m.count, cur(m), m.usd, m.usdMissing])],
     'الطلبات المسلّمة': fxm ? [[...head, 'بالدولار', 'حالة السعر'], ...report.delivered.map((o) => [...orderRow(o), ...stat(o)])] : [head, ...report.delivered.map(orderRow)],
     'غير المسلّمة': [[...head.slice(0, 9), 'المجموعة'], ...report.undelivered.map((o) => [...orderRow(o).slice(0, 9), o.group])],
-    'المنتجات المسلّمة': [['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'ربح الوحدة $', 'الربح $', 'مرتجع', 'تحذير'], ...report.products.map((p) => [p.market, p.name, p.qty, p.value, p.cost, p.unitProfit, p.profit, p.returnedQty, p.warning || ''])],
+    'المنتجات المسلّمة': [['السوق', 'المنتج', 'الكمية', 'القيمة $', 'التكلفة $', 'تكلفة الوحدة $ (متوسط مرجّح عند اختلافها)', 'ربح الوحدة $ (متوسط مرجّح عند اختلافه)', 'الربح $', 'مرتجع', 'تحذير', 'ملاحظة التسعير'], ...report.products.map((p) => [p.market, p.name, p.qty, p.value, p.cost, p.unitCost, p.unitProfit, p.profit, p.returnedQty, p.warning || '', [p.costMixed ? 'تكلفة متغيّرة داخل الفترة — متوسط مرجّح بالكميات' : '', p.fallbackQty ? `${p.fallbackQty} قطعة بتسعير بداية الشهر (بلا تاريخ تسليم موثوق)` : ''].filter(Boolean).join(' · ')])],
     'الموظفون والعمولات': fxm
       ? [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'منه تقديري $', 'غير محوَّل', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, s.usdEstimated, s.usdMissing, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])]
       : [['الموظف', 'طلبات مسلّمة', 'المبيعات', 'بالدولار', 'العمولة $'], ...report.bySeller.map((s) => [s.key, s.count, cur(s), s.usd, sellerCommissions.find((c) => normName(c.name) === normName(s.key))?.commission ?? ''])],
