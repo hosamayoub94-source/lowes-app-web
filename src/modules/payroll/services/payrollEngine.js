@@ -278,6 +278,31 @@ export function salesUsdFromIndex(index, emp, rateMap) {
   return { usd: s.value, count: s.count, missingRate: s.missingRate };
 }
 
+/** Live rate map + the run's frozen TRY/SYP rates (same map the calculation uses), so a recheck never re-prices the run. */
+export async function fetchRunRateMap(run) {
+  const rateMap = await fetchExchangeRateMap();
+  if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
+  if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
+  return rateMap;
+}
+
+/**
+ * مبيعات كل موظف الآن بعملة فريقه — بنفس الفهرس والأسعار التي تستعملها الحسبة (لا محرك ثانٍ).
+ * تُقارَن بالقيود المحفوظة قبل الاعتماد: أي تأكيد تسليم/إثبات شحن/تغيير حالة بعد الحسبة يظهر فرقاً.
+ * @returns {Map<string, {value:number, count:number, currency:string, missingRate:boolean}>} مفتاحها employee_id
+ */
+export async function computeLiveTeamSales({ year, month, run, employees = [] }) {
+  const [rateMap, index] = await Promise.all([fetchRunRateMap(run), fetchMonthlySalesIndex(year, month)]);
+  const out = new Map();
+  for (const emp of employees) {
+    const team = resolveTeam(emp.team);
+    if (!team) continue;
+    const s = salesInCurrency(index, emp, team.currency, rateMap);
+    out.set(emp.id, { value: s.value, count: s.count, currency: team.currency, missingRate: s.missingRate });
+  }
+  return out;
+}
+
 // ── Commission rules (defaults only — a run's OWN snapshot on
 //    payroll_runs always wins once month setup is confirmed) ──
 
@@ -802,11 +827,7 @@ export async function runPayrollForMonth({ runId, year, month, onProgress, skipE
   let rateMap = { USD: 1 };
   let salesIndex = new Map();
   try {
-    rateMap = await fetchExchangeRateMap();
-    // Run-level frozen rates win once confirmed, so re-running an old
-    // month never re-prices it off today's live rate.
-    if (run?.rate_usd_try > 0) rateMap.TRY = 1 / Number(run.rate_usd_try);
-    if (run?.rate_usd_syp > 0) rateMap.SYP = 1 / Number(run.rate_usd_syp);
+    rateMap = await fetchRunRateMap(run);
   } catch (e) {
     throw new Error('تعذّر جلب أسعار الصرف: ' + (e?.message || e) + ' — أُوقفت الحسبة قبل حفظ أي قيد.');
   }

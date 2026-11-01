@@ -40,7 +40,7 @@ import { checkRunDeletable } from '../utils/runDeletePolicy.js';
 import { PAYROLL_GROUPS, filterEntriesByGroup, summarizeGroups, externalSharesTotalUsd } from '../utils/payrollGroups.js';
 import { fetchExternalShares } from '../services/payrollService.js';
 import { provisionalBlockReason, isOpenPeriod, PROVISIONAL_BANNER } from '../utils/payrollPeriod.js';
-import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
+import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck, fetchLiveSalesDrift } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
 import { computeCashCoverage, COVERAGE } from '../utils/cashCoverage.js';
 
@@ -220,22 +220,28 @@ export function PayrollDashboard() {
   const [inputsChecked, setInputsChecked] = useState(false);
   // ملخص الدورة (عدد/صافي) يجب أن يطابق القيود فعلاً — يُقرأ طازجاً من القاعدة لا من ذاكرة الواجهة
   const [summaryCheck, setSummaryCheck] = useState(null);
+  // مبيعات التسليمات الآن مقابل المحفوظ بالقيود: تأكيد تسليم مالي/إثبات شحن بعد الحسبة يجعلها قديمة
+  const [salesDrift, setSalesDrift] = useState(null);
   useEffect(() => {
     if (!run?.id || run.status !== PAYROLL_STATUS.DRAFT || showAllowances) return undefined;
     let active = true;
     setInputsChecked(false);
     setSummaryCheck(null);
+    setSalesDrift(null);
+    const runRates = { period_year: run.period_year, period_month: run.period_month, rate_usd_try: run.rate_usd_try, rate_usd_syp: run.rate_usd_syp };
     Promise.all([
       fetchPayrollInputsUpdatedAt(run.period_year, run.period_month),
       fetchRunSummaryCheck(run.id),
-    ]).then(([value, summary]) => {
+      fetchLiveSalesDrift(runRates, entries),
+    ]).then(([value, summary, drift]) => {
       if (!active) return;
       setInputsUpdatedAt(value);
       setSummaryCheck(summary);
+      setSalesDrift(drift);
       setInputsChecked(true);
     });
     return () => { active = false; };
-  }, [run?.id, run?.status, run?.period_year, run?.period_month, entries, showAllowances]);
+  }, [run?.id, run?.status, run?.period_year, run?.period_month, run?.rate_usd_try, run?.rate_usd_syp, entries, showAllowances]);
 
   const openMonthSetup = useCallback(async () => {
     if (!run) return;
@@ -522,7 +528,7 @@ export function PayrollDashboard() {
     negativeNetEntries,
     blockingEntries,
   } = getPayrollBlockingEntryIssues(entries);
-  const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt });
+  const staleness = getPayrollStaleness({ entries, run, inputsUpdatedAt, salesDrift });
   // الشهر الجاري = حسبة مؤقتة: لا اعتماد ولا دفع قبل إغلاقه ثم إعادة التشغيل (قرار مالك 24/10/2026).
   const provisionalReason = run ? provisionalBlockReason({ run, entries }) : null;
   const isOpenMonthRun = run ? isOpenPeriod(Number(run.period_year), Number(run.period_month)) : false;

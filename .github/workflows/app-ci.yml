@@ -90,6 +90,10 @@ jobs:
         run: node test-finance-delivery-confirmation.mjs
       - name: Check payroll is unaffected by delivery confirmations and UAE items (D-179)
         run: node test-payroll-finance-confirmed.mjs
+      - name: "Check payroll approval is blocked when delivery sales changed after the calculation"
+        run: node test-payroll-sales-drift.mjs
+      - name: "Check profitability vs delivery accounting recognition and FX source comparison"
+        run: node test-cross-engine-checks.mjs
 
       - name: Check my-target card calculations
         run: node test-my-target-calc.mjs

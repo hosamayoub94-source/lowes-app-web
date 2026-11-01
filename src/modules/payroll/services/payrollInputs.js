@@ -2,7 +2,25 @@
 // Returns null when any lookup fails so the approval gate treats the run as
 // unverifiable (stale) instead of silently trusting it.
 import { supabase } from '@services/supabase';
-import { checkRunSummary } from './payrollValidation.js';
+import { checkRunSummary, detectSalesDrift } from './payrollValidation.js';
+import { computeLiveTeamSales } from './payrollEngine.js';
+
+// Recompute each entry's sales now (same index + the run's frozen rates) and compare with what was stored.
+// null on any failure → the gate treats the run as unverifiable.
+export async function fetchLiveSalesDrift(run, entries = []) {
+  try {
+    const ids = [...new Set((entries || []).filter((e) => e.source !== 'manual' && e.employee_id).map((e) => e.employee_id))];
+    if (ids.length === 0) return { stale: false, rows: [] };
+    const { data: emps, error } = await supabase.from('profiles').select('id, employee_name, seller_alias, team').in('id', ids);
+    if (error) throw new Error(error.message);
+    const live = await computeLiveTeamSales({ year: Number(run.period_year), month: Number(run.period_month), run, employees: emps || [] });
+    const names = new Map((emps || []).map((e) => [e.id, e.employee_name]));
+    return detectSalesDrift({ entries, live, names });
+  } catch (error) {
+    console.error('[PayrollSalesDrift]', error);
+    return null;
+  }
+}
 
 // Fresh read of the run header vs its entries (the store's run object may be stale after a run).
 export async function fetchRunSummaryCheck(runId) {
