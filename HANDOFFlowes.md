@@ -4001,3 +4001,9 @@ finance → المحاسبة
 - **باقٍ كما هو عمداً:** محرّر قواعد العمولة الافتراضية (يقرؤه المسيّر)، الأرشفة (تشغيلية بتاريخ الطلب)، توزيع حالات طلبات الشهر بلوحة المدير (طلبات أُنشئت هذا الشهر — سؤال مختلف).
 - **التالي (PR منفصل):** مصدر صرف شهري واحد (D-164: يدوي) بدل exchange_rates / profitability_fx_rates / commission_rules.try_per_usd.
 - **تحقق:** اختبارات 302/302 · 13/13 · 305 · payroll-batch 16/16 · routes 81/0 · eslint بلا أخطاء · build ✔. Preview بحساب المدير مطلوب قبل الدمج.
+
+## 1 Nov 2026 (ليلاً) — ERP المرحلة 1 (D-181): بوابة «رواتب قديمة» على التسليمات + فحص مطابقة المحرّكات — PR #130 مسودّة، غير مدموج
+- فرع `feat/erp-finance-unification` (worktree `C:\Users\acer\Projects\lowes-erp-wt`). التقرير: `docs/erp/ERP_AUDIT_2026-11-01.md`.
+- دورة أكتوبر `f2926f39` معتمدة 18:32:09 UTC؛ تأكيد TL-29869 بعدها 18:45:08 ⇒ Hla Al Namra 114.20$ ← 116.80$ (+2.60$)، لم تُعدَّل الدورة (قرار Q4).
+- الجديد: `detectSalesDrift`/`fetchLiveSalesDrift`/`computeLiveTeamSales`/`fetchRunRateMap` + `utils/crossEngineChecks.js`. اختبارات `test-payroll-sales-drift.mjs` 27/27، `test-cross-engine-checks.mjs` 18/18. 4 اختبارات قديمة تفشل على main أصلاً (b2b-leads-fn، b2b-model، cron-service-key-sql، media-sales-hidden).
+- قرارات مفتوحة Q1–Q5 بـD-181 (أسعار أكتوبر TRY 49.5/50 وSYP 143.2/140، الـ39 المنقولة من أيلول، قاعدة «بلا تاريخ»، فرق Hla، settled).
