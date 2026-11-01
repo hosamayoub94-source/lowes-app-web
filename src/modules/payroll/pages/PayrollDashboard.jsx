@@ -37,7 +37,7 @@ import { printRunReport } from '../utils/printPayslip.js';
 import { getPayrollBlockingEntryIssues, getPayrollStaleness } from '../services/payrollValidation.js';
 import { isHistoricalPayrollPeriod, HISTORICAL_PERIOD_MESSAGE } from '../utils/historicalPeriod.js';
 import { checkRunDeletable } from '../utils/runDeletePolicy.js';
-import { PAYROLL_GROUPS, filterEntriesByGroup, summarizeGroups } from '../utils/payrollGroups.js';
+import { PAYROLL_GROUPS, filterEntriesByGroup, summarizeGroups, UAE_PAID_SHARES, uaePaidTotalUsd } from '../utils/payrollGroups.js';
 import { provisionalBlockReason, isOpenPeriod, PROVISIONAL_BANNER } from '../utils/payrollPeriod.js';
 import { fetchPayrollInputsUpdatedAt, fetchRunSummaryCheck } from '../services/payrollInputs.js';
 import { loadPayrollCashSnapshot } from '../services/cashSnapshot.js';
@@ -802,13 +802,36 @@ export function PayrollDashboard() {
                         <button key={g.key} role="tab" aria-selected={active} onClick={() => setGroupTab(g.key)}
                           className={`px-3 py-2 rounded-xl border text-xs font-bold transition ${active ? 'bg-teal text-navy border-teal' : 'bg-surface-alt/60 text-text border-border/40 hover:border-teal/60'}`}>
                           <span>{g.icon} {g.label}</span>
-                          <span className="mx-1.5 opacity-70">· {sm.count}</span>
-                          <span className="tabular-nums opacity-90">{Object.entries(sm.totals).map(([c, v]) => formatCurrency(v, c)).join(' + ') || '—'}</span>
+                          <span className="mx-1.5 opacity-70">· {g.key === 'uae' ? sm.count + UAE_PAID_SHARES.length : sm.count}</span>
+                          <span className="tabular-nums opacity-90">{g.key === 'uae'
+                            ? `${formatCurrency(uaePaidTotalUsd(), 'USD')} على الإمارات`
+                            : (Object.entries(sm.totals).map(([c, v]) => formatCurrency(v, c)).join(' + ') || '—')}</span>
                         </button>
                       );
                     })}
                   </div>
-                  {visibleEntries.length === 0 && (
+                  {groupTab === 'uae' && (
+                    <div className="xl:col-span-2 2xl:col-span-3 rounded-2xl border border-border/40 bg-surface-alt/60 p-4">
+                      <div className="text-sm font-extrabold text-text mb-1">🇦🇪 يُدفع من الإمارات (Reem) — خارج إجمالي هذه الدورة</div>
+                      <p className="text-[11px] text-muted mb-3">معلوماتي فقط: لا يدخل إجمالي الدورة ولا الاعتماد ولا الدفع. المبالغ من إعدادات الرواتب وتحتاج تأكيداً من حسابات الإمارات.</p>
+                      <div className="space-y-2">
+                        {UAE_PAID_SHARES.map((x) => (
+                          <div key={x.employee_id} className="flex items-center justify-between gap-3 bg-cream rounded-xl px-4 py-3 border border-border/30">
+                            <div>
+                              <div className="font-bold text-sm text-text">{x.name}</div>
+                              <div className="text-[11px] text-muted">{x.part}</div>
+                            </div>
+                            <div className="font-extrabold text-teal tabular-nums">{formatCurrency(x.usd, 'USD')}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between mt-3 font-bold text-sm">
+                        <span className="text-muted">إجمالي ما على الإمارات</span>
+                        <span className="text-teal tabular-nums">{formatCurrency(uaePaidTotalUsd(), 'USD')}</span>
+                      </div>
+                    </div>
+                  )}
+                  {visibleEntries.length === 0 && groupTab !== 'uae' && (
                     <div className="xl:col-span-2 2xl:col-span-3 text-center text-muted text-sm py-8">لا يوجد موظفون في هذه المجموعة بهذه الدورة</div>
                   )}
                   {visibleEntries.map(e => (
