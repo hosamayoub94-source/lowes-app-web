@@ -408,15 +408,17 @@ export default function AdminUsersScreen() {
   // ما يرجع نشط (proration بيقرأ resigned_at بغض النظر عن is_active).
   const toggleActive = async (p) => {
     const turningOff = !!p.is_active;
-    const patch = { is_active: !p.is_active };
-    if (turningOff && !p.resigned_at) {
-      patch.resigned_at = new Date().toISOString().slice(0, 10);
-    } else if (!turningOff) {
-      patch.resigned_at = null;
-    }
     try {
-      await updateProfile(p.id, patch);
-      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, ...patch } : x));
+      // الكتابة المباشرة على profiles كانت تُرفض بصمت (RLS بلا سياسة
+      // UPDATE → 0 صفوف بلا خطأ) فيبدو التفعيل ناجحاً ثم يرجع بعد التحديث.
+      // المسار الصحيح: manage-employee (service role) + نتحقق من النتيجة.
+      const { data, error } = await supabase.functions.invoke('manage-employee', {
+        body: { action: turningOff ? 'deactivate' : 'reactivate', target_id: p.id },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.message || 'تعذّر تغيير حالة الحساب');
+      const saved = data.profile;
+      setProfiles(ps => ps.map(x => x.id === p.id ? { ...x, ...saved } : x));
     } catch (e) { setError(e.message); }
   };
 

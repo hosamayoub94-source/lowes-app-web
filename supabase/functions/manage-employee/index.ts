@@ -211,10 +211,22 @@ Deno.serve(async (req: Request) => {
       const guard = await assertCanManageTarget(supabase, requesterRole, requesterId, target_id, isSocial, allowed);
       if (!guard.ok) return json(guard, 200);
 
+      // إعادة التفعيل لازم تمسح حالة «مستقيل» وتاريخ الإغلاق، وإلا يبقى الموظف
+      // مؤرشفاً بشاشة المستقيلين. التعطيل يسجّل تاريخ الإغلاق لو غائب
+      // (المنطق نفسه اللي كان بالواجهة) لأن محرك الرواتب يقرأ resigned_at.
+      const reactivating = action === 'reactivate';
+      const patch: Record<string, unknown> = reactivating
+        ? { is_active: true, employment_status: 'active', resigned_at: null }
+        : { is_active: false };
       const { data, error } = await supabase.from('profiles')
-        .update({ is_active: action === 'reactivate' })
-        .eq('id', target_id).select('id,employee_name,is_active').single();
+        .update(patch)
+        .eq('id', target_id).select('id,employee_name,is_active,employment_status,resigned_at').single();
       if (error) return json({ ok: false, error: 'db', message: error.message }, 200);
+      if (!reactivating && !data.resigned_at) {
+        const today = new Date().toISOString().slice(0, 10);
+        await supabase.from('profiles').update({ resigned_at: today }).eq('id', target_id);
+        data.resigned_at = today;
+      }
       await audit(action, target_id, data.employee_name, {});
       return json({ ok: true, action, profile: data }, 200);
     }
