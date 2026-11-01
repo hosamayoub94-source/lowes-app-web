@@ -7,6 +7,7 @@ export const PAYROLL_GROUPS = [
   { key: 'turkey', label: 'تركيا',         icon: '🇹🇷' },
   { key: 'social', label: 'سوشال ميديا',   icon: '📱' },
   { key: 'uae',    label: 'الإمارات',      icon: '🇦🇪' },
+  { key: 'admin',  label: 'الإدارة',       icon: '🏢' },
   { key: 'other',  label: 'أخرى',          icon: '👥' },
 ];
 
@@ -17,10 +18,19 @@ const TEAM_TO_GROUP = {
   'الإمارات': 'uae', 'الامارات': 'uae', uae: 'uae', UAE: 'uae',
 };
 
+// الإدارة (رواتبهم غير مرتبطة بالمبيعات) — بالمعرّف مؤقتاً (قرار المالك 1/11/2026) إلى أن يُضاف حقل «مجموعة الرواتب» بالملف الشخصي:
+// Amany alkshki · Wasim Alkshki · Fadi Jarrouge
+export const MANAGEMENT_EMPLOYEE_IDS = new Set([
+  'cc450ee7-b2ea-40c4-9d4c-3e9fcc016123',
+  'a820ceb5-69b7-43a2-8fdf-d53f3f47581a',
+  '473d685a-b91f-40ea-9f1e-a797724b606a',
+]);
+
 const norm = (v) => String(v ?? '').trim();
 
 /** مفتاح المجموعة لقيد رواتب واحد (never 'all'). */
 export function groupOfEntry(entry) {
+  if (MANAGEMENT_EMPLOYEE_IDS.has(entry?.employee_id)) return 'admin';
   const byProfile = TEAM_TO_GROUP[norm(entry?.profile_team)] || TEAM_TO_GROUP[norm(entry?.profile_team).toLowerCase()];
   if (byProfile) return byProfile;
   const byCalc = TEAM_TO_GROUP[norm(entry?.team)];

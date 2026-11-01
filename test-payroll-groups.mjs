@@ -1,5 +1,5 @@
 /* global process */
-import { groupOfEntry, filterEntriesByGroup, summarizeGroups, PAYROLL_GROUPS } from './src/modules/payroll/utils/payrollGroups.js';
+import { MANAGEMENT_EMPLOYEE_IDS, groupOfEntry, filterEntriesByGroup, summarizeGroups, PAYROLL_GROUPS } from './src/modules/payroll/utils/payrollGroups.js';
 let pass = 0; let fail = 0;
 const eq = (a, b, m) => { if (JSON.stringify(a) === JSON.stringify(b)) pass += 1; else { fail += 1; console.error('FAIL', m, JSON.stringify(a), '≠', JSON.stringify(b)); } };
 
@@ -12,6 +12,12 @@ const entries = [
 ];
 
 eq(groupOfEntry(entries[0]), 'syria', 'سوريا');
+// الإدارة: وسيم (فريقه سوريا) وأماني (بلا فريق) وفادي (عام) ← الإدارة بغض النظر عن فريق الملف
+const [AM, WA, FA] = [...MANAGEMENT_EMPLOYEE_IDS];
+eq(groupOfEntry(E('w', 'سوريا', 177, { employee_id: WA })), 'admin', 'وسيم ← الإدارة لا سوريا');
+eq(groupOfEntry(E('a', '', 402, { employee_id: AM })), 'admin', 'أماني ← الإدارة');
+eq(groupOfEntry(E('f', 'عام', 302, { employee_id: FA })), 'admin', 'فادي ← الإدارة');
+eq(groupOfEntry(E('z', 'سوريا', 1, { employee_id: 'someone-else' })), 'syria', 'غيرهم لا يتأثر');
 eq(groupOfEntry(entries[3]), 'social', 'ميديا ← سوشال ميديا');
 eq(groupOfEntry(entries[4]), 'other', 'عام ← أخرى');
 eq(groupOfEntry(entries[5]), 'other', 'بلا فريق ← أخرى');
@@ -19,12 +25,14 @@ eq(groupOfEntry(entries[6]), 'uae', 'الإمارات');
 eq(groupOfEntry(entries[7]), 'turkey', 'فريق الحسبة عند غياب فريق الملف');
 eq(filterEntriesByGroup(entries, 'all').length, entries.length, 'الكل = كل القيود');
 
-const sm = summarizeGroups(entries);
-eq(sm.all.count, 9, 'عدد الكل');
-eq(PAYROLL_GROUPS.filter((g) => g.key !== 'all').reduce((n, g) => n + sm[g.key].count, 0), 9, 'مجموع المجموعات = الكل (لا يسقط ولا يتكرر أحد)');
+const sm = summarizeGroups([...entries, E('w', 'سوريا', 177, { employee_id: WA }), E('a', '', 402, { employee_id: AM })]);
+eq(sm.all.count, 11, 'عدد الكل');
+eq(PAYROLL_GROUPS.filter((g) => g.key !== 'all').reduce((n, g) => n + sm[g.key].count, 0), 11, 'مجموع المجموعات = الكل (لا يسقط ولا يتكرر أحد)');
 eq(PAYROLL_GROUPS.filter((g) => g.key !== 'all').reduce((n, g) => n + (sm[g.key].totals.USD || 0), 0).toFixed(2), sm.all.totals.USD.toFixed(2), 'مجموع صافي المجموعات = إجمالي الكل');
-eq(sm.syria.totals.USD, 155.5, 'صافي سوريا (100 + 50.5 + 5)');
+eq(sm.syria.totals.USD, 155.5, 'صافي سوريا (100 + 50.5 + 5) بدون وسيم');
 eq(sm.syria.count, 3, 'عدد سوريا');
+eq(sm.admin.count, 2, 'عدد الإدارة');
+eq(sm.admin.totals.USD, 579, 'صافي الإدارة');
 
 // عملتان
 const mixed = [E('a', 'تركيا', 10, { currency: 'TRY' }), E('b', 'تركيا', 20, { currency: 'USD' })];
