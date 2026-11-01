@@ -14,7 +14,8 @@ let pass = 0; let fail = 0;
 const ok = (c, m) => { if (c) pass += 1; else { fail += 1; console.error('FAIL', m); } };
 
 let PGlite = null; try { ({ PGlite } = await import('@electric-sql/pglite')); } catch { /* not installed */ }
-if (!PGlite) { console.log('⚠️ PGlite غير مثبت — تُخطّى اختبار SQL (npm i --no-save @electric-sql/pglite)'); process.exit(0); }
+// In CI a skip must not look like a pass: the workflow installs PGlite, so its absence there is a failure.
+if (!PGlite) { console.log('⚠️ PGlite غير مثبت — تُخطّى اختبار SQL (npm i --no-save @electric-sql/pglite)'); process.exit(process.env.CI ? 1 : 0); }
 
 ok(FINANCE_CONFIRMED_AFFECTS_PAYROLL === true, 'SQL uses p_use_finance_confirmations=true — must match the JS constant (change both together)');
 

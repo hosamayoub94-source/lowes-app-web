@@ -44,6 +44,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      # The SQL lock tests run on an in-memory Postgres; without this they skip themselves (D-181).
+      - name: Install PGlite for SQL tests (not an app dependency)
+        run: npm i --no-save @electric-sql/pglite@0.5.9
+
       # The repository currently has pre-existing lint debt across unrelated
       # screens (13 errors / 227 warnings). Gate this change on the files it
       # touches; keep whole-app lint cleanup in its own reviewed workstream.
