@@ -641,8 +641,8 @@ export function PayrollDashboard() {
                     </ActionBtn>
                   )}
                   {entries.length > 0 && (
-                    <ActionBtn onClick={() => printRunReport(entries, run)} variant="blue">
-                      🖨️ طباعة التقرير
+                    <ActionBtn onClick={() => printRunReport(entries, run, { onlyGroup: groupTab })} variant="blue">
+                      🖨️ {groupTab === 'all' ? 'طباعة التقرير' : 'طباعة هذا القسم'}
                     </ActionBtn>
                   )}
                   {entries.length > 0 && (
